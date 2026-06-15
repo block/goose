@@ -1,19 +1,19 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::images::ImageFormat;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
-};
-use super::errors::ProviderError;
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
 use super::openai_compatible::{map_http_error_to_provider_error, sanitize_url};
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat, RequestLog};
+use super::utils::{get_model, RequestLog};
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
+use goose_providers::errors::ProviderError;
 
 use crate::model::ModelConfig;
 use futures::future::BoxFuture;

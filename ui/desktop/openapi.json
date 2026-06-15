@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.36.0"
+    "version": "1.38.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -40,6 +40,45 @@
           },
           "401": {
             "description": "Unauthorized - invalid secret key"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/add_extension": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "agent_add_extension",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddExtensionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extension added",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
+          },
+          "424": {
+            "description": "Agent not initialized"
           },
           "500": {
             "description": "Internal server error"
@@ -319,6 +358,45 @@
           },
           "404": {
             "description": "Resource not found"
+          },
+          "424": {
+            "description": "Agent not initialized"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/agent/remove_extension": {
+      "post": {
+        "tags": [
+          "super::routes::agent"
+        ],
+        "operationId": "agent_remove_extension",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RemoveExtensionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extension removed",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized - invalid secret key"
           },
           "424": {
             "description": "Agent not initialized"
@@ -899,6 +977,102 @@
         }
       }
     },
+    "/config/extensions": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "get_extensions",
+        "responses": {
+          "200": {
+            "description": "All extensions retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExtensionResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "add_extension",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExtensionQuery"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Extension added or updated successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request"
+          },
+          "422": {
+            "description": "Could not serialize config.yaml"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/extensions/{name}": {
+      "delete": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "remove_extension",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Extension removed successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Extension not found"
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
     "/config/permissions": {
       "post": {
         "tags": [
@@ -1134,6 +1308,66 @@
           },
           "404": {
             "description": "Provider not found in catalog"
+          }
+        }
+      }
+    },
+    "/config/provider-secrets": {
+      "get": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "list_provider_secrets",
+        "responses": {
+          "200": {
+            "description": "Provider secrets retrieved successfully",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProviderSecretsResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          }
+        }
+      }
+    },
+    "/config/provider-secrets/{id}": {
+      "delete": {
+        "tags": [
+          "super::routes::config_management"
+        ],
+        "operationId": "delete_provider_secret",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "description": "Provider secret identifier",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Provider secret deleted successfully",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid provider secret identifier"
+          },
+          "500": {
+            "description": "Internal server error"
           }
         }
       }
@@ -2969,81 +3203,6 @@
         }
       }
     },
-    "/sessions": {
-      "get": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "list_sessions",
-        "responses": {
-          "200": {
-            "description": "List of available sessions retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/sessions/import": {
-      "post": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "import_session",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ImportSessionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session imported successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Session"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid JSON"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/import/nostr": {
       "post": {
         "tags": [
@@ -3076,116 +3235,6 @@
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/sessions/insights": {
-      "get": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "get_session_insights",
-        "responses": {
-          "200": {
-            "description": "Session insights retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionInsights"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/sessions/search": {
-      "get": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "search_sessions",
-        "parameters": [
-          {
-            "name": "query",
-            "in": "query",
-            "description": "Search query string",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Maximum results (default: 10, max: 50)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "nullable": true,
-              "minimum": 0
-            }
-          },
-          {
-            "name": "after_date",
-            "in": "query",
-            "description": "Filter after date (ISO 8601)",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          },
-          {
-            "name": "before_date",
-            "in": "query",
-            "description": "Filter before date (ISO 8601)",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Matching sessions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Session"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid query"
-          },
-          "401": {
-            "description": "Unauthorized"
           },
           "500": {
             "description": "Internal server error"
@@ -3362,50 +3411,14 @@
             "api_key": []
           }
         ]
-      },
-      "delete": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "delete_session",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Session deleted successfully"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
       }
     },
-    "/sessions/{session_id}/export": {
+    "/sessions/{session_id}/extensions": {
       "get": {
         "tags": [
           "Session Management"
         ],
-        "operationId": "export_session",
+        "operationId": "get_session_extensions",
         "parameters": [
           {
             "name": "session_id",
@@ -3419,11 +3432,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Session exported successfully",
+            "description": "Session extensions retrieved successfully",
             "content": {
-              "text/plain": {
+              "application/json": {
                 "schema": {
-                  "type": "string"
+                  "$ref": "#/components/schemas/SessionExtensionsResponse"
                 }
               }
             }
@@ -3905,6 +3918,9 @@
               "actionType"
             ],
             "properties": {
+              "action": {
+                "type": "string"
+              },
               "actionType": {
                 "type": "string",
                 "enum": [
@@ -3920,6 +3936,21 @@
         ],
         "discriminator": {
           "propertyName": "actionType"
+        }
+      },
+      "AddExtensionRequest": {
+        "type": "object",
+        "required": [
+          "session_id",
+          "config"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/ExtensionConfig"
+          },
+          "session_id": {
+            "type": "string"
+          }
         }
       },
       "Annotations": {
@@ -5271,6 +5302,45 @@
           }
         }
       },
+      "ExtensionQuery": {
+        "type": "object",
+        "required": [
+          "name",
+          "config",
+          "enabled"
+        ],
+        "properties": {
+          "config": {
+            "$ref": "#/components/schemas/ExtensionConfig"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "ExtensionResponse": {
+        "type": "object",
+        "required": [
+          "extensions"
+        ],
+        "properties": {
+          "extensions": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ExtensionEntry"
+            }
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
       "FeaturesResponse": {
         "type": "object",
         "required": [
@@ -5591,17 +5661,6 @@
         ],
         "properties": {
           "deeplink": {
-            "type": "string"
-          }
-        }
-      },
-      "ImportSessionRequest": {
-        "type": "object",
-        "required": [
-          "json"
-        ],
-        "properties": {
-          "json": {
             "type": "string"
           }
         }
@@ -6237,6 +6296,10 @@
               }
             ],
             "nullable": true
+          },
+          "steer": {
+            "type": "boolean",
+            "description": "Whether this message is a steer injected into an active run. UI-only:\nsurfaced as `_meta.goose.steer` so clients can mark the steer boundary\nwithout matching user-visible text. Never sent to providers."
           },
           "userVisible": {
             "type": "boolean",
@@ -6881,6 +6944,91 @@
           }
         }
       },
+      "ProviderSecret": {
+        "type": "object",
+        "required": [
+          "id",
+          "provider",
+          "provider_display_name",
+          "name",
+          "storage",
+          "status",
+          "configured",
+          "has_secret",
+          "can_delete",
+          "can_configure"
+        ],
+        "properties": {
+          "can_configure": {
+            "type": "boolean"
+          },
+          "can_delete": {
+            "type": "boolean"
+          },
+          "configure_provider": {
+            "type": "string",
+            "nullable": true
+          },
+          "configured": {
+            "type": "boolean"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "has_secret": {
+            "type": "boolean"
+          },
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "provider_display_name": {
+            "type": "string"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ProviderSecretStatus"
+          },
+          "storage": {
+            "$ref": "#/components/schemas/ProviderSecretStorage"
+          }
+        }
+      },
+      "ProviderSecretStatus": {
+        "type": "string",
+        "enum": [
+          "valid",
+          "expired",
+          "unknown"
+        ]
+      },
+      "ProviderSecretStorage": {
+        "type": "string",
+        "enum": [
+          "secret_store",
+          "provider_cache"
+        ]
+      },
+      "ProviderSecretsResponse": {
+        "type": "object",
+        "required": [
+          "secrets"
+        ],
+        "properties": {
+          "secrets": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ProviderSecret"
+            }
+          }
+        }
+      },
       "ProviderTemplate": {
         "type": "object",
         "required": [
@@ -7290,6 +7438,21 @@
         ],
         "properties": {
           "data": {
+            "type": "string"
+          }
+        }
+      },
+      "RemoveExtensionRequest": {
+        "type": "object",
+        "required": [
+          "name",
+          "session_id"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "session_id": {
             "type": "string"
           }
         }
@@ -7819,6 +7982,10 @@
             "format": "int32",
             "nullable": true
           },
+          "last_message_snippet": {
+            "type": "string",
+            "nullable": true
+          },
           "message_count": {
             "type": "integer",
             "minimum": 0
@@ -7948,35 +8115,17 @@
           }
         }
       },
-      "SessionInsights": {
+      "SessionExtensionsResponse": {
         "type": "object",
         "required": [
-          "totalSessions",
-          "totalTokens"
+          "extensions"
         ],
         "properties": {
-          "totalSessions": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "totalTokens": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
-      "SessionListResponse": {
-        "type": "object",
-        "required": [
-          "sessions"
-        ],
-        "properties": {
-          "sessions": {
+          "extensions": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/Session"
-            },
-            "description": "List of available session information objects"
+              "$ref": "#/components/schemas/ExtensionConfig"
+            }
           }
         }
       },

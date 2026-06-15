@@ -1,6 +1,6 @@
 {
   "name": "@aaif/goose-sdk",
-  "version": "0.20.1",
+  "version": "0.20.2",
   "description": "Agent Client Protocol (ACP) SDK for Goose AI agent",
   "license": "Apache-2.0",
   "repository": {
@@ -37,6 +37,8 @@
     "build:native:all": "tsx scripts/build-native.ts --all",
     "generate": "tsx generate-schema.ts",
     "lint": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.ts",
+    "typecheck:test": "tsc -p tsconfig.test.json --noEmit",
     "format": "prettier --write src/",
     "check:compat": "node scripts/check-binary-compat.mjs"
   },

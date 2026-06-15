@@ -1,0 +1,4760 @@
+{
+  "alertBox.autoCompactAt": {
+    "defaultMessage": "自動圧縮の実行タイミング"
+  },
+  "alertBox.compactNow": {
+    "defaultMessage": "今すぐ圧縮"
+  },
+  "alertBox.failedToSaveThreshold": {
+    "defaultMessage": "しきい値の保存に失敗しました: {error}"
+  },
+  "announcementModal.gotIt": {
+    "defaultMessage": "了解しました"
+  },
+  "appLayout.openNavigation": {
+    "defaultMessage": "ナビゲーションを開く"
+  },
+  "appsView.customApp": {
+    "defaultMessage": "カスタムアプリ"
+  },
+  "appsView.description": {
+    "defaultMessage": "MCPサーバーのアプリケーションと、goose自身が作成したアプリです。チャット画面で新しいアプリの作成を依頼すると、ここに表示されます。"
+  },
+  "appsView.errorLoading": {
+    "defaultMessage": "アプリの読み込みエラー: {error}"
+  },
+  "appsView.importApp": {
+    "defaultMessage": "アプリをインポート"
+  },
+  "appsView.launch": {
+    "defaultMessage": "起動"
+  },
+  "appsView.loading": {
+    "defaultMessage": "アプリを読み込み中..."
+  },
+  "appsView.noAppsDescription": {
+    "defaultMessage": "チャットを開き、欲しいアプリをgooseに依頼してください。gooseが作成したアプリがここに表示されます。誰かから共有されたアプリがある場合は、上のボタンでインポートできます。"
+  },
+  "appsView.noAppsTitle": {
+    "defaultMessage": "利用可能なアプリはありません"
+  },
+  "appsView.retry": {
+    "defaultMessage": "再試行"
+  },
+  "appsView.title": {
+    "defaultMessage": "アプリ"
+  },
+  "authSettings.activeProviderWarning": {
+    "defaultMessage": "これは現在使用中のプロバイダーです。別の認証情報を設定するまで、新しいリクエストが失敗する可能性があります。"
+  },
+  "authSettings.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "authSettings.delete": {
+    "defaultMessage": "削除"
+  },
+  "authSettings.deleteCredential": {
+    "defaultMessage": "認証情報を削除"
+  },
+  "authSettings.deleteMessage": {
+    "defaultMessage": "{provider} の {name} 認証情報を削除しますか？"
+  },
+  "authSettings.deleteTitle": {
+    "defaultMessage": "認証情報を削除"
+  },
+  "authSettings.deleted": {
+    "defaultMessage": "認証情報を削除しました"
+  },
+  "authSettings.description": {
+    "defaultMessage": "gooseがローカルに保存したプロバイダー認証情報を管理します。"
+  },
+  "authSettings.empty": {
+    "defaultMessage": "ローカルに保存されたプロバイダー認証情報は見つかりませんでした。"
+  },
+  "authSettings.expiresAt": {
+    "defaultMessage": "有効期限: {date}"
+  },
+  "authSettings.failedToConfigure": {
+    "defaultMessage": "認証情報の設定に失敗しました: {error}"
+  },
+  "authSettings.failedToDelete": {
+    "defaultMessage": "認証情報の削除に失敗しました: {error}"
+  },
+  "authSettings.failedToLoad": {
+    "defaultMessage": "プロバイダー認証情報の読み込みに失敗しました"
+  },
+  "authSettings.loading": {
+    "defaultMessage": "認証情報を読み込み中..."
+  },
+  "authSettings.reauthorize": {
+    "defaultMessage": "再認証"
+  },
+  "authSettings.signIn": {
+    "defaultMessage": "サインイン"
+  },
+  "authSettings.signedIn": {
+    "defaultMessage": "認証情報を設定しました"
+  },
+  "authSettings.storageProviderCache": {
+    "defaultMessage": "プロバイダーキャッシュ"
+  },
+  "authSettings.storageSecretStore": {
+    "defaultMessage": "シークレットストア"
+  },
+  "authSettings.title": {
+    "defaultMessage": "プロバイダー認証情報"
+  },
+  "backButton.back": {
+    "defaultMessage": "戻る"
+  },
+  "baseChat.failedToLoadSession": {
+    "defaultMessage": "セッションの読み込みに失敗しました"
+  },
+  "baseChat.goHome": {
+    "defaultMessage": "ホームへ"
+  },
+  "baseChat.noSession": {
+    "defaultMessage": "セッションなし"
+  },
+  "baseChat.recipeCreatedMessage": {
+    "defaultMessage": "\"{title}\" を保存しました。使用できます。"
+  },
+  "baseChat.recipeCreatedTitle": {
+    "defaultMessage": "レシピを作成しました！"
+  },
+  "bottomMenuExtensionSelection.extensionToggleError": {
+    "defaultMessage": "拡張機能の切り替えエラー"
+  },
+  "bottomMenuExtensionSelection.extensionUpdated": {
+    "defaultMessage": "拡張機能を更新しました"
+  },
+  "bottomMenuExtensionSelection.extensionWillBeDisabled": {
+    "defaultMessage": "{name} は新しいチャットで無効になります"
+  },
+  "bottomMenuExtensionSelection.extensionWillBeEnabled": {
+    "defaultMessage": "{name} は新しいチャットで有効になります"
+  },
+  "bottomMenuExtensionSelection.extensionsForNewChats": {
+    "defaultMessage": "新しいチャットの拡張機能"
+  },
+  "bottomMenuExtensionSelection.extensionsForThisSession": {
+    "defaultMessage": "このチャットセッションの拡張機能"
+  },
+  "bottomMenuExtensionSelection.manageExtensions": {
+    "defaultMessage": "拡張機能を管理"
+  },
+  "bottomMenuExtensionSelection.noActiveSession": {
+    "defaultMessage": "アクティブなセッションが見つかりません。先にチャットセッションを開始してください。"
+  },
+  "bottomMenuExtensionSelection.noExtensionsAvailable": {
+    "defaultMessage": "利用可能な拡張機能はありません"
+  },
+  "bottomMenuExtensionSelection.noExtensionsFound": {
+    "defaultMessage": "拡張機能が見つかりません"
+  },
+  "bottomMenuExtensionSelection.searchExtensions": {
+    "defaultMessage": "拡張機能を検索..."
+  },
+  "cardButtons.configure": {
+    "defaultMessage": "設定"
+  },
+  "cardButtons.launch": {
+    "defaultMessage": "起動"
+  },
+  "chat.notification.taskComplete.body": {
+    "defaultMessage": "クリックしてGooseにフォーカスを戻します。"
+  },
+  "chat.notification.taskComplete.title": {
+    "defaultMessage": "Gooseがタスクを完了しました。"
+  },
+  "chatInput.contextWindow": {
+    "defaultMessage": "コンテキストウィンドウ"
+  },
+  "chatInput.createRecipeFromSession": {
+    "defaultMessage": "セッションからレシピを作成"
+  },
+  "chatInput.dictationError": {
+    "defaultMessage": "音声入力エラー"
+  },
+  "chatInput.failedToReadImage": {
+    "defaultMessage": "画像ファイルの読み込みに失敗しました"
+  },
+  "chatInput.navigationShortcut": {
+    "defaultMessage": "{prefix}↑/{prefix}↓でメッセージを移動"
+  },
+  "chatInput.processingDroppedFiles": {
+    "defaultMessage": "ドロップしたファイルを処理中..."
+  },
+  "chatInput.recording": {
+    "defaultMessage": "録音中..."
+  },
+  "chatInput.removeFile": {
+    "defaultMessage": "ファイルを削除"
+  },
+  "chatInput.removeImage": {
+    "defaultMessage": "画像を削除"
+  },
+  "chatInput.restartingSession": {
+    "defaultMessage": "セッションを再起動中..."
+  },
+  "chatInput.send": {
+    "defaultMessage": "送信"
+  },
+  "chatInput.tooManyTools": {
+    "defaultMessage": "ツールが多すぎるとパフォーマンスが低下する可能性があります。ツール数: {toolCount}（推奨: {recommended}）"
+  },
+  "chatInput.transcribing": {
+    "defaultMessage": "文字起こし中..."
+  },
+  "chatInput.typeMessage": {
+    "defaultMessage": "送信するメッセージを入力"
+  },
+  "chatInput.unknownType": {
+    "defaultMessage": "不明なタイプ"
+  },
+  "chatInput.viewEditRecipe": {
+    "defaultMessage": "レシピを表示/編集"
+  },
+  "chatInput.viewExtensions": {
+    "defaultMessage": "拡張機能を表示"
+  },
+  "chatInput.waitingForImages": {
+    "defaultMessage": "画像の保存を待機中..."
+  },
+  "chatSettings.modeDescription": {
+    "defaultMessage": "Gooseがツールや拡張機能とどのようにやり取りするかを設定します"
+  },
+  "chatSettings.modeTitle": {
+    "defaultMessage": "モード"
+  },
+  "chatSettings.responseStylesDescription": {
+    "defaultMessage": "Gooseの回答の形式とスタイルを選択します"
+  },
+  "chatSettings.responseStylesTitle": {
+    "defaultMessage": "回答スタイル"
+  },
+  "configSettings.configReset": {
+    "defaultMessage": "設定をリセットしました"
+  },
+  "configSettings.configResetMsg": {
+    "defaultMessage": "すべての変更を元に戻しました"
+  },
+  "configSettings.configUpdated": {
+    "defaultMessage": "設定を更新しました"
+  },
+  "configSettings.configUpdatedMsg": {
+    "defaultMessage": "\"{name}\" を保存しました"
+  },
+  "configSettings.configurationEditor": {
+    "defaultMessage": "設定エディター"
+  },
+  "configSettings.description": {
+    "defaultMessage": "gooseの設定を編集します"
+  },
+  "configSettings.descriptionWithProvider": {
+    "defaultMessage": "gooseの設定を編集します（{provider} の現在の設定）"
+  },
+  "configSettings.done": {
+    "defaultMessage": "完了"
+  },
+  "configSettings.editConfiguration": {
+    "defaultMessage": "設定を編集"
+  },
+  "configSettings.enterValue": {
+    "defaultMessage": "{name} を入力"
+  },
+  "configSettings.noSettings": {
+    "defaultMessage": "設定項目が見つかりません。"
+  },
+  "configSettings.resetChanges": {
+    "defaultMessage": "変更をリセット"
+  },
+  "configSettings.saveFailed": {
+    "defaultMessage": "保存に失敗しました"
+  },
+  "configSettings.saveFailedMsg": {
+    "defaultMessage": "\"{name}\" の保存に失敗しました"
+  },
+  "configSettings.saving": {
+    "defaultMessage": "保存中..."
+  },
+  "configSettings.title": {
+    "defaultMessage": "設定"
+  },
+  "configureApproveMode.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "configureApproveMode.description": {
+    "defaultMessage": "すべてのツールリクエストに承認を求めるか、承認が必要な操作を自動で判断するかを選択します"
+  },
+  "configureApproveMode.manualApproval": {
+    "defaultMessage": "手動承認"
+  },
+  "configureApproveMode.manualApprovalDescription": {
+    "defaultMessage": "すべてのツール、拡張機能、ファイル変更に人の承認が必要になります"
+  },
+  "configureApproveMode.save": {
+    "defaultMessage": "保存"
+  },
+  "configureApproveMode.saving": {
+    "defaultMessage": "保存中..."
+  },
+  "configureApproveMode.smartApproval": {
+    "defaultMessage": "スマート承認"
+  },
+  "configureApproveMode.smartApprovalDescription": {
+    "defaultMessage": "リスクレベルに基づき、承認が必要な操作をインテリジェントに判断します"
+  },
+  "configureApproveMode.title": {
+    "defaultMessage": "承認モードを設定"
+  },
+  "confirmationModal.defaultCancel": {
+    "defaultMessage": "いいえ"
+  },
+  "confirmationModal.defaultConfirm": {
+    "defaultMessage": "はい"
+  },
+  "confirmationModal.processing": {
+    "defaultMessage": "処理中..."
+  },
+  "conversationLimitsDropdown.conversationLimits": {
+    "defaultMessage": "会話制限"
+  },
+  "conversationLimitsDropdown.maxTurns": {
+    "defaultMessage": "最大ターン数"
+  },
+  "conversationLimitsDropdown.maxTurnsDescription": {
+    "defaultMessage": "Gooseがユーザー入力を求めるまでのエージェントの最大ターン数"
+  },
+  "costTracker.costUnavailable": {
+    "defaultMessage": "{model} のコストデータは利用できません（入力 {inputTokens} トークン、出力 {outputTokens} トークン）"
+  },
+  "costTracker.inputOutputTooltip": {
+    "defaultMessage": "入力: {inputTokens} トークン（{inputCost}） | 出力: {outputTokens} トークン（{outputCost}）"
+  },
+  "costTracker.pricingUnavailable": {
+    "defaultMessage": "{model} の料金データは利用できません"
+  },
+  "costTracker.totalSessionCost": {
+    "defaultMessage": "セッション合計コスト: {cost}"
+  },
+  "createEditRecipe.clickToGenerateDeeplink": {
+    "defaultMessage": "クリックしてディープリンクを生成"
+  },
+  "createEditRecipe.close": {
+    "defaultMessage": "閉じる"
+  },
+  "createEditRecipe.copied": {
+    "defaultMessage": "コピーしました！"
+  },
+  "createEditRecipe.copy": {
+    "defaultMessage": "コピー"
+  },
+  "createEditRecipe.copyLinkDescription": {
+    "defaultMessage": "このリンクをコピーして友人と共有するか、Chromeに直接貼り付けて開けます"
+  },
+  "createEditRecipe.createRecipeTitle": {
+    "defaultMessage": "レシピを作成"
+  },
+  "createEditRecipe.createSubtitle": {
+    "defaultMessage": "再利用可能なチャットセッション用に、エージェントの動作と機能を定義する新しいレシピを作成します。"
+  },
+  "createEditRecipe.editSubtitle": {
+    "defaultMessage": "下のレシピを編集して、新しいセッションでのエージェントの動作を変更できます。"
+  },
+  "createEditRecipe.generatingDeeplink": {
+    "defaultMessage": "ディープリンクを生成中..."
+  },
+  "createEditRecipe.learnMore": {
+    "defaultMessage": "詳しく見る"
+  },
+  "createEditRecipe.recipeSavedAndLaunchedMsg": {
+    "defaultMessage": "レシピを保存して起動しました"
+  },
+  "createEditRecipe.recipeSavedMsg": {
+    "defaultMessage": "レシピを保存しました"
+  },
+  "createEditRecipe.saveAndRunFailed": {
+    "defaultMessage": "保存と実行に失敗しました"
+  },
+  "createEditRecipe.saveAndRunFailedMsg": {
+    "defaultMessage": "レシピの保存と実行に失敗しました: {error}"
+  },
+  "createEditRecipe.saveAndRunRecipe": {
+    "defaultMessage": "レシピを保存して実行"
+  },
+  "createEditRecipe.saveFailed": {
+    "defaultMessage": "保存に失敗しました"
+  },
+  "createEditRecipe.saveFailedMsg": {
+    "defaultMessage": "レシピの保存に失敗しました: {error}"
+  },
+  "createEditRecipe.saveRecipe": {
+    "defaultMessage": "レシピを保存"
+  },
+  "createEditRecipe.saving": {
+    "defaultMessage": "保存中..."
+  },
+  "createEditRecipe.validationFailed": {
+    "defaultMessage": "検証に失敗しました"
+  },
+  "createEditRecipe.validationMsg": {
+    "defaultMessage": "必須項目をすべて入力し、JSONスキーマが有効であることを確認してください。"
+  },
+  "createEditRecipe.viewEditRecipeTitle": {
+    "defaultMessage": "レシピを表示/編集"
+  },
+  "createRecipeFromSession.analyzingTitle": {
+    "defaultMessage": "会話を分析中"
+  },
+  "createRecipeFromSession.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "createRecipeFromSession.createAndRunRecipe": {
+    "defaultMessage": "レシピを作成して実行"
+  },
+  "createRecipeFromSession.createRecipe": {
+    "defaultMessage": "レシピを作成"
+  },
+  "createRecipeFromSession.creating": {
+    "defaultMessage": "作成中..."
+  },
+  "createRecipeFromSession.extractingInsights": {
+    "defaultMessage": "チャットからインサイトを抽出中"
+  },
+  "createRecipeFromSession.failedToCreateDefaultMsg": {
+    "defaultMessage": "レシピの作成中に予期しないエラーが発生しました。もう一度お試しください。"
+  },
+  "createRecipeFromSession.failedToCreateTitle": {
+    "defaultMessage": "レシピの作成に失敗しました"
+  },
+  "createRecipeFromSession.stageComplete": {
+    "defaultMessage": "完了！"
+  },
+  "createRecipeFromSession.stageExtracting": {
+    "defaultMessage": "主要トピックを抽出中..."
+  },
+  "createRecipeFromSession.stageFinalizing": {
+    "defaultMessage": "詳細を仕上げ中..."
+  },
+  "createRecipeFromSession.stageGenerating": {
+    "defaultMessage": "レシピ構造を生成中..."
+  },
+  "createRecipeFromSession.stageIdentifying": {
+    "defaultMessage": "主要なパターンを特定中..."
+  },
+  "createRecipeFromSession.stageReading": {
+    "defaultMessage": "会話を読み込み中..."
+  },
+  "createRecipeFromSession.subtitle": {
+    "defaultMessage": "現在の会話に基づいて、再利用可能なレシピを作成します。"
+  },
+  "createRecipeFromSession.title": {
+    "defaultMessage": "セッションからレシピを作成"
+  },
+  "createSubRecipeInline.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "createSubRecipeInline.closeModal": {
+    "defaultMessage": "サブレシピ作成モーダルを閉じる"
+  },
+  "createSubRecipeInline.createAndAdd": {
+    "defaultMessage": "サブレシピを作成して追加"
+  },
+  "createSubRecipeInline.createdSuccess": {
+    "defaultMessage": "サブレシピを作成しました"
+  },
+  "createSubRecipeInline.creating": {
+    "defaultMessage": "作成中..."
+  },
+  "createSubRecipeInline.duplicateName": {
+    "defaultMessage": "名前が重複しています"
+  },
+  "createSubRecipeInline.duplicateNameMsg": {
+    "defaultMessage": "\"{name}\" という名前のサブレシピはすでに存在します。一意の名前を使用してください。"
+  },
+  "createSubRecipeInline.instructionsLabel": {
+    "defaultMessage": "指示"
+  },
+  "createSubRecipeInline.instructionsPlaceholder": {
+    "defaultMessage": "このサブレシピが呼び出されたときのAIへの指示..."
+  },
+  "createSubRecipeInline.nameHint": {
+    "defaultMessage": "ツール名の生成に使用される一意の識別子"
+  },
+  "createSubRecipeInline.nameLabel": {
+    "defaultMessage": "名前"
+  },
+  "createSubRecipeInline.namePlaceholder": {
+    "defaultMessage": "例: security_scan"
+  },
+  "createSubRecipeInline.preconfiguredValues": {
+    "defaultMessage": "事前設定値"
+  },
+  "createSubRecipeInline.preconfiguredValuesHint": {
+    "defaultMessage": "サブレシピに常に渡される任意のパラメーター値"
+  },
+  "createSubRecipeInline.recipeDescriptionLabel": {
+    "defaultMessage": "レシピの説明"
+  },
+  "createSubRecipeInline.recipeDescriptionPlaceholder": {
+    "defaultMessage": "このレシピの実行時の動作"
+  },
+  "createSubRecipeInline.recipeTitleLabel": {
+    "defaultMessage": "レシピタイトル"
+  },
+  "createSubRecipeInline.recipeTitlePlaceholder": {
+    "defaultMessage": "例: セキュリティ分析ツール"
+  },
+  "createSubRecipeInline.saveFailed": {
+    "defaultMessage": "保存に失敗しました"
+  },
+  "createSubRecipeInline.saveFailedMsg": {
+    "defaultMessage": "サブレシピの保存に失敗しました: {error}"
+  },
+  "createSubRecipeInline.sequentialHint": {
+    "defaultMessage": "（複数インスタンスを順番に実行します）"
+  },
+  "createSubRecipeInline.sequentialLabel": {
+    "defaultMessage": "繰り返し時は順次実行"
+  },
+  "createSubRecipeInline.subtitle": {
+    "defaultMessage": "メインレシピで呼び出し可能なツールとして使うシンプルなレシピを作成します"
+  },
+  "createSubRecipeInline.title": {
+    "defaultMessage": "新しいサブレシピを作成"
+  },
+  "createSubRecipeInline.toolDescriptionLabel": {
+    "defaultMessage": "ツールの説明"
+  },
+  "createSubRecipeInline.toolDescriptionPlaceholder": {
+    "defaultMessage": "ツールとして呼び出されるときに表示される任意の説明"
+  },
+  "createSubRecipeInline.validationFailed": {
+    "defaultMessage": "検証に失敗しました"
+  },
+  "createSubRecipeInline.validationMsg": {
+    "defaultMessage": "名前、タイトル、レシピの説明、指示は必須です。"
+  },
+  "creditsExhaustedNotification.addCredits": {
+    "defaultMessage": "クレジットを追加"
+  },
+  "creditsExhaustedNotification.insufficientCredits": {
+    "defaultMessage": "クレジットが不足しています"
+  },
+  "cronPicker.april": {
+    "defaultMessage": "4月"
+  },
+  "cronPicker.at": {
+    "defaultMessage": "時刻"
+  },
+  "cronPicker.atMinute": {
+    "defaultMessage": "分"
+  },
+  "cronPicker.atSecond": {
+    "defaultMessage": "秒"
+  },
+  "cronPicker.august": {
+    "defaultMessage": "8月"
+  },
+  "cronPicker.cronExpression": {
+    "defaultMessage": "Cron式"
+  },
+  "cronPicker.custom": {
+    "defaultMessage": "カスタムCron"
+  },
+  "cronPicker.day": {
+    "defaultMessage": "日"
+  },
+  "cronPicker.december": {
+    "defaultMessage": "12月"
+  },
+  "cronPicker.emptyCronError": {
+    "defaultMessage": "Cron式は空にできません"
+  },
+  "cronPicker.every": {
+    "defaultMessage": "毎"
+  },
+  "cronPicker.february": {
+    "defaultMessage": "2月"
+  },
+  "cronPicker.friday": {
+    "defaultMessage": "金曜日"
+  },
+  "cronPicker.hour": {
+    "defaultMessage": "時間"
+  },
+  "cronPicker.inMonth": {
+    "defaultMessage": "月"
+  },
+  "cronPicker.invalidDayOfMonth": {
+    "defaultMessage": "日は1〜{max}の範囲で指定してください"
+  },
+  "cronPicker.january": {
+    "defaultMessage": "1月"
+  },
+  "cronPicker.july": {
+    "defaultMessage": "7月"
+  },
+  "cronPicker.june": {
+    "defaultMessage": "6月"
+  },
+  "cronPicker.march": {
+    "defaultMessage": "3月"
+  },
+  "cronPicker.may": {
+    "defaultMessage": "5月"
+  },
+  "cronPicker.minute": {
+    "defaultMessage": "分"
+  },
+  "cronPicker.mode": {
+    "defaultMessage": "モード"
+  },
+  "cronPicker.monday": {
+    "defaultMessage": "月曜日"
+  },
+  "cronPicker.month": {
+    "defaultMessage": "月"
+  },
+  "cronPicker.november": {
+    "defaultMessage": "11月"
+  },
+  "cronPicker.october": {
+    "defaultMessage": "10月"
+  },
+  "cronPicker.on": {
+    "defaultMessage": "指定"
+  },
+  "cronPicker.onDay": {
+    "defaultMessage": "日付"
+  },
+  "cronPicker.quarter": {
+    "defaultMessage": "四半期"
+  },
+  "cronPicker.saturday": {
+    "defaultMessage": "土曜日"
+  },
+  "cronPicker.september": {
+    "defaultMessage": "9月"
+  },
+  "cronPicker.startingMonth": {
+    "defaultMessage": "開始月"
+  },
+  "cronPicker.sunday": {
+    "defaultMessage": "日曜日"
+  },
+  "cronPicker.thursday": {
+    "defaultMessage": "木曜日"
+  },
+  "cronPicker.tuesday": {
+    "defaultMessage": "火曜日"
+  },
+  "cronPicker.wednesday": {
+    "defaultMessage": "水曜日"
+  },
+  "cronPicker.week": {
+    "defaultMessage": "週"
+  },
+  "cronPicker.year": {
+    "defaultMessage": "年"
+  },
+  "customProviderForm.add": {
+    "defaultMessage": "追加"
+  },
+  "customProviderForm.anthropicCompatible": {
+    "defaultMessage": "Anthropic互換"
+  },
+  "customProviderForm.apiBasePath": {
+    "defaultMessage": "APIベースパス（任意）"
+  },
+  "customProviderForm.apiBasePathHint": {
+    "defaultMessage": "デフォルトのAPIパスを上書きします。プロバイダーのデフォルトパスを使う場合は空欄にしてください。"
+  },
+  "customProviderForm.apiBasePathPlaceholder": {
+    "defaultMessage": "例: v1/chat/completions または project_id/v1"
+  },
+  "customProviderForm.apiKey": {
+    "defaultMessage": "APIキー"
+  },
+  "customProviderForm.apiKeyPlaceholderExisting": {
+    "defaultMessage": "既存のキーを保持する場合は空欄"
+  },
+  "customProviderForm.apiKeyPlaceholderNew": {
+    "defaultMessage": "あなたのAPIキー"
+  },
+  "customProviderForm.apiKeyRequired": {
+    "defaultMessage": "APIキーは必須です"
+  },
+  "customProviderForm.apiUrl": {
+    "defaultMessage": "API URL"
+  },
+  "customProviderForm.apiUrlPlaceholder": {
+    "defaultMessage": "https://api.example.com"
+  },
+  "customProviderForm.apiUrlRequired": {
+    "defaultMessage": "API URLは必須です"
+  },
+  "customProviderForm.attachments": {
+    "defaultMessage": "添付ファイル"
+  },
+  "customProviderForm.authHint": {
+    "defaultMessage": "OllamaのようなローカルLLMは通常APIキーを必要としません。"
+  },
+  "customProviderForm.authentication": {
+    "defaultMessage": "認証"
+  },
+  "customProviderForm.availableModels": {
+    "defaultMessage": "利用可能なモデル（カンマ区切り）"
+  },
+  "customProviderForm.back": {
+    "defaultMessage": "← 戻る"
+  },
+  "customProviderForm.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "customProviderForm.cannotDeleteActive": {
+    "defaultMessage": "このプロバイダーは現在使用中のため削除できません。先に別のモデルに切り替えてください。"
+  },
+  "customProviderForm.chooseSetup": {
+    "defaultMessage": "プロバイダーの設定方法を選択してください。"
+  },
+  "customProviderForm.clear": {
+    "defaultMessage": "クリア"
+  },
+  "customProviderForm.configureManually": {
+    "defaultMessage": "手動で設定"
+  },
+  "customProviderForm.configureManuallyDesc": {
+    "defaultMessage": "プロバイダーの詳細を自分で入力します"
+  },
+  "customProviderForm.confirmDelete": {
+    "defaultMessage": "削除の確認"
+  },
+  "customProviderForm.createProvider": {
+    "defaultMessage": "プロバイダーを作成"
+  },
+  "customProviderForm.customHeaders": {
+    "defaultMessage": "カスタムヘッダー"
+  },
+  "customProviderForm.customHeadersHint": {
+    "defaultMessage": "プロバイダーへのリクエストに含めるカスタムHTTPヘッダーを追加します。両方のフィールドを入力後、「+」ボタンをクリックして追加してください。"
+  },
+  "customProviderForm.deleteConfirmation": {
+    "defaultMessage": "このカスタムプロバイダーを削除してもよろしいですか？プロバイダーと保存されたAPIキーが完全に削除されます。この操作は元に戻せません。"
+  },
+  "customProviderForm.deleteProvider": {
+    "defaultMessage": "プロバイダーを削除"
+  },
+  "customProviderForm.displayName": {
+    "defaultMessage": "表示名"
+  },
+  "customProviderForm.displayNamePlaceholder": {
+    "defaultMessage": "プロバイダー名"
+  },
+  "customProviderForm.displayNameRequired": {
+    "defaultMessage": "表示名は必須です"
+  },
+  "customProviderForm.docs": {
+    "defaultMessage": "ドキュメント"
+  },
+  "customProviderForm.headerBothRequired": {
+    "defaultMessage": "ヘッダー名と値の両方を入力してください"
+  },
+  "customProviderForm.headerDuplicate": {
+    "defaultMessage": "この名前のヘッダーはすでに存在します"
+  },
+  "customProviderForm.headerNamePlaceholder": {
+    "defaultMessage": "ヘッダー名"
+  },
+  "customProviderForm.headerNoSpaces": {
+    "defaultMessage": "ヘッダー名にスペースは使用できません"
+  },
+  "customProviderForm.modelsPlaceholder": {
+    "defaultMessage": "model-a, model-b, model-c"
+  },
+  "customProviderForm.modelsRequired": {
+    "defaultMessage": "少なくとも1つのモデルが必要です"
+  },
+  "customProviderForm.ollamaCompatible": {
+    "defaultMessage": "Ollama互換"
+  },
+  "customProviderForm.openaiCompatible": {
+    "defaultMessage": "OpenAI互換"
+  },
+  "customProviderForm.providerType": {
+    "defaultMessage": "プロバイダー種別"
+  },
+  "customProviderForm.reasoning": {
+    "defaultMessage": "推論"
+  },
+  "customProviderForm.requiresApiKey": {
+    "defaultMessage": "このプロバイダーにはAPIキーが必要です"
+  },
+  "customProviderForm.startFromTemplate": {
+    "defaultMessage": "プロバイダーテンプレートから始める"
+  },
+  "customProviderForm.startFromTemplateDesc": {
+    "defaultMessage": "既知のプロバイダーを選択すると、設定が自動入力されます"
+  },
+  "customProviderForm.submitError": {
+    "defaultMessage": "プロバイダーの保存に失敗しました。設定を確認してもう一度お試しください。"
+  },
+  "customProviderForm.supportsStreaming": {
+    "defaultMessage": "プロバイダーはストリーミング応答に対応しています"
+  },
+  "customProviderForm.toolCalling": {
+    "defaultMessage": "ツール呼び出し"
+  },
+  "customProviderForm.updateProvider": {
+    "defaultMessage": "プロバイダーを更新"
+  },
+  "customProviderForm.usingTemplate": {
+    "defaultMessage": "テンプレートを使用中: {name}"
+  },
+  "customProviderForm.valuePlaceholder": {
+    "defaultMessage": "値"
+  },
+  "defaultCardButtons.configureSettings": {
+    "defaultMessage": "{name}の設定を構成"
+  },
+  "defaultCardButtons.deleteSettings": {
+    "defaultMessage": "{name}の設定を削除"
+  },
+  "defaultCardButtons.editSettings": {
+    "defaultMessage": "{name}の設定を編集"
+  },
+  "defaultCardButtons.getStarted": {
+    "defaultMessage": "gooseを始めましょう！"
+  },
+  "defaultProviderSetupForm.apiHostLabel": {
+    "defaultMessage": "APIホスト"
+  },
+  "defaultProviderSetupForm.apiHostPlaceholder": {
+    "defaultMessage": "https://api.example.com"
+  },
+  "defaultProviderSetupForm.apiKeyLabel": {
+    "defaultMessage": "APIキー"
+  },
+  "defaultProviderSetupForm.apiKeyPlaceholder": {
+    "defaultMessage": "あなたのAPIキー"
+  },
+  "defaultProviderSetupForm.hideOptions": {
+    "defaultMessage": "{count}件のオプションを隠す"
+  },
+  "defaultProviderSetupForm.loadingConfig": {
+    "defaultMessage": "設定値を読み込んでいます..."
+  },
+  "defaultProviderSetupForm.modelsLabel": {
+    "defaultMessage": "モデル"
+  },
+  "defaultProviderSetupForm.modelsPlaceholder": {
+    "defaultMessage": "model-a, model-b"
+  },
+  "defaultProviderSetupForm.noConfigParameters": {
+    "defaultMessage": "このプロバイダーには設定項目がありません。"
+  },
+  "defaultProviderSetupForm.showOptions": {
+    "defaultMessage": "{count}件のオプションを表示"
+  },
+  "diagnosticsModal.attachHint": {
+    "defaultMessage": "バグ報告時は、診断レポートの添付もご検討ください。"
+  },
+  "diagnosticsModal.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "diagnosticsModal.configSettings": {
+    "defaultMessage": "構成設定"
+  },
+  "diagnosticsModal.description": {
+    "defaultMessage": "診断用のzipファイルをダウンロードしてチームに共有するか、システム詳細を事前入力した状態でGitHubに直接バグを報告できます。診断レポートには以下が含まれます:"
+  },
+  "diagnosticsModal.diagnosticsErrorMsg": {
+    "defaultMessage": "診断情報のダウンロードに失敗しました"
+  },
+  "diagnosticsModal.diagnosticsErrorTitle": {
+    "defaultMessage": "診断エラー"
+  },
+  "diagnosticsModal.download": {
+    "defaultMessage": "ダウンロード"
+  },
+  "diagnosticsModal.downloading": {
+    "defaultMessage": "ダウンロード中..."
+  },
+  "diagnosticsModal.fileBug": {
+    "defaultMessage": "GitHubでバグを報告"
+  },
+  "diagnosticsModal.logFiles": {
+    "defaultMessage": "最近のログファイル"
+  },
+  "diagnosticsModal.opening": {
+    "defaultMessage": "開いています..."
+  },
+  "diagnosticsModal.reportProblem": {
+    "defaultMessage": "問題を報告"
+  },
+  "diagnosticsModal.sensitiveWarning": {
+    "defaultMessage": "セッションに機密情報が含まれる場合は、診断ファイルを公開しないでください。"
+  },
+  "diagnosticsModal.sessionMessages": {
+    "defaultMessage": "現在のセッションメッセージ"
+  },
+  "diagnosticsModal.systemInfo": {
+    "defaultMessage": "基本システム情報"
+  },
+  "diagnosticsModal.systemInfoErrorMsg": {
+    "defaultMessage": "システム情報の取得に失敗しました"
+  },
+  "diagnosticsModal.systemInfoErrorTitle": {
+    "defaultMessage": "エラー"
+  },
+  "dialog.close": {
+    "defaultMessage": "閉じる"
+  },
+  "dictationSettings.addApiKey": {
+    "defaultMessage": "APIキーを追加"
+  },
+  "dictationSettings.apiKey": {
+    "defaultMessage": "APIキー"
+  },
+  "dictationSettings.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "dictationSettings.chooseVoiceConversion": {
+    "defaultMessage": "音声をテキストに変換する方法を選択"
+  },
+  "dictationSettings.configureApiKey": {
+    "defaultMessage": "APIキーは <b>{settingsPath}</b> で設定してください"
+  },
+  "dictationSettings.configured": {
+    "defaultMessage": "（設定済み）"
+  },
+  "dictationSettings.configuredIn": {
+    "defaultMessage": "✓ {settingsPath} で設定済み"
+  },
+  "dictationSettings.disabled": {
+    "defaultMessage": "無効"
+  },
+  "dictationSettings.enterApiKey": {
+    "defaultMessage": "APIキーを入力"
+  },
+  "dictationSettings.notConfigured": {
+    "defaultMessage": "（未設定）"
+  },
+  "dictationSettings.removeApiKey": {
+    "defaultMessage": "APIキーを削除"
+  },
+  "dictationSettings.requiredForTranscription": {
+    "defaultMessage": "文字起こしに必要"
+  },
+  "dictationSettings.save": {
+    "defaultMessage": "保存"
+  },
+  "dictationSettings.updateApiKey": {
+    "defaultMessage": "APIキーを更新"
+  },
+  "dictationSettings.voiceDictationProvider": {
+    "defaultMessage": "音声入力プロバイダー"
+  },
+  "dirSwitcher.chooseDirectory": {
+    "defaultMessage": "ディレクトリを選択…"
+  },
+  "dirSwitcher.currentDirectory": {
+    "defaultMessage": "現在のディレクトリ"
+  },
+  "dirSwitcher.failedToUpdateWorkingDir": {
+    "defaultMessage": "作業ディレクトリの更新に失敗しました"
+  },
+  "dirSwitcher.gitWorktrees": {
+    "defaultMessage": "Git worktree"
+  },
+  "dirSwitcher.noWorktreesFound": {
+    "defaultMessage": "worktreeが見つかりません"
+  },
+  "dirSwitcher.openInFinder": {
+    "defaultMessage": "ファイルマネージャーで開く"
+  },
+  "dirSwitcher.recentDirectories": {
+    "defaultMessage": "最近のディレクトリ"
+  },
+  "elicitationRequest.accept": {
+    "defaultMessage": "承諾"
+  },
+  "elicitationRequest.cancelled": {
+    "defaultMessage": "情報リクエストはキャンセルされました。"
+  },
+  "elicitationRequest.defaultMessage": {
+    "defaultMessage": "Gooseが情報を必要としています。"
+  },
+  "elicitationRequest.expired": {
+    "defaultMessage": "このリクエストは期限切れです。拡張機能が再度確認する必要があります。"
+  },
+  "elicitationRequest.submit": {
+    "defaultMessage": "送信"
+  },
+  "elicitationRequest.submitted": {
+    "defaultMessage": "情報を送信しました"
+  },
+  "elicitationRequest.waitingForResponse": {
+    "defaultMessage": "あなたの応答を待っています（残り{timeRemaining}）"
+  },
+  "envVarsSection.add": {
+    "defaultMessage": "追加"
+  },
+  "envVarsSection.bothRequired": {
+    "defaultMessage": "変数名と値の両方を入力してください"
+  },
+  "envVarsSection.envVarsDescription": {
+    "defaultMessage": "環境変数のキーと値のペアを追加します。両方のフィールドを入力後、「+」ボタンをクリックして追加してください。既存のシークレット値を変更するには、編集ボタンをクリックしてください。"
+  },
+  "envVarsSection.environmentVariables": {
+    "defaultMessage": "環境変数"
+  },
+  "envVarsSection.noSpaces": {
+    "defaultMessage": "変数名にスペースは使用できません"
+  },
+  "envVarsSection.value": {
+    "defaultMessage": "値"
+  },
+  "envVarsSection.variableName": {
+    "defaultMessage": "変数名"
+  },
+  "environmentBadge.dev": {
+    "defaultMessage": "開発"
+  },
+  "errorBoundary.errorGeneric": {
+    "defaultMessage": "エラーが発生しました。"
+  },
+  "errorBoundary.errorWithVersion": {
+    "defaultMessage": "Goose v{version}でエラーが発生しました。"
+  },
+  "errorBoundary.heading": {
+    "defaultMessage": "ガァ！"
+  },
+  "errorBoundary.reload": {
+    "defaultMessage": "再読み込み"
+  },
+  "extensionConfigFields.commandLabel": {
+    "defaultMessage": "コマンド"
+  },
+  "extensionConfigFields.commandPlaceholder": {
+    "defaultMessage": "例: npx -y @modelcontextprotocol/my-extension [filepath]"
+  },
+  "extensionConfigFields.commandRequired": {
+    "defaultMessage": "コマンドは必須です"
+  },
+  "extensionConfigFields.endpointLabel": {
+    "defaultMessage": "エンドポイント"
+  },
+  "extensionConfigFields.endpointPlaceholder": {
+    "defaultMessage": "エンドポイントURLを入力..."
+  },
+  "extensionConfigFields.endpointRequired": {
+    "defaultMessage": "エンドポイントURLは必須です"
+  },
+  "extensionInfoFields.descriptionLabel": {
+    "defaultMessage": "説明"
+  },
+  "extensionInfoFields.descriptionPlaceholder": {
+    "defaultMessage": "任意の説明..."
+  },
+  "extensionInfoFields.extensionName": {
+    "defaultMessage": "拡張機能名"
+  },
+  "extensionInfoFields.extensionNamePlaceholder": {
+    "defaultMessage": "拡張機能名を入力..."
+  },
+  "extensionInfoFields.nameRequired": {
+    "defaultMessage": "名前は必須です"
+  },
+  "extensionInfoFields.typeHttp": {
+    "defaultMessage": "HTTP"
+  },
+  "extensionInfoFields.typeLabel": {
+    "defaultMessage": "タイプ"
+  },
+  "extensionInfoFields.typeSseUnsupported": {
+    "defaultMessage": "SSE（未対応）"
+  },
+  "extensionInfoFields.typeStandardIo": {
+    "defaultMessage": "標準入出力（STDIO）"
+  },
+  "extensionInfoFields.typeStdio": {
+    "defaultMessage": "STDIO"
+  },
+  "extensionInfoFields.typeStreamableHttp": {
+    "defaultMessage": "Streamable HTTP"
+  },
+  "extensionInstallModal.alreadyInstalledMessage": {
+    "defaultMessage": "「{name}」拡張機能はすでに正常にインストールされています。使用するには新しいチャットセッションを開始してください。"
+  },
+  "extensionInstallModal.alreadyInstalledTitle": {
+    "defaultMessage": "「{name}」拡張機能はすでにインストール済みです"
+  },
+  "extensionInstallModal.blockedMessage": {
+    "defaultMessage": "この拡張機能のコマンドは許可リストに含まれていないため、インストールがブロックされています。拡張機能: {name} コマンド: {command} この拡張機能の承認をリクエストするには管理者に連絡してください。"
+  },
+  "extensionInstallModal.blockedTitle": {
+    "defaultMessage": "拡張機能のインストールがブロックされました"
+  },
+  "extensionInstallModal.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "extensionInstallModal.installAnyway": {
+    "defaultMessage": "それでもインストール"
+  },
+  "extensionInstallModal.installing": {
+    "defaultMessage": "インストール中..."
+  },
+  "extensionInstallModal.no": {
+    "defaultMessage": "いいえ"
+  },
+  "extensionInstallModal.ok": {
+    "defaultMessage": "OK"
+  },
+  "extensionInstallModal.trustedMessage": {
+    "defaultMessage": "{name}拡張機能をインストールしてもよろしいですか？コマンド: {command}"
+  },
+  "extensionInstallModal.trustedTitle": {
+    "defaultMessage": "拡張機能のインストールを確認"
+  },
+  "extensionInstallModal.unknownCommand": {
+    "defaultMessage": "不明なコマンド"
+  },
+  "extensionInstallModal.untrustedMessageWithCommand": {
+    "defaultMessage": "{securityMessage} 拡張機能: {name} コマンド: {command} 不明な点がある場合は管理者に連絡してください。"
+  },
+  "extensionInstallModal.untrustedMessageWithUrl": {
+    "defaultMessage": "{securityMessage} 拡張機能: {name} URL: {url} 不明な点がある場合は管理者に連絡してください。"
+  },
+  "extensionInstallModal.untrustedSecurityMessage": {
+    "defaultMessage": "この拡張機能のコマンドは許可リストに含まれておらず、会話にアクセスして追加機能を提供できるようになります。信頼できないソースから拡張機能をインストールすると、セキュリティリスクが生じる可能性があります。"
+  },
+  "extensionInstallModal.untrustedTitle": {
+    "defaultMessage": "信頼できない拡張機能をインストールしますか？"
+  },
+  "extensionInstallModal.yes": {
+    "defaultMessage": "はい"
+  },
+  "extensionItem.configureExtension": {
+    "defaultMessage": "{name}拡張機能を設定"
+  },
+  "extensionItem.toggleExtension": {
+    "defaultMessage": "{name}拡張機能のオン/オフを切り替え"
+  },
+  "extensionList.availableExtensions": {
+    "defaultMessage": "利用可能な拡張機能（{count}）"
+  },
+  "extensionList.builtInExtension": {
+    "defaultMessage": "組み込み拡張機能"
+  },
+  "extensionList.defaultExtensions": {
+    "defaultMessage": "デフォルト拡張機能（{count}）"
+  },
+  "extensionList.noExtensions": {
+    "defaultMessage": "利用可能な拡張機能はありません"
+  },
+  "extensionModal.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "extensionModal.closeWithoutSaving": {
+    "defaultMessage": "保存せずに閉じる"
+  },
+  "extensionModal.confirmRemoval": {
+    "defaultMessage": "削除の確認"
+  },
+  "extensionModal.deleteDescription": {
+    "defaultMessage": "この拡張機能とそのすべての設定が完全に削除されます。"
+  },
+  "extensionModal.deleteExtensionTitle": {
+    "defaultMessage": "拡張機能「{name}」を削除"
+  },
+  "extensionModal.installationNotes": {
+    "defaultMessage": "インストールに関する注意"
+  },
+  "extensionModal.removeExtension": {
+    "defaultMessage": "拡張機能を削除"
+  },
+  "extensionModal.unsavedChangesMessage": {
+    "defaultMessage": "拡張機能の設定に未保存の変更があります。保存せずに閉じてもよろしいですか？"
+  },
+  "extensionModal.unsavedChangesTitle": {
+    "defaultMessage": "未保存の変更"
+  },
+  "extensionTimeoutField.timeoutLabel": {
+    "defaultMessage": "タイムアウト"
+  },
+  "extensionsSection.addCustomExtension": {
+    "defaultMessage": "カスタム拡張機能を追加"
+  },
+  "extensionsSection.addExtension": {
+    "defaultMessage": "拡張機能を追加"
+  },
+  "extensionsSection.browseExtensions": {
+    "defaultMessage": "拡張機能を参照"
+  },
+  "extensionsSection.saveChanges": {
+    "defaultMessage": "変更を保存"
+  },
+  "extensionsSection.updateExtension": {
+    "defaultMessage": "拡張機能を更新"
+  },
+  "extensionsView.addCustomExtension": {
+    "defaultMessage": "カスタム拡張機能を追加"
+  },
+  "extensionsView.addExtension": {
+    "defaultMessage": "拡張機能を追加"
+  },
+  "extensionsView.browseExtensions": {
+    "defaultMessage": "拡張機能を参照"
+  },
+  "extensionsView.defaultNote": {
+    "defaultMessage": "ここで有効にした拡張機能は、新しいチャットのデフォルトとして使用されます。チャット中にアクティブな拡張機能を切り替えることもできます。"
+  },
+  "extensionsView.description": {
+    "defaultMessage": "これらの拡張機能は Model Context Protocol（MCP）を使用します。Prompts、Resources、Tools の3つの主要コンポーネントで Goose の機能を拡張できます。検索するには {searchShortcut}。"
+  },
+  "extensionsView.heading": {
+    "defaultMessage": "拡張機能"
+  },
+  "extensionsView.searchPlaceholder": {
+    "defaultMessage": "拡張機能を検索..."
+  },
+  "externalBackendSection.certFingerprint": {
+    "defaultMessage": "証明書フィンガープリント（任意）"
+  },
+  "externalBackendSection.certFingerprintHelp": {
+    "defaultMessage": "特定の TLS 証明書フィンガープリントを固定します。省略した場合、証明書は初回使用時に信頼されます（TOFU）。"
+  },
+  "externalBackendSection.certFingerprintPlaceholder": {
+    "defaultMessage": "AA:BB:CC:... または sha256/base64"
+  },
+  "externalBackendSection.description": {
+    "defaultMessage": "デフォルトでは goose がサーバーを起動します。外部の goose サーバーに接続する場合に使用してください。"
+  },
+  "externalBackendSection.restartNote": {
+    "defaultMessage": "変更を有効にするには Goose の再起動が必要です。新しいチャットウィンドウは外部サーバーに接続します。"
+  },
+  "externalBackendSection.secretKey": {
+    "defaultMessage": "シークレットキー"
+  },
+  "externalBackendSection.secretKeyHelp": {
+    "defaultMessage": "goosed サーバーに設定されたシークレットキー（GOOSE_SERVER__SECRET_KEY）"
+  },
+  "externalBackendSection.secretKeyPlaceholder": {
+    "defaultMessage": "サーバーのシークレットキーを入力"
+  },
+  "externalBackendSection.serverUrl": {
+    "defaultMessage": "サーバーURL"
+  },
+  "externalBackendSection.title": {
+    "defaultMessage": "Goose Server"
+  },
+  "externalBackendSection.urlFormatError": {
+    "defaultMessage": "URL形式が無効です"
+  },
+  "externalBackendSection.urlProtocolError": {
+    "defaultMessage": "URLは http または https プロトコルを使用する必要があります"
+  },
+  "externalBackendSection.useExternalServer": {
+    "defaultMessage": "外部サーバーを使用"
+  },
+  "externalBackendSection.useExternalServerDescription": {
+    "defaultMessage": "別の場所で実行中の goose サーバーに接続します（アプリの再起動が必要）"
+  },
+  "freeOptionCards.chooseOption": {
+    "defaultMessage": "開始するオプションを選択してください。"
+  },
+  "freeOptionCards.freeAndPrivate": {
+    "defaultMessage": "無料・プライベート"
+  },
+  "freeOptionCards.localModelDescription": {
+    "defaultMessage": "モデルをダウンロードして、すべて自分のマシン上で実行します。APIキーもアカウントも不要です。"
+  },
+  "freeOptionCards.localModelTitle": {
+    "defaultMessage": "ローカルモデルを使用"
+  },
+  "freeOptionCards.nanogptDescription": {
+    "defaultMessage": "登録すると、7日間使える6,000万無料トークンを受け取れます。"
+  },
+  "freeOptionCards.nanogptTitle": {
+    "defaultMessage": "NanoGPT"
+  },
+  "freeOptionCards.retry": {
+    "defaultMessage": "再試行"
+  },
+  "freeOptionCards.tetrateDescription": {
+    "defaultMessage": "自動セットアップで複数のAIモデルにアクセスできます。登録すると10ドル分のクレジットを受け取れます。"
+  },
+  "freeOptionCards.tetrateTitle": {
+    "defaultMessage": "Agent Router by Tetrate"
+  },
+  "freeOptionCards.unexpectedError": {
+    "defaultMessage": "セットアップ中に予期しないエラーが発生しました。"
+  },
+  "gatewaySettings.botFatherInstructions": {
+    "defaultMessage": "スマートフォンで @BotFather を開き、/newbot を送信して、指示に従ってボットに名前を付けます。BotFather から API トークンが届くので、下に貼り付けてください。"
+  },
+  "gatewaySettings.close": {
+    "defaultMessage": "閉じる"
+  },
+  "gatewaySettings.expiresIn": {
+    "defaultMessage": "{time} 後に期限切れ"
+  },
+  "gatewaySettings.failedToGeneratePairingCode": {
+    "defaultMessage": "ペアリングコードの生成に失敗しました"
+  },
+  "gatewaySettings.failedToRemove": {
+    "defaultMessage": "削除に失敗しました"
+  },
+  "gatewaySettings.failedToStart": {
+    "defaultMessage": "開始に失敗しました"
+  },
+  "gatewaySettings.failedToStop": {
+    "defaultMessage": "停止に失敗しました"
+  },
+  "gatewaySettings.failedToUnpairUser": {
+    "defaultMessage": "ユーザーのペアリング解除に失敗しました"
+  },
+  "gatewaySettings.loading": {
+    "defaultMessage": "読み込み中..."
+  },
+  "gatewaySettings.pairDevice": {
+    "defaultMessage": "デバイスをペアリング"
+  },
+  "gatewaySettings.pairedUsers": {
+    "defaultMessage": "ペアリング済みユーザー"
+  },
+  "gatewaySettings.pairingCode": {
+    "defaultMessage": "ペアリングコード"
+  },
+  "gatewaySettings.pasteBotToken": {
+    "defaultMessage": "ボットトークンをここに貼り付け"
+  },
+  "gatewaySettings.remove": {
+    "defaultMessage": "削除"
+  },
+  "gatewaySettings.running": {
+    "defaultMessage": "実行中"
+  },
+  "gatewaySettings.sendCodeToPair": {
+    "defaultMessage": "ペアリングするには、このコードを {gatewayType} ボットに送信してください。"
+  },
+  "gatewaySettings.start": {
+    "defaultMessage": "開始"
+  },
+  "gatewaySettings.stop": {
+    "defaultMessage": "停止"
+  },
+  "gatewaySettings.stopped": {
+    "defaultMessage": "停止中"
+  },
+  "gatewaySettings.telegram": {
+    "defaultMessage": "Telegram"
+  },
+  "goosehintsModal.close": {
+    "defaultMessage": "閉じる"
+  },
+  "goosehintsModal.developer": {
+    "defaultMessage": "開発者"
+  },
+  "goosehintsModal.dialogDescription": {
+    "defaultMessage": "Goose とのコミュニケーションを改善するために、プロジェクトに関する追加コンテキストを提供します"
+  },
+  "goosehintsModal.dialogTitle": {
+    "defaultMessage": "プロジェクトヒントを設定（.goosehints）"
+  },
+  "goosehintsModal.errorReading": {
+    "defaultMessage": ".goosehints ファイルの読み取りエラー: {error}"
+  },
+  "goosehintsModal.failedToAccess": {
+    "defaultMessage": ".goosehints ファイルにアクセスできませんでした"
+  },
+  "goosehintsModal.failedToSave": {
+    "defaultMessage": ".goosehints ファイルの保存に失敗しました"
+  },
+  "goosehintsModal.fileCreating": {
+    "defaultMessage": "新しい .goosehints ファイルを作成しています: {filePath}"
+  },
+  "goosehintsModal.fileFound": {
+    "defaultMessage": ".goosehints ファイルが見つかりました: {filePath}"
+  },
+  "goosehintsModal.helpText1": {
+    "defaultMessage": ".goosehints は、プロジェクトに関する追加コンテキストを提供し、Goose とのコミュニケーションを改善するためのテキストファイルです。"
+  },
+  "goosehintsModal.helpText2": {
+    "defaultMessage": "拡張機能ページで {bold} 拡張機能が有効になっていることを確認してください。この拡張機能は .goosehints を使用するために必要です。.goosehints の更新を反映するにはセッションの再起動が必要です。"
+  },
+  "goosehintsModal.helpText3": {
+    "defaultMessage": "詳しくは {link} をご覧ください。"
+  },
+  "goosehintsModal.helpTextLink": {
+    "defaultMessage": ".goosehints の使い方"
+  },
+  "goosehintsModal.placeholder": {
+    "defaultMessage": "プロジェクトヒントをここに入力..."
+  },
+  "goosehintsModal.save": {
+    "defaultMessage": "保存"
+  },
+  "goosehintsModal.savedSuccessfully": {
+    "defaultMessage": "保存しました"
+  },
+  "goosehintsModal.saving": {
+    "defaultMessage": "保存中..."
+  },
+  "goosehintsSection.configure": {
+    "defaultMessage": "設定"
+  },
+  "goosehintsSection.description": {
+    "defaultMessage": "Goose に追加コンテキストを提供するために、プロジェクトの .goosehints ファイルを設定します"
+  },
+  "goosehintsSection.title": {
+    "defaultMessage": "プロジェクトヒント（.goosehints）"
+  },
+  "groupedExtensionLoadingToast.askGoose": {
+    "defaultMessage": "Gooseに聞く"
+  },
+  "groupedExtensionLoadingToast.collapseDetails": {
+    "defaultMessage": "詳細を折りたたむ"
+  },
+  "groupedExtensionLoadingToast.copied": {
+    "defaultMessage": "コピーしました！"
+  },
+  "groupedExtensionLoadingToast.copyError": {
+    "defaultMessage": "エラーをコピー"
+  },
+  "groupedExtensionLoadingToast.expandDetails": {
+    "defaultMessage": "詳細を展開"
+  },
+  "groupedExtensionLoadingToast.failedToAddExtension": {
+    "defaultMessage": "拡張機能の追加に失敗しました"
+  },
+  "groupedExtensionLoadingToast.failedToLoad": {
+    "defaultMessage": "{count,plural,one{# 個の拡張機能の読み込みに失敗しました} other{# 個の拡張機能の読み込みに失敗しました}}"
+  },
+  "groupedExtensionLoadingToast.loadingExtensions": {
+    "defaultMessage": "{count,plural,one{# 個の拡張機能を読み込み中...} other{# 個の拡張機能を読み込み中...}}"
+  },
+  "groupedExtensionLoadingToast.partiallyLoaded": {
+    "defaultMessage": "{totalCount,plural,one{{successCount}/# 個の拡張機能を読み込みました} other{{successCount}/# 個の拡張機能を読み込みました}}"
+  },
+  "groupedExtensionLoadingToast.showDetails": {
+    "defaultMessage": "詳細を表示"
+  },
+  "groupedExtensionLoadingToast.showLess": {
+    "defaultMessage": "表示を減らす"
+  },
+  "groupedExtensionLoadingToast.successfullyLoaded": {
+    "defaultMessage": "{count,plural,one{# 個の拡張機能を読み込みました} other{# 個の拡張機能を読み込みました}}"
+  },
+  "headersSection.add": {
+    "defaultMessage": "追加"
+  },
+  "headersSection.bothRequired": {
+    "defaultMessage": "ヘッダー名と値の両方を入力してください"
+  },
+  "headersSection.duplicateHeader": {
+    "defaultMessage": "この名前のヘッダーはすでに存在します"
+  },
+  "headersSection.headerName": {
+    "defaultMessage": "ヘッダー名"
+  },
+  "headersSection.headersDescription": {
+    "defaultMessage": "MCP Server へのリクエストに含めるカスタム HTTP ヘッダーを追加します。両方のフィールドに入力してから「+」ボタンをクリックして追加してください。"
+  },
+  "headersSection.noSpaces": {
+    "defaultMessage": "ヘッダー名にスペースは使用できません"
+  },
+  "headersSection.requestHeaders": {
+    "defaultMessage": "リクエストヘッダー"
+  },
+  "headersSection.value": {
+    "defaultMessage": "値"
+  },
+  "hub.goodAfternoon": {
+    "defaultMessage": "こんにちは"
+  },
+  "hub.goodEvening": {
+    "defaultMessage": "こんばんは"
+  },
+  "hub.goodMorning": {
+    "defaultMessage": "おはようございます"
+  },
+  "huggingFaceModelSearch.download": {
+    "defaultMessage": "ダウンロード"
+  },
+  "huggingFaceModelSearch.downloaded": {
+    "defaultMessage": "ダウンロード済み"
+  },
+  "huggingFaceModelSearch.downloading": {
+    "defaultMessage": "ダウンロード中…"
+  },
+  "huggingFaceModelSearch.loadingVariants": {
+    "defaultMessage": "バリアントを読み込み中..."
+  },
+  "huggingFaceModelSearch.noGgufModels": {
+    "defaultMessage": "このクエリに一致する GGUF モデルは見つかりませんでした。"
+  },
+  "huggingFaceModelSearch.recommended": {
+    "defaultMessage": "おすすめ"
+  },
+  "huggingFaceModelSearch.searchError": {
+    "defaultMessage": "検索エラー: {details}"
+  },
+  "huggingFaceModelSearch.searchFailed": {
+    "defaultMessage": "検索に失敗しました。もう一度お試しください。"
+  },
+  "huggingFaceModelSearch.searchHuggingFace": {
+    "defaultMessage": "Hugging Faceを検索"
+  },
+  "huggingFaceModelSearch.searchNoData": {
+    "defaultMessage": "検索結果にデータがありません。"
+  },
+  "huggingFaceModelSearch.searchPlaceholder": {
+    "defaultMessage": "GGUFモデルを検索..."
+  },
+  "huggingFaceModelSearch.tooLarge": {
+    "defaultMessage": "メモリに収まらない可能性があります（{size}モデル、利用可能: {available}）"
+  },
+  "huggingFaceSignInPrompt.failedToConfigure": {
+    "defaultMessage": "Hugging Faceへのサインインに失敗しました: {error}"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "サインイン"
+  },
+  "huggingFaceSignInPrompt.signedIn": {
+    "defaultMessage": "Hugging Faceにサインイン済み"
+  },
+  "huggingFaceSignInPrompt.signingIn": {
+    "defaultMessage": "サインイン中..."
+  },
+  "huggingFaceSignInPrompt.title": {
+    "defaultMessage": "Hugging Face"
+  },
+  "imagePreview.altText": {
+    "defaultMessage": "goose画像"
+  },
+  "imagePreview.clickToCollapse": {
+    "defaultMessage": "クリックして折りたたむ"
+  },
+  "imagePreview.clickToExpand": {
+    "defaultMessage": "クリックして展開"
+  },
+  "imagePreview.unableToLoad": {
+    "defaultMessage": "画像を読み込めません"
+  },
+  "importRecipeForm.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "importRecipeForm.deeplinkHint": {
+    "defaultMessage": "goose://recipe?config= で始まるレシピのディープリンクを貼り付けてください"
+  },
+  "importRecipeForm.deeplinkPlaceholder": {
+    "defaultMessage": "goose://recipe?config=... のディープリンクをここに貼り付け"
+  },
+  "importRecipeForm.example": {
+    "defaultMessage": "例"
+  },
+  "importRecipeForm.expectedRecipeStructure": {
+    "defaultMessage": "想定されるレシピ構造"
+  },
+  "importRecipeForm.importRecipeButton": {
+    "defaultMessage": "レシピをインポート"
+  },
+  "importRecipeForm.importRecipeTitle": {
+    "defaultMessage": "レシピをインポート"
+  },
+  "importRecipeForm.importing": {
+    "defaultMessage": "インポート中..."
+  },
+  "importRecipeForm.or": {
+    "defaultMessage": "または"
+  },
+  "importRecipeForm.recipeDeeplinkLabel": {
+    "defaultMessage": "レシピのディープリンク"
+  },
+  "importRecipeForm.recipeFileHint": {
+    "defaultMessage": "レシピ構造を含む YAML または JSON ファイルをアップロードしてください"
+  },
+  "importRecipeForm.recipeFileLabel": {
+    "defaultMessage": "レシピファイル"
+  },
+  "importRecipeForm.reviewWarning": {
+    "defaultMessage": "レシピファイルを goose インターフェースに追加する前に、必ず内容を確認してください。"
+  },
+  "importRecipeForm.schemaDescription": {
+    "defaultMessage": "YAML または JSON ファイルはこの構造に従う必要があります。必須フィールドは title、description、および instructions または prompt です。"
+  },
+  "inlineEditText.clickToEdit": {
+    "defaultMessage": "クリックして編集"
+  },
+  "inlineEditText.doubleClickToEdit": {
+    "defaultMessage": "ダブルクリックして編集"
+  },
+  "inlineEditText.enterText": {
+    "defaultMessage": "テキストを入力"
+  },
+  "inlineEditText.failedToSave": {
+    "defaultMessage": "保存に失敗しました"
+  },
+  "instructionsEditor.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "instructionsEditor.insertExample": {
+    "defaultMessage": "例を挿入"
+  },
+  "instructionsEditor.label": {
+    "defaultMessage": "指示"
+  },
+  "instructionsEditor.placeholder": {
+    "defaultMessage": "AIへの詳細な指示（ユーザーには表示されません）"
+  },
+  "instructionsEditor.save": {
+    "defaultMessage": "指示を保存"
+  },
+  "instructionsEditor.syntaxHelp": {
+    "defaultMessage": "ユーザーが入力できるパラメーターを定義するには {code} 構文を使用してください"
+  },
+  "instructionsEditor.title": {
+    "defaultMessage": "指示エディター"
+  },
+  "jsonSchemaEditor.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "jsonSchemaEditor.description": {
+    "defaultMessage": "JSON Schema 形式で AI の応答の想定構造を定義します"
+  },
+  "jsonSchemaEditor.insertExample": {
+    "defaultMessage": "例を挿入"
+  },
+  "jsonSchemaEditor.invalidJson": {
+    "defaultMessage": "JSON形式が無効です"
+  },
+  "jsonSchemaEditor.label": {
+    "defaultMessage": "応答JSON Schema"
+  },
+  "jsonSchemaEditor.save": {
+    "defaultMessage": "スキーマを保存"
+  },
+  "jsonSchemaEditor.title": {
+    "defaultMessage": "JSON Schema エディター"
+  },
+  "jsonSchemaForm.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "jsonSchemaForm.fieldRequired": {
+    "defaultMessage": "このフィールドは必須です"
+  },
+  "jsonSchemaForm.maxLength": {
+    "defaultMessage": "最大文字数は{maxLength}です"
+  },
+  "jsonSchemaForm.maxValue": {
+    "defaultMessage": "最大値は{maximum}です"
+  },
+  "jsonSchemaForm.minLength": {
+    "defaultMessage": "最小文字数は{minLength}です"
+  },
+  "jsonSchemaForm.minValue": {
+    "defaultMessage": "最小値は{minimum}です"
+  },
+  "jsonSchemaForm.noFields": {
+    "defaultMessage": "表示するフィールドがありません"
+  },
+  "jsonSchemaForm.selectPlaceholder": {
+    "defaultMessage": "選択..."
+  },
+  "jsonSchemaForm.submit": {
+    "defaultMessage": "送信"
+  },
+  "keyValueEditor.addValue": {
+    "defaultMessage": "事前設定値を追加"
+  },
+  "keyValueEditor.defaultKeyPlaceholder": {
+    "defaultMessage": "パラメーター名..."
+  },
+  "keyValueEditor.defaultValuePlaceholder": {
+    "defaultMessage": "パラメーター値..."
+  },
+  "keyValueEditor.removeValue": {
+    "defaultMessage": "事前設定値 {key} を削除"
+  },
+  "keyboardShortcuts.alwaysOnTopDescription": {
+    "defaultMessage": "ウィンドウの常に手前表示を切り替える"
+  },
+  "keyboardShortcuts.alwaysOnTopLabel": {
+    "defaultMessage": "常に手前に表示"
+  },
+  "keyboardShortcuts.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "keyboardShortcuts.categoryApplication": {
+    "defaultMessage": "アプリケーションショートカット"
+  },
+  "keyboardShortcuts.categoryApplicationDescription": {
+    "defaultMessage": "Gooseがアクティブなときに有効なショートカット"
+  },
+  "keyboardShortcuts.categoryGlobal": {
+    "defaultMessage": "グローバルショートカット"
+  },
+  "keyboardShortcuts.categoryGlobalDescription": {
+    "defaultMessage": "Gooseにフォーカスがなくても、システム全体で有効なショートカット"
+  },
+  "keyboardShortcuts.categorySearch": {
+    "defaultMessage": "検索ショートカット"
+  },
+  "keyboardShortcuts.categorySearchDescription": {
+    "defaultMessage": "会話内検索中に有効なショートカット"
+  },
+  "keyboardShortcuts.categoryWindow": {
+    "defaultMessage": "ウィンドウショートカット"
+  },
+  "keyboardShortcuts.categoryWindowDescription": {
+    "defaultMessage": "ウィンドウの動作を制御するショートカット"
+  },
+  "keyboardShortcuts.change": {
+    "defaultMessage": "変更"
+  },
+  "keyboardShortcuts.disabled": {
+    "defaultMessage": "無効"
+  },
+  "keyboardShortcuts.dismiss": {
+    "defaultMessage": "閉じる"
+  },
+  "keyboardShortcuts.findDescription": {
+    "defaultMessage": "会話内検索を開く"
+  },
+  "keyboardShortcuts.findLabel": {
+    "defaultMessage": "検索"
+  },
+  "keyboardShortcuts.findNextDescription": {
+    "defaultMessage": "次の検索結果に移動"
+  },
+  "keyboardShortcuts.findNextLabel": {
+    "defaultMessage": "次を検索"
+  },
+  "keyboardShortcuts.findPreviousDescription": {
+    "defaultMessage": "前の検索結果に移動"
+  },
+  "keyboardShortcuts.findPreviousLabel": {
+    "defaultMessage": "前を検索"
+  },
+  "keyboardShortcuts.focusWindowDescription": {
+    "defaultMessage": "どこからでもGooseウィンドウを前面に表示"
+  },
+  "keyboardShortcuts.focusWindowLabel": {
+    "defaultMessage": "Gooseウィンドウにフォーカス"
+  },
+  "keyboardShortcuts.loading": {
+    "defaultMessage": "読み込み中..."
+  },
+  "keyboardShortcuts.newChatDescription": {
+    "defaultMessage": "現在のウィンドウで新しいチャットを作成"
+  },
+  "keyboardShortcuts.newChatLabel": {
+    "defaultMessage": "新規チャット"
+  },
+  "keyboardShortcuts.newChatWindowDescription": {
+    "defaultMessage": "新しいGooseウィンドウを開く"
+  },
+  "keyboardShortcuts.newChatWindowLabel": {
+    "defaultMessage": "新規チャットウィンドウ"
+  },
+  "keyboardShortcuts.openDirectoryDescription": {
+    "defaultMessage": "ディレクトリ選択ダイアログを開く"
+  },
+  "keyboardShortcuts.openDirectoryLabel": {
+    "defaultMessage": "ディレクトリを開く"
+  },
+  "keyboardShortcuts.quickLauncherDescription": {
+    "defaultMessage": "クイックランチャーのオーバーレイを開く"
+  },
+  "keyboardShortcuts.quickLauncherLabel": {
+    "defaultMessage": "クイックランチャー"
+  },
+  "keyboardShortcuts.reassignShortcut": {
+    "defaultMessage": "ショートカットを再割り当て"
+  },
+  "keyboardShortcuts.resetAllShortcuts": {
+    "defaultMessage": "すべてのショートカットをリセット"
+  },
+  "keyboardShortcuts.resetShortcutsDetail": {
+    "defaultMessage": "すべてのショートカットを元の設定に戻します。"
+  },
+  "keyboardShortcuts.resetShortcutsMessage": {
+    "defaultMessage": "すべてのキーボードショートカットを既定値にリセットしますか？"
+  },
+  "keyboardShortcuts.resetShortcutsTitle": {
+    "defaultMessage": "キーボードショートカットをリセット"
+  },
+  "keyboardShortcuts.resetToDefaultsDescription": {
+    "defaultMessage": "すべてのキーボードショートカットを元の設定に戻す"
+  },
+  "keyboardShortcuts.resetToDefaultsHeading": {
+    "defaultMessage": "デフォルトに戻す"
+  },
+  "keyboardShortcuts.restartDescription": {
+    "defaultMessage": "アプリケーションショートカット（新規チャット、設定など）の変更を反映するには、Gooseの再起動が必要です。グローバルショートカット（ウィンドウにフォーカス、クイックランチャー）はすぐに有効になります。"
+  },
+  "keyboardShortcuts.restartRequired": {
+    "defaultMessage": "再起動が必要です"
+  },
+  "keyboardShortcuts.settingsDescription": {
+    "defaultMessage": "設定パネルを開く"
+  },
+  "keyboardShortcuts.settingsLabel": {
+    "defaultMessage": "設定"
+  },
+  "keyboardShortcuts.shortcutConflictSaveDetail": {
+    "defaultMessage": "保存すると、「{conflictLabel}」からショートカットが削除され、「{targetLabel}」に割り当てられます。続行しますか？"
+  },
+  "keyboardShortcuts.shortcutConflictTitle": {
+    "defaultMessage": "ショートカットの競合"
+  },
+  "keyboardShortcuts.shortcutConflictToggleDetail": {
+    "defaultMessage": "有効にすると、「{conflictLabel}」からショートカットが削除され、「{targetLabel}」に割り当てられます。続行しますか？"
+  },
+  "keyboardShortcuts.shortcutConflictToggleMessage": {
+    "defaultMessage": "ショートカット {shortcut} はすでに「{conflictLabel}」に割り当てられています。"
+  },
+  "keyboardShortcuts.toggleNavigationDescription": {
+    "defaultMessage": "ナビゲーションメニューの表示を切り替える"
+  },
+  "keyboardShortcuts.toggleNavigationLabel": {
+    "defaultMessage": "ナビゲーションを切り替え"
+  },
+  "launcher.placeholder": {
+    "defaultMessage": "gooseに何でも聞いて..."
+  },
+  "loadingGoose.compacting": {
+    "defaultMessage": "gooseが会話を圧縮しています..."
+  },
+  "loadingGoose.idle": {
+    "defaultMessage": "gooseが処理中です…"
+  },
+  "loadingGoose.loadingConversation": {
+    "defaultMessage": "会話を読み込み中..."
+  },
+  "loadingGoose.restartingAgent": {
+    "defaultMessage": "セッションを再起動中..."
+  },
+  "loadingGoose.streaming": {
+    "defaultMessage": "gooseが処理中です…"
+  },
+  "loadingGoose.thinking": {
+    "defaultMessage": "gooseが考えています…"
+  },
+  "loadingGoose.waiting": {
+    "defaultMessage": "gooseが待機中です…"
+  },
+  "localInferenceSettings.deleteConfirm": {
+    "defaultMessage": "このモデルを削除しますか？後で再ダウンロードできます。"
+  },
+  "localInferenceSettings.description": {
+    "defaultMessage": "APIキーなしで推論できるローカルLLMモデルをダウンロード・管理します。Hugging Faceで任意のGGUFモデルを検索するか、以下の注目モデルを使用できます。"
+  },
+  "localInferenceSettings.download": {
+    "defaultMessage": "ダウンロード"
+  },
+  "localInferenceSettings.downloadFailed": {
+    "defaultMessage": "ダウンロードに失敗しました"
+  },
+  "localInferenceSettings.downloadProgress": {
+    "defaultMessage": "{downloaded} / {total} ({percent}%)"
+  },
+  "localInferenceSettings.downloadedModels": {
+    "defaultMessage": "ダウンロード済みモデル"
+  },
+  "localInferenceSettings.downloading": {
+    "defaultMessage": "ダウンロード中"
+  },
+  "localInferenceSettings.featuredModels": {
+    "defaultMessage": "注目モデル"
+  },
+  "localInferenceSettings.huggingFaceSignInNote": {
+    "defaultMessage": "モデルの検索・ダウンロード時のレート制限を緩和し、非公開またはゲート付きHugging Faceリポジトリにアクセスするにはサインインしてください。"
+  },
+  "localInferenceSettings.modelSettings": {
+    "defaultMessage": "モデル設定"
+  },
+  "localInferenceSettings.modelSettingsTitle": {
+    "defaultMessage": "モデル設定"
+  },
+  "localInferenceSettings.noModels": {
+    "defaultMessage": "利用可能なモデルはありません"
+  },
+  "localInferenceSettings.recommended": {
+    "defaultMessage": "おすすめ"
+  },
+  "localInferenceSettings.remaining": {
+    "defaultMessage": "残り{time}"
+  },
+  "localInferenceSettings.showAllFeatured": {
+    "defaultMessage": "注目モデルをすべて表示（あと{count}件）"
+  },
+  "localInferenceSettings.showRecommendedOnly": {
+    "defaultMessage": "おすすめのみ表示"
+  },
+  "localInferenceSettings.title": {
+    "defaultMessage": "ローカル推論モデル"
+  },
+  "localInferenceSettings.vision": {
+    "defaultMessage": "ビジョン"
+  },
+  "localInferenceSettings.visionEncoderDownloading": {
+    "defaultMessage": "ビジョンエンコーダーをダウンロード中…"
+  },
+  "localInferenceSettings.visionEncoderNotDownloaded": {
+    "defaultMessage": "ビジョンエンコーダー未ダウンロード"
+  },
+  "localModelManager.active": {
+    "defaultMessage": "アクティブ"
+  },
+  "localModelManager.deleteConfirm": {
+    "defaultMessage": "このモデルを削除しますか？後で再ダウンロードできます。"
+  },
+  "localModelManager.download": {
+    "defaultMessage": "ダウンロード"
+  },
+  "localModelManager.downloaded": {
+    "defaultMessage": "ダウンロード済み"
+  },
+  "localModelManager.gpuAcceleration": {
+    "defaultMessage": "GPUアクセラレーションに対応（NVIDIAはCUDA、Apple SiliconはMetal）。ハードウェアアクセラレーションを利用するには、ビルド時にGPU機能を有効にする必要があります。"
+  },
+  "localModelManager.noModels": {
+    "defaultMessage": "利用可能なモデルはありません"
+  },
+  "localModelManager.recommended": {
+    "defaultMessage": "おすすめ"
+  },
+  "localModelManager.recommendedForHardware": {
+    "defaultMessage": "お使いのハードウェアにおすすめ"
+  },
+  "localModelManager.showAllModels": {
+    "defaultMessage": "すべてのモデルを表示（あと{count}件）"
+  },
+  "localModelManager.showRecommendedOnly": {
+    "defaultMessage": "おすすめのみ表示"
+  },
+  "localModelPicker.back": {
+    "defaultMessage": "戻る"
+  },
+  "localModelPicker.bestForMachine": {
+    "defaultMessage": "お使いのマシンに最適"
+  },
+  "localModelPicker.cancelDownload": {
+    "defaultMessage": "ダウンロードをキャンセル"
+  },
+  "localModelPicker.checkingModels": {
+    "defaultMessage": "利用可能なモデルを確認中..."
+  },
+  "localModelPicker.downloadModel": {
+    "defaultMessage": "{modelId}をダウンロード（{size}）"
+  },
+  "localModelPicker.downloading": {
+    "defaultMessage": "{modelId}をダウンロード中"
+  },
+  "localModelPicker.failedToLoad": {
+    "defaultMessage": "利用可能なモデルの読み込みに失敗しました。もう一度お試しください。"
+  },
+  "localModelPicker.failedToStartDownload": {
+    "defaultMessage": "ダウンロードを開始できませんでした。もう一度お試しください。"
+  },
+  "localModelPicker.hideOtherSizes": {
+    "defaultMessage": "他のサイズを非表示"
+  },
+  "localModelPicker.localModelsNote": {
+    "defaultMessage": "ローカルモデルではすべてがお使いのマシン上に保持され、プライバシーが保たれます。パフォーマンスとコンテキストウィンドウサイズは、ハードウェアやモデルサイズによってクラウドプロバイダーと異なる場合があります。"
+  },
+  "localModelPicker.lostConnection": {
+    "defaultMessage": "ダウンロード接続が切断されました。もう一度お試しください。"
+  },
+  "localModelPicker.modelNotFound": {
+    "defaultMessage": "モデルが見つかりません"
+  },
+  "localModelPicker.ready": {
+    "defaultMessage": "準備完了"
+  },
+  "localModelPicker.selectModel": {
+    "defaultMessage": "モデルを選択"
+  },
+  "localModelPicker.showOtherSizes": {
+    "defaultMessage": "他のサイズを{count}件表示"
+  },
+  "localModelPicker.startingDownload": {
+    "defaultMessage": "ダウンロードを開始中..."
+  },
+  "localModelPicker.tryAgain": {
+    "defaultMessage": "再試行"
+  },
+  "localModelPicker.useModel": {
+    "defaultMessage": "{modelId}を使用"
+  },
+  "markdownContent.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "markdownContent.copyCode": {
+    "defaultMessage": "コードをコピー"
+  },
+  "markdownContent.failedToOpenLink": {
+    "defaultMessage": "リンクを開けませんでした"
+  },
+  "markdownContent.noApplicationFound": {
+    "defaultMessage": "このリンクを開くアプリケーションが見つかりません。"
+  },
+  "markdownContent.open": {
+    "defaultMessage": "開く"
+  },
+  "markdownContent.openExternalLink": {
+    "defaultMessage": "外部リンクを開く"
+  },
+  "markdownContent.openProtocolLink": {
+    "defaultMessage": "{protocol}リンクを開きますか？"
+  },
+  "markdownContent.thisWillOpen": {
+    "defaultMessage": "次を開きます: {href}"
+  },
+  "mcpAppRenderer.appFallbackTitle": {
+    "defaultMessage": "アプリ"
+  },
+  "mcpAppRenderer.cancelButton": {
+    "defaultMessage": "キャンセル"
+  },
+  "mcpAppRenderer.close": {
+    "defaultMessage": "閉じる"
+  },
+  "mcpAppRenderer.exitFullscreen": {
+    "defaultMessage": "フルスクリーンを終了"
+  },
+  "mcpAppRenderer.exitFullscreenTitle": {
+    "defaultMessage": "フルスクリーンを終了（Esc）"
+  },
+  "mcpAppRenderer.failedToInitSandbox": {
+    "defaultMessage": "サンドボックスプロキシの初期化に失敗しました"
+  },
+  "mcpAppRenderer.failedToLoadResource": {
+    "defaultMessage": "リソースの読み込みに失敗しました"
+  },
+  "mcpAppRenderer.fullscreen": {
+    "defaultMessage": "フルスクリーン"
+  },
+  "mcpAppRenderer.invalidUrl": {
+    "defaultMessage": "無効なURL"
+  },
+  "mcpAppRenderer.movePipWindow": {
+    "defaultMessage": "ピクチャ・イン・ピクチャウィンドウを移動（矢印キーを使用）"
+  },
+  "mcpAppRenderer.openButton": {
+    "defaultMessage": "開く"
+  },
+  "mcpAppRenderer.openExternalLinkTitle": {
+    "defaultMessage": "外部リンクを開く"
+  },
+  "mcpAppRenderer.openLinkDetail": {
+    "defaultMessage": "次を開きます: {url}"
+  },
+  "mcpAppRenderer.openProtocolLink": {
+    "defaultMessage": "{protocol}リンクを開きますか？"
+  },
+  "mcpAppRenderer.pictureInPicture": {
+    "defaultMessage": "ピクチャ・イン・ピクチャ"
+  },
+  "mcpAppRenderer.playingInPip": {
+    "defaultMessage": "ピクチャ・イン・ピクチャで再生中"
+  },
+  "mcpUIResourceRenderer.cancelButton": {
+    "defaultMessage": "キャンセル"
+  },
+  "mcpUIResourceRenderer.openButton": {
+    "defaultMessage": "開く"
+  },
+  "mcpUIResourceRenderer.openExternalLinkTitle": {
+    "defaultMessage": "外部リンクを開く"
+  },
+  "mcpUIResourceRenderer.openLinkDetail": {
+    "defaultMessage": "次を開きます: {url}"
+  },
+  "mcpUIResourceRenderer.openProtocolLink": {
+    "defaultMessage": "{protocol}リンクを開きますか？"
+  },
+  "mcpUIResourceRenderer.toastMessageReceived": {
+    "defaultMessage": "{message}のメッセージを受信しました。"
+  },
+  "mcpUIResourceRenderer.toastTitle": {
+    "defaultMessage": "MCP-UI {messageType}メッセージ"
+  },
+  "mcpUIResourceRenderer.toastUnsupported": {
+    "defaultMessage": "{message}のメッセージを受信しました。{messageType}メッセージはまだサポートされていません。詳細はコンソールを確認してください。"
+  },
+  "mentionPopover.itemsFound": {
+    "defaultMessage": "{count,plural,one{# 件見つかりました} other{# 件見つかりました}}"
+  },
+  "mentionPopover.loadingCommands": {
+    "defaultMessage": "コマンドを読み込み中..."
+  },
+  "mentionPopover.noCommandsFound": {
+    "defaultMessage": "「{query}」に一致するコマンドは見つかりません"
+  },
+  "mentionPopover.noItemsFound": {
+    "defaultMessage": "「{query}」に一致する項目は見つかりません"
+  },
+  "mentionPopover.scanningFiles": {
+    "defaultMessage": "ファイルをスキャン中..."
+  },
+  "messageCopyLink.copied": {
+    "defaultMessage": "コピーしました！"
+  },
+  "messageCopyLink.copy": {
+    "defaultMessage": "コピー"
+  },
+  "messageQueue.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "messageQueue.cannotSendWhileEditing": {
+    "defaultMessage": "編集中は送信できません"
+  },
+  "messageQueue.clearAll": {
+    "defaultMessage": "すべてクリア"
+  },
+  "messageQueue.clickToEdit": {
+    "defaultMessage": "{content}（クリックして編集）"
+  },
+  "messageQueue.collapseQueue": {
+    "defaultMessage": "キューを折りたたむ"
+  },
+  "messageQueue.dragToReorder": {
+    "defaultMessage": "メッセージをドラッグして優先順位を並べ替え"
+  },
+  "messageQueue.expandQueue": {
+    "defaultMessage": "キューを展開"
+  },
+  "messageQueue.messageCount": {
+    "defaultMessage": "{count,plural,one{# 件のメッセージ（{status}）} other{# 件のメッセージ（{status}）}}"
+  },
+  "messageQueue.messageQueue": {
+    "defaultMessage": "メッセージキュー"
+  },
+  "messageQueue.next": {
+    "defaultMessage": "次"
+  },
+  "messageQueue.paused": {
+    "defaultMessage": "一時停止中"
+  },
+  "messageQueue.queuePaused": {
+    "defaultMessage": "キューを一時停止中"
+  },
+  "messageQueue.queuePausedCompact": {
+    "defaultMessage": "キューは一時停止中です。「送信」をクリックするか、新しいメッセージを追加すると再開します"
+  },
+  "messageQueue.queuePausedExpanded": {
+    "defaultMessage": "キューは割り込みにより一時停止されました。「今すぐ送信」を使用するか、新しいメッセージを追加すると再開します。"
+  },
+  "messageQueue.queued": {
+    "defaultMessage": "キュー内"
+  },
+  "messageQueue.removeFromQueue": {
+    "defaultMessage": "このメッセージをキューから削除"
+  },
+  "messageQueue.save": {
+    "defaultMessage": "保存"
+  },
+  "messageQueue.sendNow": {
+    "defaultMessage": "このメッセージを今すぐ送信"
+  },
+  "messageQueue.stopAndSend": {
+    "defaultMessage": "現在の処理を停止して、このメッセージを今すぐ送信"
+  },
+  "messageQueue.waiting": {
+    "defaultMessage": "待機中"
+  },
+  "microphoneSelector.chooseDescription": {
+    "defaultMessage": "音声入力に使用するマイクを選択"
+  },
+  "microphoneSelector.grantAccess": {
+    "defaultMessage": "アクセスを許可"
+  },
+  "microphoneSelector.grantAccessDescription": {
+    "defaultMessage": "利用可能なマイクを表示するにはアクセスを許可してください"
+  },
+  "microphoneSelector.microphone": {
+    "defaultMessage": "マイク"
+  },
+  "microphoneSelector.microphoneLabel": {
+    "defaultMessage": "マイク{index}"
+  },
+  "microphoneSelector.selectedMicrophone": {
+    "defaultMessage": "選択中のマイク"
+  },
+  "microphoneSelector.speakToTest": {
+    "defaultMessage": "マイクをテストするために話してください（{seconds}秒）"
+  },
+  "microphoneSelector.stop": {
+    "defaultMessage": "停止"
+  },
+  "microphoneSelector.systemDefault": {
+    "defaultMessage": "システム既定"
+  },
+  "microphoneSelector.test": {
+    "defaultMessage": "テスト"
+  },
+  "modeSelectionItem.autonomousDescription": {
+    "defaultMessage": "ファイルを自由に編集、作成、削除できる完全なファイル変更権限。"
+  },
+  "modeSelectionItem.autonomousLabel": {
+    "defaultMessage": "自律"
+  },
+  "modeSelectionItem.chatOnlyDescription": {
+    "defaultMessage": "ツールや拡張機能を使わず、選択したプロバイダーとやり取りします。"
+  },
+  "modeSelectionItem.chatOnlyLabel": {
+    "defaultMessage": "チャットのみ"
+  },
+  "modeSelectionItem.manualDescription": {
+    "defaultMessage": "すべてのツール、拡張機能、ファイル変更には人による承認が必要です"
+  },
+  "modeSelectionItem.manualLabel": {
+    "defaultMessage": "手動"
+  },
+  "modeSelectionItem.smartDescription": {
+    "defaultMessage": "リスクレベルに基づき、承認が必要な操作を自動判断します"
+  },
+  "modeSelectionItem.smartLabel": {
+    "defaultMessage": "スマート"
+  },
+  "modelAndProviderContext.modelChangeFailed": {
+    "defaultMessage": "{provider}/{model}に失敗しました"
+  },
+  "modelAndProviderContext.modelChangedTitle": {
+    "defaultMessage": "モデルを変更しました"
+  },
+  "modelAndProviderContext.selectModel": {
+    "defaultMessage": "モデルを選択"
+  },
+  "modelAndProviderContext.switchModelSuccess": {
+    "defaultMessage": "モデルを切り替えました — {provider}の{model}を使用中"
+  },
+  "modelAndProviderContext.unknownProviderMsg": {
+    "defaultMessage": "設定内に不明なプロバイダーがあります -- config.yamlを確認してください"
+  },
+  "modelAndProviderContext.unknownProviderTitle": {
+    "defaultMessage": "プロバイダー名の確認"
+  },
+  "modelSettingsButtons.configureProviders": {
+    "defaultMessage": "プロバイダーを設定"
+  },
+  "modelSettingsButtons.switchModels": {
+    "defaultMessage": "モデルを切り替え"
+  },
+  "modelSettingsPanel.batchSize": {
+    "defaultMessage": "バッチサイズ"
+  },
+  "modelSettingsPanel.batchSizeDescription": {
+    "defaultMessage": "プロンプト処理のバッチサイズ"
+  },
+  "modelSettingsPanel.builtinChatTemplate": {
+    "defaultMessage": "組み込みテンプレート"
+  },
+  "modelSettingsPanel.builtinChatTemplateDescription": {
+    "defaultMessage": "llama.cpp の組み込みテンプレート名を選択"
+  },
+  "modelSettingsPanel.chatTemplate": {
+    "defaultMessage": "チャットテンプレート"
+  },
+  "modelSettingsPanel.chatTemplateBuiltin": {
+    "defaultMessage": "組み込み"
+  },
+  "modelSettingsPanel.chatTemplateCustomInline": {
+    "defaultMessage": "カスタムインライン"
+  },
+  "modelSettingsPanel.chatTemplateDescription": {
+    "defaultMessage": "埋め込みのGGUFメタデータ、llama.cpp の組み込みテンプレート、またはインラインJinjaを使用"
+  },
+  "modelSettingsPanel.chatTemplateEmbedded": {
+    "defaultMessage": "埋め込み"
+  },
+  "modelSettingsPanel.contextAndGeneration": {
+    "defaultMessage": "コンテキストと生成"
+  },
+  "modelSettingsPanel.contextSize": {
+    "defaultMessage": "コンテキストサイズ"
+  },
+  "modelSettingsPanel.contextSizeDescription": {
+    "defaultMessage": "最大コンテキストウィンドウ（0 = モデルのデフォルト）"
+  },
+  "modelSettingsPanel.customChatTemplate": {
+    "defaultMessage": "カスタムチャットテンプレート"
+  },
+  "modelSettingsPanel.customChatTemplateDescription": {
+    "defaultMessage": "Jinjaチャットテンプレートの全文を貼り付け"
+  },
+  "modelSettingsPanel.etaLearningRate": {
+    "defaultMessage": "Eta（学習率）"
+  },
+  "modelSettingsPanel.flashAttention": {
+    "defaultMessage": "Flash Attention"
+  },
+  "modelSettingsPanel.flashAttentionDescription": {
+    "defaultMessage": "Flash Attention最適化を有効化"
+  },
+  "modelSettingsPanel.frequencyPenalty": {
+    "defaultMessage": "頻度ペナルティ"
+  },
+  "modelSettingsPanel.frequencyPenaltyDescription": {
+    "defaultMessage": "0.0 = オフ"
+  },
+  "modelSettingsPanel.gpuLayers": {
+    "defaultMessage": "GPUレイヤー"
+  },
+  "modelSettingsPanel.gpuLayersDescription": {
+    "defaultMessage": "GPUにオフロードするレイヤー数"
+  },
+  "modelSettingsPanel.loadingSettings": {
+    "defaultMessage": "設定を読み込み中..."
+  },
+  "modelSettingsPanel.lockModelInRam": {
+    "defaultMessage": "モデルをRAMにロック（mlock）"
+  },
+  "modelSettingsPanel.lockModelInRamDescription": {
+    "defaultMessage": "モデルがディスクにスワップされないようにします"
+  },
+  "modelSettingsPanel.maxOutputTokens": {
+    "defaultMessage": "最大出力トークン数"
+  },
+  "modelSettingsPanel.maxOutputTokensDescription": {
+    "defaultMessage": "生成トークン数の上限"
+  },
+  "modelSettingsPanel.minP": {
+    "defaultMessage": "Min P"
+  },
+  "modelSettingsPanel.performance": {
+    "defaultMessage": "パフォーマンス"
+  },
+  "modelSettingsPanel.presencePenalty": {
+    "defaultMessage": "存在ペナルティ"
+  },
+  "modelSettingsPanel.presencePenaltyDescription": {
+    "defaultMessage": "0.0 = オフ"
+  },
+  "modelSettingsPanel.repeatPenalty": {
+    "defaultMessage": "繰り返しペナルティ"
+  },
+  "modelSettingsPanel.repeatPenaltyDescription": {
+    "defaultMessage": "1.0 = オフ"
+  },
+  "modelSettingsPanel.repeatWindow": {
+    "defaultMessage": "繰り返しウィンドウ"
+  },
+  "modelSettingsPanel.repeatWindowDescription": {
+    "defaultMessage": "さかのぼって参照するトークン数"
+  },
+  "modelSettingsPanel.repetitionPenalty": {
+    "defaultMessage": "繰り返しペナルティ"
+  },
+  "modelSettingsPanel.reset": {
+    "defaultMessage": "リセット"
+  },
+  "modelSettingsPanel.resetToDefaults": {
+    "defaultMessage": "デフォルトにリセット"
+  },
+  "modelSettingsPanel.samplingStrategy": {
+    "defaultMessage": "サンプリング戦略"
+  },
+  "modelSettingsPanel.saving": {
+    "defaultMessage": "保存中..."
+  },
+  "modelSettingsPanel.seed": {
+    "defaultMessage": "シード"
+  },
+  "modelSettingsPanel.tauTargetEntropy": {
+    "defaultMessage": "Tau（目標エントロピー）"
+  },
+  "modelSettingsPanel.temperature": {
+    "defaultMessage": "温度"
+  },
+  "modelSettingsPanel.threads": {
+    "defaultMessage": "スレッド"
+  },
+  "modelSettingsPanel.threadsDescription": {
+    "defaultMessage": "生成に使用するCPUスレッド数"
+  },
+  "modelSettingsPanel.toolCalling": {
+    "defaultMessage": "ツール呼び出し"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "自動"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "ローカルモデルがネイティブまたはエミュレートされたツール呼び出しを選択する方法を指定"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "エミュレートを強制"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "ネイティブを強制"
+  },
+  "modelSettingsPanel.topK": {
+    "defaultMessage": "Top K"
+  },
+  "modelSettingsPanel.topP": {
+    "defaultMessage": "Top P"
+  },
+  "modelsBottomBar.changeModel": {
+    "defaultMessage": "モデルを変更"
+  },
+  "modelsBottomBar.currentModel": {
+    "defaultMessage": "現在のモデル"
+  },
+  "modelsBottomBar.loadingModel": {
+    "defaultMessage": "モデルを読み込み中..."
+  },
+  "modelsBottomBar.localModelSettings": {
+    "defaultMessage": "ローカルモデル設定"
+  },
+  "modelsBottomBar.localModelSettingsTitle": {
+    "defaultMessage": "ローカルモデル設定 — {modelName}"
+  },
+  "modelsBottomBar.resolvedModel": {
+    "defaultMessage": "解決済みモデル"
+  },
+  "modelsBottomBar.selectModel": {
+    "defaultMessage": "モデルを選択"
+  },
+  "modelsSection.resetDescription": {
+    "defaultMessage": "選択したモデルとプロバイダー設定をクリアして最初からやり直します"
+  },
+  "modelsSection.resetTitle": {
+    "defaultMessage": "プロバイダーとモデルをリセット"
+  },
+  "navigation.itemApps": {
+    "defaultMessage": "アプリ"
+  },
+  "navigation.itemExtensions": {
+    "defaultMessage": "拡張機能"
+  },
+  "navigation.itemHome": {
+    "defaultMessage": "新規チャット"
+  },
+  "navigation.itemRecipes": {
+    "defaultMessage": "レシピ"
+  },
+  "navigation.itemScheduler": {
+    "defaultMessage": "スケジューラー"
+  },
+  "navigation.itemSessions": {
+    "defaultMessage": "セッション履歴"
+  },
+  "navigation.itemSettings": {
+    "defaultMessage": "設定"
+  },
+  "navigation.itemSkills": {
+    "defaultMessage": "スキル"
+  },
+  "navigationPanel.chats": {
+    "defaultMessage": "チャット"
+  },
+  "navigationPanel.collapseSidebar": {
+    "defaultMessage": "サイドバーを折りたたむ"
+  },
+  "navigationPanel.noChats": {
+    "defaultMessage": "最近のチャットはありません"
+  },
+  "navigationPanel.untitledSession": {
+    "defaultMessage": "無題のセッション"
+  },
+  "onboardingGuard.checkProviderErrorDescription": {
+    "defaultMessage": "サーバーの起動中、または一時的に利用できない可能性があります。"
+  },
+  "onboardingGuard.checkProviderErrorTitle": {
+    "defaultMessage": "gooseサーバーに接続できません"
+  },
+  "onboardingGuard.retry": {
+    "defaultMessage": "再試行"
+  },
+  "onboardingGuard.welcomeDescription": {
+    "defaultMessage": "ローカルAIエージェントです。始めるにはAIモデルプロバイダーに接続してください。"
+  },
+  "onboardingGuard.welcomeTitle": {
+    "defaultMessage": "gooseへようこそ"
+  },
+  "onboardingSuccess.allSet": {
+    "defaultMessage": "gooseを使い始める準備ができました。"
+  },
+  "onboardingSuccess.connectedTo": {
+    "defaultMessage": "{providerName}に接続しました"
+  },
+  "onboardingSuccess.getStarted": {
+    "defaultMessage": "始める"
+  },
+  "onboardingSuccess.learnMore": {
+    "defaultMessage": "詳しく見る"
+  },
+  "onboardingSuccess.localModelReady": {
+    "defaultMessage": "ローカルモデルの準備ができました"
+  },
+  "onboardingSuccess.privacyDescription": {
+    "defaultMessage": "匿名の使用データはgooseの改善に役立ちます。会話、コード、個人データは収集しません。"
+  },
+  "onboardingSuccess.privacyTitle": {
+    "defaultMessage": "プライバシー"
+  },
+  "onboardingSuccess.shareUsageData": {
+    "defaultMessage": "匿名の使用データを共有"
+  },
+  "parameterInput.defaultValue": {
+    "defaultMessage": "デフォルト値"
+  },
+  "parameterInput.defaultValuePlaceholder": {
+    "defaultMessage": "デフォルト値を入力"
+  },
+  "parameterInput.deleteParameter": {
+    "defaultMessage": "パラメーターを削除: {key}"
+  },
+  "parameterInput.description": {
+    "defaultMessage": "説明"
+  },
+  "parameterInput.descriptionHelp": {
+    "defaultMessage": "これはエンドユーザーに表示されるメッセージです。"
+  },
+  "parameterInput.descriptionPlaceholder": {
+    "defaultMessage": "例: 「新しいコンポーネントの名前を入力」"
+  },
+  "parameterInput.inputType": {
+    "defaultMessage": "入力タイプ"
+  },
+  "parameterInput.optional": {
+    "defaultMessage": "任意"
+  },
+  "parameterInput.optionsHelp": {
+    "defaultMessage": "各オプションを改行で入力します。ドロップダウンの選択肢として表示されます。"
+  },
+  "parameterInput.optionsLabel": {
+    "defaultMessage": "オプション（1行に1つ）"
+  },
+  "parameterInput.optionsPlaceholder": {
+    "defaultMessage": "オプション1 オプション2 オプション3"
+  },
+  "parameterInput.required": {
+    "defaultMessage": "必須"
+  },
+  "parameterInput.requirement": {
+    "defaultMessage": "要件"
+  },
+  "parameterInput.typeBoolean": {
+    "defaultMessage": "真偽値"
+  },
+  "parameterInput.typeNumber": {
+    "defaultMessage": "数値"
+  },
+  "parameterInput.typeSelect": {
+    "defaultMessage": "選択"
+  },
+  "parameterInput.typeString": {
+    "defaultMessage": "文字列"
+  },
+  "parameterInput.unused": {
+    "defaultMessage": "未使用"
+  },
+  "parameterInput.unusedWarningTitle": {
+    "defaultMessage": "このパラメーターは手順またはプロンプトで使用されていません。手動入力には使用できますが、必要ない可能性があります。"
+  },
+  "parameterInputModal.backToForm": {
+    "defaultMessage": "パラメーターフォームに戻る"
+  },
+  "parameterInputModal.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "parameterInputModal.cancelRecipeSetup": {
+    "defaultMessage": "レシピ設定をキャンセル"
+  },
+  "parameterInputModal.enterValue": {
+    "defaultMessage": "{key}の値を入力..."
+  },
+  "parameterInputModal.false": {
+    "defaultMessage": "偽"
+  },
+  "parameterInputModal.recipeParameters": {
+    "defaultMessage": "レシピパラメーター"
+  },
+  "parameterInputModal.select": {
+    "defaultMessage": "選択..."
+  },
+  "parameterInputModal.selectOption": {
+    "defaultMessage": "オプションを選択..."
+  },
+  "parameterInputModal.startNewChat": {
+    "defaultMessage": "新規チャットを開始（レシピなし）"
+  },
+  "parameterInputModal.startRecipe": {
+    "defaultMessage": "レシピを開始"
+  },
+  "parameterInputModal.true": {
+    "defaultMessage": "真"
+  },
+  "parameterInputModal.whatToDo": {
+    "defaultMessage": "どうしますか？"
+  },
+  "permissionModal.alwaysAllow": {
+    "defaultMessage": "常に許可"
+  },
+  "permissionModal.askBefore": {
+    "defaultMessage": "事前に確認"
+  },
+  "permissionModal.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "permissionModal.close": {
+    "defaultMessage": "閉じる"
+  },
+  "permissionModal.failedToLoadTools": {
+    "defaultMessage": "ツールの読み込みに失敗しました"
+  },
+  "permissionModal.failedToLoadToolsDescription": {
+    "defaultMessage": "この拡張機能のツールを読み込めませんでした。現在のセッションで拡張機能が読み込まれていない可能性があります。"
+  },
+  "permissionModal.neverAllow": {
+    "defaultMessage": "許可しない"
+  },
+  "permissionModal.noActiveSession": {
+    "defaultMessage": "アクティブなセッションがありません"
+  },
+  "permissionModal.noActiveSessionDescription": {
+    "defaultMessage": "この拡張機能のツール権限を設定するには、まずチャットセッションを開始してください。ツール権限はアクティブなセッションの拡張機能から読み込まれます。"
+  },
+  "permissionModal.noToolsAvailable": {
+    "defaultMessage": "この拡張機能で利用可能なツールはありません。"
+  },
+  "permissionModal.saveChanges": {
+    "defaultMessage": "変更を保存"
+  },
+  "permissionRulesModal.description": {
+    "defaultMessage": "拡張機能のツール権限を設定して、システムとのやり取りを制御します。"
+  },
+  "permissionRulesModal.extensionRules": {
+    "defaultMessage": "拡張機能ルール"
+  },
+  "permissionRulesModal.title": {
+    "defaultMessage": "権限ルール"
+  },
+  "permissionSetting.extensionRules": {
+    "defaultMessage": "拡張機能ルール"
+  },
+  "permissionSetting.permissionRules": {
+    "defaultMessage": "権限ルール"
+  },
+  "permissionSetting.permissionRulesDescription": {
+    "defaultMessage": "レスポンスの方向づけやコンテキスト追加のためにプロバイダーへ渡される非表示の指示です。"
+  },
+  "privacyInfoModal.collectErrors": {
+    "defaultMessage": "エラーの種類（例: 「rate_limit」「auth」— 詳細なし）"
+  },
+  "privacyInfoModal.collectExtensions": {
+    "defaultMessage": "拡張機能とツール使用回数（名前のみ）"
+  },
+  "privacyInfoModal.collectOs": {
+    "defaultMessage": "オペレーティングシステム、バージョン、アーキテクチャ"
+  },
+  "privacyInfoModal.collectProvider": {
+    "defaultMessage": "使用したプロバイダーとモデル"
+  },
+  "privacyInfoModal.collectSession": {
+    "defaultMessage": "セッション指標（時間、やり取り数、トークン使用量）"
+  },
+  "privacyInfoModal.collectVersion": {
+    "defaultMessage": "gooseのバージョンとインストール方法"
+  },
+  "privacyInfoModal.description": {
+    "defaultMessage": "匿名の使用データは、gooseの利用状況を把握し、改善点を見つけるのに役立ちます。"
+  },
+  "privacyInfoModal.neverCollect": {
+    "defaultMessage": "会話、コード、ツール引数、エラーメッセージ、個人データは一切収集しません。この設定はいつでも設定で変更できます。"
+  },
+  "privacyInfoModal.title": {
+    "defaultMessage": "プライバシーの詳細"
+  },
+  "privacyInfoModal.whatWeCollect": {
+    "defaultMessage": "収集する内容:"
+  },
+  "progressiveMessageList.loadingMessages": {
+    "defaultMessage": "メッセージを読み込み中...（{renderedCount}/{totalCount}）"
+  },
+  "progressiveMessageList.modelChanged": {
+    "defaultMessage": "モデルを変更しました: {previousModel} → {currentModel}"
+  },
+  "progressiveMessageList.searchHint": {
+    "defaultMessage": "検索のためにすべてのメッセージをすぐ読み込むには Cmd/Ctrl+F を押してください"
+  },
+  "promptsSettings.allPromptsReset": {
+    "defaultMessage": "すべてのプロンプトをデフォルトにリセットしました"
+  },
+  "promptsSettings.backToList": {
+    "defaultMessage": "一覧に戻る"
+  },
+  "promptsSettings.confirmReplaceWithDefault": {
+    "defaultMessage": "現在の内容をデフォルトに置き換えますか？変更は失われます。"
+  },
+  "promptsSettings.confirmResetAll": {
+    "defaultMessage": "すべてのプロンプトをデフォルトにリセットしてもよろしいですか？この操作は元に戻せません。"
+  },
+  "promptsSettings.confirmResetOne": {
+    "defaultMessage": "このプロンプトをデフォルトにリセットしてもよろしいですか？この操作は元に戻せません。"
+  },
+  "promptsSettings.confirmUnsavedBack": {
+    "defaultMessage": "未保存の変更があります。戻ってもよろしいですか？"
+  },
+  "promptsSettings.customized": {
+    "defaultMessage": "カスタマイズ済み"
+  },
+  "promptsSettings.edit": {
+    "defaultMessage": "編集"
+  },
+  "promptsSettings.editPromptTitle": {
+    "defaultMessage": "編集: {name}"
+  },
+  "promptsSettings.editingLabel": {
+    "defaultMessage": "編集中: {name}"
+  },
+  "promptsSettings.enterPromptContent": {
+    "defaultMessage": "プロンプト内容を入力..."
+  },
+  "promptsSettings.failedToLoadPrompt": {
+    "defaultMessage": "プロンプトの読み込みに失敗しました"
+  },
+  "promptsSettings.failedToLoadPrompts": {
+    "defaultMessage": "プロンプトの読み込みに失敗しました"
+  },
+  "promptsSettings.failedToResetPrompt": {
+    "defaultMessage": "プロンプトのリセットに失敗しました"
+  },
+  "promptsSettings.failedToResetPrompts": {
+    "defaultMessage": "プロンプトのリセットに失敗しました"
+  },
+  "promptsSettings.failedToSavePrompt": {
+    "defaultMessage": "プロンプトの保存に失敗しました"
+  },
+  "promptsSettings.promptEditingDescription": {
+    "defaultMessage": "さまざまなコンテキストでのgooseの動作を定義するプロンプトをカスタマイズできます。これらのプロンプトはJinja2テンプレート構文を使用します。テンプレート変数を変更する際は、誤った変更により機能が壊れる可能性があるため注意してください。改善案はコミュニティで共有してください。"
+  },
+  "promptsSettings.promptEditingTitle": {
+    "defaultMessage": "プロンプト編集"
+  },
+  "promptsSettings.promptResetToDefault": {
+    "defaultMessage": "プロンプトをデフォルトにリセットしました"
+  },
+  "promptsSettings.promptSaved": {
+    "defaultMessage": "プロンプトを保存しました"
+  },
+  "promptsSettings.resetAll": {
+    "defaultMessage": "すべてリセット"
+  },
+  "promptsSettings.resetToDefault": {
+    "defaultMessage": "デフォルトにリセット"
+  },
+  "promptsSettings.restoreDefault": {
+    "defaultMessage": "デフォルトに戻す"
+  },
+  "promptsSettings.save": {
+    "defaultMessage": "保存"
+  },
+  "promptsSettings.templateTip": {
+    "defaultMessage": "{extensionsExample} や {forExample} のようなテンプレート変数は、実行時に実際の値に置き換えられます。必要な変数を削除しないよう注意してください。"
+  },
+  "promptsSettings.unsavedChanges": {
+    "defaultMessage": "未保存の変更があります"
+  },
+  "providerCard.noMetadata": {
+    "defaultMessage": "ProviderCardエラー: メタデータが提供されていません"
+  },
+  "providerCard.unknownProvider": {
+    "defaultMessage": "不明なプロバイダー"
+  },
+  "providerCatalogPicker.anthropicCompatible": {
+    "defaultMessage": "Anthropic互換"
+  },
+  "providerCatalogPicker.apiFormat": {
+    "defaultMessage": "API形式"
+  },
+  "providerCatalogPicker.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "providerCatalogPicker.chooseProvider": {
+    "defaultMessage": "プロバイダーを選択"
+  },
+  "providerCatalogPicker.errorPrefix": {
+    "defaultMessage": "エラー: {error}"
+  },
+  "providerCatalogPicker.loadingProviders": {
+    "defaultMessage": "プロバイダーを読み込み中..."
+  },
+  "providerCatalogPicker.modelsAvailable": {
+    "defaultMessage": "{count}個のモデルが利用可能"
+  },
+  "providerCatalogPicker.noProvidersAvailable": {
+    "defaultMessage": "利用可能なプロバイダーはありません"
+  },
+  "providerCatalogPicker.noProvidersFound": {
+    "defaultMessage": "「{query}」に一致するプロバイダーが見つかりません"
+  },
+  "providerCatalogPicker.openaiCompatible": {
+    "defaultMessage": "OpenAI互換"
+  },
+  "providerCatalogPicker.requiresEnvVar": {
+    "defaultMessage": "• {envVar} が必要"
+  },
+  "providerCatalogPicker.searchProviders": {
+    "defaultMessage": "プロバイダーを検索..."
+  },
+  "providerCatalogPicker.selectFormatDescription": {
+    "defaultMessage": "API形式とプロバイダーを選択してください。設定は自動入力されます。"
+  },
+  "providerConfigForm.browserWindowOpen": {
+    "defaultMessage": "ログインを完了するためにブラウザーウィンドウが開きます。"
+  },
+  "providerConfigForm.configuring": {
+    "defaultMessage": "設定中..."
+  },
+  "providerConfigForm.continue": {
+    "defaultMessage": "続行"
+  },
+  "providerConfigForm.deviceCodeFlowHint": {
+    "defaultMessage": "ブラウザーウィンドウが開き、確認コードがクリップボードにコピーされます。ブラウザーに貼り付けてサインインを完了してください。"
+  },
+  "providerConfigForm.noApiKey": {
+    "defaultMessage": "APIキーをお持ちでないですか？"
+  },
+  "providerConfigForm.signInWith": {
+    "defaultMessage": "{providerName}でサインイン"
+  },
+  "providerConfigForm.signingIn": {
+    "defaultMessage": "サインイン中..."
+  },
+  "providerConfigurationModal.addApiKeyDescription": {
+    "defaultMessage": "gooseと連携するには、このプロバイダーのAPIキーを追加してください"
+  },
+  "providerConfigurationModal.browserWindowHint": {
+    "defaultMessage": "ログインを完了するためにブラウザーウィンドウが開きます。"
+  },
+  "providerConfigurationModal.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "providerConfigurationModal.cannotDeleteActive": {
+    "defaultMessage": "現在使用中のため、このプロバイダーは削除できません。先に別のモデルに切り替えてください。"
+  },
+  "providerConfigurationModal.checkConfigAgain": {
+    "defaultMessage": "このプロバイダーを使用するには、設定をもう一度確認してください。"
+  },
+  "providerConfigurationModal.close": {
+    "defaultMessage": "閉じる"
+  },
+  "providerConfigurationModal.configureHeader": {
+    "defaultMessage": "{providerName}を設定"
+  },
+  "providerConfigurationModal.deleteConfigHeader": {
+    "defaultMessage": "{providerName}の設定を削除"
+  },
+  "providerConfigurationModal.deleteConfirmation": {
+    "defaultMessage": "現在のプロバイダー設定は完全に削除されます。"
+  },
+  "providerConfigurationModal.deviceCodeFlowHint": {
+    "defaultMessage": "ブラウザーウィンドウが開き、確認コードがクリップボードにコピーされます。ブラウザーに貼り付けてサインインを完了してください。"
+  },
+  "providerConfigurationModal.errorCheckingConfig": {
+    "defaultMessage": "このプロバイダー設定の確認中にエラーが発生しました。"
+  },
+  "providerConfigurationModal.errorTitle": {
+    "defaultMessage": "エラー"
+  },
+  "providerConfigurationModal.externalSetupIntro": {
+    "defaultMessage": "このプロバイダーはgooseの外部で設定します。次の手順に従ってください:"
+  },
+  "providerConfigurationModal.goBack": {
+    "defaultMessage": "戻る"
+  },
+  "providerConfigurationModal.huggingFaceOAuthDescription": {
+    "defaultMessage": "APIトークンを手動で入力せずにHugging Face Inference Providersを使用するにはサインインしてください。"
+  },
+  "providerConfigurationModal.oauthLoginFailed": {
+    "defaultMessage": "OAuthログインに失敗しました: {error}"
+  },
+  "providerConfigurationModal.oauthSignInDescription": {
+    "defaultMessage": "このプロバイダーを使用するには、{providerName}アカウントでサインインしてください"
+  },
+  "providerConfigurationModal.parameterRequired": {
+    "defaultMessage": "{paramName}は必須です"
+  },
+  "providerConfigurationModal.removeConfiguration": {
+    "defaultMessage": "設定を削除"
+  },
+  "providerConfigurationModal.seeDocumentation": {
+    "defaultMessage": "詳細は<link>ドキュメント</link>をご覧ください。"
+  },
+  "providerConfigurationModal.signInWith": {
+    "defaultMessage": "{providerName}でサインイン"
+  },
+  "providerConfigurationModal.signingIn": {
+    "defaultMessage": "サインイン中..."
+  },
+  "providerGrid.addProvider": {
+    "defaultMessage": "プロバイダーを追加"
+  },
+  "providerGrid.addProviderTitle": {
+    "defaultMessage": "プロバイダーを追加"
+  },
+  "providerGrid.chooseModel": {
+    "defaultMessage": "モデルを選択"
+  },
+  "providerGrid.configureProvider": {
+    "defaultMessage": "プロバイダーを設定"
+  },
+  "providerGrid.editProvider": {
+    "defaultMessage": "プロバイダーを編集"
+  },
+  "providerGrid.fromTemplateOrManual": {
+    "defaultMessage": "テンプレートまたは手動設定から"
+  },
+  "providerLogo.alt": {
+    "defaultMessage": "{providerName}のロゴ"
+  },
+  "providerSelector.addCustomProvider": {
+    "defaultMessage": "カスタムプロバイダーを追加"
+  },
+  "providerSelector.addCustomProviderTitle": {
+    "defaultMessage": "カスタムプロバイダーを追加"
+  },
+  "providerSelector.connectProvider": {
+    "defaultMessage": "プロバイダーに接続"
+  },
+  "providerSelector.connectProviderDescription": {
+    "defaultMessage": "OpenAI、Anthropic、Googleなどに接続"
+  },
+  "providerSelector.freeLocalDescription": {
+    "defaultMessage": "ローカルモデルまたは無料クレジット付きのプロバイダーを使用"
+  },
+  "providerSelector.selectProvider": {
+    "defaultMessage": "プロバイダーを選択"
+  },
+  "providerSelector.useFreeLocal": {
+    "defaultMessage": "無料/ローカルプロバイダーを使用"
+  },
+  "providerSettings.configurationSettings": {
+    "defaultMessage": "プロバイダー設定"
+  },
+  "providerSettings.loadingProviders": {
+    "defaultMessage": "プロバイダーを読み込み中..."
+  },
+  "providerSettings.onboardingDescription": {
+    "defaultMessage": "gooseを始めるにはAIモデルプロバイダーを選択してください。各プロバイダーで生成したAPIキーが必要です。APIキーは暗号化され、ローカルに保存されます。プロバイダーは設定からいつでも変更できます。"
+  },
+  "providerSettings.otherProviders": {
+    "defaultMessage": "その他のプロバイダー"
+  },
+  "providerSetupActions.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "providerSetupActions.cannotDeleteActive": {
+    "defaultMessage": "現在使用中のため、{providerName}は削除できません。このプロバイダーを削除する前に、別のモデルに切り替えてください。"
+  },
+  "providerSetupActions.confirmDelete": {
+    "defaultMessage": "削除を確認"
+  },
+  "providerSetupActions.confirmDeleteMessage": {
+    "defaultMessage": "{providerName}の設定パラメーターを削除してもよろしいですか？この操作は元に戻せません。"
+  },
+  "providerSetupActions.deleteProvider": {
+    "defaultMessage": "プロバイダーを削除"
+  },
+  "providerSetupActions.enableProvider": {
+    "defaultMessage": "プロバイダーを有効化"
+  },
+  "providerSetupActions.ok": {
+    "defaultMessage": "OK"
+  },
+  "providerSetupActions.submit": {
+    "defaultMessage": "送信"
+  },
+  "recipeActivityEditor.activitiesDescription": {
+    "defaultMessage": "レシピチャットウィンドウに表示される冒頭プロンプトとアクティビティボタンです。"
+  },
+  "recipeActivityEditor.activitiesLabel": {
+    "defaultMessage": "アクティビティ"
+  },
+  "recipeActivityEditor.activityButtonsDescription": {
+    "defaultMessage": "メッセージの下に表示され、ユーザーがレシピを操作するためのクリック可能なボタンです。"
+  },
+  "recipeActivityEditor.activityButtonsLabel": {
+    "defaultMessage": "アクティビティボタン"
+  },
+  "recipeActivityEditor.addActivity": {
+    "defaultMessage": "アクティビティを追加"
+  },
+  "recipeActivityEditor.addNewActivityPlaceholder": {
+    "defaultMessage": "新しいアクティビティを追加..."
+  },
+  "recipeActivityEditor.messageDescription": {
+    "defaultMessage": "レシピの上部に表示される整形済みメッセージです。Markdown形式に対応しています。"
+  },
+  "recipeActivityEditor.messageLabel": {
+    "defaultMessage": "メッセージ"
+  },
+  "recipeActivityEditor.messagePlaceholder": {
+    "defaultMessage": "レシピ用にユーザー向けの紹介メッセージを入力してください（**太字**、*斜体*、`コード`などに対応）"
+  },
+  "recipeExtensionSelector.description": {
+    "defaultMessage": "このレシピの実行時に利用できる拡張機能を選択します。空のままにするとデフォルトの拡張機能を使用します。"
+  },
+  "recipeExtensionSelector.extensionsSelected": {
+    "defaultMessage": "{count,plural,one{# 個の拡張機能を選択済み} other{# 個の拡張機能を選択済み}}"
+  },
+  "recipeExtensionSelector.label": {
+    "defaultMessage": "拡張機能（任意）"
+  },
+  "recipeExtensionSelector.noExtensionsAvailable": {
+    "defaultMessage": "利用可能な拡張機能はありません"
+  },
+  "recipeExtensionSelector.noExtensionsFound": {
+    "defaultMessage": "拡張機能が見つかりません"
+  },
+  "recipeExtensionSelector.searchPlaceholder": {
+    "defaultMessage": "拡張機能を検索..."
+  },
+  "recipeFormFields.addParameter": {
+    "defaultMessage": "パラメーターを追加"
+  },
+  "recipeFormFields.advancedOptions": {
+    "defaultMessage": "詳細オプション"
+  },
+  "recipeFormFields.advancedOptionsHint": {
+    "defaultMessage": "アクティビティ、パラメーター、モデル、拡張機能、応答スキーマ、サブレシピ"
+  },
+  "recipeFormFields.descriptionLabel": {
+    "defaultMessage": "説明"
+  },
+  "recipeFormFields.descriptionPlaceholder": {
+    "defaultMessage": "このレシピの内容を簡単に説明"
+  },
+  "recipeFormFields.enterValueFor": {
+    "defaultMessage": "{key}の値を入力"
+  },
+  "recipeFormFields.initialPrompt": {
+    "defaultMessage": "初期プロンプト"
+  },
+  "recipeFormFields.instructionsLabel": {
+    "defaultMessage": "指示"
+  },
+  "recipeFormFields.instructionsPlaceholder": {
+    "defaultMessage": "AIへの詳細な指示（ユーザーには表示されません）"
+  },
+  "recipeFormFields.openEditor": {
+    "defaultMessage": "エディターを開く"
+  },
+  "recipeFormFields.parameterNamePlaceholder": {
+    "defaultMessage": "パラメーター名を入力..."
+  },
+  "recipeFormFields.parametersDescription": {
+    "defaultMessage": "パラメーターは、指示/プロンプト/アクティビティ内の'{{parameter_name}}'構文から自動検出されます。下で手動で追加することもできます。"
+  },
+  "recipeFormFields.parametersLabel": {
+    "defaultMessage": "パラメーター"
+  },
+  "recipeFormFields.promptOptionalHint": {
+    "defaultMessage": "（任意 - 指示またはプロンプトが必要）"
+  },
+  "recipeFormFields.promptPlaceholder": {
+    "defaultMessage": "レシピ開始時に入力済みとなるプロンプト"
+  },
+  "recipeFormFields.responseJsonSchema": {
+    "defaultMessage": "応答JSONスキーマ"
+  },
+  "recipeFormFields.responseJsonSchemaDescription": {
+    "defaultMessage": "JSON Schema形式でAIの応答に期待する構造を定義します"
+  },
+  "recipeFormFields.templateVarHint": {
+    "defaultMessage": "'{{parameter_name}}'を使って、レシピ実行時に入力できるパラメーターを定義します。"
+  },
+  "recipeFormFields.titleLabel": {
+    "defaultMessage": "タイトル"
+  },
+  "recipeFormFields.titlePlaceholder": {
+    "defaultMessage": "レシピタイトル"
+  },
+  "recipeHeader.recipeLabel": {
+    "defaultMessage": "レシピ"
+  },
+  "recipeModelSelector.backToModelList": {
+    "defaultMessage": "モデル一覧に戻る"
+  },
+  "recipeModelSelector.enterCustomModel": {
+    "defaultMessage": "カスタムモデル名を入力"
+  },
+  "recipeModelSelector.enterModelNotListed": {
+    "defaultMessage": "一覧にないモデルを入力..."
+  },
+  "recipeModelSelector.fetchError": {
+    "defaultMessage": "モデルの取得に失敗しました。後でもう一度お試しください。"
+  },
+  "recipeModelSelector.loadingModels": {
+    "defaultMessage": "モデルを読み込み中…"
+  },
+  "recipeModelSelector.modelHint": {
+    "defaultMessage": "選択したプロバイダーのデフォルトモデルを使用する場合は空のままにします"
+  },
+  "recipeModelSelector.modelLabel": {
+    "defaultMessage": "モデル（任意）"
+  },
+  "recipeModelSelector.providerHint": {
+    "defaultMessage": "設定で構成されたデフォルトプロバイダーを使用する場合は空のままにします"
+  },
+  "recipeModelSelector.providerLabel": {
+    "defaultMessage": "プロバイダー（任意）"
+  },
+  "recipeModelSelector.selectModel": {
+    "defaultMessage": "モデルを選択"
+  },
+  "recipeModelSelector.selectProvider": {
+    "defaultMessage": "プロバイダーを選択"
+  },
+  "recipeModelSelector.useDefaultProvider": {
+    "defaultMessage": "デフォルトプロバイダーを使用"
+  },
+  "recipeNameField.defaultLabel": {
+    "defaultMessage": "レシピ名"
+  },
+  "recipeNameField.formatHint": {
+    "defaultMessage": "自動的に整形されます（小文字、スペースはダッシュ）"
+  },
+  "recipeWarningModal.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "recipeWarningModal.descriptionLabel": {
+    "defaultMessage": "説明:"
+  },
+  "recipeWarningModal.firstTimeDescription": {
+    "defaultMessage": "これまで実行したことのないレシピを実行しようとしています。"
+  },
+  "recipeWarningModal.hiddenCharsWarning": {
+    "defaultMessage": "このレシピには、安全のため無視される隠し文字が含まれています。悪意のある目的に使用される可能性があります。"
+  },
+  "recipeWarningModal.instructionsLabel": {
+    "defaultMessage": "指示:"
+  },
+  "recipeWarningModal.newRecipeWarningTitle": {
+    "defaultMessage": "⚠️ 新しいレシピの警告"
+  },
+  "recipeWarningModal.recipePreview": {
+    "defaultMessage": "レシピのプレビュー:"
+  },
+  "recipeWarningModal.securityWarningTitle": {
+    "defaultMessage": "⚠️ セキュリティ警告"
+  },
+  "recipeWarningModal.titleLabel": {
+    "defaultMessage": "タイトル:"
+  },
+  "recipeWarningModal.trustAndExecute": {
+    "defaultMessage": "信頼して実行"
+  },
+  "recipeWarningModal.trustSource": {
+    "defaultMessage": "このレシピの提供元を信頼できる場合のみ続行してください。"
+  },
+  "recipesView.addSchedule": {
+    "defaultMessage": "スケジュールを追加"
+  },
+  "recipesView.addSlashCommand": {
+    "defaultMessage": "スラッシュコマンドを追加"
+  },
+  "recipesView.adjustSearchTerms": {
+    "defaultMessage": "検索条件を調整してみてください"
+  },
+  "recipesView.allFiles": {
+    "defaultMessage": "すべてのファイル"
+  },
+  "recipesView.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "recipesView.copyDeeplink": {
+    "defaultMessage": "ディープリンクをコピー"
+  },
+  "recipesView.copyDeeplinkFailedMsg": {
+    "defaultMessage": "ディープリンクをクリップボードにコピーできませんでした"
+  },
+  "recipesView.copyFailedTitle": {
+    "defaultMessage": "コピーに失敗しました"
+  },
+  "recipesView.copyYaml": {
+    "defaultMessage": "YAMLをコピー"
+  },
+  "recipesView.copyYamlFailedMsg": {
+    "defaultMessage": "レシピYAMLをクリップボードにコピーできませんでした"
+  },
+  "recipesView.createRecipe": {
+    "defaultMessage": "レシピを作成"
+  },
+  "recipesView.deeplinkCopiedMsg": {
+    "defaultMessage": "レシピのディープリンクをクリップボードにコピーしました"
+  },
+  "recipesView.deeplinkCopiedTitle": {
+    "defaultMessage": "ディープリンクをコピーしました"
+  },
+  "recipesView.deleteRecipe": {
+    "defaultMessage": "レシピを削除"
+  },
+  "recipesView.deleteRecipeConfirm": {
+    "defaultMessage": "\"{title}\"を削除してもよろしいですか？"
+  },
+  "recipesView.deleteRecipeDetail": {
+    "defaultMessage": "レシピファイルが削除されます。"
+  },
+  "recipesView.deleteRecipeTitle": {
+    "defaultMessage": "レシピを削除"
+  },
+  "recipesView.editRecipe": {
+    "defaultMessage": "レシピを編集"
+  },
+  "recipesView.editSchedule": {
+    "defaultMessage": "スケジュールを編集"
+  },
+  "recipesView.editSlashCommand": {
+    "defaultMessage": "スラッシュコマンドを編集"
+  },
+  "recipesView.errorLoadingRecipes": {
+    "defaultMessage": "レシピの読み込みエラー"
+  },
+  "recipesView.exportFailedMsg": {
+    "defaultMessage": "レシピをファイルにエクスポートできませんでした"
+  },
+  "recipesView.exportFailedTitle": {
+    "defaultMessage": "エクスポートに失敗しました"
+  },
+  "recipesView.exportRecipeDialogTitle": {
+    "defaultMessage": "レシピをエクスポート"
+  },
+  "recipesView.exportToFile": {
+    "defaultMessage": "ファイルにエクスポート"
+  },
+  "recipesView.noMatchingRecipes": {
+    "defaultMessage": "一致するレシピが見つかりません"
+  },
+  "recipesView.noSavedRecipes": {
+    "defaultMessage": "保存済みのレシピはありません"
+  },
+  "recipesView.noSavedRecipesDescription": {
+    "defaultMessage": "チャットから保存したレシピがここに表示されます。"
+  },
+  "recipesView.openInNewWindow": {
+    "defaultMessage": "新しいウィンドウで開く"
+  },
+  "recipesView.recipeDeletedSuccess": {
+    "defaultMessage": "レシピを削除しました"
+  },
+  "recipesView.recipeExportedMsg": {
+    "defaultMessage": "レシピを{filePath}に保存しました"
+  },
+  "recipesView.recipeExportedTitle": {
+    "defaultMessage": "レシピをエクスポートしました"
+  },
+  "recipesView.recipesDescription": {
+    "defaultMessage": "保存済みのレシピを表示・管理し、事前定義された設定で新しいセッションをすばやく開始できます。{shortcut}で検索できます。"
+  },
+  "recipesView.recipesTitle": {
+    "defaultMessage": "レシピ"
+  },
+  "recipesView.remove": {
+    "defaultMessage": "削除"
+  },
+  "recipesView.removeSchedule": {
+    "defaultMessage": "スケジュールを削除"
+  },
+  "recipesView.runs": {
+    "defaultMessage": "実行: {schedule}"
+  },
+  "recipesView.save": {
+    "defaultMessage": "保存"
+  },
+  "recipesView.scheduleDialogTitle": {
+    "defaultMessage": "スケジュールを{action}"
+  },
+  "recipesView.scheduleRemovedMsg": {
+    "defaultMessage": "レシピは自動実行されなくなります"
+  },
+  "recipesView.scheduleRemovedTitle": {
+    "defaultMessage": "スケジュールを削除しました"
+  },
+  "recipesView.scheduleSavedMsg": {
+    "defaultMessage": "レシピは{schedule}実行されます"
+  },
+  "recipesView.scheduleSavedTitle": {
+    "defaultMessage": "スケジュールを保存しました"
+  },
+  "recipesView.searchRecipesPlaceholder": {
+    "defaultMessage": "レシピを検索..."
+  },
+  "recipesView.shareRecipe": {
+    "defaultMessage": "レシピを共有"
+  },
+  "recipesView.slashCommandDescription": {
+    "defaultMessage": "このレシピを任意のチャットからすばやく実行するためのスラッシュコマンドを設定します"
+  },
+  "recipesView.slashCommandPlaceholder": {
+    "defaultMessage": "command-name"
+  },
+  "recipesView.slashCommandRemovedMsg": {
+    "defaultMessage": "レシピのスラッシュコマンドを削除しました"
+  },
+  "recipesView.slashCommandRemovedTitle": {
+    "defaultMessage": "スラッシュコマンドを削除しました"
+  },
+  "recipesView.slashCommandSavedMsg": {
+    "defaultMessage": "/{command}でこのレシピを実行できます"
+  },
+  "recipesView.slashCommandSavedTitle": {
+    "defaultMessage": "スラッシュコマンドを保存しました"
+  },
+  "recipesView.slashCommandTitle": {
+    "defaultMessage": "スラッシュコマンド"
+  },
+  "recipesView.slashCommandUsageHint": {
+    "defaultMessage": "任意のチャットで/{command}を使ってこのレシピを実行できます"
+  },
+  "recipesView.tryAgain": {
+    "defaultMessage": "再試行"
+  },
+  "recipesView.useRecipe": {
+    "defaultMessage": "レシピを使用"
+  },
+  "recipesView.yamlCopiedMsg": {
+    "defaultMessage": "レシピYAMLをクリップボードにコピーしました"
+  },
+  "recipesView.yamlCopiedTitle": {
+    "defaultMessage": "YAMLをコピーしました"
+  },
+  "recipesView.yamlFiles": {
+    "defaultMessage": "YAMLファイル"
+  },
+  "resetProviderSection.resetButton": {
+    "defaultMessage": "プロバイダーとモデルをリセット"
+  },
+  "resetProviderSection.resetDescription": {
+    "defaultMessage": "選択したモデルとプロバイダー設定がクリアされます。デフォルトがない場合は、再設定のためウェルカム画面に移動します。"
+  },
+  "responseStyle.conciseDescription": {
+    "defaultMessage": "ツール呼び出しはデフォルトで閉じられ、使用されたツールのみ表示されます"
+  },
+  "responseStyle.conciseLabel": {
+    "defaultMessage": "簡潔"
+  },
+  "responseStyle.detailedDescription": {
+    "defaultMessage": "ツール呼び出しはデフォルトで開かれ、詳細が表示されます"
+  },
+  "responseStyle.detailedLabel": {
+    "defaultMessage": "詳細"
+  },
+  "scheduleDetailView.actions": {
+    "defaultMessage": "操作"
+  },
+  "scheduleDetailView.cannotModifyRunning": {
+    "defaultMessage": "既に実行中のため、スケジュールを実行または変更できません。"
+  },
+  "scheduleDetailView.created": {
+    "defaultMessage": "作成: {date}"
+  },
+  "scheduleDetailView.cronExpression": {
+    "defaultMessage": "Cron式:"
+  },
+  "scheduleDetailView.currentSession": {
+    "defaultMessage": "現在のセッション:"
+  },
+  "scheduleDetailView.currentlyRunning": {
+    "defaultMessage": "実行中"
+  },
+  "scheduleDetailView.dir": {
+    "defaultMessage": "ディレクトリ: {path}"
+  },
+  "scheduleDetailView.editSchedule": {
+    "defaultMessage": "スケジュールを編集"
+  },
+  "scheduleDetailView.errorPrefix": {
+    "defaultMessage": "エラー: {error}"
+  },
+  "scheduleDetailView.failedToLoadSession": {
+    "defaultMessage": "セッションの読み込みに失敗しました"
+  },
+  "scheduleDetailView.idLabel": {
+    "defaultMessage": "ID:"
+  },
+  "scheduleDetailView.inspectJobError": {
+    "defaultMessage": "ジョブ確認エラー"
+  },
+  "scheduleDetailView.inspectNoInfo": {
+    "defaultMessage": "詳細情報はありません"
+  },
+  "scheduleDetailView.inspectRunningJob": {
+    "defaultMessage": "実行中ジョブを確認"
+  },
+  "scheduleDetailView.jobCancelled": {
+    "defaultMessage": "ジョブがキャンセルされました"
+  },
+  "scheduleDetailView.jobCancelledMsg": {
+    "defaultMessage": "起動中にジョブがキャンセルされました。"
+  },
+  "scheduleDetailView.jobInspection": {
+    "defaultMessage": "ジョブ確認"
+  },
+  "scheduleDetailView.jobKilled": {
+    "defaultMessage": "ジョブを強制終了しました"
+  },
+  "scheduleDetailView.killJobError": {
+    "defaultMessage": "ジョブ強制終了エラー"
+  },
+  "scheduleDetailView.killRunningJob": {
+    "defaultMessage": "実行中ジョブを強制終了"
+  },
+  "scheduleDetailView.lastRun": {
+    "defaultMessage": "前回実行:"
+  },
+  "scheduleDetailView.loadingSchedule": {
+    "defaultMessage": "スケジュールを読み込み中..."
+  },
+  "scheduleDetailView.loadingSessions": {
+    "defaultMessage": "セッションを読み込み中..."
+  },
+  "scheduleDetailView.messages": {
+    "defaultMessage": "メッセージ: {count}"
+  },
+  "scheduleDetailView.newSession": {
+    "defaultMessage": "新しいセッション: {sessionId}"
+  },
+  "scheduleDetailView.noScheduleId": {
+    "defaultMessage": "スケジュールIDが指定されていません。スケジュール一覧に戻ってください。"
+  },
+  "scheduleDetailView.noSessions": {
+    "defaultMessage": "このスケジュールのセッションはありません。"
+  },
+  "scheduleDetailView.pauseSchedule": {
+    "defaultMessage": "スケジュールを一時停止"
+  },
+  "scheduleDetailView.pauseUnpauseError": {
+    "defaultMessage": "一時停止/再開エラー"
+  },
+  "scheduleDetailView.paused": {
+    "defaultMessage": "一時停止中"
+  },
+  "scheduleDetailView.pausedMsg": {
+    "defaultMessage": "「{id}」を一時停止しました"
+  },
+  "scheduleDetailView.pausedWarning": {
+    "defaultMessage": "このスケジュールは一時停止中のため、自動実行されません。手動で実行するには「スケジュールを今すぐ実行」を使用するか、一時停止を解除して自動実行を再開してください。"
+  },
+  "scheduleDetailView.processStarted": {
+    "defaultMessage": "プロセス開始:"
+  },
+  "scheduleDetailView.recentSessions": {
+    "defaultMessage": "最近のセッション"
+  },
+  "scheduleDetailView.recipeSource": {
+    "defaultMessage": "レシピソース:"
+  },
+  "scheduleDetailView.runScheduleError": {
+    "defaultMessage": "スケジュール実行エラー"
+  },
+  "scheduleDetailView.runScheduleNow": {
+    "defaultMessage": "スケジュールを今すぐ実行"
+  },
+  "scheduleDetailView.scheduleDetails": {
+    "defaultMessage": "スケジュール詳細"
+  },
+  "scheduleDetailView.scheduleInformation": {
+    "defaultMessage": "スケジュール情報"
+  },
+  "scheduleDetailView.scheduleLabel": {
+    "defaultMessage": "スケジュール:"
+  },
+  "scheduleDetailView.scheduleNotFound": {
+    "defaultMessage": "スケジュールが見つかりません"
+  },
+  "scheduleDetailView.scheduleNotFoundError": {
+    "defaultMessage": "スケジュールが見つかりません"
+  },
+  "scheduleDetailView.schedulePaused": {
+    "defaultMessage": "スケジュールを一時停止しました"
+  },
+  "scheduleDetailView.scheduleTriggered": {
+    "defaultMessage": "スケジュールを実行しました"
+  },
+  "scheduleDetailView.scheduleUnpaused": {
+    "defaultMessage": "スケジュールを再開しました"
+  },
+  "scheduleDetailView.scheduleUpdated": {
+    "defaultMessage": "スケジュールを更新しました"
+  },
+  "scheduleDetailView.sessionId": {
+    "defaultMessage": "セッションID: {id}"
+  },
+  "scheduleDetailView.tokens": {
+    "defaultMessage": "トークン: {count}"
+  },
+  "scheduleDetailView.unpauseSchedule": {
+    "defaultMessage": "スケジュールを再開"
+  },
+  "scheduleDetailView.unpausedMsg": {
+    "defaultMessage": "「{id}」を再開しました"
+  },
+  "scheduleDetailView.updateScheduleError": {
+    "defaultMessage": "スケジュール更新エラー"
+  },
+  "scheduleDetailView.updatedMsg": {
+    "defaultMessage": "「{id}」を更新しました"
+  },
+  "scheduleDetailView.viewingScheduleId": {
+    "defaultMessage": "表示中のスケジュールID: {id}"
+  },
+  "scheduleModal.browseYaml": {
+    "defaultMessage": "YAMLファイルを選択..."
+  },
+  "scheduleModal.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "scheduleModal.createNewSchedule": {
+    "defaultMessage": "新しいスケジュールを作成"
+  },
+  "scheduleModal.createSchedule": {
+    "defaultMessage": "スケジュールを作成"
+  },
+  "scheduleModal.creating": {
+    "defaultMessage": "作成中..."
+  },
+  "scheduleModal.deepLink": {
+    "defaultMessage": "ディープリンク"
+  },
+  "scheduleModal.deepLinkPlaceholder": {
+    "defaultMessage": "goose://recipe リンクをここに貼り付け..."
+  },
+  "scheduleModal.editSchedule": {
+    "defaultMessage": "スケジュールを編集"
+  },
+  "scheduleModal.failedParseRecipe": {
+    "defaultMessage": "ファイルからレシピを解析できませんでした。"
+  },
+  "scheduleModal.failedReadFile": {
+    "defaultMessage": "選択したファイルを読み取れませんでした。"
+  },
+  "scheduleModal.invalidDeepLink": {
+    "defaultMessage": "無効なディープリンクです。goose://recipe リンクを使用してください。"
+  },
+  "scheduleModal.invalidFileType": {
+    "defaultMessage": "無効なファイル形式です。YAMLファイル（.yaml または .yml）を選択してください"
+  },
+  "scheduleModal.nameLabel": {
+    "defaultMessage": "名前:"
+  },
+  "scheduleModal.namePlaceholder": {
+    "defaultMessage": "例: daily-summary-job"
+  },
+  "scheduleModal.provideValidRecipe": {
+    "defaultMessage": "有効なレシピソースを指定してください。"
+  },
+  "scheduleModal.recipeDescription": {
+    "defaultMessage": "説明: {description}"
+  },
+  "scheduleModal.recipeParsed": {
+    "defaultMessage": "レシピを正常に解析しました"
+  },
+  "scheduleModal.recipeTitle": {
+    "defaultMessage": "タイトル: {title}"
+  },
+  "scheduleModal.scheduleIdRequired": {
+    "defaultMessage": "スケジュールIDは必須です。"
+  },
+  "scheduleModal.scheduleLabel": {
+    "defaultMessage": "スケジュール:"
+  },
+  "scheduleModal.selected": {
+    "defaultMessage": "選択済み: {path}"
+  },
+  "scheduleModal.sourceLabel": {
+    "defaultMessage": "ソース:"
+  },
+  "scheduleModal.updateSchedule": {
+    "defaultMessage": "スケジュールを更新"
+  },
+  "scheduleModal.updating": {
+    "defaultMessage": "更新中..."
+  },
+  "scheduleModal.yaml": {
+    "defaultMessage": "YAML"
+  },
+  "schedulesView.confirmDelete": {
+    "defaultMessage": "スケジュール「{id}」を削除しますか？レシピは保持されます。"
+  },
+  "schedulesView.createSchedule": {
+    "defaultMessage": "スケジュールを作成"
+  },
+  "schedulesView.description": {
+    "defaultMessage": "指定した時刻にレシピを自動実行するスケジュールタスクを作成・管理します。"
+  },
+  "schedulesView.edit": {
+    "defaultMessage": "編集"
+  },
+  "schedulesView.errorPrefix": {
+    "defaultMessage": "エラー: {error}"
+  },
+  "schedulesView.inspect": {
+    "defaultMessage": "確認"
+  },
+  "schedulesView.inspectError": {
+    "defaultMessage": "ジョブ確認エラー"
+  },
+  "schedulesView.inspectNoInfo": {
+    "defaultMessage": "このジョブの詳細情報はありません"
+  },
+  "schedulesView.jobInspection": {
+    "defaultMessage": "ジョブ確認"
+  },
+  "schedulesView.jobKilled": {
+    "defaultMessage": "ジョブを強制終了しました"
+  },
+  "schedulesView.kill": {
+    "defaultMessage": "強制終了"
+  },
+  "schedulesView.killError": {
+    "defaultMessage": "ジョブ強制終了エラー"
+  },
+  "schedulesView.lastRun": {
+    "defaultMessage": "前回実行: {date}"
+  },
+  "schedulesView.noSchedules": {
+    "defaultMessage": "スケジュールはまだありません"
+  },
+  "schedulesView.pause": {
+    "defaultMessage": "一時停止"
+  },
+  "schedulesView.pauseError": {
+    "defaultMessage": "スケジュール一時停止エラー"
+  },
+  "schedulesView.paused": {
+    "defaultMessage": "一時停止中"
+  },
+  "schedulesView.refresh": {
+    "defaultMessage": "更新"
+  },
+  "schedulesView.refreshing": {
+    "defaultMessage": "更新中..."
+  },
+  "schedulesView.resume": {
+    "defaultMessage": "再開"
+  },
+  "schedulesView.running": {
+    "defaultMessage": "実行中"
+  },
+  "schedulesView.schedulePaused": {
+    "defaultMessage": "スケジュールを一時停止しました"
+  },
+  "schedulesView.schedulePausedMsg": {
+    "defaultMessage": "スケジュール「{id}」を一時停止しました"
+  },
+  "schedulesView.scheduleUnpaused": {
+    "defaultMessage": "スケジュールを再開しました"
+  },
+  "schedulesView.scheduleUnpausedMsg": {
+    "defaultMessage": "スケジュール「{id}」を再開しました"
+  },
+  "schedulesView.scheduleUpdated": {
+    "defaultMessage": "スケジュールを更新しました"
+  },
+  "schedulesView.scheduleUpdatedMsg": {
+    "defaultMessage": "スケジュール「{id}」を更新しました"
+  },
+  "schedulesView.scheduler": {
+    "defaultMessage": "スケジューラー"
+  },
+  "schedulesView.unpauseError": {
+    "defaultMessage": "スケジュール再開エラー"
+  },
+  "searchBar.caseSensitive": {
+    "defaultMessage": "大文字/小文字を区別"
+  },
+  "searchBar.close": {
+    "defaultMessage": "閉じる（{shortcut}）"
+  },
+  "searchBar.next": {
+    "defaultMessage": "次へ（{shortcut}）"
+  },
+  "searchBar.placeholder": {
+    "defaultMessage": "会話を検索..."
+  },
+  "searchBar.previous": {
+    "defaultMessage": "前へ（{shortcut}）"
+  },
+  "secureStorageNotice.defaultMessage": {
+    "defaultMessage": "キーはキーチェーンに安全に保存されます"
+  },
+  "securityToggle.apiTokenDescription": {
+    "defaultMessage": "分類サービスの認証トークン"
+  },
+  "securityToggle.apiTokenOptional": {
+    "defaultMessage": "APIトークン（任意）"
+  },
+  "securityToggle.classificationEndpoint": {
+    "defaultMessage": "分類エンドポイント"
+  },
+  "securityToggle.classificationEndpointDescription": {
+    "defaultMessage": "分類サービスの完全なURLを入力してください"
+  },
+  "securityToggle.commandClassifierActive": {
+    "defaultMessage": "コマンド分類器が有効です（環境から自動設定）"
+  },
+  "securityToggle.commandEndpointDescription": {
+    "defaultMessage": "コマンドインジェクション分類サービスの完全なURLを入力してください"
+  },
+  "securityToggle.commandInjectionDescription": {
+    "defaultMessage": "MLモデルを使用して悪意のあるシェルコマンドを検出します"
+  },
+  "securityToggle.detectionModel": {
+    "defaultMessage": "検出モデル"
+  },
+  "securityToggle.detectionModelDescription": {
+    "defaultMessage": "プロンプトインジェクション検出に使用するMLモデルを選択します"
+  },
+  "securityToggle.detectionThreshold": {
+    "defaultMessage": "検出しきい値"
+  },
+  "securityToggle.enableCommandInjection": {
+    "defaultMessage": "コマンドインジェクションML検出を有効化"
+  },
+  "securityToggle.enablePromptInjection": {
+    "defaultMessage": "プロンプトインジェクション検出を有効化"
+  },
+  "securityToggle.enablePromptInjectionMl": {
+    "defaultMessage": "プロンプトインジェクションML検出を有効化"
+  },
+  "securityToggle.mlEndpointDescription": {
+    "defaultMessage": "ML分類サービスの完全なURL（モデル識別子を含む）を入力してください"
+  },
+  "securityToggle.mlTokenDescription": {
+    "defaultMessage": "MLサービスの認証トークン（例: Hugging Faceトークン）"
+  },
+  "securityToggle.overrideNotice": {
+    "defaultMessage": "この設定は組織によって管理されているため、変更できません。"
+  },
+  "securityToggle.promptInjectionDescription": {
+    "defaultMessage": "潜在的なプロンプトインジェクション攻撃を検出して防止します"
+  },
+  "securityToggle.promptInjectionMlDescription": {
+    "defaultMessage": "MLモデルを使用してチャット内の潜在的なプロンプトインジェクションを検出します"
+  },
+  "securityToggle.thresholdDescription": {
+    "defaultMessage": "値が高いほど厳格です（0.01 = 非常に緩い、1.0 = 最大限に厳格）"
+  },
+  "securityToggle.warpNotice": {
+    "defaultMessage": "コマンドインジェクション検出は、WARPに接続していると最も効果的です（分類サービスに到達するために必要です）。"
+  },
+  "sessionHistory.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "sessionHistory.copy": {
+    "defaultMessage": "コピー"
+  },
+  "sessionHistory.empty.description": {
+    "defaultMessage": "このセッションにはメッセージがありません"
+  },
+  "sessionHistory.empty.title": {
+    "defaultMessage": "メッセージが見つかりません"
+  },
+  "sessionHistory.error.loading": {
+    "defaultMessage": "セッション詳細の読み込みエラー"
+  },
+  "sessionHistory.error.tryAgain": {
+    "defaultMessage": "再試行"
+  },
+  "sessionHistory.loading": {
+    "defaultMessage": "セッション詳細を読み込み中..."
+  },
+  "sessionHistory.resume": {
+    "defaultMessage": "再開"
+  },
+  "sessionHistory.searchPlaceholder": {
+    "defaultMessage": "履歴を検索..."
+  },
+  "sessionHistory.share": {
+    "defaultMessage": "共有"
+  },
+  "sessionHistory.shareModal.description": {
+    "defaultMessage": "このセッションリンクを共有すると、他のユーザーがあなたのgooseチャットを読み取り専用で表示できます。"
+  },
+  "sessionHistory.shareModal.title": {
+    "defaultMessage": "セッションを共有（ベータ）"
+  },
+  "sessionHistory.shareTooltip": {
+    "defaultMessage": "セッション共有を有効にするには、<b>設定</b> > <b>セッション</b> > <b>セッション共有</b> に移動してください。"
+  },
+  "sessionHistory.sharing": {
+    "defaultMessage": "共有中..."
+  },
+  "sessionHistory.toast.copyFailed": {
+    "defaultMessage": "リンクをクリップボードにコピーできませんでした"
+  },
+  "sessionHistory.toast.launchFailed": {
+    "defaultMessage": "セッションを起動できませんでした: {error}"
+  },
+  "sessionHistory.toast.shareFailed": {
+    "defaultMessage": "セッションの共有に失敗しました: {error}"
+  },
+  "sessionIndicators.error": {
+    "defaultMessage": "セッションでエラーが発生しました"
+  },
+  "sessionIndicators.newActivity": {
+    "defaultMessage": "新しいアクティビティがあります"
+  },
+  "sessionIndicators.streaming": {
+    "defaultMessage": "ストリーミング中"
+  },
+  "sessionSharingSection.alreadyConfigured": {
+    "defaultMessage": "セッション共有は既に設定済みです"
+  },
+  "sessionSharingSection.baseUrl": {
+    "defaultMessage": "ベースURL"
+  },
+  "sessionSharingSection.connectionFailed": {
+    "defaultMessage": "接続に失敗しました。"
+  },
+  "sessionSharingSection.connectionSuccess": {
+    "defaultMessage": "接続に成功しました！"
+  },
+  "sessionSharingSection.connectionTimedOut": {
+    "defaultMessage": "接続がタイムアウトしました。サーバーが遅いか、到達できない可能性があります。"
+  },
+  "sessionSharingSection.descriptionConfigured": {
+    "defaultMessage": "セッション共有は設定済みですが、共有は完全に任意です。明示的に共有ボタンをクリックした場合にのみ、セッションが共有されます。"
+  },
+  "sessionSharingSection.descriptionDefault": {
+    "defaultMessage": "セッション共有を有効にすると、セッションを他のユーザーと共有できます。"
+  },
+  "sessionSharingSection.enableSharing": {
+    "defaultMessage": "セッション共有を有効化"
+  },
+  "sessionSharingSection.invalidUrl": {
+    "defaultMessage": "URL形式が無効です。有効なURL（例: https://example.com/api）を入力してください。"
+  },
+  "sessionSharingSection.serverError": {
+    "defaultMessage": "サーバーエラー: HTTP {status}。サーバーが正しく設定されていない可能性があります。"
+  },
+  "sessionSharingSection.testConnection": {
+    "defaultMessage": "接続をテスト"
+  },
+  "sessionSharingSection.testing": {
+    "defaultMessage": "テスト中..."
+  },
+  "sessionSharingSection.testingConnection": {
+    "defaultMessage": "接続をテスト中..."
+  },
+  "sessionSharingSection.title": {
+    "defaultMessage": "セッション共有"
+  },
+  "sessionSharingSection.unknownError": {
+    "defaultMessage": "不明なエラーが発生しました。"
+  },
+  "sessionSharingSection.unreachableServer": {
+    "defaultMessage": "サーバーに到達できません。URLとネットワーク接続を確認してください。"
+  },
+  "sessionSharingSection.urlPlaceholder": {
+    "defaultMessage": "https://example.com/api"
+  },
+  "sessionViewComponents.empty.description": {
+    "defaultMessage": "このセッションにはメッセージがありません"
+  },
+  "sessionViewComponents.empty.title": {
+    "defaultMessage": "メッセージが見つかりません"
+  },
+  "sessionViewComponents.error.loading": {
+    "defaultMessage": "セッション詳細の読み込みエラー"
+  },
+  "sessionViewComponents.error.tryAgain": {
+    "defaultMessage": "再試行"
+  },
+  "sessionViewComponents.role.assistant": {
+    "defaultMessage": "Goose"
+  },
+  "sessionViewComponents.role.user": {
+    "defaultMessage": "あなた"
+  },
+  "sessions.action.delete": {
+    "defaultMessage": "セッションを削除"
+  },
+  "sessions.action.duplicate": {
+    "defaultMessage": "セッションを複製"
+  },
+  "sessions.action.editName": {
+    "defaultMessage": "セッション名を編集"
+  },
+  "sessions.action.export": {
+    "defaultMessage": "セッションをエクスポート"
+  },
+  "sessions.action.openNewWindow": {
+    "defaultMessage": "新しいウィンドウで開く"
+  },
+  "sessions.action.shareNostr": {
+    "defaultMessage": "暗号化Nostrリンクを共有"
+  },
+  "sessions.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "sessions.chatHistory": {
+    "defaultMessage": "チャット履歴"
+  },
+  "sessions.chatHistoryDesc": {
+    "defaultMessage": "Gooseとの過去の会話を表示・検索できます。{shortcut}で検索。"
+  },
+  "sessions.close": {
+    "defaultMessage": "閉じる"
+  },
+  "sessions.delete.message": {
+    "defaultMessage": "セッション「{name}」を削除してもよろしいですか？この操作は元に戻せません。"
+  },
+  "sessions.delete.title": {
+    "defaultMessage": "セッションを削除"
+  },
+  "sessions.edit.placeholder": {
+    "defaultMessage": "セッションの説明を入力"
+  },
+  "sessions.edit.title": {
+    "defaultMessage": "セッションの説明を編集"
+  },
+  "sessions.empty.description": {
+    "defaultMessage": "チャット履歴はここに表示されます"
+  },
+  "sessions.empty.title": {
+    "defaultMessage": "チャットセッションが見つかりません"
+  },
+  "sessions.error.loading": {
+    "defaultMessage": "セッションの読み込みエラー"
+  },
+  "sessions.error.tryAgain": {
+    "defaultMessage": "再試行"
+  },
+  "sessions.import": {
+    "defaultMessage": "セッションをインポート"
+  },
+  "sessions.importNostr": {
+    "defaultMessage": "リンクをインポート"
+  },
+  "sessions.importNostr.description": {
+    "defaultMessage": "Goose Nostr共有リンクを貼り付けて、セッションを取得・復号・インポートします。"
+  },
+  "sessions.importNostr.placeholder": {
+    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
+  },
+  "sessions.importNostr.title": {
+    "defaultMessage": "Nostrセッションをインポート"
+  },
+  "sessions.importing": {
+    "defaultMessage": "インポート中..."
+  },
+  "sessions.loadingMore": {
+    "defaultMessage": "さらにセッションを読み込み中..."
+  },
+  "sessions.save": {
+    "defaultMessage": "保存"
+  },
+  "sessions.saving": {
+    "defaultMessage": "保存中..."
+  },
+  "sessions.search.noResults": {
+    "defaultMessage": "一致するセッションが見つかりません"
+  },
+  "sessions.search.noResultsDesc": {
+    "defaultMessage": "検索条件を変更してみてください"
+  },
+  "sessions.searchPlaceholder": {
+    "defaultMessage": "履歴を検索..."
+  },
+  "sessions.shareNostr.description": {
+    "defaultMessage": "このリンクを持つ人は誰でもセッションを取得して復号できます。秘密情報として扱ってください。"
+  },
+  "sessions.shareNostr.title": {
+    "defaultMessage": "暗号化Nostr共有リンク"
+  },
+  "sessions.toast.copied": {
+    "defaultMessage": "クリップボードにコピーしました"
+  },
+  "sessions.toast.deleteFailed": {
+    "defaultMessage": "セッション「{name}」を削除できませんでした: {error}"
+  },
+  "sessions.toast.deleted": {
+    "defaultMessage": "セッションを削除しました"
+  },
+  "sessions.toast.duplicateFailed": {
+    "defaultMessage": "セッションを複製できませんでした: {error}"
+  },
+  "sessions.toast.duplicated": {
+    "defaultMessage": "セッション「{name}」を複製しました"
+  },
+  "sessions.toast.exported": {
+    "defaultMessage": "セッションをエクスポートしました"
+  },
+  "sessions.toast.importFailed": {
+    "defaultMessage": "セッションをインポートできませんでした: {error}"
+  },
+  "sessions.toast.imported": {
+    "defaultMessage": "セッションをインポートしました"
+  },
+  "sessions.toast.shareNostr": {
+    "defaultMessage": "暗号化Nostr共有リンクを作成しました"
+  },
+  "sessions.toast.shareNostrFailed": {
+    "defaultMessage": "Nostr共有リンクを作成できませんでした: {error}"
+  },
+  "sessions.toast.updateFailed": {
+    "defaultMessage": "セッションの説明を更新できませんでした: {error}"
+  },
+  "sessions.toast.updated": {
+    "defaultMessage": "セッションの説明を更新しました"
+  },
+  "sessionsView.error.failedToLoad": {
+    "defaultMessage": "セッションの詳細を読み込めませんでした。後でもう一度お試しください。"
+  },
+  "sessionsView.loading": {
+    "defaultMessage": "読み込み中..."
+  },
+  "settings.appearance.description": {
+    "defaultMessage": "システム上でのgooseの表示を設定します"
+  },
+  "settings.appearance.title": {
+    "defaultMessage": "外観"
+  },
+  "settings.close": {
+    "defaultMessage": "閉じる"
+  },
+  "settings.costTracking.description": {
+    "defaultMessage": "モデル料金と使用コストを表示します"
+  },
+  "settings.costTracking.title": {
+    "defaultMessage": "コスト管理"
+  },
+  "settings.dockIcon.description": {
+    "defaultMessage": "Dockにgooseを表示します"
+  },
+  "settings.dockIcon.title": {
+    "defaultMessage": "Dockアイコン"
+  },
+  "settings.help.description": {
+    "defaultMessage": "問題の報告や新機能のリクエストでgooseの改善にご協力ください"
+  },
+  "settings.help.reportBug": {
+    "defaultMessage": "バグを報告"
+  },
+  "settings.help.requestFeature": {
+    "defaultMessage": "機能をリクエスト"
+  },
+  "settings.help.title": {
+    "defaultMessage": "ヘルプとフィードバック"
+  },
+  "settings.menuBarIcon.description": {
+    "defaultMessage": "メニューバーにgooseを表示します"
+  },
+  "settings.menuBarIcon.title": {
+    "defaultMessage": "メニューバーアイコン"
+  },
+  "settings.notifications.configGuide": {
+    "defaultMessage": "設定ガイド"
+  },
+  "settings.notifications.description": {
+    "defaultMessage": "通知はOSで管理されます - {link}"
+  },
+  "settings.notifications.modal.macInstructions": {
+    "defaultMessage": "macOSで通知を有効にするには:"
+  },
+  "settings.notifications.modal.macStep1": {
+    "defaultMessage": "システム設定を開く"
+  },
+  "settings.notifications.modal.macStep2": {
+    "defaultMessage": "「通知」をクリック"
+  },
+  "settings.notifications.modal.macStep3": {
+    "defaultMessage": "アプリ一覧でgooseを見つけて選択"
+  },
+  "settings.notifications.modal.macStep4": {
+    "defaultMessage": "通知を有効にし、必要に応じて設定を調整"
+  },
+  "settings.notifications.modal.title": {
+    "defaultMessage": "通知を有効にする方法"
+  },
+  "settings.notifications.modal.winInstructions": {
+    "defaultMessage": "Windowsで通知を有効にするには:"
+  },
+  "settings.notifications.modal.winStep1": {
+    "defaultMessage": "設定を開く"
+  },
+  "settings.notifications.modal.winStep2": {
+    "defaultMessage": "システム > 通知に移動"
+  },
+  "settings.notifications.modal.winStep3": {
+    "defaultMessage": "アプリ一覧でgooseを見つけて選択"
+  },
+  "settings.notifications.modal.winStep4": {
+    "defaultMessage": "通知をオンにし、必要に応じて設定を調整"
+  },
+  "settings.notifications.openSettings": {
+    "defaultMessage": "設定を開く"
+  },
+  "settings.notifications.task.description": {
+    "defaultMessage": "ウィンドウがバックグラウンドにある間にGooseがタスクを完了したら通知します"
+  },
+  "settings.notifications.task.title": {
+    "defaultMessage": "タスク完了通知"
+  },
+  "settings.notifications.title": {
+    "defaultMessage": "通知"
+  },
+  "settings.preventSleep.description": {
+    "defaultMessage": "gooseがタスクを実行中はコンピューターがスリープしないようにします（画面はロックされる場合があります）"
+  },
+  "settings.preventSleep.title": {
+    "defaultMessage": "スリープを防止"
+  },
+  "settings.theme.description": {
+    "defaultMessage": "gooseの見た目と操作感をカスタマイズします"
+  },
+  "settings.theme.title": {
+    "defaultMessage": "テーマ"
+  },
+  "settings.updates.description": {
+    "defaultMessage": "gooseを最新の状態に保つため、アップデートを確認してインストールします"
+  },
+  "settings.updates.title": {
+    "defaultMessage": "アップデート"
+  },
+  "settings.version.title": {
+    "defaultMessage": "バージョン"
+  },
+  "settingsView.tabApp": {
+    "defaultMessage": "アプリ"
+  },
+  "settingsView.tabAuth": {
+    "defaultMessage": "認証"
+  },
+  "settingsView.tabChat": {
+    "defaultMessage": "チャット"
+  },
+  "settingsView.tabKeyboard": {
+    "defaultMessage": "キーボード"
+  },
+  "settingsView.tabLocalInference": {
+    "defaultMessage": "ローカル推論"
+  },
+  "settingsView.tabModels": {
+    "defaultMessage": "モデル"
+  },
+  "settingsView.tabPrompts": {
+    "defaultMessage": "プロンプト"
+  },
+  "settingsView.tabSession": {
+    "defaultMessage": "セッション"
+  },
+  "settingsView.title": {
+    "defaultMessage": "設定"
+  },
+  "sharedSession.loading": {
+    "defaultMessage": "セッションの詳細を読み込み中..."
+  },
+  "sharedSession.title": {
+    "defaultMessage": "共有セッション"
+  },
+  "sheet.close": {
+    "defaultMessage": "閉じる"
+  },
+  "shortcutRecorder.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "shortcutRecorder.clickToRecord": {
+    "defaultMessage": "クリックして記録..."
+  },
+  "shortcutRecorder.conflictWarning": {
+    "defaultMessage": "このショートカットはすでに{label}で使用されています。保存すると、この操作に割り当て直されます。"
+  },
+  "shortcutRecorder.pressShortcut": {
+    "defaultMessage": "ショートカットを押してください..."
+  },
+  "shortcutRecorder.save": {
+    "defaultMessage": "保存"
+  },
+  "skillsView.addSkill": {
+    "defaultMessage": "スキルを追加"
+  },
+  "skillsView.adjustSearchTerms": {
+    "defaultMessage": "検索条件を変更してみてください"
+  },
+  "skillsView.comingSoon": {
+    "defaultMessage": "近日公開"
+  },
+  "skillsView.errorLoadingSkills": {
+    "defaultMessage": "スキルの読み込みエラー"
+  },
+  "skillsView.noMatchingSkills": {
+    "defaultMessage": "一致するスキルが見つかりません"
+  },
+  "skillsView.noSkillsDescription": {
+    "defaultMessage": "スキルは ~/.config/agents/skills/、.goose/skills/、またはその他の対応ディレクトリ内の SKILL.md ファイルから読み込まれます。"
+  },
+  "skillsView.noSkillsInstalled": {
+    "defaultMessage": "スキルがインストールされていません"
+  },
+  "skillsView.searchSkillsPlaceholder": {
+    "defaultMessage": "スキルを検索..."
+  },
+  "skillsView.skillsDescription": {
+    "defaultMessage": "Gooseの機能を拡張するインストール済みスキルを表示します。{shortcut}で検索。"
+  },
+  "skillsView.skillsTitle": {
+    "defaultMessage": "スキル"
+  },
+  "skillsView.tryAgain": {
+    "defaultMessage": "再試行"
+  },
+  "spellcheckToggle.description": {
+    "defaultMessage": "チャット入力のスペルをチェックします。反映するには再起動が必要です。"
+  },
+  "spellcheckToggle.title": {
+    "defaultMessage": "スペルチェックを有効にする"
+  },
+  "standaloneAppView.failedToLoad": {
+    "defaultMessage": "アプリを読み込めませんでした"
+  },
+  "standaloneAppView.initializing": {
+    "defaultMessage": "アプリを初期化中..."
+  },
+  "standaloneAppView.missingParams": {
+    "defaultMessage": "必須パラメータが不足しています"
+  },
+  "stringUtils.configuredProvider": {
+    "defaultMessage": "{name}プロバイダーが設定されています"
+  },
+  "stringUtils.ollamaApp": {
+    "defaultMessage": "Ollamaアプリ"
+  },
+  "stringUtils.ollamaNotConfiguredPrefix": {
+    "defaultMessage": "使用するには、"
+  },
+  "stringUtils.ollamaNotConfiguredSuffix": {
+    "defaultMessage": "をマシンにインストールして開いておくか、OLLAMA_HOSTの値を入力する必要があります。"
+  },
+  "subRecipeEditor.addExisting": {
+    "defaultMessage": "既存を追加"
+  },
+  "subRecipeEditor.createNew": {
+    "defaultMessage": "新しいサブレシピを作成"
+  },
+  "subRecipeEditor.deleteSubrecipe": {
+    "defaultMessage": "サブレシピ「{name}」を削除"
+  },
+  "subRecipeEditor.description": {
+    "defaultMessage": "サブレシピは、実行中にツールとして呼び出せるレシピです。複数ステップのワークフローや再利用可能なコンポーネントを実現します。"
+  },
+  "subRecipeEditor.duplicateName": {
+    "defaultMessage": "重複する名前"
+  },
+  "subRecipeEditor.duplicateNameMsg": {
+    "defaultMessage": "「{name}」という名前のサブレシピはすでに存在します。一意の名前を使用してください。"
+  },
+  "subRecipeEditor.editSubrecipe": {
+    "defaultMessage": "サブレシピ「{name}」を編集"
+  },
+  "subRecipeEditor.label": {
+    "defaultMessage": "サブレシピ"
+  },
+  "subRecipeEditor.preconfiguredValues": {
+    "defaultMessage": "事前設定値:"
+  },
+  "subRecipeEditor.sequential": {
+    "defaultMessage": "順次実行"
+  },
+  "subRecipeModal.addTitle": {
+    "defaultMessage": "サブレシピを追加"
+  },
+  "subRecipeModal.apply": {
+    "defaultMessage": "適用"
+  },
+  "subRecipeModal.browse": {
+    "defaultMessage": "参照"
+  },
+  "subRecipeModal.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "subRecipeModal.closeModal": {
+    "defaultMessage": "サブレシピのモーダルを閉じる"
+  },
+  "subRecipeModal.configureTitle": {
+    "defaultMessage": "サブレシピを設定"
+  },
+  "subRecipeModal.descriptionLabel": {
+    "defaultMessage": "説明"
+  },
+  "subRecipeModal.descriptionPlaceholder": {
+    "defaultMessage": "このサブレシピの処理内容（任意）..."
+  },
+  "subRecipeModal.invalidFile": {
+    "defaultMessage": "無効なファイル"
+  },
+  "subRecipeModal.invalidFileMsg": {
+    "defaultMessage": "YAMLファイル（.yamlまたは.yml）を選択してください。"
+  },
+  "subRecipeModal.nameHint": {
+    "defaultMessage": "ツール名の生成に使用される一意の識別子"
+  },
+  "subRecipeModal.nameLabel": {
+    "defaultMessage": "名前"
+  },
+  "subRecipeModal.namePlaceholder": {
+    "defaultMessage": "例: security_scan"
+  },
+  "subRecipeModal.pathHint": {
+    "defaultMessage": "既存のレシピファイルを参照するか、パスを手動で入力します"
+  },
+  "subRecipeModal.pathLabel": {
+    "defaultMessage": "パス"
+  },
+  "subRecipeModal.pathPlaceholder": {
+    "defaultMessage": "例: ./subrecipes/security-analysis.yaml"
+  },
+  "subRecipeModal.preconfiguredValues": {
+    "defaultMessage": "事前設定値"
+  },
+  "subRecipeModal.preconfiguredValuesHint": {
+    "defaultMessage": "サブレシピに常に渡される任意のパラメータ値"
+  },
+  "subRecipeModal.sequentialHint": {
+    "defaultMessage": "（複数のサブレシピインスタンスを強制的に順次実行します）"
+  },
+  "subRecipeModal.sequentialLabel": {
+    "defaultMessage": "繰り返し時に順次実行"
+  },
+  "subRecipeModal.subtitle": {
+    "defaultMessage": "レシピ実行中にツールとして呼び出せるサブレシピを設定します"
+  },
+  "switchModelModal.backToModelList": {
+    "defaultMessage": "モデル一覧に戻る"
+  },
+  "switchModelModal.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "switchModelModal.checkProviderConfig": {
+    "defaultMessage": "設定 → プロバイダーでプロバイダー設定を確認してください"
+  },
+  "switchModelModal.chooseModel": {
+    "defaultMessage": "モデルを選択:"
+  },
+  "switchModelModal.claudeAdaptive": {
+    "defaultMessage": "適応 - 思考するタイミングと量をClaudeが判断"
+  },
+  "switchModelModal.claudeDisabled": {
+    "defaultMessage": "無効 - 拡張思考なし"
+  },
+  "switchModelModal.claudeEffortHigh": {
+    "defaultMessage": "高 - 深い推論（デフォルト）"
+  },
+  "switchModelModal.claudeEffortLow": {
+    "defaultMessage": "低 - 最小限の思考、最速の応答"
+  },
+  "switchModelModal.claudeEffortMax": {
+    "defaultMessage": "最大 - 思考の深さに制限なし"
+  },
+  "switchModelModal.claudeEffortMedium": {
+    "defaultMessage": "中 - 適度な思考"
+  },
+  "switchModelModal.claudeEnabled": {
+    "defaultMessage": "有効 - 思考用トークンバジェットを固定"
+  },
+  "switchModelModal.couldNotContactProvider": {
+    "defaultMessage": "プロバイダーに接続できませんでした"
+  },
+  "switchModelModal.customModelName": {
+    "defaultMessage": "カスタムモデル名"
+  },
+  "switchModelModal.description": {
+    "defaultMessage": "会話で使用するプロバイダーとモデルを選択します。"
+  },
+  "switchModelModal.enterModelNotListed": {
+    "defaultMessage": "一覧にないモデルを入力..."
+  },
+  "switchModelModal.extendedThinking": {
+    "defaultMessage": "拡張思考"
+  },
+  "switchModelModal.geminiOnly": {
+    "defaultMessage": "（Gemini 3モデルのみ）"
+  },
+  "switchModelModal.goToSettings": {
+    "defaultMessage": "設定へ移動"
+  },
+  "switchModelModal.loadingModels": {
+    "defaultMessage": "モデルを読み込み中…"
+  },
+  "switchModelModal.localModelsDescription": {
+    "defaultMessage": "ローカル推論を使用するには、先にモデルをコンピューターにダウンロードする必要があります。設定 → モデルでローカルモデルを管理できます。"
+  },
+  "switchModelModal.localModelsTitle": {
+    "defaultMessage": "ローカルモデルのダウンロードが必要です"
+  },
+  "switchModelModal.providerPlaceholder": {
+    "defaultMessage": "プロバイダーを選択（入力で検索）"
+  },
+  "switchModelModal.quickStartGuide": {
+    "defaultMessage": "クイックスタートガイド"
+  },
+  "switchModelModal.recommended": {
+    "defaultMessage": "推奨"
+  },
+  "switchModelModal.selectEffortLevel": {
+    "defaultMessage": "思考量を選択"
+  },
+  "switchModelModal.selectModel": {
+    "defaultMessage": "モデルを選択してください"
+  },
+  "switchModelModal.selectModelButton": {
+    "defaultMessage": "モデルを選択"
+  },
+  "switchModelModal.selectModelPlaceholder": {
+    "defaultMessage": "モデルを選択（入力で検索）"
+  },
+  "switchModelModal.selectOrEnterModel": {
+    "defaultMessage": "モデルを選択または入力してください"
+  },
+  "switchModelModal.selectProvider": {
+    "defaultMessage": "プロバイダーを選択してください"
+  },
+  "switchModelModal.selectThinkingLevel": {
+    "defaultMessage": "思考レベルを選択"
+  },
+  "switchModelModal.selectThinkingMode": {
+    "defaultMessage": "思考モードを選択"
+  },
+  "switchModelModal.thinkingBudget": {
+    "defaultMessage": "思考バジェット（トークン）"
+  },
+  "switchModelModal.thinkingEffort": {
+    "defaultMessage": "思考量"
+  },
+  "switchModelModal.thinkingEffortOff": {
+    "defaultMessage": "オフ - 拡張思考なし"
+  },
+  "switchModelModal.thinkingLevel": {
+    "defaultMessage": "思考レベル"
+  },
+  "switchModelModal.thinkingLevelHigh": {
+    "defaultMessage": "高 - より深い推論、レイテンシー高め"
+  },
+  "switchModelModal.thinkingLevelLow": {
+    "defaultMessage": "低 - レイテンシー低め、軽めの推論"
+  },
+  "switchModelModal.title": {
+    "defaultMessage": "モデルを切り替え"
+  },
+  "switchModelModal.typeModelName": {
+    "defaultMessage": "ここにモデル名を入力"
+  },
+  "switchModelModal.useOtherProvider": {
+    "defaultMessage": "別のプロバイダーを使用"
+  },
+  "telemetryConsentPrompt.description": {
+    "defaultMessage": "gooseの改善のため、匿名の使用状況データを共有しますか？会話、コード、個人データは一切収集しません。"
+  },
+  "telemetryConsentPrompt.heading": {
+    "defaultMessage": "gooseの改善に協力"
+  },
+  "telemetryConsentPrompt.learnMore": {
+    "defaultMessage": "詳しく見る"
+  },
+  "telemetryConsentPrompt.optIn": {
+    "defaultMessage": "はい、匿名の使用状況データを共有する"
+  },
+  "telemetryConsentPrompt.optOut": {
+    "defaultMessage": "いいえ、結構です"
+  },
+  "telemetrySettings.configErrorTitle": {
+    "defaultMessage": "設定エラー"
+  },
+  "telemetrySettings.description": {
+    "defaultMessage": "データの利用方法を管理します"
+  },
+  "telemetrySettings.learnMore": {
+    "defaultMessage": "詳しく見る"
+  },
+  "telemetrySettings.loadError": {
+    "defaultMessage": "テレメトリ設定を読み込めませんでした。"
+  },
+  "telemetrySettings.title": {
+    "defaultMessage": "プライバシー"
+  },
+  "telemetrySettings.toggleDescription": {
+    "defaultMessage": "gooseの改善のため、匿名の使用統計を共有します。"
+  },
+  "telemetrySettings.toggleLabel": {
+    "defaultMessage": "匿名の使用状況データ"
+  },
+  "telemetrySettings.updateError": {
+    "defaultMessage": "テレメトリ設定を更新できませんでした。"
+  },
+  "themeSelector.dark": {
+    "defaultMessage": "ダーク"
+  },
+  "themeSelector.light": {
+    "defaultMessage": "ライト"
+  },
+  "themeSelector.system": {
+    "defaultMessage": "システム"
+  },
+  "themeSelector.theme": {
+    "defaultMessage": "テーマ"
+  },
+  "toolApprovalButtons.allowOnce": {
+    "defaultMessage": "1回のみ許可"
+  },
+  "toolApprovalButtons.allowedOnce": {
+    "defaultMessage": "1回のみ許可済み"
+  },
+  "toolApprovalButtons.alwaysAllow": {
+    "defaultMessage": "常に許可"
+  },
+  "toolApprovalButtons.alwaysAllowed": {
+    "defaultMessage": "常に許可済み"
+  },
+  "toolApprovalButtons.cancelled": {
+    "defaultMessage": "キャンセル済み"
+  },
+  "toolApprovalButtons.denied": {
+    "defaultMessage": "拒否済み"
+  },
+  "toolApprovalButtons.deniedOnce": {
+    "defaultMessage": "1回のみ拒否済み"
+  },
+  "toolApprovalButtons.deny": {
+    "defaultMessage": "拒否"
+  },
+  "toolCallStatusIndicator.toolStatus": {
+    "defaultMessage": "ツールのステータス: {status}"
+  },
+  "toolCallWithResponse.activityCount": {
+    "defaultMessage": "アクティビティ ({count})"
+  },
+  "toolCallWithResponse.code": {
+    "defaultMessage": "コード"
+  },
+  "toolCallWithResponse.loadingSpinner": {
+    "defaultMessage": "読み込みスピナー"
+  },
+  "toolCallWithResponse.logs": {
+    "defaultMessage": "ログ"
+  },
+  "toolCallWithResponse.mcpUiExperimental": {
+    "defaultMessage": "MCP UIは実験的な機能であり、予告なく変更される場合があります。"
+  },
+  "toolCallWithResponse.output": {
+    "defaultMessage": "出力"
+  },
+  "toolCallWithResponse.toolDetails": {
+    "defaultMessage": "ツールの詳細"
+  },
+  "toolCallWithResponse.toolResultAlt": {
+    "defaultMessage": "ツールの結果"
+  },
+  "toolCallWithResponse.viewSubagentSession": {
+    "defaultMessage": "サブエージェントのセッションを表示"
+  },
+  "toolConfirmation.allowToolCallWithName": {
+    "defaultMessage": "{toolName}の実行を許可しますか？"
+  },
+  "toolConfirmation.gooseWouldLikeToCallWithName": {
+    "defaultMessage": "Gooseが{toolName}を実行しようとしています。許可しますか？"
+  },
+  "tunnelSection.appStoreQrInstructions": {
+    "defaultMessage": "このQRコードをiPhoneのカメラでスキャンして、App Storeからgooseモバイルアプリをインストールしてください"
+  },
+  "tunnelSection.close": {
+    "defaultMessage": "閉じる"
+  },
+  "tunnelSection.connectionDetails": {
+    "defaultMessage": "接続の詳細"
+  },
+  "tunnelSection.downloadIosApp": {
+    "defaultMessage": "goose iOSアプリをダウンロード"
+  },
+  "tunnelSection.failedToLoadStatus": {
+    "defaultMessage": "トンネルステータスの読み込みに失敗しました"
+  },
+  "tunnelSection.failedToStartTunnel": {
+    "defaultMessage": "トンネルの開始に失敗しました"
+  },
+  "tunnelSection.failedToStopTunnel": {
+    "defaultMessage": "トンネルの停止に失敗しました"
+  },
+  "tunnelSection.getIosApp": {
+    "defaultMessage": "iOSアプリを入手"
+  },
+  "tunnelSection.mobileApp": {
+    "defaultMessage": "モバイルアプリ"
+  },
+  "tunnelSection.mobileAppConnection": {
+    "defaultMessage": "モバイルアプリ接続"
+  },
+  "tunnelSection.openInAppStore": {
+    "defaultMessage": "App Storeで開く"
+  },
+  "tunnelSection.or": {
+    "defaultMessage": "または"
+  },
+  "tunnelSection.previewDescription": {
+    "defaultMessage": "安全なトンネリングを使用して、モバイルデバイスからgooseへリモートアクセスできるようにします。"
+  },
+  "tunnelSection.previewFeature": {
+    "defaultMessage": "プレビュー機能:"
+  },
+  "tunnelSection.qrCodeInstructions": {
+    "defaultMessage": "このQRコードをgooseモバイルアプリでスキャンしてください。このコードは個人アクセス用です。他人と共有しないでください。"
+  },
+  "tunnelSection.retry": {
+    "defaultMessage": "再試行"
+  },
+  "tunnelSection.scanQrCode": {
+    "defaultMessage": "QRコードをスキャン"
+  },
+  "tunnelSection.secretKey": {
+    "defaultMessage": "シークレットキー"
+  },
+  "tunnelSection.showQrCode": {
+    "defaultMessage": "QRコードを表示"
+  },
+  "tunnelSection.startTunnel": {
+    "defaultMessage": "トンネルを開始"
+  },
+  "tunnelSection.starting": {
+    "defaultMessage": "開始中..."
+  },
+  "tunnelSection.statusDisabled": {
+    "defaultMessage": "トンネルは無効です"
+  },
+  "tunnelSection.statusError": {
+    "defaultMessage": "トンネルでエラーが発生しました"
+  },
+  "tunnelSection.statusIdle": {
+    "defaultMessage": "トンネルは実行されていません"
+  },
+  "tunnelSection.statusRunning": {
+    "defaultMessage": "トンネルは実行中です"
+  },
+  "tunnelSection.statusStarting": {
+    "defaultMessage": "トンネルを開始中..."
+  },
+  "tunnelSection.stopTunnel": {
+    "defaultMessage": "トンネルを停止"
+  },
+  "tunnelSection.tunnelStatus": {
+    "defaultMessage": "トンネルステータス"
+  },
+  "tunnelSection.tunnelUrl": {
+    "defaultMessage": "トンネルURL"
+  },
+  "tunnelSection.url": {
+    "defaultMessage": "URL:"
+  },
+  "updateSection.autoDownload": {
+    "defaultMessage": "アップデートはバックグラウンドで自動的にダウンロードされます。"
+  },
+  "updateSection.autoInstallNote": {
+    "defaultMessage": "アプリを終了すると、アップデートが自動的にインストールされます。"
+  },
+  "updateSection.checkForUpdates": {
+    "defaultMessage": "アップデートを確認"
+  },
+  "updateSection.checking": {
+    "defaultMessage": "アップデートを確認中..."
+  },
+  "updateSection.currentVersion": {
+    "defaultMessage": "現在のバージョン"
+  },
+  "updateSection.downloadReady": {
+    "defaultMessage": "アップデートのダウンロードが完了し、インストールの準備ができました！"
+  },
+  "updateSection.downloadingProgress": {
+    "defaultMessage": "アップデートをダウンロード中... {percent}%"
+  },
+  "updateSection.downloadingUpdate": {
+    "defaultMessage": "アップデートをダウンロード中..."
+  },
+  "updateSection.installAndRestart": {
+    "defaultMessage": "インストールして再起動"
+  },
+  "updateSection.installNowHint": {
+    "defaultMessage": "今すぐアップデートするには「インストールして再起動」をクリックしてください。"
+  },
+  "updateSection.latestVersion": {
+    "defaultMessage": "最新バージョンを使用しています！"
+  },
+  "updateSection.loading": {
+    "defaultMessage": "読み込み中..."
+  },
+  "updateSection.manualInstallNote": {
+    "defaultMessage": "ダウンロード後、アップデートを手動でインストールする必要があります。"
+  },
+  "updateSection.manualInstallRequired": {
+    "defaultMessage": "このアップデート方法では、手動インストールが必要です。"
+  },
+  "updateSection.readyInstallAuto": {
+    "defaultMessage": "✓ アップデートの準備ができました！Gooseを終了するとインストールされます。"
+  },
+  "updateSection.readyInstallManual": {
+    "defaultMessage": "✓ アップデートの準備ができました！インストール手順を表示するには「インストールして再起動」をクリックしてください。"
+  },
+  "updateSection.upToDate": {
+    "defaultMessage": "(最新)"
+  },
+  "updateSection.updateAvailable": {
+    "defaultMessage": "アップデートがあります！"
+  },
+  "updateSection.versionAvailable": {
+    "defaultMessage": "→ {version} が利用可能"
+  },
+  "updateSection.versionIsAvailable": {
+    "defaultMessage": "バージョン {version} が利用可能です"
+  },
+  "userMessage.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "userMessage.cancelAriaLabel": {
+    "defaultMessage": "編集をキャンセル"
+  },
+  "userMessage.editAriaLabel": {
+    "defaultMessage": "メッセージ内容を編集"
+  },
+  "userMessage.editButton": {
+    "defaultMessage": "編集"
+  },
+  "userMessage.editInPlace": {
+    "defaultMessage": "その場で編集"
+  },
+  "userMessage.editInPlaceAriaLabel": {
+    "defaultMessage": "メッセージをその場で編集"
+  },
+  "userMessage.editInPlaceDescription": {
+    "defaultMessage": "<b>その場で編集</b>はこのセッションを更新します • <b>セッションをフォーク</b>は新しいセッションを作成します"
+  },
+  "userMessage.editInPlaceTitle": {
+    "defaultMessage": "このセッションのメッセージを更新"
+  },
+  "userMessage.editMessageAriaLabel": {
+    "defaultMessage": "メッセージを編集: {preview}"
+  },
+  "userMessage.editMessageTitle": {
+    "defaultMessage": "メッセージを編集"
+  },
+  "userMessage.editPlaceholder": {
+    "defaultMessage": "メッセージを編集..."
+  },
+  "userMessage.emptyError": {
+    "defaultMessage": "メッセージを空にすることはできません"
+  },
+  "userMessage.forkSession": {
+    "defaultMessage": "セッションをフォーク"
+  },
+  "userMessage.forkSessionAriaLabel": {
+    "defaultMessage": "編集したメッセージでセッションをフォーク"
+  },
+  "userMessage.forkSessionTitle": {
+    "defaultMessage": "編集したメッセージで新しいセッションを作成"
+  }
+}

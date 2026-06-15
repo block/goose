@@ -1,16 +1,21 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { readAllConfig, readConfig, removeConfig, upsertConfig, providers } from '../api';
 import {
-  getConfiguredExtensions,
-  addConfiguredExtension,
-  removeConfiguredExtension,
-} from '../acp/extensions';
+  readAllConfig,
+  readConfig,
+  removeConfig,
+  upsertConfig,
+  addExtension as apiAddExtension,
+  removeExtension as apiRemoveExtension,
+  providers,
+} from '../api';
+import { getConfiguredExtensions } from '../acp/extensions';
 import { pruneDeprecatedBundledExtensions, syncBundledExtensions } from './settings/extensions';
 import type {
   ConfigResponse,
   UpsertConfigQuery,
   ConfigKeyQuery,
   ProviderDetails,
+  ExtensionQuery,
   ExtensionConfig,
 } from '../api';
 
@@ -108,7 +113,10 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
   const addExtension = useCallback(
     async (name: string, config: ExtensionConfig, enabled: boolean) => {
-      await addConfiguredExtension(name, config, enabled);
+      const query: ExtensionQuery = { name, config, enabled };
+      await apiAddExtension({
+        body: query,
+      });
       await reloadConfig();
       // Refresh extensions list after successful addition
       await refreshExtensions();
@@ -118,7 +126,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
   const removeExtension = useCallback(
     async (name: string) => {
-      await removeConfiguredExtension(name);
+      await apiRemoveExtension({ path: { name: name } });
       await reloadConfig();
       // Refresh extensions list after successful removal
       await refreshExtensions();
@@ -198,10 +206,11 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
           config: ExtensionConfig,
           enabled: boolean
         ) => {
-          await addConfiguredExtension(name, config, enabled);
+          const query: ExtensionQuery = { name, config, enabled };
+          await apiAddExtension({ body: query });
         };
         const removeExtensionForSync = async (name: string) => {
-          await removeConfiguredExtension(name);
+          await apiRemoveExtension({ path: { name } });
         };
         extensions = await pruneDeprecatedBundledExtensions(extensions, removeExtensionForSync);
         await syncBundledExtensions(extensions, addExtensionForSync);

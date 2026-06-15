@@ -1,4 +1,5 @@
 use anyhow::Result;
+use goose_providers::errors::ProviderError;
 use regex::Regex;
 use std::sync::Arc;
 
@@ -14,12 +15,12 @@ use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 #[cfg(test)]
 use crate::providers::base::stream_from_single_message;
-use crate::providers::base::{MessageStream, Provider, ProviderUsage};
-use crate::providers::errors::ProviderError;
+use crate::providers::base::{MessageStream, Provider};
 use crate::providers::toolshim::{
     augment_message_with_selected_tool_interpreter, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, sanitize_residual_markers,
 };
+use goose_providers::conversation::token_usage::ProviderUsage;
 use rmcp::model::Tool;
 use tracing::warn;
 
@@ -316,10 +317,6 @@ impl Agent {
                 while let Some(result) = stream.next().await {
                     let (msg_opt, usage_opt) = result?;
 
-                    if let Some(usage) = usage_opt.as_ref() {
-                        crate::providers::base::set_current_model(&usage.model);
-                    }
-
                     if let Some(msg) = msg_opt {
                         accumulated_message = Some(match accumulated_message {
                             Some(mut prev) => {
@@ -360,10 +357,6 @@ impl Agent {
             } else {
                 while let Some(result) = stream.next().await {
                     let (message, usage) = result?;
-
-                    if let Some(usage) = usage.as_ref() {
-                        crate::providers::base::set_current_model(&usage.model);
-                    }
 
                     yield (message, usage);
                 }
@@ -630,10 +623,10 @@ mod tests {
     use crate::config::GooseMode;
     use crate::conversation::message::Message;
     use crate::model::ModelConfig;
-    use crate::providers::base::{Provider, ProviderUsage, Usage};
-    use crate::providers::errors::ProviderError;
+    use crate::providers::base::Provider;
     use crate::session::session_manager::SessionType;
     use async_trait::async_trait;
+    use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
     use rmcp::object;
 
     #[derive(Clone)]
