@@ -175,7 +175,6 @@ struct GooseAcpSession {
 struct ActivePromptRun {
     run_id: String,
     cancel_token: CancellationToken,
-    close_requested: bool,
 }
 
 /// A run of consecutive ToolRequest blocks within one assistant message,
@@ -203,6 +202,7 @@ pub struct GooseAcpAgentOptions {
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
     active_prompt_runs: Arc<Mutex<HashMap<String, ActivePromptRun>>>,
+    closed_session_ids: Arc<Mutex<HashSet<String>>>,
     agent_manager: Arc<AgentManager>,
     provider_factory: AcpProviderFactory,
     builtins: Vec<String>,
@@ -876,6 +876,7 @@ impl GooseAcpAgent {
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
             active_prompt_runs: Arc::new(Mutex::new(HashMap::new())),
+            closed_session_ids: Arc::new(Mutex::new(HashSet::new())),
             agent_manager,
             provider_factory: options.provider_factory,
             builtins: options.builtins,
@@ -2145,6 +2146,13 @@ impl GooseAcpAgent {
         &self,
         session_id: &str,
     ) -> Result<Arc<Agent>, agent_client_protocol::Error> {
+        if self.closed_session_ids.lock().await.contains(session_id) {
+            return Err(agent_client_protocol::Error::resource_not_found(Some(
+                session_id.to_string(),
+            ))
+            .data(format!("Session not found: {}", session_id)));
+        }
+
         {
             let sessions = self.sessions.lock().await;
             if let Some(session) = sessions.get(session_id) {
@@ -2176,6 +2184,13 @@ impl GooseAcpAgent {
         run_id: String,
         cancel_token: CancellationToken,
     ) -> Result<(), agent_client_protocol::Error> {
+        if self.closed_session_ids.lock().await.contains(session_id) {
+            return Err(agent_client_protocol::Error::resource_not_found(Some(
+                session_id.to_string(),
+            ))
+            .data(format!("Session not found: {}", session_id)));
+        }
+
         let mut active_prompt_runs = self.active_prompt_runs.lock().await;
         if let Some(active_run) = active_prompt_runs.get(session_id) {
             return Err(agent_client_protocol::Error::invalid_params().data(format!(
@@ -2189,14 +2204,13 @@ impl GooseAcpAgent {
             ActivePromptRun {
                 run_id,
                 cancel_token,
-                close_requested: false,
             },
         );
         Ok(())
     }
 
     async fn clear_active_run(&self, session_id: &str, run_id: &str) {
-        let close_requested = {
+        {
             let mut active_prompt_runs = self.active_prompt_runs.lock().await;
             let Some(active_run) = active_prompt_runs.get(session_id) else {
                 return;
@@ -2206,10 +2220,8 @@ impl GooseAcpAgent {
                 return;
             }
 
-            active_prompt_runs
-                .remove(session_id)
-                .is_some_and(|active_run| active_run.close_requested)
-        };
+            active_prompt_runs.remove(session_id);
+        }
 
         let agent = {
             let sessions = self.sessions.lock().await;
@@ -2221,7 +2233,7 @@ impl GooseAcpAgent {
             agent.discard_pending_steers(session_id).await;
         }
 
-        if close_requested {
+        if self.closed_session_ids.lock().await.contains(session_id) {
             self.sessions.lock().await.remove(session_id);
             let _ = self.agent_manager.remove_session(session_id).await;
         }
@@ -2890,12 +2902,16 @@ impl GooseAcpAgent {
         &self,
         session_id: &str,
     ) -> Result<CloseSessionResponse, agent_client_protocol::Error> {
+        self.closed_session_ids
+            .lock()
+            .await
+            .insert(session_id.to_string());
+
         let active_run_token = {
-            let mut active_prompt_runs = self.active_prompt_runs.lock().await;
-            active_prompt_runs.get_mut(session_id).map(|active_run| {
-                active_run.close_requested = true;
-                active_run.cancel_token.clone()
-            })
+            let active_prompt_runs = self.active_prompt_runs.lock().await;
+            active_prompt_runs
+                .get(session_id)
+                .map(|active_run| active_run.cancel_token.clone())
         };
 
         if let Some(token) = active_run_token {

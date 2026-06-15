@@ -218,6 +218,7 @@ impl GooseAcpAgent {
         validate_absolute_cwd(&args.cwd)?;
 
         let session_id_str = args.session_id.0.to_string();
+        self.closed_session_ids.lock().await.remove(&session_id_str);
         let sid = sid_short(&session_id_str);
         let t_start = std::time::Instant::now();
 
