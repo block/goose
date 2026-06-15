@@ -77,6 +77,24 @@ jobs:
           cd ui/desktop
           npm pkg set "version=${{ inputs.version }}"
 
+      - name: Validate Apple signing preflight
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ inputs.signing && secrets.APPLE_CERTIFICATE_BASE64 || '' }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ inputs.signing && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          APPLE_ID: ${{ inputs.signing && secrets.APPLE_ID || '' }}
+          APPLE_ID_PASSWORD: ${{ inputs.signing && secrets.APPLE_ID_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ inputs.signing && secrets.APPLE_TEAM_ID || '' }}
+          GOOSE_DESKTOP_SIGN: ${{ inputs.signing && 'true' || 'false' }}
+          EVIDENCE_DIR: ${{ runner.temp }}/security-goose-release-evidence-x64
+        run: |
+          set -eo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          if [ "${{ inputs.signing }}" = "true" ]; then
+            node scripts/check-security-apple-signing-env.mjs --require-signed 2>&1 | tee "$EVIDENCE_DIR/signing-preflight.txt"
+          else
+            node scripts/check-security-apple-signing-env.mjs 2>&1 | tee "$EVIDENCE_DIR/signing-preflight.txt"
+          fi
+
       - name: Cache Rust dependencies
         uses: Swatinem/rust-cache@c19371144df3bb44fab255c43d04cbc2ab54d1c4  # v2.9.1
         with:
@@ -122,24 +140,6 @@ jobs:
       - name: Install dependencies
         run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
         working-directory: ui/desktop
-
-      - name: Validate Apple signing preflight
-        env:
-          APPLE_CERTIFICATE_BASE64: ${{ inputs.signing && secrets.APPLE_CERTIFICATE_BASE64 || '' }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ inputs.signing && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
-          APPLE_ID: ${{ inputs.signing && secrets.APPLE_ID || '' }}
-          APPLE_ID_PASSWORD: ${{ inputs.signing && secrets.APPLE_ID_PASSWORD || '' }}
-          APPLE_TEAM_ID: ${{ inputs.signing && secrets.APPLE_TEAM_ID || '' }}
-          GOOSE_DESKTOP_SIGN: ${{ inputs.signing && 'true' || 'false' }}
-          EVIDENCE_DIR: ${{ runner.temp }}/security-goose-release-evidence-x64
-        run: |
-          set -eo pipefail
-          mkdir -p "$EVIDENCE_DIR"
-          if [ "${{ inputs.signing }}" = "true" ]; then
-            node scripts/check-security-apple-signing-env.mjs --require-signed 2>&1 | tee "$EVIDENCE_DIR/signing-preflight.txt"
-          else
-            node scripts/check-security-apple-signing-env.mjs 2>&1 | tee "$EVIDENCE_DIR/signing-preflight.txt"
-          fi
 
       - name: Import Apple signing certificate
         if: ${{ inputs.signing }}
