@@ -9,11 +9,13 @@ use std::sync::{Arc, Mutex};
 
 #[cfg(test)]
 use super::base::stream_from_single_message;
-use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
-use super::errors::ProviderError;
+use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::conversation::message::{Message, ToolResponse};
 use crate::model::ModelConfig;
+use crate::utils::bytes_to_hex;
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::errors::ProviderError;
 use rmcp::model::{CallToolResult, Tool};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -111,7 +113,7 @@ impl TestProvider {
         let serialized = serde_json::to_string(&stable_messages).unwrap_or_default();
         let mut hasher = Sha256::new();
         hasher.update(serialized.as_bytes());
-        format!("{:x}", hasher.finalize())
+        bytes_to_hex(hasher.finalize())
     }
 
     fn load_records(file_path: &str) -> Result<HashMap<String, TestRecord>> {
@@ -224,8 +226,8 @@ impl Provider for TestProvider {
 mod tests {
     use super::*;
     use crate::conversation::message::{Message, MessageContent};
-    use crate::providers::base::{ProviderUsage, Usage};
     use chrono::Utc;
+    use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
     use rmcp::model::{RawTextContent, Role, TextContent};
     use std::env;
 

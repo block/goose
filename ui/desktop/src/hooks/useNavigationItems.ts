@@ -1,9 +1,9 @@
 import {
-  Home,
-  MessageSquare,
-  FileText,
   AppWindow,
   Clock,
+  FileText,
+  History,
+  MessageSquarePlus,
   Puzzle,
   Settings,
   Zap,
@@ -18,54 +18,60 @@ export interface NavItem {
   icon: LucideIcon;
   getTag?: () => string;
   tagAlign?: 'left' | 'right';
-  hasSubItems?: boolean;
 }
 
+/** Top-level nav items (excluding Settings which is pinned to the bottom). */
 export const NAV_ITEMS: NavItem[] = [
-  { id: 'home', path: '/', label: 'Home', icon: Home },
-  { id: 'chat', path: '/pair', label: 'Chat', icon: MessageSquare, hasSubItems: true },
+  { id: 'home', path: '/', label: 'New Chat', icon: MessageSquarePlus },
   { id: 'recipes', path: '/recipes', label: 'Recipes', icon: FileText },
   { id: 'skills', path: '/skills', label: 'Skills', icon: Zap },
   { id: 'apps', path: '/apps', label: 'Apps', icon: AppWindow },
   { id: 'scheduler', path: '/schedules', label: 'Scheduler', icon: Clock },
   { id: 'extensions', path: '/extensions', label: 'Extensions', icon: Puzzle },
-  { id: 'settings', path: '/settings', label: 'Settings', icon: Settings },
+  { id: 'sessions', path: '/sessions', label: 'Session History', icon: History },
 ];
 
+/** Settings is rendered separately, pinned to the bottom of the sidebar. */
+export const SETTINGS_NAV_ITEM: NavItem = {
+  id: 'settings',
+  path: '/settings',
+  label: 'Settings',
+  icon: Settings,
+};
+
 // Translation descriptors for nav labels. Kept here next to NAV_ITEMS so the two
-// stay in sync. Reuses the existing `navigationCustomization.item*` ids that are
-// also used by the "Customize Navigation" settings screen.
+// stay in sync.
 const navItemMessages = defineMessages({
   home: {
-    id: 'navigationCustomization.itemHome',
-    defaultMessage: 'Home',
-  },
-  chat: {
-    id: 'navigationCustomization.itemChat',
-    defaultMessage: 'Chat',
+    id: 'navigation.itemHome',
+    defaultMessage: 'New Chat',
   },
   recipes: {
-    id: 'navigationCustomization.itemRecipes',
+    id: 'navigation.itemRecipes',
     defaultMessage: 'Recipes',
   },
   skills: {
-    id: 'navigationCustomization.itemSkills',
+    id: 'navigation.itemSkills',
     defaultMessage: 'Skills',
   },
   apps: {
-    id: 'navigationCustomization.itemApps',
+    id: 'navigation.itemApps',
     defaultMessage: 'Apps',
   },
   scheduler: {
-    id: 'navigationCustomization.itemScheduler',
+    id: 'navigation.itemScheduler',
     defaultMessage: 'Scheduler',
   },
   extensions: {
-    id: 'navigationCustomization.itemExtensions',
+    id: 'navigation.itemExtensions',
     defaultMessage: 'Extensions',
   },
+  sessions: {
+    id: 'navigation.itemSessions',
+    defaultMessage: 'Session History',
+  },
   settings: {
-    id: 'navigationCustomization.itemSettings',
+    id: 'navigation.itemSettings',
     defaultMessage: 'Settings',
   },
 });
@@ -76,8 +82,4 @@ const NAV_ITEM_MESSAGES: Record<string, MessageDescriptor> = navItemMessages;
 export function getNavItemLabel(item: NavItem, intl: IntlShape): string {
   const descriptor = NAV_ITEM_MESSAGES[item.id];
   return descriptor ? intl.formatMessage(descriptor) : item.label;
-}
-
-export function getNavItemById(id: string): NavItem | undefined {
-  return NAV_ITEMS.find((item) => item.id === id);
 }

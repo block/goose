@@ -1,5 +1,6 @@
 use super::*;
 use crate::config::declarative_providers;
+use crate::providers::inventory::ensure_refresh_identity_current;
 use std::str::FromStr;
 
 fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEntryDto {
@@ -435,6 +436,30 @@ impl GooseAcpAgent {
             .internal_err()?;
         Ok(ListProvidersResponse {
             entries: entries.into_iter().map(inventory_entry_to_dto).collect(),
+        })
+    }
+
+    pub(super) async fn on_list_provider_supported_models(
+        &self,
+        req: ProviderSupportedModelsListRequest,
+    ) -> Result<ProviderSupportedModelsListResponse, agent_client_protocol::Error> {
+        let entry = crate::providers::get_from_registry(&req.provider_id)
+            .await
+            .invalid_params_err_ctx("Unknown provider")?;
+        let model_config = crate::model::ModelConfig::new(&entry.metadata().default_model)
+            .invalid_params_err_ctx("Invalid default model")?;
+        let provider = self
+            .create_provider(&req.provider_id, model_config, Vec::new(), None)
+            .await
+            .internal_err_ctx("Failed to initialize provider")?;
+        let models = provider
+            .fetch_supported_models()
+            .await
+            .internal_err_ctx("Failed to fetch provider supported models")?;
+
+        Ok(ProviderSupportedModelsListResponse {
+            provider_id: req.provider_id,
+            models,
         })
     }
 

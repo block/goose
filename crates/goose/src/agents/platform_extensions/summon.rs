@@ -9,14 +9,14 @@ use crate::config::{Config, GooseMode};
 use crate::providers;
 use crate::recipe::build_recipe::build_recipe_from_template;
 use crate::recipe::local_recipes::load_local_recipe_file;
-use crate::recipe::{Recipe, Settings, RECIPE_FILE_EXTENSIONS};
+use crate::recipe::{Recipe, RecipeParameter, Settings, RECIPE_FILE_EXTENSIONS};
 use crate::session::extension_data::EnabledExtensionsState;
 use crate::session::SessionType;
 use crate::sources::parse_frontmatter;
 use crate::utils::safe_truncate;
 use anyhow::Result;
 use async_trait::async_trait;
-use goose_sdk::custom_requests::{SourceEntry, SourceType};
+use goose_sdk_types::custom_requests::{SourceEntry, SourceType};
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult, Meta,
     ServerCapabilities, ServerNotification, Tool,
@@ -428,11 +428,8 @@ impl Drop for SummonClient {
 
 impl SummonClient {
     pub fn new(context: PlatformExtensionContext) -> Result<Self> {
-        let instructions = build_subagent_instructions(context.session.as_deref());
-
         let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
-            .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Summon"))
-            .with_instructions(instructions);
+            .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Summon"));
 
         Ok(Self {
             info,
@@ -647,7 +644,16 @@ impl SummonClient {
 
         match load_local_recipe_file(&sr.path) {
             Ok(recipe_file) => match Recipe::from_content(&recipe_file.content) {
-                Ok(recipe) => recipe.instructions.unwrap_or_default(),
+                Ok(recipe) => {
+                    let mut content = recipe.instructions.unwrap_or_default();
+                    if let Some(params) = &recipe.parameters {
+                        if !params.is_empty() {
+                            content.push_str("\n\n");
+                            content.push_str(&Self::format_parameters(params));
+                        }
+                    }
+                    content
+                }
                 Err(_) => recipe_file.content,
             },
             Err(_) => String::new(),
@@ -711,10 +717,8 @@ impl SummonClient {
                 let mut desc = recipe.description.clone();
 
                 if let Some(params) = &recipe.parameters {
-                    let param_names: Vec<&str> = params.iter().map(|p| p.key.as_str()).collect();
-                    if !param_names.is_empty() {
-                        let params_str = param_names.join(", ");
-                        desc = format!("{} (params: {})", desc, params_str);
+                    if !params.is_empty() {
+                        desc = format!("{}\n{}", desc, Self::format_parameters(params));
                     }
                 }
 
@@ -723,6 +727,24 @@ impl SummonClient {
         }
 
         format!("Subrecipe from {}", sr.path)
+    }
+
+    fn format_parameters(params: &[RecipeParameter]) -> String {
+        let mut out = String::from("Parameters:");
+        for p in params {
+            let mut detail = format!("\n  - {} ({}, {})", p.key, p.input_type, p.requirement);
+            if let Some(default) = &p.default {
+                detail.push_str(&format!(", default: \"{}\"", default));
+            }
+            if let Some(options) = &p.options {
+                if !options.is_empty() {
+                    detail.push_str(&format!(", options: [{}]", options.join(", ")));
+                }
+            }
+            detail.push_str(&format!(": {}", p.description));
+            out.push_str(&detail);
+        }
+        out
     }
 
     async fn handle_load(
@@ -1717,6 +1739,15 @@ impl McpClientTrait for SummonClient {
 
     fn get_info(&self) -> Option<&InitializeResult> {
         Some(&self.info)
+    }
+
+    fn get_instructions(&self) -> Option<String> {
+        let instructions = build_subagent_instructions(self.context.session.as_deref());
+        if instructions.is_empty() {
+            None
+        } else {
+            Some(instructions)
+        }
     }
 
     async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {

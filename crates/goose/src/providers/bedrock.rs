@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
-};
-use super::errors::ProviderError;
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -14,9 +11,12 @@ use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::errors::ProviderError;
 use reqwest::header::HeaderValue;
 use rmcp::model::Tool;
 use serde_json::Value;
+use smithy_transport_reqwest::ReqwestHttpClient;
 
 use super::formats::bedrock::{
     from_bedrock_message, from_bedrock_usage, to_bedrock_message_with_caching,
@@ -98,7 +98,8 @@ impl BedrockProvider {
         };
 
         // Use load_defaults() which supports AWS SSO, profiles, and environment variables
-        let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest());
+        let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest())
+            .http_client(ReqwestHttpClient::new());
 
         if let Ok(profile_name) = config.get_param::<String>("AWS_PROFILE") {
             if !profile_name.is_empty() {
@@ -289,6 +290,10 @@ impl BedrockProvider {
                         err
                     ))
                 }
+                ConverseError::ValidationException(err) => ProviderError::ExecutionError(format!(
+                    "Bedrock validation error: {}",
+                    err.message().unwrap_or("unknown validation error")
+                )),
                 ConverseError::ModelErrorException(err) => {
                     ProviderError::ExecutionError(format!("Failed to call Bedrock: {:?}", err))
                 }

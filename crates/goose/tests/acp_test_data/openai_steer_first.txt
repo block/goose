@@ -1,0 +1,9 @@
+data: {"id":"chatcmpl-steer1","object":"chat.completion.chunk","created":1766229303,"model":"gpt-4o","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-steer1","object":"chat.completion.chunk","created":1766229303,"model":"gpt-4o","choices":[{"index":0,"delta":{"content":"first response"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-steer1","object":"chat.completion.chunk","created":1766229303,"model":"gpt-4o","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: {"id":"chatcmpl-steer1","object":"chat.completion.chunk","created":1766229303,"model":"gpt-4o","choices":[],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110}}
+
+data: [DONE]

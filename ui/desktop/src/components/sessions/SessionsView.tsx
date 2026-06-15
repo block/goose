@@ -59,7 +59,7 @@ const SessionsView: React.FC = () => {
     [setView]
   );
 
-  // Check if a session ID was passed in the location state (from SessionsInsights)
+  // Check if a session ID was passed in the location state.
   useEffect(() => {
     const state = location.state as { selectedSessionId?: string } | null;
     if (state?.selectedSessionId) {

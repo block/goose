@@ -1,5 +1,11 @@
 #!/usr/bin/env node
-import React, { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import { Box, Text, render, useApp, useInput, useStdout } from "ink";
 import { MultilineInput } from "ink-multiline-input";
 import meow from "meow";
@@ -172,7 +178,9 @@ const InputBar = React.memo(function InputBar({
               </Text>
             </Box>
             {scrollHint && (
-              <Text color={TEXT_DIM}>↑↓ scroll · ⌥↑↓ fast · shift+↑↓ history</Text>
+              <Text color={TEXT_DIM}>
+                ↑↓ scroll · ⌥↑↓ fast · shift+↑↓ history
+              </Text>
             )}
           </Box>
         ) : (
@@ -200,7 +208,9 @@ const InputBar = React.memo(function InputBar({
               }}
             />
             {scrollHint && (
-              <Text color={TEXT_DIM}>↑↓ scroll · ⌥↑↓ fast · shift+↑↓ history</Text>
+              <Text color={TEXT_DIM}>
+                ↑↓ scroll · ⌥↑↓ fast · shift+↑↓ history
+              </Text>
             )}
           </Box>
         )}
@@ -792,7 +802,7 @@ function App({
         setStatus("checking provider…");
         let hasProvider = false;
         try {
-          const resp = await client.goose.GooseDefaultsRead({});
+          const resp = await client.goose.defaultsRead_unstable({});
           hasProvider =
             resp.providerId != null &&
             resp.providerId !== "" &&
@@ -831,31 +841,28 @@ function App({
     exit,
   ]);
 
-  const addLocalTurn = useCallback(
-    (userText: string, message?: string) => {
-      setTurns((prev) => [
-        ...prev,
-        {
-          userText,
-          responseItems: message
-            ? [
-                {
-                  itemType: "content_chunk",
-                  content: { type: "text", text: message },
-                },
-              ]
-            : [],
-          toolCallsById: new Map(),
-        },
-      ]);
-      setViewTurnIdx(-1);
-      setSelectedToolCallIdx(null);
-      setToolCallExpanded(false);
-      setToolCallExpandedScroll(0);
-      setScrollOffset(0);
-    },
-    [],
-  );
+  const addLocalTurn = useCallback((userText: string, message?: string) => {
+    setTurns((prev) => [
+      ...prev,
+      {
+        userText,
+        responseItems: message
+          ? [
+              {
+                itemType: "content_chunk",
+                content: { type: "text", text: message },
+              },
+            ]
+          : [],
+        toolCallsById: new Map(),
+      },
+    ]);
+    setViewTurnIdx(-1);
+    setSelectedToolCallIdx(null);
+    setToolCallExpanded(false);
+    setToolCallExpandedScroll(0);
+    setScrollOffset(0);
+  }, []);
 
   const runSlashCommand = useCallback(
     (raw: string): boolean => {

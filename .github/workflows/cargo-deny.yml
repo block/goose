@@ -24,6 +24,6 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       # https://github.com/EmbarkStudios/cargo-deny-action v2.0.15
-      - uses: EmbarkStudios/cargo-deny-action@91bf2b620e09e18d6eb78b92e7861937469acedb
+      - uses: EmbarkStudios/cargo-deny-action@bb137d7af7e4fb67e5f82a49c4fce4fad40782fe
         with:
           command: check advisories
