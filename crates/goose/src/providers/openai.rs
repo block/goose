@@ -264,7 +264,7 @@ impl OpenAiProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
-        let provider = Self {
+        let mut provider = Self {
             api_client,
             base_path,
             organization,
@@ -279,46 +279,26 @@ impl OpenAiProvider {
             preserve_thinking_context: !is_openai,
         };
 
-        // When no context limit is otherwise known, read meta.n_ctx from the server's
-        // /v1/models response and use it. llama.cpp and Ollama report the actual
-        // allocated context window there, which fixes auto-compaction for local servers
-        // that would otherwise fall back to DEFAULT_CONTEXT_LIMIT (128k).
-        //
-        // We only fill when `context_limit` is still `None`, mirroring how
-        // `with_canonical_limits` fills derived limits. This deliberately preserves any
-        // already-set value, which by provider-construction time may be an explicit
-        // override from GOOSE_CONTEXT_LIMIT, an ACP/server per-session
-        // `with_context_limit`, or a `GOOSE_PREDEFINED_MODELS` entry — all of which a
-        // user set on purpose to cap compaction or correct an inaccurate meta.n_ctx.
-        // Those sources are indistinguishable from a registry default on the
-        // ModelConfig itself, so the safe choice is to never overwrite an existing
-        // value. Fails silently for hosts that don't expose meta.n_ctx (e.g. OpenAI).
-        //
-        // The probe is bounded by a short timeout so it can never stall provider
-        // construction. The shared ApiClient uses OPENAI_TIMEOUT (default 600s), which
-        // would otherwise block Goose startup / model switching for up to 10 minutes if
-        // the endpoint is reachable but /v1/models hangs. On timeout we silently fall
-        // back to the previous behavior (DEFAULT_CONTEXT_LIMIT).
-        const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
-        let provider = if provider.model.context_limit.is_none() {
+        // Only fill the context limit when nothing else set it: an existing value may be
+        // an explicit GOOSE_CONTEXT_LIMIT, an ACP/server per-session override, or a
+        // GOOSE_PREDEFINED_MODELS entry, none of which we should overwrite. llama.cpp and
+        // Ollama report the real allocated window via the non-standard meta.n_ctx field;
+        // reading it fixes auto-compaction for local servers that would otherwise fall
+        // back to DEFAULT_CONTEXT_LIMIT. The probe is bounded by a short timeout so a
+        // hung /v1/models can't stall provider construction (the shared ApiClient uses
+        // OPENAI_TIMEOUT, up to 600s).
+        if provider.model.context_limit.is_none() {
+            const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
             let model_name = provider.model.model_name.clone();
-            let n_ctx = tokio::time::timeout(
+            if let Ok(Some(n_ctx)) = tokio::time::timeout(
                 N_CTX_PROBE_TIMEOUT,
                 provider.fetch_n_ctx_from_api(&model_name),
             )
             .await
-            .ok()
-            .flatten();
-            if let Some(n_ctx) = n_ctx {
-                let mut p = provider;
-                p.model.context_limit = Some(n_ctx);
-                p
-            } else {
-                provider
+            {
+                provider.model.context_limit = Some(n_ctx);
             }
-        } else {
-            provider
-        };
+        }
 
         Ok(provider)
     }
@@ -667,30 +647,35 @@ impl OpenAiProvider {
             .await
             .ok()?;
         let json = handle_response_openai_compat(response).await.ok()?;
-        let data = json.get("data")?.as_array()?;
-        for entry in data {
-            let Some(id) = entry.get("id").and_then(|v| v.as_str()) else {
-                continue;
-            };
-            if id == model_name {
-                return entry
-                    .get("meta")
-                    .and_then(|m| m.get("n_ctx"))
-                    .and_then(|v| v.as_u64())
-                    .map(|v| v as usize);
-            }
-        }
-        // No entry matched by id. For single-model servers without --alias, llama.cpp
-        // reports the loaded model file path as id rather than the alias used by the
-        // client, so the loop above never matches. Fall back to the sole entry's n_ctx.
-        if data.len() == 1 {
-            return data[0]
-                .get("meta")
-                .and_then(|m| m.get("n_ctx"))
-                .and_then(|v| v.as_u64())
-                .map(|v| v as usize);
-        }
-        None
+        parse_n_ctx_from_models(&json, model_name)
+    }
+}
+
+/// Extract `meta.n_ctx` for `model_name` from a `/v1/models` response body.
+fn parse_n_ctx_from_models(json: &serde_json::Value, model_name: &str) -> Option<usize> {
+    let data = json.get("data")?.as_array()?;
+
+    let n_ctx = |entry: &serde_json::Value| -> Option<usize> {
+        entry
+            .get("meta")?
+            .get("n_ctx")?
+            .as_u64()
+            .map(|v| v as usize)
+    };
+
+    if let Some(entry) = data
+        .iter()
+        .find(|e| e.get("id").and_then(|v| v.as_str()) == Some(model_name))
+    {
+        return n_ctx(entry);
+    }
+
+    // For single-model servers without --alias, llama.cpp reports the loaded model
+    // file path as id rather than the client's alias, so no entry matches above.
+    // Fall back to the sole entry's n_ctx.
+    match data.as_slice() {
+        [only] => n_ctx(only),
+        _ => None,
     }
 }
 
@@ -1500,5 +1485,43 @@ mod tests {
             .unwrap(),
             None
         );
+    }
+
+    #[test]
+    fn parse_n_ctx_matches_model_by_id() {
+        let body = json!({
+            "data": [
+                { "id": "other-model", "meta": { "n_ctx": 4096 } },
+                { "id": "my-model", "meta": { "n_ctx": 8192 } }
+            ]
+        });
+        assert_eq!(parse_n_ctx_from_models(&body, "my-model"), Some(8192));
+    }
+
+    #[test]
+    fn parse_n_ctx_falls_back_to_sole_entry_when_id_differs() {
+        let body = json!({
+            "data": [
+                { "id": "/models/qwen3.gguf", "meta": { "n_ctx": 32768 } }
+            ]
+        });
+        assert_eq!(parse_n_ctx_from_models(&body, "qwen3"), Some(32768));
+    }
+
+    #[test]
+    fn parse_n_ctx_no_fallback_with_multiple_unmatched_entries() {
+        let body = json!({
+            "data": [
+                { "id": "model-a", "meta": { "n_ctx": 4096 } },
+                { "id": "model-b", "meta": { "n_ctx": 8192 } }
+            ]
+        });
+        assert_eq!(parse_n_ctx_from_models(&body, "model-c"), None);
+    }
+
+    #[test]
+    fn parse_n_ctx_absent_when_meta_missing() {
+        let body = json!({ "data": [ { "id": "my-model" } ] });
+        assert_eq!(parse_n_ctx_from_models(&body, "my-model"), None);
     }
 }
