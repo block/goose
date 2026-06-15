@@ -7979,6 +7979,10 @@
             "format": "int32",
             "nullable": true
           },
+          "last_message_snippet": {
+            "type": "string",
+            "nullable": true
+          },
           "message_count": {
             "type": "integer",
             "minimum": 0
