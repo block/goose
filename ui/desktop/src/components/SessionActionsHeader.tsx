@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, FileJson, LoaderCircle } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { defineMessages, useIntl } from '../i18n';
