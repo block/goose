@@ -58,7 +58,7 @@ serde_yaml = { version = "0.9.32", default-features = false }
 shellexpand = { version = "3", default-features = false, features = ["base-0", "tilde"] }
 strum = { version = "0.28.0", default-features = false, features = ["derive", "std"] }
 tempfile = { version = "3.10.1", default-features = false }
-thiserror = { version = "1.0.49", default-features = false }
+thiserror = { version = "2.0.18", default-features = false }
 tokio = { version = "1.48", default-features = false }
 tokio-stream = { version = "0.1.16", default-features = false }
 tokio-util = { version = "0.7.12", default-features = false }
