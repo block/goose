@@ -24,7 +24,7 @@ pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
 const LAST_MESSAGE_SNIPPET_MAX_CHARS: usize = 128;
-const RECENT_MESSAGE_SNIPPET_SCAN_LIMIT: usize = 64;
+const RECENT_MESSAGE_SNIPPET_SCAN_LIMIT: usize = 8;
 
 #[derive(
     Debug,
