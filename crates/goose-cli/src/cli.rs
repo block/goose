@@ -29,6 +29,7 @@ use crate::commands::schedule::{
     handle_schedule_sessions,
 };
 use crate::commands::session::{handle_session_list, handle_session_remove};
+use crate::commands::skills::handle_skills_list;
 use crate::recipes::extract_from_cli::extract_recipe_info_from_cli;
 use crate::recipes::recipe::{explain_recipe, render_recipe_as_yaml};
 use crate::session::{build_session, SessionBuilderConfig};
@@ -558,9 +559,13 @@ enum SessionCommand {
         )]
         relays: Vec<String>,
     },
-    #[command(about = "Import a session from JSON or an encrypted Nostr share link")]
+    #[command(
+        about = "Import a session from JSON, a Claude Code / Codex / Pi .jsonl, or an encrypted Nostr share link"
+    )]
     Import {
-        #[arg(help = "Path to a JSON session export, or a goose://sessions/nostr share link")]
+        #[arg(
+            help = "Path to a goose session export, a Claude Code, Codex, or Pi .jsonl transcript, or a goose://sessions/nostr share link"
+        )]
         input: String,
 
         #[arg(long = "nostr", help = "Treat input as an encrypted Nostr share link")]
@@ -697,6 +702,13 @@ enum PluginCommand {
         #[arg(help = "Name of the installed plugin to update")]
         name: String,
     },
+}
+
+#[derive(Subcommand)]
+enum SkillsCommand {
+    /// List all skills available to the goose agent
+    #[command(about = "List all skills available to the goose agent")]
+    List,
 }
 
 #[derive(Subcommand)]
@@ -910,6 +922,13 @@ enum Command {
         command: RecipeCommand,
     },
 
+    /// Skill utilities
+    #[command(about = "Skill utilities")]
+    Skills {
+        #[command(subcommand)]
+        command: SkillsCommand,
+    },
+
     /// Manage plugins
     #[command(about = "Manage plugins")]
     Plugin {
@@ -935,6 +954,7 @@ enum Command {
     },
 
     /// Update the goose CLI version
+    #[cfg(feature = "update")]
     #[command(about = "Update the goose CLI version")]
     Update {
         /// Update to canary version
@@ -968,6 +988,28 @@ enum Command {
         #[command(subcommand)]
         command: TermCommand,
     },
+
+    /// Launch the goose terminal UI (TUI)
+    #[cfg(feature = "tui")]
+    #[command(
+        about = "Launch the goose terminal UI",
+        long_about = "Launch the goose terminal UI (the @aaif/goose npm package).\n\
+                      \n\
+                      Resolution order:\n  \
+                      1. GOOSE_TUI_SCRIPT, if set to an existing dist/tui.js\n  \
+                      2. A local checkout's ui/text/dist/tui.js (dev workflow)\n  \
+                      3. `npx --yes --package <spec> -- goose-tui` (deployed installs)\n\
+                      \n\
+                      Override the npm spec via GOOSE_TUI_NPM_SPEC (default: @aaif/goose@latest).\n\
+                      Local script mode requires `node` on PATH; npx mode requires `npx` on PATH.\n\
+                      Any extra arguments are passed through to the TUI."
+    )]
+    Tui {
+        /// Arguments forwarded to the TUI
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+
     /// Manage local inference models
     #[cfg(feature = "local-inference")]
     #[command(about = "Manage local inference models", visible_alias = "lm")]
@@ -1020,8 +1062,9 @@ enum Command {
         #[arg(long = "override-model", value_name = "MODEL")]
         override_model: Option<String>,
 
-        /// Default `turn-limit` applied to checks that do not declare their
-        /// own.
+        /// Default `turn-limit` for orchestrated main-pass subprocesses and
+        /// for checks that do not declare their own. Does not cap the legacy
+        /// `--no-orchestrate` in-process main agent.
         #[arg(long = "turn-limit", value_name = "N")]
         turn_limit: Option<usize>,
 
@@ -1248,10 +1291,14 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Run { .. }) => "run",
         Some(Command::Gateway { .. }) => "gateway",
         Some(Command::Schedule { .. }) => "schedule",
+        #[cfg(feature = "update")]
         Some(Command::Update { .. }) => "update",
         Some(Command::Recipe { .. }) => "recipe",
+        Some(Command::Skills { .. }) => "skills",
         Some(Command::Plugin { .. }) => "plugin",
         Some(Command::Term { .. }) => "term",
+        #[cfg(feature = "tui")]
+        Some(Command::Tui { .. }) => "tui",
         #[cfg(feature = "local-inference")]
         Some(Command::LocalModels { .. }) => "local-models",
         Some(Command::Completion { .. }) => "completion",
@@ -1279,7 +1326,7 @@ async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) ->
     use goose::config::paths::Paths;
     use std::net::SocketAddr;
     use std::sync::Arc;
-    use tracing::info;
+    use tracing::{info, warn};
 
     let builtins = if builtins.is_empty() {
         vec!["developer".to_string()]
@@ -1306,12 +1353,18 @@ async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) ->
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots,
     }));
-    let secret_key = std::env::var(GOOSE_SERVER_SECRET_KEY_ENV)
+    let env_secret = std::env::var(GOOSE_SERVER_SECRET_KEY_ENV)
         .ok()
         .map(|secret| secret.trim().to_string())
-        .filter(|secret| !secret.is_empty())
-        .unwrap_or_else(generate_serve_secret_key);
-    let router = create_router(server, secret_key);
+        .filter(|secret| !secret.is_empty());
+    let require_token = env_secret.is_some();
+    if !require_token {
+        warn!(
+            "{GOOSE_SERVER_SECRET_KEY_ENV} is not set; the ACP endpoint will accept unauthenticated connections"
+        );
+    }
+    let secret_key = env_secret.unwrap_or_else(generate_serve_secret_key);
+    let router = create_router(server, secret_key, require_token);
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
     info!("Starting ACP server on {}", addr);
@@ -1775,6 +1828,12 @@ fn handle_recipe_subcommand(command: RecipeCommand) -> Result<()> {
     }
 }
 
+async fn handle_skills_subcommand(command: SkillsCommand) -> Result<()> {
+    match command {
+        SkillsCommand::List => handle_skills_list().await,
+    }
+}
+
 async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
     match command {
         TermCommand::Init {
@@ -1792,7 +1851,7 @@ async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
 async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> {
     use goose::providers::local_inference::hf_models;
     use goose::providers::local_inference::local_model_registry::{
-        get_registry, model_id_from_repo, LocalModelEntry,
+        get_registry, mmproj_local_path, model_id_from_repo, LocalModelEntry,
     };
 
     match command {
@@ -1829,10 +1888,28 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
         }
         LocalModelsCommand::Download { spec } => {
             println!("Resolving {}...", spec);
-            let (repo_id, file) = hf_models::resolve_model_spec(&spec).await?;
+            let (repo_id, resolved) = hf_models::resolve_model_spec_full(&spec).await?;
+            if resolved.files.len() > 1 {
+                anyhow::bail!(
+                    "Model '{}' is sharded ({} files) — download it from the desktop UI",
+                    spec,
+                    resolved.files.len()
+                );
+            }
+            let mmproj = resolved.mmproj;
+            let file = resolved.files.into_iter().next().unwrap();
             let model_id = model_id_from_repo(&repo_id, &file.quantization);
             let local_path =
                 goose::config::paths::Paths::in_data_dir("models").join(&file.filename);
+            let mmproj_path = mmproj
+                .as_ref()
+                .map(|mmproj| mmproj_local_path(&repo_id, &mmproj.filename));
+            let mmproj_source_url = mmproj.as_ref().map(|mmproj| mmproj.download_url.clone());
+            let mmproj_size_bytes = mmproj.as_ref().map_or(0, |mmproj| mmproj.size_bytes);
+            let mut download_files = vec![(file.download_url.clone(), local_path.clone())];
+            if let Some(mmproj) = mmproj {
+                download_files.push((mmproj.download_url, mmproj_path.clone().unwrap()));
+            }
 
             println!(
                 "Downloading {} ({})...",
@@ -1857,9 +1934,10 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 source_url: file.download_url.clone(),
                 settings: Default::default(),
                 size_bytes: file.size_bytes,
-                mmproj_path: None,
-                mmproj_source_url: None,
-                mmproj_size_bytes: 0,
+                mmproj_path,
+                mmproj_source_url,
+                mmproj_size_bytes,
+                mmproj_checked: true,
                 shard_files: vec![],
             };
 
@@ -1872,11 +1950,16 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
 
             // Download
             let manager = goose::download_manager::get_download_manager();
+            let hf_token = goose::providers::huggingface_auth::resolve_token_async()
+                .await
+                .ok()
+                .flatten();
             manager
-                .download_model(
+                .download_model_sharded_with_bearer_token(
                     format!("{}-model", model_id),
-                    file.download_url,
-                    local_path,
+                    download_files,
+                    file.size_bytes + mmproj_size_bytes,
+                    hf_token,
                     None,
                 )
                 .await?;
@@ -2077,6 +2160,7 @@ pub async fn cli() -> anyhow::Result<()> {
         }
         Some(Command::Gateway { command }) => handle_gateway_command(command).await,
         Some(Command::Schedule { command }) => handle_schedule_command(command).await,
+        #[cfg(feature = "update")]
         Some(Command::Update {
             canary,
             reconfigure,
@@ -2085,8 +2169,11 @@ pub async fn cli() -> anyhow::Result<()> {
             Ok(())
         }
         Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
+        Some(Command::Skills { command }) => handle_skills_subcommand(command).await,
         Some(Command::Plugin { command }) => handle_plugin_subcommand(command),
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
+        #[cfg(feature = "tui")]
+        Some(Command::Tui { args }) => crate::commands::tui::handle_tui(args),
         #[cfg(feature = "local-inference")]
         Some(Command::LocalModels { command }) => handle_local_models_command(command).await,
         Some(Command::Review {

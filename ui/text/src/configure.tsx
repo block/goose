@@ -60,7 +60,9 @@ const ModelSelector = React.memo(function ModelSelector({
   useEffect(() => {
     const availableModels = provider.models.map((model) => model.id);
     setModels(availableModels);
-    const defaultIdx = availableModels.findIndex((model) => model === provider.defaultModel);
+    const defaultIdx = availableModels.findIndex(
+      (model) => model === provider.defaultModel,
+    );
     setSelectedIdx(defaultIdx >= 0 ? defaultIdx : 0);
     setLoading(false);
   }, [provider.models, provider.defaultModel]);
@@ -154,10 +156,14 @@ const ModelSelector = React.memo(function ModelSelector({
       <Box flexDirection="column" height={height} width={columns} paddingX={2}>
         <Box marginTop={1} />
         <Box justifyContent="center" marginBottom={1}>
-          <Text color={TEXT_PRIMARY} bold>◆ Select model ◆</Text>
+          <Text color={TEXT_PRIMARY} bold>
+            ◆ Select model ◆
+          </Text>
         </Box>
         <Box justifyContent="center" marginBottom={2}>
-          <Text color={TEXT_DIM}>Loading models for {provider.providerName}…</Text>
+          <Text color={TEXT_DIM}>
+            Loading models for {provider.providerName}…
+          </Text>
         </Box>
         <Box justifyContent="center" flexGrow={1} alignItems="center">
           <Spinner idx={0} />
@@ -171,7 +177,9 @@ const ModelSelector = React.memo(function ModelSelector({
       <Box flexDirection="column" height={height} width={columns} paddingX={2}>
         <Box marginTop={1} />
         <Box justifyContent="center" marginBottom={1}>
-          <Text color={TEXT_PRIMARY} bold>◆ Select model ◆</Text>
+          <Text color={TEXT_PRIMARY} bold>
+            ◆ Select model ◆
+          </Text>
         </Box>
         <Box justifyContent="center" marginBottom={2}>
           <Text color={GOLD}>⚠ No models available</Text>
@@ -193,18 +201,23 @@ const ModelSelector = React.memo(function ModelSelector({
   if (manualEntry) {
     const inputWidth = Math.min(60, maxWidth - 4);
     const displayText = searchQuery || "type model name…";
-    const truncatedText = displayText.length > inputWidth - 6
-      ? displayText.slice(0, inputWidth - 9) + "…"
-      : displayText;
+    const truncatedText =
+      displayText.length > inputWidth - 6
+        ? displayText.slice(0, inputWidth - 9) + "…"
+        : displayText;
 
     return (
       <Box flexDirection="column" height={height} width={columns} paddingX={2}>
         <Box marginTop={1} />
         <Box justifyContent="center" marginBottom={1}>
-          <Text color={TEXT_PRIMARY} bold>◆ Enter model name ◆</Text>
+          <Text color={TEXT_PRIMARY} bold>
+            ◆ Enter model name ◆
+          </Text>
         </Box>
         <Box justifyContent="center" marginBottom={2}>
-          <Text color={TEXT_DIM}>Type a model identifier for {provider.providerName}</Text>
+          <Text color={TEXT_DIM}>
+            Type a model identifier for {provider.providerName}
+          </Text>
         </Box>
 
         <Box justifyContent="center">
@@ -214,7 +227,9 @@ const ModelSelector = React.memo(function ModelSelector({
             paddingX={2}
             width={inputWidth}
           >
-            <Text color={GOLD} bold>{"❯ "}</Text>
+            <Text color={GOLD} bold>
+              {"❯ "}
+            </Text>
             <Text color={searchQuery ? TEXT_PRIMARY : TEXT_DIM}>
               {truncatedText}
             </Text>
@@ -236,7 +251,9 @@ const ModelSelector = React.memo(function ModelSelector({
       {/* Header */}
       <Box marginTop={1} />
       <Box justifyContent="center" marginBottom={1}>
-        <Text color={TEXT_PRIMARY} bold>◆ Select model ◆</Text>
+        <Text color={TEXT_PRIMARY} bold>
+          ◆ Select model ◆
+        </Text>
       </Box>
       <Box justifyContent="center" marginBottom={2}>
         <Text color={TEXT_DIM}>Choose a model for {provider.providerName}</Text>
@@ -250,7 +267,9 @@ const ModelSelector = React.memo(function ModelSelector({
           paddingX={2}
           width={searchBoxWidth}
         >
-          <Text color={CRANBERRY} bold>{"❯ "}</Text>
+          <Text color={CRANBERRY} bold>
+            {"❯ "}
+          </Text>
           <Box width={searchBoxWidth - 8}>
             <Text color={searchQuery ? TEXT_PRIMARY : TEXT_DIM} wrap="truncate">
               {searchQuery || "search models…"}
@@ -262,7 +281,11 @@ const ModelSelector = React.memo(function ModelSelector({
       {/* Model List */}
       <Box flexDirection="column" flexGrow={1} justifyContent="flex-start">
         {filtered.length === 0 ? (
-          <Box justifyContent="center" alignItems="center" height={Math.max(listHeight, 1)}>
+          <Box
+            justifyContent="center"
+            alignItems="center"
+            height={Math.max(listHeight, 1)}
+          >
             <Text color={TEXT_DIM}>No matching models</Text>
           </Box>
         ) : (
@@ -279,16 +302,20 @@ const ModelSelector = React.memo(function ModelSelector({
                   const active = idx === selectedIdx;
                   const isDefault = model === provider.defaultModel;
                   const modelWidth = maxWidth - 8;
-                  const truncatedModel = model.length > modelWidth
-                    ? model.slice(0, modelWidth - 1) + "…"
-                    : model;
+                  const truncatedModel =
+                    model.length > modelWidth
+                      ? model.slice(0, modelWidth - 1) + "…"
+                      : model;
 
                   return (
                     <Box key={model}>
                       <Text color={active ? GOLD : TEXT_DIM}>
                         {active ? "▸ " : "  "}
                       </Text>
-                      <Text color={active ? TEXT_PRIMARY : TEXT_DIM} bold={active}>
+                      <Text
+                        color={active ? TEXT_PRIMARY : TEXT_DIM}
+                        bold={active}
+                      >
                         {truncatedModel}
                       </Text>
                       {isDefault && <Text color={TEAL}> (default)</Text>}
@@ -329,7 +356,8 @@ export default function ConfigureScreen({
 }: ConfigureProps) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [providers, setProviders] = useState<ProviderInventoryEntryDto[]>([]);
-  const [selectedProvider, setSelectedProvider] = useState<ProviderInventoryEntryDto | null>(null);
+  const [selectedProvider, setSelectedProvider] =
+    useState<ProviderInventoryEntryDto | null>(null);
   const [errorMsg, setErrorMsg] = useState("");
   const [spinIdx, setSpinIdx] = useState(0);
   const [fetchKey, setFetchKey] = useState(0);
@@ -347,7 +375,9 @@ export default function ConfigureScreen({
 
     (async () => {
       try {
-        const resp = await client.goose.GooseProvidersList({ providerIds: [] });
+        const resp = await client.goose.providersList_unstable({
+          providerIds: [],
+        });
         if (cancelled) return;
         const sorted = [...resp.entries].sort((a, b) => {
           const aP = a.providerType === "Preferred" ? 0 : 1;
@@ -359,7 +389,7 @@ export default function ConfigureScreen({
 
         if (initialIntent === "model") {
           try {
-            const cfg = await client.goose.GooseDefaultsRead({});
+            const cfg = await client.goose.defaultsRead_unstable({});
             if (cancelled) return;
             const current = sorted.find((p) => p.providerId === cfg.providerId);
             if (current) {
@@ -395,7 +425,7 @@ export default function ConfigureScreen({
     ) => {
       setPhase("saving");
       try {
-        await client.goose.GooseProvidersConfigSave({
+        await client.goose.providersConfigSave_unstable({
           providerId: provider.providerId,
           fields: Object.entries(configValues).map(([key, value]) => ({
             key,
@@ -421,7 +451,9 @@ export default function ConfigureScreen({
     [client, sessionId, onComplete],
   );
 
-  const [pendingConfigValues, setPendingConfigValues] = useState<Record<string, string>>({});
+  const [pendingConfigValues, setPendingConfigValues] = useState<
+    Record<string, string>
+  >({});
 
   const handleProviderSelected = useCallback(
     (provider: ProviderInventoryEntryDto) => {
@@ -463,15 +495,19 @@ export default function ConfigureScreen({
   }, []);
 
   if (phase === "loading" || phase === "loading_models" || phase === "saving") {
-    const label = 
-      phase === "loading" ? "Loading providers…" : 
-      phase === "loading_models" ? "Loading models…" :
-      "Applying changes…";
+    const label =
+      phase === "loading"
+        ? "Loading providers…"
+        : phase === "loading_models"
+          ? "Loading models…"
+          : "Applying changes…";
     return (
       <Box flexDirection="column" height={height} width={width} paddingX={2}>
         <Box marginTop={1} />
         <Box justifyContent="center" marginBottom={1}>
-          <Text color={TEXT_PRIMARY} bold>◆ Configure provider ◆</Text>
+          <Text color={TEXT_PRIMARY} bold>
+            ◆ Configure provider ◆
+          </Text>
         </Box>
         <Box justifyContent="center" marginBottom={2}>
           <Text color={TEXT_DIM}>{label}</Text>
@@ -488,7 +524,9 @@ export default function ConfigureScreen({
       <Box flexDirection="column" height={height} width={width} paddingX={2}>
         <Box marginTop={1} />
         <Box justifyContent="center" marginBottom={1}>
-          <Text color={TEXT_PRIMARY} bold>◆ Configure provider ◆</Text>
+          <Text color={TEXT_PRIMARY} bold>
+            ◆ Configure provider ◆
+          </Text>
         </Box>
         <ErrorScreen errorMsg={errorMsg} onRetry={handleRetry} />
       </Box>

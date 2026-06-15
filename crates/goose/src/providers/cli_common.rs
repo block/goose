@@ -1,9 +1,9 @@
 use serde_json::Value;
 
-use super::base::{ProviderUsage, Usage};
-use super::errors::ProviderError;
 use crate::conversation::message::{Message, MessageContent};
 use crate::utils::safe_truncate;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::errors::ProviderError;
 use rmcp::model::Role;
 
 pub(crate) fn extract_usage_tokens(usage_info: &Value) -> Usage {

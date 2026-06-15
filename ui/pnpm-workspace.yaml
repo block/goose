@@ -3,4 +3,3 @@ packages:
   - 'text'
   - 'desktop'
   - 'goose-binary/*'
-  - 'goose2'

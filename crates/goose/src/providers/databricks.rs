@@ -1,29 +1,31 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
-use serde::{Deserialize, Serialize};
+use goose_providers::formats::openai::{
+    extract_reasoning_effort, is_openai_responses_model, openai_reasoning_effort_for_thinking,
+};
+use goose_providers::images::ImageFormat;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::sync::LazyLock;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use super::api_client::{ApiClient, AuthMethod, AuthProvider};
+use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
     ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
+use super::databricks_auth::{DatabricksAuth, DatabricksAuthProvider};
 use super::embedding::EmbeddingCapable;
-use super::errors::ProviderError;
-use super::formats::databricks::create_request;
+use super::formats::databricks::{create_request_for_provider, DATABRICKS_PROVIDER_NAME};
 use super::formats::openai_responses::create_responses_request;
-use super::oauth;
 use super::openai_compatible::{
     handle_response_openai_compat, handle_status, map_http_error_to_provider_error, sanitize_url,
     stream_openai_compat, stream_responses_compat,
 };
 use super::retry::ProviderRetry;
-use super::utils::{is_openai_responses_model, ImageFormat, RequestLog};
+use super::utils::RequestLog;
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::instance_id::get_instance_id;
@@ -32,6 +34,7 @@ use crate::providers::retry::{
     RetryConfig, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS,
     DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
 };
+use goose_providers::errors::ProviderError;
 use rmcp::model::Tool;
 use serde_json::json;
 
@@ -56,11 +59,6 @@ struct CachedDatabricksEndpointInfo {
     fetched_at: Instant,
 }
 
-const DEFAULT_CLIENT_ID: &str = "databricks-cli";
-const DEFAULT_REDIRECT_URL: &str = "http://localhost";
-const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
-
-const DATABRICKS_PROVIDER_NAME: &str = "databricks";
 const DATABRICKS_ENDPOINT_METADATA_TTL_SECS: u64 = 60;
 static DATABRICKS_ENDPOINT_INFO_CACHE: LazyLock<
     Mutex<std::collections::HashMap<String, CachedDatabricksEndpointInfo>>,
@@ -75,69 +73,6 @@ pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
 
 pub const DATABRICKS_DOC_URL: &str =
     "https://docs.databricks.com/en/generative-ai/external-models/index.html";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum DatabricksAuth {
-    Token(String),
-    OAuth {
-        host: String,
-        client_id: String,
-        redirect_url: String,
-        scopes: Vec<String>,
-    },
-}
-
-impl DatabricksAuth {
-    pub fn oauth(host: String) -> Self {
-        Self::OAuth {
-            host,
-            client_id: DEFAULT_CLIENT_ID.to_string(),
-            redirect_url: DEFAULT_REDIRECT_URL.to_string(),
-            scopes: DEFAULT_SCOPES.iter().map(|s| s.to_string()).collect(),
-        }
-    }
-
-    pub fn token(token: String) -> Self {
-        Self::Token(token)
-    }
-}
-
-struct DatabricksAuthProvider {
-    auth: DatabricksAuth,
-    token_cache: Arc<Mutex<Option<String>>>,
-}
-
-#[async_trait]
-impl AuthProvider for DatabricksAuthProvider {
-    async fn get_auth_header(&self) -> Result<(String, String)> {
-        let token = match &self.auth {
-            DatabricksAuth::Token(original) => {
-                let cached = self.token_cache.lock().unwrap().clone();
-                match cached {
-                    Some(t) => t,
-                    None => {
-                        // Cache was cleared by refresh_credentials(); re-read
-                        // from config which may have a sidecar-rotated token.
-                        // Fall back to the constructor-provided token if config
-                        // lookup fails (e.g. from_params usage).
-                        let fresh = crate::config::Config::global()
-                            .get_secret::<String>("DATABRICKS_TOKEN")
-                            .unwrap_or_else(|_| original.clone());
-                        *self.token_cache.lock().unwrap() = Some(fresh.clone());
-                        fresh
-                    }
-                }
-            }
-            DatabricksAuth::OAuth {
-                host,
-                client_id,
-                redirect_url,
-                scopes,
-            } => oauth::get_oauth_token_async(host, client_id, redirect_url, scopes).await?,
-        };
-        Ok(("Authorization".to_string(), format!("Bearer {}", token)))
-    }
-}
 
 #[derive(Debug, serde::Serialize)]
 pub struct DatabricksProvider {
@@ -605,7 +540,7 @@ impl DatabricksProvider {
         } else if is_responses_model {
             "serving-endpoints/responses".to_string()
         } else {
-            let (clean_name, _) = super::utils::extract_reasoning_effort(model_name);
+            let (clean_name, _) = extract_reasoning_effort(model_name);
             format!("serving-endpoints/{}/invocations", clean_name)
         }
     }
@@ -627,7 +562,7 @@ impl DatabricksProvider {
     ) -> Result<Value, ProviderError> {
         let is_embedding = payload.get("input").is_some() && payload.get("messages").is_none();
         let model_to_use = model_name.unwrap_or(&self.model.model_name);
-        let (endpoint_name, _) = super::utils::extract_reasoning_effort(model_to_use);
+        let (endpoint_name, _) = extract_reasoning_effort(model_to_use);
         let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await.ok();
         let is_responses_model = endpoint_info
             .as_ref()
@@ -707,7 +642,7 @@ impl Provider for DatabricksProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let (endpoint_name, _) = super::utils::extract_reasoning_effort(&model_config.model_name);
+        let (endpoint_name, _) = extract_reasoning_effort(&model_config.model_name);
         let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await.ok();
         let effective_model_name = endpoint_info
             .as_ref()
@@ -740,7 +675,7 @@ impl Provider for DatabricksProvider {
             payload["model"] = Value::String(endpoint_name.clone());
             if payload.get("reasoning").is_none() {
                 if let Some(effort) = model_config.thinking_effort().and_then(|effort| {
-                    super::utils::openai_reasoning_effort_for_thinking(effective_model_name, effort)
+                    openai_reasoning_effort_for_thinking(effective_model_name, effort)
                 }) {
                     payload.as_object_mut().unwrap().insert(
                         "reasoning".to_string(),
@@ -788,7 +723,8 @@ impl Provider for DatabricksProvider {
                 model_config
             };
 
-            let mut payload = create_request(
+            let mut payload = create_request_for_provider(
+                DATABRICKS_PROVIDER_NAME,
                 request_model_config,
                 system,
                 messages,
@@ -943,7 +879,7 @@ impl Provider for DatabricksProvider {
     }
 
     async fn fetch_model_info(&self, model_name: &str) -> Result<ModelInfo, ProviderError> {
-        let (endpoint_name, _) = super::utils::extract_reasoning_effort(model_name);
+        let (endpoint_name, _) = extract_reasoning_effort(model_name);
         let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await?;
         Ok(Self::model_info_from_endpoint(endpoint_info))
     }

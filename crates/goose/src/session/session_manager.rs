@@ -86,6 +86,23 @@ pub struct Session {
     pub archived_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub project_id: Option<String>,
+    #[serde(default)]
+    pub last_message_snippet: Option<String>,
+}
+
+impl Session {
+    pub fn display_title(&self) -> Option<String> {
+        if !self.user_set_name && self.session_type != SessionType::Scheduled {
+            if let Some(recipe) = &self.recipe {
+                return Some(recipe.title.clone());
+            }
+        }
+        if self.name.is_empty() {
+            None
+        } else {
+            Some(self.name.clone())
+        }
+    }
 }
 
 pub struct SessionUpdateBuilder<'a> {
@@ -286,13 +303,58 @@ pub(crate) struct SessionListPage {
     pub(crate) next_cursor: Option<SessionListCursor>,
 }
 
+#[derive(Debug, Default, Clone)]
+pub(crate) struct SessionListFilters<'a> {
+    pub(crate) types: Option<&'a [SessionType]>,
+    pub(crate) working_dir: Option<&'a Path>,
+    pub(crate) keyword: Option<&'a str>,
+    pub(crate) only_sessions_with_messages: bool,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct SessionListPageQuery<'a> {
+    pub(crate) filters: SessionListFilters<'a>,
+    pub(crate) cursor: Option<&'a SessionListCursor>,
+    pub(crate) page_size: usize,
+    pub(crate) include_last_message_snippet: bool,
+}
+
 #[derive(Debug, Default)]
 struct SessionListQuery<'a> {
-    types: Option<&'a [SessionType]>,
-    working_dir: Option<&'a Path>,
+    filters: SessionListFilters<'a>,
     cursor: Option<&'a SessionListCursor>,
     limit: Option<usize>,
-    require_messages: bool,
+}
+
+fn keyword_terms(query: Option<&str>) -> Vec<String> {
+    query
+        .unwrap_or_default()
+        .split_whitespace()
+        .map(|word| word.to_lowercase())
+        .collect()
+}
+
+fn message_keyword_clause(keyword_count: usize) -> String {
+    let keyword_clauses = (0..keyword_count)
+        .map(|_| "instr(LOWER(json_extract(value, '$.text')), ?) > 0")
+        .collect::<Vec<_>>()
+        .join(" OR ");
+
+    format!(
+        r#"
+        EXISTS (
+            SELECT 1
+            FROM messages mq
+            WHERE mq.session_id = s.id
+              AND EXISTS (
+                  SELECT 1
+                  FROM json_each(mq.content_json)
+                  WHERE json_extract(value, '$.type') = 'text'
+                    AND ({keyword_clauses})
+              )
+        )
+        "#
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -361,16 +423,11 @@ impl SessionManager {
         self.storage.list_sessions_by_types(Some(types)).await
     }
 
-    pub(crate) async fn list_nonempty_sessions_by_types_paged(
+    pub(crate) async fn list_sessions_paged(
         &self,
-        types: &[SessionType],
-        working_dir: Option<&Path>,
-        cursor: Option<&SessionListCursor>,
-        page_size: usize,
+        query: SessionListPageQuery<'_>,
     ) -> Result<SessionListPage> {
-        self.storage
-            .list_nonempty_sessions_by_types_paged(types, working_dir, cursor, page_size)
-            .await
+        self.storage.list_sessions_paged(query).await
     }
 
     pub async fn list_all_sessions(&self) -> Result<Vec<Session>> {
@@ -542,6 +599,7 @@ impl Default for Session {
             goose_mode: GooseMode::default(),
             archived_at: None,
             project_id: None,
+            last_message_snippet: None,
         }
     }
 }
@@ -614,6 +672,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
                 .unwrap_or_default(),
             archived_at: row.try_get("archived_at").ok(),
             project_id: row.try_get("project_id").ok().flatten(),
+            last_message_snippet: None,
         })
     }
 }
@@ -1511,20 +1570,25 @@ impl SessionStorage {
         Self::replace_conversation_inner(pool, session_id, conversation).await
     }
 
-    async fn list_sessions_matching(&self, options: SessionListQuery<'_>) -> Result<Vec<Session>> {
-        if matches!(options.types, Some(types) if types.is_empty()) {
+    async fn list_sessions_matching(&self, query: SessionListQuery<'_>) -> Result<Vec<Session>> {
+        let filters = &query.filters;
+        if matches!(filters.types, Some(types) if types.is_empty()) {
             return Ok(Vec::new());
         }
 
+        let keywords = keyword_terms(filters.keyword);
         let mut where_clauses = Vec::new();
-        if let Some(types) = options.types {
+        if let Some(types) = filters.types {
             let placeholders = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
             where_clauses.push(format!("s.session_type IN ({})", placeholders));
         }
-        if options.working_dir.is_some() {
+        if filters.working_dir.is_some() {
             where_clauses.push("s.working_dir = ?".to_string());
         }
-        if options.cursor.is_some() {
+        if !keywords.is_empty() {
+            where_clauses.push(message_keyword_clause(keywords.len()));
+        }
+        if query.cursor.is_some() {
             where_clauses.push(
                 "(datetime(s.updated_at) < datetime(?) \
                  OR (datetime(s.updated_at) = datetime(?) AND s.id < ?))"
@@ -1537,23 +1601,19 @@ impl SessionStorage {
         } else {
             format!("WHERE {}", where_clauses.join(" AND "))
         };
-        let message_join = if options.require_messages {
+        let message_join = if filters.only_sessions_with_messages {
             "JOIN messages m ON s.id = m.session_id"
         } else {
             "LEFT JOIN messages m ON s.id = m.session_id"
         };
-        let order_by = if options.cursor.is_some() || options.limit.is_some() {
+        let order_by = if query.cursor.is_some() || query.limit.is_some() {
             "ORDER BY datetime(s.updated_at) DESC, s.id DESC"
         } else {
             "ORDER BY s.updated_at DESC"
         };
-        let limit_clause = if options.limit.is_some() {
-            "LIMIT ?"
-        } else {
-            ""
-        };
+        let limit_clause = if query.limit.is_some() { "LIMIT ?" } else { "" };
 
-        let query = format!(
+        let sql = format!(
             r#"
             SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
                    s.total_tokens, s.input_tokens, s.output_tokens,
@@ -1573,23 +1633,26 @@ impl SessionStorage {
             message_join, where_clause, order_by, limit_clause
         );
 
-        let mut q = sqlx::query_as::<_, Session>(&query);
-        if let Some(types) = options.types {
+        let mut q = sqlx::query_as::<_, Session>(&sql);
+        if let Some(types) = filters.types {
             for session_type in types {
                 q = q.bind(session_type.to_string());
             }
         }
-        if let Some(working_dir) = options.working_dir {
+        if let Some(working_dir) = filters.working_dir {
             q = q.bind(working_dir.to_string_lossy().to_string());
         }
-        if let Some(cursor) = options.cursor {
+        for term in keywords {
+            q = q.bind(term);
+        }
+        if let Some(cursor) = query.cursor {
             let updated_at = cursor.updated_at.to_rfc3339();
             // Normalize mixed SQLite CURRENT_TIMESTAMP and RFC3339 stored values.
             q = q.bind(updated_at.clone());
             q = q.bind(updated_at);
             q = q.bind(&cursor.session_id);
         }
-        if let Some(limit) = options.limit {
+        if let Some(limit) = query.limit {
             q = q.bind(limit as i64);
         }
 
@@ -1599,33 +1662,33 @@ impl SessionStorage {
 
     async fn list_sessions_by_types(&self, types: Option<&[SessionType]>) -> Result<Vec<Session>> {
         self.list_sessions_matching(SessionListQuery {
-            types,
+            filters: SessionListFilters {
+                types,
+                ..Default::default()
+            },
             ..Default::default()
         })
         .await
     }
 
-    async fn list_nonempty_sessions_by_types_paged(
+    async fn list_sessions_paged(
         &self,
-        types: &[SessionType],
-        working_dir: Option<&Path>,
-        cursor: Option<&SessionListCursor>,
-        page_size: usize,
+        query: SessionListPageQuery<'_>,
     ) -> Result<SessionListPage> {
-        if types.is_empty() || page_size == 0 {
+        if matches!(query.filters.types, Some(types) if types.is_empty()) || query.page_size == 0 {
             return Ok(SessionListPage {
                 sessions: Vec::new(),
                 next_cursor: None,
             });
         }
 
+        let page_size = query.page_size;
+        let include_last_message_snippet = query.include_last_message_snippet;
         let mut sessions = self
             .list_sessions_matching(SessionListQuery {
-                types: Some(types),
-                working_dir,
-                cursor,
+                filters: query.filters,
+                cursor: query.cursor,
                 limit: Some(page_size + 1),
-                require_messages: true,
             })
             .await?;
         let has_next_page = sessions.len() > page_size;
@@ -1640,6 +1703,10 @@ impl SessionStorage {
         };
         if has_next_page {
             sessions.truncate(page_size);
+        }
+        if include_last_message_snippet {
+            let pool = self.pool().await?;
+            super::last_message_snippet::hydrate_last_message_snippets(pool, &mut sessions).await?;
         }
 
         Ok(SessionListPage {
@@ -1725,7 +1792,8 @@ impl SessionStorage {
         json: &str,
         session_type_override: Option<SessionType>,
     ) -> Result<Session> {
-        let import: Session = serde_json::from_str(json)?;
+        let normalized = super::import_formats::convert_to_goose_session_json(json)?;
+        let import: Session = serde_json::from_str(&normalized)?;
 
         let session = self
             .create_session(
@@ -1996,6 +2064,18 @@ mod tests {
         session.id
     }
 
+    async fn create_session_for_list_with_message(
+        sm: &SessionManager,
+        working_dir: &str,
+        message: &str,
+    ) -> String {
+        let session_id = create_session_for_list(sm, working_dir, false).await;
+        sm.add_message(&session_id, &Message::user().with_text(message))
+            .await
+            .unwrap();
+        session_id
+    }
+
     async fn set_sessions_updated_at(
         sm: &SessionManager,
         session_ids: &[String],
@@ -2013,6 +2093,93 @@ mod tests {
                 .await
                 .unwrap();
         }
+    }
+
+    async fn add_message_at(sm: &SessionManager, session_id: &str, text: &str, timestamp: &str) {
+        sm.add_message(session_id, &Message::user().with_text(text))
+            .await
+            .unwrap();
+
+        let pool = sm.storage().pool().await.unwrap();
+        let timestamp = chrono::DateTime::parse_from_rfc3339(timestamp).unwrap();
+        let timestamp_string = timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+
+        sqlx::query(
+            "UPDATE messages SET timestamp = ?, created_timestamp = ? WHERE id = (SELECT MAX(id) FROM messages WHERE session_id = ?)",
+        )
+        .bind(&timestamp_string)
+        .bind(timestamp.timestamp())
+        .bind(session_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
+    async fn create_search_session(
+        sm: &SessionManager,
+        name: &str,
+        session_type: SessionType,
+        updated_at: &str,
+        messages: &[(&str, &str)],
+    ) -> String {
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/search-test"),
+                name.to_string(),
+                session_type,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        for (text, timestamp) in messages {
+            add_message_at(sm, &session.id, text, timestamp).await;
+        }
+        set_sessions_updated_at(sm, std::slice::from_ref(&session.id), updated_at).await;
+
+        session.id
+    }
+
+    #[tokio::test]
+    async fn test_search_chat_history_preserves_message_limited_behavior() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let _older_target = create_search_session(
+            &sm,
+            "Older target",
+            SessionType::User,
+            "2026-05-01T00:00:00Z",
+            &[(
+                "does Acme have an email address for John Doe",
+                "2026-05-01T00:00:00Z",
+            )],
+        )
+        .await;
+
+        let newer_noise = create_search_session(
+            &sm,
+            "Newer noise",
+            SessionType::User,
+            "2026-05-22T00:00:00Z",
+            &[
+                ("Acme person name looking for Acme", "2026-05-22T00:00:00Z"),
+                (
+                    "another Acme person name looking for Acme",
+                    "2026-05-22T00:01:00Z",
+                ),
+            ],
+        )
+        .await;
+
+        let results = sm
+            .search_chat_history("Acme", Some(2), None, None, None, vec![SessionType::User])
+            .await
+            .unwrap();
+
+        assert_eq!(results.results.len(), 1);
+        assert_eq!(results.results[0].session_id, newer_noise);
+        assert_eq!(results.results[0].messages.len(), 2);
     }
 
     async fn expected_session_list_ids(sm: &SessionManager, session_ids: &[String]) -> Vec<String> {
@@ -2036,13 +2203,19 @@ mod tests {
         expected_ids: &[String],
         expected_next_cursor: bool,
     ) -> Option<SessionListCursor> {
+        let types = [SessionType::User];
         let page = sm
-            .list_nonempty_sessions_by_types_paged(
-                &[SessionType::User],
-                working_dir.map(Path::new),
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    working_dir: working_dir.map(Path::new),
+                    only_sessions_with_messages: true,
+                    ..Default::default()
+                },
                 cursor,
                 page_size,
-            )
+                include_last_message_snippet: false,
+            })
             .await
             .unwrap();
         let ids = page
@@ -2209,6 +2382,236 @@ mod tests {
             false,
         )
         .await;
+    }
+
+    #[tokio::test]
+    async fn test_session_list_paged_filters_by_keyword() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let target = create_session_for_list_with_message(
+            &sm,
+            "/tmp/session-list",
+            "Discuss Postgres migrations",
+        )
+        .await;
+        create_session_for_list_with_message(&sm, "/tmp/session-list", "Plan the mobile release")
+            .await;
+
+        let types = [SessionType::User];
+        let page = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    keyword: Some("postgres"),
+                    only_sessions_with_messages: true,
+                    ..Default::default()
+                },
+                cursor: None,
+                page_size: 10,
+                include_last_message_snippet: false,
+            })
+            .await
+            .unwrap();
+        let ids = page
+            .sessions
+            .iter()
+            .map(|session| session.id.clone())
+            .collect::<Vec<_>>();
+
+        assert_eq!(ids, vec![target]);
+        assert!(page.next_cursor.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_session_list_paged_keyword_uses_or_terms() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let postgres = create_session_for_list_with_message(
+            &sm,
+            "/tmp/session-list",
+            "Postgres migration plan",
+        )
+        .await;
+        let sqlite =
+            create_session_for_list_with_message(&sm, "/tmp/session-list", "SQLite backup notes")
+                .await;
+        create_session_for_list_with_message(&sm, "/tmp/session-list", "Mobile release notes")
+            .await;
+        let expected_ids = expected_session_list_ids(&sm, &[postgres, sqlite]).await;
+
+        let types = [SessionType::User];
+        let page = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    keyword: Some("postgres sqlite"),
+                    only_sessions_with_messages: true,
+                    ..Default::default()
+                },
+                cursor: None,
+                page_size: 10,
+                include_last_message_snippet: false,
+            })
+            .await
+            .unwrap();
+        let ids = page
+            .sessions
+            .iter()
+            .map(|session| session.id.clone())
+            .collect::<Vec<_>>();
+
+        assert_eq!(ids, expected_ids);
+        assert!(page.next_cursor.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_session_list_paged_empty_keyword_matches_plain_list() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let expected_ids = vec![
+            create_session_for_list_with_message(&sm, "/tmp/session-list", "first message").await,
+            create_session_for_list_with_message(&sm, "/tmp/session-list", "second message").await,
+        ];
+        let expected_ids = expected_session_list_ids(&sm, &expected_ids).await;
+
+        let types = [SessionType::User];
+        let page = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    keyword: Some("   "),
+                    only_sessions_with_messages: true,
+                    ..Default::default()
+                },
+                cursor: None,
+                page_size: 10,
+                include_last_message_snippet: false,
+            })
+            .await
+            .unwrap();
+        let ids = page
+            .sessions
+            .iter()
+            .map(|session| session.id.clone())
+            .collect::<Vec<_>>();
+
+        assert_eq!(ids, expected_ids);
+    }
+
+    #[tokio::test]
+    async fn test_session_list_paged_keyword_treats_like_wildcards_as_literals() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let percent_id =
+            create_session_for_list_with_message(&sm, "/tmp/session-list", "Deploy is 100% done")
+                .await;
+        let underscore_id = create_session_for_list_with_message(
+            &sm,
+            "/tmp/session-list",
+            "feature_flag is enabled",
+        )
+        .await;
+        create_session_for_list_with_message(&sm, "/tmp/session-list", "plain message").await;
+
+        let types = [SessionType::User];
+        let percent_page = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    keyword: Some("%"),
+                    only_sessions_with_messages: true,
+                    ..Default::default()
+                },
+                cursor: None,
+                page_size: 10,
+                include_last_message_snippet: false,
+            })
+            .await
+            .unwrap();
+        let percent_ids = percent_page
+            .sessions
+            .iter()
+            .map(|session| session.id.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(percent_ids, vec![percent_id]);
+
+        let underscore_page = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    keyword: Some("_"),
+                    only_sessions_with_messages: true,
+                    ..Default::default()
+                },
+                cursor: None,
+                page_size: 10,
+                include_last_message_snippet: false,
+            })
+            .await
+            .unwrap();
+        let underscore_ids = underscore_page
+            .sessions
+            .iter()
+            .map(|session| session.id.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(underscore_ids, vec![underscore_id]);
+    }
+
+    #[tokio::test]
+    async fn test_session_list_paged_keyword_combines_with_cwd_and_pagination() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let expected_ids = vec![
+            create_session_for_list_with_message(&sm, "/tmp/session-list/a", "Postgres plan one")
+                .await,
+            create_session_for_list_with_message(&sm, "/tmp/session-list/a", "Postgres plan two")
+                .await,
+        ];
+        create_session_for_list_with_message(&sm, "/tmp/session-list/a", "Mobile release").await;
+        create_session_for_list_with_message(&sm, "/tmp/session-list/b", "Postgres plan other")
+            .await;
+        let expected_ids = expected_session_list_ids(&sm, &expected_ids).await;
+
+        let types = [SessionType::User];
+        let filters = SessionListFilters {
+            types: Some(&types),
+            working_dir: Some(Path::new("/tmp/session-list/a")),
+            keyword: Some("postgres"),
+            only_sessions_with_messages: true,
+        };
+        let cursor = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: filters.clone(),
+                cursor: None,
+                page_size: 1,
+                include_last_message_snippet: false,
+            })
+            .await
+            .unwrap();
+        let ids = cursor
+            .sessions
+            .iter()
+            .map(|session| session.id.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, expected_ids[0..1]);
+        assert!(cursor.next_cursor.is_some());
+
+        let page = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters,
+                cursor: cursor.next_cursor.as_ref(),
+                page_size: 1,
+                include_last_message_snippet: false,
+            })
+            .await
+            .unwrap();
+        let ids = page
+            .sessions
+            .iter()
+            .map(|session| session.id.clone())
+            .collect::<Vec<_>>();
+        assert_eq!(ids, expected_ids[1..2]);
+        assert!(page.next_cursor.is_none());
     }
 
     #[tokio::test]

@@ -1,1 +1,0 @@
-export const SIDE_PANEL_DEFAULT_WIDTH = 300;

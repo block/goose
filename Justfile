@@ -1,7 +1,5 @@
 # Justfile
 
-mod goose2 'ui/goose2'
-
 # list all tasks
 default:
   @just --list
@@ -190,7 +188,7 @@ check-acp-schema: generate-acp-types
 # Generate ACP JSON schema from Rust types
 generate-acp-schema:
     @echo "Generating ACP schema..."
-    cd crates/goose && cargo run --bin generate-acp-schema
+    cd crates/goose && cargo run --features code-mode,local-inference,aws-providers,telemetry,otel,rustls-tls,system-keyring --bin generate-acp-schema
     @echo "ACP schema generated: crates/goose/acp-schema.json, crates/goose/acp-meta.json"
 
 # Generate ACP TypeScript types from JSON schema (requires generate-acp-schema first)
@@ -332,8 +330,8 @@ prepare-release version:
         ui/desktop/package.json \
         ui/pnpm-lock.yaml \
         ui/desktop/openapi.json \
-        crates/goose/src/providers/canonical/data/canonical_models.json \
-        crates/goose/src/providers/canonical/data/provider_metadata.json
+        crates/goose-providers/src/canonical/data/canonical_models.json \
+        crates/goose-providers/src/canonical/data/provider_metadata.json
     @git commit --message "chore(release): release version {{ version }}"
 
 set-openapi-version version:
@@ -450,8 +448,3 @@ build-test-tools:
 record-mcp-tests: build-test-tools
   GOOSE_RECORD_MCP=1 cargo test --package goose --test mcp_integration_test
   git add crates/goose/tests/mcp_replays/
-
-bundle-goose2:
-  cargo build --release --package goose-cli --bin goose {{linux_vulkan_features}}
-  cp target/release/goose target/release/goose-$(rustc --print host-tuple)
-  @just goose2::bundle

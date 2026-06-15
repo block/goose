@@ -1,15 +1,18 @@
-use super::base::{ConfigKey, ModelInfo, ProviderType};
+use super::base::{ConfigKey, ModelInfo, Provider, ProviderType};
 use super::canonical::{map_provider_name, map_to_canonical_model, CanonicalModelRegistry};
 use super::catalog::ProviderSetupCategory;
 use crate::config::declarative_providers::{DeclarativeProviderConfig, ProviderEngine};
 use crate::config::Config;
 use crate::session::session_manager::SessionStorage;
+use crate::utils::bytes_to_hex;
 use anyhow::{Context, Result};
 use chrono::{DateTime, Duration, Utc};
+use futures::FutureExt;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{Pool, Row, Sqlite, Transaction};
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tracing::warn;
 
@@ -126,7 +129,7 @@ impl InventoryIdentityInput {
         Ok(InventoryIdentity {
             provider_id,
             provider_family,
-            inventory_key: format!("{digest:x}"),
+            inventory_key: bytes_to_hex(digest),
         })
     }
 }
@@ -307,6 +310,23 @@ impl ProviderInventoryService {
             last_refresh_error: snapshot.and_then(|snapshot| snapshot.last_refresh_error),
             model_selection_hint: descriptor.model_selection_hint,
         }))
+    }
+
+    pub async fn find_entry_for_provider(
+        &self,
+        provider_id: &str,
+    ) -> Option<ProviderInventoryEntry> {
+        match self.entry_for_provider(provider_id).await {
+            Ok(entry) => entry,
+            Err(error) => {
+                warn!(
+                    provider = %provider_id,
+                    %error,
+                    "failed to look up provider inventory entry"
+                );
+                None
+            }
+        }
     }
 
     pub async fn entries(&self, provider_ids: &[String]) -> Result<Vec<ProviderInventoryEntry>> {
@@ -560,6 +580,106 @@ impl ProviderInventoryService {
         }
     }
 
+    pub(crate) async fn refresh_with_provider(
+        &self,
+        provider_name: &str,
+        provider: &Arc<dyn Provider>,
+        inventory: &mut ProviderInventoryEntry,
+        context: &str,
+    ) {
+        let provider_id = provider_name.to_string();
+        match self
+            .plan_refresh_jobs(std::slice::from_ref(&provider_id))
+            .await
+        {
+            Ok(plan)
+                if plan
+                    .started
+                    .iter()
+                    .any(|job| job.provider_id == provider_id) =>
+            {
+                let refresh_job = plan
+                    .started
+                    .into_iter()
+                    .find(|job| job.provider_id == provider_id);
+                if let Some(refresh_job) = refresh_job {
+                    let mut refresh_guard = self.refresh_guard(&refresh_job.identity);
+                    let fetch_result: Result<Vec<String>> =
+                        match ensure_refresh_identity_current(&provider_id, &refresh_job.identity)
+                            .await
+                        {
+                            Ok(()) => {
+                                match AssertUnwindSafe(provider.fetch_recommended_models())
+                                    .catch_unwind()
+                                    .await
+                                {
+                                    Ok(Ok(models)) => Ok(models),
+                                    Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
+                                    Err(_) => Err(anyhow::anyhow!(
+                                        "provider inventory refresh task panicked"
+                                    )),
+                                }
+                            }
+                            Err(error) => Err(error),
+                        };
+                    match fetch_result {
+                        Ok(models) => {
+                            if let Err(error) = self
+                                .store_refreshed_models_for_identity(&refresh_job.identity, &models)
+                                .await
+                            {
+                                warn!(
+                                    provider = %provider_id,
+                                    context = %context,
+                                    error = %error,
+                                    "failed to store refreshed provider inventory"
+                                );
+                            } else {
+                                refresh_guard.complete();
+                            }
+                        }
+                        Err(error) => {
+                            let error_message = error.to_string();
+                            if let Err(store_error) = self
+                                .store_refresh_error_for_identity(
+                                    &refresh_job.identity,
+                                    error_message.clone(),
+                                )
+                                .await
+                            {
+                                warn!(
+                                    provider = %provider_id,
+                                    context = %context,
+                                    error = %store_error,
+                                    "failed to store provider inventory refresh error"
+                                );
+                            } else {
+                                refresh_guard.complete();
+                            }
+                            warn!(
+                                provider = %provider_id,
+                                context = %context,
+                                error = %error_message,
+                                "provider inventory refresh failed"
+                            );
+                        }
+                    }
+                }
+            }
+            Ok(_) => {}
+            Err(error) => warn!(
+                provider = %provider_id,
+                context = %context,
+                error = %error,
+                "failed to plan provider inventory refresh"
+            ),
+        }
+
+        if let Some(refreshed_inventory) = self.find_entry_for_provider(provider_name).await {
+            *inventory = refreshed_inventory;
+        }
+    }
+
     pub fn is_stale(entry: &ProviderInventoryEntry) -> bool {
         let Some(last_updated_at) = entry.last_updated_at else {
             return false;
@@ -714,6 +834,19 @@ impl ProviderInventoryService {
         ids.dedup();
         ids
     }
+}
+
+pub(crate) async fn ensure_refresh_identity_current(
+    provider_id: &str,
+    planned_identity: &InventoryIdentity,
+) -> Result<()> {
+    let current_identity = crate::providers::inventory_identity(provider_id)
+        .await?
+        .into_identity()?;
+    if current_identity != *planned_identity {
+        anyhow::bail!("provider inventory identity changed before refresh completed");
+    }
+    Ok(())
 }
 
 pub fn default_inventory_identity(
@@ -881,10 +1014,10 @@ fn enrich_model_ids_with_canonical(
         models.push(model);
     }
 
-    // For databricks, prefer goose- prefixed model_ids when there are duplicates.
+    // For Databricks providers, prefer goose- prefixed model_ids when there are duplicates.
     // Re-scan: if a later model_id with "goose-" prefix maps to the same display name,
     // swap it in.
-    if provider_family == "databricks" {
+    if matches!(provider_family, "databricks" | "databricks_v2") {
         let mut name_to_idx: HashMap<String, usize> = HashMap::new();
         for (idx, model) in models.iter().enumerate() {
             name_to_idx.insert(model.name.clone(), idx);
@@ -1176,6 +1309,26 @@ mod tests {
 
         assert_eq!(models.len(), 1);
         assert!(models[0].name.contains("Claude"));
+    }
+
+    #[test]
+    fn databricks_v2_inventory_prefers_goose_model_ids_for_duplicate_names() {
+        let models = enrich_model_ids_with_canonical(
+            "databricks_v2",
+            &[
+                "databricks-gpt-5-5".to_string(),
+                "goose-gpt-5-5".to_string(),
+            ],
+        );
+
+        assert!(
+            models.iter().any(|model| model.id == "goose-gpt-5-5"),
+            "expected goose-gpt-5-5 to win duplicate canonical-name tie, got {models:?}"
+        );
+        assert!(
+            !models.iter().any(|model| model.id == "databricks-gpt-5-5"),
+            "expected databricks-gpt-5-5 to be replaced by goose-gpt-5-5, got {models:?}"
+        );
     }
 
     #[test]

@@ -1,21 +1,24 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::errors::ProviderError;
+use goose_providers::images::ImageFormat;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
-    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 use super::embedding::EmbeddingCapable;
-use super::errors::ProviderError;
 use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat, RequestLog};
+use super::utils::{get_model, RequestLog};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
+use goose_providers::formats::openai::ModelConfigParams;
 use rmcp::model::Tool;
 
 const LITELLM_PROVIDER_NAME: &str = "litellm";
@@ -30,6 +33,8 @@ pub struct LiteLLMProvider {
     model: ModelConfig,
     #[serde(skip)]
     name: String,
+    #[serde(skip)]
+    cached_model_info: tokio::sync::OnceCell<Vec<ModelInfo>>,
 }
 
 impl LiteLLMProvider {
@@ -77,10 +82,18 @@ impl LiteLLMProvider {
             base_path,
             model,
             name: LITELLM_PROVIDER_NAME.to_string(),
+            cached_model_info: tokio::sync::OnceCell::new(),
         })
     }
 
-    async fn fetch_models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+    async fn get_or_fetch_models(&self) -> Result<&[ModelInfo], ProviderError> {
+        self.cached_model_info
+            .get_or_try_init(|| self.fetch_models_from_api())
+            .await
+            .map(|v| v.as_slice())
+    }
+
+    async fn fetch_models_from_api(&self) -> Result<Vec<ModelInfo>, ProviderError> {
         let response = self
             .api_client
             .request(None, "model/info")
@@ -184,7 +197,22 @@ impl Provider for LiteLLMProvider {
     }
 
     fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
+        let mut config = self.model.clone();
+        // The cache is populated lazily by the first stream() call (via
+        // supports_cache_control). On turn 1 this will be None and we fall
+        // back to DEFAULT_CONTEXT_LIMIT, which is fine — the conversation is
+        // too small to trigger compaction. From turn 2 onward the real limit
+        // from /model/info is used.
+        if config.context_limit.is_none() {
+            if let Some(models) = self.cached_model_info.get() {
+                if let Some(info) = models.iter().find(|m| m.name == config.model_name) {
+                    if info.context_limit > 0 {
+                        config.context_limit = Some(info.context_limit);
+                    }
+                }
+            }
+        }
+        config
     }
 
     async fn stream(
@@ -200,8 +228,14 @@ impl Provider for LiteLLMProvider {
         } else {
             Some(session_id)
         };
-        let mut payload = super::formats::openai::create_request(
-            model_config,
+        let mut payload = goose_providers::formats::openai::create_request(
+            ModelConfigParams {
+                model_name: model_config.model_name.as_str(),
+                thinking_effort: model_config.thinking_effort(),
+                temperature: model_config.temperature,
+                max_tokens: model_config.max_tokens,
+                request_params: model_config.request_params.as_ref(),
+            },
             system,
             messages,
             tools,
@@ -220,8 +254,8 @@ impl Provider for LiteLLMProvider {
             })
             .await?;
 
-        let message = super::formats::openai::response_to_message(&response)?;
-        let usage = super::formats::openai::get_usage(&response);
+        let message = goose_providers::formats::openai::response_to_message(&response)?;
+        let usage = goose_providers::formats::openai::get_usage(&response);
         let response_model = get_model(&response);
         let mut log = RequestLog::start(model_config, &payload)?;
         log.write(&response, Some(&usage))?;
@@ -237,7 +271,7 @@ impl Provider for LiteLLMProvider {
     }
 
     async fn supports_cache_control(&self) -> bool {
-        if let Ok(models) = self.fetch_models().await {
+        if let Ok(models) = self.get_or_fetch_models().await {
             if let Some(model_info) = models.iter().find(|m| m.name == self.model.model_name) {
                 return model_info.supports_cache_control.unwrap_or(false);
             }
@@ -247,10 +281,8 @@ impl Provider for LiteLLMProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        let models = self.fetch_models().await.map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to fetch models from LiteLLM: {}", e))
-        })?;
-        Ok(models.into_iter().map(|m| m.name).collect())
+        let models = self.get_or_fetch_models().await?;
+        Ok(models.iter().map(|m| m.name.clone()).collect())
     }
 }
 

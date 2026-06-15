@@ -1,14 +1,15 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
-use crate::providers::base::{ProviderUsage, Usage};
-use crate::providers::utils::{
-    extract_reasoning_effort, is_openai_responses_model, openai_reasoning_effort_for_thinking,
-};
-use anyhow::{anyhow, Error};
+use anyhow::Error;
 use async_stream::try_stream;
 use chrono;
 use futures::Stream;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::{
+    extract_reasoning_effort, is_openai_responses_model, openai_reasoning_effort_for_thinking,
+};
 use rmcp::model::{object, CallToolRequestParams, RawContent, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -52,19 +53,27 @@ fn reasoning_from_summary(summary: &[SummaryText]) -> Option<MessageContent> {
 #[serde(rename_all = "snake_case")]
 pub enum ResponseOutputItem {
     Reasoning {
-        id: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
         #[serde(default)]
         summary: Vec<SummaryText>,
     },
     Message {
-        id: String,
-        status: String,
+        // `id` and `status` are required when the OpenAI API emits these
+        // items, but Codex rollout files (which reuse the same shape on
+        // disk) sometimes omit them. Keep deserialization permissive.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        status: Option<String>,
         role: String,
         content: Vec<ResponseContentBlock>,
     },
     FunctionCall {
-        id: String,
-        status: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        status: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         call_id: Option<String>,
         name: String,
@@ -241,11 +250,10 @@ fn is_known_responses_stream_event_type(event_type: &str) -> bool {
 
 fn parse_responses_stream_event(data_line: &str) -> anyhow::Result<Option<ResponsesStreamEvent>> {
     let raw_event: Value = serde_json::from_str(data_line).map_err(|e| {
-        anyhow!(
+        ProviderError::stream_decode_error(format!(
             "Failed to parse Responses stream event: {}: {:?}",
-            e,
-            data_line
-        )
+            e, data_line
+        ))
     })?;
 
     let Some(event_type) = raw_event.get("type").and_then(Value::as_str) else {
@@ -257,11 +265,10 @@ fn parse_responses_stream_event(data_line: &str) -> anyhow::Result<Option<Respon
     }
 
     let event = serde_json::from_value(raw_event).map_err(|e| {
-        anyhow!(
+        ProviderError::stream_decode_error(format!(
             "Failed to parse Responses stream event: {}: {:?}",
-            e,
-            data_line
-        )
+            e, data_line
+        ))
     })?;
     Ok(Some(event))
 }
@@ -273,6 +280,7 @@ pub struct ResponseMetadata {
     pub created_at: i64,
     pub status: String,
     pub model: String,
+    #[serde(default)]
     pub output: Vec<ResponseOutputItemInfo>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub usage: Option<ResponseUsage>,
@@ -658,7 +666,7 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                 arguments,
                 ..
             } => {
-                let request_id = call_id.as_ref().unwrap_or(id).clone();
+                let request_id = call_id.clone().or_else(|| id.clone()).unwrap_or_default();
                 let parsed_args = if arguments.is_empty() {
                     json!({})
                 } else {
@@ -902,11 +910,17 @@ where
                 }
 
                 ResponsesStreamEvent::ResponseFailed { error, .. } => {
-                    Err(anyhow!("Responses API failed: {:?}", error))?;
+                    Err::<(), ProviderError>(ProviderError::RequestFailed(format!(
+                        "Responses API failed: {:?}",
+                        error
+                    )))?;
                 }
 
                 ResponsesStreamEvent::Error { error } => {
-                    Err(anyhow!("Responses API error: {:?}", error))?;
+                    Err::<(), ProviderError>(ProviderError::RequestFailed(format!(
+                        "Responses API error: {:?}",
+                        error
+                    )))?;
                 }
 
                 _ => {
@@ -947,6 +961,47 @@ mod tests {
             r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}"#.to_string(),
             r#"data: {"type":"response.output_text.delta","sequence_number":3,"item_id":"msg_1","output_index":0,"content_index":0,"delta":" world"}"#.to_string(),
             r#"data: {"type":"response.completed","sequence_number":4,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"completed","model":"gpt-5.2-pro","output":[],"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14}}}"#.to_string(),
+            "data: [DONE]".to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let mut text_parts = Vec::new();
+        let mut usage: Option<ProviderUsage> = None;
+
+        while let Some(item) = messages.next().await {
+            let (message, maybe_usage) = item?;
+            if let Some(msg) = message {
+                for content in msg.content {
+                    if let MessageContent::Text(text) = content {
+                        text_parts.push(text.text.clone());
+                    }
+                }
+            }
+            if let Some(final_usage) = maybe_usage {
+                usage = Some(final_usage);
+            }
+        }
+
+        assert_eq!(text_parts.concat(), "Hello world");
+        let usage = usage.expect("usage should be present at completion");
+        assert_eq!(usage.model, "gpt-5.2-pro");
+        assert_eq!(usage.usage.input_tokens, Some(10));
+        assert_eq!(usage.usage.output_tokens, Some(4));
+        assert_eq!(usage.usage.total_tokens, Some(14));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_completed_allows_missing_output() -> anyhow::Result<()> {
+        let lines = vec![
+            r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"gpt-5.2-pro","output":[]}}"#.to_string(),
+            r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}"#.to_string(),
+            r#"data: {"type":"response.output_text.delta","sequence_number":3,"item_id":"msg_1","output_index":0,"content_index":0,"delta":" world"}"#.to_string(),
+            r#"data: {"type":"response.completed","sequence_number":4,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"completed","model":"gpt-5.2-pro","usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14}}}"#.to_string(),
             "data: [DONE]".to_string(),
         ];
 
@@ -1178,8 +1233,8 @@ mod tests {
             status: "completed".to_string(),
             model: "gpt-5.3-codex".to_string(),
             output: vec![ResponseOutputItem::FunctionCall {
-                id: "fc_123".to_string(),
-                status: "completed".to_string(),
+                id: Some("fc_123".to_string()),
+                status: Some("completed".to_string()),
                 call_id: Some("call_abc".to_string()),
                 name: "test__get_person_zip_code".to_string(),
                 arguments: r#"{"name":"Alice Burns"}"#.to_string(),

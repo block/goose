@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "GooseExtensions",
   "$defs": {
-    "AddExtensionRequest": {
+    "AddExtensionRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -18,14 +18,14 @@
       ],
       "description": "Add an extension to an active session.",
       "x-side": "agent",
-      "x-method": "_goose/extensions/add"
+      "x-method": "_goose/unstable/session/extensions/add"
     },
     "EmptyResponse": {
       "type": "object",
       "description": "Empty success response for operations that return no data.",
       "x-side": "agent"
     },
-    "RemoveExtensionRequest": {
+    "RemoveExtensionRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -41,9 +41,9 @@
       ],
       "description": "Remove an extension from an active session.",
       "x-side": "agent",
-      "x-method": "_goose/extensions/remove"
+      "x-method": "_goose/unstable/session/extensions/remove"
     },
-    "GetToolsRequest": {
+    "GetToolsRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -55,9 +55,9 @@
       ],
       "description": "List all tools available in a session.",
       "x-side": "agent",
-      "x-method": "_goose/tools"
+      "x-method": "_goose/unstable/tools/list"
     },
-    "GetToolsResponse": {
+    "GetToolsResponse_unstable": {
       "type": "object",
       "properties": {
         "tools": {
@@ -71,9 +71,9 @@
       ],
       "description": "Tools response.",
       "x-side": "agent",
-      "x-method": "_goose/tools"
+      "x-method": "_goose/unstable/tools/list"
     },
-    "GooseToolCallRequest": {
+    "GooseToolCallRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -92,9 +92,9 @@
       ],
       "description": "Call a tool from an extension.",
       "x-side": "agent",
-      "x-method": "_goose/tool/call"
+      "x-method": "_goose/unstable/tools/call"
     },
-    "GooseToolCallResponse": {
+    "GooseToolCallResponse_unstable": {
       "type": "object",
       "properties": {
         "content": {
@@ -113,9 +113,9 @@
       ],
       "description": "Tool call response.",
       "x-side": "agent",
-      "x-method": "_goose/tool/call"
+      "x-method": "_goose/unstable/tools/call"
     },
-    "ReadResourceRequest": {
+    "ReadResourceRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -135,9 +135,9 @@
       ],
       "description": "Read a resource from an extension.",
       "x-side": "agent",
-      "x-method": "_goose/resource/read"
+      "x-method": "_goose/unstable/resources/read"
     },
-    "ReadResourceResponse": {
+    "ReadResourceResponse_unstable": {
       "type": "object",
       "properties": {
         "result": {
@@ -147,9 +147,9 @@
       },
       "description": "Resource read response.",
       "x-side": "agent",
-      "x-method": "_goose/resource/read"
+      "x-method": "_goose/unstable/resources/read"
     },
-    "UpdateWorkingDirRequest": {
+    "UpdateWorkingDirRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -165,7 +165,478 @@
       ],
       "description": "Update the working directory for a session.",
       "x-side": "agent",
-      "x-method": "_goose/working_dir/update"
+      "x-method": "_goose/unstable/session/working-dir/update"
+    },
+    "SetSessionSystemPromptRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "mode": {
+          "$ref": "#/$defs/SessionSystemPromptMode",
+          "default": "append"
+        },
+        "key": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "text"
+      ],
+      "description": "Set, append, or clear system prompt text for a session.\n\n`mode: \"set\"` replaces Goose's base system prompt. `mode: \"append\"` adds an\ninstruction under \"Additional Instructions\". Reusing a key replaces the\nprevious value for that mode/key; sending empty text clears it.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/system-prompt/set"
+    },
+    "SessionSystemPromptMode": {
+      "oneOf": [
+        {
+          "type": "string",
+          "const": "set",
+          "description": "Replace Goose's base system prompt with the provided text."
+        },
+        {
+          "type": "string",
+          "const": "append",
+          "description": "Append the provided text under Goose's \"Additional Instructions\" section."
+        }
+      ],
+      "description": "How a session system prompt update should be applied."
+    },
+    "SteerSessionRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentBlock"
+          },
+          "default": []
+        },
+        "expectedRunId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedRunId"
+      ],
+      "description": "Add user input to the currently active prompt without starting a new prompt.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/steer"
+    },
+    "ContentBlock": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TextContent",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "text"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "Text content. May be plain text or formatted with Markdown.\n\nAll agents MUST support text content blocks in prompts.\nClients SHOULD render this text as Markdown."
+        },
+        {
+          "$ref": "#/$defs/ImageContent",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "image"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "Images for visual context or analysis.\n\nRequires the `image` prompt capability when included in prompts."
+        },
+        {
+          "$ref": "#/$defs/AudioContent",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "audio"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "Audio data for transcription or analysis.\n\nRequires the `audio` prompt capability when included in prompts."
+        },
+        {
+          "$ref": "#/$defs/ResourceLink",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "resource_link"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "References to resources that the agent can access.\n\nAll agents MUST support resource links in prompts."
+        },
+        {
+          "$ref": "#/$defs/EmbeddedResource",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "resource"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "Complete resource contents embedded directly in the message.\n\nPreferred for including context as it avoids extra round-trips.\n\nRequires the `embeddedContext` prompt capability when included in prompts."
+        }
+      ],
+      "description": "Content blocks represent displayable information in the Agent Client Protocol.\n\nThey provide a structured way to handle various types of user-facing content—whether\nit's text from language models, images for analysis, or embedded resources for context.\n\nContent blocks appear in:\n- User prompts sent via `session/prompt`\n- Language model output streamed through `session/update` notifications\n- Progress updates and results from tool calls\n\nThis structure is compatible with the Model Context Protocol (MCP), enabling\nagents to seamlessly forward content from MCP tool outputs without transformation.\n\nSee protocol docs: [Content](https://agentclientprotocol.com/protocol/content)",
+      "discriminator": {
+        "propertyName": "type"
+      }
+    },
+    "Annotations": {
+      "type": "object",
+      "properties": {
+        "audience": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/Role"
+          }
+        },
+        "lastModified": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "description": "Optional annotations for the client. The client can use annotations to inform how objects are used or displayed"
+    },
+    "Role": {
+      "type": "string",
+      "enum": [
+        "assistant",
+        "user"
+      ],
+      "description": "The sender or recipient of messages and data in a conversation."
+    },
+    "TextContent": {
+      "type": "object",
+      "properties": {
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "description": "Text provided to or from an LLM."
+    },
+    "ImageContent": {
+      "type": "object",
+      "properties": {
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "uri": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "data",
+        "mimeType"
+      ],
+      "description": "An image provided to or from an LLM."
+    },
+    "AudioContent": {
+      "type": "object",
+      "properties": {
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "data",
+        "mimeType"
+      ],
+      "description": "Audio provided to or from an LLM."
+    },
+    "ResourceLink": {
+      "type": "object",
+      "properties": {
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mimeType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "size": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uri": {
+          "type": "string"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "name",
+        "uri"
+      ],
+      "description": "A resource that the server is capable of reading, included in a prompt or tool call result."
+    },
+    "EmbeddedResourceResource": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TextResourceContents"
+        },
+        {
+          "$ref": "#/$defs/BlobResourceContents"
+        }
+      ],
+      "description": "Resource content that can be embedded in a message."
+    },
+    "TextResourceContents": {
+      "type": "object",
+      "properties": {
+        "mimeType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "text",
+        "uri"
+      ],
+      "description": "Text-based resource contents."
+    },
+    "BlobResourceContents": {
+      "type": "object",
+      "properties": {
+        "blob": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uri": {
+          "type": "string"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "blob",
+        "uri"
+      ],
+      "description": "Binary resource contents."
+    },
+    "EmbeddedResource": {
+      "type": "object",
+      "properties": {
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resource": {
+          "$ref": "#/$defs/EmbeddedResourceResource"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "resource"
+      ],
+      "description": "The contents of a resource, embedded into a prompt or tool call result."
+    },
+    "SteerSessionResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string"
+        },
+        "messageId": {
+          "type": "string",
+          "description": "Stable id of the queued steer message. The same id later appears as\n`messageId` on the streamed `UserMessageChunk` (with `_meta.goose.steer`),\nletting clients correlate a queued steer with its pickup."
+        }
+      },
+      "required": [
+        "runId",
+        "messageId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/steer"
     },
     "DeleteSessionRequest": {
       "type": "object",
@@ -181,44 +652,419 @@
       "x-side": "agent",
       "x-method": "session/delete"
     },
-    "GetExtensionsRequest": {
+    "GetConfigExtensionsRequest_unstable": {
       "type": "object",
       "description": "List configured extensions and any warnings.",
       "x-side": "agent",
-      "x-method": "_goose/config/extensions"
+      "x-method": "_goose/unstable/config/extensions/list"
     },
-    "GetExtensionsResponse": {
+    "GetConfigExtensionsResponse_unstable": {
       "type": "object",
       "properties": {
         "extensions": {
           "type": "array",
-          "items": {},
-          "description": "Array of ExtensionEntry objects with `enabled` flag, `configKey`, and flattened config details."
+          "items": {
+            "$ref": "#/$defs/GooseExtensionEntry"
+          }
         },
         "warnings": {
           "type": "array",
           "items": {
             "type": "string"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "extensions"
+      ],
+      "description": "List configured extensions and any warnings.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/extensions/list"
+    },
+    "GooseExtensionEntry": {
+      "type": "object",
+      "properties": {
+        "extension": {
+          "$ref": "#/$defs/GooseExtension"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "configKey": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "extension",
+        "enabled"
+      ]
+    },
+    "GooseExtension": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "timeout": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "builtin"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "platform"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "server": {
+              "$ref": "#/$defs/McpServer"
+            },
+            "envKeys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "timeout": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "socket": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "mcp"
+            }
+          },
+          "required": [
+            "type",
+            "server"
+          ]
+        }
+      ]
+    },
+    "McpServer": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/McpServerHttp",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "http"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "HTTP transport configuration\n\nOnly available when the Agent capabilities indicate `mcp_capabilities.http` is `true`."
+        },
+        {
+          "$ref": "#/$defs/McpServerSse",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "sse"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "SSE transport configuration\n\nOnly available when the Agent capabilities indicate `mcp_capabilities.sse` is `true`."
+        },
+        {
+          "$ref": "#/$defs/McpServerStdio",
+          "description": "Stdio transport configuration\n\nAll Agents MUST support this transport."
+        }
+      ],
+      "description": "Configuration for connecting to an MCP (Model Context Protocol) server.\n\nMCP servers provide tools and context that the agent can use when\nprocessing prompts.\n\nSee protocol docs: [MCP Servers](https://agentclientprotocol.com/protocol/session-setup#mcp-servers)"
+    },
+    "HttpHeader": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the HTTP header."
+        },
+        "value": {
+          "type": "string",
+          "description": "The value to set for the HTTP header."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "description": "An HTTP header to set when making requests to the MCP server."
+    },
+    "McpServerHttp": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name identifying this MCP server."
+        },
+        "url": {
+          "type": "string",
+          "description": "URL to the MCP server."
+        },
+        "headers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HttpHeader"
+          },
+          "description": "HTTP headers to set when making requests to the MCP server."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        },
+        "type": {
+          "type": "string",
+          "const": "http"
+        }
+      },
+      "required": [
+        "type",
+        "name",
+        "url",
+        "headers"
+      ],
+      "description": "HTTP transport configuration for MCP."
+    },
+    "McpServerSse": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name identifying this MCP server."
+        },
+        "url": {
+          "type": "string",
+          "description": "URL to the MCP server."
+        },
+        "headers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HttpHeader"
+          },
+          "description": "HTTP headers to set when making requests to the MCP server."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        },
+        "type": {
+          "type": "string",
+          "const": "sse"
+        }
+      },
+      "required": [
+        "type",
+        "name",
+        "url",
+        "headers"
+      ],
+      "description": "SSE transport configuration for MCP."
+    },
+    "McpServerStdio": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name identifying this MCP server."
+        },
+        "command": {
+          "type": "string",
+          "description": "Path to the MCP server executable."
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Command-line arguments to pass to the MCP server."
+        },
+        "env": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnvVariable"
+          },
+          "description": "Environment variables to set when launching the MCP server."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "name",
+        "command",
+        "args",
+        "env"
+      ],
+      "description": "Stdio transport configuration for MCP."
+    },
+    "EnvVariable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the environment variable."
+        },
+        "value": {
+          "type": "string",
+          "description": "The value to set for the environment variable."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "description": "An environment variable to set when launching an MCP server."
+    },
+    "GetAvailableExtensionsRequest_unstable": {
+      "type": "object",
+      "description": "List Goose-owned extension definitions available to configure or enable.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/extensions/available"
+    },
+    "GetAvailableExtensionsResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "extensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GooseExtension"
           }
         }
       },
       "required": [
-        "extensions",
-        "warnings"
+        "extensions"
       ],
-      "description": "List configured extensions and any warnings.",
       "x-side": "agent",
-      "x-method": "_goose/config/extensions"
+      "x-method": "_goose/unstable/extensions/available"
     },
-    "AddConfigExtensionRequest": {
+    "AddConfigExtensionRequest_unstable": {
       "type": "object",
       "properties": {
-        "name": {
-          "type": "string"
-        },
-        "extensionConfig": {
-          "description": "Extension configuration. Must be a JSON object matching one of the\n`ExtensionConfig` variants (e.g. `stdio`, `streamable_http`, `builtin`).\n`name` and `enabled` are injected server-side.",
-          "default": null
+        "extension": {
+          "$ref": "#/$defs/GooseExtension"
         },
         "enabled": {
           "type": "boolean",
@@ -226,13 +1072,13 @@
         }
       },
       "required": [
-        "name"
+        "extension"
       ],
       "description": "Persist a new extension to the user's global goose config.",
       "x-side": "agent",
-      "x-method": "_goose/config/extensions/add"
+      "x-method": "_goose/unstable/config/extensions/add"
     },
-    "RemoveConfigExtensionRequest": {
+    "RemoveConfigExtensionRequest_unstable": {
       "type": "object",
       "properties": {
         "configKey": {
@@ -244,9 +1090,9 @@
       ],
       "description": "Remove a persisted extension from the user's global goose config.",
       "x-side": "agent",
-      "x-method": "_goose/config/extensions/remove"
+      "x-method": "_goose/unstable/config/extensions/remove"
     },
-    "ToggleConfigExtensionRequest": {
+    "SetConfigExtensionEnabledRequest_unstable": {
       "type": "object",
       "properties": {
         "configKey": {
@@ -260,11 +1106,11 @@
         "configKey",
         "enabled"
       ],
-      "description": "Toggle the `enabled` flag for a persisted extension in the user's global goose config.",
+      "description": "Set the `enabled` flag for a persisted extension in the user's global goose config.",
       "x-side": "agent",
-      "x-method": "_goose/config/extensions/toggle"
+      "x-method": "_goose/unstable/config/extensions/set-enabled"
     },
-    "GetSessionExtensionsRequest": {
+    "GetSessionExtensionsRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -275,9 +1121,9 @@
         "sessionId"
       ],
       "x-side": "agent",
-      "x-method": "_goose/session/extensions"
+      "x-method": "_goose/unstable/session/extensions/list"
     },
-    "GetSessionExtensionsResponse": {
+    "GetSessionExtensionsResponse_unstable": {
       "type": "object",
       "properties": {
         "extensions": {
@@ -289,9 +1135,9 @@
         "extensions"
       ],
       "x-side": "agent",
-      "x-method": "_goose/session/extensions"
+      "x-method": "_goose/unstable/session/extensions/list"
     },
-    "ListProvidersRequest": {
+    "ListProvidersRequest_unstable": {
       "type": "object",
       "properties": {
         "providerIds": {
@@ -305,9 +1151,9 @@
       },
       "description": "List providers with setup metadata and the current model inventory snapshot.",
       "x-side": "agent",
-      "x-method": "_goose/providers/list"
+      "x-method": "_goose/unstable/providers/list"
     },
-    "ListProvidersResponse": {
+    "ListProvidersResponse_unstable": {
       "type": "object",
       "properties": {
         "entries": {
@@ -322,7 +1168,7 @@
       ],
       "description": "Provider list response.",
       "x-side": "agent",
-      "x-method": "_goose/providers/list"
+      "x-method": "_goose/unstable/providers/list"
     },
     "ProviderInventoryEntryDto": {
       "type": "object",
@@ -502,9 +1348,8 @@
             "integer",
             "null"
           ],
-          "format": "uint",
-          "minimum": 0,
-          "description": "Context window size in tokens."
+          "description": "Context window size in tokens.",
+          "minimum": 0
         },
         "reasoning": {
           "type": [
@@ -525,7 +1370,41 @@
       ],
       "description": "A single model in provider inventory."
     },
-    "ProviderCatalogListRequest": {
+    "ProviderSupportedModelsListRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "providerId"
+      ],
+      "description": "List the raw model identifiers returned by a provider's live supported-models API.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/supported-models/list"
+    },
+    "ProviderSupportedModelsListResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "providerId": {
+          "type": "string"
+        },
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "providerId",
+        "models"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/supported-models/list"
+    },
+    "ProviderCatalogListRequest_unstable": {
       "type": "object",
       "properties": {
         "format": {
@@ -537,9 +1416,9 @@
       },
       "description": "List custom-provider catalog entries. Omit `format` to list all formats.",
       "x-side": "agent",
-      "x-method": "_goose/providers/catalog/list"
+      "x-method": "_goose/unstable/providers/catalog/list"
     },
-    "ProviderCatalogListResponse": {
+    "ProviderCatalogListResponse_unstable": {
       "type": "object",
       "properties": {
         "providers": {
@@ -553,7 +1432,7 @@
         "providers"
       ],
       "x-side": "agent",
-      "x-method": "_goose/providers/catalog/list"
+      "x-method": "_goose/unstable/providers/catalog/list"
     },
     "ProviderTemplateCatalogEntryDto": {
       "type": "object",
@@ -591,13 +1470,13 @@
         "envVar"
       ]
     },
-    "ProviderSetupCatalogListRequest": {
+    "ProviderSetupCatalogListRequest_unstable": {
       "type": "object",
       "description": "List provider setup catalog entries",
       "x-side": "agent",
-      "x-method": "_goose/providers/setup/catalog/list"
+      "x-method": "_goose/unstable/providers/setup/catalog/list"
     },
-    "ProviderSetupCatalogListResponse": {
+    "ProviderSetupCatalogListResponse_unstable": {
       "type": "object",
       "properties": {
         "providers": {
@@ -611,7 +1490,7 @@
         "providers"
       ],
       "x-side": "agent",
-      "x-method": "_goose/providers/setup/catalog/list"
+      "x-method": "_goose/unstable/providers/setup/catalog/list"
     },
     "ProviderSetupCatalogEntryDto": {
       "type": "object",
@@ -748,7 +1627,7 @@
         "additional"
       ]
     },
-    "ProviderCatalogTemplateRequest": {
+    "ProviderCatalogTemplateRequest_unstable": {
       "type": "object",
       "properties": {
         "providerId": {
@@ -760,9 +1639,9 @@
       ],
       "description": "Return the editable template for one catalog provider.",
       "x-side": "agent",
-      "x-method": "_goose/providers/catalog/template"
+      "x-method": "_goose/unstable/providers/catalog/template"
     },
-    "ProviderCatalogTemplateResponse": {
+    "ProviderCatalogTemplateResponse_unstable": {
       "type": "object",
       "properties": {
         "template": {
@@ -773,7 +1652,7 @@
         "template"
       ],
       "x-side": "agent",
-      "x-method": "_goose/providers/catalog/template"
+      "x-method": "_goose/unstable/providers/catalog/template"
     },
     "ProviderTemplateDto": {
       "type": "object",
@@ -868,7 +1747,7 @@
         "temperature"
       ]
     },
-    "CustomProviderCreateRequest": {
+    "CustomProviderCreateRequest_unstable": {
       "type": "object",
       "properties": {
         "engine": {
@@ -936,9 +1815,9 @@
       ],
       "description": "Create a custom provider backed by Goose's declarative provider store.",
       "x-side": "agent",
-      "x-method": "_goose/providers/custom/create"
+      "x-method": "_goose/unstable/providers/custom/create"
     },
-    "CustomProviderCreateResponse": {
+    "CustomProviderCreateResponse_unstable": {
       "type": "object",
       "properties": {
         "providerId": {
@@ -948,7 +1827,7 @@
           "$ref": "#/$defs/ProviderConfigStatusDto"
         },
         "refresh": {
-          "$ref": "#/$defs/RefreshProviderInventoryResponse"
+          "$ref": "#/$defs/RefreshProviderInventoryResponse_unstable"
         }
       },
       "required": [
@@ -957,7 +1836,7 @@
         "refresh"
       ],
       "x-side": "agent",
-      "x-method": "_goose/providers/custom/create"
+      "x-method": "_goose/unstable/providers/custom/create"
     },
     "ProviderConfigStatusDto": {
       "type": "object",
@@ -974,7 +1853,7 @@
         "isConfigured"
       ]
     },
-    "RefreshProviderInventoryResponse": {
+    "RefreshProviderInventoryResponse_unstable": {
       "type": "object",
       "properties": {
         "started": {
@@ -998,7 +1877,7 @@
       ],
       "description": "Refresh acknowledgement.",
       "x-side": "agent",
-      "x-method": "_goose/providers/inventory/refresh"
+      "x-method": "_goose/unstable/providers/inventory/refresh"
     },
     "RefreshProviderInventorySkipDto": {
       "type": "object",
@@ -1024,7 +1903,7 @@
         "already_refreshing"
       ]
     },
-    "CustomProviderReadRequest": {
+    "CustomProviderReadRequest_unstable": {
       "type": "object",
       "properties": {
         "providerId": {
@@ -1036,9 +1915,9 @@
       ],
       "description": "Read a declarative provider config. Custom configs are editable; bundled configs are read-only.",
       "x-side": "agent",
-      "x-method": "_goose/providers/custom/read"
+      "x-method": "_goose/unstable/providers/custom/read"
     },
-    "CustomProviderReadResponse": {
+    "CustomProviderReadResponse_unstable": {
       "type": "object",
       "properties": {
         "provider": {
@@ -1057,7 +1936,7 @@
         "status"
       ],
       "x-side": "agent",
-      "x-method": "_goose/providers/custom/read"
+      "x-method": "_goose/unstable/providers/custom/read"
     },
     "CustomProviderConfigDto": {
       "type": "object",
@@ -1132,7 +2011,7 @@
         "preservesThinking"
       ]
     },
-    "CustomProviderUpdateRequest": {
+    "CustomProviderUpdateRequest_unstable": {
       "type": "object",
       "properties": {
         "providerId": {
@@ -1204,9 +2083,9 @@
       ],
       "description": "Update a custom provider backed by Goose's declarative provider store.",
       "x-side": "agent",
-      "x-method": "_goose/providers/custom/update"
+      "x-method": "_goose/unstable/providers/custom/update"
     },
-    "CustomProviderUpdateResponse": {
+    "CustomProviderUpdateResponse_unstable": {
       "type": "object",
       "properties": {
         "providerId": {
@@ -1216,7 +2095,7 @@
           "$ref": "#/$defs/ProviderConfigStatusDto"
         },
         "refresh": {
-          "$ref": "#/$defs/RefreshProviderInventoryResponse"
+          "$ref": "#/$defs/RefreshProviderInventoryResponse_unstable"
         }
       },
       "required": [
@@ -1225,9 +2104,9 @@
         "refresh"
       ],
       "x-side": "agent",
-      "x-method": "_goose/providers/custom/update"
+      "x-method": "_goose/unstable/providers/custom/update"
     },
-    "CustomProviderDeleteRequest": {
+    "CustomProviderDeleteRequest_unstable": {
       "type": "object",
       "properties": {
         "providerId": {
@@ -1239,16 +2118,16 @@
       ],
       "description": "Delete a custom provider from Goose's declarative provider store.",
       "x-side": "agent",
-      "x-method": "_goose/providers/custom/delete"
+      "x-method": "_goose/unstable/providers/custom/delete"
     },
-    "CustomProviderDeleteResponse": {
+    "CustomProviderDeleteResponse_unstable": {
       "type": "object",
       "properties": {
         "providerId": {
           "type": "string"
         },
         "refresh": {
-          "$ref": "#/$defs/RefreshProviderInventoryResponse"
+          "$ref": "#/$defs/RefreshProviderInventoryResponse_unstable"
         }
       },
       "required": [
@@ -1256,9 +2135,9 @@
         "refresh"
       ],
       "x-side": "agent",
-      "x-method": "_goose/providers/custom/delete"
+      "x-method": "_goose/unstable/providers/custom/delete"
     },
-    "RefreshProviderInventoryRequest": {
+    "RefreshProviderInventoryRequest_unstable": {
       "type": "object",
       "properties": {
         "providerIds": {
@@ -1272,9 +2151,9 @@
       },
       "description": "Trigger a background refresh of provider inventories.",
       "x-side": "agent",
-      "x-method": "_goose/providers/inventory/refresh"
+      "x-method": "_goose/unstable/providers/inventory/refresh"
     },
-    "ProviderConfigReadRequest": {
+    "ProviderConfigReadRequest_unstable": {
       "type": "object",
       "properties": {
         "providerId": {
@@ -1286,9 +2165,9 @@
       ],
       "description": "Read saved configuration field values for one provider.",
       "x-side": "agent",
-      "x-method": "_goose/providers/config/read"
+      "x-method": "_goose/unstable/providers/config/read"
     },
-    "ProviderConfigReadResponse": {
+    "ProviderConfigReadResponse_unstable": {
       "type": "object",
       "properties": {
         "fields": {
@@ -1302,7 +2181,7 @@
         "fields"
       ],
       "x-side": "agent",
-      "x-method": "_goose/providers/config/read"
+      "x-method": "_goose/unstable/providers/config/read"
     },
     "ProviderConfigFieldValueDto": {
       "type": "object",
@@ -1334,7 +2213,7 @@
         "required"
       ]
     },
-    "ProviderConfigStatusRequest": {
+    "ProviderConfigStatusRequest_unstable": {
       "type": "object",
       "properties": {
         "providerIds": {
@@ -1347,9 +2226,9 @@
       },
       "description": "Return provider configured statuses. Empty provider_ids means all providers.",
       "x-side": "agent",
-      "x-method": "_goose/providers/config/status"
+      "x-method": "_goose/unstable/providers/config/status"
     },
-    "ProviderConfigStatusResponse": {
+    "ProviderConfigStatusResponse_unstable": {
       "type": "object",
       "properties": {
         "statuses": {
@@ -1363,9 +2242,9 @@
         "statuses"
       ],
       "x-side": "agent",
-      "x-method": "_goose/providers/config/status"
+      "x-method": "_goose/unstable/providers/config/status"
     },
-    "ProviderConfigSaveRequest": {
+    "ProviderConfigSaveRequest_unstable": {
       "type": "object",
       "properties": {
         "providerId": {
@@ -1384,7 +2263,7 @@
       ],
       "description": "Save provider configuration fields and start an inventory refresh when supported.",
       "x-side": "agent",
-      "x-method": "_goose/providers/config/save"
+      "x-method": "_goose/unstable/providers/config/save"
     },
     "ProviderConfigFieldUpdate": {
       "type": "object",
@@ -1401,14 +2280,14 @@
         "value"
       ]
     },
-    "ProviderConfigChangeResponse": {
+    "ProviderConfigChangeResponse_unstable": {
       "type": "object",
       "properties": {
         "status": {
           "$ref": "#/$defs/ProviderConfigStatusDto"
         },
         "refresh": {
-          "$ref": "#/$defs/RefreshProviderInventoryResponse"
+          "$ref": "#/$defs/RefreshProviderInventoryResponse_unstable"
         }
       },
       "required": [
@@ -1417,7 +2296,7 @@
       ],
       "x-side": "agent"
     },
-    "ProviderConfigDeleteRequest": {
+    "ProviderConfigDeleteRequest_unstable": {
       "type": "object",
       "properties": {
         "providerId": {
@@ -1429,9 +2308,9 @@
       ],
       "description": "Delete provider configuration fields and start an inventory refresh when supported.",
       "x-side": "agent",
-      "x-method": "_goose/providers/config/delete"
+      "x-method": "_goose/unstable/providers/config/delete"
     },
-    "ProviderConfigAuthenticateRequest": {
+    "ProviderConfigAuthenticateRequest_unstable": {
       "type": "object",
       "properties": {
         "providerId": {
@@ -1443,9 +2322,9 @@
       ],
       "description": "Run a provider-owned native authentication flow and start an inventory refresh when supported.",
       "x-side": "agent",
-      "x-method": "_goose/providers/config/authenticate"
+      "x-method": "_goose/unstable/providers/config/authenticate"
     },
-    "PreferencesReadRequest": {
+    "PreferencesReadRequest_unstable": {
       "type": "object",
       "properties": {
         "keys": {
@@ -1458,18 +2337,19 @@
       },
       "description": "Read allowlisted user preferences. Empty `keys` means all supported preferences.",
       "x-side": "agent",
-      "x-method": "_goose/preferences/read"
+      "x-method": "_goose/unstable/preferences/read"
     },
     "PreferenceKey": {
       "type": "string",
       "enum": [
         "autoCompactThreshold",
+        "gooseThinkingEffort",
         "voiceAutoSubmitPhrases",
         "voiceDictationProvider",
         "voiceDictationPreferredMic"
       ]
     },
-    "PreferencesReadResponse": {
+    "PreferencesReadResponse_unstable": {
       "type": "object",
       "properties": {
         "values": {
@@ -1483,7 +2363,7 @@
         "values"
       ],
       "x-side": "agent",
-      "x-method": "_goose/preferences/read"
+      "x-method": "_goose/unstable/preferences/read"
     },
     "PreferenceValue": {
       "type": "object",
@@ -1499,7 +2379,7 @@
         "key"
       ]
     },
-    "PreferencesSaveRequest": {
+    "PreferencesSaveRequest_unstable": {
       "type": "object",
       "properties": {
         "values": {
@@ -1512,9 +2392,9 @@
       },
       "description": "Save allowlisted user preferences.",
       "x-side": "agent",
-      "x-method": "_goose/preferences/save"
+      "x-method": "_goose/unstable/preferences/save"
     },
-    "PreferencesRemoveRequest": {
+    "PreferencesRemoveRequest_unstable": {
       "type": "object",
       "properties": {
         "keys": {
@@ -1527,15 +2407,15 @@
       },
       "description": "Remove allowlisted user preferences.",
       "x-side": "agent",
-      "x-method": "_goose/preferences/remove"
+      "x-method": "_goose/unstable/preferences/remove"
     },
-    "DefaultsReadRequest": {
+    "DefaultsReadRequest_unstable": {
       "type": "object",
       "description": "Read Goose default provider and model configuration.",
       "x-side": "agent",
-      "x-method": "_goose/defaults/read"
+      "x-method": "_goose/unstable/defaults/read"
     },
-    "DefaultsReadResponse": {
+    "DefaultsReadResponse_unstable": {
       "type": "object",
       "properties": {
         "providerId": {
@@ -1553,7 +2433,7 @@
       },
       "x-side": "agent"
     },
-    "DefaultsSaveRequest": {
+    "DefaultsSaveRequest_unstable": {
       "type": "object",
       "properties": {
         "providerId": {
@@ -1571,9 +2451,9 @@
       ],
       "description": "Save Goose default provider and model configuration.",
       "x-side": "agent",
-      "x-method": "_goose/defaults/save"
+      "x-method": "_goose/unstable/defaults/save"
     },
-    "OnboardingImportScanRequest": {
+    "OnboardingImportScanRequest_unstable": {
       "type": "object",
       "properties": {
         "sources": {
@@ -1587,7 +2467,7 @@
       },
       "description": "Scan for existing Goose and compatible app data that onboarding can import.",
       "x-side": "agent",
-      "x-method": "_goose/onboarding/import/scan"
+      "x-method": "_goose/unstable/onboarding/import/scan"
     },
     "OnboardingImportSourceKind": {
       "type": "string",
@@ -1597,7 +2477,7 @@
       ],
       "description": "Sources that onboarding knows how to discover and import."
     },
-    "OnboardingImportScanResponse": {
+    "OnboardingImportScanResponse_unstable": {
       "type": "object",
       "properties": {
         "candidates": {
@@ -1611,7 +2491,7 @@
         "candidates"
       ],
       "x-side": "agent",
-      "x-method": "_goose/onboarding/import/scan"
+      "x-method": "_goose/unstable/onboarding/import/scan"
     },
     "OnboardingImportCandidate": {
       "type": "object",
@@ -1684,7 +2564,7 @@
         "preferences"
       ]
     },
-    "OnboardingImportApplyRequest": {
+    "OnboardingImportApplyRequest_unstable": {
       "type": "object",
       "properties": {
         "candidateIds": {
@@ -1701,9 +2581,9 @@
       },
       "description": "Import selected onboarding candidates.",
       "x-side": "agent",
-      "x-method": "_goose/onboarding/import/apply"
+      "x-method": "_goose/unstable/onboarding/import/apply"
     },
-    "OnboardingImportApplyResponse": {
+    "OnboardingImportApplyResponse_unstable": {
       "type": "object",
       "properties": {
         "imported": {
@@ -1722,7 +2602,7 @@
         "providerDefaults": {
           "anyOf": [
             {
-              "$ref": "#/$defs/DefaultsReadResponse"
+              "$ref": "#/$defs/DefaultsReadResponse_unstable"
             },
             {
               "type": "null"
@@ -1735,9 +2615,9 @@
         "skipped"
       ],
       "x-side": "agent",
-      "x-method": "_goose/onboarding/import/apply"
+      "x-method": "_goose/unstable/onboarding/import/apply"
     },
-    "ExportSessionRequest": {
+    "ExportSessionRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -1749,9 +2629,9 @@
       ],
       "description": "Export a session as a JSON string.",
       "x-side": "agent",
-      "x-method": "_goose/session/export"
+      "x-method": "_goose/unstable/session/export"
     },
-    "ExportSessionResponse": {
+    "ExportSessionResponse_unstable": {
       "type": "object",
       "properties": {
         "data": {
@@ -1763,9 +2643,9 @@
       ],
       "description": "Export session response — raw JSON of the goose session with `conversation`.",
       "x-side": "agent",
-      "x-method": "_goose/session/export"
+      "x-method": "_goose/unstable/session/export"
     },
-    "ImportSessionRequest": {
+    "ImportSessionRequest_unstable": {
       "type": "object",
       "properties": {
         "data": {
@@ -1777,9 +2657,9 @@
       ],
       "description": "Import a session from a JSON string.",
       "x-side": "agent",
-      "x-method": "_goose/session/import"
+      "x-method": "_goose/unstable/session/import"
     },
-    "ImportSessionResponse": {
+    "ImportSessionResponse_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -1808,9 +2688,108 @@
       ],
       "description": "Import session response — metadata about the newly created session.",
       "x-side": "agent",
-      "x-method": "_goose/session/import"
+      "x-method": "_goose/unstable/session/import"
     },
-    "UpdateSessionProjectRequest": {
+    "GetSessionInfoRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "description": "Return list-style metadata for a single session without loading the conversation.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/info"
+    },
+    "GetSessionInfoResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "session": {
+          "$ref": "#/$defs/SessionInfo"
+        }
+      },
+      "required": [
+        "session"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/info"
+    },
+    "SessionInfo": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/$defs/SessionId",
+          "description": "Unique identifier for the session"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "The working directory for this session. Must be an absolute path."
+        },
+        "additionalDirectories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAuthoritative ordered additional workspace roots for this session. Each path must be absolute.\n\nWhen omitted or empty, there are no additional roots for the session."
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Human-readable title for the session"
+        },
+        "updatedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "ISO 8601 timestamp of last activity"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "sessionId",
+        "cwd"
+      ],
+      "description": "Information about a session returned by session/list"
+    },
+    "SessionId": {
+      "type": "string",
+      "description": "A unique identifier for a conversation session between a client and agent.\n\nSessions maintain their own context, conversation history, and state,\nallowing multiple independent interactions with the same agent.\n\nSee protocol docs: [Session ID](https://agentclientprotocol.com/protocol/session-setup#session-id)"
+    },
+    "ElicitationRespondRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "elicitationId": {
+          "type": "string"
+        },
+        "userData": {
+          "default": null
+        }
+      },
+      "required": [
+        "sessionId",
+        "elicitationId"
+      ],
+      "description": "Submit a response for a pending MCP elicitation in an active session.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/elicitation/respond"
+    },
+    "UpdateSessionProjectRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -1828,9 +2807,9 @@
       ],
       "description": "Update the project association for a session.",
       "x-side": "agent",
-      "x-method": "_goose/session/update_project"
+      "x-method": "_goose/unstable/session/project/update"
     },
-    "RenameSessionRequest": {
+    "RenameSessionRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -1846,9 +2825,9 @@
       ],
       "description": "Rename a session.",
       "x-side": "agent",
-      "x-method": "_goose/session/rename"
+      "x-method": "_goose/unstable/session/rename"
     },
-    "ArchiveSessionRequest": {
+    "ArchiveSessionRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -1860,9 +2839,9 @@
       ],
       "description": "Archive a session (soft delete).",
       "x-side": "agent",
-      "x-method": "_goose/session/archive"
+      "x-method": "_goose/unstable/session/archive"
     },
-    "UnarchiveSessionRequest": {
+    "UnarchiveSessionRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -1874,9 +2853,9 @@
       ],
       "description": "Unarchive a previously archived session.",
       "x-side": "agent",
-      "x-method": "_goose/session/unarchive"
+      "x-method": "_goose/unstable/session/unarchive"
     },
-    "CreateSourceRequest": {
+    "CreateSourceRequest_unstable": {
       "type": "object",
       "properties": {
         "type": {
@@ -1891,22 +2870,8 @@
         "content": {
           "type": "string"
         },
-        "global": {
-          "type": "boolean"
-        },
-        "projectDir": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "description": "Absolute path to the project root. Required when `global` is false."
-        },
-        "projectId": {
-          "type": [
-            "string",
-            "null"
-          ],
-          "description": "Project source ID. When set with `global: false`, the backend resolves\nthe project's first working directory automatically. Takes precedence\nover `project_dir`."
+        "target": {
+          "$ref": "#/$defs/SourceScope"
         },
         "properties": {
           "type": "object",
@@ -1919,11 +2884,11 @@
         "name",
         "description",
         "content",
-        "global"
+        "target"
       ],
       "description": "Create a new source in an explicit target scope (global or project-scoped).",
       "x-side": "agent",
-      "x-method": "_goose/sources/create"
+      "x-method": "_goose/unstable/sources/create"
     },
     "SourceType": {
       "type": "string",
@@ -1937,7 +2902,56 @@
       ],
       "description": "The type of source entity."
     },
-    "CreateSourceResponse": {
+    "SourceScope": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "scope": {
+              "type": "string",
+              "const": "global"
+            }
+          },
+          "required": [
+            "scope"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "projectDir": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "string",
+              "const": "projectDir"
+            }
+          },
+          "required": [
+            "scope",
+            "projectDir"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "projectId": {
+              "type": "string"
+            },
+            "scope": {
+              "type": "string",
+              "const": "projectId"
+            }
+          },
+          "required": [
+            "scope",
+            "projectId"
+          ]
+        }
+      ],
+      "description": "Target scope for creating or importing sources."
+    },
+    "CreateSourceResponse_unstable": {
       "type": "object",
       "properties": {
         "source": {
@@ -1948,7 +2962,7 @@
         "source"
       ],
       "x-side": "agent",
-      "x-method": "_goose/sources/create"
+      "x-method": "_goose/unstable/sources/create"
     },
     "SourceEntry": {
       "type": "object",
@@ -2001,7 +3015,7 @@
       ],
       "description": "A source discovered by Goose. Filesystem sources use an on-disk path;\nbuilt-in sources use a stable synthetic path. Sources may be either\n`global` (shared across all projects) or project-specific."
     },
-    "ListSourcesRequest": {
+    "ListSourcesRequest_unstable": {
       "type": "object",
       "properties": {
         "type": {
@@ -2028,9 +3042,9 @@
       },
       "description": "List discovered sources.\n\nIf `type` is omitted or `skill`, this lists filesystem/plugin skills only.\nBoth global and project-scoped skills are included when `project_dir` is\nset. If `type` is `builtinSkill`, this lists shipped read-only built-in\nskills.",
       "x-side": "agent",
-      "x-method": "_goose/sources/list"
+      "x-method": "_goose/unstable/sources/list"
     },
-    "ListSourcesResponse": {
+    "ListSourcesResponse_unstable": {
       "type": "object",
       "properties": {
         "sources": {
@@ -2044,9 +3058,9 @@
         "sources"
       ],
       "x-side": "agent",
-      "x-method": "_goose/sources/list"
+      "x-method": "_goose/unstable/sources/list"
     },
-    "UpdateSourceRequest": {
+    "UpdateSourceRequest_unstable": {
       "type": "object",
       "properties": {
         "type": {
@@ -2082,9 +3096,9 @@
       ],
       "description": "Update an existing source's name, description, and content by absolute path.",
       "x-side": "agent",
-      "x-method": "_goose/sources/update"
+      "x-method": "_goose/unstable/sources/update"
     },
-    "UpdateSourceResponse": {
+    "UpdateSourceResponse_unstable": {
       "type": "object",
       "properties": {
         "source": {
@@ -2095,9 +3109,9 @@
         "source"
       ],
       "x-side": "agent",
-      "x-method": "_goose/sources/update"
+      "x-method": "_goose/unstable/sources/update"
     },
-    "DeleteSourceRequest": {
+    "DeleteSourceRequest_unstable": {
       "type": "object",
       "properties": {
         "type": {
@@ -2113,9 +3127,9 @@
       ],
       "description": "Delete a source and its on-disk directory by absolute path.",
       "x-side": "agent",
-      "x-method": "_goose/sources/delete"
+      "x-method": "_goose/unstable/sources/delete"
     },
-    "ExportSourceRequest": {
+    "ExportSourceRequest_unstable": {
       "type": "object",
       "properties": {
         "type": {
@@ -2131,9 +3145,9 @@
       ],
       "description": "Export a source at an absolute path as a portable JSON payload.",
       "x-side": "agent",
-      "x-method": "_goose/sources/export"
+      "x-method": "_goose/unstable/sources/export"
     },
-    "ExportSourceResponse": {
+    "ExportSourceResponse_unstable": {
       "type": "object",
       "properties": {
         "json": {
@@ -2148,33 +3162,27 @@
         "filename"
       ],
       "x-side": "agent",
-      "x-method": "_goose/sources/export"
+      "x-method": "_goose/unstable/sources/export"
     },
-    "ImportSourcesRequest": {
+    "ImportSourcesRequest_unstable": {
       "type": "object",
       "properties": {
         "data": {
           "type": "string"
         },
-        "global": {
-          "type": "boolean"
-        },
-        "projectDir": {
-          "type": [
-            "string",
-            "null"
-          ]
+        "target": {
+          "$ref": "#/$defs/SourceScope"
         }
       },
       "required": [
         "data",
-        "global"
+        "target"
       ],
-      "description": "Import a source from a JSON export payload produced by `_goose/sources/export`.\nThe imported source is written into the explicit target scope; on name\ncollisions a `-imported` suffix is appended.",
+      "description": "Import a source from a JSON export payload produced by `_goose/unstable/sources/export`.\nThe imported source is written into the explicit target scope; on name\ncollisions a `-imported` suffix is appended.",
       "x-side": "agent",
-      "x-method": "_goose/sources/import"
+      "x-method": "_goose/unstable/sources/import"
     },
-    "ImportSourcesResponse": {
+    "ImportSourcesResponse_unstable": {
       "type": "object",
       "properties": {
         "sources": {
@@ -2188,9 +3196,9 @@
         "sources"
       ],
       "x-side": "agent",
-      "x-method": "_goose/sources/import"
+      "x-method": "_goose/unstable/sources/import"
     },
-    "DictationTranscribeRequest": {
+    "DictationTranscribeRequest_unstable": {
       "type": "object",
       "properties": {
         "audio": {
@@ -2213,9 +3221,9 @@
       ],
       "description": "Transcribe audio via a dictation provider.",
       "x-side": "agent",
-      "x-method": "_goose/dictation/transcribe"
+      "x-method": "_goose/unstable/dictation/transcribe"
     },
-    "DictationTranscribeResponse": {
+    "DictationTranscribeResponse_unstable": {
       "type": "object",
       "properties": {
         "text": {
@@ -2227,15 +3235,15 @@
       ],
       "description": "Transcription result.",
       "x-side": "agent",
-      "x-method": "_goose/dictation/transcribe"
+      "x-method": "_goose/unstable/dictation/transcribe"
     },
-    "DictationConfigRequest": {
+    "DictationConfigRequest_unstable": {
       "type": "object",
       "description": "Get the configuration status of all dictation providers.",
       "x-side": "agent",
-      "x-method": "_goose/dictation/config"
+      "x-method": "_goose/unstable/dictation/config"
     },
-    "DictationConfigResponse": {
+    "DictationConfigResponse_unstable": {
       "type": "object",
       "properties": {
         "providers": {
@@ -2250,7 +3258,7 @@
       ],
       "description": "Dictation config response — map of provider name to status.",
       "x-side": "agent",
-      "x-method": "_goose/dictation/config"
+      "x-method": "_goose/unstable/dictation/config"
     },
     "DictationProviderStatusEntry": {
       "type": "object",
@@ -2334,7 +3342,7 @@
         "description"
       ]
     },
-    "DictationSecretSaveRequest": {
+    "DictationSecretSaveRequest_unstable": {
       "type": "object",
       "properties": {
         "provider": {
@@ -2350,9 +3358,9 @@
       ],
       "description": "Set a dictation provider secret value.",
       "x-side": "agent",
-      "x-method": "_goose/dictation/secret/save"
+      "x-method": "_goose/unstable/dictation/secret/save"
     },
-    "DictationSecretDeleteRequest": {
+    "DictationSecretDeleteRequest_unstable": {
       "type": "object",
       "properties": {
         "provider": {
@@ -2364,15 +3372,15 @@
       ],
       "description": "Remove a dictation provider secret value.",
       "x-side": "agent",
-      "x-method": "_goose/dictation/secret/delete"
+      "x-method": "_goose/unstable/dictation/secret/delete"
     },
-    "DictationModelsListRequest": {
+    "DictationModelsListRequest_unstable": {
       "type": "object",
       "description": "List available local Whisper models with their download status.",
       "x-side": "agent",
-      "x-method": "_goose/dictation/models/list"
+      "x-method": "_goose/unstable/dictation/models/list"
     },
-    "DictationModelsListResponse": {
+    "DictationModelsListResponse_unstable": {
       "type": "object",
       "properties": {
         "models": {
@@ -2386,7 +3394,7 @@
         "models"
       ],
       "x-side": "agent",
-      "x-method": "_goose/dictation/models/list"
+      "x-method": "_goose/unstable/dictation/models/list"
     },
     "DictationLocalModelStatus": {
       "type": "object",
@@ -2420,7 +3428,7 @@
         "downloadInProgress"
       ]
     },
-    "DictationModelDownloadRequest": {
+    "DictationModelDownloadRequest_unstable": {
       "type": "object",
       "properties": {
         "modelId": {
@@ -2432,9 +3440,9 @@
       ],
       "description": "Kick off a background download of a local Whisper model.",
       "x-side": "agent",
-      "x-method": "_goose/dictation/models/download"
+      "x-method": "_goose/unstable/dictation/models/download"
     },
-    "DictationModelDownloadProgressRequest": {
+    "DictationModelDownloadProgressRequest_unstable": {
       "type": "object",
       "properties": {
         "modelId": {
@@ -2446,9 +3454,9 @@
       ],
       "description": "Poll the progress of an in-flight download.",
       "x-side": "agent",
-      "x-method": "_goose/dictation/models/download/progress"
+      "x-method": "_goose/unstable/dictation/models/download/progress"
     },
-    "DictationModelDownloadProgressResponse": {
+    "DictationModelDownloadProgressResponse_unstable": {
       "type": "object",
       "properties": {
         "progress": {
@@ -2464,7 +3472,7 @@
         }
       },
       "x-side": "agent",
-      "x-method": "_goose/dictation/models/download/progress"
+      "x-method": "_goose/unstable/dictation/models/download/progress"
     },
     "DictationDownloadProgress": {
       "type": "object",
@@ -2499,7 +3507,7 @@
         "status"
       ]
     },
-    "DictationModelCancelRequest": {
+    "DictationModelCancelRequest_unstable": {
       "type": "object",
       "properties": {
         "modelId": {
@@ -2511,9 +3519,9 @@
       ],
       "description": "Cancel an in-flight download.",
       "x-side": "agent",
-      "x-method": "_goose/dictation/models/cancel"
+      "x-method": "_goose/unstable/dictation/models/cancel"
     },
-    "DictationModelDeleteRequest": {
+    "DictationModelDeleteRequest_unstable": {
       "type": "object",
       "properties": {
         "modelId": {
@@ -2525,9 +3533,9 @@
       ],
       "description": "Delete a downloaded local Whisper model from disk.",
       "x-side": "agent",
-      "x-method": "_goose/dictation/models/delete"
+      "x-method": "_goose/unstable/dictation/models/delete"
     },
-    "DictationModelSelectRequest": {
+    "DictationModelSelectRequest_unstable": {
       "type": "object",
       "properties": {
         "provider": {
@@ -2543,7 +3551,210 @@
       ],
       "description": "Persist the user's model selection for a given provider.",
       "x-side": "agent",
-      "x-method": "_goose/dictation/model/select"
+      "x-method": "_goose/unstable/dictation/models/select"
+    },
+    "GooseSessionNotification_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "update": {
+          "$ref": "#/$defs/GooseSessionUpdate"
+        }
+      },
+      "required": [
+        "sessionId",
+        "update"
+      ],
+      "description": "Goose-custom session update notification — a parallel to ACP's\n`session/update` carrying goose-specific update variants.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/update"
+    },
+    "GooseSessionUpdate": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SessionUsageUpdate",
+          "type": "object",
+          "properties": {
+            "sessionUpdate": {
+              "type": "string",
+              "const": "usage_update"
+            }
+          },
+          "required": [
+            "sessionUpdate"
+          ]
+        },
+        {
+          "$ref": "#/$defs/StatusMessageUpdate",
+          "type": "object",
+          "properties": {
+            "sessionUpdate": {
+              "type": "string",
+              "const": "status_message"
+            }
+          },
+          "required": [
+            "sessionUpdate"
+          ]
+        },
+        {
+          "$ref": "#/$defs/InteractionUpdate",
+          "type": "object",
+          "properties": {
+            "sessionUpdate": {
+              "type": "string",
+              "const": "interaction_update"
+            }
+          },
+          "required": [
+            "sessionUpdate"
+          ]
+        }
+      ],
+      "description": "Discriminated union of goose-specific session update payloads.\nVariant tag matches ACP's convention (`sessionUpdate: \"<snake_case>\"`).\n\n`discriminator.mapping` is what makes TS codegen (`@hey-api/openapi-ts`)\nemit the correct snake_case tag value even when this enum has a single\nvariant. Add a mapping entry per variant.",
+      "discriminator": {
+        "propertyName": "sessionUpdate",
+        "mapping": {
+          "usage_update": "#/$defs/SessionUsageUpdate",
+          "status_message": "#/$defs/StatusMessageUpdate",
+          "interaction_update": "#/$defs/InteractionUpdate"
+        }
+      }
+    },
+    "SessionUsageUpdate": {
+      "type": "object",
+      "properties": {
+        "used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contextLimit": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accumulatedInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accumulatedOutputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accumulatedCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "required": [
+        "used",
+        "contextLimit",
+        "accumulatedInputTokens",
+        "accumulatedOutputTokens"
+      ],
+      "description": "Streaming context-window usage update for a session."
+    },
+    "StatusMessage": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "notice"
+            }
+          },
+          "required": [
+            "type",
+            "message"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "progress"
+            }
+          },
+          "required": [
+            "type",
+            "message"
+          ]
+        }
+      ]
+    },
+    "StatusMessageUpdate": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/StatusMessage"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "description": "Live UI/session status. This is not conversation transcript content, and\nshould not be persisted or replayed as history."
+    },
+    "Interaction": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "state": {
+              "$ref": "#/$defs/InteractionState"
+            },
+            "message": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requestedSchema": {},
+            "type": {
+              "type": "string",
+              "const": "elicitation"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "state"
+          ]
+        }
+      ]
+    },
+    "InteractionState": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "submitted"
+      ]
+    },
+    "InteractionUpdate": {
+      "type": "object",
+      "properties": {
+        "interaction": {
+          "$ref": "#/$defs/Interaction"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "interaction"
+      ]
     },
     "ExtRequest": {
       "properties": {
@@ -2560,56 +3771,74 @@
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/AddExtensionRequest"
+                      "$ref": "#/$defs/AddExtensionRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/extensions/add",
-                  "title": "AddExtensionRequest"
+                  "description": "Params for _goose/unstable/session/extensions/add",
+                  "title": "AddExtensionRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/RemoveExtensionRequest"
+                      "$ref": "#/$defs/RemoveExtensionRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/extensions/remove",
-                  "title": "RemoveExtensionRequest"
+                  "description": "Params for _goose/unstable/session/extensions/remove",
+                  "title": "RemoveExtensionRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/GetToolsRequest"
+                      "$ref": "#/$defs/GetToolsRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/tools",
-                  "title": "GetToolsRequest"
+                  "description": "Params for _goose/unstable/tools/list",
+                  "title": "GetToolsRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/GooseToolCallRequest"
+                      "$ref": "#/$defs/GooseToolCallRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/tool/call",
-                  "title": "GooseToolCallRequest"
+                  "description": "Params for _goose/unstable/tools/call",
+                  "title": "GooseToolCallRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ReadResourceRequest"
+                      "$ref": "#/$defs/ReadResourceRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/resource/read",
-                  "title": "ReadResourceRequest"
+                  "description": "Params for _goose/unstable/resources/read",
+                  "title": "ReadResourceRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/UpdateWorkingDirRequest"
+                      "$ref": "#/$defs/UpdateWorkingDirRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/working_dir/update",
-                  "title": "UpdateWorkingDirRequest"
+                  "description": "Params for _goose/unstable/session/working-dir/update",
+                  "title": "UpdateWorkingDirRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SetSessionSystemPromptRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/system-prompt/set",
+                  "title": "SetSessionSystemPromptRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SteerSessionRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/steer",
+                  "title": "SteerSessionRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -2623,434 +3852,470 @@
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/GetExtensionsRequest"
+                      "$ref": "#/$defs/GetConfigExtensionsRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/config/extensions",
-                  "title": "GetExtensionsRequest"
+                  "description": "Params for _goose/unstable/config/extensions/list",
+                  "title": "GetConfigExtensionsRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/AddConfigExtensionRequest"
+                      "$ref": "#/$defs/GetAvailableExtensionsRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/config/extensions/add",
-                  "title": "AddConfigExtensionRequest"
+                  "description": "Params for _goose/unstable/extensions/available",
+                  "title": "GetAvailableExtensionsRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/RemoveConfigExtensionRequest"
+                      "$ref": "#/$defs/AddConfigExtensionRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/config/extensions/remove",
-                  "title": "RemoveConfigExtensionRequest"
+                  "description": "Params for _goose/unstable/config/extensions/add",
+                  "title": "AddConfigExtensionRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ToggleConfigExtensionRequest"
+                      "$ref": "#/$defs/RemoveConfigExtensionRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/config/extensions/toggle",
-                  "title": "ToggleConfigExtensionRequest"
+                  "description": "Params for _goose/unstable/config/extensions/remove",
+                  "title": "RemoveConfigExtensionRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/GetSessionExtensionsRequest"
+                      "$ref": "#/$defs/SetConfigExtensionEnabledRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/session/extensions",
-                  "title": "GetSessionExtensionsRequest"
+                  "description": "Params for _goose/unstable/config/extensions/set-enabled",
+                  "title": "SetConfigExtensionEnabledRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ListProvidersRequest"
+                      "$ref": "#/$defs/GetSessionExtensionsRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/list",
-                  "title": "ListProvidersRequest"
+                  "description": "Params for _goose/unstable/session/extensions/list",
+                  "title": "GetSessionExtensionsRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ProviderCatalogListRequest"
+                      "$ref": "#/$defs/ListProvidersRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/catalog/list",
-                  "title": "ProviderCatalogListRequest"
+                  "description": "Params for _goose/unstable/providers/list",
+                  "title": "ListProvidersRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ProviderSetupCatalogListRequest"
+                      "$ref": "#/$defs/ProviderSupportedModelsListRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/setup/catalog/list",
-                  "title": "ProviderSetupCatalogListRequest"
+                  "description": "Params for _goose/unstable/providers/supported-models/list",
+                  "title": "ProviderSupportedModelsListRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ProviderCatalogTemplateRequest"
+                      "$ref": "#/$defs/ProviderCatalogListRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/catalog/template",
-                  "title": "ProviderCatalogTemplateRequest"
+                  "description": "Params for _goose/unstable/providers/catalog/list",
+                  "title": "ProviderCatalogListRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/CustomProviderCreateRequest"
+                      "$ref": "#/$defs/ProviderSetupCatalogListRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/custom/create",
-                  "title": "CustomProviderCreateRequest"
+                  "description": "Params for _goose/unstable/providers/setup/catalog/list",
+                  "title": "ProviderSetupCatalogListRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/CustomProviderReadRequest"
+                      "$ref": "#/$defs/ProviderCatalogTemplateRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/custom/read",
-                  "title": "CustomProviderReadRequest"
+                  "description": "Params for _goose/unstable/providers/catalog/template",
+                  "title": "ProviderCatalogTemplateRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/CustomProviderUpdateRequest"
+                      "$ref": "#/$defs/CustomProviderCreateRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/custom/update",
-                  "title": "CustomProviderUpdateRequest"
+                  "description": "Params for _goose/unstable/providers/custom/create",
+                  "title": "CustomProviderCreateRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/CustomProviderDeleteRequest"
+                      "$ref": "#/$defs/CustomProviderReadRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/custom/delete",
-                  "title": "CustomProviderDeleteRequest"
+                  "description": "Params for _goose/unstable/providers/custom/read",
+                  "title": "CustomProviderReadRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/RefreshProviderInventoryRequest"
+                      "$ref": "#/$defs/CustomProviderUpdateRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/inventory/refresh",
-                  "title": "RefreshProviderInventoryRequest"
+                  "description": "Params for _goose/unstable/providers/custom/update",
+                  "title": "CustomProviderUpdateRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ProviderConfigReadRequest"
+                      "$ref": "#/$defs/CustomProviderDeleteRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/config/read",
-                  "title": "ProviderConfigReadRequest"
+                  "description": "Params for _goose/unstable/providers/custom/delete",
+                  "title": "CustomProviderDeleteRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ProviderConfigStatusRequest"
+                      "$ref": "#/$defs/RefreshProviderInventoryRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/config/status",
-                  "title": "ProviderConfigStatusRequest"
+                  "description": "Params for _goose/unstable/providers/inventory/refresh",
+                  "title": "RefreshProviderInventoryRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ProviderConfigSaveRequest"
+                      "$ref": "#/$defs/ProviderConfigReadRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/config/save",
-                  "title": "ProviderConfigSaveRequest"
+                  "description": "Params for _goose/unstable/providers/config/read",
+                  "title": "ProviderConfigReadRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ProviderConfigDeleteRequest"
+                      "$ref": "#/$defs/ProviderConfigStatusRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/config/delete",
-                  "title": "ProviderConfigDeleteRequest"
+                  "description": "Params for _goose/unstable/providers/config/status",
+                  "title": "ProviderConfigStatusRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ProviderConfigAuthenticateRequest"
+                      "$ref": "#/$defs/ProviderConfigSaveRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/providers/config/authenticate",
-                  "title": "ProviderConfigAuthenticateRequest"
+                  "description": "Params for _goose/unstable/providers/config/save",
+                  "title": "ProviderConfigSaveRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/PreferencesReadRequest"
+                      "$ref": "#/$defs/ProviderConfigDeleteRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/preferences/read",
-                  "title": "PreferencesReadRequest"
+                  "description": "Params for _goose/unstable/providers/config/delete",
+                  "title": "ProviderConfigDeleteRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/PreferencesSaveRequest"
+                      "$ref": "#/$defs/ProviderConfigAuthenticateRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/preferences/save",
-                  "title": "PreferencesSaveRequest"
+                  "description": "Params for _goose/unstable/providers/config/authenticate",
+                  "title": "ProviderConfigAuthenticateRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/PreferencesRemoveRequest"
+                      "$ref": "#/$defs/PreferencesReadRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/preferences/remove",
-                  "title": "PreferencesRemoveRequest"
+                  "description": "Params for _goose/unstable/preferences/read",
+                  "title": "PreferencesReadRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DefaultsReadRequest"
+                      "$ref": "#/$defs/PreferencesSaveRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/defaults/read",
-                  "title": "DefaultsReadRequest"
+                  "description": "Params for _goose/unstable/preferences/save",
+                  "title": "PreferencesSaveRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DefaultsSaveRequest"
+                      "$ref": "#/$defs/PreferencesRemoveRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/defaults/save",
-                  "title": "DefaultsSaveRequest"
+                  "description": "Params for _goose/unstable/preferences/remove",
+                  "title": "PreferencesRemoveRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/OnboardingImportScanRequest"
+                      "$ref": "#/$defs/DefaultsReadRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/onboarding/import/scan",
-                  "title": "OnboardingImportScanRequest"
+                  "description": "Params for _goose/unstable/defaults/read",
+                  "title": "DefaultsReadRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/OnboardingImportApplyRequest"
+                      "$ref": "#/$defs/DefaultsSaveRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/onboarding/import/apply",
-                  "title": "OnboardingImportApplyRequest"
+                  "description": "Params for _goose/unstable/defaults/save",
+                  "title": "DefaultsSaveRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ExportSessionRequest"
+                      "$ref": "#/$defs/OnboardingImportScanRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/session/export",
-                  "title": "ExportSessionRequest"
+                  "description": "Params for _goose/unstable/onboarding/import/scan",
+                  "title": "OnboardingImportScanRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ImportSessionRequest"
+                      "$ref": "#/$defs/OnboardingImportApplyRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/session/import",
-                  "title": "ImportSessionRequest"
+                  "description": "Params for _goose/unstable/onboarding/import/apply",
+                  "title": "OnboardingImportApplyRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/UpdateSessionProjectRequest"
+                      "$ref": "#/$defs/ExportSessionRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/session/update_project",
-                  "title": "UpdateSessionProjectRequest"
+                  "description": "Params for _goose/unstable/session/export",
+                  "title": "ExportSessionRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/RenameSessionRequest"
+                      "$ref": "#/$defs/ImportSessionRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/session/rename",
-                  "title": "RenameSessionRequest"
+                  "description": "Params for _goose/unstable/session/import",
+                  "title": "ImportSessionRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ArchiveSessionRequest"
+                      "$ref": "#/$defs/GetSessionInfoRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/session/archive",
-                  "title": "ArchiveSessionRequest"
+                  "description": "Params for _goose/unstable/session/info",
+                  "title": "GetSessionInfoRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/UnarchiveSessionRequest"
+                      "$ref": "#/$defs/ElicitationRespondRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/session/unarchive",
-                  "title": "UnarchiveSessionRequest"
+                  "description": "Params for _goose/unstable/elicitation/respond",
+                  "title": "ElicitationRespondRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/CreateSourceRequest"
+                      "$ref": "#/$defs/UpdateSessionProjectRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/sources/create",
-                  "title": "CreateSourceRequest"
+                  "description": "Params for _goose/unstable/session/project/update",
+                  "title": "UpdateSessionProjectRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ListSourcesRequest"
+                      "$ref": "#/$defs/RenameSessionRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/sources/list",
-                  "title": "ListSourcesRequest"
+                  "description": "Params for _goose/unstable/session/rename",
+                  "title": "RenameSessionRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/UpdateSourceRequest"
+                      "$ref": "#/$defs/ArchiveSessionRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/sources/update",
-                  "title": "UpdateSourceRequest"
+                  "description": "Params for _goose/unstable/session/archive",
+                  "title": "ArchiveSessionRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DeleteSourceRequest"
+                      "$ref": "#/$defs/UnarchiveSessionRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/sources/delete",
-                  "title": "DeleteSourceRequest"
+                  "description": "Params for _goose/unstable/session/unarchive",
+                  "title": "UnarchiveSessionRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ExportSourceRequest"
+                      "$ref": "#/$defs/CreateSourceRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/sources/export",
-                  "title": "ExportSourceRequest"
+                  "description": "Params for _goose/unstable/sources/create",
+                  "title": "CreateSourceRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ImportSourcesRequest"
+                      "$ref": "#/$defs/ListSourcesRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/sources/import",
-                  "title": "ImportSourcesRequest"
+                  "description": "Params for _goose/unstable/sources/list",
+                  "title": "ListSourcesRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DictationTranscribeRequest"
+                      "$ref": "#/$defs/UpdateSourceRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/dictation/transcribe",
-                  "title": "DictationTranscribeRequest"
+                  "description": "Params for _goose/unstable/sources/update",
+                  "title": "UpdateSourceRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DictationConfigRequest"
+                      "$ref": "#/$defs/DeleteSourceRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/dictation/config",
-                  "title": "DictationConfigRequest"
+                  "description": "Params for _goose/unstable/sources/delete",
+                  "title": "DeleteSourceRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DictationSecretSaveRequest"
+                      "$ref": "#/$defs/ExportSourceRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/dictation/secret/save",
-                  "title": "DictationSecretSaveRequest"
+                  "description": "Params for _goose/unstable/sources/export",
+                  "title": "ExportSourceRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DictationSecretDeleteRequest"
+                      "$ref": "#/$defs/ImportSourcesRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/dictation/secret/delete",
-                  "title": "DictationSecretDeleteRequest"
+                  "description": "Params for _goose/unstable/sources/import",
+                  "title": "ImportSourcesRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DictationModelsListRequest"
+                      "$ref": "#/$defs/DictationTranscribeRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/dictation/models/list",
-                  "title": "DictationModelsListRequest"
+                  "description": "Params for _goose/unstable/dictation/transcribe",
+                  "title": "DictationTranscribeRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DictationModelDownloadRequest"
+                      "$ref": "#/$defs/DictationConfigRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/dictation/models/download",
-                  "title": "DictationModelDownloadRequest"
+                  "description": "Params for _goose/unstable/dictation/config",
+                  "title": "DictationConfigRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DictationModelDownloadProgressRequest"
+                      "$ref": "#/$defs/DictationSecretSaveRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/dictation/models/download/progress",
-                  "title": "DictationModelDownloadProgressRequest"
+                  "description": "Params for _goose/unstable/dictation/secret/save",
+                  "title": "DictationSecretSaveRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DictationModelCancelRequest"
+                      "$ref": "#/$defs/DictationSecretDeleteRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/dictation/models/cancel",
-                  "title": "DictationModelCancelRequest"
+                  "description": "Params for _goose/unstable/dictation/secret/delete",
+                  "title": "DictationSecretDeleteRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DictationModelDeleteRequest"
+                      "$ref": "#/$defs/DictationModelsListRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/dictation/models/delete",
-                  "title": "DictationModelDeleteRequest"
+                  "description": "Params for _goose/unstable/dictation/models/list",
+                  "title": "DictationModelsListRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/DictationModelSelectRequest"
+                      "$ref": "#/$defs/DictationModelDownloadRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/dictation/model/select",
-                  "title": "DictationModelSelectRequest"
+                  "description": "Params for _goose/unstable/dictation/models/download",
+                  "title": "DictationModelDownloadRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DictationModelDownloadProgressRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/dictation/models/download/progress",
+                  "title": "DictationModelDownloadProgressRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DictationModelCancelRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/dictation/models/cancel",
+                  "title": "DictationModelCancelRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DictationModelDeleteRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/dictation/models/delete",
+                  "title": "DictationModelDeleteRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DictationModelSelectRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/dictation/models/select",
+                  "title": "DictationModelSelectRequest_unstable"
                 }
               ]
             },
@@ -3093,258 +4358,290 @@
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/GetToolsResponse"
+                          "$ref": "#/$defs/GetToolsResponse_unstable"
                         }
                       ],
-                      "title": "GetToolsResponse"
+                      "title": "GetToolsResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/GooseToolCallResponse"
+                          "$ref": "#/$defs/GooseToolCallResponse_unstable"
                         }
                       ],
-                      "title": "GooseToolCallResponse"
+                      "title": "GooseToolCallResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/ReadResourceResponse"
+                          "$ref": "#/$defs/ReadResourceResponse_unstable"
                         }
                       ],
-                      "title": "ReadResourceResponse"
+                      "title": "ReadResourceResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/GetExtensionsResponse"
+                          "$ref": "#/$defs/SteerSessionResponse_unstable"
                         }
                       ],
-                      "title": "GetExtensionsResponse"
+                      "title": "SteerSessionResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/GetSessionExtensionsResponse"
+                          "$ref": "#/$defs/GetConfigExtensionsResponse_unstable"
                         }
                       ],
-                      "title": "GetSessionExtensionsResponse"
+                      "title": "GetConfigExtensionsResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/ListProvidersResponse"
+                          "$ref": "#/$defs/GetAvailableExtensionsResponse_unstable"
                         }
                       ],
-                      "title": "ListProvidersResponse"
+                      "title": "GetAvailableExtensionsResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/ProviderCatalogListResponse"
+                          "$ref": "#/$defs/GetSessionExtensionsResponse_unstable"
                         }
                       ],
-                      "title": "ProviderCatalogListResponse"
+                      "title": "GetSessionExtensionsResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/ProviderSetupCatalogListResponse"
+                          "$ref": "#/$defs/ListProvidersResponse_unstable"
                         }
                       ],
-                      "title": "ProviderSetupCatalogListResponse"
+                      "title": "ListProvidersResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/ProviderCatalogTemplateResponse"
+                          "$ref": "#/$defs/ProviderSupportedModelsListResponse_unstable"
                         }
                       ],
-                      "title": "ProviderCatalogTemplateResponse"
+                      "title": "ProviderSupportedModelsListResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/CustomProviderCreateResponse"
+                          "$ref": "#/$defs/ProviderCatalogListResponse_unstable"
                         }
                       ],
-                      "title": "CustomProviderCreateResponse"
+                      "title": "ProviderCatalogListResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/CustomProviderReadResponse"
+                          "$ref": "#/$defs/ProviderSetupCatalogListResponse_unstable"
                         }
                       ],
-                      "title": "CustomProviderReadResponse"
+                      "title": "ProviderSetupCatalogListResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/CustomProviderUpdateResponse"
+                          "$ref": "#/$defs/ProviderCatalogTemplateResponse_unstable"
                         }
                       ],
-                      "title": "CustomProviderUpdateResponse"
+                      "title": "ProviderCatalogTemplateResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/CustomProviderDeleteResponse"
+                          "$ref": "#/$defs/CustomProviderCreateResponse_unstable"
                         }
                       ],
-                      "title": "CustomProviderDeleteResponse"
+                      "title": "CustomProviderCreateResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/RefreshProviderInventoryResponse"
+                          "$ref": "#/$defs/CustomProviderReadResponse_unstable"
                         }
                       ],
-                      "title": "RefreshProviderInventoryResponse"
+                      "title": "CustomProviderReadResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/ProviderConfigReadResponse"
+                          "$ref": "#/$defs/CustomProviderUpdateResponse_unstable"
                         }
                       ],
-                      "title": "ProviderConfigReadResponse"
+                      "title": "CustomProviderUpdateResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/ProviderConfigStatusResponse"
+                          "$ref": "#/$defs/CustomProviderDeleteResponse_unstable"
                         }
                       ],
-                      "title": "ProviderConfigStatusResponse"
+                      "title": "CustomProviderDeleteResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/ProviderConfigChangeResponse"
+                          "$ref": "#/$defs/RefreshProviderInventoryResponse_unstable"
                         }
                       ],
-                      "title": "ProviderConfigChangeResponse"
+                      "title": "RefreshProviderInventoryResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/PreferencesReadResponse"
+                          "$ref": "#/$defs/ProviderConfigReadResponse_unstable"
                         }
                       ],
-                      "title": "PreferencesReadResponse"
+                      "title": "ProviderConfigReadResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/DefaultsReadResponse"
+                          "$ref": "#/$defs/ProviderConfigStatusResponse_unstable"
                         }
                       ],
-                      "title": "DefaultsReadResponse"
+                      "title": "ProviderConfigStatusResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/OnboardingImportScanResponse"
+                          "$ref": "#/$defs/ProviderConfigChangeResponse_unstable"
                         }
                       ],
-                      "title": "OnboardingImportScanResponse"
+                      "title": "ProviderConfigChangeResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/OnboardingImportApplyResponse"
+                          "$ref": "#/$defs/PreferencesReadResponse_unstable"
                         }
                       ],
-                      "title": "OnboardingImportApplyResponse"
+                      "title": "PreferencesReadResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/ExportSessionResponse"
+                          "$ref": "#/$defs/DefaultsReadResponse_unstable"
                         }
                       ],
-                      "title": "ExportSessionResponse"
+                      "title": "DefaultsReadResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/ImportSessionResponse"
+                          "$ref": "#/$defs/OnboardingImportScanResponse_unstable"
                         }
                       ],
-                      "title": "ImportSessionResponse"
+                      "title": "OnboardingImportScanResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/CreateSourceResponse"
+                          "$ref": "#/$defs/OnboardingImportApplyResponse_unstable"
                         }
                       ],
-                      "title": "CreateSourceResponse"
+                      "title": "OnboardingImportApplyResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/ListSourcesResponse"
+                          "$ref": "#/$defs/ExportSessionResponse_unstable"
                         }
                       ],
-                      "title": "ListSourcesResponse"
+                      "title": "ExportSessionResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/UpdateSourceResponse"
+                          "$ref": "#/$defs/ImportSessionResponse_unstable"
                         }
                       ],
-                      "title": "UpdateSourceResponse"
+                      "title": "ImportSessionResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/ExportSourceResponse"
+                          "$ref": "#/$defs/GetSessionInfoResponse_unstable"
                         }
                       ],
-                      "title": "ExportSourceResponse"
+                      "title": "GetSessionInfoResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/ImportSourcesResponse"
+                          "$ref": "#/$defs/CreateSourceResponse_unstable"
                         }
                       ],
-                      "title": "ImportSourcesResponse"
+                      "title": "CreateSourceResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/DictationTranscribeResponse"
+                          "$ref": "#/$defs/ListSourcesResponse_unstable"
                         }
                       ],
-                      "title": "DictationTranscribeResponse"
+                      "title": "ListSourcesResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/DictationConfigResponse"
+                          "$ref": "#/$defs/UpdateSourceResponse_unstable"
                         }
                       ],
-                      "title": "DictationConfigResponse"
+                      "title": "UpdateSourceResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/DictationModelsListResponse"
+                          "$ref": "#/$defs/ExportSourceResponse_unstable"
                         }
                       ],
-                      "title": "DictationModelsListResponse"
+                      "title": "ExportSourceResponse_unstable"
                     },
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/DictationModelDownloadProgressResponse"
+                          "$ref": "#/$defs/ImportSourcesResponse_unstable"
                         }
                       ],
-                      "title": "DictationModelDownloadProgressResponse"
+                      "title": "ImportSourcesResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/DictationTranscribeResponse_unstable"
+                        }
+                      ],
+                      "title": "DictationTranscribeResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/DictationConfigResponse_unstable"
+                        }
+                      ],
+                      "title": "DictationConfigResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/DictationModelsListResponse_unstable"
+                        }
+                      ],
+                      "title": "DictationModelsListResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/DictationModelDownloadProgressResponse_unstable"
+                        }
+                      ],
+                      "title": "DictationModelDownloadProgressResponse_unstable"
                     }
                   ]
                 },
@@ -3391,6 +4688,42 @@
         }
       ],
       "x-docs-ignore": true
+    },
+    "ExtNotification": {
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/GooseSessionNotification_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/update",
+                  "title": "GooseSessionNotification_unstable"
+                }
+              ]
+            },
+            {
+              "description": "Untyped params",
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "type": "object",
+      "x-docs-ignore": true
     }
   },
   "anyOf": [
@@ -3411,6 +4744,15 @@
       ],
       "description": "Extension response (agent → client)",
       "title": "Response"
+    },
+    {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ExtNotification"
+        }
+      ],
+      "description": "Extension notification (agent → client, fire-and-forget)",
+      "title": "Notification"
     }
   ]
 }

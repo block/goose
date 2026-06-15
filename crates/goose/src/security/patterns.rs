@@ -232,13 +232,13 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
         name: "indirect_command_execution",
         pattern: r"\$\([^)]*\$\([^)]*\)[^)]*\)|`[^`]*`[^`]*`",
         description: "Nested command substitution",
-        risk_level: RiskLevel::Medium,
+        risk_level: RiskLevel::Low,
         category: ThreatCategory::CommandInjection,
     },
     ThreatPattern {
         name: "unicode_obfuscation",
-        pattern: r"\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}",
-        description: "Unicode character obfuscation",
+        pattern: r"(\\u[0-9a-fA-F]{4}|\\U[0-9a-fA-F]{8}){3,}",
+        description: "Unicode character obfuscation (3+ consecutive escapes)",
         risk_level: RiskLevel::Medium,
         category: ThreatCategory::CommandInjection,
     },
@@ -300,7 +300,7 @@ pub const THREAT_PATTERNS: &[ThreatPattern] = &[
     },
     ThreatPattern {
         name: "password_cracking_tools",
-        pattern: r"\b(john|hashcat|hydra|medusa|brutespray)\b",
+        pattern: r"\bjohn\s+--[a-z]|\b(hashcat|hydra|medusa|brutespray)\b",
         description: "Password cracking tools",
         risk_level: RiskLevel::High,
         category: ThreatCategory::PrivilegeEscalation,
@@ -465,6 +465,34 @@ mod tests {
     }
 
     #[test]
+    fn password_cracking_tools_matches_real_invocations() {
+        let pat = "password_cracking_tools";
+        assert!(matches(
+            pat,
+            "john --wordlist=/usr/share/wordlists/rockyou.txt hash.txt"
+        ));
+        assert!(matches(pat, "/usr/sbin/john --format=raw-md5 hashes.txt"));
+        assert!(matches(pat, "john --rules --incremental hash.txt"));
+        assert!(matches(pat, "hashcat -m 1000 -a 0 hash.txt wordlist.txt"));
+        assert!(matches(pat, "hydra -l admin -P passwords.txt ssh://target"));
+        assert!(matches(
+            pat,
+            "medusa -h target -u admin -P wordlist.txt -M ssh"
+        ));
+    }
+
+    #[test]
+    fn password_cracking_tools_no_false_positives_on_name_john() {
+        let pat = "password_cracking_tools";
+        assert!(!matches(pat, "# DS_PLATFORM -> John's integration type"));
+        assert!(!matches(pat, "git log --author=John"));
+        assert!(!matches(pat, "echo \"Hello John\""));
+        assert!(!matches(pat, "grep -r \"john.doe@company.com\" ."));
+        assert!(!matches(pat, "mkdir -p /home/john"));
+        assert!(!matches(pat, "cat /tmp/john_report.csv"));
+    }
+
+    #[test]
     fn log_manipulation_no_dev_null_false_positives() {
         let pat = "log_manipulation";
         // Standard stderr suppression should NOT match
@@ -485,5 +513,18 @@ mod tests {
         // Similar-looking paths outside /var/log should NOT match
         assert!(!matches(pat, "rm -rf /var/log-backup"));
         assert!(!matches(pat, "rm -rf /var/logs"));
+    }
+
+    #[test]
+    fn unicode_obfuscation_requires_consecutive_escapes() {
+        let pat = "unicode_obfuscation";
+        // Isolated escapes in legitimate code/strings should NOT match
+        assert!(!matches(pat, r"\u0041"));
+        assert!(!matches(pat, r"echo \u00e9 \u00e8"));
+        // Runs of 3+ consecutive escapes (obfuscation) should match
+        assert!(matches(pat, r"\u0041\u0042\u0043"));
+        assert!(matches(pat, r"\U00000041\U00000042\U00000043"));
+        // Mixed 4-digit and 8-digit forms should also match
+        assert!(matches(pat, r"\u0065\U00000076\u0061"));
     }
 }

@@ -63,12 +63,12 @@ jobs:
           sudo apt-get install -y jq ripgrep
       
       - name: Set up Rust
-        uses: actions-rust-lang/setup-rust-toolchain@2b1f5e9b395427c92ee4e3331786ca3c37afe2d7 # v1.16.0
+        uses: actions-rust-lang/setup-rust-toolchain@46268bd060767258de96ed93c1251119784f2ab6 # v1.16.1
         with:
           toolchain: stable
       
       - name: Set up Python
-        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
+        uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
         with:
           python-version: '3.11'
       
@@ -204,7 +204,7 @@ jobs:
         if: |
           steps.extract.outputs.has_changes == 'true' && 
           (github.event.inputs.dry_run != 'true' || github.event_name == 'release')
-        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0  # v8.1.0
+        uses: peter-evans/create-pull-request@5f6978faf089d4d20b00c7766989d076bb2fc7f1  # v8.1.1
         with:
           branch: docs/auto-cli-commands-${{ steps.versions.outputs.new_version }}
           delete-branch: true

@@ -64,7 +64,7 @@ fn binary_name() -> &'static str {
 fn sha256_hex(data: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(data);
-    format!("{:x}", hasher.finalize())
+    goose::utils::bytes_to_hex(hasher.finalize())
 }
 
 #[derive(serde::Deserialize)]
