@@ -142,8 +142,10 @@ const PairRouteWrapper = ({
         }
       })();
     }
-    // Note: isCreatingSession is intentionally NOT in the dependency array
-    // It's only used as a guard to prevent concurrent session creation
+    // Note: isCreatingSession and extensionsList are intentionally NOT in the dependency array
+    // isCreatingSession is only used as a guard to prevent concurrent session creation
+    // extensionsList is captured at the time of session creation but shouldn't trigger re-creation
+    // when it changes (e.g., during extension loading), as this causes duplicate sessions
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     initialMessage,
@@ -151,7 +153,6 @@ const PairRouteWrapper = ({
     recipeIdFromConfig,
     resumeSessionId,
     setSearchParams,
-    extensionsList,
   ]);
 
   // Add resumed session to active sessions if not already there
