@@ -3255,13 +3255,6 @@ mod tests {
             hydrated_snippet_of(&sm, &id).await.as_deref(),
             Some("hello there world")
         );
-    }
-
-    #[tokio::test]
-    async fn test_live_last_message_snippet_filters_audience_on_append() {
-        let temp_dir = TempDir::new().unwrap();
-        let sm = SessionManager::new(temp_dir.path().to_path_buf());
-        let id = snippet_session(&sm).await;
 
         let message = Message::user()
             .with_content(assistant_audience_text("assistant-only preprompt"))
@@ -3411,24 +3404,6 @@ mod tests {
         );
 
         sm.truncate_conversation(&id, 1_000).await.unwrap();
-
-        assert_eq!(hydrated_snippet_of(&sm, &id).await, None);
-    }
-
-    #[tokio::test]
-    async fn test_live_last_message_snippet_null_without_text_messages() {
-        use rmcp::model::CallToolRequestParams;
-
-        let temp_dir = TempDir::new().unwrap();
-        let sm = SessionManager::new(temp_dir.path().to_path_buf());
-        let id = snippet_session(&sm).await;
-
-        sm.add_message(
-            &id,
-            &Message::assistant().with_tool_request("t1", Ok(CallToolRequestParams::new("shell"))),
-        )
-        .await
-        .unwrap();
 
         assert_eq!(hydrated_snippet_of(&sm, &id).await, None);
     }

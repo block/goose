@@ -3,7 +3,7 @@
 mod common_tests;
 use agent_client_protocol::schema::{
     ListSessionsRequest, ListSessionsResponse, SessionConfigKind, SessionConfigOptionCategory,
-    SessionConfigOptionValue, SetSessionConfigOptionRequest,
+    SessionConfigOptionValue, SessionInfo, SetSessionConfigOptionRequest,
 };
 use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::AcpServerConnection;
@@ -127,6 +127,14 @@ fn include_last_message_snippet_meta(
     meta
 }
 
+fn last_message_snippet(session: &SessionInfo) -> Option<&str> {
+    session
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.get("lastMessageSnippet"))
+        .and_then(serde_json::Value::as_str)
+}
+
 #[test]
 fn test_config_mcp() {
     run_test(async { run_config_mcp::<AcpServerConnection>().await });
@@ -184,11 +192,19 @@ fn test_list_sessions_emits_computed_snippet() {
         .unwrap();
 
         assert_eq!(response.sessions.len(), 1);
-        assert!(response.sessions[0]
-            .meta
-            .as_ref()
-            .and_then(|meta| meta.get("lastMessageSnippet"))
-            .is_none());
+        assert_eq!(last_message_snippet(&response.sessions[0]), None);
+
+        let response = list_sessions_request(
+            &conn,
+            ListSessionsRequest::new().meta(include_last_message_snippet_meta(
+                serde_json::Value::Bool(false),
+            )),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(response.sessions.len(), 1);
+        assert_eq!(last_message_snippet(&response.sessions[0]), None);
 
         let response = list_sessions_request(
             &conn,
@@ -200,10 +216,8 @@ fn test_list_sessions_emits_computed_snippet() {
         .unwrap();
 
         assert_eq!(response.sessions.len(), 1);
-        let meta = response.sessions[0].meta.as_ref().unwrap();
         assert_eq!(
-            meta.get("lastMessageSnippet")
-                .and_then(serde_json::Value::as_str),
+            last_message_snippet(&response.sessions[0]),
             Some("**raw** _markdown_ subtitle")
         );
     });
@@ -220,11 +234,10 @@ fn test_list_sessions_pagination() {
             .await
             .unwrap();
         assert_eq!(first.sessions.len(), 50);
-        assert!(first.sessions.iter().all(|session| session
-            .meta
-            .as_ref()
-            .and_then(|meta| meta.get("lastMessageSnippet"))
-            .is_none()));
+        assert!(first
+            .sessions
+            .iter()
+            .all(|session| last_message_snippet(session).is_none()));
 
         let second = list_sessions_request(
             &conn,
@@ -238,11 +251,7 @@ fn test_list_sessions_pagination() {
         .unwrap();
         assert_eq!(second.sessions.len(), 1);
         assert!(second.next_cursor.is_none());
-        assert!(second.sessions.iter().all(|session| session
-            .meta
-            .as_ref()
-            .and_then(|meta| meta.get("lastMessageSnippet"))
-            .is_some()));
+        assert_eq!(last_message_snippet(&second.sessions[0]), Some("hello"));
 
         let second_id = &second.sessions[0].session_id;
         assert!(first
