@@ -1,6 +1,6 @@
 use super::{build_session_info, meta_string, GooseAcpAgent, ResultExt};
 use crate::session::session_manager::{
-    SessionListCursor, SessionListFilters, SessionListPageQuery, SessionSnippetMode, SessionType,
+    SessionListCursor, SessionListFilters, SessionListPageQuery, SessionType,
 };
 use agent_client_protocol::schema::{ListSessionsRequest, ListSessionsResponse, Meta, SessionInfo};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -179,12 +179,10 @@ impl GooseAcpAgent {
             .await
             .internal_err()?;
 
-        if SessionSnippetMode::from_env() == SessionSnippetMode::Lazy {
-            self.session_manager
-                .hydrate_last_message_snippets(&mut page.sessions)
-                .await
-                .internal_err()?;
-        }
+        self.session_manager
+            .hydrate_last_message_snippets(&mut page.sessions)
+            .await
+            .internal_err()?;
 
         let session_infos: Vec<SessionInfo> =
             page.sessions.into_iter().map(build_session_info).collect();

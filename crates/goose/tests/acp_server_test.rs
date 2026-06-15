@@ -26,8 +26,6 @@ use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageMetadata};
 use goose::custom_requests::{GetSessionInfoRequest, GetSessionInfoResponse};
 use goose::session::{SessionManager, SessionType};
-use serial_test::serial;
-use sqlx::sqlite::SqlitePoolOptions;
 use std::path::Path;
 
 tests_config_option_set_error!(AcpServerConnection);
@@ -118,28 +116,6 @@ fn assert_invalid_params(error: anyhow::Error) {
     assert_eq!(acp_error.code, ErrorCode::InvalidParams);
 }
 
-struct EnvVarGuard {
-    key: &'static str,
-    previous: Option<String>,
-}
-
-impl EnvVarGuard {
-    fn set(key: &'static str, value: &str) -> Self {
-        let previous = std::env::var(key).ok();
-        std::env::set_var(key, value);
-        Self { key, previous }
-    }
-}
-
-impl Drop for EnvVarGuard {
-    fn drop(&mut self) {
-        match &self.previous {
-            Some(value) => std::env::set_var(self.key, value),
-            None => std::env::remove_var(self.key),
-        }
-    }
-}
-
 #[test]
 fn test_config_mcp() {
     run_test(async { run_config_mcp::<AcpServerConnection>().await });
@@ -156,17 +132,15 @@ fn test_list_sessions() {
 }
 
 #[test]
-#[serial]
-fn test_list_sessions_lazy_mode_emits_computed_snippet() {
+fn test_list_sessions_emits_computed_snippet() {
     run_test(async {
-        let _guard = EnvVarGuard::set("GOOSE_SESSION_SNIPPET_MODE", "lazy");
         let data_root = tempfile::tempdir().unwrap();
-        let cwd = Path::new("/tmp/acp-session-list-lazy");
+        let cwd = Path::new("/tmp/acp-session-list-snippet");
         let session_manager = SessionManager::new(data_root.path().to_path_buf());
         let session = session_manager
             .create_session(
                 cwd.to_path_buf(),
-                "Lazy subtitle".to_string(),
+                "Live subtitle".to_string(),
                 SessionType::Acp,
                 GooseMode::default(),
             )
@@ -188,19 +162,6 @@ fn test_list_sessions_lazy_mode_emits_computed_snippet() {
             )
             .await
             .unwrap();
-
-        let db_path = data_root.path().join("sessions").join("sessions.db");
-        let pool = SqlitePoolOptions::new()
-            .connect(&format!("sqlite:{}", db_path.display()))
-            .await
-            .unwrap();
-        sqlx::query("UPDATE sessions SET last_message_snippet = ? WHERE id = ?")
-            .bind("stale persisted subtitle")
-            .bind(&session.id)
-            .execute(&pool)
-            .await
-            .unwrap();
-        pool.close().await;
 
         let conn = new_connection(data_root.path()).await;
         let response = list_sessions_request(&conn, ListSessionsRequest::new())
