@@ -1,6 +1,6 @@
 use super::{build_session_info, meta_string, GooseAcpAgent, ResultExt};
 use crate::session::session_manager::{
-    SessionListCursor, SessionListFilters, SessionListPageQuery, SessionType,
+    SessionListCursor, SessionListFilters, SessionListPageQuery, SessionSnippetMode, SessionType,
 };
 use agent_client_protocol::schema::{ListSessionsRequest, ListSessionsResponse, Meta, SessionInfo};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
@@ -164,7 +164,7 @@ impl GooseAcpAgent {
         )?;
 
         // ACP clients see their own (Acp) sessions plus legacy User/Scheduled ones.
-        let page = self
+        let mut page = self
             .session_manager
             .list_sessions_paged(SessionListPageQuery {
                 filters: SessionListFilters {
@@ -178,6 +178,14 @@ impl GooseAcpAgent {
             })
             .await
             .internal_err()?;
+
+        if SessionSnippetMode::from_env() == SessionSnippetMode::Lazy {
+            self.session_manager
+                .hydrate_last_message_snippets(&mut page.sessions)
+                .await
+                .internal_err()?;
+        }
+
         let session_infos: Vec<SessionInfo> =
             page.sessions.into_iter().map(build_session_info).collect();
         let next_cursor = page

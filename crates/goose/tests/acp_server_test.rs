@@ -23,9 +23,11 @@ use common_tests::{
     run_shell_terminal_false, run_shell_terminal_true,
 };
 use goose::config::GooseMode;
-use goose::conversation::message::Message;
+use goose::conversation::message::{Message, MessageMetadata};
 use goose::custom_requests::{GetSessionInfoRequest, GetSessionInfoResponse};
 use goose::session::{SessionManager, SessionType};
+use serial_test::serial;
+use sqlx::sqlite::SqlitePoolOptions;
 use std::path::Path;
 
 tests_config_option_set_error!(AcpServerConnection);
@@ -116,6 +118,28 @@ fn assert_invalid_params(error: anyhow::Error) {
     assert_eq!(acp_error.code, ErrorCode::InvalidParams);
 }
 
+struct EnvVarGuard {
+    key: &'static str,
+    previous: Option<String>,
+}
+
+impl EnvVarGuard {
+    fn set(key: &'static str, value: &str) -> Self {
+        let previous = std::env::var(key).ok();
+        std::env::set_var(key, value);
+        Self { key, previous }
+    }
+}
+
+impl Drop for EnvVarGuard {
+    fn drop(&mut self) {
+        match &self.previous {
+            Some(value) => std::env::set_var(self.key, value),
+            None => std::env::remove_var(self.key),
+        }
+    }
+}
+
 #[test]
 fn test_config_mcp() {
     run_test(async { run_config_mcp::<AcpServerConnection>().await });
@@ -129,6 +153,68 @@ fn test_config_option_mode_set() {
 #[test]
 fn test_list_sessions() {
     run_test(async { run_list_sessions::<AcpServerConnection>().await });
+}
+
+#[test]
+#[serial]
+fn test_list_sessions_lazy_mode_emits_computed_snippet() {
+    run_test(async {
+        let _guard = EnvVarGuard::set("GOOSE_SESSION_SNIPPET_MODE", "lazy");
+        let data_root = tempfile::tempdir().unwrap();
+        let cwd = Path::new("/tmp/acp-session-list-lazy");
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                cwd.to_path_buf(),
+                "Lazy subtitle".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        session_manager
+            .add_message(
+                &session.id,
+                &Message::user().with_text("**raw** _markdown_ subtitle"),
+            )
+            .await
+            .unwrap();
+        session_manager
+            .add_message(
+                &session.id,
+                &Message::assistant()
+                    .with_text("hidden newer text")
+                    .with_metadata(MessageMetadata::agent_only()),
+            )
+            .await
+            .unwrap();
+
+        let db_path = data_root.path().join("sessions").join("sessions.db");
+        let pool = SqlitePoolOptions::new()
+            .connect(&format!("sqlite:{}", db_path.display()))
+            .await
+            .unwrap();
+        sqlx::query("UPDATE sessions SET last_message_snippet = ? WHERE id = ?")
+            .bind("stale persisted subtitle")
+            .bind(&session.id)
+            .execute(&pool)
+            .await
+            .unwrap();
+        pool.close().await;
+
+        let conn = new_connection(data_root.path()).await;
+        let response = list_sessions_request(&conn, ListSessionsRequest::new())
+            .await
+            .unwrap();
+
+        assert_eq!(response.sessions.len(), 1);
+        let meta = response.sessions[0].meta.as_ref().unwrap();
+        assert_eq!(
+            meta.get("lastMessageSnippet")
+                .and_then(serde_json::Value::as_str),
+            Some("**raw** _markdown_ subtitle")
+        );
+    });
 }
 
 #[test]

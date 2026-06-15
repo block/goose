@@ -161,6 +161,7 @@ impl ProviderTestConfig {
         self
     }
 
+    #[cfg(feature = "aws-providers")]
     fn clear_env(mut self, vars: &'static [&'static str]) -> Self {
         self.clear_env = vars;
         self

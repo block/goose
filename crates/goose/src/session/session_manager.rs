@@ -19,9 +19,28 @@ use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 13;
+pub const CURRENT_SCHEMA_VERSION: i32 = 14;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
+
+const LAST_MESSAGE_SNIPPET_MAX_CHARS: usize = 128;
+const RECENT_MESSAGE_SNIPPET_SCAN_LIMIT: usize = 64;
+const SESSION_SNIPPET_MODE_ENV: &str = "GOOSE_SESSION_SNIPPET_MODE";
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum SessionSnippetMode {
+    Persisted,
+    Lazy,
+}
+
+impl SessionSnippetMode {
+    pub(crate) fn from_env() -> Self {
+        match std::env::var(SESSION_SNIPPET_MODE_ENV).as_deref() {
+            Ok("lazy") => Self::Lazy,
+            _ => Self::Persisted,
+        }
+    }
+}
 
 #[derive(
     Debug,
@@ -86,6 +105,8 @@ pub struct Session {
     pub archived_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub project_id: Option<String>,
+    #[serde(default)]
+    pub last_message_snippet: Option<String>,
 }
 
 impl Session {
@@ -301,6 +322,15 @@ pub(crate) struct SessionListPage {
     pub(crate) next_cursor: Option<SessionListCursor>,
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct SessionSnippetHydrationStats {
+    pub(crate) session_count: usize,
+    pub(crate) batches: usize,
+    pub(crate) rows_fetched: usize,
+    pub(crate) messages_deserialized: usize,
+    pub(crate) scan_limit_misses: usize,
+}
+
 #[derive(Debug, Default, Clone)]
 pub(crate) struct SessionListFilters<'a> {
     pub(crate) types: Option<&'a [SessionType]>,
@@ -321,6 +351,17 @@ struct SessionListQuery<'a> {
     filters: SessionListFilters<'a>,
     cursor: Option<&'a SessionListCursor>,
     limit: Option<usize>,
+}
+
+#[derive(Debug, sqlx::FromRow)]
+struct RecentMessageRow {
+    row_id: i64,
+    session_id: String,
+    role: String,
+    content_json: String,
+    created_timestamp: i64,
+    metadata_json: Option<String>,
+    message_id: Option<String>,
 }
 
 fn keyword_terms(query: Option<&str>) -> Vec<String> {
@@ -425,6 +466,13 @@ impl SessionManager {
         query: SessionListPageQuery<'_>,
     ) -> Result<SessionListPage> {
         self.storage.list_sessions_paged(query).await
+    }
+
+    pub(crate) async fn hydrate_last_message_snippets(
+        &self,
+        sessions: &mut [Session],
+    ) -> Result<SessionSnippetHydrationStats> {
+        self.storage.hydrate_last_message_snippets(sessions).await
     }
 
     pub async fn list_all_sessions(&self) -> Result<Vec<Session>> {
@@ -568,6 +616,41 @@ pub(crate) fn role_to_string(role: &Role) -> &'static str {
     }
 }
 
+/// Build a bounded, single-line snippet from user-visible message text.
+///
+/// Tool-request, tool-response, thinking, image-only, and assistant-audience
+/// blocks collapse to an empty string and return `None`. Internal whitespace
+/// and newlines are collapsed to single spaces, and the result includes at most
+/// `max_chars` characters of content; if truncated, a trailing `…` is appended
+/// so it can be rendered verbatim by clients.
+fn message_snippet(message: &Message, max_chars: usize) -> Option<String> {
+    if !message.metadata.user_visible {
+        return None;
+    }
+
+    let text = message
+        .content
+        .iter()
+        .filter_map(|content| content.filter_for_audience(Role::User))
+        .filter_map(|content| content.as_text().map(|text| text.to_string()))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let normalized = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    if normalized.is_empty() {
+        return None;
+    }
+
+    let mut chars = normalized.chars();
+    let mut result: String = chars.by_ref().take(max_chars).collect();
+    if chars.next().is_some() {
+        // trim a trailing space so we never produce "word …"
+        let end = result.trim_end().len();
+        result.truncate(end);
+        result.push('…');
+    }
+    Some(result)
+}
+
 impl Default for Session {
     fn default() -> Self {
         Self {
@@ -596,6 +679,7 @@ impl Default for Session {
             goose_mode: GooseMode::default(),
             archived_at: None,
             project_id: None,
+            last_message_snippet: None,
         }
     }
 }
@@ -668,6 +752,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
                 .unwrap_or_default(),
             archived_at: row.try_get("archived_at").ok(),
             project_id: row.try_get("project_id").ok().flatten(),
+            last_message_snippet: row.try_get("last_message_snippet").ok().flatten(),
         })
     }
 }
@@ -785,7 +870,8 @@ impl SessionStorage {
                 model_config_json TEXT,
                 goose_mode TEXT NOT NULL DEFAULT 'auto',
                 archived_at TIMESTAMP,
-                project_id TEXT
+                project_id TEXT,
+                last_message_snippet TEXT
             )
         "#,
         )
@@ -1220,6 +1306,19 @@ impl SessionStorage {
                         .await?;
                 }
             }
+            14 => {
+                let has_last_message_snippet = sqlx::query_scalar::<_, i32>(
+                    "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'last_message_snippet'",
+                )
+                .fetch_one(&mut **tx)
+                .await?
+                    > 0;
+                if !has_last_message_snippet {
+                    sqlx::query("ALTER TABLE sessions ADD COLUMN last_message_snippet TEXT")
+                        .execute(&mut **tx)
+                        .await?;
+                }
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -1283,7 +1382,7 @@ impl SessionStorage {
                accumulated_cost,
                schedule_id, recipe_json, user_recipe_values_json,
                provider_name, model_config_json, goose_mode,
-               archived_at, project_id
+               archived_at, project_id, last_message_snippet
         FROM sessions
         WHERE id = ?
     "#,
@@ -1507,10 +1606,23 @@ impl SessionStorage {
         .execute(&mut *tx)
         .await?;
 
-        sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
-            .bind(session_id)
-            .execute(&mut *tx)
-            .await?;
+        match message_snippet(message, LAST_MESSAGE_SNIPPET_MAX_CHARS) {
+            Some(snippet) => {
+                sqlx::query(
+                    "UPDATE sessions SET updated_at = datetime('now'), last_message_snippet = ? WHERE id = ?",
+                )
+                .bind(snippet)
+                .bind(session_id)
+                .execute(&mut *tx)
+                .await?;
+            }
+            None => {
+                sqlx::query("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?")
+                    .bind(session_id)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+        }
 
         tx.commit().await?;
         Ok(())
@@ -1551,6 +1663,18 @@ impl SessionStorage {
             .execute(&mut *tx)
             .await?;
         }
+
+        let snippet = conversation
+            .messages()
+            .iter()
+            .rev()
+            .find_map(|message| message_snippet(message, LAST_MESSAGE_SNIPPET_MAX_CHARS));
+
+        sqlx::query("UPDATE sessions SET last_message_snippet = ? WHERE id = ?")
+            .bind(snippet)
+            .bind(session_id)
+            .execute(&mut *tx)
+            .await?;
 
         tx.commit().await?;
         Ok(())
@@ -1616,7 +1740,7 @@ impl SessionStorage {
                    s.accumulated_cost,
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
-                   s.archived_at, s.project_id,
+                   s.archived_at, s.project_id, s.last_message_snippet,
                    COUNT(m.id) as message_count
             FROM sessions s
             {}
@@ -1703,6 +1827,122 @@ impl SessionStorage {
             sessions,
             next_cursor,
         })
+    }
+
+    async fn recent_message_rows(
+        pool: &Pool<Sqlite>,
+        session_ids: &[String],
+    ) -> Result<Vec<RecentMessageRow>> {
+        if session_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let branch = r#"
+            SELECT row_id, session_id, role, content_json, created_timestamp, metadata_json, message_id
+            FROM (
+                SELECT id AS row_id, session_id, role, content_json, created_timestamp, metadata_json, message_id
+                FROM messages
+                WHERE session_id = ?
+                ORDER BY created_timestamp DESC, id DESC
+                LIMIT ?
+            )
+        "#;
+        let sql = std::iter::repeat_n(branch, session_ids.len())
+            .collect::<Vec<_>>()
+            .join(" UNION ALL ");
+
+        let mut query = sqlx::query_as::<_, RecentMessageRow>(&sql);
+        for session_id in session_ids {
+            query = query
+                .bind(session_id)
+                .bind(RECENT_MESSAGE_SNIPPET_SCAN_LIMIT as i64);
+        }
+
+        let mut rows = query.fetch_all(pool).await?;
+        rows.sort_by(|left, right| {
+            left.session_id
+                .cmp(&right.session_id)
+                .then_with(|| right.created_timestamp.cmp(&left.created_timestamp))
+                .then_with(|| right.row_id.cmp(&left.row_id))
+        });
+        Ok(rows)
+    }
+
+    fn message_from_recent_row(row: RecentMessageRow) -> Result<Option<Message>> {
+        let role = match row.role.as_str() {
+            "user" => Role::User,
+            "assistant" => Role::Assistant,
+            _ => return Ok(None),
+        };
+
+        let content = serde_json::from_str(&row.content_json)?;
+        let metadata = row
+            .metadata_json
+            .and_then(|json| serde_json::from_str(&json).ok())
+            .unwrap_or_default();
+
+        let mut message = Message::new(role, row.created_timestamp, content);
+        message.metadata = metadata;
+        if let Some(id) = row.message_id {
+            message = message.with_id(id);
+        }
+        Ok(Some(message))
+    }
+
+    async fn hydrate_last_message_snippets(
+        &self,
+        sessions: &mut [Session],
+    ) -> Result<SessionSnippetHydrationStats> {
+        let mut stats = SessionSnippetHydrationStats {
+            session_count: sessions.len(),
+            ..Default::default()
+        };
+        if sessions.is_empty() {
+            return Ok(stats);
+        }
+
+        let pool = self.pool().await?;
+        let session_ids = sessions
+            .iter()
+            .map(|session| session.id.clone())
+            .collect::<Vec<_>>();
+        let mut snippets = HashMap::with_capacity(session_ids.len());
+
+        let rows = Self::recent_message_rows(pool, &session_ids).await?;
+        stats.batches = 1;
+        stats.rows_fetched = rows.len();
+
+        let mut row_counts = HashMap::<String, usize>::new();
+        for row in rows {
+            *row_counts.entry(row.session_id.clone()).or_default() += 1;
+            if snippets.contains_key(&row.session_id) {
+                continue;
+            }
+
+            let session_id = row.session_id.clone();
+            let Some(message) = Self::message_from_recent_row(row)? else {
+                continue;
+            };
+            stats.messages_deserialized += 1;
+            if let Some(snippet) = message_snippet(&message, LAST_MESSAGE_SNIPPET_MAX_CHARS) {
+                snippets.insert(session_id, snippet);
+            }
+        }
+
+        stats.scan_limit_misses = session_ids
+            .iter()
+            .filter(|session_id| {
+                !snippets.contains_key(*session_id)
+                    && row_counts.get(*session_id).copied().unwrap_or(0)
+                        == RECENT_MESSAGE_SNIPPET_SCAN_LIMIT
+            })
+            .count();
+
+        for session in sessions {
+            session.last_message_snippet = snippets.remove(&session.id);
+        }
+
+        Ok(stats)
     }
 
     async fn list_sessions(&self) -> Result<Vec<Session>> {
@@ -1869,12 +2109,57 @@ impl SessionStorage {
 
     async fn truncate_conversation(&self, session_id: &str, timestamp: i64) -> Result<()> {
         let pool = self.pool().await?;
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+
         sqlx::query("DELETE FROM messages WHERE session_id = ? AND created_timestamp >= ?")
             .bind(session_id)
             .bind(timestamp)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
 
+        let rows = sqlx::query_as::<_, (String, String, i64, Option<String>, Option<String>)>(
+            "SELECT role, content_json, created_timestamp, metadata_json, message_id \
+             FROM messages \
+             WHERE session_id = ? \
+             ORDER BY created_timestamp DESC, id DESC",
+        )
+        .bind(session_id)
+        .fetch_all(&mut *tx)
+        .await?;
+
+        let mut snippet = None;
+        for (role_str, content_json, created_timestamp, metadata_json, message_id) in
+            rows.into_iter()
+        {
+            let role = match role_str.as_str() {
+                "user" => Role::User,
+                "assistant" => Role::Assistant,
+                _ => continue,
+            };
+
+            let content = serde_json::from_str(&content_json)?;
+            let metadata = metadata_json
+                .and_then(|json| serde_json::from_str(&json).ok())
+                .unwrap_or_default();
+
+            let mut message = Message::new(role, created_timestamp, content);
+            message.metadata = metadata;
+            if let Some(id) = message_id {
+                message = message.with_id(id);
+            }
+            snippet = message_snippet(&message, LAST_MESSAGE_SNIPPET_MAX_CHARS);
+            if snippet.is_some() {
+                break;
+            }
+        }
+
+        sqlx::query("UPDATE sessions SET last_message_snippet = ? WHERE id = ?")
+            .bind(snippet)
+            .bind(session_id)
+            .execute(&mut *tx)
+            .await?;
+
+        tx.commit().await?;
         Ok(())
     }
 
@@ -2024,7 +2309,7 @@ fn merge_tool_meta(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::conversation::message::{Message, MessageContent};
+    use crate::conversation::message::{Message, MessageContent, MessageMetadata};
     use tempfile::TempDir;
     use test_case::test_case;
 
@@ -2987,5 +3272,707 @@ mod tests {
 
         let acp_session = sm.storage().get_session("acp_id", false).await.unwrap();
         assert_eq!(acp_session.session_type, SessionType::Acp);
+    }
+
+    /// Builds a `sessions` DB whose table predates `last_message_snippet` and
+    /// stamps `schema_version` at `version`. `create_schema` can't produce this
+    /// fixture — it always declares every modern column — so the pre-snippet
+    /// shape is spelled out explicitly.
+    async fn seed_pre_snippet_sessions_db(db_path: &Path, version: i32) {
+        std::fs::create_dir_all(db_path.parent().unwrap()).unwrap();
+        let pool = SqlitePoolOptions::new()
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(db_path)
+                    .create_if_missing(true),
+            )
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "CREATE TABLE schema_version (
+                version INTEGER PRIMARY KEY,
+                applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+        sqlx::query("INSERT INTO schema_version (version) VALUES (?)")
+            .bind(version)
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "CREATE TABLE sessions (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL DEFAULT '',
+                description TEXT NOT NULL DEFAULT '',
+                user_set_name BOOLEAN DEFAULT FALSE,
+                session_type TEXT NOT NULL DEFAULT 'user',
+                working_dir TEXT NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                extension_data TEXT DEFAULT '{}',
+                total_tokens INTEGER,
+                input_tokens INTEGER,
+                output_tokens INTEGER,
+                accumulated_total_tokens INTEGER,
+                accumulated_input_tokens INTEGER,
+                accumulated_output_tokens INTEGER,
+                accumulated_cost REAL,
+                schedule_id TEXT,
+                recipe_json TEXT,
+                user_recipe_values_json TEXT,
+                provider_name TEXT,
+                model_config_json TEXT,
+                goose_mode TEXT NOT NULL DEFAULT 'auto',
+                archived_at TIMESTAMP,
+                project_id TEXT
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "CREATE TABLE messages (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                message_id TEXT,
+                session_id TEXT NOT NULL REFERENCES sessions(id),
+                role TEXT NOT NULL,
+                content_json TEXT NOT NULL,
+                created_timestamp INTEGER NOT NULL,
+                timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                tokens INTEGER,
+                metadata_json TEXT
+            )",
+        )
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        sqlx::query(
+            "INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data, goose_mode)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind("legacy_id")
+        .bind("Legacy Session")
+        .bind(false)
+        .bind("user")
+        .bind("/tmp")
+        .bind("{}")
+        .bind("auto")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        let has_snippet = sqlx::query_scalar::<_, i32>(
+            "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'last_message_snippet'",
+        )
+        .fetch_one(&pool)
+        .await
+        .unwrap();
+        assert_eq!(has_snippet, 0, "fixture must not have last_message_snippet");
+
+        pool.close().await;
+    }
+
+    /// The SELECTs in `list_sessions_matching` and `get_session` both name
+    /// `s.last_message_snippet` explicitly. Before the fix, opening a DB whose
+    /// table lacked the column made them fail with `no such column:
+    /// last_message_snippet`. After the fix the column has been added (by the
+    /// v14 migration), so both succeed.
+    async fn assert_snippet_queries_succeed(sm: &SessionManager) {
+        let sessions = sm
+            .storage()
+            .list_sessions_matching(SessionListQuery::default())
+            .await
+            .unwrap();
+        assert_eq!(sessions.len(), 1);
+        assert_eq!(sessions[0].last_message_snippet, None);
+
+        let session = sm.get_session("legacy_id", false).await.unwrap();
+        assert_eq!(session.last_message_snippet, None);
+
+        let has_column = sqlx::query_scalar::<_, i32>(
+            "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'last_message_snippet'",
+        )
+        .fetch_one(sm.storage().pool().await.unwrap())
+        .await
+        .unwrap();
+        assert_eq!(has_column, 1);
+    }
+
+    #[tokio::test]
+    async fn test_snippet_migration_upgrades_v13_db() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join(SESSIONS_FOLDER).join(DB_NAME);
+        seed_pre_snippet_sessions_db(&db_path, 13).await;
+
+        // 13 < 14: the loop runs v14 and adds the column.
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        assert_snippet_queries_succeed(&sm).await;
+    }
+
+    async fn snippet_session(sm: &SessionManager) -> String {
+        sm.create_session(
+            PathBuf::from("/tmp/snippet"),
+            "Snippet session".to_string(),
+            SessionType::User,
+            GooseMode::default(),
+        )
+        .await
+        .unwrap()
+        .id
+    }
+
+    async fn snippet_of(sm: &SessionManager, id: &str) -> Option<String> {
+        sm.get_session(id, false)
+            .await
+            .unwrap()
+            .last_message_snippet
+    }
+
+    async fn set_persisted_snippet(sm: &SessionManager, id: &str, snippet: Option<&str>) {
+        let pool = sm.storage().pool().await.unwrap();
+        sqlx::query("UPDATE sessions SET last_message_snippet = ? WHERE id = ?")
+            .bind(snippet)
+            .bind(id)
+            .execute(pool)
+            .await
+            .unwrap();
+    }
+
+    fn message_at(mut message: Message, created: i64) -> Message {
+        message.created = created;
+        message
+    }
+
+    fn assistant_audience_text(text: &str) -> MessageContent {
+        use rmcp::model::{AnnotateAble, RawTextContent};
+
+        MessageContent::Text(
+            RawTextContent {
+                text: text.to_string(),
+                meta: None,
+            }
+            .no_annotation()
+            .with_audience(vec![Role::Assistant]),
+        )
+    }
+
+    #[test]
+    fn test_message_snippet_collapses_whitespace_and_truncates() {
+        use rmcp::model::CallToolRequestParams;
+
+        let collapsed = Message::user().with_text("  hello\n\nworld\t  again  ");
+        assert_eq!(
+            message_snippet(&collapsed, 20).as_deref(),
+            Some("hello world again")
+        );
+
+        let exact = Message::user().with_text("one two three four x");
+        assert_eq!(
+            message_snippet(&exact, 20).as_deref(),
+            Some("one two three four x")
+        );
+
+        let long = Message::user().with_text("abcde fghij klmno p qrstuv");
+        assert_eq!(
+            message_snippet(&long, 20).as_deref(),
+            Some("abcde fghij klmno p…")
+        );
+
+        let blob = Message::user().with_text("x".repeat(5000));
+        let s = message_snippet(&blob, 20).unwrap();
+        assert_eq!(s.chars().count(), 21);
+        assert!(s.ends_with('…'));
+
+        let tool =
+            Message::assistant().with_tool_request("t1", Ok(CallToolRequestParams::new("shell")));
+        assert_eq!(message_snippet(&tool, 20), None);
+
+        let thinking = Message::assistant().with_thinking("internal reasoning", "sig");
+        assert_eq!(message_snippet(&thinking, 20), None);
+
+        let agent_only = Message::assistant()
+            .with_text("hidden summary")
+            .with_metadata(MessageMetadata::agent_only());
+        assert_eq!(message_snippet(&agent_only, 20), None);
+    }
+
+    #[test]
+    fn test_message_snippet_ignores_assistant_audience_text_blocks() {
+        let mixed = Message::user()
+            .with_content(assistant_audience_text("assistant-only preprompt"))
+            .with_text("visible prompt");
+
+        assert_eq!(
+            message_snippet(&mixed, 128).as_deref(),
+            Some("visible prompt")
+        );
+
+        let only_assistant =
+            Message::user().with_content(assistant_audience_text("assistant-only details"));
+
+        assert_eq!(message_snippet(&only_assistant, 128), None);
+    }
+
+    #[tokio::test]
+    async fn test_last_message_snippet_set_on_text_append() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = snippet_session(&sm).await;
+
+        assert_eq!(snippet_of(&sm, &id).await, None);
+
+        sm.add_message(&id, &Message::user().with_text("hello there world"))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            snippet_of(&sm, &id).await.as_deref(),
+            Some("hello there world")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_last_message_snippet_filters_audience_on_append() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = snippet_session(&sm).await;
+
+        let message = Message::user()
+            .with_content(assistant_audience_text("assistant-only preprompt"))
+            .with_text("visible prompt");
+        sm.add_message(&id, &message).await.unwrap();
+
+        assert_eq!(
+            snippet_of(&sm, &id).await.as_deref(),
+            Some("visible prompt")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_last_message_snippet_unchanged_by_tool_messages() {
+        use rmcp::model::{CallToolRequestParams, CallToolResult, Content};
+
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = snippet_session(&sm).await;
+
+        sm.add_message(&id, &Message::user().with_text("real text message"))
+            .await
+            .unwrap();
+        sm.add_message(
+            &id,
+            &Message::assistant()
+                .with_text("hidden context summary")
+                .with_metadata(MessageMetadata::agent_only()),
+        )
+        .await
+        .unwrap();
+        sm.add_message(
+            &id,
+            &Message::assistant().with_tool_request("t1", Ok(CallToolRequestParams::new("shell"))),
+        )
+        .await
+        .unwrap();
+        sm.add_message(
+            &id,
+            &Message::user().with_tool_response(
+                "t1",
+                Ok(CallToolResult::success(vec![Content::text("done")])),
+            ),
+        )
+        .await
+        .unwrap();
+        sm.add_message(&id, &Message::assistant().with_thinking("pondering", "sig"))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            snippet_of(&sm, &id).await.as_deref(),
+            Some("real text message")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_last_message_snippet_recomputed_on_replace_conversation() {
+        use rmcp::model::CallToolRequestParams;
+
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = snippet_session(&sm).await;
+
+        sm.add_message(&id, &Message::user().with_text("stale original message"))
+            .await
+            .unwrap();
+
+        let conversation = Conversation::new_unvalidated(vec![
+            Message::user().with_text("first user prompt"),
+            Message::assistant().with_text("assistant reply here"),
+            Message::assistant().with_tool_request("t1", Ok(CallToolRequestParams::new("shell"))),
+            Message::assistant()
+                .with_text("hidden compacted summary")
+                .with_metadata(MessageMetadata::agent_only()),
+        ]);
+        sm.replace_conversation(&id, &conversation).await.unwrap();
+
+        assert_eq!(
+            snippet_of(&sm, &id).await.as_deref(),
+            Some("assistant reply here")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_last_message_snippet_recomputed_on_truncate_conversation() {
+        use rmcp::model::CallToolRequestParams;
+
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = snippet_session(&sm).await;
+
+        let previous = message_at(Message::user().with_text("previous remaining text"), 1_000);
+        let tool = message_at(
+            Message::assistant().with_tool_request("t1", Ok(CallToolRequestParams::new("shell"))),
+            2_000,
+        );
+        let latest = message_at(
+            Message::assistant().with_text("latest text to remove"),
+            3_000,
+        );
+        let hidden = message_at(
+            Message::assistant()
+                .with_text("hidden compacted summary")
+                .with_metadata(MessageMetadata::agent_only()),
+            2_500,
+        );
+
+        sm.add_message(&id, &previous).await.unwrap();
+        sm.add_message(&id, &tool).await.unwrap();
+        sm.add_message(&id, &hidden).await.unwrap();
+        sm.add_message(&id, &latest).await.unwrap();
+
+        assert_eq!(
+            snippet_of(&sm, &id).await.as_deref(),
+            Some("latest text to remove")
+        );
+
+        sm.truncate_conversation(&id, 3_000).await.unwrap();
+
+        assert_eq!(
+            snippet_of(&sm, &id).await.as_deref(),
+            Some("previous remaining text")
+        );
+    }
+
+    #[tokio::test]
+    async fn test_last_message_snippet_cleared_on_truncate_without_text_messages() {
+        use rmcp::model::CallToolRequestParams;
+
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = snippet_session(&sm).await;
+
+        let tool = message_at(
+            Message::assistant().with_tool_request("t1", Ok(CallToolRequestParams::new("shell"))),
+            500,
+        );
+        let text = message_at(Message::user().with_text("only text to remove"), 1_000);
+
+        sm.add_message(&id, &tool).await.unwrap();
+        sm.add_message(&id, &text).await.unwrap();
+
+        assert_eq!(
+            snippet_of(&sm, &id).await.as_deref(),
+            Some("only text to remove")
+        );
+
+        sm.truncate_conversation(&id, 1_000).await.unwrap();
+
+        assert_eq!(snippet_of(&sm, &id).await, None);
+    }
+
+    #[tokio::test]
+    async fn test_last_message_snippet_null_without_text_messages() {
+        use rmcp::model::CallToolRequestParams;
+
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = snippet_session(&sm).await;
+
+        sm.add_message(
+            &id,
+            &Message::assistant().with_tool_request("t1", Ok(CallToolRequestParams::new("shell"))),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(snippet_of(&sm, &id).await, None);
+    }
+
+    #[tokio::test]
+    async fn test_lazy_last_message_snippets_recompute_from_recent_messages() {
+        use rmcp::model::CallToolRequestParams;
+
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let visible_id = snippet_session(&sm).await;
+
+        sm.add_message(
+            &visible_id,
+            &Message::user().with_text("**raw** _markdown_ subtitle"),
+        )
+        .await
+        .unwrap();
+        for index in 0..3 {
+            sm.add_message(
+                &visible_id,
+                &Message::assistant()
+                    .with_text(format!("hidden summary {index}"))
+                    .with_metadata(MessageMetadata::agent_only()),
+            )
+            .await
+            .unwrap();
+        }
+        set_persisted_snippet(&sm, &visible_id, Some("stale persisted subtitle")).await;
+
+        let empty_id = snippet_session(&sm).await;
+        sm.add_message(
+            &empty_id,
+            &Message::assistant().with_tool_request("t1", Ok(CallToolRequestParams::new("shell"))),
+        )
+        .await
+        .unwrap();
+        sm.add_message(
+            &empty_id,
+            &Message::assistant()
+                .with_text("hidden only")
+                .with_metadata(MessageMetadata::agent_only()),
+        )
+        .await
+        .unwrap();
+        set_persisted_snippet(&sm, &empty_id, Some("stale empty subtitle")).await;
+
+        let mut sessions = vec![
+            sm.get_session(&visible_id, false).await.unwrap(),
+            sm.get_session(&empty_id, false).await.unwrap(),
+        ];
+        let stats = sm
+            .hydrate_last_message_snippets(&mut sessions)
+            .await
+            .unwrap();
+        let by_id = sessions
+            .into_iter()
+            .map(|session| (session.id, session.last_message_snippet))
+            .collect::<HashMap<_, _>>();
+
+        assert_eq!(
+            by_id
+                .get(&visible_id)
+                .and_then(|snippet| snippet.as_deref()),
+            Some("**raw** _markdown_ subtitle")
+        );
+        assert_eq!(by_id.get(&empty_id), Some(&None));
+        assert_eq!(stats.session_count, 2);
+        assert_eq!(stats.batches, 1);
+        assert_eq!(stats.rows_fetched, 6);
+        assert_eq!(stats.scan_limit_misses, 0);
+    }
+
+    #[tokio::test]
+    async fn test_lazy_last_message_snippets_stays_bounded() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = snippet_session(&sm).await;
+
+        sm.add_message(&id, &Message::user().with_text("older visible text"))
+            .await
+            .unwrap();
+        for index in 0..RECENT_MESSAGE_SNIPPET_SCAN_LIMIT {
+            sm.add_message(
+                &id,
+                &Message::assistant()
+                    .with_text(format!("hidden summary {index}"))
+                    .with_metadata(MessageMetadata::agent_only()),
+            )
+            .await
+            .unwrap();
+        }
+        set_persisted_snippet(&sm, &id, Some("stale persisted subtitle")).await;
+
+        let mut sessions = vec![sm.get_session(&id, false).await.unwrap()];
+        let stats = sm
+            .hydrate_last_message_snippets(&mut sessions)
+            .await
+            .unwrap();
+
+        assert_eq!(sessions[0].last_message_snippet, None);
+        assert_eq!(stats.batches, 1);
+        assert_eq!(stats.rows_fetched, RECENT_MESSAGE_SNIPPET_SCAN_LIMIT);
+        assert_eq!(
+            stats.messages_deserialized,
+            RECENT_MESSAGE_SNIPPET_SCAN_LIMIT
+        );
+        assert_eq!(stats.scan_limit_misses, 1);
+    }
+
+    fn bench_text(session_index: usize, message_index: usize) -> String {
+        let line_count = 10 + ((session_index * 17 + message_index * 13) % 91);
+        let mut text = String::new();
+        for line_index in 0..line_count {
+            text.push_str(&format!(
+                "session {session_index} message {message_index} line {line_index} benchmark text with enough words to resemble a real stored transcript row\n"
+            ));
+        }
+        text
+    }
+
+    async fn seed_session_subtitle_bench(
+        sm: &SessionManager,
+        session_count: usize,
+        messages_per_session: usize,
+    ) {
+        let pool = sm.storage().pool().await.unwrap();
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await.unwrap();
+
+        for session_index in 0..session_count {
+            let session_id = format!("bench_{session_index:04}");
+            let updated_at = format!(
+                "2026-01-{:02} {:02}:{:02}:00",
+                1 + (session_index / 1440),
+                (session_index / 60) % 24,
+                session_index % 60
+            );
+
+            sqlx::query(
+                "INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data, goose_mode, updated_at)
+                 VALUES (?, ?, FALSE, ?, ?, '{}', ?, ?)",
+            )
+            .bind(&session_id)
+            .bind(format!("Bench session {session_index}"))
+            .bind(SessionType::Acp.to_string())
+            .bind("/tmp/session-subtitle-bench")
+            .bind(GooseMode::default().to_string())
+            .bind(&updated_at)
+            .execute(&mut *tx)
+            .await
+            .unwrap();
+
+            let mut persisted_snippet = None;
+            for message_index in 0..messages_per_session {
+                let text = bench_text(session_index, message_index);
+                let role = if message_index % 2 == 0 {
+                    Role::User
+                } else {
+                    Role::Assistant
+                };
+                let is_recent_hidden = message_index + 6 >= messages_per_session;
+                let mut message = Message::new(
+                    role,
+                    1_700_000_000 + message_index as i64,
+                    vec![MessageContent::text(text)],
+                )
+                .with_id(format!("bench_msg_{session_index}_{message_index}"));
+                if is_recent_hidden {
+                    message = message.with_metadata(MessageMetadata::agent_only());
+                }
+
+                if let Some(snippet) = message_snippet(&message, LAST_MESSAGE_SNIPPET_MAX_CHARS) {
+                    persisted_snippet = Some(snippet);
+                }
+
+                sqlx::query(
+                    "INSERT INTO messages (message_id, session_id, role, content_json, created_timestamp, metadata_json)
+                     VALUES (?, ?, ?, ?, ?, ?)",
+                )
+                .bind(message.id.as_deref())
+                .bind(&session_id)
+                .bind(role_to_string(&message.role))
+                .bind(serde_json::to_string(&message.content).unwrap())
+                .bind(message.created)
+                .bind(serde_json::to_string(&message.metadata).unwrap())
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+            }
+
+            sqlx::query("UPDATE sessions SET last_message_snippet = ? WHERE id = ?")
+                .bind(persisted_snippet)
+                .bind(&session_id)
+                .execute(&mut *tx)
+                .await
+                .unwrap();
+        }
+
+        tx.commit().await.unwrap();
+    }
+
+    #[tokio::test]
+    #[ignore = "benchmark-style comparison; run with GOOSE_SESSION_SNIPPET_MODE=persisted|lazy"]
+    async fn session_subtitle_list_bench() {
+        const SESSION_COUNT: usize = 240;
+        const MESSAGES_PER_SESSION: usize = 96;
+        const PAGE_SIZE: usize = 50;
+
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let seed_start = std::time::Instant::now();
+        seed_session_subtitle_bench(&sm, SESSION_COUNT, MESSAGES_PER_SESSION).await;
+        let seed_elapsed = seed_start.elapsed();
+
+        let mode = SessionSnippetMode::from_env();
+        let types = [SessionType::Acp];
+        let total_start = std::time::Instant::now();
+        let list_start = std::time::Instant::now();
+        let mut page = sm
+            .list_sessions_paged(SessionListPageQuery {
+                filters: SessionListFilters {
+                    types: Some(&types),
+                    only_sessions_with_messages: true,
+                    ..Default::default()
+                },
+                cursor: None,
+                page_size: PAGE_SIZE,
+            })
+            .await
+            .unwrap();
+        let list_elapsed = list_start.elapsed();
+
+        let hydrate_start = std::time::Instant::now();
+        let stats = match mode {
+            SessionSnippetMode::Persisted => SessionSnippetHydrationStats {
+                session_count: page.sessions.len(),
+                ..Default::default()
+            },
+            SessionSnippetMode::Lazy => sm
+                .hydrate_last_message_snippets(&mut page.sessions)
+                .await
+                .unwrap(),
+        };
+        let hydrate_elapsed = hydrate_start.elapsed();
+        let total_elapsed = total_start.elapsed();
+        let snippets = page
+            .sessions
+            .iter()
+            .filter(|session| session.last_message_snippet.is_some())
+            .count();
+
+        println!(
+            "session_subtitle_list_bench mode={mode:?} total_sessions={SESSION_COUNT} messages_per_session={MESSAGES_PER_SESSION} total_messages={} page_size={PAGE_SIZE} page_sessions={} snippets={snippets} seed_ms={} list_ms={} hydrate_ms={} total_ms={} batches={} rows_fetched={} messages_deserialized={} scan_limit_misses={} text_lines=10..100 storage=messages.content_json_full_rows scan_limit={RECENT_MESSAGE_SNIPPET_SCAN_LIMIT}",
+            SESSION_COUNT * MESSAGES_PER_SESSION,
+            page.sessions.len(),
+            seed_elapsed.as_millis(),
+            list_elapsed.as_millis(),
+            hydrate_elapsed.as_millis(),
+            total_elapsed.as_millis(),
+            stats.batches,
+            stats.rows_fetched,
+            stats.messages_deserialized,
+            stats.scan_limit_misses
+        );
     }
 }
