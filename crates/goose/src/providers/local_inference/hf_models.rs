@@ -1319,11 +1319,12 @@ mod tests {
     }
 }
 
-fn hf_client() -> Result<HFClient> {
-    HFClient::builder()
-        .user_agent("goose-ai-agent")
-        .build()
-        .map_err(Into::into)
+async fn hf_client() -> Result<HFClient> {
+    let mut builder = HFClient::builder().user_agent("goose-ai-agent");
+    if let Some(token) = huggingface_auth::resolve_token_async().await? {
+        builder = builder.token(token);
+    }
+    builder.build().map_err(Into::into)
 }
 
 fn model_repo(client: &HFClient, repo_id: &str) -> Result<HFRepository<RepoTypeModel>> {
@@ -1350,7 +1351,7 @@ async fn search_mlx_models(query: &str, limit: usize) -> Result<Vec<HfModelInfo>
 }
 
 async fn search_mlx_models_with_query(query: &str, limit: usize) -> Result<Vec<HfModelInfo>> {
-    let client = hf_client()?;
+    let client = hf_client().await?;
     let stream = client
         .list_models()
         .search(query.to_string())
@@ -1374,7 +1375,7 @@ async fn search_mlx_models_with_query(query: &str, limit: usize) -> Result<Vec<H
 }
 
 async fn get_local_model_info_for_repo(repo_id: &str) -> Result<Option<HfModelInfo>> {
-    let client = hf_client()?;
+    let client = hf_client().await?;
     let repo = model_repo(&client, repo_id)?;
     let info = repo
         .info()
@@ -1449,7 +1450,7 @@ pub async fn get_repo_local_variants(repo_id: &str) -> Result<Vec<HfModelVariant
 }
 
 pub async fn get_repo_mlx_variants(repo_id: &str) -> Result<Vec<HfModelVariant>> {
-    let client = hf_client()?;
+    let client = hf_client().await?;
     let repo = model_repo(&client, repo_id)?;
     let info = repo
         .info()
@@ -1739,7 +1740,7 @@ async fn download_gguf_to_hf_cache(
         .sum();
     let progress = HfDownloadProgress::new(model_id, total_size);
     progress.init();
-    let client = hf_client()?;
+    let client = hf_client().await?;
     let repo = client.model(owner.to_string(), name.to_string());
     let mut paths = Vec::with_capacity(resolved.files.len());
     for file in &resolved.files {
@@ -1830,7 +1831,7 @@ async fn resolve_mlx_model(repo_id: &str, variant_id: &str) -> Result<ResolvedLo
         bail!("No MLX variant '{}' found in {}", variant_id, repo_id);
     }
     let (owner, name) = split_repo_id(repo_id)?;
-    let client = hf_client()?;
+    let client = hf_client().await?;
     let repo = client.model(owner.to_string(), name.to_string());
     let info = repo
         .info()
