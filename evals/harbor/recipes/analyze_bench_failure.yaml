@@ -83,11 +83,15 @@ prompt: |
 
   if that's empty, fall back to a broader search in case the task came
   from a git source or a different org. note that `find` returns the
-  parent (one level above the digest), so descend one more level:
+  parent (one level above the digest), so descend one more level. guard
+  against `$PARENT` being empty — otherwise the glob expands to `/*/` and
+  matches the filesystem root:
 
   ```
   PARENT=$(find ~/.cache/harbor/tasks -type d -name "{{ task }}" 2>/dev/null | head -1)
-  TASK_DIR=$(ls -d "$PARENT"/*/ 2>/dev/null | head -1)
+  if [ -n "$PARENT" ]; then
+    TASK_DIR=$(ls -d "$PARENT"/*/ 2>/dev/null | head -1)
+  fi
   ```
 
   if both come up empty the task isn't cached locally — say so and continue

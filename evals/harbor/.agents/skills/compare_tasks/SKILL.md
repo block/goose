@@ -125,11 +125,14 @@ ls "$TASK_DIR"
 
 If that's empty, the task could be from a different org or a git source —
 broaden the search. `find` returns the parent (one level above the
-digest), so descend one more level:
+digest), so descend one more level. Guard against `$PARENT` being empty,
+otherwise the glob expands to `/*/` and matches the filesystem root:
 
 ```bash
 PARENT=$(find ~/.cache/harbor/tasks -type d -name "$TASK" 2>/dev/null | head -1)
-TASK_DIR=$(ls -d "$PARENT"/*/ 2>/dev/null | head -1)
+if [ -n "$PARENT" ]; then
+  TASK_DIR=$(ls -d "$PARENT"/*/ 2>/dev/null | head -1)
+fi
 ```
 
 If both lookups come up empty, the task hasn't been downloaded on this
