@@ -630,8 +630,10 @@ impl Agent {
     async fn drain_elicitation_messages(&self, session_id: &str) -> Vec<Message> {
         let mut messages = Vec::new();
         let manager = self.config.session_manager.clone();
-        let mut elicitation_rx = ActionRequiredManager::global().request_rx.lock().await;
-        while let Ok(mut elicitation_message) = elicitation_rx.try_recv() {
+        for mut elicitation_message in ActionRequiredManager::global()
+            .drain_requests_for_session(session_id)
+            .await
+        {
             if elicitation_message.id.is_none() {
                 elicitation_message = elicitation_message.with_generated_id();
             }
@@ -1460,7 +1462,7 @@ impl Agent {
                     // The success path returns an empty stream; an Err here
                     // makes the contract: Ok(empty) on accept, Err on reject.
                     ActionRequiredManager::global()
-                        .submit_response(id.clone(), user_data.clone())
+                        .submit_response(&session_config.id, id.clone(), user_data.clone())
                         .await
                         .map_err(|e| {
                             error!("Failed to submit elicitation response: {}", e);

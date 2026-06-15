@@ -371,8 +371,19 @@ impl ClientHandler for GooseClient {
     async fn create_elicitation(
         &self,
         request: CreateElicitationRequestParams,
-        _context: RequestContext<RoleClient>,
+        context: RequestContext<RoleClient>,
     ) -> Result<CreateElicitationResult, ErrorData> {
+        let session_id = self
+            .resolve_session_id(&context.extensions)
+            .await
+            .ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "Could not resolve session id for elicitation request",
+                    None,
+                )
+            })?;
+
         let (message, schema_value) = match &request {
             CreateElicitationRequestParams::FormElicitationParams {
                 message,
@@ -394,7 +405,7 @@ impl ClientHandler for GooseClient {
         };
 
         ActionRequiredManager::global()
-            .request_and_wait(message, schema_value, Duration::from_secs(300))
+            .request_and_wait(session_id, message, schema_value, Duration::from_secs(300))
             .await
             .map(|user_data| {
                 CreateElicitationResult::new(ElicitationAction::Accept).with_content(user_data)

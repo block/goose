@@ -2660,7 +2660,11 @@ impl GooseAcpAgent {
         req: ElicitationRespondRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         ActionRequiredManager::global()
-            .submit_response(req.elicitation_id.clone(), req.user_data.clone())
+            .submit_response(
+                &req.session_id,
+                req.elicitation_id.clone(),
+                req.user_data.clone(),
+            )
             .await
             .invalid_params_err_ctx("Failed to submit elicitation response")?;
 
