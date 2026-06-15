@@ -1372,9 +1372,11 @@ impl SummonClient {
             } else {
                 let available_names: Vec<String> =
                     extensions.iter().map(|ext| ext.name()).collect();
-                let unmatched: Vec<&String> = filter
+                extensions.retain(|ext| filter.contains(&ext.name()));
+                let unmatched: Vec<&str> = filter
                     .iter()
-                    .filter(|name| !available_names.contains(name))
+                    .filter(|name| !available_names.iter().any(|n| n == *name))
+                    .map(String::as_str)
                     .collect();
                 if !unmatched.is_empty() {
                     warn!(
@@ -1382,7 +1384,6 @@ impl SummonClient {
                         unmatched, available_names
                     );
                 }
-                extensions.retain(|ext| filter.contains(&ext.name()));
             }
         }
 
