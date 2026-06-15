@@ -284,6 +284,7 @@ mod tests {
             session_manager: Arc::new(SessionManager::new(std::env::temp_dir())),
             session: None,
             use_login_shell_path: false,
+            job_registry: None,
         }
     }
 

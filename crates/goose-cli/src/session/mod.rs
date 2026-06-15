@@ -4,6 +4,7 @@ mod editor;
 mod elicitation;
 mod export;
 mod input;
+mod input_thread;
 mod output;
 pub mod streaming_buffer;
 mod task_execution_display;
@@ -113,20 +114,20 @@ pub enum RunMode {
     Plan,
 }
 
-struct HistoryManager {
+pub(super) struct HistoryManager {
     history_file: PathBuf,
     old_history_file: PathBuf,
 }
 
 impl HistoryManager {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         Self {
             history_file: Paths::state_dir().join("history.txt"),
             old_history_file: Paths::config_dir().join("history.txt"),
         }
     }
 
-    fn load(
+    pub(super) fn load(
         &self,
         editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
     ) {
@@ -146,7 +147,7 @@ impl HistoryManager {
         }
     }
 
-    fn save(
+    pub(super) fn save(
         &self,
         editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
     ) {
@@ -508,34 +509,338 @@ impl CliSession {
 
         self.update_completion_cache().await?;
 
-        let mut editor = self.create_editor()?;
-        let history_manager = HistoryManager::new();
-        history_manager.load(&mut editor);
+        let editor = self.create_editor()?;
+        let mut input_handle = input_thread::spawn_input_thread(editor);
+
+        // Take the job event receiver for listening to actionable events
+        let mut job_event_rx = self.agent.take_job_event_rx().await;
+
+        // Subscribe to MCP notifications for real-time display
+        let mut notification_rx = self.agent.extension_manager.subscribe_notifications();
+
+        // Display initial context usage once before the prompt
+        self.display_context_usage().await?;
 
         loop {
-            self.display_context_usage().await?;
-
-            let conversation_strings: Vec<String> = self
-                .messages
-                .iter()
-                .map(|msg| {
-                    let role = match msg.role {
-                        rmcp::model::Role::User => "User",
-                        rmcp::model::Role::Assistant => "Assistant",
-                    };
-                    format!("## {}: {}", role, msg.as_concat_text())
-                })
-                .collect();
-
             output::run_status_hook("waiting");
-            let input = input::get_input(&mut editor, Some(&conversation_strings))?;
-            if matches!(input, InputResult::Exit) {
-                break;
+
+            tokio::select! {
+                event = input_handle.event_rx.recv() => {
+                    match event {
+                        Some(input_thread::InputEvent::Input(input_result)) => {
+                            if matches!(input_result, InputResult::Exit) {
+                                break;
+                            }
+                            let is_message = matches!(input_result, InputResult::Message(_));
+                            self.handle_input_async(input_result).await?;
+                            if is_message {
+                                self.display_context_usage().await?;
+                            }
+                            let _ = input_handle.command_tx.send(input_thread::InputCommand::Resume);
+                        }
+                        Some(input_thread::InputEvent::Closed) | None => {
+                            break;
+                        }
+                    }
+                }
+                Some(job_event) = async {
+                    match job_event_rx.as_mut() {
+                        Some(rx) => rx.recv().await,
+                        None => std::future::pending::<Option<goose::jobs::JobEvent>>().await,
+                    }
+                } => {
+                    self.handle_job_event(job_event, &mut input_handle.printer).await?;
+                }
+                Ok((extension_name, notification)) = notification_rx.recv() => {
+                    if let Some(uri) = Self::notification_interrupt_uri(&notification) {
+                        input_handle.printer.print(format!(
+                            "⚡ {} interrupted: {}\n", extension_name, uri
+                        ));
+                        let prompt = format!(
+                            "System: Resource notification from '{}' with interrupt — uri: {}",
+                            extension_name, uri
+                        );
+                        let msg = Message::user().with_text(&prompt);
+                        self.process_message(msg, CancellationToken::default(), true)
+                            .await?;
+                        self.display_context_usage().await?;
+                        let _ = input_handle.command_tx.send(input_thread::InputCommand::Resume);
+                    } else {
+                        Self::handle_notification(&extension_name, &notification, &mut input_handle.printer);
+                    }
+                }
             }
-            self.handle_input(input, &history_manager, &mut editor, &conversation_strings)
-                .await?;
         }
 
+        let _ = input_handle
+            .command_tx
+            .send(input_thread::InputCommand::Shutdown);
+        Ok(())
+    }
+
+    /// Display an MCP notification to the user via ExternalPrinter (non-blocking).
+    fn handle_notification(
+        extension_name: &str,
+        notification: &ServerNotification,
+        printer: &mut input_thread::Printer,
+    ) {
+        use rmcp::model::ServerNotification as SN;
+        let msg = match notification {
+            SN::ProgressNotification(p) => {
+                let progress_msg = p.params.message.as_deref().unwrap_or("in progress");
+                format!("  {} {}\n", extension_name, progress_msg)
+            }
+            SN::ResourceUpdatedNotification(r) => {
+                format!("  {} resource updated: {}\n", extension_name, r.params.uri)
+            }
+            SN::LoggingMessageNotification(_) => return, // Route to log file only
+            _ => return,
+        };
+        printer.print(msg);
+    }
+
+    /// Check if a notification carries interrupt=true, returning the URI if so.
+    fn notification_interrupt_uri(notification: &ServerNotification) -> Option<&str> {
+        use rmcp::model::ServerNotification as SN;
+        if let SN::ResourceUpdatedNotification(r) = notification {
+            if r.params.uri.contains("interrupt=true") {
+                return Some(&r.params.uri);
+            }
+        }
+        None
+    }
+
+    /// Handle an actionable job event (batch completed, job finished, etc.)
+    async fn handle_job_event(
+        &mut self,
+        event: goose::jobs::JobEvent,
+        printer: &mut input_thread::Printer,
+    ) -> Result<()> {
+        match event {
+            goose::jobs::JobEvent::BatchCompleted {
+                batch_id,
+                job_summaries,
+            } => {
+                let summary_text: Vec<String> = job_summaries
+                    .iter()
+                    .map(|s| {
+                        let status = match s.state {
+                            goose::jobs::JobState::Completed => "✓ completed",
+                            goose::jobs::JobState::Failed => "✗ failed",
+                            _ => "unknown",
+                        };
+                        format!(
+                            "  • {} \"{}\": {} ({:.0?})",
+                            s.id, s.description, status, s.duration
+                        )
+                    })
+                    .collect();
+
+                let prompt = format!(
+                    "System: All background tasks in batch '{}' have completed:\n{}\n\n\
+                     Use load(source: \"<id>\") to examine results and determine next steps.",
+                    batch_id,
+                    summary_text.join("\n")
+                );
+
+                printer.print(
+                    "⚡ All background tasks complete. Assistant responding...\n".to_string(),
+                );
+                let msg = Message::user().with_text(&prompt);
+                self.process_message(msg, CancellationToken::default(), true)
+                    .await?;
+            }
+            goose::jobs::JobEvent::JobCompleted { job } => {
+                let status = match job.state {
+                    goose::jobs::JobState::Completed => "✓ completed",
+                    goose::jobs::JobState::Failed => "✗ failed",
+                    _ => "finished",
+                };
+                let follow_up = match job.source {
+                    goose::jobs::JobSource::Process => {
+                        format!(
+                            "Use process__read_output(process_id: \"{}\") to see the output.",
+                            job.id
+                        )
+                    }
+                    goose::jobs::JobSource::Timer => {
+                        format!("The reminder message was: \"{}\"", job.description)
+                    }
+                    _ => {
+                        format!("Use load(source: \"{}\") to examine the result.", job.id)
+                    }
+                };
+                let prompt = format!(
+                    "System: Background task {} \"{}\" has {} ({:.0?}).\n{}",
+                    job.id, job.description, status, job.duration, follow_up
+                );
+
+                printer.print(format!(
+                    "⚡ Task '{}' completed. Assistant responding...\n",
+                    job.description
+                ));
+                let msg = Message::user().with_text(&prompt);
+                self.process_message(msg, CancellationToken::default(), true)
+                    .await?;
+            }
+            goose::jobs::JobEvent::JobNeedsInput { job_id, question } => {
+                let prompt = format!(
+                    "System: Background task '{}' needs your input: {}",
+                    job_id, question
+                );
+                printer.print(format!("❓ Task '{}' has a question\n", job_id));
+                let msg = Message::user().with_text(&prompt);
+                self.process_message(msg, CancellationToken::default(), true)
+                    .await?;
+            }
+            goose::jobs::JobEvent::PatternMatched {
+                job_id,
+                pattern,
+                context,
+            } => {
+                let prompt = format!(
+                    "System: Background task '{}' matched pattern \"{}\": {}",
+                    job_id, pattern, context
+                );
+                printer.print(format!(
+                    "⚡ Task '{}' matched '{}'. Assistant responding...\n",
+                    job_id, pattern
+                ));
+                let msg = Message::user().with_text(&prompt);
+                self.process_message(msg, CancellationToken::default(), true)
+                    .await?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Handle input from the async input thread. Like handle_input but without
+    /// editor/history references (those are managed by the input thread).
+    async fn handle_input_async(&mut self, input: InputResult) -> Result<()> {
+        match input {
+            InputResult::Message(content) => match self.run_mode {
+                RunMode::Normal => {
+                    self.push_message(Message::user().with_text(&content));
+
+                    if let Err(e) = crate::project_tracker::update_project_tracker(
+                        Some(&content),
+                        Some(&self.session_id),
+                    ) {
+                        eprintln!(
+                            "Warning: Failed to update project tracker with instruction: {}",
+                            e
+                        );
+                    }
+
+                    let _provider = self.agent.provider().await?;
+
+                    println!();
+                    output::run_status_hook("thinking");
+                    output::show_thinking();
+                    let start_time = Instant::now();
+                    self.process_agent_response(true, CancellationToken::default())
+                        .await?;
+                    output::hide_thinking();
+
+                    let elapsed = start_time.elapsed();
+                    let elapsed_str = format_elapsed_time(elapsed);
+                    println!("{}", console::style(format!("  ⏱ {}", elapsed_str)).dim());
+                }
+                RunMode::Plan => {
+                    let mut plan_messages = self.messages.clone();
+                    plan_messages.push(Message::user().with_text(&content));
+                    let reasoner = get_reasoner().await?;
+                    self.plan_with_reasoner_model(plan_messages, reasoner)
+                        .await?;
+                }
+            },
+            InputResult::Exit => unreachable!("Exit is handled in the main loop"),
+            InputResult::AddExtension(cmd) => match self.add_extension(cmd.clone()).await {
+                Ok(_) => output::render_extension_success(&cmd),
+                Err(e) => output::render_extension_error(&cmd, &e.to_string()),
+            },
+            InputResult::AddBuiltin(names) => match self.add_builtin(names.clone()).await {
+                Ok(_) => output::render_builtin_success(&names),
+                Err(e) => output::render_builtin_error(&names, &e.to_string()),
+            },
+            InputResult::ToggleTheme => {
+                self.handle_toggle_theme();
+            }
+            InputResult::ToggleFullToolOutput => {
+                self.handle_toggle_full_tool_output();
+            }
+            InputResult::SelectTheme(theme_name) => {
+                self.handle_select_theme(&theme_name);
+            }
+            InputResult::Retry => {}
+            InputResult::ListPrompts(extension) => match self.list_prompts(extension).await {
+                Ok(prompts) => output::render_prompts(&prompts),
+                Err(e) => output::render_error(&e.to_string()),
+            },
+            InputResult::GooseMode(mode) => {
+                self.handle_goose_mode(&mode).await?;
+            }
+            InputResult::Model(model) => {
+                self.handle_model(model.as_deref()).await?;
+            }
+            InputResult::Plan(options) => {
+                self.handle_plan_mode(options).await?;
+            }
+            InputResult::EndPlan => {
+                self.run_mode = RunMode::Normal;
+                output::render_exit_plan_mode();
+            }
+            InputResult::Clear => {
+                self.handle_clear().await?;
+            }
+            InputResult::PromptCommand(opts) => {
+                self.handle_prompt_command(opts).await?;
+            }
+            InputResult::Recipe(filepath_opt) => {
+                self.handle_recipe(filepath_opt).await;
+            }
+            InputResult::Compact => {
+                self.handle_compact().await?;
+            }
+            InputResult::Edit(prefill) => match crate::session::editor::resolve_editor_command() {
+                Some(editor_cmd) => {
+                    let messages: Vec<String> = self
+                        .messages
+                        .iter()
+                        .map(|msg| msg.as_concat_text())
+                        .collect();
+                    let message_refs: Vec<&str> = messages.iter().map(|s| s.as_str()).collect();
+                    match crate::session::editor::get_editor_input(
+                        &editor_cmd,
+                        &message_refs,
+                        prefill.as_deref(),
+                    ) {
+                        Ok((message, true)) => {
+                            let msg = Message::user().with_text(&message);
+                            self.process_message(msg, CancellationToken::default(), true)
+                                .await?;
+                        }
+                        Ok((_, false)) => {}
+                        Err(e) => {
+                            output::render_error(&format!("Failed to open editor: {}", e));
+                        }
+                    }
+                }
+                None => {
+                    output::render_error(
+                        "No editor found. Set one with:\n  \
+                                 goose configure set goose_prompt_editor \"vim\"\n  \
+                                 or set $VISUAL or $EDITOR in your shell.",
+                    );
+                }
+            },
+            InputResult::LoadSkills(names) => {
+                self.handle_load_skills(&names).await?;
+            }
+            InputResult::ListSkills => {
+                self.handle_list_skills().await?;
+            }
+        }
         Ok(())
     }
 
@@ -556,170 +861,6 @@ impl CliSession {
         let completer = GooseCompleter::new(self.completion_cache.clone());
         editor.set_helper(Some(completer));
         Ok(editor)
-    }
-
-    async fn handle_input(
-        &mut self,
-        input: InputResult,
-        history: &HistoryManager,
-        editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
-        conversation_messages: &[String],
-    ) -> Result<()> {
-        match input {
-            InputResult::Message(content) => {
-                self.handle_message_input(&content, history, editor).await?;
-            }
-            InputResult::Exit => unreachable!("Exit is handled in the main loop"),
-            InputResult::AddExtension(cmd) => {
-                history.save(editor);
-                match self.add_extension(cmd.clone()).await {
-                    Ok(_) => output::render_extension_success(&cmd),
-                    Err(e) => output::render_extension_error(&cmd, &e.to_string()),
-                }
-            }
-            InputResult::AddBuiltin(names) => {
-                history.save(editor);
-                match self.add_builtin(names.clone()).await {
-                    Ok(_) => output::render_builtin_success(&names),
-                    Err(e) => output::render_builtin_error(&names, &e.to_string()),
-                }
-            }
-            InputResult::ToggleTheme => {
-                history.save(editor);
-                self.handle_toggle_theme();
-            }
-            InputResult::ToggleFullToolOutput => {
-                history.save(editor);
-                self.handle_toggle_full_tool_output();
-            }
-            InputResult::SelectTheme(theme_name) => {
-                history.save(editor);
-                self.handle_select_theme(&theme_name);
-            }
-            InputResult::Retry => {}
-            InputResult::ListPrompts(extension) => {
-                history.save(editor);
-                match self.list_prompts(extension).await {
-                    Ok(prompts) => output::render_prompts(&prompts),
-                    Err(e) => output::render_error(&e.to_string()),
-                }
-            }
-            InputResult::GooseMode(mode) => {
-                history.save(editor);
-                self.handle_goose_mode(&mode).await?;
-            }
-            InputResult::Model(model) => {
-                history.save(editor);
-                self.handle_model(model.as_deref()).await?;
-            }
-            InputResult::Plan(options) => {
-                self.handle_plan_mode(options).await?;
-            }
-            InputResult::EndPlan => {
-                self.run_mode = RunMode::Normal;
-                output::render_exit_plan_mode();
-            }
-            InputResult::Clear => {
-                history.save(editor);
-                self.handle_clear().await?;
-            }
-            InputResult::PromptCommand(opts) => {
-                history.save(editor);
-                self.handle_prompt_command(opts).await?;
-            }
-            InputResult::Recipe(filepath_opt) => {
-                history.save(editor);
-                self.handle_recipe(filepath_opt).await;
-            }
-            InputResult::Compact => {
-                history.save(editor);
-                self.handle_compact().await?;
-            }
-            InputResult::Edit(prefill) => {
-                history.save(editor);
-                match crate::session::editor::resolve_editor_command() {
-                    Some(editor_cmd) => {
-                        let messages: Vec<&str> =
-                            conversation_messages.iter().map(|s| s.as_str()).collect();
-                        match crate::session::editor::get_editor_input(
-                            &editor_cmd,
-                            &messages,
-                            prefill.as_deref(),
-                        ) {
-                            Ok((message, true)) => {
-                                self.handle_message_input(&message, history, editor).await?;
-                            }
-                            Ok((_, false)) => {}
-                            Err(e) => {
-                                output::render_error(&format!("Failed to open editor: {}", e));
-                            }
-                        }
-                    }
-                    None => {
-                        output::render_error(
-                            "No editor found. Set one with:\n  \
-                                 goose configure set goose_prompt_editor \"vim\"\n  \
-                                 or set $VISUAL or $EDITOR in your shell.",
-                        );
-                    }
-                }
-            }
-            InputResult::LoadSkills(names) => {
-                history.save(editor);
-                self.handle_load_skills(&names).await?;
-            }
-            InputResult::ListSkills => {
-                history.save(editor);
-                self.handle_list_skills().await?;
-            }
-        }
-        Ok(())
-    }
-
-    async fn handle_message_input(
-        &mut self,
-        content: &str,
-        history: &HistoryManager,
-        editor: &mut rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory>,
-    ) -> Result<()> {
-        match self.run_mode {
-            RunMode::Normal => {
-                history.save(editor);
-                self.push_message(Message::user().with_text(content));
-
-                if let Err(e) = crate::project_tracker::update_project_tracker(
-                    Some(content),
-                    Some(&self.session_id),
-                ) {
-                    eprintln!(
-                        "Warning: Failed to update project tracker with instruction: {}",
-                        e
-                    );
-                }
-
-                let _provider = self.agent.provider().await?;
-
-                println!();
-                output::run_status_hook("thinking");
-                output::show_thinking();
-                let start_time = Instant::now();
-                self.process_agent_response(true, CancellationToken::default())
-                    .await?;
-                output::hide_thinking();
-
-                let elapsed = start_time.elapsed();
-                let elapsed_str = format_elapsed_time(elapsed);
-                println!("{}", console::style(format!("  ⏱ {}", elapsed_str)).dim());
-            }
-            RunMode::Plan => {
-                let mut plan_messages = self.messages.clone();
-                plan_messages.push(Message::user().with_text(content));
-                let reasoner = get_reasoner().await?;
-                self.plan_with_reasoner_model(plan_messages, reasoner)
-                    .await?;
-            }
-        }
-        Ok(())
     }
 
     fn handle_toggle_theme(&self) {

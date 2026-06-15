@@ -242,6 +242,9 @@ pub struct Agent {
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
     pub(super) hook_manager: crate::hooks::HookManager,
+    pub job_registry: crate::jobs::SharedJobRegistry,
+    /// Job event receiver — take this once to listen for actionable events.
+    pub job_event_rx: Mutex<Option<tokio::sync::mpsc::UnboundedReceiver<crate::jobs::JobEvent>>>,
     #[cfg(test)]
     stop_hook_block_cap_override: Option<u32>,
     container: Mutex<Option<Container>>,
@@ -339,6 +342,7 @@ impl Agent {
         let use_login_shell_path = config
             .use_login_shell_path
             .unwrap_or(matches!(goose_platform, GoosePlatform::GooseDesktop));
+        let (job_registry_handle, job_event_rx) = crate::jobs::create_job_registry();
         Self {
             provider: provider.clone(),
             config,
@@ -349,6 +353,7 @@ impl Agent {
                 client_name,
                 capabilities,
                 use_login_shell_path,
+                job_registry_handle.clone(),
             )),
             final_output_tool: Arc::new(Mutex::new(None)),
             frontend_extensions: Mutex::new(HashMap::new()),
@@ -364,6 +369,8 @@ impl Agent {
                 provider.clone(),
             ),
             hook_manager: crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref()),
+            job_registry: job_registry_handle,
+            job_event_rx: Mutex::new(Some(job_event_rx)),
             #[cfg(test)]
             stop_hook_block_cap_override: None,
             container: Mutex::new(None),
@@ -371,6 +378,15 @@ impl Agent {
             grind: Mutex::new(None),
             pending_steers: Mutex::new(HashMap::new()),
         }
+    }
+
+    /// Take the job event receiver. Call once to get the channel for listening
+    /// to actionable job events (batch completion, critical failures, etc.).
+    /// Returns None if already taken.
+    pub async fn take_job_event_rx(
+        &self,
+    ) -> Option<tokio::sync::mpsc::UnboundedReceiver<crate::jobs::JobEvent>> {
+        self.job_event_rx.lock().await.take()
     }
 
     /// Emit a lifecycle hook event with no extra context. Useful for events

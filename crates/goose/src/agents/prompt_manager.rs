@@ -467,6 +467,7 @@ mod tests {
             session_manager,
             session: Some(Arc::new(session)),
             use_login_shell_path: false,
+            job_registry: None,
         };
 
         let mut extensions: Vec<ExtensionInfo> = PLATFORM_EXTENSIONS

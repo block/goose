@@ -68,6 +68,7 @@ pub struct BackgroundTask {
     pub started_at: Instant,
     pub turns: Arc<AtomicU32>,
     pub last_activity: Arc<AtomicU64>,
+    pub last_message: Arc<std::sync::Mutex<String>>,
     pub handle: JoinHandle<Result<String>>,
     pub cancellation_token: CancellationToken,
     pub notification_buffer: Arc<Mutex<Vec<ServerNotification>>>,
@@ -475,6 +476,11 @@ impl SummonClient {
                     "type": "boolean",
                     "default": false,
                     "description": "For running background tasks: cancel and return output."
+                },
+                "peek": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Get a quick status snapshot of a background task without blocking or consuming it."
                 }
             }
         });
@@ -485,11 +491,13 @@ impl SummonClient {
              Call with no arguments to list all available sources (subrecipes, recipes, agents).\n\
              Call with a source name to load its content into your context.\n\
              For background tasks: load(source: \"task_id\") waits for the task and returns the result.\n\
-             To cancel a running task: load(source: \"task_id\", cancel: true) stops and returns output.\n\n\
+             To cancel a running task: load(source: \"task_id\", cancel: true) stops and returns output.\n\
+             To check status without blocking: load(source: \"task_id\", peek: true) returns a quick snapshot.\n\n\
              Examples:\n\
              - load() → Lists available sources\n\
              - load(source: \"deploy\") → Loads the deploy recipe\n\
-             - load(source: \"20260219_1\") → Waits for background task, then returns result"
+             - load(source: \"20260219_1\") → Waits for background task, then returns result\n\
+             - load(source: \"20260219_1\", peek: true) → Quick status check (non-blocking)"
                 .to_string(),
             schema.as_object().unwrap().clone(),
         )
@@ -555,7 +563,12 @@ impl SummonClient {
              - Parallel: async: true, then load(taskId) to wait and get results. Single: sync.\n\n\
              Research (read-only): parallelize freely - delegates explore and report back.\n\
              Work (writes): partition files strictly - no two delegates touch the same file.\n\n\
-             Decompose → async delegates → load(taskId) for each → synthesize."
+             Best practices:\n\
+             - Use async: true for builds, tests, deploys, and any task expected to take >30 seconds\n\
+             - After delegating async, continue working with the user\n\
+             - Use load(source: \"taskId\", peek: true) to check progress without blocking\n\
+             - Only use load(source: \"taskId\") (without peek) when you need the full result\n\n\
+             Decompose → async delegates → peek to monitor → load to collect → synthesize."
                 .to_string(),
             schema.as_object().unwrap().clone(),
         )
@@ -765,6 +778,12 @@ impl SummonClient {
             .and_then(|v| v.as_bool())
             .unwrap_or(false);
 
+        let peek = arguments
+            .as_ref()
+            .and_then(|args| args.get("peek"))
+            .and_then(|v| v.as_bool())
+            .unwrap_or(false);
+
         let working_dir = self.get_working_dir(session_id).await;
 
         if source_name.is_none() {
@@ -777,6 +796,12 @@ impl SummonClient {
         let name = source_name.unwrap();
 
         if is_session_id(name) {
+            if peek {
+                return self
+                    .handle_peek_task(name)
+                    .await
+                    .map(CallToolResult::success);
+            }
             let content = self.handle_load_task_result(name, cancel).await?;
             let mut meta = Meta::new();
             meta.0.insert(
@@ -915,6 +940,74 @@ impl SummonClient {
                     ));
                 }
             }
+        }
+
+        Err(format!("Task '{}' not found.", task_id))
+    }
+
+    async fn handle_peek_task(&self, task_id: &str) -> Result<Vec<Content>, String> {
+        // Check completed tasks first
+        let completed = self.completed_tasks.lock().await;
+        if let Some(task) = completed.get(task_id) {
+            let status = if task.result.is_ok() {
+                "✓ Completed"
+            } else {
+                "✗ Failed"
+            };
+            return Ok(vec![Content::text(format!(
+                "# Task Status: {}\n\n\
+                 **Task:** {}\n\
+                 **Status:** {}\n\
+                 **Duration:** {}\n\
+                 **Turns:** {}",
+                task_id,
+                task.description,
+                status,
+                round_duration(task.duration),
+                task.turns_taken,
+            ))]);
+        }
+        drop(completed);
+
+        // Check running tasks (read-only — no removal)
+        let running = self.background_tasks.lock().await;
+        if let Some(task) = running.get(task_id) {
+            let elapsed = task.started_at.elapsed();
+            let turns = task.turns.load(Ordering::Relaxed);
+            let now = current_epoch_millis();
+            let idle_ms = now.saturating_sub(task.last_activity.load(Ordering::Relaxed));
+            let last_msg = task.last_message.lock().unwrap().clone();
+            let notif_count = task.notification_buffer.lock().await.len();
+
+            let status = if task.handle.is_finished() {
+                "Completed (pending collection)"
+            } else {
+                "Running"
+            };
+
+            let mut output = format!(
+                "# Task Status: {}\n\n\
+                 **Task:** {}\n\
+                 **Status:** {}\n\
+                 **Duration:** {}\n\
+                 **Turns:** {}\n\
+                 **Idle:** {}",
+                task_id,
+                task.description,
+                status,
+                round_duration(elapsed),
+                turns,
+                round_duration(Duration::from_millis(idle_ms)),
+            );
+
+            if !last_msg.is_empty() {
+                output.push_str(&format!("\n**Last message:** {}", last_msg));
+            }
+            if notif_count > 0 {
+                output.push_str(&format!("\n**Buffered notifications:** {}", notif_count));
+            }
+
+            return Ok(vec![Content::text(output)]);
         }
 
         Err(format!("Task '{}' not found.", task_id))
@@ -1531,13 +1624,23 @@ impl SummonClient {
             completed.insert(
                 id.clone(),
                 CompletedTask {
-                    id,
+                    id: id.clone(),
                     description: task.description,
                     result,
                     turns_taken,
                     duration,
                 },
             );
+
+            // Update job registry
+            if let Some(ref registry) = self.context.job_registry {
+                let is_success = completed.get(&id).is_some_and(|t| t.result.is_ok());
+                if is_success {
+                    registry.lock().await.complete(&id, None);
+                } else {
+                    registry.lock().await.fail(&id, None);
+                }
+            }
         }
     }
 
@@ -1611,13 +1714,26 @@ impl SummonClient {
 
         let turns = Arc::new(AtomicU32::new(0));
         let last_activity = Arc::new(AtomicU64::new(current_epoch_millis()));
+        let last_message = Arc::new(std::sync::Mutex::new(String::new()));
 
         let turns_clone = Arc::clone(&turns);
         let last_activity_clone = Arc::clone(&last_activity);
+        let last_message_clone = Arc::clone(&last_message);
 
-        let on_message: OnMessageCallback = Arc::new(move |_msg| {
+        let on_message: OnMessageCallback = Arc::new(move |msg| {
             turns_clone.fetch_add(1, Ordering::Relaxed);
             last_activity_clone.store(current_epoch_millis(), Ordering::Relaxed);
+            if msg.role == rmcp::model::Role::Assistant {
+                let text = msg.as_concat_text();
+                if !text.is_empty() {
+                    let snippet = if text.len() > 200 {
+                        format!("{}...", &text.chars().take(200).collect::<String>())
+                    } else {
+                        text
+                    };
+                    *last_message_clone.lock().unwrap() = snippet;
+                }
+            }
         });
 
         let task_token = CancellationToken::new();
@@ -1652,6 +1768,7 @@ impl SummonClient {
             started_at: Instant::now(),
             turns,
             last_activity,
+            last_message,
             handle,
             cancellation_token: task_token,
             notification_buffer,
@@ -1661,6 +1778,50 @@ impl SummonClient {
             .lock()
             .await
             .insert(task_id.clone(), task);
+
+        // Register in the unified job registry
+        if let Some(ref registry) = self.context.job_registry {
+            let job = crate::jobs::Job {
+                id: task_id.clone(),
+                source: crate::jobs::JobSource::Subagent,
+                description: description.clone(),
+                state: crate::jobs::JobState::Working,
+                batch_id: None,
+                notify_policy: crate::jobs::NotifyPolicy::OnCompletion,
+                meta: crate::jobs::JobMeta::default(),
+                created_at: std::time::Instant::now(),
+                last_activity: std::time::Instant::now(),
+                notifications: Vec::new(),
+                result_summary: None,
+            };
+            registry.lock().await.register(job);
+
+            // Spawn watcher to drive job completion when the delegate finishes.
+            // We poll the JoinHandle via a separate spawned task that holds nothing
+            // from self — just the registry and a handle to the spawned future.
+            let registry_clone = Arc::clone(registry);
+            let watcher_id = task_id.clone();
+            let watcher_handle = {
+                let tasks = self.background_tasks.lock().await;
+                let task_ref = tasks.get(&watcher_id).unwrap();
+                task_ref.handle.abort_handle()
+            };
+            tokio::spawn(async move {
+                // Poll until the task finishes (abort handle lets us check without owning)
+                loop {
+                    tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+                    if watcher_handle.is_finished() {
+                        let mut reg = registry_clone.lock().await;
+                        if let Some(job) = reg.get(&watcher_id) {
+                            if !job.state.is_terminal() {
+                                reg.complete(&watcher_id, None);
+                            }
+                        }
+                        break;
+                    }
+                }
+            });
+        }
 
         let content = vec![Content::text(format!(
             "Task {} started in background: \"{}\"\n\
@@ -1808,7 +1969,7 @@ impl McpClientTrait for SummonClient {
 
         if !running.is_empty() {
             lines.push(
-                "\n→ Use load(source: \"<id>\") to wait for a task, or load(source: \"<id>\", cancel: true) to stop it"
+                "\n→ peek: load(source: \"<id>\", peek: true) | collect: load(source: \"<id>\") | cancel: load(source: \"<id>\", cancel: true)"
                     .to_string(),
             );
         }
@@ -1832,6 +1993,7 @@ mod tests {
             session_manager: Arc::new(crate::session::SessionManager::instance()),
             session: None,
             use_login_shell_path: false,
+            job_registry: None,
         }
     }
 
@@ -2344,6 +2506,7 @@ You review code."#;
                     started_at: Instant::now(),
                     turns: Arc::new(AtomicU32::new(2)),
                     last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
+                    last_message: Arc::new(std::sync::Mutex::new(String::new())),
                     handle: tokio::spawn(async {
                         tokio::time::sleep(Duration::from_millis(50)).await;
                         Ok("done".to_string())
@@ -2465,6 +2628,7 @@ You review code."#;
                     started_at: Instant::now(),
                     turns: Arc::new(AtomicU32::new(3)),
                     last_activity: Arc::new(AtomicU64::new(current_epoch_millis())),
+                    last_message: Arc::new(std::sync::Mutex::new(String::new())),
                     handle: tokio::spawn(async {
                         tokio::time::sleep(Duration::from_secs(1000)).await;
                         Ok("should not see this".to_string())

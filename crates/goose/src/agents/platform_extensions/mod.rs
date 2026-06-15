@@ -6,6 +6,7 @@ pub mod code_execution;
 pub mod developer;
 pub mod ext_manager;
 pub mod orchestrator;
+pub mod process;
 pub mod summarize;
 pub mod summon;
 pub mod todo;
@@ -190,6 +191,20 @@ pub static PLATFORM_EXTENSIONS: Lazy<HashMap<&'static str, PlatformExtensionDef>
         );
 
         map.insert(
+            process::EXTENSION_NAME,
+            PlatformExtensionDef {
+                name: process::EXTENSION_NAME,
+                display_name: "Process Manager",
+                description:
+                    "Start and manage long-running background processes with stdin/stdout interaction",
+                default_enabled: false,
+                unprefixed_tools: false,
+                hidden: false,
+                client_factory: |ctx| Box::new(process::ProcessClient::new(ctx).unwrap()),
+            },
+        );
+
+        map.insert(
             crate::skills::EXTENSION_NAME,
             PlatformExtensionDef {
                 name: crate::skills::EXTENSION_NAME,
@@ -213,6 +228,7 @@ pub struct PlatformExtensionContext {
     pub session_manager: std::sync::Arc<crate::session::SessionManager>,
     pub session: Option<std::sync::Arc<Session>>,
     pub use_login_shell_path: bool,
+    pub job_registry: Option<crate::jobs::SharedJobRegistry>,
 }
 
 impl PlatformExtensionContext {

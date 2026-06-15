@@ -144,6 +144,13 @@ pub struct ExtensionManager {
     tools_cache_version: AtomicU64,
     client_name: String,
     capabilities: ExtensionManagerCapabilities,
+    /// Broadcast channel for all MCP notifications (extension_name, notification).
+    /// Consumers (CLI, Job Registry) subscribe to receive real-time notifications.
+    notification_broadcast:
+        tokio::sync::broadcast::Sender<(String, rmcp::model::ServerNotification)>,
+    /// Buffer for MOIM context injection. Drained each turn so the LLM sees recent activity.
+    notification_buffer:
+        Mutex<tokio::sync::broadcast::Receiver<(String, rmcp::model::ServerNotification)>>,
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -325,6 +332,7 @@ struct ResolvedTool {
     resource_uri: Option<String>,
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn child_process_client(
     mut command: Command,
     timeout: &Option<u64>,
@@ -333,6 +341,10 @@ async fn child_process_client(
     docker_container: Option<String>,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
+    notification_broadcast: Option<
+        tokio::sync::broadcast::Sender<(String, rmcp::model::ServerNotification)>,
+    >,
+    extension_name: Option<String>,
 ) -> ExtensionResult<McpClient> {
     configure_subprocess(&mut command);
 
@@ -363,7 +375,7 @@ async fn child_process_client(
         Ok::<String, std::io::Error>(String::from_utf8_lossy(&all_stderr).into())
     });
 
-    let client_result = McpClient::connect_with_container(
+    let client_result = McpClient::connect_with_options(
         transport,
         Duration::from_secs(resolve_timeout(*timeout)),
         provider,
@@ -371,6 +383,8 @@ async fn child_process_client(
         client_name,
         capabilities,
         working_dir.clone(),
+        notification_broadcast,
+        extension_name,
     )
     .await;
 
@@ -515,6 +529,9 @@ async fn connect_with_auth(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    notification_broadcast: Option<
+        tokio::sync::broadcast::Sender<(String, rmcp::model::ServerNotification)>,
+    >,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut auth_headers = HeaderMap::new();
     auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
@@ -542,13 +559,16 @@ async fn connect_with_auth(
         StreamableHttpClientTransportConfig::with_uri(uri),
     );
     Ok(Box::new(
-        McpClient::connect(
+        McpClient::connect_with_options(
             transport,
             timeout,
             provider,
+            None,
             client_name,
             capabilities,
             roots_dir.to_path_buf(),
+            notification_broadcast,
+            None,
         )
         .await?,
     ))
@@ -566,6 +586,9 @@ async fn create_streamable_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    notification_broadcast: Option<
+        tokio::sync::broadcast::Sender<(String, rmcp::model::ServerNotification)>,
+    >,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     #[cfg(unix)]
     if let Some(socket_path) = socket {
@@ -579,6 +602,7 @@ async fn create_streamable_http_client(
             client_name,
             capabilities,
             roots_dir,
+            notification_broadcast,
         )
         .await;
     }
@@ -634,6 +658,7 @@ async fn create_streamable_http_client(
                     client_name,
                     capabilities,
                     roots_dir,
+                    notification_broadcast,
                 )
                 .await;
             }
@@ -646,13 +671,16 @@ async fn create_streamable_http_client(
         }
     }
 
-    let client_res = McpClient::connect(
+    let client_res = McpClient::connect_with_options(
         transport,
         timeout_duration,
         provider.clone(),
+        None,
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        notification_broadcast.clone(),
+        Some(name.to_string()),
     )
     .await;
 
@@ -668,6 +696,7 @@ async fn create_streamable_http_client(
                     client_name,
                     capabilities,
                     roots_dir,
+                    notification_broadcast,
                 )
                 .await
             }
@@ -690,6 +719,9 @@ async fn create_unix_socket_http_client(
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     roots_dir: &std::path::Path,
+    notification_broadcast: Option<
+        tokio::sync::broadcast::Sender<(String, rmcp::model::ServerNotification)>,
+    >,
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     use rmcp::transport::UnixSocketHttpClient;
 
@@ -720,13 +752,16 @@ async fn create_unix_socket_http_client(
 
     let timeout_duration = Duration::from_secs(resolve_timeout(timeout));
 
-    let client_res = McpClient::connect(
+    let client_res = McpClient::connect_with_options(
         transport,
         timeout_duration,
         provider.clone(),
+        None,
         client_name.clone(),
         capabilities.clone(),
         roots_dir.to_path_buf(),
+        notification_broadcast,
+        Some(name.to_string()),
     )
     .await;
 
@@ -754,7 +789,10 @@ impl ExtensionManager {
         client_name: String,
         capabilities: ExtensionManagerCapabilities,
         use_login_shell_path: bool,
+        job_registry: crate::jobs::SharedJobRegistry,
     ) -> Self {
+        let (notification_broadcast, _) = tokio::sync::broadcast::channel(256);
+        let notification_buffer = Mutex::new(notification_broadcast.subscribe());
         Self {
             extensions: Mutex::new(HashMap::new()),
             context: PlatformExtensionContext {
@@ -762,17 +800,21 @@ impl ExtensionManager {
                 session_manager,
                 session: None,
                 use_login_shell_path,
+                job_registry: Some(job_registry),
             },
             provider,
             tools_cache: Mutex::new(None),
             tools_cache_version: AtomicU64::new(0),
             client_name,
             capabilities,
+            notification_broadcast,
+            notification_buffer,
         }
     }
 
     pub fn new_without_provider(data_dir: std::path::PathBuf) -> Self {
         let session_manager = Arc::new(crate::session::SessionManager::new(data_dir));
+        let (job_registry, _) = crate::jobs::create_job_registry();
         Self::new(
             Arc::new(Mutex::new(None)),
             session_manager,
@@ -782,11 +824,27 @@ impl ExtensionManager {
                 host_info: None,
             },
             false,
+            job_registry,
         )
     }
 
     pub fn get_context(&self) -> &PlatformExtensionContext {
         &self.context
+    }
+
+    /// Subscribe to the notification broadcast channel.
+    /// Returns a receiver that gets all MCP notifications from all extensions.
+    pub fn subscribe_notifications(
+        &self,
+    ) -> tokio::sync::broadcast::Receiver<(String, rmcp::model::ServerNotification)> {
+        self.notification_broadcast.subscribe()
+    }
+
+    /// Get a clone of the notification broadcast sender (for passing to MCP clients).
+    pub fn notification_sender(
+        &self,
+    ) -> tokio::sync::broadcast::Sender<(String, rmcp::model::ServerNotification)> {
+        self.notification_broadcast.clone()
     }
 
     pub fn get_provider(&self) -> &SharedProvider {
@@ -871,6 +929,7 @@ impl ExtensionManager {
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
                     &effective_working_dir,
+                    Some(self.notification_broadcast.clone()),
                 )
                 .await?
             }
@@ -928,6 +987,8 @@ impl ExtensionManager {
                             Some(container_id.to_string()),
                             self.client_name.clone(),
                             self.mcp_client_capabilities(),
+                            Some(self.notification_broadcast.clone()),
+                            Some(sanitized_name.clone()),
                         )
                         .await?;
                         Box::new(client)
@@ -937,13 +998,16 @@ impl ExtensionManager {
                         extension_fn(server_read, server_write);
 
                         Box::new(
-                            McpClient::connect(
+                            McpClient::connect_with_options(
                                 (client_read, client_write),
                                 Duration::from_secs(timeout_secs),
                                 self.provider.clone(),
+                                None,
                                 self.client_name.clone(),
                                 self.mcp_client_capabilities(),
                                 effective_working_dir.clone(),
+                                Some(self.notification_broadcast.clone()),
+                                Some(sanitized_name.clone()),
                             )
                             .await?,
                         )
@@ -1000,6 +1064,8 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    Some(self.notification_broadcast.clone()),
+                    Some(sanitized_name.clone()),
                 )
                 .await?;
                 Box::new(client)
@@ -1032,6 +1098,8 @@ impl ExtensionManager {
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
+                    Some(self.notification_broadcast.clone()),
+                    Some(sanitized_name.clone()),
                 )
                 .await?;
 
@@ -1973,6 +2041,53 @@ impl ExtensionManager {
             }
         }
 
+        // Drain buffered notifications for LLM context
+        {
+            let mut rx = self.notification_buffer.lock().await;
+            let mut notifications = Vec::new();
+            loop {
+                match rx.try_recv() {
+                    Ok((ext, notif)) => {
+                        use rmcp::model::ServerNotification;
+                        match &notif {
+                            ServerNotification::ResourceUpdatedNotification(_)
+                            | ServerNotification::ResourceListChangedNotification(_)
+                            | ServerNotification::ToolListChangedNotification(_)
+                            | ServerNotification::PromptListChangedNotification(_) => {
+                                notifications.push((ext, notif));
+                            }
+                            _ => {}
+                        }
+                    }
+                    Err(tokio::sync::broadcast::error::TryRecvError::Empty) => break,
+                    Err(tokio::sync::broadcast::error::TryRecvError::Closed) => break,
+                    Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => continue,
+                }
+            }
+            if !notifications.is_empty() {
+                content.push_str("\nBackground activity since last turn:\n");
+                for (ext, notif) in &notifications {
+                    use rmcp::model::ServerNotification;
+                    let desc = match notif {
+                        ServerNotification::ResourceUpdatedNotification(r) => {
+                            format!("{}: resource updated ({})", ext, r.params.uri)
+                        }
+                        ServerNotification::ResourceListChangedNotification(_) => {
+                            format!("{}: resource list changed", ext)
+                        }
+                        ServerNotification::ToolListChangedNotification(_) => {
+                            format!("{}: tools changed", ext)
+                        }
+                        ServerNotification::PromptListChangedNotification(_) => {
+                            format!("{}: prompts changed", ext)
+                        }
+                        _ => format!("{}: notification", ext),
+                    };
+                    content.push_str(&format!("  • {}\n", desc));
+                }
+            }
+        }
+
         content.push_str("\n</info-msg>");
 
         Some(content)
@@ -2748,6 +2863,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            None,
         )
         .await;
 
@@ -2783,6 +2899,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            None,
         )
         .await;
 
@@ -2829,6 +2946,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            None,
         )
         .await;
 
@@ -2910,6 +3028,7 @@ mod tests {
             "goose-test".to_string(),
             capabilities,
             temp_dir.path(),
+            None,
         )
         .await;
 
