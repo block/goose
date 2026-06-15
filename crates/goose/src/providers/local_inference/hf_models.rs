@@ -575,7 +575,7 @@ pub async fn search_local_models(query: &str, limit: usize) -> Result<Vec<HfMode
     }
 
     results.extend(gguf_results);
-    results.extend(search_mlx_models(query, limit).await?);
+    append_optional_mlx_results(&mut results, search_mlx_models(query, limit).await, query);
     dedupe_models(&mut results);
     results.sort_by(|a, b| {
         model_search_rank(query, a)
@@ -584,6 +584,21 @@ pub async fn search_local_models(query: &str, limit: usize) -> Result<Vec<HfMode
     });
     results.truncate(limit);
     Ok(results)
+}
+
+fn append_optional_mlx_results(
+    results: &mut Vec<HfModelInfo>,
+    mlx_results: Result<Vec<HfModelInfo>>,
+    query: &str,
+) {
+    match mlx_results {
+        Ok(models) => results.extend(models),
+        Err(error) => tracing::warn!(
+            query,
+            error = %error,
+            "Failed to search MLX models; returning non-MLX results"
+        ),
+    }
 }
 
 pub async fn search_gguf_models(query: &str, limit: usize) -> Result<Vec<HfModelInfo>> {
@@ -1053,6 +1068,46 @@ mod tests {
             .variants
             .iter()
             .any(|variant| variant.backend_id == MLX_BACKEND_ID));
+    }
+
+    fn test_model(repo_id: &str) -> HfModelInfo {
+        HfModelInfo {
+            repo_id: repo_id.to_string(),
+            author: repo_id.split_once('/').unwrap().0.to_string(),
+            model_name: repo_id.split_once('/').unwrap().1.to_string(),
+            downloads: 1,
+            gguf_files: Vec::new(),
+            variants: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn append_optional_mlx_results_extends_on_success() {
+        let mut results = vec![test_model("gguf/repo")];
+
+        append_optional_mlx_results(
+            &mut results,
+            Ok(vec![test_model("mlx/repo")]),
+            "search-query",
+        );
+
+        assert_eq!(results.len(), 2);
+        assert!(results.iter().any(|model| model.repo_id == "gguf/repo"));
+        assert!(results.iter().any(|model| model.repo_id == "mlx/repo"));
+    }
+
+    #[test]
+    fn append_optional_mlx_results_preserves_existing_on_error() {
+        let mut results = vec![test_model("gguf/repo")];
+
+        append_optional_mlx_results(
+            &mut results,
+            Err(anyhow::anyhow!("hf-hub unavailable")),
+            "search-query",
+        );
+
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].repo_id, "gguf/repo");
     }
 
     #[test]
