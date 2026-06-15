@@ -44,6 +44,66 @@
   "appsView.title": {
     "defaultMessage": "应用"
   },
+  "authSettings.activeProviderWarning": {
+    "defaultMessage": "这是当前正在使用的提供商。在配置其他凭据之前，新的请求可能会失败。"
+  },
+  "authSettings.cancel": {
+    "defaultMessage": "取消"
+  },
+  "authSettings.delete": {
+    "defaultMessage": "删除"
+  },
+  "authSettings.deleteCredential": {
+    "defaultMessage": "删除凭据"
+  },
+  "authSettings.deleteMessage": {
+    "defaultMessage": "要删除 {provider} 的 {name} 凭据吗？"
+  },
+  "authSettings.deleteTitle": {
+    "defaultMessage": "删除凭据"
+  },
+  "authSettings.deleted": {
+    "defaultMessage": "凭据已删除"
+  },
+  "authSettings.description": {
+    "defaultMessage": "管理 goose 在本地存储的提供商凭据。"
+  },
+  "authSettings.empty": {
+    "defaultMessage": "未找到本地存储的提供商凭据。"
+  },
+  "authSettings.expiresAt": {
+    "defaultMessage": "到期时间：{date}"
+  },
+  "authSettings.failedToConfigure": {
+    "defaultMessage": "配置凭据失败：{error}"
+  },
+  "authSettings.failedToDelete": {
+    "defaultMessage": "删除凭据失败：{error}"
+  },
+  "authSettings.failedToLoad": {
+    "defaultMessage": "加载提供商凭据失败"
+  },
+  "authSettings.loading": {
+    "defaultMessage": "正在加载凭据..."
+  },
+  "authSettings.reauthorize": {
+    "defaultMessage": "重新授权"
+  },
+  "authSettings.signIn": {
+    "defaultMessage": "登录"
+  },
+  "authSettings.signedIn": {
+    "defaultMessage": "凭据已配置"
+  },
+  "authSettings.storageProviderCache": {
+    "defaultMessage": "提供商缓存"
+  },
+  "authSettings.storageSecretStore": {
+    "defaultMessage": "密钥存储"
+  },
+  "authSettings.title": {
+    "defaultMessage": "提供商凭据"
+  },
   "backButton.back": {
     "defaultMessage": "返回"
   },
@@ -94,15 +154,6 @@
   },
   "bottomMenuExtensionSelection.searchExtensions": {
     "defaultMessage": "搜索扩展…"
-  },
-  "bottomMenuModeSelection.autoFallback": {
-    "defaultMessage": "自动"
-  },
-  "bottomMenuModeSelection.automaticModeDescription": {
-    "defaultMessage": "自动模式选择"
-  },
-  "bottomMenuModeSelection.currentModeTitle": {
-    "defaultMessage": "当前模式：{label} - {description}"
   },
   "cardButtons.configure": {
     "defaultMessage": "配置"
@@ -506,11 +557,20 @@
   "cronPicker.august": {
     "defaultMessage": "八月"
   },
+  "cronPicker.cronExpression": {
+    "defaultMessage": "Cron 表达式"
+  },
+  "cronPicker.custom": {
+    "defaultMessage": "自定义 cron"
+  },
   "cronPicker.day": {
     "defaultMessage": "日"
   },
   "cronPicker.december": {
     "defaultMessage": "十二月"
+  },
+  "cronPicker.emptyCronError": {
+    "defaultMessage": "Cron 表达式不能为空"
   },
   "cronPicker.every": {
     "defaultMessage": "每"
@@ -526,6 +586,9 @@
   },
   "cronPicker.inMonth": {
     "defaultMessage": "于"
+  },
+  "cronPicker.invalidDayOfMonth": {
+    "defaultMessage": "日期必须在 1 到 {max} 之间"
   },
   "cronPicker.january": {
     "defaultMessage": "一月"
@@ -545,6 +608,9 @@
   "cronPicker.minute": {
     "defaultMessage": "分"
   },
+  "cronPicker.mode": {
+    "defaultMessage": "模式"
+  },
   "cronPicker.monday": {
     "defaultMessage": "周一"
   },
@@ -563,11 +629,17 @@
   "cronPicker.onDay": {
     "defaultMessage": "于第几日"
   },
+  "cronPicker.quarter": {
+    "defaultMessage": "季度"
+  },
   "cronPicker.saturday": {
     "defaultMessage": "周六"
   },
   "cronPicker.september": {
     "defaultMessage": "九月"
+  },
+  "cronPicker.startingMonth": {
+    "defaultMessage": "起始月份"
   },
   "cronPicker.sunday": {
     "defaultMessage": "周日"
@@ -884,8 +956,29 @@
   "dictationSettings.voiceDictationProvider": {
     "defaultMessage": "语音输入提供商"
   },
+  "dirSwitcher.chooseDirectory": {
+    "defaultMessage": "选择目录…"
+  },
+  "dirSwitcher.currentDirectory": {
+    "defaultMessage": "当前目录"
+  },
   "dirSwitcher.failedToUpdateWorkingDir": {
     "defaultMessage": "更新工作目录失败"
+  },
+  "dirSwitcher.gitWorktrees": {
+    "defaultMessage": "Git 工作树"
+  },
+  "dirSwitcher.noWorktreesFound": {
+    "defaultMessage": "未找到工作树"
+  },
+  "dirSwitcher.openInFinder": {
+    "defaultMessage": "在文件管理器中打开"
+  },
+  "dirSwitcher.recentDirectories": {
+    "defaultMessage": "最近的目录"
+  },
+  "elicitationRequest.accept": {
+    "defaultMessage": "接受"
   },
   "elicitationRequest.cancelled": {
     "defaultMessage": "信息请求已取消。"
@@ -1379,6 +1472,15 @@
   "headersSection.value": {
     "defaultMessage": "值"
   },
+  "hub.goodAfternoon": {
+    "defaultMessage": "下午好"
+  },
+  "hub.goodEvening": {
+    "defaultMessage": "晚上好"
+  },
+  "hub.goodMorning": {
+    "defaultMessage": "早上好"
+  },
   "huggingFaceModelSearch.download": {
     "defaultMessage": "下载"
   },
@@ -1414,6 +1516,21 @@
   },
   "huggingFaceModelSearch.tooLarge": {
     "defaultMessage": "可能超出内存（模型 {size}，可用 {available}）"
+  },
+  "huggingFaceSignInPrompt.failedToConfigure": {
+    "defaultMessage": "登录 Hugging Face 失败：{error}"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "登录"
+  },
+  "huggingFaceSignInPrompt.signedIn": {
+    "defaultMessage": "已登录 Hugging Face"
+  },
+  "huggingFaceSignInPrompt.signingIn": {
+    "defaultMessage": "正在登录..."
+  },
+  "huggingFaceSignInPrompt.title": {
+    "defaultMessage": "Hugging Face"
   },
   "imagePreview.altText": {
     "defaultMessage": "goose 图片"
@@ -1753,6 +1870,9 @@
   },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "推荐模型"
+  },
+  "localInferenceSettings.huggingFaceSignInNote": {
+    "defaultMessage": "登录后可在搜索和下载模型时提高速率限制，并访问私有或受限的 Hugging Face 仓库。"
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "模型设置"
@@ -2132,24 +2252,6 @@
   "modelSettingsPanel.batchSizeDescription": {
     "defaultMessage": "提示词处理批大小"
   },
-  "modelSettingsPanel.contextAndGeneration": {
-    "defaultMessage": "上下文与生成"
-  },
-  "modelSettingsPanel.contextSize": {
-    "defaultMessage": "上下文大小"
-  },
-  "modelSettingsPanel.contextSizeDescription": {
-    "defaultMessage": "最大上下文窗口（0 = 模型默认）"
-  },
-  "modelSettingsPanel.etaLearningRate": {
-    "defaultMessage": "Eta（学习率）"
-  },
-  "modelSettingsPanel.flashAttention": {
-    "defaultMessage": "Flash Attention"
-  },
-  "modelSettingsPanel.flashAttentionDescription": {
-    "defaultMessage": "启用 Flash Attention 优化"
-  },
   "modelSettingsPanel.builtinChatTemplate": {
     "defaultMessage": "内置模板"
   },
@@ -2171,26 +2273,29 @@
   "modelSettingsPanel.chatTemplateEmbedded": {
     "defaultMessage": "嵌入式"
   },
+  "modelSettingsPanel.contextAndGeneration": {
+    "defaultMessage": "上下文与生成"
+  },
+  "modelSettingsPanel.contextSize": {
+    "defaultMessage": "上下文大小"
+  },
+  "modelSettingsPanel.contextSizeDescription": {
+    "defaultMessage": "最大上下文窗口（0 = 模型默认）"
+  },
   "modelSettingsPanel.customChatTemplate": {
     "defaultMessage": "自定义聊天模板"
   },
   "modelSettingsPanel.customChatTemplateDescription": {
     "defaultMessage": "粘贴完整的 Jinja 聊天模板源码"
   },
-  "modelSettingsPanel.toolCalling": {
-    "defaultMessage": "工具调用"
+  "modelSettingsPanel.etaLearningRate": {
+    "defaultMessage": "Eta（学习率）"
   },
-  "modelSettingsPanel.toolCallingAuto": {
-    "defaultMessage": "自动"
+  "modelSettingsPanel.flashAttention": {
+    "defaultMessage": "Flash Attention"
   },
-  "modelSettingsPanel.toolCallingDescription": {
-    "defaultMessage": "选择本地模型如何使用原生或模拟工具调用"
-  },
-  "modelSettingsPanel.toolCallingForceEmulated": {
-    "defaultMessage": "强制模拟"
-  },
-  "modelSettingsPanel.toolCallingForceNative": {
-    "defaultMessage": "强制原生"
+  "modelSettingsPanel.flashAttentionDescription": {
+    "defaultMessage": "启用 Flash Attention 优化"
   },
   "modelSettingsPanel.frequencyPenalty": {
     "defaultMessage": "频率惩罚"
@@ -2273,6 +2378,21 @@
   "modelSettingsPanel.threadsDescription": {
     "defaultMessage": "用于生成的 CPU 线程数"
   },
+  "modelSettingsPanel.toolCalling": {
+    "defaultMessage": "工具调用"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "自动"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "选择本地模型如何使用原生或模拟工具调用"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "强制模拟"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "强制原生"
+  },
   "modelSettingsPanel.topK": {
     "defaultMessage": "Top K"
   },
@@ -2321,11 +2441,26 @@
   "navigation.itemScheduler": {
     "defaultMessage": "调度"
   },
+  "navigation.itemSessions": {
+    "defaultMessage": "会话历史"
+  },
   "navigation.itemSettings": {
     "defaultMessage": "设置"
   },
   "navigation.itemSkills": {
     "defaultMessage": "技能"
+  },
+  "navigationPanel.chats": {
+    "defaultMessage": "聊天"
+  },
+  "navigationPanel.collapseSidebar": {
+    "defaultMessage": "折叠侧边栏"
+  },
+  "navigationPanel.noChats": {
+    "defaultMessage": "没有最近的聊天"
+  },
+  "navigationPanel.untitledSession": {
+    "defaultMessage": "未命名会话"
   },
   "onboardingGuard.checkProviderErrorDescription": {
     "defaultMessage": "服务器可能正在启动或暂时不可用。"
@@ -2734,6 +2869,9 @@
   },
   "providerConfigurationModal.goBack": {
     "defaultMessage": "返回"
+  },
+  "providerConfigurationModal.huggingFaceOAuthDescription": {
+    "defaultMessage": "登录后即可使用 Hugging Face Inference Providers，而无需手动输入 API 令牌。"
   },
   "providerConfigurationModal.oauthLoginFailed": {
     "defaultMessage": "OAuth 登录失败：{error}"
@@ -3593,6 +3731,9 @@
   "securityToggle.mlTokenDescription": {
     "defaultMessage": "机器学习服务的认证令牌（例如 HuggingFace token）"
   },
+  "securityToggle.overrideNotice": {
+    "defaultMessage": "此设置由你的组织管理，无法更改。"
+  },
   "securityToggle.promptInjectionDescription": {
     "defaultMessage": "检测并防范潜在的提示注入攻击"
   },
@@ -3601,6 +3742,9 @@
   },
   "securityToggle.thresholdDescription": {
     "defaultMessage": "值越高越严格（0.01 = 非常宽松，1.0 = 最严格）"
+  },
+  "securityToggle.warpNotice": {
+    "defaultMessage": "连接到 WARP 时，命令注入检测效果最佳（访问分类服务需要 WARP）。"
   },
   "sessionHistory.cancel": {
     "defaultMessage": "取消"
@@ -3661,9 +3805,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "流式传输中"
-  },
-  "sessionItem.messageCount": {
-    "defaultMessage": "{count} 条消息"
   },
   "sessionSharingSection.alreadyConfigured": {
     "defaultMessage": "会话分享已配置"
@@ -3749,6 +3890,9 @@
   "sessions.action.openNewWindow": {
     "defaultMessage": "在新窗口中打开"
   },
+  "sessions.action.shareNostr": {
+    "defaultMessage": "分享加密的 Nostr 链接"
+  },
   "sessions.cancel": {
     "defaultMessage": "取消"
   },
@@ -3757,6 +3901,9 @@
   },
   "sessions.chatHistoryDesc": {
     "defaultMessage": "查看并搜索你与 Goose 的过往对话。按 {shortcut} 搜索。"
+  },
+  "sessions.close": {
+    "defaultMessage": "关闭"
   },
   "sessions.delete.message": {
     "defaultMessage": "确定要删除会话“{name}”吗？此操作无法撤销。"
@@ -3782,11 +3929,23 @@
   "sessions.error.tryAgain": {
     "defaultMessage": "重试"
   },
-  "sessions.extensions": {
-    "defaultMessage": "扩展："
-  },
   "sessions.import": {
     "defaultMessage": "导入会话"
+  },
+  "sessions.importNostr": {
+    "defaultMessage": "导入链接"
+  },
+  "sessions.importNostr.description": {
+    "defaultMessage": "粘贴 Goose Nostr 分享链接以获取、解密并导入会话。"
+  },
+  "sessions.importNostr.placeholder": {
+    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
+  },
+  "sessions.importNostr.title": {
+    "defaultMessage": "导入 Nostr 会话"
+  },
+  "sessions.importing": {
+    "defaultMessage": "正在导入..."
   },
   "sessions.loadingMore": {
     "defaultMessage": "正在加载更多会话…"
@@ -3805,6 +3964,15 @@
   },
   "sessions.searchPlaceholder": {
     "defaultMessage": "搜索历史…"
+  },
+  "sessions.shareNostr.description": {
+    "defaultMessage": "任何拥有此链接的人都可以获取并解密该会话。请像对待密钥一样保护它。"
+  },
+  "sessions.shareNostr.title": {
+    "defaultMessage": "加密的 Nostr 分享链接"
+  },
+  "sessions.toast.copied": {
+    "defaultMessage": "已复制到剪贴板"
   },
   "sessions.toast.deleteFailed": {
     "defaultMessage": "删除会话“{name}”失败：{error}"
@@ -3826,6 +3994,12 @@
   },
   "sessions.toast.imported": {
     "defaultMessage": "会话导入成功"
+  },
+  "sessions.toast.shareNostr": {
+    "defaultMessage": "已创建加密的 Nostr 分享链接"
+  },
+  "sessions.toast.shareNostrFailed": {
+    "defaultMessage": "创建 Nostr 分享链接失败：{error}"
   },
   "sessions.toast.updateFailed": {
     "defaultMessage": "更新会话描述失败：{error}"
@@ -3952,6 +4126,9 @@
   },
   "settingsView.tabApp": {
     "defaultMessage": "应用"
+  },
+  "settingsView.tabAuth": {
+    "defaultMessage": "身份验证"
   },
   "settingsView.tabChat": {
     "defaultMessage": "聊天"
@@ -4252,6 +4429,9 @@
   },
   "switchModelModal.thinkingEffort": {
     "defaultMessage": "思考努力"
+  },
+  "switchModelModal.thinkingEffortOff": {
+    "defaultMessage": "关闭 - 不使用扩展思考"
   },
   "switchModelModal.thinkingLevel": {
     "defaultMessage": "思考级别"

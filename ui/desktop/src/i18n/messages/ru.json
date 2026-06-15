@@ -44,6 +44,66 @@
   "appsView.title": {
     "defaultMessage": "Приложения"
   },
+  "authSettings.activeProviderWarning": {
+    "defaultMessage": "Это активный провайдер. Новые запросы могут завершаться ошибкой, пока вы не настроите другие учетные данные."
+  },
+  "authSettings.cancel": {
+    "defaultMessage": "Отмена"
+  },
+  "authSettings.delete": {
+    "defaultMessage": "Удалить"
+  },
+  "authSettings.deleteCredential": {
+    "defaultMessage": "Удалить учетные данные"
+  },
+  "authSettings.deleteMessage": {
+    "defaultMessage": "Удалить учетные данные {name} для {provider}?"
+  },
+  "authSettings.deleteTitle": {
+    "defaultMessage": "Удалить учетные данные"
+  },
+  "authSettings.deleted": {
+    "defaultMessage": "Учетные данные удалены"
+  },
+  "authSettings.description": {
+    "defaultMessage": "Управляйте учетными данными провайдеров, сохраненными локально в goose."
+  },
+  "authSettings.empty": {
+    "defaultMessage": "Локально сохраненные учетные данные провайдеров не найдены."
+  },
+  "authSettings.expiresAt": {
+    "defaultMessage": "Истекает {date}"
+  },
+  "authSettings.failedToConfigure": {
+    "defaultMessage": "Не удалось настроить учетные данные: {error}"
+  },
+  "authSettings.failedToDelete": {
+    "defaultMessage": "Не удалось удалить учетные данные: {error}"
+  },
+  "authSettings.failedToLoad": {
+    "defaultMessage": "Не удалось загрузить учетные данные провайдера"
+  },
+  "authSettings.loading": {
+    "defaultMessage": "Загрузка учетных данных..."
+  },
+  "authSettings.reauthorize": {
+    "defaultMessage": "Авторизоваться снова"
+  },
+  "authSettings.signIn": {
+    "defaultMessage": "Войти"
+  },
+  "authSettings.signedIn": {
+    "defaultMessage": "Учетные данные настроены"
+  },
+  "authSettings.storageProviderCache": {
+    "defaultMessage": "Кэш провайдера"
+  },
+  "authSettings.storageSecretStore": {
+    "defaultMessage": "Хранилище секретов"
+  },
+  "authSettings.title": {
+    "defaultMessage": "Учетные данные провайдера"
+  },
   "backButton.back": {
     "defaultMessage": "Назад"
   },
@@ -94,15 +154,6 @@
   },
   "bottomMenuExtensionSelection.searchExtensions": {
     "defaultMessage": "поиск расширений..."
-  },
-  "bottomMenuModeSelection.autoFallback": {
-    "defaultMessage": "авто"
-  },
-  "bottomMenuModeSelection.automaticModeDescription": {
-    "defaultMessage": "Автоматический выбор режима"
-  },
-  "bottomMenuModeSelection.currentModeTitle": {
-    "defaultMessage": "Текущий режим: {label} - {description}"
   },
   "cardButtons.configure": {
     "defaultMessage": "Настроить"
@@ -1466,6 +1517,21 @@
   "huggingFaceModelSearch.tooLarge": {
     "defaultMessage": "Может не поместиться в память (модель {size}, доступно {available})"
   },
+  "huggingFaceSignInPrompt.failedToConfigure": {
+    "defaultMessage": "Не удалось войти в Hugging Face: {error}"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "Войти"
+  },
+  "huggingFaceSignInPrompt.signedIn": {
+    "defaultMessage": "Вход в Hugging Face выполнен"
+  },
+  "huggingFaceSignInPrompt.signingIn": {
+    "defaultMessage": "Выполняется вход..."
+  },
+  "huggingFaceSignInPrompt.title": {
+    "defaultMessage": "Hugging Face"
+  },
   "imagePreview.altText": {
     "defaultMessage": "изображение goose"
   },
@@ -1804,6 +1870,9 @@
   },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Рекомендуемые модели"
+  },
+  "localInferenceSettings.huggingFaceSignInNote": {
+    "defaultMessage": "Войдите, чтобы увеличить лимиты запросов при поиске и загрузке моделей, а также получить доступ к приватным или ограниченным репозиториям Hugging Face."
   },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Настройки модели"
@@ -2183,24 +2252,6 @@
   "modelSettingsPanel.batchSizeDescription": {
     "defaultMessage": "Пакет обработки промпта"
   },
-  "modelSettingsPanel.contextAndGeneration": {
-    "defaultMessage": "Контекст и генерация"
-  },
-  "modelSettingsPanel.contextSize": {
-    "defaultMessage": "Размер контекста"
-  },
-  "modelSettingsPanel.contextSizeDescription": {
-    "defaultMessage": "Максимальное контекстное окно (0 = по умолчанию модели)"
-  },
-  "modelSettingsPanel.etaLearningRate": {
-    "defaultMessage": "Eta (скорость обучения)"
-  },
-  "modelSettingsPanel.flashAttention": {
-    "defaultMessage": "Flash attention"
-  },
-  "modelSettingsPanel.flashAttentionDescription": {
-    "defaultMessage": "Включить оптимизацию flash attention"
-  },
   "modelSettingsPanel.builtinChatTemplate": {
     "defaultMessage": "Встроенный шаблон"
   },
@@ -2222,26 +2273,29 @@
   "modelSettingsPanel.chatTemplateEmbedded": {
     "defaultMessage": "Встроенный"
   },
+  "modelSettingsPanel.contextAndGeneration": {
+    "defaultMessage": "Контекст и генерация"
+  },
+  "modelSettingsPanel.contextSize": {
+    "defaultMessage": "Размер контекста"
+  },
+  "modelSettingsPanel.contextSizeDescription": {
+    "defaultMessage": "Максимальное контекстное окно (0 = по умолчанию модели)"
+  },
   "modelSettingsPanel.customChatTemplate": {
     "defaultMessage": "Пользовательский шаблон чата"
   },
   "modelSettingsPanel.customChatTemplateDescription": {
     "defaultMessage": "Вставьте полный исходный код шаблона Jinja"
   },
-  "modelSettingsPanel.toolCalling": {
-    "defaultMessage": "Вызов инструментов"
+  "modelSettingsPanel.etaLearningRate": {
+    "defaultMessage": "Eta (скорость обучения)"
   },
-  "modelSettingsPanel.toolCallingAuto": {
-    "defaultMessage": "Авто"
+  "modelSettingsPanel.flashAttention": {
+    "defaultMessage": "Flash attention"
   },
-  "modelSettingsPanel.toolCallingDescription": {
-    "defaultMessage": "Выберите, как локальные модели используют нативный или эмулируемый вызов инструментов"
-  },
-  "modelSettingsPanel.toolCallingForceEmulated": {
-    "defaultMessage": "Принудительно эмулируемый"
-  },
-  "modelSettingsPanel.toolCallingForceNative": {
-    "defaultMessage": "Принудительно нативный"
+  "modelSettingsPanel.flashAttentionDescription": {
+    "defaultMessage": "Включить оптимизацию flash attention"
   },
   "modelSettingsPanel.frequencyPenalty": {
     "defaultMessage": "Штраф частоты"
@@ -2323,6 +2377,21 @@
   },
   "modelSettingsPanel.threadsDescription": {
     "defaultMessage": "Потоки CPU для генерации"
+  },
+  "modelSettingsPanel.toolCalling": {
+    "defaultMessage": "Вызов инструментов"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "Авто"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "Выберите, как локальные модели используют нативный или эмулируемый вызов инструментов"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "Принудительно эмулируемый"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "Принудительно нативный"
   },
   "modelSettingsPanel.topK": {
     "defaultMessage": "Top K"
@@ -2800,6 +2869,9 @@
   },
   "providerConfigurationModal.goBack": {
     "defaultMessage": "Назад"
+  },
+  "providerConfigurationModal.huggingFaceOAuthDescription": {
+    "defaultMessage": "Войдите, чтобы использовать Hugging Face Inference Providers без ручного ввода API-токена."
   },
   "providerConfigurationModal.oauthLoginFailed": {
     "defaultMessage": "Вход OAuth не удался: {error}"
@@ -3659,6 +3731,9 @@
   "securityToggle.mlTokenDescription": {
     "defaultMessage": "Токен аутентификации для ML-сервиса (например, токен HuggingFace)"
   },
+  "securityToggle.overrideNotice": {
+    "defaultMessage": "Этот параметр управляется вашей организацией и не может быть изменен."
+  },
   "securityToggle.promptInjectionDescription": {
     "defaultMessage": "Обнаруживать и предотвращать потенциальные атаки prompt injection"
   },
@@ -3667,6 +3742,9 @@
   },
   "securityToggle.thresholdDescription": {
     "defaultMessage": "Чем выше значение, тем строже проверка (0.01 = очень мягко, 1.0 = максимально строго)"
+  },
+  "securityToggle.warpNotice": {
+    "defaultMessage": "Обнаружение внедрения команд работает лучше всего при подключении к WARP (требуется для доступа к сервису классификации)."
   },
   "sessionHistory.cancel": {
     "defaultMessage": "Отмена"
@@ -3727,9 +3805,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Потоковая передача"
-  },
-  "sessionItem.messageCount": {
-    "defaultMessage": "Сообщений: {count}"
   },
   "sessionSharingSection.alreadyConfigured": {
     "defaultMessage": "Общий доступ к сеансам уже настроен"
@@ -3853,9 +3928,6 @@
   },
   "sessions.error.tryAgain": {
     "defaultMessage": "Повторить попытку"
-  },
-  "sessions.extensions": {
-    "defaultMessage": "Расширения:"
   },
   "sessions.import": {
     "defaultMessage": "Импортировать сеанс"
@@ -4054,6 +4126,9 @@
   },
   "settingsView.tabApp": {
     "defaultMessage": "Приложение"
+  },
+  "settingsView.tabAuth": {
+    "defaultMessage": "Авторизация"
   },
   "settingsView.tabChat": {
     "defaultMessage": "Чат"

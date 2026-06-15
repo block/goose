@@ -59,6 +59,22 @@ impl GooseAcpAgent {
         self.on_update_working_dir(req).await
     }
 
+    #[custom_method(SetSessionSystemPromptRequest)]
+    async fn dispatch_set_session_system_prompt(
+        &self,
+        req: SetSessionSystemPromptRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_set_session_system_prompt(req).await
+    }
+
+    #[custom_method(SteerSessionRequest)]
+    async fn dispatch_steer_session(
+        &self,
+        req: SteerSessionRequest,
+    ) -> Result<SteerSessionResponse, agent_client_protocol::Error> {
+        self.on_steer_session(req).await
+    }
+
     #[custom_method(DeleteSessionRequest)]
     async fn dispatch_delete_session(
         &self,
@@ -67,11 +83,18 @@ impl GooseAcpAgent {
         self.on_delete_session(req).await
     }
 
-    #[custom_method(GetExtensionsRequest)]
-    async fn dispatch_get_extensions(
+    #[custom_method(GetConfigExtensionsRequest)]
+    async fn dispatch_get_config_extensions(
         &self,
-    ) -> Result<GetExtensionsResponse, agent_client_protocol::Error> {
-        self.on_get_extensions().await
+    ) -> Result<GetConfigExtensionsResponse, agent_client_protocol::Error> {
+        self.on_get_config_extensions().await
+    }
+
+    #[custom_method(GetAvailableExtensionsRequest)]
+    async fn dispatch_get_available_extensions(
+        &self,
+    ) -> Result<GetAvailableExtensionsResponse, agent_client_protocol::Error> {
+        self.on_get_available_extensions().await
     }
 
     #[custom_method(AddConfigExtensionRequest)]
@@ -90,12 +113,12 @@ impl GooseAcpAgent {
         self.on_remove_config_extension(req).await
     }
 
-    #[custom_method(ToggleConfigExtensionRequest)]
-    async fn dispatch_toggle_config_extension(
+    #[custom_method(SetConfigExtensionEnabledRequest)]
+    async fn dispatch_set_config_extension_enabled(
         &self,
-        req: ToggleConfigExtensionRequest,
+        req: SetConfigExtensionEnabledRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        self.on_toggle_config_extension(req).await
+        self.on_set_config_extension_enabled(req).await
     }
 
     #[custom_method(GetSessionExtensionsRequest)]
@@ -112,6 +135,14 @@ impl GooseAcpAgent {
         req: ListProvidersRequest,
     ) -> Result<ListProvidersResponse, agent_client_protocol::Error> {
         self.on_list_providers(req).await
+    }
+
+    #[custom_method(ProviderSupportedModelsListRequest)]
+    async fn dispatch_list_provider_supported_models(
+        &self,
+        req: ProviderSupportedModelsListRequest,
+    ) -> Result<ProviderSupportedModelsListResponse, agent_client_protocol::Error> {
+        self.on_list_provider_supported_models(req).await
     }
 
     #[custom_method(ProviderCatalogListRequest)]
@@ -288,6 +319,23 @@ impl GooseAcpAgent {
         req: ImportSessionRequest,
     ) -> Result<ImportSessionResponse, agent_client_protocol::Error> {
         self.on_import_session(req).await
+    }
+
+    #[custom_method(GetSessionInfoRequest)]
+    async fn dispatch_get_session_info(
+        &self,
+        req: GetSessionInfoRequest,
+    ) -> Result<GetSessionInfoResponse, agent_client_protocol::Error> {
+        self.on_get_session_info(req).await
+    }
+
+    #[custom_method(ElicitationRespondRequest)]
+    async fn dispatch_elicitation_respond(
+        &self,
+        _req: ElicitationRespondRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        Err(agent_client_protocol::Error::invalid_params()
+            .data("_goose/unstable/elicitation/respond must be handled by the connection-scoped dispatcher"))
     }
 
     #[custom_method(UpdateSessionProjectRequest)]
