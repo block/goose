@@ -352,19 +352,17 @@ impl DatabricksProvider {
             }
         }
 
-        for config_key in ["config", "pending_config"] {
-            let Some(config) = endpoint.get(config_key) else {
+        let Some(config) = endpoint.get("config") else {
+            return false;
+        };
+
+        for collection_key in ["served_entities", "served_models"] {
+            let Some(entities) = config.get(collection_key).and_then(|v| v.as_array()) else {
                 continue;
             };
 
-            for collection_key in ["served_entities", "served_models"] {
-                let Some(entities) = config.get(collection_key).and_then(|v| v.as_array()) else {
-                    continue;
-                };
-
-                if entities.iter().any(value_contains_responses_api) {
-                    return true;
-                }
+            if entities.iter().any(value_contains_responses_api) {
+                return true;
             }
         }
 
@@ -1073,10 +1071,10 @@ mod tests {
     }
 
     #[test]
-    fn endpoint_metadata_detects_responses_api_from_pending_served_models() {
+    fn endpoint_metadata_detects_responses_api_from_served_models() {
         let endpoint = json!({
             "name": "databricks-gpt-5-4",
-            "pending_config": {
+            "config": {
                 "served_models": [{
                     "foundation_model": {
                         "api_types": ["openai/v1/responses"]
@@ -1088,6 +1086,31 @@ mod tests {
         let info = DatabricksProvider::endpoint_info_from_value(&endpoint).unwrap();
 
         assert!(info.supports_responses_api);
+    }
+
+    #[test]
+    fn endpoint_metadata_ignores_pending_config_for_responses_routing() {
+        let endpoint = json!({
+            "name": "databricks-gpt-5-4",
+            "config": {
+                "served_entities": [{
+                    "foundation_model": {
+                        "api_types": ["mlflow/v1/chat/completions"]
+                    }
+                }]
+            },
+            "pending_config": {
+                "served_entities": [{
+                    "foundation_model": {
+                        "api_types": ["openai/v1/responses"]
+                    }
+                }]
+            }
+        });
+
+        let info = DatabricksProvider::endpoint_info_from_value(&endpoint).unwrap();
+
+        assert!(!info.supports_responses_api);
     }
 
     #[test]
