@@ -175,6 +175,7 @@ struct GooseAcpSession {
 struct ActivePromptRun {
     run_id: String,
     cancel_token: CancellationToken,
+    close_requested: bool,
 }
 
 /// A run of consecutive ToolRequest blocks within one assistant message,
@@ -2188,13 +2189,14 @@ impl GooseAcpAgent {
             ActivePromptRun {
                 run_id,
                 cancel_token,
+                close_requested: false,
             },
         );
         Ok(())
     }
 
     async fn clear_active_run(&self, session_id: &str, run_id: &str) {
-        {
+        let close_requested = {
             let mut active_prompt_runs = self.active_prompt_runs.lock().await;
             let Some(active_run) = active_prompt_runs.get(session_id) else {
                 return;
@@ -2204,8 +2206,10 @@ impl GooseAcpAgent {
                 return;
             }
 
-            active_prompt_runs.remove(session_id);
-        }
+            active_prompt_runs
+                .remove(session_id)
+                .is_some_and(|active_run| active_run.close_requested)
+        };
 
         let agent = {
             let sessions = self.sessions.lock().await;
@@ -2215,6 +2219,11 @@ impl GooseAcpAgent {
         };
         if let Some(agent) = agent {
             agent.discard_pending_steers(session_id).await;
+        }
+
+        if close_requested {
+            self.sessions.lock().await.remove(session_id);
+            let _ = self.agent_manager.remove_session(session_id).await;
         }
     }
 
@@ -2881,8 +2890,16 @@ impl GooseAcpAgent {
         &self,
         session_id: &str,
     ) -> Result<CloseSessionResponse, agent_client_protocol::Error> {
-        if let Some(active_run) = self.active_prompt_runs.lock().await.remove(session_id) {
-            active_run.cancel_token.cancel();
+        let active_run_token = {
+            let mut active_prompt_runs = self.active_prompt_runs.lock().await;
+            active_prompt_runs.get_mut(session_id).map(|active_run| {
+                active_run.close_requested = true;
+                active_run.cancel_token.clone()
+            })
+        };
+
+        if let Some(token) = active_run_token {
+            token.cancel();
         }
 
         let mut sessions = self.sessions.lock().await;
