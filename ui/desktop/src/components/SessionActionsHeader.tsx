@@ -314,7 +314,7 @@ export default function SessionActionsHeader({ session, className }: SessionActi
     <>
       <div
         className={cn(
-          'no-drag absolute top-[14px] left-1/2 z-[60] max-w-[min(36rem,calc(100vw-13rem))] -translate-x-1/2',
+          'no-drag absolute top-[14px] left-1/2 z-30 max-w-[min(36rem,calc(100vw-13rem))] -translate-x-1/2',
           className
         )}
       >
