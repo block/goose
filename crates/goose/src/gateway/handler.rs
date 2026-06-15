@@ -13,7 +13,6 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::execution::manager::AgentManager;
 use crate::session::SessionType;
 use crate::session::{EnabledExtensionsState, ExtensionState, Session};
-use goose_providers::model::ModelConfig;
 
 use super::pairing::PairingStore;
 use super::{Gateway, GatewayConfig, IncomingMessage, OutgoingMessage, PairingState, PlatformUser};

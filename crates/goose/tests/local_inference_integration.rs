@@ -28,7 +28,7 @@ fn test_model() -> String {
 #[tokio::test]
 #[ignore]
 async fn test_local_inference_stream_produces_output() {
-    let model_config = ModelConfig::new(&test_model()).expect("valid model config");
+    let model_config = ModelConfig::new(test_model()).expect("valid model config");
     let provider = create("local", model_config.clone(), Vec::new())
         .await
         .expect("provider creation should succeed");
@@ -70,7 +70,7 @@ async fn test_local_inference_stream_produces_output() {
 #[tokio::test]
 #[ignore]
 async fn test_local_inference_large_prompt() {
-    let model_config = ModelConfig::new(&test_model())
+    let model_config = ModelConfig::new(test_model())
         .expect("valid model config")
         .with_max_tokens(Some(20));
     let provider = create("local", model_config.clone(), Vec::new())
@@ -182,7 +182,7 @@ async fn test_local_inference_vision_produces_output() {
 #[tokio::test]
 #[ignore]
 async fn test_local_inference_vision_text_only_model_graceful() {
-    let model_config = ModelConfig::new(&test_model()).expect("valid model config");
+    let model_config = ModelConfig::new(test_model()).expect("valid model config");
     let provider = create("local", model_config.clone(), Vec::new())
         .await
         .expect("provider creation should succeed");

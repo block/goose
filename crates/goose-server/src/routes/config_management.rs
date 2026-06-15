@@ -1421,7 +1421,6 @@ pub async fn configure_provider_oauth(
     Path(provider_name): Path<String>,
 ) -> Result<Json<String>, ErrorResponse> {
     use goose::providers::create;
-    use goose_providers::model::ModelConfig;
 
     if !is_valid_provider_name(&provider_name) {
         return Err(ErrorResponse::bad_request(format!(
