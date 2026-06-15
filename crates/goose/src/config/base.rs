@@ -1162,8 +1162,9 @@ impl Config {
     }
 
     pub fn get_goose_thinking_effort(&self) -> Option<ThinkingEffort> {
-        self.get_param("GOOSE_THINKING_EFFORT")
+        self.get_param::<String>("GOOSE_THINKING_EFFORT")
             .ok()
+            .and_then(|e| e.parse().ok())
             .or_else(|| self.legacy_thinking_effort())
     }
 
