@@ -2492,6 +2492,8 @@ You review code."#;
         assert!(text.contains("1m"));
         assert!(text.contains("5 turns"));
         assert!(text.contains("Task completed successfully with output"));
+        assert_eq!(result.status, "completed");
+        assert_eq!(result.turns, Some(5));
 
         assert!(!client
             .completed_tasks
@@ -2506,6 +2508,7 @@ You review code."#;
         let text = extract_text(&result.content[0]);
         assert!(text.contains("✗ Failed"));
         assert!(text.contains("Error: Something went wrong"));
+        assert_eq!(result.status, "failed");
 
         let result = client.handle_load_task_result("20260204_3", false).await;
         assert!(result.is_err());
@@ -2548,6 +2551,8 @@ You review code."#;
         assert!(text.contains("Cancelled"));
         assert!(text.contains("20260204_1"));
         assert!(text.contains("Cancellable task"));
+        assert_eq!(result.status, "cancelled");
+        assert_eq!(result.turns, Some(3));
         assert!(token.is_cancelled());
         assert!(!client
             .background_tasks
