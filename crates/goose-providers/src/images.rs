@@ -37,7 +37,7 @@ pub fn detect_image_path(text: &str) -> Option<&str> {
     const EXTENSIONS: [&str; 3] = [".png", ".jpg", ".jpeg"];
     const MAX_PATH_LEN: usize = 4096;
 
-    let mut best: Option<&str> = None;
+    let mut best: Option<(usize, &str)> = None;
     let mut from = 0;
     while from < text.len() {
         let Some(end) = EXTENSIONS
@@ -72,11 +72,16 @@ pub fn detect_image_path(text: &str) -> Option<&str> {
                     };
                     let path = Path::new(candidate);
                     if path.is_absolute() && path.is_file() && is_image_file(path) {
-                        // A whitespace-terminated extension is ambiguous: the
-                        // filename may continue to a later extension, so keep
-                        // the longest existing match rather than the first.
-                        if best.is_none_or(|b| candidate.len() > b.len()) {
-                            best = Some(candidate);
+                        // Keep the first referenced path, but allow a longer
+                        // match anchored at the same start to extend it (a
+                        // whitespace-terminated extension may be a prefix of a
+                        // spaced filename ending in a later extension).
+                        match best {
+                            Some((best_start, _)) if start == best_start => {
+                                best = Some((start, candidate));
+                            }
+                            None => best = Some((start, candidate)),
+                            Some(_) => {}
                         }
                         break;
                     }
@@ -85,7 +90,7 @@ pub fn detect_image_path(text: &str) -> Option<&str> {
         }
         from = end;
     }
-    best
+    best.map(|(_, candidate)| candidate)
 }
 
 /// Case-insensitive ASCII substring search returning a byte index into
@@ -249,6 +254,19 @@ mod tests {
         std::fs::write(&prefix, png_data).unwrap();
         let text = format!("look at {}", edited_str);
         assert_eq!(detect_image_path(&text), Some(edited_str));
+
+        // With multiple distinct images, the first referenced one wins even if
+        // a later one has a longer path.
+        let a = temp_dir.path().join("a.png");
+        std::fs::write(&a, png_data).unwrap();
+        let longer = temp_dir.path().join("much-longer.png");
+        std::fs::write(&longer, png_data).unwrap();
+        let text = format!(
+            "compare {} with {}",
+            a.to_str().unwrap(),
+            longer.to_str().unwrap()
+        );
+        assert_eq!(detect_image_path(&text), Some(a.to_str().unwrap()));
     }
 
     #[test]
