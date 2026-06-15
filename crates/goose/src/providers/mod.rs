@@ -53,7 +53,9 @@ pub mod openrouter;
 pub mod pi_acp;
 pub mod provider_registry;
 pub mod provider_test;
-mod retry;
+mod retry {
+    pub use goose_providers::retry::*;
+}
 #[cfg(feature = "aws-providers")]
 pub mod sagemaker_tgi;
 pub mod snowflake;

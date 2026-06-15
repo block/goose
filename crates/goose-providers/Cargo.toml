@@ -28,6 +28,10 @@ tracing = { workspace = true }
 unicode-normalization = { version = "0.1.22", default-features = false, features = ["std"] }
 utoipa = { workspace = true, features = ["chrono"] }
 uuid = { workspace = true, features = ["v4", "std"] }
+async-trait = { workspace = true }
+strum = { workspace = true }
+tokio = { workspace = true }
+rand = { workspace = true }
 
 [dev-dependencies]
 test-case = { workspace = true }
