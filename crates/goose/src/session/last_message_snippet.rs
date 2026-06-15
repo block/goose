@@ -102,7 +102,10 @@ fn message_from_recent_row(row: RecentMessageRow) -> Result<Option<Message>> {
         _ => return Ok(None),
     };
 
-    let content = serde_json::from_str(&row.content_json)?;
+    let content = match serde_json::from_str(&row.content_json) {
+        Ok(content) => content,
+        Err(_) => return Ok(None),
+    };
     let metadata = row
         .metadata_json
         .and_then(|json| serde_json::from_str(&json).ok())
@@ -491,6 +494,42 @@ mod tests {
             Some("**raw** _markdown_ subtitle")
         );
         assert_eq!(by_id.get(&empty_id), Some(&None));
+    }
+
+    #[tokio::test]
+    async fn test_live_last_message_snippet_skips_unparseable_recent_rows() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let id = snippet_session(&sm).await;
+
+        sm.add_message(
+            &id,
+            &message_at(Message::user().with_text("older visible text"), 1_000),
+        )
+        .await
+        .unwrap();
+
+        let pool = sm.storage().pool().await.unwrap();
+        sqlx::query(
+            r#"
+            INSERT INTO messages (message_id, session_id, role, content_json, created_timestamp, metadata_json)
+            VALUES (?, ?, ?, ?, ?, ?)
+        "#,
+        )
+        .bind("invalid-content")
+        .bind(&id)
+        .bind("assistant")
+        .bind("not valid json")
+        .bind(2_000_i64)
+        .bind("{}")
+        .execute(pool)
+        .await
+        .unwrap();
+
+        assert_eq!(
+            hydrated_snippet_of(&sm, &id).await.as_deref(),
+            Some("older visible text")
+        );
     }
 
     #[tokio::test]
