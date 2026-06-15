@@ -8,7 +8,6 @@ pub(super) use crate::acp::response_builder::{
 };
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
-use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use crate::agents::extension_manager::TRUSTED_TOOL_UPDATE_META_KEY;
 use crate::agents::mcp_client::{GooseMcpHostInfo, McpClientTrait};
@@ -65,7 +64,6 @@ use anyhow::Result;
 use fs_err as fs;
 use futures::future::BoxFuture;
 use futures::stream::{self, StreamExt};
-use futures::FutureExt;
 use rmcp::model::{
     AnnotateAble, CallToolResult, RawContent, RawTextContent, ResourceContents, Role,
 };
@@ -85,6 +83,7 @@ mod config;
 mod custom_dispatch;
 mod dictation;
 mod dispatch;
+mod elicitation;
 mod extensions;
 mod fork_session;
 mod list_sessions;
@@ -204,6 +203,7 @@ pub struct GooseAcpAgent {
     client_fs_capabilities: OnceCell<FileSystemCapabilities>,
     client_terminal: OnceCell<bool>,
     client_mcp_host_info: OnceCell<GooseMcpHostInfo>,
+    client_supports_acp_elicitation: OnceCell<bool>,
     client_supports_goose_custom_notifications: OnceCell<bool>,
     use_login_shell_path: OnceCell<bool>,
     client_cx: OnceCell<ConnectionTo<Client>>,
@@ -846,6 +846,13 @@ impl GooseAcpAgent {
             .unwrap_or(false)
     }
 
+    fn supports_acp_elicitation(&self) -> bool {
+        self.client_supports_acp_elicitation
+            .get()
+            .copied()
+            .unwrap_or(false)
+    }
+
     // TODO: goose reads Paths::in_state_dir globally (e.g. RequestLog), ignoring this data_dir.
     pub async fn new(options: GooseAcpAgentOptions) -> Result<Self> {
         let session_manager = Arc::new(SessionManager::new(options.data_dir));
@@ -876,6 +883,7 @@ impl GooseAcpAgent {
             client_fs_capabilities: OnceCell::new(),
             client_terminal: OnceCell::new(),
             client_mcp_host_info: OnceCell::new(),
+            client_supports_acp_elicitation: OnceCell::new(),
             client_supports_goose_custom_notifications: OnceCell::new(),
             use_login_shell_path: OnceCell::new(),
             client_cx: OnceCell::new(),
@@ -1319,20 +1327,15 @@ impl GooseAcpAgent {
                     message,
                     requested_schema,
                 } => {
-                    send_elicitation_interaction_update(
+                    self.handle_form_elicitation(
                         cx,
-                        self.supports_goose_custom_notifications(),
-                        session_id.0.as_ref(),
-                        InteractionUpdate {
-                            interaction: Interaction::Elicitation {
-                                id: id.clone(),
-                                state: InteractionState::Pending,
-                                message: Some(message.clone()),
-                                requested_schema: Some(requested_schema.clone()),
-                            },
-                            meta: Some(interaction_update_meta(message_id, message_created)),
-                        },
-                    )?;
+                        session_id,
+                        id,
+                        message,
+                        requested_schema,
+                        message_update_meta(message_id, message_created, false),
+                    )
+                    .await?;
                 }
                 ActionRequiredData::ElicitationResponse { .. } => {}
             },
@@ -1943,25 +1946,6 @@ fn status_message_from_system_notification(
     }
 }
 
-fn send_elicitation_interaction_update(
-    cx: &ConnectionTo<Client>,
-    supports_goose_custom_notifications: bool,
-    session_id: &str,
-    update: InteractionUpdate,
-) -> Result<(), agent_client_protocol::Error> {
-    if supports_goose_custom_notifications {
-        cx.send_notification(GooseSessionNotification {
-            session_id: session_id.to_string(),
-            update: GooseSessionUpdate::InteractionUpdate(update),
-        })?;
-    }
-    Ok(())
-}
-
-fn interaction_update_meta(message_id: Option<&str>, created: i64) -> serde_json::Value {
-    serde_json::Value::Object(message_update_meta(message_id, created, false))
-}
-
 fn message_update_meta(message_id: Option<&str>, created: i64, steer: bool) -> Meta {
     let mut goose = serde_json::Map::new();
     goose.insert("created".to_string(), serde_json::json!(created));
@@ -2102,6 +2086,9 @@ impl GooseAcpAgent {
         let _ = self.client_supports_goose_custom_notifications.set(
             extract_client_supports_goose_custom_notifications(goose_client_capabilities.as_ref()),
         );
+        let _ = self
+            .client_supports_acp_elicitation
+            .set(elicitation::client_supports_form_elicitation(&args));
         let _ = self
             .use_login_shell_path
             .set(extract_use_login_shell_path(&args));
@@ -2652,54 +2639,6 @@ impl GooseAcpAgent {
         }
 
         Ok(())
-    }
-
-    async fn on_elicitation_respond(
-        &self,
-        cx: &ConnectionTo<Client>,
-        req: ElicitationRespondRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        ActionRequiredManager::global()
-            .submit_response(
-                &req.session_id,
-                req.elicitation_id.clone(),
-                req.user_data.clone(),
-            )
-            .await
-            .invalid_params_err_ctx("Failed to submit elicitation response")?;
-
-        let response_message = Message::user()
-            .with_generated_id()
-            .with_content(MessageContent::action_required_elicitation_response(
-                req.elicitation_id.clone(),
-                req.user_data,
-            ))
-            .agent_only();
-
-        self.session_manager
-            .add_message(&req.session_id, &response_message)
-            .await
-            .internal_err_ctx("Failed to persist elicitation response")?;
-
-        send_elicitation_interaction_update(
-            cx,
-            self.supports_goose_custom_notifications(),
-            &req.session_id,
-            InteractionUpdate {
-                interaction: Interaction::Elicitation {
-                    id: req.elicitation_id,
-                    state: InteractionState::Submitted,
-                    message: None,
-                    requested_schema: None,
-                },
-                meta: Some(interaction_update_meta(
-                    response_message.id.as_deref(),
-                    response_message.created,
-                )),
-            },
-        )?;
-
-        Ok(EmptyResponse {})
     }
 
     async fn on_set_model(

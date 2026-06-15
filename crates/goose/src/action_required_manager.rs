@@ -3,16 +3,45 @@ use serde_json::Value;
 use std::collections::{HashMap, VecDeque};
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{Mutex, RwLock};
+use tokio::sync::{Mutex, OwnedMutexGuard, RwLock};
 use tokio::time::timeout;
 use tracing::warn;
 use uuid::Uuid;
 
 use crate::conversation::message::{Message, MessageContent};
 
+#[derive(Debug, Clone, PartialEq)]
+pub enum ElicitationResponse {
+    Accept(Value),
+    Decline,
+    Cancel,
+}
+
 struct PendingRequest {
     session_id: String,
-    response_tx: Option<tokio::sync::oneshot::Sender<Value>>,
+    response_tx: Option<tokio::sync::oneshot::Sender<ElicitationResponse>>,
+}
+
+pub(crate) struct PendingResponseClaim {
+    request_id: String,
+    pending: OwnedMutexGuard<PendingRequest>,
+}
+
+impl PendingResponseClaim {
+    pub(crate) fn submit(mut self, response: ElicitationResponse) -> Result<()> {
+        let tx = self
+            .pending
+            .response_tx
+            .take()
+            .ok_or_else(|| anyhow::anyhow!("Request already completed: {}", self.request_id))?;
+        drop(self.pending);
+
+        if tx.send(response).is_err() {
+            return Err(anyhow::anyhow!("Response channel closed"));
+        }
+
+        Ok(())
+    }
 }
 
 pub struct ActionRequiredManager {
@@ -40,18 +69,19 @@ impl ActionRequiredManager {
         message: String,
         schema: Value,
         timeout_duration: Duration,
-    ) -> Result<Value> {
+    ) -> Result<ElicitationResponse> {
         let id = Uuid::new_v4().to_string();
         let (tx, rx) = tokio::sync::oneshot::channel();
         let pending_request = PendingRequest {
             session_id: session_id.clone(),
             response_tx: Some(tx),
         };
+        let pending_request = Arc::new(Mutex::new(pending_request));
 
         self.pending
             .write()
             .await
-            .insert(id.clone(), Arc::new(Mutex::new(pending_request)));
+            .insert(id.clone(), Arc::clone(&pending_request));
 
         let action_required_message = Message::assistant().with_content(
             MessageContent::action_required_elicitation(id.clone(), message, schema),
@@ -64,17 +94,9 @@ impl ActionRequiredManager {
             .or_default()
             .push_back(action_required_message);
 
-        let result = match timeout(timeout_duration, rx).await {
-            Ok(Ok(user_data)) => Ok(user_data),
-            Ok(Err(_)) => {
-                warn!("Response channel closed for request: {}", id);
-                Err(anyhow::anyhow!("Response channel closed"))
-            }
-            Err(_) => {
-                warn!("Timeout waiting for response: {}", id);
-                Err(anyhow::anyhow!("Timeout waiting for user response"))
-            }
-        };
+        let result = self
+            .wait_for_response(&id, pending_request, rx, timeout_duration)
+            .await;
 
         self.pending.write().await.remove(&id);
 
@@ -85,17 +107,20 @@ impl ActionRequiredManager {
         &self,
         session_id: &str,
         request_id: String,
-        user_data: Value,
+        response: ElicitationResponse,
     ) -> Result<()> {
-        let pending_arc = {
-            let pending = self.pending.read().await;
-            pending
-                .get(&request_id)
-                .cloned()
-                .ok_or_else(|| anyhow::anyhow!("Request not found: {}", request_id))?
-        };
+        let claim = self.claim_response(session_id, &request_id).await?;
+        claim.submit(response)
+    }
 
-        let mut pending = pending_arc.lock().await;
+    pub(crate) async fn claim_response(
+        &self,
+        session_id: &str,
+        request_id: &str,
+    ) -> Result<PendingResponseClaim> {
+        let pending_arc = self.pending_request(request_id).await?;
+        let mut pending = pending_arc.lock_owned().await;
+
         if pending.session_id != session_id {
             return Err(anyhow::anyhow!(
                 "Request {} belongs to session {}, not {}",
@@ -105,13 +130,63 @@ impl ActionRequiredManager {
             ));
         }
 
-        if let Some(tx) = pending.response_tx.take() {
-            if tx.send(user_data).is_err() {
-                warn!("Failed to send response through oneshot channel");
-            }
+        let tx = pending
+            .response_tx
+            .as_ref()
+            .ok_or_else(|| anyhow::anyhow!("Request already completed: {}", request_id))?;
+        if tx.is_closed() {
+            pending.response_tx.take();
+            return Err(anyhow::anyhow!("Response channel closed"));
         }
 
-        Ok(())
+        Ok(PendingResponseClaim {
+            request_id: request_id.to_string(),
+            pending,
+        })
+    }
+
+    async fn pending_request(&self, request_id: &str) -> Result<Arc<Mutex<PendingRequest>>> {
+        let pending = self.pending.read().await;
+        pending
+            .get(request_id)
+            .cloned()
+            .ok_or_else(|| anyhow::anyhow!("Request not found: {}", request_id))
+    }
+
+    async fn wait_for_response(
+        &self,
+        request_id: &str,
+        pending_request: Arc<Mutex<PendingRequest>>,
+        mut rx: tokio::sync::oneshot::Receiver<ElicitationResponse>,
+        timeout_duration: Duration,
+    ) -> Result<ElicitationResponse> {
+        match timeout(timeout_duration, &mut rx).await {
+            Ok(response) => Self::finish_waiting(request_id, response),
+            Err(_) => {
+                let mut pending = pending_request.lock().await;
+                if pending.response_tx.is_some() {
+                    pending.response_tx.take();
+                    warn!("Timeout waiting for response: {}", request_id);
+                    return Err(anyhow::anyhow!("Timeout waiting for user response"));
+                }
+                drop(pending);
+
+                Self::finish_waiting(request_id, rx.await)
+            }
+        }
+    }
+
+    fn finish_waiting(
+        request_id: &str,
+        response: Result<ElicitationResponse, tokio::sync::oneshot::error::RecvError>,
+    ) -> Result<ElicitationResponse> {
+        match response {
+            Ok(user_data) => Ok(user_data),
+            Err(_) => {
+                warn!("Response channel closed for request: {}", request_id);
+                Err(anyhow::anyhow!("Response channel closed"))
+            }
+        }
     }
 
     pub async fn drain_requests_for_session(&self, session_id: &str) -> Vec<Message> {
@@ -182,19 +257,26 @@ mod tests {
             .submit_response(
                 "session-b",
                 request_id.clone(),
-                json!({ "answer": "wrong" }),
+                ElicitationResponse::Accept(json!({ "answer": "wrong" })),
             )
             .await
             .unwrap_err();
         assert!(err.to_string().contains("belongs to session session-a"));
 
         manager
-            .submit_response("session-a", request_id, json!({ "answer": "right" }))
+            .submit_response(
+                "session-a",
+                request_id,
+                ElicitationResponse::Accept(json!({ "answer": "right" })),
+            )
             .await
             .unwrap();
 
         let response = waiter.await.unwrap().unwrap();
-        assert_eq!(response, json!({ "answer": "right" }));
+        assert_eq!(
+            response,
+            ElicitationResponse::Accept(json!({ "answer": "right" }))
+        );
     }
 
     #[tokio::test]
@@ -239,15 +321,29 @@ mod tests {
         let request_id_b = elicitation_id(&session_b_messages[0]);
 
         manager
-            .submit_response("session-a", request_id_a, json!({ "answer": "a" }))
+            .submit_response(
+                "session-a",
+                request_id_a,
+                ElicitationResponse::Accept(json!({ "answer": "a" })),
+            )
             .await
             .unwrap();
         manager
-            .submit_response("session-b", request_id_b, json!({ "answer": "b" }))
+            .submit_response(
+                "session-b",
+                request_id_b,
+                ElicitationResponse::Accept(json!({ "answer": "b" })),
+            )
             .await
             .unwrap();
 
-        assert_eq!(waiter_a.await.unwrap().unwrap(), json!({ "answer": "a" }));
-        assert_eq!(waiter_b.await.unwrap().unwrap(), json!({ "answer": "b" }));
+        assert_eq!(
+            waiter_a.await.unwrap().unwrap(),
+            ElicitationResponse::Accept(json!({ "answer": "a" }))
+        );
+        assert_eq!(
+            waiter_b.await.unwrap().unwrap(),
+            ElicitationResponse::Accept(json!({ "answer": "b" }))
+        );
     }
 }
