@@ -1392,32 +1392,9 @@ impl SummonClient {
             );
         }
 
-        let effective_working_dir = if let Some(ref dir) = params.working_dir {
-            let requested = PathBuf::from(dir);
-            let resolved = if requested.is_absolute() {
-                requested
-            } else {
-                session.working_dir.join(&requested)
-            };
-            let canonical = resolved.canonicalize().map_err(|e| {
-                anyhow::anyhow!("working_dir '{}' could not be resolved: {}", dir, e)
-            })?;
-            let parent_canonical = session
-                .working_dir
-                .canonicalize()
-                .unwrap_or_else(|_| session.working_dir.clone());
-            if !canonical.starts_with(&parent_canonical) {
-                anyhow::bail!(
-                    "working_dir '{}' is outside the parent session directory",
-                    dir
-                );
-            }
-            if !canonical.is_dir() {
-                anyhow::bail!("working_dir '{}' is not a directory", dir);
-            }
-            canonical
-        } else {
-            session.working_dir.clone()
+        let effective_working_dir = match &params.working_dir {
+            Some(dir) => resolve_working_dir(&session.working_dir, dir)?,
+            None => session.working_dir.clone(),
         };
 
         let task_config =
@@ -1851,6 +1828,34 @@ impl McpClientTrait for SummonClient {
     }
 }
 
+/// Resolve a requested `working_dir` override against the parent session
+/// directory. Relative paths are joined to the parent dir; the result must
+/// canonicalize to an existing directory contained within the parent dir.
+fn resolve_working_dir(parent_dir: &Path, requested: &str) -> Result<PathBuf, anyhow::Error> {
+    let requested_path = PathBuf::from(requested);
+    let resolved = if requested_path.is_absolute() {
+        requested_path
+    } else {
+        parent_dir.join(&requested_path)
+    };
+    let canonical = resolved
+        .canonicalize()
+        .map_err(|e| anyhow::anyhow!("working_dir '{}' could not be resolved: {}", requested, e))?;
+    let parent_canonical = parent_dir
+        .canonicalize()
+        .unwrap_or_else(|_| parent_dir.to_path_buf());
+    if !canonical.starts_with(&parent_canonical) {
+        anyhow::bail!(
+            "working_dir '{}' is outside the parent session directory",
+            requested
+        );
+    }
+    if !canonical.is_dir() {
+        anyhow::bail!("working_dir '{}' is not a directory", requested);
+    }
+    Ok(canonical)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1881,6 +1886,58 @@ You review code."#;
         assert!(source.description.contains("sonnet"));
     }
 
+    #[test]
+    fn test_resolve_working_dir_relative_subdir() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path().canonicalize().unwrap();
+        let subdir = parent.join("sub");
+        fs::create_dir(&subdir).unwrap();
+
+        let resolved = resolve_working_dir(&parent, "sub").unwrap();
+        assert_eq!(resolved, subdir.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_resolve_working_dir_rejects_traversal_outside_parent() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path().join("parent");
+        let sibling = temp_dir.path().join("sibling");
+        fs::create_dir(&parent).unwrap();
+        fs::create_dir(&sibling).unwrap();
+
+        let err = resolve_working_dir(&parent, "../sibling").unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("outside the parent session directory"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_resolve_working_dir_rejects_file_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path().canonicalize().unwrap();
+        let file = parent.join("a.txt");
+        fs::write(&file, "hello").unwrap();
+
+        let err = resolve_working_dir(&parent, "a.txt").unwrap_err();
+        assert!(
+            err.to_string().contains("is not a directory"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_resolve_working_dir_rejects_nonexistent_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path().canonicalize().unwrap();
+
+        let err = resolve_working_dir(&parent, "does-not-exist").unwrap_err();
+        assert!(
+            err.to_string().contains("could not be resolved"),
+            "unexpected error: {err}"
+        );
+    }
     #[test]
     fn test_agent_scan_skips_non_agent_markdown() {
         let temp_dir = TempDir::new().unwrap();
