@@ -1,10 +1,7 @@
 use std::collections::HashMap;
 
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
-};
-use super::errors::ProviderError;
-use super::retry::{ProviderRetry, RetryConfig};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
+use super::retry::{self, ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use crate::providers::utils::RequestLog;
@@ -14,6 +11,8 @@ use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::errors::ProviderError;
 use reqwest::header::HeaderValue;
 use rmcp::model::Tool;
 use serde_json::Value;
@@ -169,18 +168,26 @@ impl BedrockProvider {
     fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
         let max_retries = config
             .get_param::<usize>("BEDROCK_MAX_RETRIES")
+            .ok()
+            .or_else(retry::env_max_retries)
             .unwrap_or(BEDROCK_DEFAULT_MAX_RETRIES);
 
         let initial_interval_ms = config
             .get_param::<u64>("BEDROCK_INITIAL_RETRY_INTERVAL_MS")
+            .ok()
+            .or_else(retry::env_initial_interval_ms)
             .unwrap_or(BEDROCK_DEFAULT_INITIAL_RETRY_INTERVAL_MS);
 
         let backoff_multiplier = config
             .get_param::<f64>("BEDROCK_BACKOFF_MULTIPLIER")
+            .ok()
+            .or_else(retry::env_backoff_multiplier)
             .unwrap_or(BEDROCK_DEFAULT_BACKOFF_MULTIPLIER);
 
         let max_interval_ms = config
             .get_param::<u64>("BEDROCK_MAX_RETRY_INTERVAL_MS")
+            .ok()
+            .or_else(retry::env_max_interval_ms)
             .unwrap_or(BEDROCK_DEFAULT_MAX_RETRY_INTERVAL_MS);
 
         RetryConfig::new(
@@ -291,6 +298,10 @@ impl BedrockProvider {
                         err
                     ))
                 }
+                ConverseError::ValidationException(err) => ProviderError::ExecutionError(format!(
+                    "Bedrock validation error: {}",
+                    err.message().unwrap_or("unknown validation error")
+                )),
                 ConverseError::ModelErrorException(err) => {
                     ProviderError::ExecutionError(format!("Failed to call Bedrock: {:?}", err))
                 }

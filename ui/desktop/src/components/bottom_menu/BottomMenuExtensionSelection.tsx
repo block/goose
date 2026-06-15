@@ -1,4 +1,3 @@
-import { AppEvents } from '../../constants/events';
 import { useCallback, useEffect, useMemo, useState, useRef } from 'react';
 import { Puzzle } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '../ui/dropdown-menu';
@@ -8,8 +7,7 @@ import { FixedExtensionEntry, useConfig } from '../ConfigContext';
 import { toastService } from '../../toasts';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import { nameToKey } from '../settings/extensions/utils';
-import { ExtensionConfig } from '../../api';
-import { getSessionExtensions } from '../../acp/extensions';
+import { ExtensionConfig, getSessionExtensions } from '../../api';
 import { addToAgent, removeFromAgent } from '../settings/extensions/agent-api';
 import {
   setExtensionOverride,
@@ -17,6 +15,7 @@ import {
   getExtensionOverrides,
 } from '../../store/extensionOverrides';
 import { defineMessages, useIntl } from '../../i18n';
+import { AppEvents } from '../../constants/events';
 
 const i18n = defineMessages({
   manageExtensions: {
@@ -69,6 +68,8 @@ interface BottomMenuExtensionSelectionProps {
   sessionId: string | null;
 }
 
+type GetSessionExtensionsSignal = Parameters<typeof getSessionExtensions>[0]['signal'];
+
 export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionSelectionProps) => {
   const intl = useIntl();
   const [searchQuery, setSearchQuery] = useState('');
@@ -78,28 +79,25 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [pendingSort, setPendingSort] = useState(false);
   const [togglingExtension, setTogglingExtension] = useState<string | null>(null);
-  const [refreshTrigger, setRefreshTrigger] = useState(0);
   const [isSessionExtensionsLoaded, setIsSessionExtensionsLoaded] = useState(false);
   const sortTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const latestSessionIdRef = useRef(sessionId);
   const { extensionsList: allExtensions } = useConfig();
   const isHubView = !sessionId;
 
   useEffect(() => {
+    latestSessionIdRef.current = sessionId;
     setIsSessionExtensionsLoaded(false);
     setSessionExtensions([]);
+    setPendingSort(false);
+    setIsTransitioning(false);
+    setTogglingExtension(null);
+
+    if (sortTimeoutRef.current) {
+      clearTimeout(sortTimeoutRef.current);
+      sortTimeoutRef.current = null;
+    }
   }, [sessionId]);
-
-  useEffect(() => {
-    const handleExtensionsLoaded = () => {
-      setRefreshTrigger((prev) => prev + 1);
-    };
-
-    window.addEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, handleExtensionsLoaded);
-
-    return () => {
-      window.removeEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, handleExtensionsLoaded);
-    };
-  }, []);
 
   useEffect(() => {
     return () => {
@@ -109,28 +107,71 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
     };
   }, []);
 
-  useEffect(() => {
-    if (refreshTrigger === 0 && !isOpen) {
-      return;
-    }
+  const loadSessionExtensions = useCallback(
+    async (targetSessionId: string, signal?: GetSessionExtensionsSignal) => {
+      const response = await getSessionExtensions({
+        path: { session_id: targetSessionId },
+        signal,
+        throwOnError: true,
+      });
 
-    const fetchExtensions = async () => {
-      if (!sessionId) {
+      if (signal?.aborted || latestSessionIdRef.current !== targetSessionId) {
         return;
       }
 
-      try {
-        const extensions = await getSessionExtensions(sessionId);
-        setSessionExtensions(extensions);
-        setIsSessionExtensionsLoaded(true);
-      } catch (error) {
+      setSessionExtensions(response.data?.extensions ?? []);
+      setIsSessionExtensionsLoaded(true);
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!sessionId) {
+      setIsSessionExtensionsLoaded(true);
+      return;
+    }
+
+    let controller: AbortController | null = null;
+
+    const loadExtensionsForCurrentSession = (event: Event) => {
+      const targetSessionId = (event as CustomEvent<{ sessionId?: string }>).detail?.sessionId;
+
+      if (targetSessionId !== sessionId) {
+        return;
+      }
+
+      controller?.abort();
+      const currentController = new AbortController();
+      controller = currentController;
+
+      loadSessionExtensions(targetSessionId, currentController.signal).catch((error) => {
+        if (currentController.signal.aborted || latestSessionIdRef.current !== targetSessionId) {
+          return;
+        }
+
         console.error('Failed to fetch session extensions:', error);
         setIsSessionExtensionsLoaded(true);
-      }
+      });
     };
 
-    fetchExtensions();
-  }, [sessionId, isOpen, refreshTrigger]);
+    window.addEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, loadExtensionsForCurrentSession);
+
+    return () => {
+      controller?.abort();
+      window.removeEventListener(
+        AppEvents.SESSION_EXTENSIONS_LOADED,
+        loadExtensionsForCurrentSession
+      );
+    };
+  }, [sessionId, loadSessionExtensions]);
+
+  const finishSessionTransition = useCallback((targetSessionId: string) => {
+    if (latestSessionIdRef.current === targetSessionId) {
+      setPendingSort(false);
+      setIsTransitioning(false);
+      setTogglingExtension(null);
+    }
+  }, []);
 
   const handleToggle = useCallback(
     async (extensionConfig: FixedExtensionEntry) => {
@@ -156,6 +197,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
           setPendingSort(false);
           setIsTransitioning(false);
           setTogglingExtension(null);
+          sortTimeoutRef.current = null;
         }, 800);
 
         toastService.success({
@@ -192,12 +234,17 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
           clearTimeout(sortTimeoutRef.current);
         }
 
-        sortTimeoutRef.current = setTimeout(async () => {
-          const extensions = await getSessionExtensions(sessionId);
-          setSessionExtensions(extensions);
-          setPendingSort(false);
-          setIsTransitioning(false);
-          setTogglingExtension(null);
+        sortTimeoutRef.current = setTimeout(() => {
+          loadSessionExtensions(sessionId)
+            .catch((error) => {
+              if (latestSessionIdRef.current === sessionId) {
+                console.error('Failed to fetch session extensions:', error);
+              }
+            })
+            .finally(() => {
+              finishSessionTransition(sessionId);
+              sortTimeoutRef.current = null;
+            });
         }, 800);
       } catch {
         setIsTransitioning(false);
@@ -205,7 +252,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
         setTogglingExtension(null);
       }
     },
-    [sessionId, isHubView, togglingExtension, intl]
+    [sessionId, isHubView, togglingExtension, intl, loadSessionExtensions, finishSessionTransition]
   );
 
   // Merge all available extensions with session-specific or hub override state

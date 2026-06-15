@@ -189,7 +189,7 @@ Configurable retry parameters for LLM providers.
 
 #### Universal LLM Provider Defaults
 
-These `GOOSE_` variables configure the shared retry defaults used by providers that do not define their own retry settings. Provider-specific retry variables, such as the Bedrock and Databricks variables below, take precedence for those providers.
+These `GOOSE_` variables configure the retry behavior shared across all providers. Each setting is resolved in order of precedence: a provider-specific retry variable (such as the Bedrock and Databricks variables below) is used first, then the matching `GOOSE_LLM_` variable, and finally the provider's built-in default.
 
 | Variable | Purpose | Default |
 |---------------------|-------------|---------|
@@ -610,7 +610,7 @@ These variables configure the `goosed` server process. They are most often used 
 | `GOOSE_HOST` | Interface the server binds to. Use `0.0.0.0` to accept connections from other machines; `localhost` or `127.0.0.1` restricts to the local machine. | Hostname or IP | `127.0.0.1` |
 | `GOOSE_PORT` | TCP port the server listens on | Port number | `3000` |
 | `GOOSE_TLS` | Enable TLS with a self-signed certificate. Required when connecting goose Desktop to a remote `goosed`. | `true`, `false` | `true` |
-| `GOOSE_SERVER__SECRET_KEY` | Shared secret required in the `X-Secret-Key` header on all client requests | Secret string | Random (auto-generated) |
+| `GOOSE_SERVER__SECRET_KEY` | Shared secret required in the `X-Secret-Key` header on all client requests. When set, it is also enforced on the `goose serve` ACP endpoint. | Secret string | Random (auto-generated) |
 
 **Examples**
 

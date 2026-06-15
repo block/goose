@@ -1,4 +1,5 @@
-.runs/
+runs/
+.env
 .venv/
-.pytest_cache/
-uv.lock
+__pycache__/
+*.pyc

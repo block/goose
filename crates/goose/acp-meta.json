@@ -36,14 +36,24 @@
       "responseType": "EmptyResponse"
     },
     {
+      "method": "_goose/unstable/session/steer",
+      "requestType": "SteerSessionRequest_unstable",
+      "responseType": "SteerSessionResponse_unstable"
+    },
+    {
       "method": "session/delete",
       "requestType": "DeleteSessionRequest",
       "responseType": "EmptyResponse"
     },
     {
       "method": "_goose/unstable/config/extensions/list",
-      "requestType": "GetExtensionsRequest_unstable",
-      "responseType": "GetExtensionsResponse_unstable"
+      "requestType": "GetConfigExtensionsRequest_unstable",
+      "responseType": "GetConfigExtensionsResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/extensions/available",
+      "requestType": "GetAvailableExtensionsRequest_unstable",
+      "responseType": "GetAvailableExtensionsResponse_unstable"
     },
     {
       "method": "_goose/unstable/config/extensions/add",
@@ -56,8 +66,8 @@
       "responseType": "EmptyResponse"
     },
     {
-      "method": "_goose/unstable/config/extensions/toggle",
-      "requestType": "ToggleConfigExtensionRequest_unstable",
+      "method": "_goose/unstable/config/extensions/set-enabled",
+      "requestType": "SetConfigExtensionEnabledRequest_unstable",
       "responseType": "EmptyResponse"
     },
     {
@@ -186,6 +196,16 @@
       "responseType": "ImportSessionResponse_unstable"
     },
     {
+      "method": "_goose/unstable/session/info",
+      "requestType": "GetSessionInfoRequest_unstable",
+      "responseType": "GetSessionInfoResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/elicitation/respond",
+      "requestType": "ElicitationRespondRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
       "method": "_goose/unstable/session/project/update",
       "requestType": "UpdateSessionProjectRequest_unstable",
       "responseType": "EmptyResponse"
@@ -284,6 +304,12 @@
       "method": "_goose/unstable/dictation/models/select",
       "requestType": "DictationModelSelectRequest_unstable",
       "responseType": "EmptyResponse"
+    }
+  ],
+  "notifications": [
+    {
+      "method": "_goose/unstable/session/update",
+      "paramsType": "GooseSessionNotification_unstable"
     }
   ]
 }

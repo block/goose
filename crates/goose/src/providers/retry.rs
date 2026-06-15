@@ -1,6 +1,6 @@
-use super::errors::ProviderError;
 use crate::providers::base::Provider;
 use async_trait::async_trait;
+use goose_providers::errors::ProviderError;
 use std::env;
 use std::fmt::Display;
 use std::future::Future;
@@ -41,31 +41,28 @@ impl Default for RetryConfig {
 
 impl RetryConfig {
     pub fn from_env() -> Self {
+        Self::with_defaults(
+            DEFAULT_MAX_RETRIES,
+            DEFAULT_INITIAL_RETRY_INTERVAL_MS,
+            DEFAULT_BACKOFF_MULTIPLIER,
+            DEFAULT_MAX_RETRY_INTERVAL_MS,
+        )
+    }
+
+    /// Builds a retry config from the universal `GOOSE_LLM_*` environment
+    /// variables, falling back to the supplied provider-specific defaults when
+    /// a variable is unset or invalid.
+    pub fn with_defaults(
+        max_retries: usize,
+        initial_interval_ms: u64,
+        backoff_multiplier: f64,
+        max_interval_ms: u64,
+    ) -> Self {
         Self {
-            max_retries: read_retry_env(
-                GOOSE_LLM_MAX_RETRIES,
-                DEFAULT_MAX_RETRIES,
-                |value| value > 0,
-                "a positive integer",
-            ),
-            initial_interval_ms: read_retry_env(
-                GOOSE_LLM_INITIAL_RETRY_INTERVAL_MS,
-                DEFAULT_INITIAL_RETRY_INTERVAL_MS,
-                |value| value > 0,
-                "a positive integer",
-            ),
-            backoff_multiplier: read_retry_env(
-                GOOSE_LLM_BACKOFF_MULTIPLIER,
-                DEFAULT_BACKOFF_MULTIPLIER,
-                |value| value.is_finite() && value >= 1.0,
-                "a finite number greater than or equal to 1",
-            ),
-            max_interval_ms: read_retry_env(
-                GOOSE_LLM_MAX_RETRY_INTERVAL_MS,
-                DEFAULT_MAX_RETRY_INTERVAL_MS,
-                |value| value > 0,
-                "a positive integer",
-            ),
+            max_retries: env_max_retries().unwrap_or(max_retries),
+            initial_interval_ms: env_initial_interval_ms().unwrap_or(initial_interval_ms),
+            backoff_multiplier: env_backoff_multiplier().unwrap_or(backoff_multiplier),
+            max_interval_ms: env_max_interval_ms().unwrap_or(max_interval_ms),
             transient_only: false,
         }
     }
@@ -113,36 +110,70 @@ impl RetryConfig {
     }
 }
 
-fn read_retry_env<T, F>(name: &str, default: T, is_valid: F, expected: &str) -> T
+/// Reads the universal `GOOSE_LLM_MAX_RETRIES` override, if set and valid.
+pub fn env_max_retries() -> Option<usize> {
+    read_retry_env(
+        GOOSE_LLM_MAX_RETRIES,
+        |value| *value > 0,
+        "a positive integer",
+    )
+}
+
+/// Reads the universal `GOOSE_LLM_INITIAL_RETRY_INTERVAL_MS` override, if set and valid.
+pub fn env_initial_interval_ms() -> Option<u64> {
+    read_retry_env(
+        GOOSE_LLM_INITIAL_RETRY_INTERVAL_MS,
+        |value| *value > 0,
+        "a positive integer",
+    )
+}
+
+/// Reads the universal `GOOSE_LLM_BACKOFF_MULTIPLIER` override, if set and valid.
+pub fn env_backoff_multiplier() -> Option<f64> {
+    read_retry_env(
+        GOOSE_LLM_BACKOFF_MULTIPLIER,
+        |value: &f64| value.is_finite() && *value >= 1.0,
+        "a finite number greater than or equal to 1",
+    )
+}
+
+/// Reads the universal `GOOSE_LLM_MAX_RETRY_INTERVAL_MS` override, if set and valid.
+pub fn env_max_interval_ms() -> Option<u64> {
+    read_retry_env(
+        GOOSE_LLM_MAX_RETRY_INTERVAL_MS,
+        |value| *value > 0,
+        "a positive integer",
+    )
+}
+
+fn read_retry_env<T, F>(name: &str, is_valid: F, expected: &str) -> Option<T>
 where
-    T: Copy + Display + FromStr,
-    F: Fn(T) -> bool,
+    T: Display + FromStr,
+    F: Fn(&T) -> bool,
 {
     let value = match env::var(name) {
         Ok(value) => value,
-        Err(env::VarError::NotPresent) => return default,
+        Err(env::VarError::NotPresent) => return None,
         Err(error) => {
             tracing::warn!(
                 env_var = name,
                 error = %error,
-                default = %default,
                 "Ignoring invalid retry environment variable"
             );
-            return default;
+            return None;
         }
     };
 
     match value.parse::<T>() {
-        Ok(parsed) if is_valid(parsed) => parsed,
+        Ok(parsed) if is_valid(&parsed) => Some(parsed),
         _ => {
             tracing::warn!(
                 env_var = name,
                 value = %value,
                 expected,
-                default = %default,
                 "Ignoring invalid retry environment variable"
             );
-            default
+            None
         }
     }
 }
@@ -365,6 +396,28 @@ mod tests {
         );
         assert_eq!(config.backoff_multiplier, DEFAULT_BACKOFF_MULTIPLIER);
         assert_eq!(config.max_interval_ms, DEFAULT_MAX_RETRY_INTERVAL_MS);
+    }
+
+    #[test]
+    fn with_defaults_keeps_provider_defaults_without_env() {
+        let _guard = lock_retry_env(None, None, None, None);
+        let config = RetryConfig::with_defaults(6, 2000, 2.5, 120_000);
+
+        assert_eq!(config.max_retries, 6);
+        assert_eq!(config.initial_interval_ms, 2000);
+        assert_eq!(config.backoff_multiplier, 2.5);
+        assert_eq!(config.max_interval_ms, 120_000);
+    }
+
+    #[test]
+    fn with_defaults_prefers_llm_retry_env_overrides() {
+        let _guard = lock_retry_env(Some("8"), Some("250"), Some("1.5"), Some("60000"));
+        let config = RetryConfig::with_defaults(6, 2000, 2.5, 120_000);
+
+        assert_eq!(config.max_retries, 8);
+        assert_eq!(config.initial_interval_ms, 250);
+        assert_eq!(config.backoff_multiplier, 1.5);
+        assert_eq!(config.max_interval_ms, 60_000);
     }
 
     #[test]

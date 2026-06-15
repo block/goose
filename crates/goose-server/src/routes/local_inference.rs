@@ -11,6 +11,7 @@ use axum::{
 use futures::future::join_all;
 use goose::config::paths::Paths;
 use goose::download_manager::{get_download_manager, DownloadProgress};
+use goose::providers::huggingface_auth;
 use goose::providers::local_inference::hf_models::{self, HfModelInfo, HfQuantVariant};
 use goose::providers::local_inference::{
     available_inference_memory_bytes, builtin_chat_template_names,
@@ -251,6 +252,7 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
     // Auto-download mmproj files for models that are already downloaded.
     // Deduplicate by path since multiple quants share one mmproj file.
     let dm = get_download_manager();
+    let hf_token = huggingface_auth::resolve_token_async().await.ok().flatten();
     let mut started_paths = std::collections::HashSet::new();
     for (model_id, url, path) in mmproj_downloads_needed {
         if !path.exists() && started_paths.insert(path.clone()) {
@@ -260,7 +262,16 @@ async fn ensure_featured_models_in_registry() -> Result<(), ErrorResponse> {
                 .is_some_and(|p| p.status == goose::download_manager::DownloadStatus::Downloading);
             if !dominated_by_active {
                 tracing::info!(model_id = %model_id, "Auto-downloading vision encoder for existing model");
-                if let Err(e) = dm.download_model(download_id, url, path, None).await {
+                if let Err(e) = dm
+                    .download_model_with_bearer_token(
+                        download_id,
+                        url,
+                        path,
+                        hf_token.clone(),
+                        None,
+                    )
+                    .await
+                {
                     tracing::warn!(model_id = %model_id, error = %e, "Failed to start mmproj download");
                 }
             }
@@ -471,6 +482,7 @@ pub async fn download_hf_model(
     let (_repo, resolved) = resolve_model_spec_full(&req.spec)
         .await
         .map_err(|e| ErrorResponse::bad_request(format!("Invalid spec: {}", e)))?;
+    let hf_token = huggingface_auth::resolve_token_async().await.ok().flatten();
 
     let model_id = model_id_from_repo(&repo_id, &quantization);
     let models_dir = Paths::in_data_dir("models");
@@ -545,10 +557,11 @@ pub async fn download_hf_model(
         .map(|f| (f.download_url.clone(), models_dir.join(&f.filename)))
         .collect();
 
-    dm.download_model_sharded(
+    dm.download_model_sharded_with_bearer_token(
         format!("{}-model", model_id),
         all_files,
         resolved.total_size,
+        hf_token.clone(),
         None,
     )
     .await
@@ -556,10 +569,11 @@ pub async fn download_hf_model(
 
     if let Some((mmproj_path, mmproj_url)) = mmproj_path {
         if !mmproj_path.exists() {
-            dm.download_model(
+            dm.download_model_with_bearer_token(
                 format!("{}-mmproj", model_id),
                 mmproj_url,
                 mmproj_path,
+                hf_token,
                 None,
             )
             .await

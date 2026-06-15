@@ -21,16 +21,16 @@ use crate::providers::base::{
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 
-use crate::providers::errors::ProviderError;
 use crate::providers::formats::gcpvertexai::{
     create_request, response_to_streaming_message, GcpLocation, ModelProvider, RequestContext,
     DEFAULT_MODEL, KNOWN_MODELS,
 };
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::openai_compatible::{map_http_error_to_provider_error, sanitize_url};
-use crate::providers::retry::RetryConfig;
+use crate::providers::retry::{self, RetryConfig};
 use crate::providers::utils::RequestLog;
 use crate::session_context::SESSION_ID_HEADER;
+use goose_providers::errors::ProviderError;
 use rmcp::model::Tool;
 
 const GCP_VERTEX_AI_PROVIDER_NAME: &str = "gcp_vertex_ai";
@@ -199,24 +199,28 @@ impl GcpVertexAIProvider {
             .get_param("GCP_MAX_RETRIES")
             .ok()
             .and_then(|v: String| v.parse::<usize>().ok())
+            .or_else(retry::env_max_retries)
             .unwrap_or(DEFAULT_MAX_RETRIES);
 
         let initial_interval_ms = config
             .get_param("GCP_INITIAL_RETRY_INTERVAL_MS")
             .ok()
             .and_then(|v: String| v.parse::<u64>().ok())
+            .or_else(retry::env_initial_interval_ms)
             .unwrap_or(DEFAULT_INITIAL_RETRY_INTERVAL_MS);
 
         let backoff_multiplier = config
             .get_param("GCP_BACKOFF_MULTIPLIER")
             .ok()
             .and_then(|v: String| v.parse::<f64>().ok())
+            .or_else(retry::env_backoff_multiplier)
             .unwrap_or(DEFAULT_BACKOFF_MULTIPLIER);
 
         let max_interval_ms = config
             .get_param("GCP_MAX_RETRY_INTERVAL_MS")
             .ok()
             .and_then(|v: String| v.parse::<u64>().ok())
+            .or_else(retry::env_max_interval_ms)
             .unwrap_or(DEFAULT_MAX_RETRY_INTERVAL_MS);
 
         RetryConfig::new(
@@ -618,8 +622,7 @@ impl Provider for GcpVertexAIProvider {
             let mut message_stream = response_to_streaming_message(framed, &context_clone);
 
             while let Some(message) = message_stream.next().await {
-                let (message, usage) = message
-                    .map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                let (message, usage) = message.map_err(ProviderError::from_stream_error)?;
                 log.write(&message, usage.as_ref().map(|u| &u.usage))?;
                 yield (message, usage);
             }
