@@ -33,19 +33,11 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
     }
 }
 
-/// Detect if a string contains a path to an image file.
+/// Detect an absolute path to an existing image file within `text`.
 ///
-/// Absolute paths can contain spaces (e.g. macOS screenshots like
-/// `/…/Screen Shot 2026.png`), so rather than splitting on whitespace we anchor
-/// on each image-extension occurrence and walk back over `/`-rooted starts,
-/// returning the longest candidate that is an existing image file. The backward
-/// scan is bounded so extension-heavy text can't cause quadratic work.
-///
-/// The extension must terminate the candidate (so `/tmp/foo.png.backup` is not
-/// truncated to `/tmp/foo.png`) and the leading `/` must follow a whitespace or
-/// quote boundary (so a `://` in a URL like `https://host/x.png` is not mistaken
-/// for an absolute path). A path may be wrapped in matching quotes
-/// (`"/tmp/Screen Shot.png"`), in which case the closing quote terminates it.
+/// Anchors on each image extension and walks back to a `/`-rooted, boundary-
+/// delimited start so paths containing spaces (e.g. macOS screenshots) are
+/// detected without being confused by URLs or longer extensions.
 pub fn detect_image_path(text: &str) -> Option<&str> {
     const EXTENSIONS: [&str; 3] = [".png", ".jpg", ".jpeg"];
     const MAX_PATH_LEN: usize = 4096;
