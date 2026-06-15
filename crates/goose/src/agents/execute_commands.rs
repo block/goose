@@ -84,6 +84,22 @@ pub fn list_commands() -> &'static [CommandDef] {
     COMMANDS
 }
 
+fn is_clear_goal_param(params_str: &str) -> bool {
+    matches!(params_str, "off" | "clear" | "none")
+}
+
+/// Whether a slash command should kick off an agent turn instead of just
+/// returning a confirmation. Setting a `/goal` or `/grind` (with a description,
+/// not the query or `off` forms) makes the agent start pursuing it immediately.
+pub fn command_starts_turn(message_text: &str) -> bool {
+    let Some(parsed) = parse_slash_command(message_text) else {
+        return false;
+    };
+    matches!(parsed.command, "goal" | "grind")
+        && !parsed.params_str.is_empty()
+        && !is_clear_goal_param(parsed.params_str)
+}
+
 impl Agent {
     pub async fn execute_command(
         &self,
@@ -380,7 +396,7 @@ impl Agent {
             return Ok(Some(Message::assistant().with_text(text)));
         }
 
-        if params_str == "off" || params_str == "clear" || params_str == "none" {
+        if is_clear_goal_param(params_str) {
             self.set_goal(None).await;
             return Ok(Some(
                 Message::assistant().with_text("Goal cleared. The agent will finish normally."),
@@ -404,7 +420,7 @@ impl Agent {
             return Ok(Some(Message::assistant().with_text(text)));
         }
 
-        if params_str == "off" || params_str == "clear" {
+        if is_clear_goal_param(params_str) {
             self.set_grind(None).await;
             return Ok(Some(
                 Message::assistant().with_text("Grind cleared. The agent will finish normally."),
@@ -445,6 +461,24 @@ mod tests {
         let parsed = parse_slash_command("/speckit.plan\nhello").unwrap();
         assert_eq!(parsed.command, "speckit.plan\nhello");
         assert_eq!(parsed.params_str, "");
+    }
+
+    #[test]
+    fn command_starts_turn_only_for_goal_and_grind_with_description() {
+        assert!(command_starts_turn("/goal make all tests pass"));
+        assert!(command_starts_turn("/grind keep refactoring"));
+
+        // Query and clear forms must not start a turn.
+        assert!(!command_starts_turn("/goal"));
+        assert!(!command_starts_turn("/goal off"));
+        assert!(!command_starts_turn("/goal clear"));
+        assert!(!command_starts_turn("/goal none"));
+        assert!(!command_starts_turn("/grind"));
+        assert!(!command_starts_turn("/grind off"));
+
+        // Other commands and plain prompts never start a turn here.
+        assert!(!command_starts_turn("/compact"));
+        assert!(!command_starts_turn("just a normal message"));
     }
 
     #[test]
