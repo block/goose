@@ -1,9 +1,14 @@
 import Model from './modelInterface';
 
+function getAppConfigString(key: string): string | null {
+  const value = window.appConfig.get(key);
+  return typeof value === 'string' && value.trim() ? value : null;
+}
+
 // Helper functions for predefined models - shared across components
 export function getPredefinedModelsFromEnv(): Model[] {
   try {
-    const envModels = window.appConfig.get('GOOSE_PREDEFINED_MODELS'); // process.env.GOOSE_PREDEFINED_MODELS
+    const envModels = getAppConfigString('GOOSE_PREDEFINED_MODELS'); // process.env.GOOSE_PREDEFINED_MODELS
     if (envModels && typeof envModels === 'string') {
       return JSON.parse(envModels) as Model[];
     }
@@ -15,6 +20,33 @@ export function getPredefinedModelsFromEnv(): Model[] {
 
 export function shouldShowPredefinedModels(): boolean {
   return getPredefinedModelsFromEnv().length > 0;
+}
+
+export function getConfiguredDefaultPredefinedModel(): Model | null {
+  const predefinedModels = getPredefinedModelsFromEnv();
+  if (predefinedModels.length === 0) {
+    return null;
+  }
+
+  const defaultProvider = getAppConfigString('GOOSE_DEFAULT_PROVIDER');
+  const defaultModel = getAppConfigString('GOOSE_DEFAULT_MODEL');
+
+  if (defaultModel) {
+    const exactMatch = predefinedModels.find(
+      (model) =>
+        model.name === defaultModel && (!defaultProvider || model.provider === defaultProvider)
+    );
+    if (exactMatch) {
+      return exactMatch;
+    }
+
+    const modelOnlyMatch = predefinedModels.find((model) => model.name === defaultModel);
+    if (modelOnlyMatch) {
+      return modelOnlyMatch;
+    }
+  }
+
+  return predefinedModels[0];
 }
 
 export function getModelDisplayName(modelName: string): string {

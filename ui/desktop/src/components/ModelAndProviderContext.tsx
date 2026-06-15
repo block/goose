@@ -5,6 +5,7 @@ import { ProviderMetadata, setConfigProvider, updateAgentProvider } from '../api
 import { useConfig } from './ConfigContext';
 import { errorMessage } from '../utils/conversionUtils';
 import {
+  getConfiguredDefaultPredefinedModel,
   getModelDisplayName,
   getProviderDisplayName,
 } from './settings/models/predefinedModelsUtils';
@@ -128,8 +129,15 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
   );
 
   const getFallbackModelAndProvider = useCallback(async () => {
-    const provider = window.appConfig.get('GOOSE_DEFAULT_PROVIDER') as string;
-    const model = window.appConfig.get('GOOSE_DEFAULT_MODEL') as string;
+    const defaultPredefinedModel = getConfiguredDefaultPredefinedModel();
+    const provider =
+      (window.appConfig.get('GOOSE_DEFAULT_PROVIDER') as string | null) ??
+      defaultPredefinedModel?.provider ??
+      '';
+    const model =
+      (window.appConfig.get('GOOSE_DEFAULT_MODEL') as string | null) ??
+      defaultPredefinedModel?.name ??
+      '';
     if (provider && model) {
       try {
         await setConfigProvider({

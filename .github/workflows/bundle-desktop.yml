@@ -82,6 +82,16 @@ jobs:
           # Only pass ref if it's explicitly set, otherwise let checkout action use its default behavior
           ref: ${{ inputs.ref != '' && inputs.ref || '' }}
 
+      - name: Resolve bundle metadata
+        id: bundle_metadata
+        run: |
+          BUNDLE_NAME="$(node -p "require('./distro/security-cn/branding/product-metadata.json').productName")"
+          {
+            echo "bundle_name<<EOF"
+            echo "$BUNDLE_NAME"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Debug git status
         run: |
           echo "=== Git Status ==="
@@ -152,6 +162,24 @@ jobs:
         run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
         working-directory: ui/desktop
 
+      - name: Validate Apple signing preflight
+        env:
+          APPLE_CERTIFICATE_BASE64: ${{ inputs.signing && secrets.APPLE_CERTIFICATE_BASE64 || '' }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ inputs.signing && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          APPLE_ID: ${{ inputs.signing && secrets.APPLE_ID || '' }}
+          APPLE_ID_PASSWORD: ${{ inputs.signing && secrets.APPLE_ID_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ inputs.signing && secrets.APPLE_TEAM_ID || '' }}
+          GOOSE_DESKTOP_SIGN: ${{ inputs.signing && 'true' || 'false' }}
+          EVIDENCE_DIR: ${{ runner.temp }}/security-goose-release-evidence-arm64
+        run: |
+          set -eo pipefail
+          mkdir -p "$EVIDENCE_DIR"
+          if [ "${{ inputs.signing }}" = "true" ]; then
+            node scripts/check-security-apple-signing-env.mjs --require-signed 2>&1 | tee "$EVIDENCE_DIR/signing-preflight.txt"
+          else
+            node scripts/check-security-apple-signing-env.mjs 2>&1 | tee "$EVIDENCE_DIR/signing-preflight.txt"
+          fi
+
       - name: Import Apple signing certificate
         if: ${{ inputs.signing }}
         uses: ./.github/actions/apple-codesign
@@ -168,6 +196,8 @@ jobs:
           APPLE_ID: ${{ inputs.signing && secrets.APPLE_ID || '' }}
           APPLE_ID_PASSWORD: ${{ inputs.signing && secrets.APPLE_ID_PASSWORD || '' }}
           APPLE_TEAM_ID: ${{ inputs.signing && secrets.APPLE_TEAM_ID || '' }}
+          GOOSE_DESKTOP_SIGN: ${{ inputs.signing && 'true' || 'false' }}
+          GOOSE_BUNDLE_NAME: ${{ steps.bundle_metadata.outputs.bundle_name }}
         run: |
           source ../../bin/activate-hermit
           attempt=0
@@ -183,6 +213,39 @@ jobs:
             exit 1
           fi
         working-directory: ui/desktop
+
+      - name: Validate bundle metadata and signing boundary
+        env:
+          GOOSE_BUNDLE_NAME: ${{ steps.bundle_metadata.outputs.bundle_name }}
+          EVIDENCE_DIR: ${{ runner.temp }}/security-goose-release-evidence-arm64
+        run: |
+          set -eo pipefail
+          if [ "${{ inputs.signing }}" = "true" ]; then
+            ./scripts/check-security-macos-bundle.sh --arch arm64 --expect signed --require-notarized 2>&1 | tee "$EVIDENCE_DIR/bundle-check.txt"
+          else
+            ./scripts/check-security-macos-bundle.sh --arch arm64 --expect local-preview 2>&1 | tee "$EVIDENCE_DIR/bundle-check.txt"
+          fi
+
+      - name: Render macOS release evidence summary
+        if: always()
+        env:
+          EVIDENCE_DIR: ${{ runner.temp }}/security-goose-release-evidence-arm64
+          EXPECTED_MODE: ${{ inputs.signing && 'signed' || 'local-preview' }}
+        run: |
+          node scripts/render-security-macos-release-evidence.mjs \
+            --arch arm64 \
+            --expected-mode "$EXPECTED_MODE" \
+            --evidence-dir "$EVIDENCE_DIR"
+          if [ -n "${GITHUB_STEP_SUMMARY:-}" ] && [ -f "$EVIDENCE_DIR/summary.md" ]; then
+            cat "$EVIDENCE_DIR/summary.md" >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload macOS release evidence
+        if: always()
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        with:
+          name: Security-Goose-macos-release-evidence-arm64
+          path: ${{ runner.temp }}/security-goose-release-evidence-arm64
 
       - name: Clean up signing keychain
         if: always()
@@ -204,25 +267,27 @@ jobs:
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
         with:
           name: Goose-darwin-arm64
-          path: ui/desktop/out/Goose-darwin-arm64/Goose.zip
+          path: ui/desktop/out/${{ steps.bundle_metadata.outputs.bundle_name }}-darwin-arm64/${{ steps.bundle_metadata.outputs.bundle_name }}.zip
 
       - name: Quick launch test (macOS)
         if: ${{ inputs.quick_test }}
+        env:
+          BUNDLE_NAME: ${{ steps.bundle_metadata.outputs.bundle_name }}
         run: |
           # Ensure no quarantine attributes (if needed)
-          xattr -cr "ui/desktop/out/Goose-darwin-arm64/Goose.app"
-          echo "Opening Goose.app..."
-          open -g "ui/desktop/out/Goose-darwin-arm64/Goose.app"
+          xattr -cr "ui/desktop/out/${BUNDLE_NAME}-darwin-arm64/${BUNDLE_NAME}.app"
+          echo "Opening ${BUNDLE_NAME}.app..."
+          open -g "ui/desktop/out/${BUNDLE_NAME}-darwin-arm64/${BUNDLE_NAME}.app"
 
           # Give the app a few seconds to start and write logs
           sleep 5
 
           # Check if it's running
-          if pgrep -f "Goose.app/Contents/MacOS/Goose" > /dev/null; then
+          if pgrep -f "${BUNDLE_NAME}.app/Contents/MacOS/${BUNDLE_NAME}" > /dev/null; then
             echo "App appears to be running."
           else
             echo "App did not stay open. Possible crash or startup error."
             exit 1
           fi
           # Kill the app to clean up
-          pkill -f "Goose.app/Contents/MacOS/Goose"
+          pkill -f "${BUNDLE_NAME}.app/Contents/MacOS/${BUNDLE_NAME}"

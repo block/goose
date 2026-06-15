@@ -1,0 +1,23 @@
+name: Release Desktop
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: cargo build --release -p goose-server
+      - run: pnpm install --frozen-lockfile
+        working-directory: ui/desktop
+      - run: pnpm run bundle:default
+        working-directory: ui/desktop

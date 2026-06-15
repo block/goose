@@ -1,0 +1,26 @@
+[
+  {
+    "id": "aiseesec-mcp",
+    "name": "aiseesec-mcp",
+    "display_name": "AiseeSec",
+    "description": "精选安全能力查询与知识访问",
+    "enabled": true,
+    "type": "stdio",
+    "cmd": "node",
+    "args": ["distro/security-cn/extensions/aiseesec-mcp/server.mjs"],
+    "env_keys": ["AISEESEC_API_BASE", "AISEESEC_API_TOKEN"],
+    "timeout": 300
+  },
+  {
+    "id": "local-security-gateway-mcp",
+    "name": "local-security-gateway-mcp",
+    "display_name": "Security Gateway",
+    "description": "本地安全网关与查询工具",
+    "enabled": true,
+    "type": "stdio",
+    "cmd": "node",
+    "args": ["distro/security-cn/extensions/local-security-gateway-mcp/server.mjs"],
+    "env_keys": ["SECURITY_GATEWAY_BASE_URL", "SECURITY_GATEWAY_TOKEN"],
+    "timeout": 300
+  }
+]

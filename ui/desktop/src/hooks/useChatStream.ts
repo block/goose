@@ -28,6 +28,7 @@ import {
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
+import { getConfiguredProductName } from '../branding/productText';
 import { useSessionEvents, type SessionEvent } from './useSessionEvents';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
@@ -401,11 +402,11 @@ function createEventProcessor(
 const i18n = defineMessages({
   notificationTitle: {
     id: 'chat.notification.taskComplete.title',
-    defaultMessage: 'Goose finished the task.',
+    defaultMessage: '{appName} finished the task.',
   },
   notificationBody: {
     id: 'chat.notification.taskComplete.body',
-    defaultMessage: 'Click here to bring Goose back into focus.',
+    defaultMessage: 'Click here to bring {appName} back into focus.',
   },
 });
 
@@ -415,6 +416,7 @@ export function useChatStream({
   onSessionLoaded,
 }: UseChatStreamProps): UseChatStreamReturn {
   const intl = useIntl();
+  const appName = getConfiguredProductName();
   const [state, dispatch] = useReducer(streamReducer, initialState);
 
   // Long-lived SSE connection for this session
@@ -473,8 +475,8 @@ export function useChatStream({
           ]);
           if (notificationsEnabled === true && !anyWindowFocused) {
             window.electron.showNotification({
-              title: intl.formatMessage(i18n.notificationTitle),
-              body: intl.formatMessage(i18n.notificationBody),
+              title: intl.formatMessage(i18n.notificationTitle, { appName }),
+              body: intl.formatMessage(i18n.notificationBody, { appName }),
             });
           }
         } catch (notifyError) {
@@ -519,7 +521,7 @@ export function useChatStream({
 
       onStreamFinish();
     },
-    [intl, onStreamFinish, sessionId]
+    [appName, intl, onStreamFinish, sessionId]
   );
 
   // Reload the full conversation from the server, e.g. after the SSE

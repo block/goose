@@ -41,10 +41,18 @@ export const test = base.extend<GooseTestFixtures>({
       const debugPort = 9222 + (testInfo.parallelIndex * 10);
       console.log(`Using debug port ${debugPort} for parallel test execution`);
 
+      const repoRoot = join(__dirname, '../../../..');
+      const startArgs = ['--dir', 'ui/desktop', 'run', 'start-gui'];
+      const workingDirOverride = process.env.GOOSE_E2E_WORKING_DIR?.trim();
+
+      if (workingDirOverride) {
+        startArgs.push('--', '--dir', workingDirOverride);
+      }
+
       // Start the electron-forge process with Playwright remote debugging enabled
       // Use detached mode on Unix to create a process group we can kill together
-      appProcess = spawn('pnpm', ['run', 'start-gui'], {
-        cwd: join(__dirname, '../..'),
+      appProcess = spawn('pnpm', startArgs, {
+        cwd: repoRoot,
         stdio: 'pipe',
         detached: process.platform !== 'win32',
         env: {
@@ -72,7 +80,7 @@ export const test = base.extend<GooseTestFixtures>({
       // Wait for the app to start and remote debugging to be available
       // Retry connection until it succeeds (app is ready) or timeout
       console.log(`Waiting for Electron app to start on port ${debugPort}...`);
-      const maxRetries = 100; // 100 retries * 100ms = 10 seconds max
+      const maxRetries = 200; // 200 retries * 100ms = 20 seconds max for cold dev startup
       const retryDelay = 100; // 100ms between retries
 
       for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -96,7 +104,7 @@ export const test = base.extend<GooseTestFixtures>({
 
       // Wait for Electron to create its first window after the CDP endpoint is up.
       let page: Page | null = null;
-      for (let attempt = 1; attempt <= 100; attempt++) {
+      for (let attempt = 1; attempt <= 300; attempt++) {
         const contexts = browser.contexts();
         page = contexts.flatMap((context) => context.pages())[0] ?? null;
         if (page) {

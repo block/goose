@@ -1,4 +1,4 @@
-name: Manual Desktop Bundle (Unsigned)
+name: Manual Desktop Bundle
 
 on:
   workflow_dispatch:
@@ -7,22 +7,34 @@ on:
         description: 'Branch name to bundle app from'
         required: true
         type: string
+      signing:
+        description: 'Whether to run signed/notarized rehearsal'
+        required: false
+        default: false
+        type: boolean
+      environment:
+        description: 'GitHub Environment containing Apple signing secrets'
+        required: false
+        default: ''
+        type: string
 
 jobs:
-  bundle-desktop-unsigned:
+  bundle-desktop:
     uses: ./.github/workflows/bundle-desktop.yml
     permissions:
       id-token: write
       contents: read
     with:
-      signing: false
+      signing: ${{ inputs.signing }}
+      environment: ${{ inputs.environment }}
       ref: ${{ inputs.branch }}
 
-  bundle-desktop-intel-unsigned:
+  bundle-desktop-intel:
     uses: ./.github/workflows/bundle-desktop-intel.yml
     permissions:
       id-token: write
       contents: read
     with:
-      signing: false
+      signing: ${{ inputs.signing }}
+      environment: ${{ inputs.environment }}
       ref: ${{ inputs.branch }}

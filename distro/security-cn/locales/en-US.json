@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "sourceOnly": true,
+    "targetFile": "ui/desktop/src/i18n/messages/en.json"
+  },
+  "brand": {
+    "appName": "Security Goose",
+    "defaultAssistant": "Security Analysis Assistant"
+  },
+  "tasks": {
+    "vulnTriage": "Vulnerability Triage",
+    "alertInvestigation": "Alert Investigation",
+    "iocAnalysis": "IOC Analysis",
+    "webInvestigation": "Web Investigation",
+    "reportWriting": "Report Writing"
+  },
+  "models": {
+    "auto": "Auto"
+  }
+}

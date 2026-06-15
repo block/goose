@@ -7,18 +7,19 @@ import {
   trackTelemetryPreference,
   setTelemetryEnabled as setAnalyticsTelemetryEnabled,
 } from '../utils/analytics';
+import { getConfiguredProductName } from '../branding/productText';
 import PrivacyInfoModal from './onboarding/PrivacyInfoModal';
 import { defineMessages, useIntl } from '../i18n';
 
 const i18n = defineMessages({
   heading: {
     id: 'telemetryConsentPrompt.heading',
-    defaultMessage: 'Help improve goose',
+    defaultMessage: 'Help improve {appName}',
   },
   description: {
     id: 'telemetryConsentPrompt.description',
     defaultMessage:
-      'Would you like to share anonymous usage data to help improve goose? We never collect your conversations, code, or personal data.',
+      'Would you like to share anonymous usage data to help improve {appName}? We never collect your conversations, code, or personal data.',
   },
   learnMore: {
     id: 'telemetryConsentPrompt.learnMore',
@@ -38,6 +39,7 @@ const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
 
 export default function TelemetryConsentPrompt() {
   const intl = useIntl();
+  const appName = getConfiguredProductName();
   const { read, upsert } = useConfig();
   const [showPrompt, setShowPrompt] = useState(false);
   const [showPrivacyInfo, setShowPrivacyInfo] = useState(false);
@@ -87,10 +89,12 @@ export default function TelemetryConsentPrompt() {
       >
         <DialogContent className="w-[440px]">
           <DialogHeader>
-            <DialogTitle className="text-center">{intl.formatMessage(i18n.heading)}</DialogTitle>
+            <DialogTitle className="text-center">
+              {intl.formatMessage(i18n.heading, { appName })}
+            </DialogTitle>
           </DialogHeader>
           <p className="text-text-muted text-sm">
-            {intl.formatMessage(i18n.description)}{' '}
+            {intl.formatMessage(i18n.description, { appName })}{' '}
             <button
               onClick={() => setShowPrivacyInfo(true)}
               className="text-blue-600 dark:text-blue-400 hover:underline"

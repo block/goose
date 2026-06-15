@@ -162,10 +162,10 @@
     "defaultMessage": "Launch"
   },
   "chat.notification.taskComplete.body": {
-    "defaultMessage": "Click here to bring Goose back into focus."
+    "defaultMessage": "Click here to bring {appName} back into focus."
   },
   "chat.notification.taskComplete.title": {
-    "defaultMessage": "Goose finished the task."
+    "defaultMessage": "{appName} finished the task."
   },
   "chatInput.contextWindow": {
     "defaultMessage": "Context window"
@@ -1026,7 +1026,7 @@
     "defaultMessage": "An error occurred."
   },
   "errorBoundary.errorWithVersion": {
-    "defaultMessage": "An error occurred in Goose v{version}."
+    "defaultMessage": "An error occurred in {appName} v{version}."
   },
   "errorBoundary.heading": {
     "defaultMessage": "Honk!"
@@ -1824,7 +1824,13 @@
     "defaultMessage": "Toggle Navigation"
   },
   "launcher.placeholder": {
-    "defaultMessage": "Ask goose anything..."
+    "defaultMessage": "Ask {appName} anything..."
+  },
+  "launcher.securityTasksDescription": {
+    "defaultMessage": "Launch a security recipe or a skill-guided preview chat. Recommended extensions stay optional and are marked as local preview, disabled stub, or blocked."
+  },
+  "launcher.securityTasksTitle": {
+    "defaultMessage": "Security starters"
   },
   "loadingGoose.compacting": {
     "defaultMessage": "goose is compacting the conversation..."
@@ -2466,19 +2472,19 @@
     "defaultMessage": "The server may be starting up or temporarily unavailable."
   },
   "onboardingGuard.checkProviderErrorTitle": {
-    "defaultMessage": "Unable to connect to Goose server"
+    "defaultMessage": "Unable to connect to {appName} server"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "Retry"
   },
   "onboardingGuard.welcomeDescription": {
-    "defaultMessage": "Your local AI agent. Connect an AI model provider to get started."
+    "defaultMessage": "Your local AI agent. Connect an AI model provider to get started with {appName}."
   },
   "onboardingGuard.welcomeTitle": {
-    "defaultMessage": "Welcome to goose"
+    "defaultMessage": "Welcome to {appName}"
   },
   "onboardingSuccess.allSet": {
-    "defaultMessage": "You're all set to start using goose."
+    "defaultMessage": "You're all set to start using {appName}."
   },
   "onboardingSuccess.connectedTo": {
     "defaultMessage": "Connected to {providerName}"
@@ -2493,7 +2499,7 @@
     "defaultMessage": "Local model ready"
   },
   "onboardingSuccess.privacyDescription": {
-    "defaultMessage": "Anonymous usage data helps improve goose. We never collect your conversations, code, or personal data."
+    "defaultMessage": "Anonymous usage data helps improve {appName}. We never collect your conversations, code, or personal data."
   },
   "onboardingSuccess.privacyTitle": {
     "defaultMessage": "Privacy"
@@ -2661,10 +2667,10 @@
     "defaultMessage": "Session metrics (duration, interaction count, token usage)"
   },
   "privacyInfoModal.collectVersion": {
-    "defaultMessage": "goose version and install method"
+    "defaultMessage": "{appName} version and install method"
   },
   "privacyInfoModal.description": {
-    "defaultMessage": "Anonymous usage data helps us understand how goose is used and identify areas for improvement."
+    "defaultMessage": "Anonymous usage data helps us understand how {appName} is used and identify areas for improvement."
   },
   "privacyInfoModal.neverCollect": {
     "defaultMessage": "We never collect your conversations, code, tool arguments, error messages, or any personal data. You can change this setting anytime in Settings."
@@ -3287,6 +3293,9 @@
   "recipesView.searchRecipesPlaceholder": {
     "defaultMessage": "Search recipes..."
   },
+  "recipesView.securityTasksUnavailable": {
+    "defaultMessage": "Recipe runtime not found in this workspace, starting a guided preview chat instead."
+  },
   "recipesView.shareRecipe": {
     "defaultMessage": "Share recipe"
   },
@@ -3685,6 +3694,99 @@
   },
   "secureStorageNotice.defaultMessage": {
     "defaultMessage": "Keys are stored securely in the keychain"
+  },
+  "securityTasks.alertInvestigation.description": {
+    "defaultMessage": "Triage a security alert for authenticity, scope, cause, and response actions."
+  },
+  "securityTasks.alertInvestigation.title": {
+    "defaultMessage": "Alert Investigation"
+  },
+  "securityTasks.badgePreview": {
+    "defaultMessage": "Preview"
+  },
+  "securityTasks.badgeReady": {
+    "defaultMessage": "Recipe"
+  },
+  "securityTasks.extensionDetailBlockedExternal": {
+    "defaultMessage": "Requires external proprietary API, account, or service agreement before it can be enabled."
+  },
+  "securityTasks.extensionDetailDisabledStub": {
+    "defaultMessage": "Catalog entry exists, but the real gateway/runtime is intentionally deferred."
+  },
+  "securityTasks.extensionDetailLocalPreview": {
+    "defaultMessage": "Can be enabled now with the current Goose-native local preview implementation."
+  },
+  "securityTasks.extensionOverviewDescription": {
+    "defaultMessage": "Enable real local preview chains from Settings → Extensions. Stub and blocked entries stay visible so task recommendations remain honest."
+  },
+  "securityTasks.extensionOverviewTitle": {
+    "defaultMessage": "Extension status"
+  },
+  "securityTasks.extensionStatusBlocked": {
+    "defaultMessage": "Blocked"
+  },
+  "securityTasks.extensionStatusDisabledStub": {
+    "defaultMessage": "Disabled stub"
+  },
+  "securityTasks.extensionStatusLocalPreview": {
+    "defaultMessage": "Local preview"
+  },
+  "securityTasks.iocAnalysis.description": {
+    "defaultMessage": "Investigate domain, IP, URL, hash, and other IOC clues in a structured way."
+  },
+  "securityTasks.iocAnalysis.title": {
+    "defaultMessage": "IOC Analysis"
+  },
+  "securityTasks.mappingRecipe": {
+    "defaultMessage": "Recipe"
+  },
+  "securityTasks.mappingSkill": {
+    "defaultMessage": "Skill"
+  },
+  "securityTasks.openExtensions": {
+    "defaultMessage": "Open Extensions"
+  },
+  "securityTasks.recommendedExtensions": {
+    "defaultMessage": "Recommended extensions"
+  },
+  "securityTasks.reportWriting.description": {
+    "defaultMessage": "Turn findings into a structured report for operators, tickets, or leadership updates."
+  },
+  "securityTasks.reportWriting.title": {
+    "defaultMessage": "Report Writing"
+  },
+  "securityTasks.savedRecipesTitle": {
+    "defaultMessage": "Saved recipes"
+  },
+  "securityTasks.sectionDescription": {
+    "defaultMessage": "These entry points stay on top of Goose recipes and skills. Recipe-backed tasks start with the existing recipe runtime; the rest open guided preview chats. Recommended extensions stay optional and keep their current real-preview, disabled-stub, or blocker state."
+  },
+  "securityTasks.sectionTitle": {
+    "defaultMessage": "Security task starters"
+  },
+  "securityTasks.startPreview": {
+    "defaultMessage": "Start guided chat"
+  },
+  "securityTasks.startRecipe": {
+    "defaultMessage": "Use recipe"
+  },
+  "securityTasks.vulnTriage.description": {
+    "defaultMessage": "Assess CVE, advisory, PoC, patch, and asset context into an actionable conclusion."
+  },
+  "securityTasks.vulnTriage.title": {
+    "defaultMessage": "Vulnerability Triage"
+  },
+  "securityTasks.webInvestigation.description": {
+    "defaultMessage": "Inspect a web page, extract suspicious indicators, and summarize follow-up leads."
+  },
+  "securityTasks.webInvestigation.title": {
+    "defaultMessage": "Web Investigation"
+  },
+  "securityTasks.wooyunLegacy.description": {
+    "defaultMessage": "Review business workflows with a WooYun-style logic investigation approach."
+  },
+  "securityTasks.wooyunLegacy.title": {
+    "defaultMessage": "WooYun-style Review"
   },
   "securityToggle.apiTokenDescription": {
     "defaultMessage": "Authentication token for the classification service"
@@ -4452,10 +4554,10 @@
     "defaultMessage": "Use other provider"
   },
   "telemetryConsentPrompt.description": {
-    "defaultMessage": "Would you like to share anonymous usage data to help improve goose? We never collect your conversations, code, or personal data."
+    "defaultMessage": "Would you like to share anonymous usage data to help improve {appName}? We never collect your conversations, code, or personal data."
   },
   "telemetryConsentPrompt.heading": {
-    "defaultMessage": "Help improve goose"
+    "defaultMessage": "Help improve {appName}"
   },
   "telemetryConsentPrompt.learnMore": {
     "defaultMessage": "Learn more"

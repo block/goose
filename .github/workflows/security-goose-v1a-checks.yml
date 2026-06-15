@@ -1,0 +1,66 @@
+name: security-goose-v1a-checks
+
+on:
+  push:
+    branches:
+      - main
+      - "codex/**"
+    paths:
+      - ".github/workflows/security-goose-v1a-checks.yml"
+      - ".github/workflows/bundle-desktop.yml"
+      - ".github/workflows/bundle-desktop-intel.yml"
+      - ".github/workflows/bundle-desktop-manual.yml"
+      - ".github/workflows/release.yml"
+      - ".agents/skills/**"
+      - ".goose/recipes/**"
+      - "distro/security-cn/**"
+      - "docs/v1a/**"
+      - "scripts/check-security-apple-signing-env.mjs"
+      - "scripts/check-security-macos-bundle.sh"
+      - "scripts/check-security-v1a.sh"
+      - "scripts/render-security-macos-release-evidence.mjs"
+      - "scripts/run-security-packaged-smoke.sh"
+      - "scripts/sync-security-runtime-assets.mjs"
+      - "scripts/validate-security-distro.mjs"
+      - "ui/desktop/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/security-goose-v1a-checks.yml"
+      - ".github/workflows/bundle-desktop.yml"
+      - ".github/workflows/bundle-desktop-intel.yml"
+      - ".github/workflows/bundle-desktop-manual.yml"
+      - ".github/workflows/release.yml"
+      - ".agents/skills/**"
+      - ".goose/recipes/**"
+      - "distro/security-cn/**"
+      - "docs/v1a/**"
+      - "scripts/check-security-apple-signing-env.mjs"
+      - "scripts/check-security-macos-bundle.sh"
+      - "scripts/check-security-v1a.sh"
+      - "scripts/render-security-macos-release-evidence.mjs"
+      - "scripts/run-security-packaged-smoke.sh"
+      - "scripts/sync-security-runtime-assets.mjs"
+      - "scripts/validate-security-distro.mjs"
+      - "ui/desktop/**"
+  workflow_dispatch:
+
+jobs:
+  security-goose-v1a:
+    name: Security Goose V1a Checks
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Run Goal 7 validation chain
+        shell: bash
+        run: ./scripts/check-security-v1a.sh
+
+      - name: Run packaged bundle smoke
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          pnpm --dir ui/desktop run bundle:default
+          ./scripts/run-security-packaged-smoke.sh

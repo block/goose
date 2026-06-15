@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, type MouseEvent } from 'react';
 import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipe_management';
 import {
   FileText,
@@ -60,6 +60,15 @@ import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { errorMessage } from '../../utils/conversionUtils';
 import { AppEvents } from '../../constants/events';
 import { defineMessages, useIntl } from '../../i18n';
+import { startNewSession } from '../../sessions';
+import { SecurityExtensionOverview, SecurityTaskExtensionHints } from '../security/SecurityExtensionHints';
+import {
+  collectAvailableRecipeIds,
+  collectAvailableRecipeRuntimeIds,
+  SECURITY_TASK_IDS,
+  resolveSecurityTaskLaunchConfig,
+} from '../../security/taskCatalog';
+import { SECURITY_TASK_COPY, securityTaskUiMessages } from '../../security/taskMessages';
 
 const i18n = defineMessages({
   deleteRecipeTitle: {
@@ -252,11 +261,16 @@ const i18n = defineMessages({
   },
   recipesDescription: {
     id: 'recipesView.recipesDescription',
-    defaultMessage: 'View and manage your saved recipes to quickly start new sessions with predefined configurations. {shortcut} to search.',
+    defaultMessage:
+      'View and manage your saved recipes to quickly start new sessions with predefined configurations. {shortcut} to search.',
   },
   searchRecipesPlaceholder: {
     id: 'recipesView.searchRecipesPlaceholder',
     defaultMessage: 'Search recipes...',
+  },
+  securityTasksUnavailable: {
+    id: 'recipesView.securityTasksUnavailable',
+    defaultMessage: 'Recipe runtime not found in this workspace, starting a guided preview chat instead.',
   },
   scheduleDialogTitle: {
     id: 'recipesView.scheduleDialogTitle',
@@ -321,6 +335,28 @@ export default function RecipesView() {
   const [scheduleValid, setScheduleIsValid] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const runtimeRecipeIds = useMemo(
+    () => collectAvailableRecipeRuntimeIds(savedRecipes),
+    [savedRecipes]
+  );
+  const availableRecipeIds = useMemo(
+    () => collectAvailableRecipeIds(savedRecipes),
+    [savedRecipes]
+  );
+  const securityTasks = useMemo(
+    () =>
+      SECURITY_TASK_IDS.map((taskId) => {
+        const launch = resolveSecurityTaskLaunchConfig(taskId, intl.locale, availableRecipeIds);
+
+        return {
+          taskId,
+          copy: SECURITY_TASK_COPY[taskId],
+          launch,
+          runtimeRecipeId: launch.recipeId ? runtimeRecipeIds.get(launch.recipeId) : undefined,
+        };
+      }),
+    [availableRecipeIds, intl.locale, runtimeRecipeIds]
+  );
 
   const filteredRecipes = useMemo(() => {
     if (!searchTerm) return savedRecipes;
@@ -416,6 +452,39 @@ export default function RecipesView() {
     } catch (error) {
       console.error('Failed to open recipe in new window:', error);
       trackRecipeStarted(false, getErrorType(error), true);
+    }
+  };
+
+  const handleStartSecurityTask = async (
+    taskId: (typeof SECURITY_TASK_IDS)[number],
+    runtimeRecipeId?: string,
+    openInNewWindow = false
+  ) => {
+    const launch = resolveSecurityTaskLaunchConfig(taskId, intl.locale, availableRecipeIds);
+
+    try {
+      if (openInNewWindow) {
+        window.electron.createChatWindow({
+          dir: getInitialWorkingDir(),
+          query: launch.starterPrompt,
+          recipeId: runtimeRecipeId,
+        });
+        return;
+      }
+
+      await startNewSession(launch.starterPrompt, setView, getInitialWorkingDir(), {
+        recipeId: runtimeRecipeId,
+      });
+
+      if (launch.availability === 'preview') {
+        toastSuccess({
+          title: intl.formatMessage(securityTaskUiMessages.badgePreview),
+          msg: intl.formatMessage(i18n.securityTasksUnavailable),
+        });
+      }
+    } catch (error) {
+      console.error('Failed to start security task:', error);
+      setError(errorMessage(error, 'Failed to start security task'));
     }
   };
 
@@ -643,7 +712,9 @@ export default function RecipesView() {
       trackRecipeSlashCommandSet(true, action);
       toastSuccess({
         title: intl.formatMessage(i18n.slashCommandSavedTitle),
-        msg: slashCommand ? intl.formatMessage(i18n.slashCommandSavedMsg, { command: slashCommand }) : intl.formatMessage(i18n.slashCommandRemovedMsg),
+        msg: slashCommand
+          ? intl.formatMessage(i18n.slashCommandSavedMsg, { command: slashCommand })
+          : intl.formatMessage(i18n.slashCommandRemovedMsg),
       });
 
       setShowSlashCommandDialog(false);
@@ -738,7 +809,11 @@ export default function RecipesView() {
           variant={slash_command ? 'default' : 'outline'}
           size="sm"
           className="h-8 w-8 p-0"
-          title={slash_command ? intl.formatMessage(i18n.editSlashCommand) : intl.formatMessage(i18n.addSlashCommand)}
+          title={
+            slash_command
+              ? intl.formatMessage(i18n.editSlashCommand)
+              : intl.formatMessage(i18n.addSlashCommand)
+          }
         >
           <Terminal className="w-4 h-4" />
         </Button>
@@ -791,7 +866,10 @@ export default function RecipesView() {
                 <Share2 className="w-4 h-4" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+            <DropdownMenuContent
+              align="end"
+              onClick={(e: MouseEvent<HTMLDivElement>) => e.stopPropagation()}
+            >
               <DropdownMenuItem onClick={() => handleCopyDeeplink(recipeManifestResponse)}>
                 <Link className="w-4 h-4" />
                 {intl.formatMessage(i18n.copyDeeplink)}
@@ -815,7 +893,11 @@ export default function RecipesView() {
             variant={schedule_cron ? 'default' : 'outline'}
             size="sm"
             className="h-8 w-8 p-0"
-            title={schedule_cron ? intl.formatMessage(i18n.editSchedule) : intl.formatMessage(i18n.addSchedule)}
+            title={
+              schedule_cron
+                ? intl.formatMessage(i18n.editSchedule)
+                : intl.formatMessage(i18n.addSchedule)
+            }
           >
             <Clock className="w-4 h-4" />
           </Button>
@@ -888,7 +970,9 @@ export default function RecipesView() {
       return (
         <div className="flex flex-col justify-center pt-2 h-full">
           <p className="text-lg">{intl.formatMessage(i18n.noSavedRecipes)}</p>
-          <p className="text-sm text-text-secondary">{intl.formatMessage(i18n.noSavedRecipesDescription)}</p>
+          <p className="text-sm text-text-secondary">
+            {intl.formatMessage(i18n.noSavedRecipesDescription)}
+          </p>
         </div>
       );
     }
@@ -944,15 +1028,136 @@ export default function RecipesView() {
 
           <div className="flex-1 min-h-0 relative px-8">
             <ScrollArea className="h-full">
-              <SearchView onSearch={(term) => setSearchTerm(term)} placeholder={intl.formatMessage(i18n.searchRecipesPlaceholder)}>
-                <div
-                  className={`h-full relative transition-all duration-300 ${
-                    showContent ? 'opacity-100 animate-in fade-in ' : 'opacity-0'
-                  }`}
-                >
-                  {renderContent()}
-                </div>
-              </SearchView>
+              <div className="pb-8 space-y-8">
+                <section className="space-y-3 pt-2" data-testid="recipes-security-tasks">
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h2 className="text-2xl font-light">
+                          {intl.formatMessage(securityTaskUiMessages.securitySectionTitle)}
+                        </h2>
+                        <p className="text-sm text-text-secondary mt-1 max-w-3xl">
+                          {intl.formatMessage(securityTaskUiMessages.securitySectionDescription)}
+                        </p>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        data-testid="recipes-security-open-extensions"
+                        onClick={() => {
+                          setView('extensions');
+                        }}
+                      >
+                        {intl.formatMessage(securityTaskUiMessages.openExtensions)}
+                      </Button>
+                    </div>
+
+                    <div className="space-y-2">
+                      <div>
+                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-text-secondary">
+                          {intl.formatMessage(securityTaskUiMessages.extensionOverviewTitle)}
+                        </p>
+                        <p className="mt-1 text-xs text-text-secondary">
+                          {intl.formatMessage(securityTaskUiMessages.extensionOverviewDescription)}
+                        </p>
+                      </div>
+                      <SecurityExtensionOverview />
+                    </div>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                    {securityTasks.map(({ taskId, copy, launch, runtimeRecipeId }) => (
+                      <Card
+                        key={taskId}
+                        data-testid={`recipes-security-task-${taskId}`}
+                        className="p-4 bg-background-primary border border-border-primary shadow-none"
+                      >
+                        <div className="flex flex-col h-full gap-3">
+                          <div className="flex items-start justify-between gap-2">
+                            <h3 className="text-base">{intl.formatMessage(copy.title)}</h3>
+                            <span
+                              data-testid={`recipes-security-task-badge-${taskId}`}
+                              className="rounded-full border border-border-primary px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-text-secondary"
+                            >
+                              {intl.formatMessage(
+                                launch.availability === 'ready'
+                                  ? securityTaskUiMessages.badgeReady
+                                  : securityTaskUiMessages.badgePreview
+                              )}
+                            </span>
+                          </div>
+
+                          <p className="text-sm text-text-secondary line-clamp-3">
+                            {intl.formatMessage(copy.description)}
+                          </p>
+
+                          <div className="space-y-1 text-xs text-text-secondary">
+                            {launch.recipeId && (
+                              <div>
+                                {intl.formatMessage(securityTaskUiMessages.mappingRecipe)}:{' '}
+                                <span className="font-mono">{launch.recipeId}</span>
+                              </div>
+                            )}
+                            <div>
+                              {intl.formatMessage(securityTaskUiMessages.mappingSkill)}:{' '}
+                              <span className="font-mono">{launch.skillId}</span>
+                            </div>
+                          </div>
+
+                          <SecurityTaskExtensionHints extensionIds={launch.recommendedExtensionIds} />
+
+                          <div className="mt-auto flex items-center gap-2">
+                            <Button
+                              onClick={async () => {
+                                await handleStartSecurityTask(taskId, runtimeRecipeId);
+                              }}
+                              size="sm"
+                              data-testid={`recipes-security-task-primary-${taskId}`}
+                            >
+                              {intl.formatMessage(
+                                launch.availability === 'ready'
+                                  ? securityTaskUiMessages.startRecipe
+                                  : securityTaskUiMessages.startPreview
+                              )}
+                            </Button>
+                            <Button
+                              onClick={async () => {
+                                await handleStartSecurityTask(taskId, runtimeRecipeId, true);
+                              }}
+                              variant="outline"
+                              size="sm"
+                              data-testid={`recipes-security-task-secondary-${taskId}`}
+                            >
+                              {intl.formatMessage(i18n.openInNewWindow)}
+                            </Button>
+                          </div>
+                        </div>
+                      </Card>
+                    ))}
+                  </div>
+                </section>
+
+                <section className="space-y-3">
+                  <div>
+                    <h2 className="text-2xl font-light">
+                      {intl.formatMessage(securityTaskUiMessages.savedRecipesTitle)}
+                    </h2>
+                  </div>
+
+                  <SearchView
+                    onSearch={(term) => setSearchTerm(term)}
+                    placeholder={intl.formatMessage(i18n.searchRecipesPlaceholder)}
+                  >
+                    <div
+                      className={`h-full relative transition-all duration-300 ${
+                        showContent ? 'opacity-100 animate-in fade-in ' : 'opacity-0'
+                      }`}
+                    >
+                      {renderContent()}
+                    </div>
+                  </SearchView>
+                </section>
+              </div>
             </ScrollArea>
           </div>
         </div>
@@ -989,7 +1194,9 @@ export default function RecipesView() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>
-                {intl.formatMessage(i18n.scheduleDialogTitle, { action: scheduleRecipeManifest.schedule_cron ? 'Edit' : 'Add' })}
+                {intl.formatMessage(i18n.scheduleDialogTitle, {
+                  action: scheduleRecipeManifest.schedule_cron ? 'Edit' : 'Add',
+                })}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">

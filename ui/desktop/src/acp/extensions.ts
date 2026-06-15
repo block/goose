@@ -1,3 +1,4 @@
+import { getExtensions as getExtensionsFromApi } from '../api';
 import type { ExtensionResponse, ExtensionEntry } from '../api';
 import type { GooseExtensionEntry, McpServer } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
@@ -66,12 +67,22 @@ function gooseExtensionEntryToExtensionEntry(entry: GooseExtensionEntry): Extens
 }
 
 export async function getConfiguredExtensions(): Promise<ExtensionResponse> {
-  const client = await getAcpClient();
-  const response = await client.goose.configExtensionsList_unstable({});
-  return {
-    extensions: response.extensions
-      .map(gooseExtensionEntryToExtensionEntry)
-      .filter((entry): entry is ExtensionEntry => entry !== null),
-    warnings: response.warnings ?? [],
-  };
+  try {
+    const client = await getAcpClient();
+    const response = await client.goose.configExtensionsList_unstable({});
+    return {
+      extensions: response.extensions
+        .map(gooseExtensionEntryToExtensionEntry)
+        .filter((entry): entry is ExtensionEntry => entry !== null),
+      warnings: response.warnings ?? [],
+    };
+  } catch {
+    console.warn('Falling back to REST config/extensions endpoint after ACP parsing failure');
+    const response = await getExtensionsFromApi();
+
+    return {
+      extensions: response.data?.extensions ?? [],
+      warnings: response.data?.warnings ?? [],
+    };
+  }
 }

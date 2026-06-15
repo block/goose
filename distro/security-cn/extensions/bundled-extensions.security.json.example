@@ -1,0 +1,50 @@
+[
+  {
+    "id": "aiseesec-mcp",
+    "name": "aiseesec-mcp",
+    "display_name": "AiseeSec",
+    "description": "精选安全能力查询与知识访问（需外部专有 API，当前仍为 disabled stub）",
+    "enabled": false,
+    "type": "stdio",
+    "cmd": "node",
+    "args": ["distro/security-cn/extensions/aiseesec-mcp/server.mjs"],
+    "env_keys": ["AISEESEC_API_BASE", "AISEESEC_API_TOKEN"],
+    "timeout": 300
+  },
+  {
+    "id": "local-security-gateway-mcp",
+    "name": "local-security-gateway-mcp",
+    "display_name": "Security Gateway",
+    "description": "本地安全网关与查询工具（Goal 8 仍保持 disabled stub）",
+    "enabled": false,
+    "type": "stdio",
+    "cmd": "node",
+    "args": ["distro/security-cn/extensions/local-security-gateway-mcp/server.mjs"],
+    "env_keys": ["SECURITY_GATEWAY_BASE_URL", "SECURITY_GATEWAY_TOKEN"],
+    "timeout": 300
+  },
+  {
+    "id": "threat-intel-mcp",
+    "name": "threat-intel-mcp",
+    "display_name": "Threat Intel",
+    "description": "本机 IOC 提取、启发式分析与 DNS 富化预览",
+    "enabled": false,
+    "type": "stdio",
+    "cmd": "node",
+    "args": ["distro/security-cn/extensions/threat-intel-mcp/server.mjs"],
+    "env_keys": [],
+    "timeout": 300
+  },
+  {
+    "id": "browser-assist-mcp",
+    "name": "browser-assist-mcp",
+    "display_name": "Browser Assist",
+    "description": "本机网页快照、可疑特征提取与调查留痕预览",
+    "enabled": false,
+    "type": "stdio",
+    "cmd": "node",
+    "args": ["distro/security-cn/extensions/browser-assist-mcp/server.mjs"],
+    "env_keys": [],
+    "timeout": 300
+  }
+]

@@ -25,6 +25,115 @@ type DeprecatedBundledExtension = {
   id: string;
 };
 
+function arraysEqual(left: string[] = [], right: string[] = []): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function getConfiguredDistroDir(): string | undefined {
+  const distroDir = window.appConfig?.get('GOOSE_DISTRO_DIR');
+  return typeof distroDir === 'string' && distroDir.trim() ? distroDir.trim() : undefined;
+}
+
+function joinPlatformPath(basePath: string, relativePath: string): string {
+  const separator = basePath.includes('\\') ? '\\' : '/';
+  const normalizedBase = basePath.replace(/[\\/]+$/, '');
+  const normalizedRelative = relativePath.replace(/\//g, separator);
+  return `${normalizedBase}${separator}${normalizedRelative}`;
+}
+
+function resolveBundledArgs(args: string[] = []): string[] {
+  const distroDir = getConfiguredDistroDir();
+  if (!distroDir) {
+    return args;
+  }
+
+  return args.map((arg) => {
+    const prefix = 'distro/security-cn/';
+    if (!arg.startsWith(prefix)) {
+      return arg;
+    }
+
+    return joinPlatformPath(distroDir, arg.slice(prefix.length));
+  });
+}
+
+function createBundledExtensionConfig(bundledExt: BundledExtension): ExtensionConfig {
+  switch (bundledExt.type) {
+    case 'builtin':
+      return {
+        type: bundledExt.type,
+        name: bundledExt.name,
+        description: bundledExt.description,
+        display_name: bundledExt.display_name,
+        timeout: bundledExt.timeout ?? 300,
+        bundled: true,
+      };
+    case 'stdio':
+      return {
+        type: bundledExt.type,
+        name: bundledExt.name,
+        description: bundledExt.description,
+        timeout: bundledExt.timeout,
+        cmd: bundledExt.cmd || '',
+        args: resolveBundledArgs(bundledExt.args || []),
+        envs: bundledExt.envs,
+        env_keys: bundledExt.env_keys || [],
+        bundled: true,
+      };
+    case 'streamable_http':
+      return {
+        type: bundledExt.type,
+        name: bundledExt.name,
+        description: bundledExt.description,
+        timeout: bundledExt.timeout,
+        uri: bundledExt.uri || '',
+        bundled: true,
+      };
+  }
+}
+
+function matchesBundledConfig(
+  existingExt: FixedExtensionEntry | undefined,
+  expectedConfig: ExtensionConfig
+): boolean {
+  if (!existingExt) {
+    return false;
+  }
+
+  if (existingExt.type !== expectedConfig.type || existingExt.name !== expectedConfig.name) {
+    return false;
+  }
+
+  if (existingExt.description !== expectedConfig.description) {
+    return false;
+  }
+
+  if (expectedConfig.type === 'builtin' && existingExt.type === 'builtin') {
+    return (
+      existingExt.display_name === expectedConfig.display_name &&
+      (existingExt.timeout ?? 300) === (expectedConfig.timeout ?? 300)
+    );
+  }
+
+  if (expectedConfig.type === 'stdio' && existingExt.type === 'stdio') {
+    return (
+      existingExt.cmd === expectedConfig.cmd &&
+      arraysEqual(existingExt.args, expectedConfig.args) &&
+      arraysEqual(existingExt.env_keys, expectedConfig.env_keys) &&
+      (existingExt.timeout ?? undefined) === (expectedConfig.timeout ?? undefined)
+    );
+  }
+
+  if (expectedConfig.type === 'streamable_http' && existingExt.type === 'streamable_http') {
+    return (
+      existingExt.uri === expectedConfig.uri &&
+      (existingExt.timeout ?? undefined) === (expectedConfig.timeout ?? undefined)
+    );
+  }
+
+  return false;
+}
+
 export function getDeprecatedBundledExtensions(): DeprecatedBundledExtension[] {
   return deprecatedBundledExtensionsData as DeprecatedBundledExtension[];
 }
@@ -78,46 +187,10 @@ export async function syncBundledExtensions(
     for (const bundledExt of bundledExtensions) {
       // Find if this extension already exists
       const existingExt = existingExtensions.find((ext) => nameToKey(ext.name) === bundledExt.id);
+      const extConfig = createBundledExtensionConfig(bundledExt);
 
-      if (existingExt && isBundledExtension(existingExt)) {
+      if (existingExt && isBundledExtension(existingExt) && matchesBundledConfig(existingExt, extConfig)) {
         continue;
-      }
-
-      // Create the config for this extension
-      let extConfig: ExtensionConfig;
-      switch (bundledExt.type) {
-        case 'builtin':
-          extConfig = {
-            type: bundledExt.type,
-            name: bundledExt.name,
-            description: bundledExt.description,
-            display_name: bundledExt.display_name,
-            timeout: bundledExt.timeout ?? 300,
-            bundled: true,
-          };
-          break;
-        case 'stdio':
-          extConfig = {
-            type: bundledExt.type,
-            name: bundledExt.name,
-            description: bundledExt.description,
-            timeout: bundledExt.timeout,
-            cmd: bundledExt.cmd || '',
-            args: bundledExt.args || [],
-            envs: bundledExt.envs,
-            env_keys: bundledExt.env_keys || [],
-            bundled: true,
-          };
-          break;
-        case 'streamable_http':
-          extConfig = {
-            type: bundledExt.type,
-            name: bundledExt.name,
-            description: bundledExt.description,
-            timeout: bundledExt.timeout,
-            uri: bundledExt.uri || '',
-            bundled: true,
-          };
       }
 
       // Add or update the extension, preserving enabled state if it exists

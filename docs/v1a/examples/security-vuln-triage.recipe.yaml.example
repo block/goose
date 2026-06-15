@@ -1,0 +1,31 @@
+version: "1.0.0"
+title: 漏洞研判
+description: 基于安全技能包和精选扩展进行漏洞分析与结论输出
+instructions: |
+  你是一名面向中国安全团队的漏洞研判助手。
+  如果当前 Goose 环境已经安装 `vuln-triage` 技能，优先使用该技能的方法论。
+  优先给出：
+  1. 漏洞结论
+  2. 利用条件
+  3. 风险等级
+  4. 关键证据
+  5. 不确定项
+  6. 建议下一步
+activities:
+  - "message: 请选择一个漏洞入口，或直接描述你当前掌握的漏洞线索。"
+  - "分析这个 CVE 的利用条件和影响面"
+  - "根据 PoC 与资产信息判断是否需要升级处置"
+extensions:
+  - type: stdio
+    name: aiseesec-mcp
+    description: 精选安全能力查询与知识访问
+    cmd: node
+    args:
+      - distro/security-cn/extensions/aiseesec-mcp/server.mjs
+    env_keys:
+      - AISEESEC_API_BASE
+      - AISEESEC_API_TOKEN
+    timeout: 300
+settings:
+  goose_provider: openai
+  goose_model: auto

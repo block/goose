@@ -175,7 +175,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
     <TooltipProvider>
       <Tooltip
         open={isTooltipOpen && !isDirectoryChooserOpen && !isMenuOpen}
-        onOpenChange={(open) => {
+        onOpenChange={(open: boolean) => {
           if (!isDirectoryChooserOpen && !isMenuOpen) setIsTooltipOpen(open);
         }}
       >

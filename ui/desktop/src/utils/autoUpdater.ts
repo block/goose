@@ -263,6 +263,7 @@ export function registerUpdateIpcHandlers() {
       try {
         // Use the stored extracted path if available, otherwise download path
         const updatePath = githubUpdateInfo.extractedPath || githubUpdateInfo.downloadPath;
+        const appName = app.getName();
 
         if (!updatePath) {
           throw new Error('Update file path not found. Please download the update first.');
@@ -280,7 +281,7 @@ export function registerUpdateIpcHandlers() {
           type: 'info',
           title: 'Update Ready to Install',
           message: `Version ${githubUpdateInfo.latestVersion} is ready to install.`,
-          detail: `The update has been downloaded and extracted. To complete the installation:\n\n1. Click "Open Folder" to view the new Goose.app\n2. Quit Goose (this app will close)\n3. Drag the new Goose.app to your Applications folder\n4. Replace the existing app when prompted\n\nThe update will be available the next time you launch Goose.`,
+          detail: `The update has been downloaded and extracted. To complete the installation:\n\n1. Click "Open Folder" to view the new ${appName}.app\n2. Quit ${appName} (this app will close)\n3. Drag the new ${appName}.app to your Applications folder\n4. Replace the existing app when prompted\n\nThe update will be available the next time you launch ${appName}.`,
           buttons: ['Open Folder & Quit', 'Open Folder Only', 'Cancel'],
           defaultId: 0,
           cancelId: 2,

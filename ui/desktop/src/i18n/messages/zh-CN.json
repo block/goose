@@ -162,10 +162,10 @@
     "defaultMessage": "启动"
   },
   "chat.notification.taskComplete.body": {
-    "defaultMessage": "点击这里让 Goose 窗口回到前台。"
+    "defaultMessage": "点击这里让 {appName} 窗口回到前台。"
   },
   "chat.notification.taskComplete.title": {
-    "defaultMessage": "Goose 完成任务了。"
+    "defaultMessage": "{appName} 完成任务了。"
   },
   "chatInput.contextWindow": {
     "defaultMessage": "上下文窗口"
@@ -1026,7 +1026,7 @@
     "defaultMessage": "发生了错误。"
   },
   "errorBoundary.errorWithVersion": {
-    "defaultMessage": "Goose v{version} 发生了错误。"
+    "defaultMessage": "{appName} v{version} 发生了错误。"
   },
   "errorBoundary.heading": {
     "defaultMessage": "嘎！"
@@ -1824,7 +1824,13 @@
     "defaultMessage": "切换导航"
   },
   "launcher.placeholder": {
-    "defaultMessage": "问 goose 任何问题…"
+    "defaultMessage": "问 {appName} 任何问题…"
+  },
+  "launcher.securityTasksDescription": {
+    "defaultMessage": "直接启动安全 recipe，或打开 skill 引导预览对话。推荐扩展保持可选，并明确标记为本机预览、disabled stub 或 blocker。"
+  },
+  "launcher.securityTasksTitle": {
+    "defaultMessage": "安全任务入口"
   },
   "loadingGoose.compacting": {
     "defaultMessage": "goose 正在压缩对话…"
@@ -2466,19 +2472,19 @@
     "defaultMessage": "服务器可能正在启动或暂时不可用。"
   },
   "onboardingGuard.checkProviderErrorTitle": {
-    "defaultMessage": "无法连接到 Goose 服务器"
+    "defaultMessage": "无法连接到 {appName} 服务器"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "重试"
   },
   "onboardingGuard.welcomeDescription": {
-    "defaultMessage": "你的本地 AI agent。连接 AI 模型提供商即可开始。"
+    "defaultMessage": "你的本地 AI agent。连接 AI 模型提供商即可开始使用 {appName}。"
   },
   "onboardingGuard.welcomeTitle": {
-    "defaultMessage": "欢迎使用 goose"
+    "defaultMessage": "欢迎使用 {appName}"
   },
   "onboardingSuccess.allSet": {
-    "defaultMessage": "一切就绪，可以开始使用 goose 了。"
+    "defaultMessage": "一切就绪，可以开始使用 {appName} 了。"
   },
   "onboardingSuccess.connectedTo": {
     "defaultMessage": "已连接到 {providerName}"
@@ -2493,7 +2499,7 @@
     "defaultMessage": "本地模型就绪"
   },
   "onboardingSuccess.privacyDescription": {
-    "defaultMessage": "匿名使用数据有助于改善 goose。我们绝不采集你的对话、代码或个人数据。"
+    "defaultMessage": "匿名使用数据有助于改善 {appName}。我们绝不采集你的对话、代码或个人数据。"
   },
   "onboardingSuccess.privacyTitle": {
     "defaultMessage": "隐私"
@@ -2661,10 +2667,10 @@
     "defaultMessage": "会话指标（时长、交互次数、令牌用量）"
   },
   "privacyInfoModal.collectVersion": {
-    "defaultMessage": "goose 版本和安装方式"
+    "defaultMessage": "{appName} 版本和安装方式"
   },
   "privacyInfoModal.description": {
-    "defaultMessage": "匿名使用数据帮助我们理解 goose 的使用情况并找出改进方向。"
+    "defaultMessage": "匿名使用数据帮助我们理解 {appName} 的使用情况并找出改进方向。"
   },
   "privacyInfoModal.neverCollect": {
     "defaultMessage": "我们绝不采集你的对话、代码、工具参数、错误消息或任何个人数据。你随时可以在“设置”中更改此设置。"
@@ -3287,6 +3293,9 @@
   "recipesView.searchRecipesPlaceholder": {
     "defaultMessage": "搜索配方…"
   },
+  "recipesView.securityTasksUnavailable": {
+    "defaultMessage": "当前工作区没有发现对应 recipe 运行时，将改为启动引导式预览对话。"
+  },
   "recipesView.shareRecipe": {
     "defaultMessage": "分享配方"
   },
@@ -3685,6 +3694,99 @@
   },
   "secureStorageNotice.defaultMessage": {
     "defaultMessage": "密钥已安全地存储在系统密钥库中"
+  },
+  "securityTasks.alertInvestigation.description": {
+    "defaultMessage": "对安全告警做真实性判断、影响范围分析和处置建议整理。"
+  },
+  "securityTasks.alertInvestigation.title": {
+    "defaultMessage": "告警分析"
+  },
+  "securityTasks.badgePreview": {
+    "defaultMessage": "预览"
+  },
+  "securityTasks.badgeReady": {
+    "defaultMessage": "Recipe"
+  },
+  "securityTasks.extensionDetailBlockedExternal": {
+    "defaultMessage": "依赖外部专有 API、账号或服务协议，当前不能直接启用。"
+  },
+  "securityTasks.extensionDetailDisabledStub": {
+    "defaultMessage": "当前只保留 catalog 条目，真实 gateway/runtime 仍明确延后。"
+  },
+  "securityTasks.extensionDetailLocalPreview": {
+    "defaultMessage": "已具备当前 Goose-native 本机预览实现，现在可以在扩展设置里启用。"
+  },
+  "securityTasks.extensionOverviewDescription": {
+    "defaultMessage": "可在“Settings → Extensions”启用真实本机预览链路。stub 和 blocker 条目继续保留可见，避免任务推荐伪装成已完整可用。"
+  },
+  "securityTasks.extensionOverviewTitle": {
+    "defaultMessage": "扩展状态"
+  },
+  "securityTasks.extensionStatusBlocked": {
+    "defaultMessage": "阻塞"
+  },
+  "securityTasks.extensionStatusDisabledStub": {
+    "defaultMessage": "Disabled stub"
+  },
+  "securityTasks.extensionStatusLocalPreview": {
+    "defaultMessage": "本机预览"
+  },
+  "securityTasks.iocAnalysis.description": {
+    "defaultMessage": "对域名、IP、URL、Hash 等 IOC 线索做结构化调查。"
+  },
+  "securityTasks.iocAnalysis.title": {
+    "defaultMessage": "IOC 研判"
+  },
+  "securityTasks.mappingRecipe": {
+    "defaultMessage": "Recipe"
+  },
+  "securityTasks.mappingSkill": {
+    "defaultMessage": "Skill"
+  },
+  "securityTasks.openExtensions": {
+    "defaultMessage": "打开扩展设置"
+  },
+  "securityTasks.recommendedExtensions": {
+    "defaultMessage": "推荐扩展"
+  },
+  "securityTasks.reportWriting.description": {
+    "defaultMessage": "把调查结果整理成适合汇报、留痕或转工单的结构化报告。"
+  },
+  "securityTasks.reportWriting.title": {
+    "defaultMessage": "报告生成"
+  },
+  "securityTasks.savedRecipesTitle": {
+    "defaultMessage": "已保存配方"
+  },
+  "securityTasks.sectionDescription": {
+    "defaultMessage": "这些入口只映射到现有 Goose recipes 和 skills。带 recipe 的任务会直接进入原生 recipe 运行时，其余任务会打开引导式预览对话。推荐扩展保持可选，并继续明确区分 real preview、disabled stub 和 blocker。"
+  },
+  "securityTasks.sectionTitle": {
+    "defaultMessage": "安全任务入口"
+  },
+  "securityTasks.startPreview": {
+    "defaultMessage": "启动引导对话"
+  },
+  "securityTasks.startRecipe": {
+    "defaultMessage": "使用模板"
+  },
+  "securityTasks.vulnTriage.description": {
+    "defaultMessage": "把 CVE、公告、PoC、补丁和资产上下文整理成可处置的漏洞结论。"
+  },
+  "securityTasks.vulnTriage.title": {
+    "defaultMessage": "漏洞研判"
+  },
+  "securityTasks.webInvestigation.description": {
+    "defaultMessage": "调查页面内容、提取可疑指标，并整理后续下钻线索。"
+  },
+  "securityTasks.webInvestigation.title": {
+    "defaultMessage": "网页调查"
+  },
+  "securityTasks.wooyunLegacy.description": {
+    "defaultMessage": "按 WooYun 风格的方法对业务流程做逻辑安全排查。"
+  },
+  "securityTasks.wooyunLegacy.title": {
+    "defaultMessage": "业务逻辑排查"
   },
   "securityToggle.apiTokenDescription": {
     "defaultMessage": "分类服务的认证令牌"
@@ -4452,10 +4554,10 @@
     "defaultMessage": "使用其他提供商"
   },
   "telemetryConsentPrompt.description": {
-    "defaultMessage": "是否愿意分享匿名使用数据帮助改进 goose？我们绝不采集你的对话、代码或个人数据。"
+    "defaultMessage": "是否愿意分享匿名使用数据帮助改进 {appName}？我们绝不采集你的对话、代码或个人数据。"
   },
   "telemetryConsentPrompt.heading": {
-    "defaultMessage": "帮助改进 goose"
+    "defaultMessage": "帮助改进 {appName}"
   },
   "telemetryConsentPrompt.learnMore": {
     "defaultMessage": "了解更多"

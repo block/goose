@@ -5,6 +5,9 @@ import * as path from 'path';
 import * as os from 'os';
 import log from './logger';
 import { safeJsonParse, errorMessage } from './conversionUtils';
+import { loadSecurityDistroDefaults } from '../branding/distro';
+
+const securityDistroDefaults = loadSecurityDistroDefaults();
 
 interface GitHubRelease {
   tag_name: string;
@@ -29,7 +32,8 @@ interface UpdateCheckResult {
 export class GitHubUpdater {
   private readonly owner = process.env.GITHUB_OWNER || 'block';
   private readonly repo = process.env.GITHUB_REPO || 'goose';
-  private readonly bundleName = process.env.GOOSE_BUNDLE_NAME || 'Goose';
+  private readonly bundleName =
+    process.env.GOOSE_BUNDLE_NAME?.trim() || securityDistroDefaults.productName || 'Goose';
   private readonly apiUrl = `https://api.github.com/repos/${this.owner}/${this.repo}/releases/latest`;
 
   async checkForUpdates(): Promise<UpdateCheckResult> {

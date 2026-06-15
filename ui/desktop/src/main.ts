@@ -53,10 +53,113 @@ import * as mesh from './mesh';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
+import { loadSecurityDistroDefaults } from './branding/distro';
+import { seedBundledSecurityRuntimeAssets } from './securityRuntimeBootstrap';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
   return UPDATES_ENABLED || process.env.ENABLE_DEV_UPDATES === 'true';
+}
+
+const securityDistroDefaults = loadSecurityDistroDefaults();
+const APP_DISPLAY_NAME = process.env.GOOSE_APP_NAME?.trim() || securityDistroDefaults.productName;
+const APP_DISPLAY_NAME_ZH =
+  process.env.GOOSE_APP_NAME_ZH?.trim() || securityDistroDefaults.productNameZh;
+const FOCUS_WINDOW_LABEL = `Focus ${APP_DISPLAY_NAME} Window`;
+const ABOUT_APP_LABEL = `About ${APP_DISPLAY_NAME}`;
+const HIDE_APP_LABEL = `Hide ${APP_DISPLAY_NAME}`;
+
+function getAppIconPath(): string {
+  return app.isPackaged
+    ? path.join(process.resourcesPath, 'images', 'icon.icns')
+    : path.join(process.cwd(), 'src', 'images', 'icon.png');
+}
+
+app.setName(APP_DISPLAY_NAME);
+
+function resolvePreviewRepoRoot(): string | undefined {
+  if (app.isPackaged || !securityDistroDefaults.distroDir) {
+    return undefined;
+  }
+
+  const explicitRepoRoot = process.env.GOOSE_PREVIEW_REPO_ROOT?.trim();
+  if (explicitRepoRoot) {
+    return expandTilde(explicitRepoRoot);
+  }
+
+  const candidate = path.resolve(securityDistroDefaults.distroDir, '..', '..');
+  return fsSync.existsSync(path.join(candidate, '.git')) ? candidate : undefined;
+}
+
+const PREVIEW_REPO_ROOT = resolvePreviewRepoRoot();
+
+function resolvePreviewUserDataDir(): string | undefined {
+  const explicitUserDataDir = process.env.GOOSE_USER_DATA_DIR?.trim();
+  if (explicitUserDataDir) {
+    return expandTilde(explicitUserDataDir);
+  }
+
+  if (!PREVIEW_REPO_ROOT) {
+    return undefined;
+  }
+
+  return path.join(PREVIEW_REPO_ROOT, '.preview', 'user-data');
+}
+
+function applyPreviewIsolationPaths(): void {
+  const userDataDir = resolvePreviewUserDataDir();
+  if (!userDataDir) {
+    return;
+  }
+
+  fsSync.mkdirSync(userDataDir, { recursive: true });
+  app.setPath('userData', userDataDir);
+  app.setPath('sessionData', path.join(userDataDir, 'session-data'));
+}
+
+function getDefaultWorkingDir(): string | undefined {
+  const recentDirs = loadRecentDirs();
+  if (recentDirs.length > 0) {
+    return recentDirs[0];
+  }
+
+  const explicitWorkingDir = process.env.GOOSE_PREVIEW_WORKING_DIR?.trim();
+  if (explicitWorkingDir) {
+    return expandTilde(explicitWorkingDir);
+  }
+
+  return PREVIEW_REPO_ROOT;
+}
+
+applyPreviewIsolationPaths();
+
+function applyWindowBranding(window: BrowserWindow, title: string): void {
+  window.setTitle(title);
+  window.webContents.on('page-title-updated', (event) => {
+    event.preventDefault();
+    if (!window.isDestroyed() && window.getTitle() !== title) {
+      window.setTitle(title);
+    }
+  });
+}
+
+function attachRendererDiagnostics(window: BrowserWindow, label: string): void {
+  if (app.isPackaged) {
+    return;
+  }
+
+  window.webContents.on('console-message', (_event, level, message, line, sourceId) => {
+    log.info(`[renderer:${label}:${level}] ${message} (${sourceId}:${line})`);
+  });
+
+  window.webContents.on(
+    'did-fail-load',
+    (_event, errorCode, errorDescription, validatedURL, isMainFrame) => {
+      log.error(
+        `[renderer:${label}:did-fail-load] ${errorCode} ${errorDescription} ${validatedURL} mainFrame=${isMainFrame}`
+      );
+    }
+  );
 }
 
 // =======================================================================
@@ -94,10 +197,12 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
   'Open Directory...': '打开目录…',
   'Recent Directories': '最近的目录',
   'Focus Goose Window': '聚焦 Goose 窗口',
+  [FOCUS_WINDOW_LABEL]: `聚焦 ${APP_DISPLAY_NAME} 窗口`,
   'Quick Launcher': '快速启动器',
   'Always on Top': '窗口置顶',
   'Toggle Navigation': '切换导航',
   'About Goose': '关于 Goose',
+  [ABOUT_APP_LABEL]: `关于 ${APP_DISPLAY_NAME}`,
   // Electron's default role-based labels we want to translate as well.
   // (The menu role itself still provides the correct behaviour; only the
   // display string is overridden.)
@@ -124,6 +229,7 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
   'Emoji & Symbols': '表情符号',
   'Start Dictation…': '开始听写…',
   'Hide Goose': '隐藏 Goose',
+  [HIDE_APP_LABEL]: `隐藏 ${APP_DISPLAY_NAME}`,
   'Hide Others': '隐藏其他',
   'Show All': '全部显示',
   Services: '服务',
@@ -318,6 +424,14 @@ app.on('certificate-error', (event, _webContents, url, _error, certificate, call
 // Kept separate from the initial appConfig assignment above because
 // app.getSystemLocale() is only available after the app.ready event fires.
 app.whenReady().then(() => {
+  if (process.platform === 'darwin') {
+    try {
+      app.dock?.setIcon(getAppIconPath());
+    } catch (error) {
+      log.warn('Failed to apply branded dock icon:', formatErrorForLogging(error));
+    }
+  }
+
   if (!appConfig.GOOSE_LOCALE) {
     try {
       const sysLocale = app.getSystemLocale();
@@ -612,7 +726,7 @@ app.on('open-url', async (_event, url) => {
 app.on('will-finish-launching', () => {
   if (process.platform === 'darwin') {
     app.setAboutPanelOptions({
-      applicationName: 'Goose',
+      applicationName: APP_DISPLAY_NAME,
       applicationVersion: app.getVersion(),
     });
   }
@@ -667,7 +781,7 @@ async function handleFileOpen(filePath: string) {
 
     // Show user-friendly error notification
     new Notification({
-      title: 'Goose',
+      title: APP_DISPLAY_NAME,
       body: `Could not open directory: ${path.basename(filePath)}`,
     }).show();
   }
@@ -711,9 +825,10 @@ const getBundledConfig = (): BundledConfig => {
   //needed when goose is bundled for a specific provider
   //{env-macro-end}//
   return {
-    defaultProvider: process.env.GOOSE_DEFAULT_PROVIDER,
-    defaultModel: process.env.GOOSE_DEFAULT_MODEL,
-    predefinedModels: process.env.GOOSE_PREDEFINED_MODELS,
+    defaultProvider: process.env.GOOSE_DEFAULT_PROVIDER || securityDistroDefaults.defaultProvider,
+    defaultModel: process.env.GOOSE_DEFAULT_MODEL || securityDistroDefaults.defaultModel,
+    predefinedModels:
+      process.env.GOOSE_PREDEFINED_MODELS || securityDistroDefaults.predefinedModels,
     baseUrlShare: process.env.GOOSE_BASE_URL_SHARE,
     version: process.env.GOOSE_VERSION,
   };
@@ -757,6 +872,9 @@ const buildAcpWebSocketUrl = (baseUrl: string, token: string): string => {
 };
 
 let appConfig = {
+  GOOSE_APP_NAME: APP_DISPLAY_NAME,
+  GOOSE_APP_NAME_ZH: APP_DISPLAY_NAME_ZH,
+  GOOSE_DISTRO_DIR: securityDistroDefaults.distroDir,
   GOOSE_DEFAULT_PROVIDER: defaultProvider,
   GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
@@ -765,7 +883,7 @@ let appConfig = {
   GOOSE_WORKING_DIR: '',
   // Start with the env-var override; the OS region locale is filled in after app.ready
   // (see updateLocaleFromSystem below) since getSystemLocale() cannot be called earlier.
-  GOOSE_LOCALE: process.env.GOOSE_LOCALE || undefined,
+  GOOSE_LOCALE: process.env.GOOSE_LOCALE || securityDistroDefaults.locale || undefined,
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
 };
@@ -802,6 +920,26 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   } = options;
   const settings = getSettings();
   const serverSecret = getServerSecret(settings);
+  const requestedWorkingDir = dir || getDefaultWorkingDir() || os.homedir();
+
+  const runtimeBootstrap = seedBundledSecurityRuntimeAssets({
+    isPackaged: app.isPackaged,
+    distroDir: securityDistroDefaults.distroDir,
+    workingDir: requestedWorkingDir,
+  });
+
+  if (app.isPackaged && runtimeBootstrap.skippedReason) {
+    log.info(
+      `Packaged security runtime bootstrap skipped: ${runtimeBootstrap.skippedReason} (dir=${requestedWorkingDir})`
+    );
+  } else if (
+    runtimeBootstrap.seededSkillDirs.length > 0 ||
+    runtimeBootstrap.seededRecipeFiles.length > 0
+  ) {
+    log.info(
+      `Seeded packaged security runtime assets into ${requestedWorkingDir}: skills=${runtimeBootstrap.seededSkillDirs.join(',') || 'none'} recipes=${runtimeBootstrap.seededRecipeFiles.join(',') || 'none'}`
+    );
+  }
 
   // Update the cached trusted-external-hostname so the TLS handlers allow
   // connections to the configured remote backend.
@@ -825,7 +963,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
 
   const goosedResult = await startGoosed({
     serverSecret,
-    dir: dir || os.homedir(),
+    dir: requestedWorkingDir,
     env: {
       GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
     },
@@ -879,7 +1017,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     minWidth: 480,
     minHeight: 400,
     resizable: true,
-    icon: path.join(__dirname, '../images/icon.icns'),
+    icon: getAppIconPath(),
     webPreferences: {
       spellcheck: settings.spellcheckEnabled ?? true,
       preload: path.join(__dirname, 'preload.js'),
@@ -891,7 +1029,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
           ...appConfig,
           GOOSE_API_HOST: baseUrl,
           GOOSE_WORKING_DIR: workingDir,
-          REQUEST_DIR: dir,
+          REQUEST_DIR: requestedWorkingDir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
           recipeDeeplink: recipeDeeplink,
@@ -907,6 +1045,8 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       partition: 'persist:goose',
     },
   });
+  applyWindowBranding(mainWindow, APP_DISPLAY_NAME);
+  attachRendererDiagnostics(mainWindow, 'main');
 
   if (!app.isPackaged) {
     installExtension(REACT_DEVELOPER_TOOLS, {
@@ -933,6 +1073,12 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
 
   const serverReady = await checkServerStatus(goosedClient, errorLog, {
     onEvent: recordStartupEvent,
+    localBootstrap: isLocalhost(new URL(baseUrl).hostname)
+      ? {
+          baseUrl,
+          secretKey: serverSecret,
+        }
+      : undefined,
   });
   if (!serverReady) {
     const isUsingExternalBackend = settings.externalGoosed?.enabled;
@@ -976,7 +1122,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     } else {
       dialog.showMessageBoxSync({
         type: 'error',
-        title: 'Goose Failed to Start',
+        title: `${APP_DISPLAY_NAME} Failed to Start`,
         message: 'The backend server failed to start.',
         detail: failureDetailParts.join('\n\n'),
         buttons: ['OK'],
@@ -1220,8 +1366,8 @@ const createLauncher = () => {
   }
 
   const launcherWindow = new BrowserWindow({
-    width: 600,
-    height: 80,
+    width: 760,
+    height: 360,
     frame: false,
     transparent: process.platform === 'darwin',
     backgroundColor: process.platform === 'darwin' ? '#00000000' : '#ffffff',
@@ -1242,6 +1388,8 @@ const createLauncher = () => {
     hasShadow: true,
     vibrancy: process.platform === 'darwin' ? 'window' : undefined,
   });
+  applyWindowBranding(launcherWindow, `${APP_DISPLAY_NAME} Launcher`);
+  attachRendererDiagnostics(launcherWindow, 'launcher');
 
   // Center on screen
   const primaryDisplay = screen.getPrimaryDisplay();
@@ -2065,8 +2213,7 @@ ipcMain.handle('get-allowed-extensions', async () => {
 });
 
 const createNewWindow = async (app: App, dir?: string | null) => {
-  const recentDirs = loadRecentDirs();
-  const openDir = dir || (recentDirs.length > 0 ? recentDirs[0] : undefined);
+  const openDir = dir || getDefaultWorkingDir();
   return await createChat(app, { dir: openDir });
 };
 
@@ -2202,7 +2349,10 @@ async function appMain() {
 
   const shortcuts = getKeyboardShortcuts(settings);
 
-  const appMenu = menu?.items.find((item) => item.label === 'Goose');
+  const appMenu = menu?.items.find(
+    (item) =>
+      item.label === APP_DISPLAY_NAME || item.label === app.getName() || item.label === 'Goose'
+  );
   if (appMenu?.submenu) {
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
     if (shortcuts.settings) {
@@ -2330,7 +2480,7 @@ async function appMain() {
     if (shortcuts.focusWindow) {
       fileMenu.submenu.append(
         new MenuItem({
-          label: menuT('Focus Goose Window'),
+          label: menuT(FOCUS_WINDOW_LABEL),
           accelerator: shortcuts.focusWindow,
           click() {
             focusWindow();
@@ -2437,13 +2587,13 @@ async function appMain() {
         helpMenu.submenu.append(new MenuItem({ type: 'separator' }));
       }
 
-      // Create the About Goose menu item with a submenu
+      // Create the branded About menu item with a submenu
       const aboutGooseMenuItem = new MenuItem({
-        label: menuT('About Goose'),
+        label: menuT(ABOUT_APP_LABEL),
         submenu: Menu.buildFromTemplate([]), // Start with an empty submenu for About
       });
 
-      // Add the Version menu item (display only) to the About Goose submenu
+      // Add the Version menu item (display only) to the About submenu
       if (aboutGooseMenuItem.submenu) {
         aboutGooseMenuItem.submenu.append(
           new MenuItem({
@@ -2477,8 +2627,7 @@ async function appMain() {
 
     let resolvedDir = dir;
     if (!resolvedDir?.trim()) {
-      const recentDirs = loadRecentDirs();
-      resolvedDir = recentDirs.length > 0 ? recentDirs[0] : undefined;
+      resolvedDir = getDefaultWorkingDir();
     }
 
     const isFromLauncher = query && !resumeSessionId && !viewType && !recipeId;
@@ -2681,6 +2830,8 @@ async function appMain() {
           partition: 'persist:goose',
         },
       });
+      applyWindowBranding(appWindow, formatAppName(gooseApp.name));
+      attachRendererDiagnostics(appWindow, `app:${gooseApp.name}`);
 
       goosedClients.set(appWindow.id, launchingClient);
       appWindows.set(gooseApp.name, appWindow);
@@ -2753,7 +2904,7 @@ app.whenReady().then(async () => {
   try {
     await appMain();
   } catch (error) {
-    dialog.showErrorBox('Goose Error', `Failed to create main window: ${error}`);
+    dialog.showErrorBox(`${APP_DISPLAY_NAME} Error`, `Failed to create main window: ${error}`);
     app.quit();
   }
 });

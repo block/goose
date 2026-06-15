@@ -1,0 +1,4 @@
+GOOSE_DEFAULT_PROVIDER=openai
+GOOSE_DEFAULT_MODEL=auto
+GOOSE_LOCALE=zh-CN
+GOOSE_PREDEFINED_MODELS='[{"id":0,"name":"auto","provider":"openai","alias":"Auto","subtext":"TokenPlan"},{"id":1,"name":"deepseek-v4-flash","provider":"openai","alias":"DeepSeek V4 Flash","subtext":"低延迟"},{"id":2,"name":"deepseek-v4-pro","provider":"openai","alias":"DeepSeek V4 Pro","subtext":"强推理"},{"id":3,"name":"kimi-k2.6","provider":"openai","alias":"Kimi K2.6","subtext":"长上下文"},{"id":4,"name":"glm-5.1","provider":"openai","alias":"GLM 5.1","subtext":"通用分析"}]'
