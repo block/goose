@@ -47,6 +47,7 @@ interface UseChatStreamReturn {
   messages: Message[];
   chatState: ChatState;
   setChatState: (state: ChatState) => void;
+  updateSession: (updater: (session: Session) => Session) => void;
   handleSubmit: (input: UserInput) => Promise<void>;
   submitElicitationResponse: (
     elicitationId: string,
@@ -1141,6 +1142,24 @@ export function useChatStream({
     dispatch({ type: 'SET_CHAT_STATE', payload: newState });
   }, []);
 
+  const updateSession = useCallback(
+    (updater: (session: Session) => Session) => {
+      const cached = resultsCache.get(sessionId);
+      const currentSession = stateRef.current.session ?? cached?.session;
+      if (!currentSession) return;
+
+      const nextSession = updater(currentSession);
+      dispatch({ type: 'SET_SESSION', payload: nextSession });
+      resultsCache.set(sessionId, {
+        session: nextSession,
+        messages: stateRef.current.messages.length
+          ? stateRef.current.messages
+          : cached?.messages || [],
+      });
+    },
+    [sessionId]
+  );
+
   const cached = resultsCache.get(sessionId);
   const maybe_cached_messages = state.session ? state.messages : cached?.messages || [];
   const maybe_cached_session = state.session ?? cached?.session;
@@ -1162,6 +1181,7 @@ export function useChatStream({
     session: maybe_cached_session,
     chatState: state.chatState,
     setChatState,
+    updateSession,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,

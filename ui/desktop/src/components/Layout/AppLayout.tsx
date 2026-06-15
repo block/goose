@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { IpcRendererEvent } from 'electron';
 import { Outlet, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Menu } from 'lucide-react';
+import { Menu, PanelLeft } from 'lucide-react';
 import { defineMessages, useIntl } from '../../i18n';
 import { Button } from '../ui/button';
 import ChatSessionsContainer from '../ChatSessionsContainer';
@@ -17,6 +17,10 @@ const i18n = defineMessages({
   openNavigation: {
     id: 'appLayout.openNavigation',
     defaultMessage: 'Open navigation',
+  },
+  collapseNavigation: {
+    id: 'appLayout.collapseNavigation',
+    defaultMessage: 'Collapse navigation',
   },
 });
 
@@ -59,28 +63,28 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
 
   const needsTrafficLightInset = safeIsMacOS && !isFullScreen;
   const headerPadding = needsTrafficLightInset ? 'pl-[96px]' : 'pl-4';
-  const headerTop = needsTrafficLightInset ? 'top-[15px]' : 'top-[11px]';
+  const headerTop = needsTrafficLightInset ? 'top-[14px]' : 'top-[11px]';
+  const navToggleTitle = intl.formatMessage(
+    isNavExpanded ? i18n.collapseNavigation : i18n.openNavigation
+  );
 
   return (
     <div className="flex flex-1 w-full h-full relative animate-fade-in bg-background-primary flex-row">
-      {/* Floating menu toggle — only when sidebar is collapsed. When expanded,
-          the sidebar's own header has the collapse button. */}
-      {!isNavExpanded && (
-        <div
-          style={{ zIndex: Z_INDEX.HEADER }}
-          className={cn('absolute flex items-center gap-1', headerPadding, headerTop, 'ml-1.5')}
+      <div
+        style={{ zIndex: Z_INDEX.HEADER }}
+        className={cn('absolute flex items-center gap-1', headerPadding, headerTop, 'ml-1.5')}
+      >
+        <Button
+          onClick={() => setIsNavExpanded(!isNavExpanded)}
+          className="no-drag hover:!bg-background-tertiary"
+          variant="ghost"
+          size="xs"
+          title={navToggleTitle}
+          aria-label={navToggleTitle}
         >
-          <Button
-            onClick={() => setIsNavExpanded(true)}
-            className="no-drag hover:!bg-background-tertiary"
-            variant="ghost"
-            size="xs"
-            title={intl.formatMessage(i18n.openNavigation)}
-          >
-            <Menu className="w-5 h-5" />
-          </Button>
-        </div>
-      )}
+          {isNavExpanded ? <PanelLeft className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+        </Button>
+      </div>
 
       {/* Main content with navigation. Shared white canvas; the sidebar is a
           rounded outlined card floating on it with breathing room. */}
