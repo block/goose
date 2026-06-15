@@ -1,22 +1,44 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
-import { getSession, listSessions } from '../api';
+import { getSession } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
 import { shouldShowNewChatTitle } from '../sessions';
 import { AppEvents } from '../constants/events';
 import type { Session } from '../api';
+import { acpListRecentSessions, type SessionListItem } from '../acp/sessions';
 
 const MAX_RECENT_SESSIONS = 25;
 
-export function sortAndTrim(sessions: Session[]): Session[] {
-  return [...sessions]
-    .sort((a, b) => new Date(b.updated_at).getTime() - new Date(a.updated_at).getTime())
-    .slice(0, MAX_RECENT_SESSIONS);
-}
-
-export function prependUnique(prev: Session[], session: Session): Session[] {
+export function prependUnique(prev: SessionListItem[], session: SessionListItem): SessionListItem[] {
   if (prev.some((s) => s.id === session.id)) return prev;
   return [session, ...prev].slice(0, MAX_RECENT_SESSIONS);
+}
+
+function mergeWithEmptyLocals(
+  prev: SessionListItem[],
+  listed: SessionListItem[]
+): SessionListItem[] {
+  const emptyLocals = prev.filter(
+    (local) => local.messageCount === 0 && !listed.some((s) => s.id === local.id)
+  );
+  return [...emptyLocals, ...listed].slice(0, MAX_RECENT_SESSIONS);
+}
+
+export function sessionToListItem(s: Session): SessionListItem {
+  return {
+    id: s.id,
+    name: getSessionDisplayName(s),
+    workingDir: s.working_dir,
+    updatedAt: s.updated_at,
+    messageCount: s.message_count,
+    createdAt: s.created_at,
+    archivedAt: s.archived_at ?? undefined,
+    projectId: s.project_id ?? undefined,
+    providerId: s.provider_name ?? undefined,
+    modelId: s.model_config?.model_name ?? undefined,
+    userSetName: s.user_set_name ?? undefined,
+    hasRecipe: !!s.recipe,
+  };
 }
 
 export function useNavigationSessions() {
@@ -25,7 +47,7 @@ export function useNavigationSessions() {
   const [searchParams] = useSearchParams();
   const chatContext = useChatContext();
 
-  const [recentSessions, setRecentSessions] = useState<Session[]>([]);
+  const [recentSessions, setRecentSessions] = useState<SessionListItem[]>([]);
   const lastSessionIdRef = useRef<string | null>(null);
 
   const activeSessionId = searchParams.get('resumeSessionId') ?? undefined;
@@ -40,11 +62,8 @@ export function useNavigationSessions() {
 
   const fetchSessions = useCallback(async () => {
     try {
-      const response = await listSessions({ throwOnError: false });
-      if (response.data) {
-        const apiSessions = sortAndTrim(response.data.sessions);
-        setRecentSessions(apiSessions);
-      }
+      const sessions = await acpListRecentSessions(MAX_RECENT_SESSIONS);
+      setRecentSessions(sessions);
     } catch (error) {
       console.error('Failed to fetch sessions:', error);
     }
@@ -56,7 +75,8 @@ export function useNavigationSessions() {
 
     getSession({ path: { session_id: activeSessionId }, throwOnError: false }).then((response) => {
       if (!response.data) return;
-      setRecentSessions((prev) => prependUnique(prev, response.data as Session));
+      const item = sessionToListItem(response.data as Session);
+      setRecentSessions((prev) => prependUnique(prev, item));
     });
   }, [activeSessionId, recentSessions]);
 
@@ -67,7 +87,7 @@ export function useNavigationSessions() {
     const handleSessionCreated = (event: Event) => {
       const { session } = (event as CustomEvent<{ session?: Session }>).detail || {};
       if (session) {
-        setRecentSessions((prev) => prependUnique(prev, session));
+        setRecentSessions((prev) => prependUnique(prev, sessionToListItem(session)));
       }
 
       if (isPolling) return;
@@ -81,11 +101,8 @@ export function useNavigationSessions() {
       const pollForUpdates = async () => {
         pollCount++;
         try {
-          const response = await listSessions({ throwOnError: false });
-          if (response.data) {
-            const apiSessions = sortAndTrim(response.data.sessions);
-            setRecentSessions(apiSessions);
-          }
+          const listed = await acpListRecentSessions(MAX_RECENT_SESSIONS);
+          setRecentSessions((prev) => mergeWithEmptyLocals(prev, listed));
         } catch (error) {
           console.error('Failed to poll sessions:', error);
         }
@@ -120,11 +137,10 @@ export function useNavigationSessions() {
         lastSessionIdRef.current = null;
       }
       const version = ++fetchVersion;
-      listSessions({ throwOnError: false })
-        .then((response) => {
-          if (version !== fetchVersion || !response.data) return;
-          const apiSessions = sortAndTrim(response.data.sessions);
-          setRecentSessions(apiSessions);
+      acpListRecentSessions(MAX_RECENT_SESSIONS)
+        .then((sessions) => {
+          if (version !== fetchVersion) return;
+          setRecentSessions(sessions.filter((session) => session.id !== sessionId));
         })
         .catch((error) => console.error('Failed to fetch sessions:', error));
     };

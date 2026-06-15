@@ -9,7 +9,9 @@ pub mod builtin_extension;
 pub mod checks;
 pub mod config;
 pub mod context_mgmt;
-pub mod conversation;
+pub mod conversation {
+    pub use goose_providers::conversation::*;
+}
 pub mod dictation;
 pub mod doctor;
 pub mod download_manager;

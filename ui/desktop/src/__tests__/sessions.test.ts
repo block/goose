@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { shouldShowNewChatTitle } from '../sessions';
-import { getSessionDisplayName, sortAndTrim, prependUnique } from '../hooks/useNavigationSessions';
+import { getSessionDisplayName, prependUnique } from '../hooks/useNavigationSessions';
 import type { Session } from '../api';
+import type { SessionListItem } from '../acp/sessions';
 
 // Helper to build a minimal Session object for testing.
 function makeSession(overrides: Partial<Session> = {}): Session {
@@ -13,6 +14,18 @@ function makeSession(overrides: Partial<Session> = {}): Session {
     updated_at: new Date().toISOString(),
     working_dir: '/tmp',
     extension_data: { active: [], installed: [] },
+    ...overrides,
+  };
+}
+
+function makeListItem(overrides: Partial<SessionListItem> = {}): SessionListItem {
+  return {
+    id: 'sess-1',
+    name: 'untitled',
+    workingDir: '/tmp',
+    updatedAt: new Date().toISOString(),
+    messageCount: 0,
+    createdAt: new Date().toISOString(),
     ...overrides,
   };
 }
@@ -65,61 +78,22 @@ describe('getSessionDisplayName (fix for #8865)', () => {
   });
 });
 
-describe('sortAndTrim', () => {
-  it('sorts by updated_at descending', () => {
-    const result = sortAndTrim([
-      makeSession({
-        id: 'old-but-active',
-        created_at: '2024-01-01T00:00:00Z',
-        updated_at: '2024-03-01T00:00:00Z',
-      }),
-      makeSession({
-        id: 'newer-but-idle',
-        created_at: '2024-03-01T00:00:00Z',
-        updated_at: '2024-01-01T00:00:00Z',
-      }),
-      makeSession({
-        id: 'mid',
-        created_at: '2024-02-01T00:00:00Z',
-        updated_at: '2024-02-01T00:00:00Z',
-      }),
-    ]);
-    expect(result.map((s) => s.id)).toEqual(['old-but-active', 'mid', 'newer-but-idle']);
-  });
-
-  it('caps the list at 25 sessions', () => {
-    const sessions = Array.from({ length: 40 }, (_, i) =>
-      makeSession({ id: `s-${i}`, created_at: new Date(2024, 0, i + 1).toISOString() })
-    );
-    expect(sortAndTrim(sessions)).toHaveLength(25);
-  });
-
-  it('does not mutate the input array', () => {
-    const input = [
-      makeSession({ id: 'a', updated_at: '2024-01-01T00:00:00Z' }),
-      makeSession({ id: 'b', updated_at: '2024-02-01T00:00:00Z' }),
-    ];
-    sortAndTrim(input);
-    expect(input.map((s) => s.id)).toEqual(['a', 'b']);
-  });
-});
-
 describe('prependUnique', () => {
   it('prepends a new session to the front', () => {
-    const prev = [makeSession({ id: 'a' })];
-    const result = prependUnique(prev, makeSession({ id: 'b' }));
+    const prev = [makeListItem({ id: 'a' })];
+    const result = prependUnique(prev, makeListItem({ id: 'b' }));
     expect(result.map((s) => s.id)).toEqual(['b', 'a']);
   });
 
   it('returns the same reference when the session is already present', () => {
-    const prev = [makeSession({ id: 'a' }), makeSession({ id: 'b' })];
-    const result = prependUnique(prev, makeSession({ id: 'a' }));
+    const prev = [makeListItem({ id: 'a' }), makeListItem({ id: 'b' })];
+    const result = prependUnique(prev, makeListItem({ id: 'a' }));
     expect(result).toBe(prev);
   });
 
   it('caps the list at 25 sessions', () => {
-    const prev = Array.from({ length: 25 }, (_, i) => makeSession({ id: `s-${i}` }));
-    const result = prependUnique(prev, makeSession({ id: 'new' }));
+    const prev = Array.from({ length: 25 }, (_, i) => makeListItem({ id: `s-${i}` }));
+    const result = prependUnique(prev, makeListItem({ id: 'new' }));
     expect(result).toHaveLength(25);
     expect(result[0].id).toBe('new');
   });

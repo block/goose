@@ -273,7 +273,7 @@ describe('App Component - Brand New State', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
-  it('should navigate to the Home tab when the "new-chat" event fires (Cmd/Ctrl+T)', async () => {
+  it('should navigate home when the main process emits new-chat', async () => {
     mockElectron.getConfig.mockReturnValue({
       GOOSE_DEFAULT_PROVIDER: 'openai',
       GOOSE_DEFAULT_MODEL: 'gpt-4',
@@ -286,14 +286,10 @@ describe('App Component - Brand New State', () => {
       expect(mockElectron.reactReady).toHaveBeenCalled();
     });
 
-    // The menu accelerator (CmdOrCtrl+T) sends a 'new-chat' IPC message; the
-    // renderer must react by navigating to the Home tab to start a new chat.
-    const newChatCall = mockElectron.on.mock.calls.find(([event]) => event === 'new-chat');
-    expect(newChatCall).toBeDefined();
+    const newChatHandler = mockElectron.on.mock.calls.find(([channel]) => channel === 'new-chat')?.[1];
+    expect(newChatHandler).toBeDefined();
 
-    const newChatHandler = newChatCall?.[1] as (...args: unknown[]) => void;
-    mockNavigate.mockClear();
-    newChatHandler({} as unknown);
+    newChatHandler?.({} as any);
 
     expect(mockNavigate).toHaveBeenCalledWith('/');
   });

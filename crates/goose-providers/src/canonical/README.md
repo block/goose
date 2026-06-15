@@ -13,11 +13,11 @@ cargo run --bin build_canonical_models --no-check   # Build only, skip checker
 
 This script performs two operations by default:
 1. **Builds canonical models** - Fetches from OpenRouter API and updates the registry
-   - Writes to: `src/providers/canonical/data/canonical_models.json`
+   - Writes to: `crates/goose-providers/src/canonical/data/canonical_models.json`
 2. **Checks model mappings** (unless `--no-check` is passed) - Tests provider mappings and tracks changes over time
    - Reports unmapped models
    - Compares with previous runs (like a lock file)
    - Shows changed/added/removed mappings
-   - Writes to: `src/providers/canonical/data/canonical_mapping_report.json`
+   - Writes to: `crates/goose-providers/src/canonical/data/canonical_mapping_report.json`
 
-The script is located in this directory: `build_canonical_models.rs`
+The script is currently built from `crates/goose/src/bin/build_canonical_models.rs` and writes into this crate's `src/canonical/data` directory.

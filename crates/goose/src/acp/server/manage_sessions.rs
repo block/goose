@@ -117,6 +117,31 @@ impl GooseAcpAgent {
         })
     }
 
+    pub(super) async fn on_get_session_info(
+        &self,
+        req: GetSessionInfoRequest,
+    ) -> Result<GetSessionInfoResponse, agent_client_protocol::Error> {
+        let session_id = req.session_id.trim();
+        if session_id.is_empty() {
+            return Err(
+                agent_client_protocol::Error::invalid_params().data("sessionId cannot be empty")
+            );
+        }
+
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .map_err(|_| {
+                agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
+                    .data(format!("Session not found: {}", session_id))
+            })?;
+
+        Ok(GetSessionInfoResponse {
+            session: build_session_info(session),
+        })
+    }
+
     pub(super) async fn on_update_session_project(
         &self,
         req: UpdateSessionProjectRequest,

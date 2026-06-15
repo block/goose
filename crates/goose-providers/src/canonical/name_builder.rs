@@ -49,6 +49,7 @@ pub fn map_provider_name(provider: &str) -> &str {
         "zhipu" => "zhipuai",
         "novita" => "novita-ai",
         "opencode_go" => "opencode-go",
+        "ollama_cloud" => "ollama-cloud",
         _ => provider,
     }
 }
@@ -447,16 +448,16 @@ mod tests {
 
         // === Grok (X.AI) ===
         assert_eq!(
-            map_to_canonical_model("databricks", "grok-4.20", r),
-            Some("x-ai/grok-4.20".to_string())
+            map_to_canonical_model("databricks", "grok-4.3", r),
+            Some("x-ai/grok-4.3".to_string())
         );
         assert_eq!(
-            map_to_canonical_model("databricks", "databricks-grok-4.20", r),
-            Some("x-ai/grok-4.20".to_string())
+            map_to_canonical_model("databricks", "databricks-grok-4.3", r),
+            Some("x-ai/grok-4.3".to_string())
         );
         assert_eq!(
-            map_to_canonical_model("databricks", "kgoose-grok-4.20", r),
-            Some("x-ai/grok-4.20".to_string())
+            map_to_canonical_model("databricks", "kgoose-grok-4.3", r),
+            Some("x-ai/grok-4.3".to_string())
         );
 
         // === Cohere Command ===
@@ -492,8 +493,8 @@ mod tests {
             Some("deepseek/deepseek-chat".to_string())
         );
         assert_eq!(
-            map_to_canonical_model("databricks", "x-ai-grok-4.20", r),
-            Some("x-ai/grok-4.20".to_string())
+            map_to_canonical_model("databricks", "x-ai-grok-4.3", r),
+            Some("x-ai/grok-4.3".to_string())
         );
 
         // === Zhipu AI ===
@@ -514,10 +515,6 @@ mod tests {
         assert_eq!(
             map_to_canonical_model("gcp_vertex_ai", "gemini-2.5-pro", r),
             Some("google-vertex/gemini-2.5-pro".to_string())
-        );
-        assert_eq!(
-            map_to_canonical_model("gcp_vertex_ai", "claude-3-5-sonnet", r),
-            Some("google-vertex/claude-3.5-sonnet".to_string())
         );
         assert_eq!(
             map_to_canonical_model("gcp_vertex_ai", "claude-sonnet-4@20250514", r),

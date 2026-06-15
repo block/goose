@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod connection;
 pub mod http;
 pub mod websocket;
@@ -101,6 +102,7 @@ fn acp_cors_layer() -> CorsLayer {
         .allow_headers([
             header::CONTENT_TYPE,
             header::ACCEPT,
+            HeaderName::from_static("x-secret-key"),
             HeaderName::from_static("acp-connection-id"),
             HeaderName::from_static("acp-session-id"),
             header::SEC_WEBSOCKET_VERSION,
@@ -127,8 +129,15 @@ pub fn create_acp_router(server: Arc<AcpServer>) -> Router {
     create_acp_routes(server).layer(acp_cors_layer())
 }
 
-pub fn create_router(server: Arc<AcpServer>, secret_key: String) -> Router {
-    create_acp_routes(server)
+pub fn create_router(server: Arc<AcpServer>, secret_key: String, require_token: bool) -> Router {
+    let mut acp_routes = create_acp_routes(server);
+    if require_token {
+        acp_routes = acp_routes.layer(axum::middleware::from_fn_with_state(
+            secret_key.clone(),
+            auth::check_acp_token,
+        ));
+    }
+    acp_routes
         .route("/health", get(health))
         .route("/status", get(health))
         .merge(super::mcp_app_proxy::routes(secret_key))

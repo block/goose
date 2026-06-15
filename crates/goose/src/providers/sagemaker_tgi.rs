@@ -10,18 +10,17 @@ use rmcp::model::Tool;
 use serde_json::{json, Value};
 use smithy_transport_reqwest::ReqwestHttpClient;
 
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-};
-use super::errors::ProviderError;
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
 use crate::conversation::message::{Message, MessageContent};
 use crate::session_context::SESSION_ID_HEADER;
+use goose_providers::errors::ProviderError;
 
 use crate::model::ModelConfig;
 use chrono::Utc;
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use rmcp::model::Role;
 
 const SAGEMAKER_TGI_PROVIDER_NAME: &str = "sagemaker_tgi";

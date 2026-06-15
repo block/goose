@@ -1,8 +1,9 @@
+pub mod catalog;
 mod model;
 mod name_builder;
 mod registry;
 
-pub use model::{CanonicalModel, Limit, Modalities, Modality, Pricing};
+pub use model::{CanonicalModel, Limit, Modalities, Modality, Pricing, ThinkingMode};
 pub use name_builder::{
     canonical_name, map_provider_name, map_to_canonical_model, strip_version_suffix,
 };

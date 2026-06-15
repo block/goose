@@ -145,11 +145,15 @@ pub fn promote_config_to_env(config: &crate::config::Config) {
 }
 
 fn create_resource() -> Resource {
+    use crate::session_context::{session_host, session_user};
+
     let mut builder = Resource::builder_empty()
         .with_attributes([
             KeyValue::new("service.name", "goose"),
             KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
             KeyValue::new("service.namespace", "goose"),
+            KeyValue::new("host.name", session_host()),
+            KeyValue::new("user.name", session_user()),
         ])
         .with_detector(Box::new(EnvResourceDetector::new()))
         .with_detector(Box::new(TelemetryResourceDetector));
@@ -304,7 +308,12 @@ fn create_otlp_logs_layer() -> OtlpResult<OtlpLogsLayer> {
     };
 
     let bridge = OpenTelemetryTracingBridge::builder(&logger_provider)
-        .with_tracing_span_attributes(TracingSpanAttributes::allowlist(["session.id"]))
+        .with_tracing_span_attributes(TracingSpanAttributes::allowlist([
+            "session.id",
+            "session.user",
+            "session.host",
+            "session.agent_type",
+        ]))
         .build();
     *LOGGER_PROVIDER.lock().unwrap_or_else(|e| e.into_inner()) = Some(logger_provider);
 
@@ -598,45 +607,79 @@ mod tests {
         shutdown_otlp();
     }
 
-    #[test_case(
-        &[],
-        Resource::builder_empty()
-            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
-            .with_detector(Box::new(TelemetryResourceDetector))
-            .build();
-        "no env vars uses goose defaults"
-    )]
-    #[test_case(
-        &[("OTEL_SERVICE_NAME", "custom")],
-        Resource::builder_empty()
-            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
-            .with_detector(Box::new(TelemetryResourceDetector))
-            .with_service_name("custom")
-            .build();
-        "OTEL_SERVICE_NAME overrides service.name"
-    )]
-    #[test_case(
-        &[("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=prod")],
-        Resource::builder_empty()
-            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
-            .with_detector(Box::new(TelemetryResourceDetector))
-            .with_attribute(KeyValue::new("deployment.environment", "prod"))
-            .build();
-        "OTEL_RESOURCE_ATTRIBUTES adds custom attributes"
-    )]
-    #[test_case(
-        &[("OTEL_SERVICE_NAME", "custom"), ("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=prod")],
-        Resource::builder_empty()
-            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
-            .with_detector(Box::new(TelemetryResourceDetector))
-            .with_service_name("custom")
-            .with_attribute(KeyValue::new("deployment.environment", "prod"))
-            .build();
-        "OTEL_SERVICE_NAME and OTEL_RESOURCE_ATTRIBUTES combine"
-    )]
-    fn test_create_resource(env: &[(&'static str, &'static str)], expected: Resource) {
-        let _guard = clear_otel_env(env);
-        assert_eq!(create_resource(), expected);
+    #[test]
+    fn test_create_resource_defaults() {
+        let _guard = clear_otel_env(&[]);
+        let resource = create_resource();
+        let attrs: Vec<_> = resource.iter().collect();
+        let get = |key: &str| {
+            attrs
+                .iter()
+                .find(|(k, _)| k.as_str() == key)
+                .map(|(_, v)| v.to_string())
+        };
+
+        assert_eq!(get("service.name").as_deref(), Some("goose"));
+        assert_eq!(
+            get("service.version").as_deref(),
+            Some(env!("CARGO_PKG_VERSION"))
+        );
+        assert_eq!(get("service.namespace").as_deref(), Some("goose"));
+        assert!(get("host.name").is_some(), "host.name should be set");
+        assert!(get("user.name").is_some(), "user.name should be set");
+    }
+
+    #[test]
+    fn test_create_resource_otel_service_name_overrides() {
+        let _guard = clear_otel_env(&[("OTEL_SERVICE_NAME", "custom")]);
+        let resource = create_resource();
+        let attrs: Vec<_> = resource.iter().collect();
+        let get = |key: &str| {
+            attrs
+                .iter()
+                .find(|(k, _)| k.as_str() == key)
+                .map(|(_, v)| v.to_string())
+        };
+
+        assert_eq!(get("service.name").as_deref(), Some("custom"));
+        assert_eq!(get("service.namespace").as_deref(), Some("goose"));
+    }
+
+    #[test]
+    fn test_create_resource_otel_resource_attributes() {
+        let _guard = clear_otel_env(&[("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=prod")]);
+        let resource = create_resource();
+        let attrs: Vec<_> = resource.iter().collect();
+        let get = |key: &str| {
+            attrs
+                .iter()
+                .find(|(k, _)| k.as_str() == key)
+                .map(|(_, v)| v.to_string())
+        };
+
+        assert_eq!(get("service.name").as_deref(), Some("goose"));
+        assert_eq!(get("deployment.environment").as_deref(), Some("prod"));
+    }
+
+    #[test]
+    fn test_create_resource_combined() {
+        let _guard = clear_otel_env(&[
+            ("OTEL_SERVICE_NAME", "custom"),
+            ("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=prod"),
+        ]);
+        let resource = create_resource();
+        let attrs: Vec<_> = resource.iter().collect();
+        let get = |key: &str| {
+            attrs
+                .iter()
+                .find(|(k, _)| k.as_str() == key)
+                .map(|(_, v)| v.to_string())
+        };
+
+        assert_eq!(get("service.name").as_deref(), Some("custom"));
+        assert_eq!(get("deployment.environment").as_deref(), Some("prod"));
+        assert!(get("host.name").is_some());
+        assert!(get("user.name").is_some());
     }
 
     #[test_case(&[("RUST_LOG", "")], Level::INFO; "default is info")]

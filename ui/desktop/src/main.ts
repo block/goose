@@ -899,6 +899,9 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
           recipeParameters: recipeParameters,
           scheduledJobId: scheduledJobId,
           SECURITY_ML_MODEL_MAPPING: process.env.SECURITY_ML_MODEL_MAPPING,
+          SECURITY_PROMPT_ENABLED_OVERRIDE: process.env.SECURITY_PROMPT_ENABLED_OVERRIDE,
+          SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE:
+            process.env.SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE,
         }),
       ],
       partition: 'persist:goose',

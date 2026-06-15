@@ -3731,6 +3731,9 @@
   "securityToggle.mlTokenDescription": {
     "defaultMessage": "Authentication token for the ML service (e.g., HuggingFace token)"
   },
+  "securityToggle.overrideNotice": {
+    "defaultMessage": "This setting is managed by your organization and cannot be changed."
+  },
   "securityToggle.promptInjectionDescription": {
     "defaultMessage": "Detect and prevent potential prompt injection attacks"
   },
@@ -3739,6 +3742,9 @@
   },
   "securityToggle.thresholdDescription": {
     "defaultMessage": "Higher values are more strict (0.01 = very lenient, 1.0 = maximum strict)"
+  },
+  "securityToggle.warpNotice": {
+    "defaultMessage": "Command injection detection works best when connected to WARP (required to reach the classification service)."
   },
   "sessionHistory.cancel": {
     "defaultMessage": "Cancel"
@@ -3922,9 +3928,6 @@
   },
   "sessions.error.tryAgain": {
     "defaultMessage": "Try Again"
-  },
-  "sessions.extensions": {
-    "defaultMessage": "Extensions:"
   },
   "sessions.import": {
     "defaultMessage": "Import Session"
