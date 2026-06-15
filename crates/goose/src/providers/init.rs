@@ -27,6 +27,7 @@ use super::{
     gemini_oauth::GeminiOAuthProvider,
     githubcopilot::GithubCopilotProvider,
     google::GoogleProvider,
+    huggingface::HuggingFaceProvider,
     kimicode::KimiCodeProvider,
     litellm::LiteLLMProvider,
     nanogpt::NanoGptProvider,
@@ -38,6 +39,7 @@ use super::{
     snowflake::SnowflakeProvider,
     tetrate::TetrateProvider,
     xai::XaiProvider,
+    xai_oauth::XaiOAuthProvider,
 };
 use crate::config::ExtensionConfig;
 use crate::model::ModelConfig;
@@ -75,6 +77,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<GeminiOAuthProvider>(true);
         registry.register::<GithubCopilotProvider>(false);
         registry.register::<GoogleProvider>(true);
+        registry.register::<HuggingFaceProvider>(true);
         registry.register::<KimiCodeProvider>(true);
         registry.register::<LiteLLMProvider>(false);
         registry.register::<NanoGptProvider>(true);
@@ -87,6 +90,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<SnowflakeProvider>(false);
         registry.register::<TetrateProvider>(true);
         registry.register::<XaiProvider>(false);
+        registry.register::<XaiOAuthProvider>(true);
     });
     // Register cleanup functions for providers with cached state
     registry.set_cleanup(
@@ -108,6 +112,18 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
     registry.set_cleanup(
         "chatgpt_codex",
         Arc::new(|| Box::pin(ChatGptCodexProvider::cleanup())),
+    );
+    registry.set_cleanup(
+        "gemini_oauth",
+        Arc::new(|| Box::pin(GeminiOAuthProvider::cleanup())),
+    );
+    registry.set_cleanup(
+        "xai_oauth",
+        Arc::new(|| Box::pin(XaiOAuthProvider::cleanup())),
+    );
+    registry.set_cleanup(
+        "huggingface",
+        Arc::new(|| Box::pin(HuggingFaceProvider::cleanup())),
     );
 
     if let Err(e) = load_custom_providers_into_registry(&mut registry) {
@@ -256,6 +272,22 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_huggingface_provider_registry_wiring() {
+        let huggingface = get_from_registry("huggingface")
+            .await
+            .expect("huggingface provider should be registered");
+        let meta = huggingface.metadata();
+
+        assert_eq!(huggingface.provider_type(), ProviderType::Preferred);
+        assert_eq!(meta.display_name, "Hugging Face");
+        assert_eq!(meta.default_model, "Qwen/Qwen3-Coder-480B-A35B-Instruct");
+        assert!(meta
+            .config_keys
+            .iter()
+            .any(|key| key.name == "HF_TOKEN" && key.secret));
+    }
+
+    #[tokio::test]
     async fn test_nvidia_declarative_provider_registry_wiring() {
         let nvidia = get_from_registry("nvidia")
             .await
@@ -312,6 +344,33 @@ mod tests {
         assert!(api_key.required, "NEARAI_API_KEY should be required");
         assert!(api_key.secret, "NEARAI_API_KEY should be secret");
         assert!(api_key.primary, "NEARAI_API_KEY should be primary");
+    }
+
+    #[tokio::test]
+    async fn test_alibaba_declarative_provider_registry_wiring() {
+        let alibaba = get_from_registry("alibaba")
+            .await
+            .expect("alibaba provider should be registered");
+        let meta = alibaba.metadata();
+
+        assert_eq!(alibaba.provider_type(), ProviderType::Declarative);
+        assert!(alibaba.supports_inventory_refresh());
+        assert_eq!(meta.display_name, "Alibaba (Qwen)");
+        assert_eq!(meta.default_model, "qwen3.7-max");
+        assert_eq!(
+            meta.model_doc_link,
+            "https://www.alibabacloud.com/help/en/model-studio/models"
+        );
+        assert!(!meta.setup_steps.is_empty());
+
+        let api_key = meta
+            .config_keys
+            .iter()
+            .find(|k| k.name == "DASHSCOPE_API_KEY")
+            .expect("DASHSCOPE_API_KEY config key should exist");
+        assert!(api_key.required, "DASHSCOPE_API_KEY should be required");
+        assert!(api_key.secret, "DASHSCOPE_API_KEY should be secret");
+        assert!(api_key.primary, "DASHSCOPE_API_KEY should be primary");
     }
 
     #[tokio::test]

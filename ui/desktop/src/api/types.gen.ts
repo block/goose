@@ -77,6 +77,16 @@ export type ChatRequest = {
     user_message: Message;
 };
 
+export type ChatTemplate = {
+    type: 'embedded';
+} | {
+    name: string;
+    type: 'builtin';
+} | {
+    template: string;
+    type: 'custom_inline';
+};
+
 export type CheckProviderRequest = {
     provider: string;
 };
@@ -599,10 +609,6 @@ export type ImportSessionNostrRequest = {
     deeplink: string;
 };
 
-export type ImportSessionRequest = {
-    json: string;
-};
-
 export type InferenceMetadata = {
     provider: string;
     requestedModel: string;
@@ -762,6 +768,12 @@ export type MessageMetadata = {
     agentVisible: boolean;
     inference?: InferenceMetadata | null;
     /**
+     * Whether this message is a steer injected into an active run. UI-only:
+     * surfaced as `_meta.goose.steer` so clients can mark the steer boundary
+     * without matching user-visible text. Never sent to providers.
+     */
+    steer?: boolean;
+    /**
      * Whether the message should be visible to the user in the UI
      */
     userVisible: boolean;
@@ -864,6 +876,7 @@ export type ModelInfoResponse = {
 };
 
 export type ModelSettings = {
+    chat_template?: ChatTemplate;
     context_size?: number | null;
     enable_thinking?: boolean;
     flash_attention?: boolean | null;
@@ -881,16 +894,15 @@ export type ModelSettings = {
     n_batch?: number | null;
     n_gpu_layers?: number | null;
     n_threads?: number | null;
-    native_tool_calling?: boolean;
     presence_penalty?: number;
     repeat_last_n?: number;
     repeat_penalty?: number;
     sampling?: SamplingConfig;
-    use_jinja?: boolean;
+    tool_calling?: ToolCallingMode;
     use_mlock?: boolean;
     /**
      * Whether this model architecture supports vision input.
-     * Derived from the featured model table, not user-configurable.
+     * Derived from associated mmproj metadata, not user-configurable.
      */
     vision_capable?: boolean;
 };
@@ -1019,6 +1031,29 @@ export type ProviderMetadata = {
 
 export type ProviderModelInfoQuery = {
     model: string;
+};
+
+export type ProviderSecret = {
+    can_configure: boolean;
+    can_delete: boolean;
+    configure_provider?: string | null;
+    configured: boolean;
+    expires_at?: string | null;
+    has_secret: boolean;
+    id: string;
+    name: string;
+    provider: string;
+    provider_display_name: string;
+    status: ProviderSecretStatus;
+    storage: ProviderSecretStorage;
+};
+
+export type ProviderSecretStatus = 'valid' | 'expired' | 'unknown';
+
+export type ProviderSecretStorage = 'secret_store' | 'provider_cache';
+
+export type ProviderSecretsResponse = {
+    secrets: Array<ProviderSecret>;
 };
 
 export type ProviderTemplate = {
@@ -1306,6 +1341,7 @@ export type Session = {
     goose_mode?: GooseMode;
     id: string;
     input_tokens?: number | null;
+    last_message_snippet?: string | null;
     message_count: number;
     model_config?: ModelConfig | null;
     name: string;
@@ -1341,18 +1377,6 @@ export type SessionDisplayInfo = {
 
 export type SessionExtensionsResponse = {
     extensions: Array<ExtensionConfig>;
-};
-
-export type SessionInsights = {
-    totalSessions: number;
-    totalTokens: number;
-};
-
-export type SessionListResponse = {
-    /**
-     * List of available session information objects
-     */
-    sessions: Array<Session>;
 };
 
 export type SessionReplyRequest = {
@@ -1544,6 +1568,8 @@ export type ToolAnnotations = {
     readOnlyHint?: boolean;
     title?: string;
 };
+
+export type ToolCallingMode = 'auto' | 'force_native' | 'force_emulated';
 
 export type ToolConfirmationRequest = {
     arguments: JsonObject;
@@ -2707,6 +2733,61 @@ export type GetProviderCatalogTemplateResponses = {
 
 export type GetProviderCatalogTemplateResponse = GetProviderCatalogTemplateResponses[keyof GetProviderCatalogTemplateResponses];
 
+export type ListProviderSecretsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/config/provider-secrets';
+};
+
+export type ListProviderSecretsErrors = {
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type ListProviderSecretsResponses = {
+    /**
+     * Provider secrets retrieved successfully
+     */
+    200: ProviderSecretsResponse;
+};
+
+export type ListProviderSecretsResponse = ListProviderSecretsResponses[keyof ListProviderSecretsResponses];
+
+export type DeleteProviderSecretData = {
+    body?: never;
+    path: {
+        /**
+         * Provider secret identifier
+         */
+        id: string;
+    };
+    query?: never;
+    url: '/config/provider-secrets/{id}';
+};
+
+export type DeleteProviderSecretErrors = {
+    /**
+     * Invalid provider secret identifier
+     */
+    400: unknown;
+    /**
+     * Internal server error
+     */
+    500: unknown;
+};
+
+export type DeleteProviderSecretResponses = {
+    /**
+     * Provider secret deleted successfully
+     */
+    200: string;
+};
+
+export type DeleteProviderSecretResponse = DeleteProviderSecretResponses[keyof DeleteProviderSecretResponses];
+
 export type ProvidersData = {
     body?: never;
     path?: never;
@@ -3241,6 +3322,22 @@ export type StartTetrateSetupResponses = {
 };
 
 export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
+
+export type ListBuiltinChatTemplatesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/local-inference/chat-templates/builtin';
+};
+
+export type ListBuiltinChatTemplatesResponses = {
+    /**
+     * llama.cpp built-in chat template names
+     */
+    200: Array<string>;
+};
+
+export type ListBuiltinChatTemplatesResponse = ListBuiltinChatTemplatesResponses[keyof ListBuiltinChatTemplatesResponses];
 
 export type DownloadHfModelData = {
     body: DownloadModelRequest;
@@ -4112,64 +4209,6 @@ export type UnpauseScheduleResponses = {
 
 export type UnpauseScheduleResponse = UnpauseScheduleResponses[keyof UnpauseScheduleResponses];
 
-export type ListSessionsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/sessions';
-};
-
-export type ListSessionsErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ListSessionsResponses = {
-    /**
-     * List of available sessions retrieved successfully
-     */
-    200: SessionListResponse;
-};
-
-export type ListSessionsResponse = ListSessionsResponses[keyof ListSessionsResponses];
-
-export type ImportSessionData = {
-    body: ImportSessionRequest;
-    path?: never;
-    query?: never;
-    url: '/sessions/import';
-};
-
-export type ImportSessionErrors = {
-    /**
-     * Bad request - Invalid JSON
-     */
-    400: unknown;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ImportSessionResponses = {
-    /**
-     * Session imported successfully
-     */
-    200: Session;
-};
-
-export type ImportSessionResponse = ImportSessionResponses[keyof ImportSessionResponses];
-
 export type ImportSessionNostrData = {
     body: ImportSessionNostrRequest;
     path?: never;
@@ -4200,81 +4239,6 @@ export type ImportSessionNostrResponses = {
 };
 
 export type ImportSessionNostrResponse = ImportSessionNostrResponses[keyof ImportSessionNostrResponses];
-
-export type GetSessionInsightsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/sessions/insights';
-};
-
-export type GetSessionInsightsErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type GetSessionInsightsResponses = {
-    /**
-     * Session insights retrieved successfully
-     */
-    200: SessionInsights;
-};
-
-export type GetSessionInsightsResponse = GetSessionInsightsResponses[keyof GetSessionInsightsResponses];
-
-export type SearchSessionsData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Search query string
-         */
-        query: string;
-        /**
-         * Maximum results (default: 10, max: 50)
-         */
-        limit?: number | null;
-        /**
-         * Filter after date (ISO 8601)
-         */
-        after_date?: string | null;
-        /**
-         * Filter before date (ISO 8601)
-         */
-        before_date?: string | null;
-    };
-    url: '/sessions/search';
-};
-
-export type SearchSessionsErrors = {
-    /**
-     * Bad request - Invalid query
-     */
-    400: unknown;
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type SearchSessionsResponses = {
-    /**
-     * Matching sessions
-     */
-    200: Array<Session>;
-};
-
-export type SearchSessionsResponse = SearchSessionsResponses[keyof SearchSessionsResponses];
 
 export type SessionCancelData = {
     body: CancelRequest;
@@ -4363,40 +4327,6 @@ export type SessionReplyResponses = {
 
 export type SessionReplyResponse2 = SessionReplyResponses[keyof SessionReplyResponses];
 
-export type DeleteSessionData = {
-    body?: never;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}';
-};
-
-export type DeleteSessionErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type DeleteSessionResponses = {
-    /**
-     * Session deleted successfully
-     */
-    200: unknown;
-};
-
 export type GetSessionData = {
     body?: never;
     path: {
@@ -4432,42 +4362,6 @@ export type GetSessionResponses = {
 };
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
-
-export type ExportSessionData = {
-    body?: never;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}/export';
-};
-
-export type ExportSessionErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ExportSessionResponses = {
-    /**
-     * Session exported successfully
-     */
-    200: string;
-};
-
-export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
 
 export type GetSessionExtensionsData = {
     body?: never;

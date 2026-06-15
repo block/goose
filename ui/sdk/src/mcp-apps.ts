@@ -1,7 +1,3 @@
-import type {
-  Implementation,
-  InitializeRequest,
-} from "@agentclientprotocol/sdk";
 import { RESOURCE_MIME_TYPE } from "@modelcontextprotocol/ext-apps/app-bridge";
 import type {
   McpUiAppResourceConfig,
@@ -67,19 +63,6 @@ export interface GooseToolCallUpdateMeta {
   };
   [key: string]: unknown;
 }
-
-export interface GooseClientMeta {
-  goose: {
-    mcpHostCapabilities: GooseMcpHostCapabilities;
-  };
-}
-
-export type GooseInitializeRequest = InitializeRequest & {
-  clientCapabilities: NonNullable<InitializeRequest["clientCapabilities"]> & {
-    _meta: GooseClientMeta;
-  };
-  clientInfo: Implementation;
-};
 
 export const DEFAULT_GOOSE_MCP_HOST_CAPABILITIES: GooseMcpHostCapabilities = {
   extensions: {
