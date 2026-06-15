@@ -75,12 +75,15 @@ fn is_tool_call_array(value: &Value) -> bool {
 }
 
 fn is_tool_call_value(value: &Value) -> bool {
-    value.get("name").and_then(|name| name.as_str()).is_some()
-        || value
-            .get("function")
-            .and_then(|function| function.get("name"))
-            .and_then(|name| name.as_str())
-            .is_some()
+    let direct_name = value.get("name").and_then(|name| name.as_str()).is_some();
+    let direct_arguments = value.get("arguments").is_some();
+    let function_name = value
+        .get("function")
+        .and_then(|function| function.get("name"))
+        .and_then(|name| name.as_str())
+        .is_some();
+
+    (direct_name && direct_arguments) || function_name
 }
 
 fn json_candidates(text: &str) -> Vec<Value> {
@@ -278,6 +281,21 @@ mod tests {
         let text = r#"[{"name":"developer__shell","arguments":{"command":"pwd"}}]"#;
         let message = message_from_native_tool_text(text, "msg").unwrap().unwrap();
         assert_eq!(tool_count(&message), 1);
+    }
+
+    #[test]
+    fn parses_top_level_tool_call_object_with_arguments() {
+        let text = r#"{"name":"developer__shell","arguments":{"command":"pwd"}}"#;
+        let message = message_from_native_tool_text(text, "msg").unwrap().unwrap();
+        assert_eq!(tool_count(&message), 1);
+    }
+
+    #[test]
+    fn ignores_plain_json_objects_with_name_fields() {
+        let text = r#"{"name":"Alice","age":30}"#;
+        assert!(message_from_native_tool_text(text, "msg")
+            .unwrap()
+            .is_none());
     }
 
     #[test]
