@@ -19,12 +19,12 @@ use serde_json::Value;
 use smithy_transport_reqwest::ReqwestHttpClient;
 
 use super::formats::bedrock::{
-    from_bedrock_message, from_bedrock_usage, to_bedrock_message_with_caching,
-    to_bedrock_tool_config,
+    bedrock_anthropic_thinking_fields, from_bedrock_message, from_bedrock_usage,
+    to_bedrock_message_with_caching, to_bedrock_tool_config,
 };
 use crate::session_context::SESSION_ID_HEADER;
 
-const BEDROCK_PROVIDER_NAME: &str = "aws_bedrock";
+pub(crate) const BEDROCK_PROVIDER_NAME: &str = "aws_bedrock";
 pub const BEDROCK_DOC_LINK: &str =
     "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html";
 
@@ -249,6 +249,10 @@ impl BedrockProvider {
                     })
                     .collect::<Result<_>>()?,
             ));
+
+        if let Some(fields) = bedrock_anthropic_thinking_fields(&self.model) {
+            request = request.additional_model_request_fields(fields);
+        }
 
         if !tools.is_empty() {
             request = request.tool_config(to_bedrock_tool_config(tools)?);

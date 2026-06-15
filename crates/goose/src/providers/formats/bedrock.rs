@@ -15,7 +15,64 @@ use rmcp::model::{
 use serde_json::Value;
 
 use crate::conversation::message::{Message, MessageContent};
+use crate::model::ModelConfig;
+use crate::providers::bedrock::BEDROCK_PROVIDER_NAME;
+use crate::providers::formats::anthropic::{
+    adaptive_output_effort, thinking_budget_tokens, thinking_type_for_provider, ThinkingType,
+    ANTHROPIC_PROVIDER_NAME,
+};
 use goose_providers::conversation::token_usage::Usage;
+
+pub fn bedrock_anthropic_thinking_fields(model_config: &ModelConfig) -> Option<Document> {
+    let thinking_type = bedrock_anthropic_thinking_type(model_config);
+    let thinking = match thinking_type {
+        ThinkingType::Adaptive => Document::Object(HashMap::from([(
+            "type".to_string(),
+            Document::String("adaptive".to_string()),
+        )])),
+        ThinkingType::Enabled => Document::Object(HashMap::from([
+            ("type".to_string(), Document::String("enabled".to_string())),
+            (
+                "budget_tokens".to_string(),
+                Document::Number(Number::PosInt(thinking_budget_tokens(model_config) as u64)),
+            ),
+        ])),
+        ThinkingType::Disabled => return None,
+    };
+
+    let mut fields = HashMap::from([("thinking".to_string(), thinking)]);
+
+    if thinking_type == ThinkingType::Adaptive {
+        fields.insert(
+            "output_config".to_string(),
+            Document::Object(HashMap::from([(
+                "effort".to_string(),
+                Document::String(adaptive_output_effort(model_config).to_string()),
+            )])),
+        );
+    }
+
+    Some(Document::Object(fields))
+}
+
+fn bedrock_anthropic_thinking_type(model_config: &ModelConfig) -> ThinkingType {
+    let bedrock_type = thinking_type_for_provider(BEDROCK_PROVIDER_NAME, model_config);
+    if bedrock_type != ThinkingType::Disabled {
+        return bedrock_type;
+    }
+
+    let anthropic_model = model_config
+        .model_name
+        .rsplit_once("anthropic.")
+        .map(|(_, model)| model)
+        .unwrap_or(&model_config.model_name);
+    let anthropic_config = ModelConfig {
+        model_name: anthropic_model.to_string(),
+        ..model_config.clone()
+    };
+
+    thinking_type_for_provider(ANTHROPIC_PROVIDER_NAME, &anthropic_config)
+}
 
 pub fn to_bedrock_message_with_caching(
     message: &Message,
@@ -463,6 +520,58 @@ mod tests {
     use anyhow::Result;
     use goose_test_support::TEST_IMAGE_B64;
     use rmcp::model::{AnnotateAble, RawImageContent};
+    use serde_json::json;
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_enabled() {
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("low"));
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        config.request_params = Some(params);
+        config.reasoning = Some(true);
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 4000
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_disabled() {
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("off"),
+        )]));
+
+        assert!(bedrock_anthropic_thinking_fields(&config).is_none());
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_adaptive() {
+        let mut config = ModelConfig::new_or_fail("global.anthropic.claude-fable-5");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("off"),
+        )]));
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {"type": "adaptive"},
+                "output_config": {"effort": "high"}
+            })
+        );
+    }
 
     #[test]
     fn test_to_bedrock_image_supported_formats() -> Result<()> {
