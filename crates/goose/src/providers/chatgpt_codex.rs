@@ -1020,7 +1020,10 @@ impl Provider for ChatGptCodexProvider {
             let message_stream = responses_api_to_streaming_message(framed);
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                let (message, usage) = message.map_err(|e| {
+                    e.downcast::<ProviderError>()
+                        .unwrap_or_else(ProviderError::stream_decode_error)
+                })?;
                 yield (message, usage);
             }
         }))

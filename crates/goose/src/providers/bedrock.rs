@@ -290,6 +290,10 @@ impl BedrockProvider {
                         err
                     ))
                 }
+                ConverseError::ValidationException(err) => ProviderError::ExecutionError(format!(
+                    "Bedrock validation error: {}",
+                    err.message().unwrap_or("unknown validation error")
+                )),
                 ConverseError::ModelErrorException(err) => {
                     ProviderError::ExecutionError(format!("Failed to call Bedrock: {:?}", err))
                 }

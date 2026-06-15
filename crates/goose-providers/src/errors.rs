@@ -51,6 +51,10 @@ pub enum ProviderError {
 }
 
 impl ProviderError {
+    pub fn stream_decode_error(error: impl std::fmt::Display) -> Self {
+        ProviderError::NetworkError(format!("Stream decode error: {error}"))
+    }
+
     pub fn telemetry_type(&self) -> &'static str {
         match self {
             ProviderError::Authentication(_) => "auth",
@@ -73,11 +77,12 @@ impl ProviderError {
     }
 
     /// Recover a typed `ProviderError` from a streaming decode error, falling
-    /// back to `RequestFailed` for errors that did not originate as one.
+    /// back to a retryable stream decode error for errors that did not
+    /// originate as one.
     pub fn from_stream_error(error: anyhow::Error) -> Self {
         error
             .downcast()
-            .unwrap_or_else(|e| ProviderError::RequestFailed(format!("Stream decode error: {e}")))
+            .unwrap_or_else(ProviderError::stream_decode_error)
     }
 }
 
