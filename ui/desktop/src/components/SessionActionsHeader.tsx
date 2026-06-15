@@ -73,15 +73,11 @@ interface FullTextSelection {
 }
 
 function parseSessionJson(json: string): ParsedSessionJson {
-  try {
-    const value = JSON.parse(json) as unknown;
-    return {
-      value,
-      pretty: JSON.stringify(value, null, 2),
-    };
-  } catch {
-    return { value: json, pretty: json };
-  }
+  const value = JSON.parse(json) as unknown;
+  return {
+    value,
+    pretty: JSON.stringify(value, null, 2),
+  };
 }
 
 function isJsonRecord(value: unknown): value is Record<string, unknown> {
