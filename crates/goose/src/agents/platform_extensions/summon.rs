@@ -812,15 +812,39 @@ impl SummonClient {
     ) -> Result<Vec<Content>, String> {
         let mut completed = self.completed_tasks.lock().await;
 
-        if let Some(task) = completed.remove(task_id) {
-            let status = if task.result.is_ok() {
+        let completed_entry = if peek {
+            completed.get(task_id).map(|task| {
+                (
+                    task.result.is_ok(),
+                    match &task.result {
+                        Ok(output) => output.clone(),
+                        Err(error) => format!("Error: {}", error),
+                    },
+                    task.description.clone(),
+                    task.duration,
+                    task.turns_taken,
+                )
+            })
+        } else {
+            completed.remove(task_id).map(|task| {
+                (
+                    task.result.is_ok(),
+                    match task.result {
+                        Ok(output) => output,
+                        Err(error) => format!("Error: {}", error),
+                    },
+                    task.description,
+                    task.duration,
+                    task.turns_taken,
+                )
+            })
+        };
+
+        if let Some((succeeded, output, description, duration, turns_taken)) = completed_entry {
+            let status = if succeeded {
                 "✓ Completed"
             } else {
                 "✗ Failed"
-            };
-            let output = match task.result {
-                Ok(output) => output,
-                Err(error) => format!("Error: {}", error),
             };
 
             return Ok(vec![Content::text(format!(
@@ -830,10 +854,10 @@ impl SummonClient {
                  **Duration:** {} ({} turns)\n\n\
                  ## Output\n\n{}",
                 task_id,
-                task.description,
+                description,
                 status,
-                round_duration(task.duration),
-                task.turns_taken,
+                round_duration(duration),
+                turns_taken,
                 output
             ))]);
         }
@@ -2617,5 +2641,17 @@ You review code."#;
         let text = extract_text(&result[0]);
         assert!(text.contains("Completed"));
         assert!(text.contains("final output"));
+
+        // Peek must be non-destructive: the result is still retrievable afterwards.
+        assert!(client
+            .completed_tasks
+            .lock()
+            .await
+            .contains_key("20260204_1"));
+        let result = client
+            .handle_load_task_result("20260204_1", false, false)
+            .await
+            .unwrap();
+        assert!(extract_text(&result[0]).contains("final output"));
     }
 }
