@@ -1,5 +1,6 @@
 use super::*;
 use crate::config::declarative_providers;
+use crate::providers::inventory::ensure_refresh_identity_current;
 use std::str::FromStr;
 
 fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEntryDto {

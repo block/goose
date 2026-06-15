@@ -1,7 +1,7 @@
 {
   "name": "goose-app",
   "productName": "Goose",
-  "version": "1.36.0",
+  "version": "1.38.0",
   "description": "Goose App",
   "engines": {
     "node": "^24.10.0",
@@ -42,8 +42,10 @@
     "test:integration:watch": "vitest --config vitest.integration.config.ts",
     "test:integration:debug": "DEBUG=1 vitest run --config vitest.integration.config.ts",
     "i18n:extract": "formatjs extract 'src/**/*.{ts,tsx}' --ignore '**/*.d.ts' --out-file src/i18n/messages/en.json --flatten && pnpm run i18n:compile",
-    "i18n:check": "node scripts/i18n-check.js",
-    "i18n:compile": "node scripts/i18n-compile.js"
+    "i18n:check": "node scripts/i18n-check.js && node scripts/i18n-validate-locale.js",
+    "i18n:compile": "node scripts/i18n-compile.js",
+    "i18n:validate-ja": "node scripts/i18n-validate-locale.js ja",
+    "i18n:validate-locale": "node scripts/i18n-validate-locale.js"
   },
   "dependencies": {
     "@aaif/goose-sdk": "workspace:*",
@@ -117,6 +119,7 @@
     "@electron/fuses": "^1.8.0",
     "@eslint/js": "^9.39.2",
     "@formatjs/cli": "^6.14.0",
+    "@formatjs/icu-messageformat-parser": "3.5.3",
     "@hey-api/openapi-ts": "^0.93.0",
     "@modelcontextprotocol/sdk": "^1.27.0",
     "@playwright/test": "^1.58.2",

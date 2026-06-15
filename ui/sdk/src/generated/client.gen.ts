@@ -7,6 +7,7 @@ export interface ExtMethodProvider {
   ): Promise<Record<string, unknown>>;
 }
 
+import type { Client } from "@agentclientprotocol/sdk";
 import type {
   AddConfigExtensionRequest_unstable,
   AddExtensionRequest_unstable,
@@ -40,16 +41,22 @@ import type {
   DictationSecretSaveRequest_unstable,
   DictationTranscribeRequest_unstable,
   DictationTranscribeResponse_unstable,
+  ElicitationRespondRequest_unstable,
   ExportSessionRequest_unstable,
   ExportSessionResponse_unstable,
   ExportSourceRequest_unstable,
   ExportSourceResponse_unstable,
-  GetExtensionsRequest_unstable,
-  GetExtensionsResponse_unstable,
+  GetAvailableExtensionsRequest_unstable,
+  GetAvailableExtensionsResponse_unstable,
+  GetConfigExtensionsRequest_unstable,
+  GetConfigExtensionsResponse_unstable,
   GetSessionExtensionsRequest_unstable,
   GetSessionExtensionsResponse_unstable,
+  GetSessionInfoRequest_unstable,
+  GetSessionInfoResponse_unstable,
   GetToolsRequest_unstable,
   GetToolsResponse_unstable,
+  GooseSessionNotification_unstable,
   GooseToolCallRequest_unstable,
   GooseToolCallResponse_unstable,
   ImportSessionRequest_unstable,
@@ -91,8 +98,10 @@ import type {
   RemoveConfigExtensionRequest_unstable,
   RemoveExtensionRequest_unstable,
   RenameSessionRequest_unstable,
+  SetConfigExtensionEnabledRequest_unstable,
   SetSessionSystemPromptRequest_unstable,
-  ToggleConfigExtensionRequest_unstable,
+  SteerSessionRequest_unstable,
+  SteerSessionResponse_unstable,
   UnarchiveSessionRequest_unstable,
   UpdateSessionProjectRequest_unstable,
   UpdateSourceRequest_unstable,
@@ -112,9 +121,12 @@ import {
   zDictationTranscribeResponse_unstable,
   zExportSessionResponse_unstable,
   zExportSourceResponse_unstable,
-  zGetExtensionsResponse_unstable,
+  zGetAvailableExtensionsResponse_unstable,
+  zGetConfigExtensionsResponse_unstable,
   zGetSessionExtensionsResponse_unstable,
+  zGetSessionInfoResponse_unstable,
   zGetToolsResponse_unstable,
+  zGooseSessionNotification_unstable,
   zGooseToolCallResponse_unstable,
   zImportSessionResponse_unstable,
   zImportSourcesResponse_unstable,
@@ -132,6 +144,7 @@ import {
   zProviderSupportedModelsListResponse_unstable,
   zReadResourceResponse_unstable,
   zRefreshProviderInventoryResponse_unstable,
+  zSteerSessionResponse_unstable,
   zUpdateSourceResponse_unstable,
 } from './zod.gen.js';
 
@@ -199,20 +212,44 @@ export class GooseExtClient {
     );
   }
 
+  async sessionSteer_unstable(
+    params: SteerSessionRequest_unstable,
+  ): Promise<SteerSessionResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/session/steer",
+      params,
+    );
+    return zSteerSessionResponse_unstable.parse(
+      raw,
+    ) as SteerSessionResponse_unstable;
+  }
+
   async sessionDelete(params: DeleteSessionRequest): Promise<void> {
     await this.conn.extMethod("session/delete", params);
   }
 
   async configExtensionsList_unstable(
-    params: GetExtensionsRequest_unstable,
-  ): Promise<GetExtensionsResponse_unstable> {
+    params: GetConfigExtensionsRequest_unstable,
+  ): Promise<GetConfigExtensionsResponse_unstable> {
     const raw = await this.conn.extMethod(
       "_goose/unstable/config/extensions/list",
       params,
     );
-    return zGetExtensionsResponse_unstable.parse(
+    return zGetConfigExtensionsResponse_unstable.parse(
       raw,
-    ) as GetExtensionsResponse_unstable;
+    ) as GetConfigExtensionsResponse_unstable;
+  }
+
+  async extensionsAvailable_unstable(
+    params: GetAvailableExtensionsRequest_unstable,
+  ): Promise<GetAvailableExtensionsResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/extensions/available",
+      params,
+    );
+    return zGetAvailableExtensionsResponse_unstable.parse(
+      raw,
+    ) as GetAvailableExtensionsResponse_unstable;
   }
 
   async configExtensionsAdd_unstable(
@@ -230,11 +267,11 @@ export class GooseExtClient {
     );
   }
 
-  async configExtensionsToggle_unstable(
-    params: ToggleConfigExtensionRequest_unstable,
+  async configExtensionsSetEnabled_unstable(
+    params: SetConfigExtensionEnabledRequest_unstable,
   ): Promise<void> {
     await this.conn.extMethod(
-      "_goose/unstable/config/extensions/toggle",
+      "_goose/unstable/config/extensions/set-enabled",
       params,
     );
   }
@@ -527,6 +564,24 @@ export class GooseExtClient {
     ) as ImportSessionResponse_unstable;
   }
 
+  async sessionInfo_unstable(
+    params: GetSessionInfoRequest_unstable,
+  ): Promise<GetSessionInfoResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/session/info",
+      params,
+    );
+    return zGetSessionInfoResponse_unstable.parse(
+      raw,
+    ) as GetSessionInfoResponse_unstable;
+  }
+
+  async elicitationRespond_unstable(
+    params: ElicitationRespondRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/elicitation/respond", params);
+  }
+
   async sessionProjectUpdate_unstable(
     params: UpdateSessionProjectRequest_unstable,
   ): Promise<void> {
@@ -715,4 +770,45 @@ export class GooseExtClient {
       params,
     );
   }
+}
+
+export interface GooseExtNotifications {
+  unstable_sessionUpdate?: (
+    notification: GooseSessionNotification_unstable,
+  ) => Promise<void>;
+}
+
+export type GooseClientCallbacks = Omit<Client, "extNotification"> &
+  Partial<Pick<Client, "extNotification">> &
+  GooseExtNotifications;
+
+export function installGooseExtNotificationDispatcher(
+  callbacks: GooseClientCallbacks,
+): Client {
+  const dispatcher: Pick<Client, "extNotification"> = {
+    extNotification: async (method, params) => {
+      switch (method) {
+        case "_goose/unstable/session/update": {
+          const parsed = zGooseSessionNotification_unstable.parse(
+            params,
+          ) as GooseSessionNotification_unstable;
+          await callbacks.unstable_sessionUpdate?.(parsed);
+          return;
+        }
+        default:
+          await callbacks.extNotification?.(method, params);
+          return;
+      }
+    },
+  };
+  return new Proxy(callbacks, {
+    get(target, property) {
+      if (property === "extNotification") {
+        return dispatcher.extNotification;
+      }
+
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  }) as Client;
 }
