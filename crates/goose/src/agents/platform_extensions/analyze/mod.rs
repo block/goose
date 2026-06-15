@@ -58,10 +58,15 @@ impl AnalyzeClient {
         let info = InitializeResult::new(ServerCapabilities::builder().enable_tools().build())
             .with_server_info(Implementation::new(EXTENSION_NAME, "1.0.0").with_title("Analyze"))
             .with_instructions(indoc! {"
-            Analyze code structure using tree-sitter AST parsing. Three auto-selected modes:
-            - Directory path → structure overview (file tree with function/class counts)
-            - File path → semantic details (functions, classes, imports, call counts)
-            - Any path + focus parameter → symbol call graph (incoming/outgoing chains)
+            Index code structure via tree-sitter. Use to navigate or summarize an unfamiliar
+            and large codebase. Returns one of three views:
+
+              1) Directory path → file tree with LOC, function, and class counts
+                 (depth-limited).
+              2) File path → list of functions (with signatures), classes, imports,
+                 and call counts. Functions called >3x are marked •N.
+              3) Any path + `focus` → incoming/outgoing call graph for a symbol
+                 (case-sensitive).
 
             For large codebases, delegate analysis to a subagent and retain only the summary.
         "});

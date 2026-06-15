@@ -2,6 +2,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::thinking::ThinkingEffort;
 use serde_json::json;
 use std::collections::HashMap;
 use std::io::Write;
@@ -11,10 +13,7 @@ use tempfile::NamedTempFile;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-};
-use super::errors::ProviderError;
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::utils::{filter_extensions_from_system_prompt, RequestLog};
 use crate::config::base::{CodexCommand, CodexSkipGitCheck};
 use crate::config::paths::Paths;
@@ -23,6 +22,7 @@ use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::subprocess::configure_subprocess;
+use goose_providers::errors::ProviderError;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
@@ -60,25 +60,22 @@ pub struct CodexProvider {
 }
 
 impl CodexProvider {
-    fn legacy_reasoning_effort() -> Option<crate::model::ThinkingEffort> {
+    fn legacy_reasoning_effort() -> Option<ThinkingEffort> {
         Config::global()
             .get_param::<String>("CODEX_REASONING_EFFORT")
             .ok()
             .and_then(|effort| match effort.to_lowercase().as_str() {
-                "none" => Some(crate::model::ThinkingEffort::Off),
-                "low" => Some(crate::model::ThinkingEffort::Low),
-                "medium" => Some(crate::model::ThinkingEffort::Medium),
-                "high" => Some(crate::model::ThinkingEffort::High),
-                "xhigh" => Some(crate::model::ThinkingEffort::Max),
+                "none" => Some(ThinkingEffort::Off),
+                "low" => Some(ThinkingEffort::Low),
+                "medium" => Some(ThinkingEffort::Medium),
+                "high" => Some(ThinkingEffort::High),
+                "xhigh" => Some(ThinkingEffort::Max),
                 _ => None,
             })
     }
 
-    fn map_thinking_effort(
-        _model_name: &str,
-        effort: Option<crate::model::ThinkingEffort>,
-    ) -> Option<String> {
-        use crate::model::ThinkingEffort;
+    fn map_thinking_effort(_model_name: &str, effort: Option<ThinkingEffort>) -> Option<String> {
+        use ThinkingEffort;
         match effort
             .or_else(Self::legacy_reasoning_effort)
             .unwrap_or(ThinkingEffort::High)
@@ -1238,7 +1235,7 @@ mod tests {
 
     #[test]
     fn test_map_thinking_effort() {
-        use crate::model::ThinkingEffort;
+        use ThinkingEffort;
 
         let _guard = env_lock::lock_env([
             ("CODEX_REASONING_EFFORT", None::<&str>),

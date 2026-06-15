@@ -193,14 +193,21 @@ pub fn apply_inspection_results_to_permissions(
     for result in inspection_results {
         let request_id = &result.tool_request_id;
 
+        let action_str = match &result.action {
+            InspectionAction::Deny => "BLOCK",
+            InspectionAction::RequireApproval(_) => "ALERT",
+            InspectionAction::Allow => "ALLOW",
+        };
+
         tracing::info!(
-            inspector_name = result.inspector_name,
-            tool_request_id = %request_id,
-            action = ?result.action,
-            confidence = result.confidence,
-            reason = %result.reason,
-            finding_id = ?result.finding_id,
-            "Applying inspection result"
+            security.event_type = "inspection_result",
+            security.action = action_str,
+            security.confidence = result.confidence,
+            security.finding_id = ?result.finding_id,
+            tool.request_id = %request_id,
+            inspector.name = result.inspector_name,
+            inspector.reason = %result.reason,
+            "inspection result applied"
         );
 
         match result.action {

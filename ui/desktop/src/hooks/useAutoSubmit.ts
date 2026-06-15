@@ -53,6 +53,10 @@ export function useAutoSubmit({
   }, [sessionId]);
 
   const hasUnfilledParameters = useCallback((session: Session) => {
+    if (session.session_type === 'scheduled') {
+      return false;
+    }
+
     const recipe = session.recipe;
     return recipe?.parameters && recipe.parameters.length > 0 && !session.user_recipe_values;
   }, []);

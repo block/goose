@@ -380,6 +380,10 @@ impl ToolInspector for AdversaryInspector {
             }
 
             let tool_description = Self::format_tool_call(request);
+            let tool_call_name = match &request.tool_call {
+                Ok(tc) => tc.name.to_string(),
+                Err(_) => "unknown".to_string(),
+            };
 
             tracing::debug!(
                 tool_request_id = %request.id,
@@ -397,9 +401,13 @@ impl ToolInspector for AdversaryInspector {
             {
                 Ok((true, reason)) => {
                     tracing::debug!(
-                        tool_request_id = %request.id,
-                        reason = %reason,
-                        "Adversary: ALLOW"
+                        security.event_type = "adversary_detection",
+                        security.action = "ALLOW",
+                        security.confidence = 1.0_f32,
+                        security.explanation = %reason,
+                        tool.name = %tool_call_name,
+                        tool.request_id = %request.id,
+                        "adversary review: ALLOW"
                     );
                     results.push(InspectionResult {
                         tool_request_id: request.id.clone(),
@@ -412,9 +420,13 @@ impl ToolInspector for AdversaryInspector {
                 }
                 Ok((false, reason)) => {
                     tracing::warn!(
-                        tool_request_id = %request.id,
-                        reason = %reason,
-                        "Adversary: BLOCK"
+                        security.event_type = "adversary_detection",
+                        security.action = "BLOCK",
+                        security.confidence = 1.0_f32,
+                        security.explanation = %reason,
+                        tool.name = %tool_call_name,
+                        tool.request_id = %request.id,
+                        "adversary review: BLOCK"
                     );
                     results.push(InspectionResult {
                         tool_request_id: request.id.clone(),
@@ -427,9 +439,13 @@ impl ToolInspector for AdversaryInspector {
                 }
                 Err(e) => {
                     tracing::warn!(
-                        tool_request_id = %request.id,
-                        error = %e,
-                        "Adversary inspector failed, allowing tool call (fail-open)"
+                        security.event_type = "adversary_detection",
+                        security.action = "ALLOW",
+                        security.confidence = 0.0_f32,
+                        security.explanation = %format!("error (fail-open): {}", e),
+                        tool.name = %tool_call_name,
+                        tool.request_id = %request.id,
+                        "adversary review: error (fail-open)"
                     );
                     results.push(InspectionResult {
                         tool_request_id: request.id.clone(),

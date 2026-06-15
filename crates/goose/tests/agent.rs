@@ -345,10 +345,10 @@ mod tests {
         use goose::model::ModelConfig;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
-            ProviderUsage, Usage,
         };
-        use goose::providers::errors::ProviderError;
         use goose::session::session_manager::SessionType;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
         use rmcp::model::{CallToolRequestParams, Tool};
         use rmcp::object;
         use std::path::PathBuf;
@@ -506,10 +506,10 @@ mod tests {
         use goose::model::ModelConfig;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
-            ProviderUsage, Usage,
         };
-        use goose::providers::errors::ProviderError;
         use goose::session::session_manager::SessionType;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
         use rmcp::model::{AnnotateAble, CallToolRequestParams, CallToolResult, RawContent, Tool};
         use std::path::PathBuf;
         use std::sync::atomic::{AtomicUsize, Ordering};
@@ -857,12 +857,11 @@ mod tests {
         use goose::config::GooseMode;
         use goose::conversation::message::Message;
         use goose::model::ModelConfig;
-        use goose::providers::base::{
-            MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-        };
-        use goose::providers::errors::ProviderError;
+        use goose::providers::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
         use goose::session::session_manager::SessionType;
         use goose::session::SessionManager;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
         use rmcp::model::{CallToolRequestParams, Role, Tool};
         use rmcp::object;
         use std::path::PathBuf;
@@ -1131,11 +1130,11 @@ mod tests {
         use goose::model::ModelConfig;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
-            ProviderUsage, Usage,
         };
-        use goose::providers::errors::ProviderError;
         use goose::session::session_manager::SessionType;
         use goose::session::SessionManager;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
         use rmcp::model::Tool;
         use std::path::PathBuf;
         use std::sync::atomic::{AtomicU32, Ordering};
@@ -1397,12 +1396,11 @@ mod tests {
         use goose::config::GooseMode;
         use goose::conversation::message::Message;
         use goose::model::ModelConfig;
-        use goose::providers::base::{
-            stream_from_single_message, MessageStream, Provider, ProviderUsage, Usage,
-        };
-        use goose::providers::errors::ProviderError;
+        use goose::providers::base::{stream_from_single_message, MessageStream, Provider};
         use goose::session::session_manager::SessionType;
         use goose::session::SessionManager;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
         use rmcp::model::Tool;
         use std::path::PathBuf;
         use std::sync::Arc;

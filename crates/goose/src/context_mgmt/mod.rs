@@ -2,12 +2,13 @@ use crate::conversation::message::{ActionRequiredData, MessageMetadata};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
 use crate::prompt_template::render_template;
+use crate::providers::base::Provider;
 #[cfg(test)]
 use crate::providers::base::{stream_from_single_message, MessageStream};
-use crate::providers::base::{Provider, ProviderUsage};
-use crate::providers::errors::ProviderError;
 use crate::{config::Config, token_counter::create_token_counter};
 use anyhow::Result;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::errors::ProviderError;
 use indoc::indoc;
 use rmcp::model::Role;
 use serde::Serialize;
@@ -319,10 +320,15 @@ async fn do_compact(
             Ok((mut response, mut provider_usage)) => {
                 response.role = Role::User;
 
-                provider_usage
-                    .ensure_tokens(&system_prompt, &summarization_request, &response, &[])
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
+                crate::providers::usage_estimator::ensure_usage_tokens(
+                    &mut provider_usage,
+                    &system_prompt,
+                    &summarization_request,
+                    &response,
+                    &[],
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
 
                 return Ok((response, provider_usage));
             }
@@ -561,11 +567,10 @@ pub fn maybe_summarize_tool_pairs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        model::ModelConfig,
-        providers::{base::Usage, errors::ProviderError},
-    };
+    use crate::model::ModelConfig;
     use async_trait::async_trait;
+    use goose_providers::conversation::token_usage::Usage;
+    use goose_providers::errors::ProviderError;
     use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
 
     fn create_tool_pair(
