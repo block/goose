@@ -177,6 +177,12 @@ fn scan_recipes_from_dir(
                 });
             }
             Err(e) => {
+                // Files like package.json and tsconfig.json are common in project roots.
+                // Treat valid YAML/JSON that is missing Recipe fields as "not a recipe"
+                // rather than warning on every normal project config file.
+                if e.to_string().contains("missing field") {
+                    continue;
+                }
                 warn!("Failed to parse recipe {}: {}", path.display(), e);
             }
         }
@@ -1996,6 +2002,34 @@ You review code."#;
 
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0].name, "reviewer");
+    }
+
+    #[test]
+    fn test_recipe_scan_skips_non_recipe_project_config_files() {
+        let temp_dir = TempDir::new().unwrap();
+        fs::write(
+            temp_dir.path().join("package.json"),
+            r#"{"scripts":{"test":"cargo test"}}"#,
+        )
+        .unwrap();
+        fs::write(
+            temp_dir.path().join("tsconfig.json"),
+            r#"{"compilerOptions":{"strict":true}}"#,
+        )
+        .unwrap();
+        fs::write(
+            temp_dir.path().join("valid.yaml"),
+            "title: Valid\ndescription: Real recipe\ninstructions: Run valid steps",
+        )
+        .unwrap();
+
+        let mut sources = Vec::new();
+        let mut seen = HashSet::new();
+        scan_recipes_from_dir(temp_dir.path(), SourceType::Recipe, &mut sources, &mut seen);
+
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].name, "valid");
+        assert_eq!(sources[0].description, "Real recipe");
     }
 
     #[tokio::test]
