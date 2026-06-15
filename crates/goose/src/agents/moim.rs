@@ -311,10 +311,11 @@ mod tests {
         let result = inject_moim(&session.id, conv, &em, 0, 100).await;
         let msgs = result.messages();
 
-        assert_eq!(msgs.len(), 3);
+        assert_eq!(msgs.len(), 2);
         assert!(is_moim(&msgs[0].content[0]));
         assert_eq!(text_at(&msgs[0], 1), "agent visible");
-        assert_eq!(text_at(&msgs[2], 0), "user only");
+        assert_eq!(text_at(&msgs[1], 0), "user only");
+        assert!(!msgs[1].is_agent_visible());
     }
 
     #[tokio::test]
