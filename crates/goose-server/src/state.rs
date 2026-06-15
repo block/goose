@@ -5,7 +5,9 @@ use goose::scheduler_trait::SchedulerTrait;
 use goose::session::SessionManager;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::{Arc, OnceLock};
+use std::sync::Arc;
+#[cfg(feature = "local-inference")]
+use std::sync::OnceLock;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
@@ -145,12 +147,6 @@ impl AppState {
     pub async fn get_event_bus(&self, session_id: &str) -> Option<Arc<SessionEventBus>> {
         let buses = self.session_buses.lock().await;
         buses.get(session_id).cloned()
-    }
-
-    /// Remove the event bus for a session, freeing its replay buffer.
-    pub async fn remove_event_bus(&self, session_id: &str) {
-        let mut buses = self.session_buses.lock().await;
-        buses.remove(session_id);
     }
 
     pub async fn get_agent(&self, session_id: String) -> anyhow::Result<Arc<goose::agents::Agent>> {

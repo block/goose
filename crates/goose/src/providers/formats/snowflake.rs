@@ -1,9 +1,9 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
-use crate::providers::base::Usage;
-use crate::providers::errors::ProviderError;
 use anyhow::{anyhow, Result};
+use goose_providers::conversation::token_usage::Usage;
+use goose_providers::errors::ProviderError;
 use rmcp::model::{object, CallToolRequestParams, Role, Tool};
 use rmcp::object;
 use serde_json::{json, Value};
