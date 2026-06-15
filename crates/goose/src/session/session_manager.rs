@@ -2,10 +2,12 @@ use crate::config::paths::Paths;
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
+use crate::providers::base::Provider;
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
-use crate::session::session_naming::generate_session_name;
+use crate::session::session_naming::{
+    generate_session_name, MSG_COUNT_FOR_SESSION_NAME_GENERATION,
+};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use goose_providers::model::ModelConfig;

@@ -6,6 +6,8 @@ use regex::Regex;
 
 use crate::{providers::base::Provider, utils::safe_truncate};
 
+pub static MSG_COUNT_FOR_SESSION_NAME_GENERATION: usize = 3;
+
 fn strip_xml_tags(text: &str) -> String {
     static BLOCK_RE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"(?s)<([a-zA-Z][a-zA-Z0-9_]*)[^>]*>.*?</[a-zA-Z][a-zA-Z0-9_]*>").unwrap()
@@ -68,6 +70,44 @@ fn extract_short_title(text: &str) -> String {
     text.to_string()
 }
 
+/// Returns the first 3 user messages as strings for session naming,
+/// filtering out assistant-only content (e.g. preprompt blocks).
+fn get_initial_user_messages(messages: &Conversation) -> Vec<String> {
+    messages
+        .iter()
+        .filter(|m| m.role == rmcp::model::Role::User)
+        .take(MSG_COUNT_FOR_SESSION_NAME_GENERATION)
+        .map(|m| {
+            m.content
+                .iter()
+                .filter_map(|c| c.filter_for_audience(rmcp::model::Role::User))
+                .filter_map(|c| c.as_text().map(|s| s.to_string()))
+                .collect::<Vec<_>>()
+                .join("\n")
+        })
+        .collect()
+}
+
+/// Extracts preprompt context (assistant-audience blocks) from the first user message.
+/// These are content blocks visible to the assistant but not the user.
+fn get_preprompt_context(messages: &Conversation) -> String {
+    messages
+        .iter()
+        .filter(|m| m.role == rmcp::model::Role::User)
+        .take(1)
+        .flat_map(|m| m.content.iter())
+        .filter_map(|c| {
+            // If this block is NOT visible to the user, it's preprompt/assistant-only content
+            if c.filter_for_audience(rmcp::model::Role::User).is_none() {
+                c.as_text().map(|s| s.to_string())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("\n")
+}
+
 /// Generate a session name/description based on the conversation history
 /// Creates a prompt asking for a concise description in 4 words or less.
 pub(crate) async fn generate_session_name(
@@ -75,8 +115,8 @@ pub(crate) async fn generate_session_name(
     session_id: &str,
     messages: &Conversation,
 ) -> Result<String> {
-    let context = provider.get_initial_user_messages(messages);
-    let preprompt_context = provider.get_preprompt_context(messages);
+    let context = get_initial_user_messages(messages);
+    let preprompt_context = get_preprompt_context(messages);
     let system = crate::prompt_template::render_template(
         "session_name.md",
         &std::collections::HashMap::<String, String>::new(),
