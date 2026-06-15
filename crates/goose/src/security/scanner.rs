@@ -68,9 +68,19 @@ impl PromptInjectionScanner {
             ClassifierType::Prompt => "PROMPT",
         };
 
-        let enabled = config
-            .get_param::<bool>(&format!("SECURITY_{}_CLASSIFIER_ENABLED", prefix))
-            .unwrap_or(false);
+        let enabled = match classifier_type {
+            ClassifierType::Command => {
+                crate::security::get_override("SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE")
+                    .unwrap_or_else(|| {
+                        config
+                            .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
+                            .unwrap_or(false)
+                    })
+            }
+            ClassifierType::Prompt => config
+                .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
+                .unwrap_or(false),
+        };
 
         if !enabled {
             anyhow::bail!("{} classifier not enabled", prefix);
@@ -160,15 +170,16 @@ impl PromptInjectionScanner {
             self.combine_confidences(tool_result.confidence, context_result.ml_confidence);
 
         tracing::info!(
-            tool_confidence = %tool_result.confidence,
-            context_confidence = ?context_result.ml_confidence,
-            final_confidence = %final_confidence,
-            used_command_ml = tool_result.ml_confidence.is_some(),
-            used_prompt_ml = context_result.ml_confidence.is_some(),
-            used_pattern_detection = tool_result.used_pattern_detection,
-            threshold = %threshold,
-            malicious = final_confidence >= threshold,
-            "Security analysis complete"
+            security.event_type = "prompt_injection_scan",
+            security.confidence = final_confidence,
+            security.threshold = threshold,
+            security.above_threshold = final_confidence >= threshold,
+            scanner.tool_confidence = tool_result.confidence,
+            scanner.context_confidence = ?context_result.ml_confidence,
+            scanner.used_command_ml = tool_result.ml_confidence.is_some(),
+            scanner.used_prompt_ml = context_result.ml_confidence.is_some(),
+            scanner.used_pattern_detection = tool_result.used_pattern_detection,
+            "prompt injection scan: analysis complete"
         );
 
         let final_result = DetailedScanResult {
