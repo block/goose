@@ -57,6 +57,26 @@ impl super::GooseAcpAgent {
     ) -> Result<(), agent_client_protocol::Error> {
         let session_id = session_id.0.as_ref().to_string();
         let elicitation_id = elicitation_id.to_string();
+        if requested_schema
+            .get("url")
+            .and_then(|url| url.as_str())
+            .is_some()
+        {
+            warn!(
+                session_id = %session_id,
+                elicitation_id = %elicitation_id,
+                "ACP URL elicitation is not supported"
+            );
+            record_acp_elicitation_response(
+                &self.session_manager,
+                &session_id,
+                &elicitation_id,
+                ElicitationResponse::Cancel,
+            )
+            .await;
+            return Ok(());
+        }
+
         let requested_schema: ElicitationSchema =
             match serde_json::from_value(requested_schema.clone()) {
                 Ok(schema) => schema,
