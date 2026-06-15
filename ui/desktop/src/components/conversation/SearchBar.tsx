@@ -49,6 +49,11 @@ interface SearchBarProps {
   initialSearchTerm?: string;
   /** Placeholder text for the search input */
   placeholder?: string;
+  /** Show the case-sensitivity toggle (default: true). */
+  showCaseSensitive?: boolean;
+  /** Show the previous/next match navigation arrows (default: true). When hidden, the
+   * result counter shows the total instead of "current/total". */
+  showNavigation?: boolean;
 }
 
 /**
@@ -62,6 +67,8 @@ export const SearchBar: React.FC<SearchBarProps> = ({
   inputRef: externalInputRef,
   initialSearchTerm = '',
   placeholder,
+  showCaseSensitive = true,
+  showNavigation = true,
 }: SearchBarProps) => {
   const intl = useIntl();
   const resolvedPlaceholder = placeholder ?? intl.formatMessage(i18nMessages.defaultPlaceholder);
@@ -197,52 +204,57 @@ export const SearchBar: React.FC<SearchBarProps> = ({
           <div className="absolute right-3 flex h-full items-center justify-end">
             <div className="flex items-center gap-1">
               <div className="w-16 text-right text-sm text-text-inverse/80 flex items-center justify-end">
-                {(() => {
-                  return localSearchResults?.count && localSearchResults.count > 0 && searchTerm
-                    ? `${localSearchResults.currentIndex}/${localSearchResults.count}`
-                    : null;
-                })()}
+                {showNavigation &&
+                localSearchResults?.count &&
+                localSearchResults.count > 0 &&
+                searchTerm
+                  ? `${localSearchResults.currentIndex}/${localSearchResults.count}`
+                  : null}
               </div>
             </div>
           </div>
         </div>
 
         <div className="flex items-center justify-center h-auto px-4 gap-2 flex-shrink-0">
-          <Button
-            onClick={toggleCaseSensitive}
-            variant="ghost"
-            className={`no-drag flex items-center justify-center min-w-[32px] h-[28px] rounded transition-all duration-150 ${
-              caseSensitive
-                ? 'bg-white/20 shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] text-text-inverse hover:bg-white/25'
-                : 'text-text-inverse/70 hover:text-text-inverse hover:bg-white/10'
-            }`}
-            title={intl.formatMessage(i18nMessages.caseSensitive)}
-          >
-            <span className="text-md font-normal">Aa</span>
-          </Button>
+          {showCaseSensitive && (
+            <Button
+              onClick={toggleCaseSensitive}
+              variant="ghost"
+              className={`no-drag flex items-center justify-center min-w-[32px] h-[28px] rounded transition-all duration-150 ${
+                caseSensitive
+                  ? 'bg-white/20 shadow-[inset_0_1px_2px_rgba(0,0,0,0.2)] text-text-inverse hover:bg-white/25'
+                  : 'text-text-inverse/70 hover:text-text-inverse hover:bg-white/10'
+              }`}
+              title={intl.formatMessage(i18nMessages.caseSensitive)}
+            >
+              <span className="text-md font-normal">Aa</span>
+            </Button>
+          )}
 
-          <div className="flex items-center gap-2">
-            <Button
-              onClick={(e) => handleNavigate('prev', e)}
-              variant="ghost"
-              className="no-drag flex items-center justify-center min-w-[32px] h-[28px] rounded transition-all duration-150 text-text-inverse/70 hover:text-text-inverse hover:bg-white/10"
-              title={intl.formatMessage(i18nMessages.previous, { shortcut: '↑' })}
-            >
-              <ArrowUp
-                className={`h-5 w-5 transition-opacity ${!hasResults ? 'opacity-30' : ''}`}
-              />
-            </Button>
-            <Button
-              onClick={(e) => handleNavigate('next', e)}
-              variant="ghost"
-              className="no-drag flex items-center justify-center min-w-[32px] h-[28px] rounded transition-all duration-150 text-text-inverse/70 hover:text-text-inverse hover:bg-white/10"
-              title={intl.formatMessage(i18nMessages.next, { shortcut: '↓ or Enter' })}
-            >
-              <ArrowDown
-                className={`h-5 w-5 transition-opacity ${!hasResults ? 'opacity-30' : ''}`}
-              />
-            </Button>
-          </div>
+          {showNavigation && (
+            <div className="flex items-center gap-2">
+              <Button
+                onClick={(e) => handleNavigate('prev', e)}
+                variant="ghost"
+                className="no-drag flex items-center justify-center min-w-[32px] h-[28px] rounded transition-all duration-150 text-text-inverse/70 hover:text-text-inverse hover:bg-white/10"
+                title={intl.formatMessage(i18nMessages.previous, { shortcut: '↑' })}
+              >
+                <ArrowUp
+                  className={`h-5 w-5 transition-opacity ${!hasResults ? 'opacity-30' : ''}`}
+                />
+              </Button>
+              <Button
+                onClick={(e) => handleNavigate('next', e)}
+                variant="ghost"
+                className="no-drag flex items-center justify-center min-w-[32px] h-[28px] rounded transition-all duration-150 text-text-inverse/70 hover:text-text-inverse hover:bg-white/10"
+                title={intl.formatMessage(i18nMessages.next, { shortcut: '↓ or Enter' })}
+              >
+                <ArrowDown
+                  className={`h-5 w-5 transition-opacity ${!hasResults ? 'opacity-30' : ''}`}
+                />
+              </Button>
+            </div>
+          )}
 
           <Button
             onClick={handleClose}

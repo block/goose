@@ -2,6 +2,9 @@
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 
+use agent_client_protocol::schema::{
+    ContentBlock, PromptRequest, SessionUpdate, StopReason, TextContent,
+};
 use common_tests::fixtures::server::AcpServerConnection;
 use common_tests::fixtures::{
     run_test, send_custom, Connection, PermissionDecision, Session, SessionData,
@@ -10,12 +13,37 @@ use common_tests::fixtures::{
 use goose::acp::server::AcpProviderFactory;
 use goose::model::ModelConfig;
 use goose::providers::base::{MessageStream, Provider};
-use goose::providers::errors::ProviderError;
+use goose_providers::errors::ProviderError;
 use goose_test_support::{EnforceSessionId, IgnoreSessionId};
+use serial_test::serial;
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, LazyLock, Mutex};
+use std::time::Duration;
 
 use common_tests::fixtures::OpenAiFixture;
+
+const DEFAULT_ACP_TEST_CONFIG: &str =
+    "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_DISABLE_KEYRING: true\n";
+
+static ACP_CONFIG_ROOT: LazyLock<tempfile::TempDir> =
+    LazyLock::new(|| tempfile::tempdir().unwrap());
+
+fn write_acp_global_config(contents: &str) -> PathBuf {
+    std::env::set_var("GOOSE_PATH_ROOT", ACP_CONFIG_ROOT.path());
+    std::env::set_var("GOOSE_DISABLE_KEYRING", "1");
+    let config_dir = goose::config::paths::Paths::config_dir();
+    std::fs::create_dir_all(&config_dir).unwrap();
+    let mut contents = contents.to_string();
+    if !contents.contains("GOOSE_DISABLE_KEYRING") {
+        contents.push_str("GOOSE_DISABLE_KEYRING: true\n");
+    }
+    std::fs::write(
+        config_dir.join(goose::config::base::CONFIG_YAML_NAME),
+        contents,
+    )
+    .unwrap();
+    config_dir
+}
 
 struct MockProvider {
     name: String,
@@ -54,28 +82,92 @@ impl Provider for MockProvider {
     }
 }
 
-fn mock_provider_factory() -> AcpProviderFactory {
-    Arc::new(|provider_name, model_config, _extensions, _working_dir| {
-        Box::pin(async move {
-            let recommended_models = match provider_name.as_str() {
-                "anthropic" => vec![
-                    "claude-3-7-sonnet-latest".to_string(),
-                    "claude-3-5-haiku-latest".to_string(),
-                ],
-                _ => vec!["gpt-4o".to_string(), "o4-mini".to_string()],
+fn active_run_id_from_update(update: &SessionUpdate) -> Option<String> {
+    let SessionUpdate::SessionInfoUpdate(info) = update else {
+        return None;
+    };
+    info.meta
+        .as_ref()?
+        .get("goose")?
+        .get("activeRunId")?
+        .as_str()
+        .map(ToString::to_string)
+}
+
+fn queued_steer_message_ids(updates: &[SessionUpdate]) -> Vec<String> {
+    updates
+        .iter()
+        .filter_map(|update| {
+            let SessionUpdate::SessionInfoUpdate(info) = update else {
+                return None;
             };
-            Ok(Arc::new(MockProvider {
-                name: provider_name,
-                model_config,
-                supported_models: recommended_models.clone(),
-                recommended_models,
-            }) as Arc<dyn Provider>)
+            info.meta
+                .as_ref()?
+                .get("goose")?
+                .get("queuedSteer")?
+                .get("messageId")?
+                .as_str()
+                .map(ToString::to_string)
         })
-    })
+        .collect()
+}
+
+fn steer_chunk_message_ids(updates: &[SessionUpdate]) -> Vec<String> {
+    updates
+        .iter()
+        .filter_map(|update| {
+            let SessionUpdate::UserMessageChunk(chunk) = update else {
+                return None;
+            };
+            let goose = chunk.meta.as_ref()?.get("goose")?;
+            goose.get("steer")?.as_bool().filter(|b| *b)?;
+            goose.get("messageId")?.as_str().map(ToString::to_string)
+        })
+        .collect()
+}
+
+fn steer_chunk_texts(updates: &[SessionUpdate]) -> Vec<String> {
+    updates
+        .iter()
+        .filter_map(|update| {
+            // A steered message is a user message injected mid-run, so it must
+            // arrive as a UserMessageChunk (matching the replay path), never an
+            // AgentMessageChunk.
+            let SessionUpdate::UserMessageChunk(chunk) = update else {
+                return None;
+            };
+            let ContentBlock::Text(text) = &chunk.content else {
+                return None;
+            };
+            let is_steer = chunk
+                .meta
+                .as_ref()
+                .and_then(|m| m.get("goose"))
+                .and_then(|g| g.get("steer"))
+                .and_then(|s| s.as_bool())
+                .unwrap_or(false);
+            is_steer.then(|| text.text.clone())
+        })
+        .collect()
+}
+
+fn collect_agent_text(updates: &[SessionUpdate]) -> String {
+    updates
+        .iter()
+        .filter_map(|update| match update {
+            SessionUpdate::AgentMessageChunk(chunk) => match &chunk.content {
+                ContentBlock::Text(text) => Some(text.text.as_str()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
 }
 
 #[test]
+#[serial]
 fn test_custom_get_tools() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
@@ -98,135 +190,294 @@ fn test_custom_get_tools() {
 }
 
 #[test]
+#[serial]
 fn test_custom_get_extensions() {
+    let config_key = "test-stdio-acp-mutation-flow";
+    let _guard = env_lock::lock_env([("EXTENSIONS", None::<&str>)]);
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let add_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/extensions/add",
+            serde_json::json!({
+                "enabled": true,
+                "extension": {
+                    "type": "mcp",
+                    "description": "Test stdio",
+                    "envKeys": ["SECRET_TOKEN"],
+                    "timeout": 42,
+                    "server": {
+                        "type": "stdio",
+                        "name": config_key,
+                        "command": "test-command",
+                        "args": ["--flag", "value"],
+                        "env": [
+                            { "name": "INLINE_TOKEN", "value": "inline-secret" }
+                        ]
+                    }
+                }
+            }),
+        )
+        .await;
+        assert!(add_result.is_ok(), "expected ok, got: {:?}", add_result);
+        let stored_inline_token = goose::config::Config::global()
+            .get_secret::<String>("INLINE_TOKEN")
+            .expect("inline env should be saved as a secret");
+        assert!(
+            stored_inline_token == "inline-secret",
+            "inline env secret was not saved correctly"
+        );
+
+        let list_extension = || async {
+            let result = send_custom(
+                conn.cx(),
+                "_goose/unstable/config/extensions/list",
+                serde_json::json!({}),
+            )
+            .await;
+            assert!(result.is_ok(), "expected ok, got: {:?}", result);
+
+            let response = result.unwrap();
+            let extensions = response
+                .get("extensions")
+                .and_then(|extensions| extensions.as_array())
+                .expect("extensions should be an array");
+            extensions
+                .iter()
+                .find(|entry| entry["configKey"] == config_key)
+                .cloned()
+        };
+
+        let entry = list_extension()
+            .await
+            .unwrap_or_else(|| panic!("missing added extension entry"));
+        assert_eq!(entry["enabled"], true);
+        assert_eq!(entry["configKey"], config_key);
+
+        let extension = &entry["extension"];
+        assert_eq!(extension["type"], "mcp");
+        assert_eq!(
+            extension["envKeys"],
+            serde_json::json!(["SECRET_TOKEN", "INLINE_TOKEN"])
+        );
+        assert_eq!(extension["description"], "Test stdio");
+        assert_eq!(extension["timeout"], 42);
+        assert!(extension.get("socket").is_none());
+
+        let server = &extension["server"];
+        assert_eq!(server["name"], config_key);
+        assert_eq!(server["command"], "test-command");
+        assert_eq!(server["args"], serde_json::json!(["--flag", "value"]));
+        assert_eq!(server["env"], serde_json::json!([]));
+
+        let set_enabled_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/extensions/set-enabled",
+            serde_json::json!({
+                "configKey": config_key,
+                "enabled": false,
+            }),
+        )
+        .await;
+        assert!(
+            set_enabled_result.is_ok(),
+            "expected ok, got: {:?}",
+            set_enabled_result
+        );
+
+        let entry = list_extension()
+            .await
+            .unwrap_or_else(|| panic!("missing disabled extension entry"));
+        assert_eq!(entry["enabled"], false);
+
+        let remove_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/extensions/remove",
+            serde_json::json!({
+                "configKey": config_key,
+            }),
+        )
+        .await;
+        assert!(
+            remove_result.is_ok(),
+            "expected ok, got: {:?}",
+            remove_result
+        );
+
+        assert!(
+            list_extension().await.is_none(),
+            "removed extension should not be listed"
+        );
+    });
+}
+
+#[test]
+#[serial]
+fn test_custom_get_available_extensions() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
 
         let result = send_custom(
             conn.cx(),
-            "_goose/unstable/config/extensions/list",
+            "_goose/unstable/extensions/available",
             serde_json::json!({}),
         )
         .await;
         assert!(result.is_ok(), "expected ok, got: {:?}", result);
 
         let response = result.unwrap();
+        let extensions = response
+            .get("extensions")
+            .and_then(|extensions| extensions.as_array())
+            .expect("extensions should be an array");
+        assert!(!extensions.is_empty(), "extensions should not be empty");
         assert!(
-            response.get("extensions").is_some(),
-            "missing 'extensions' field"
+            extensions.iter().all(|extension| matches!(
+                extension["type"].as_str(),
+                Some("builtin" | "platform")
+            )),
+            "available extensions should only include builtin and platform entries"
         );
         assert!(
-            response.get("warnings").is_some(),
-            "missing 'warnings' field"
+            extensions.iter().any(|extension| {
+                extension["type"] == "platform" && extension["name"] == "developer"
+            }),
+            "developer platform extension should be available"
+        );
+        assert!(
+            !extensions.iter().any(|extension| {
+                extension["type"] == "platform" && extension["name"] == "orchestrator"
+            }),
+            "hidden orchestrator platform extension should not be available"
         );
     });
 }
 
 #[test]
-fn test_new_session_passes_cwd_to_provider_factory() {
+#[serial]
+fn test_steer_session_adds_input_to_active_prompt() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
-        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let cwd = tempfile::tempdir().unwrap();
-        let expected_cwd = cwd.path().to_path_buf();
-        let captured_cwds = Arc::new(Mutex::new(Vec::<Option<PathBuf>>::new()));
-        let factory_cwds = Arc::clone(&captured_cwds);
-        let provider_factory: AcpProviderFactory = Arc::new(
-            move |provider_name, model_config, _extensions, working_dir| {
-                factory_cwds.lock().unwrap().push(working_dir);
-                Box::pin(async move {
-                    Ok(Arc::new(MockProvider {
-                        name: provider_name,
-                        model_config,
-                        recommended_models: Vec::new(),
-                        supported_models: Vec::new(),
-                    }) as Arc<dyn Provider>)
-                })
-            },
-        );
-
-        let mut conn = AcpServerConnection::new(
-            TestConnectionConfig {
-                cwd: Some(cwd),
-                provider_factory: Some(provider_factory),
-                ..Default::default()
-            },
-            openai,
+        // Two-turn exchange: the first turn ends the turn with plain text. A
+        // steer queued before the turn ends keeps the loop alive (it flips
+        // `exit_chat` back to false), so a second provider request fires whose
+        // body must now contain the steered text.
+        let openai = OpenAiFixture::new(
+            vec![
+                (
+                    "start work".to_string(),
+                    include_str!("acp_test_data/openai_steer_first.txt"),
+                ),
+                (
+                    "steer while active".to_string(),
+                    include_str!("acp_test_data/openai_steer_second.txt"),
+                ),
+            ],
+            Arc::new(IgnoreSessionId),
         )
         .await;
-
-        conn.new_session().await.unwrap();
-
-        let captured_cwd = tokio::time::timeout(std::time::Duration::from_secs(1), async {
-            loop {
-                if let Some(cwd) = captured_cwds.lock().unwrap().first().cloned() {
-                    break cwd;
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
-            }
-        })
-        .await
-        .expect("provider factory was not called");
-
-        assert_eq!(captured_cwd, Some(expected_cwd));
-    });
-}
-
-#[test]
-fn test_load_session_passes_load_cwd_to_provider_factory() {
-    run_test(async move {
-        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
-        let initial_cwd = tempfile::tempdir().unwrap();
-        let captured_cwds = Arc::new(Mutex::new(Vec::<Option<PathBuf>>::new()));
-        let factory_cwds = Arc::clone(&captured_cwds);
-        let provider_factory: AcpProviderFactory = Arc::new(
-            move |provider_name, model_config, _extensions, working_dir| {
-                factory_cwds.lock().unwrap().push(working_dir);
-                Box::pin(async move {
-                    Ok(Arc::new(MockProvider {
-                        name: provider_name,
-                        model_config,
-                        recommended_models: Vec::new(),
-                        supported_models: Vec::new(),
-                    }) as Arc<dyn Provider>)
-                })
-            },
-        );
-
-        let mut conn = AcpServerConnection::new(
-            TestConnectionConfig {
-                cwd: Some(initial_cwd),
-                provider_factory: Some(provider_factory),
-                ..Default::default()
-            },
-            openai,
-        )
-        .await;
+        let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
 
         let SessionData { session, .. } = conn.new_session().await.unwrap();
         let session_id = session.session_id().0.to_string();
-        let SessionData {
-            session: loaded, ..
-        } = conn.load_session(&session_id, vec![]).await.unwrap();
-        let expected_cwd = loaded.work_dir();
+        let acp_session_id = session.session_id().clone();
 
-        let captured_cwd = tokio::time::timeout(std::time::Duration::from_secs(1), async {
-            loop {
-                if let Some(cwd) = captured_cwds.lock().unwrap().get(1).cloned() {
-                    break cwd;
+        let mut prompt = Box::pin(
+            conn.cx()
+                .send_request(PromptRequest::new(
+                    acp_session_id,
+                    vec![ContentBlock::Text(TextContent::new("start work"))],
+                ))
+                .block_task(),
+        );
+        let mut steer_sent = false;
+        let mut steer_message_id: Option<String> = None;
+        let mut final_response = None;
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
+
+        while tokio::time::Instant::now() < deadline {
+            tokio::select! {
+                response = &mut prompt => {
+                    final_response = Some(response.unwrap());
+                    break;
                 }
-                tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+                _ = tokio::time::sleep(Duration::from_millis(10)), if !steer_sent => {
+                    let updates = session.session_updates();
+                    if let Some(run_id) = updates.iter().find_map(active_run_id_from_update) {
+                        let response = send_custom(
+                            conn.cx(),
+                            "_goose/unstable/session/steer",
+                            serde_json::json!({
+                                "sessionId": session_id,
+                                "expectedRunId": run_id,
+                                "prompt": [
+                                    { "type": "text", "text": "steer while active" }
+                                ]
+                            }),
+                        )
+                        .await
+                        .unwrap();
+                        assert_eq!(response["runId"], run_id);
+                        let mid = response["messageId"].as_str();
+                        assert!(
+                            mid.is_some_and(|id| !id.is_empty()),
+                            "steer response must return a messageId for correlation, got: {response:?}"
+                        );
+                        steer_message_id = mid.map(ToString::to_string);
+                        steer_sent = true;
+                    }
+                }
             }
-        })
-        .await
-        .expect("provider factory was not called for load session");
+        }
 
-        assert_eq!(captured_cwd, Some(expected_cwd));
+        let response = final_response.expect("prompt did not complete");
+        assert_eq!(response.stop_reason, StopReason::EndTurn);
+        assert!(steer_sent, "test never observed an active run id");
+
+        let updates = session.session_updates();
+        let agent_text = collect_agent_text(&updates);
+        assert!(
+            agent_text.contains("saw steer"),
+            "expected provider to receive steered input, got: {agent_text:?}"
+        );
+
+        // The echoed steer prompt must be marked structurally so the client
+        // can locate the boundary without matching user-visible text.
+        let steer_chunks = steer_chunk_texts(&updates);
+        assert!(
+            steer_chunks
+                .iter()
+                .any(|t| t.contains("steer while active")),
+            "expected a chunk marked _meta.goose.steer with the steer text, got: {steer_chunks:?}"
+        );
+
+        // The queued steer must be announced (so a UI can show it as pending)
+        // and carry the same messageId returned by the steer response and later
+        // stamped on the picked-up UserMessageChunk.
+        let steer_message_id = steer_message_id.expect("steer response had no messageId");
+        let queued_ids = queued_steer_message_ids(&updates);
+        assert!(
+            queued_ids.contains(&steer_message_id),
+            "expected a queuedSteer SessionInfoUpdate with messageId {steer_message_id:?}, got: {queued_ids:?}"
+        );
+        let picked_up_ids = steer_chunk_message_ids(&updates);
+        assert!(
+            picked_up_ids.contains(&steer_message_id),
+            "picked-up steer chunk must carry the queued messageId {steer_message_id:?} for correlation, got: {picked_up_ids:?}"
+        );
     });
 }
 
 #[test]
+#[serial]
 fn test_custom_list_builtin_skill_sources() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
@@ -260,7 +511,9 @@ fn test_custom_list_builtin_skill_sources() {
 }
 
 #[test]
+#[serial]
 fn test_custom_provider_inventory_includes_metadata() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
@@ -291,19 +544,16 @@ fn test_custom_provider_inventory_includes_metadata() {
 }
 
 #[test]
+#[serial]
 fn test_custom_preferences_read_save_remove() {
-    run_test(async {
-        let data_root = tempfile::tempdir().unwrap();
-        std::fs::write(
-            data_root
-                .path()
-                .join(goose::config::base::CONFIG_YAML_NAME),
-            "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_AUTO_COMPACT_THRESHOLD: 0.7\nVOICE_AUTO_SUBMIT_PHRASES: send it\n",
-        )
-        .unwrap();
+    let config_dir = write_acp_global_config(
+        "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_AUTO_COMPACT_THRESHOLD: 0.7\nGOOSE_THINKING_EFFORT: high\nVOICE_AUTO_SUBMIT_PHRASES: send it\n",
+    );
+
+    run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let config = TestConnectionConfig {
-            data_root: data_root.path().to_path_buf(),
+            data_root: config_dir,
             ..Default::default()
         };
         let conn = AcpServerConnection::new(config, openai).await;
@@ -314,6 +564,7 @@ fn test_custom_preferences_read_save_remove() {
             serde_json::json!({
                 "keys": [
                     "autoCompactThreshold",
+                    "gooseThinkingEffort",
                     "voiceAutoSubmitPhrases",
                     "voiceDictationPreferredMic"
                 ],
@@ -325,6 +576,7 @@ fn test_custom_preferences_read_save_remove() {
             response.get("values"),
             Some(&serde_json::json!([
                 { "key": "autoCompactThreshold", "value": 0.7 },
+                { "key": "gooseThinkingEffort", "value": "high" },
                 { "key": "voiceAutoSubmitPhrases", "value": "send it" },
                 { "key": "voiceDictationPreferredMic", "value": null },
             ]))
@@ -335,6 +587,7 @@ fn test_custom_preferences_read_save_remove() {
             "_goose/unstable/preferences/save",
             serde_json::json!({
                 "values": [
+                    { "key": "gooseThinkingEffort", "value": "disabled" },
                     { "key": "voiceDictationProvider", "value": "__disabled__" },
                     { "key": "voiceDictationPreferredMic", "value": "mic-1" }
                 ],
@@ -357,7 +610,7 @@ fn test_custom_preferences_read_save_remove() {
             conn.cx(),
             "_goose/unstable/preferences/read",
             serde_json::json!({
-                "keys": ["voiceDictationProvider", "voiceDictationPreferredMic"],
+                "keys": ["gooseThinkingEffort", "voiceDictationProvider", "voiceDictationPreferredMic"],
             }),
         )
         .await
@@ -365,6 +618,7 @@ fn test_custom_preferences_read_save_remove() {
         assert_eq!(
             response.get("values"),
             Some(&serde_json::json!([
+                { "key": "gooseThinkingEffort", "value": "off" },
                 { "key": "voiceDictationProvider", "value": null },
                 { "key": "voiceDictationPreferredMic", "value": "mic-1" },
             ]))
@@ -373,7 +627,9 @@ fn test_custom_preferences_read_save_remove() {
 }
 
 #[test]
+#[serial]
 fn test_custom_preferences_save_rejects_invalid_values() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
@@ -384,6 +640,12 @@ fn test_custom_preferences_save_rejects_invalid_values() {
             }),
             serde_json::json!({
                 "values": [{ "key": "autoCompactThreshold", "value": 1.1 }],
+            }),
+            serde_json::json!({
+                "values": [{ "key": "gooseThinkingEffort", "value": "bogus" }],
+            }),
+            serde_json::json!({
+                "values": [{ "key": "gooseThinkingEffort", "value": ["high"] }],
             }),
             serde_json::json!({
                 "values": [{ "key": "voiceAutoSubmitPhrases", "value": ["send"] }],
@@ -433,17 +695,16 @@ fn test_custom_preferences_save_rejects_invalid_values() {
 }
 
 #[test]
+#[serial]
 fn test_custom_defaults_read() {
-    run_test(async {
-        let data_root = tempfile::tempdir().unwrap();
-        std::fs::write(
-            data_root.path().join(goose::config::base::CONFIG_YAML_NAME),
-            "GOOSE_MODEL: claude-3-5-haiku-latest\nGOOSE_PROVIDER: anthropic\n",
-        )
-        .unwrap();
+    let config_dir = write_acp_global_config(
+        "GOOSE_MODEL: claude-3-5-haiku-latest\nGOOSE_PROVIDER: anthropic\n",
+    );
+
+    run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let config = TestConnectionConfig {
-            data_root: data_root.path().to_path_buf(),
+            data_root: config_dir,
             ..Default::default()
         };
         let conn = AcpServerConnection::new(config, openai).await;
@@ -466,21 +727,15 @@ fn test_custom_defaults_read() {
 }
 
 #[test]
+#[serial]
 fn test_custom_dictation_secret_save_delete() {
-    let root = tempfile::tempdir().unwrap();
-    let root_path = root.path().to_string_lossy().to_string();
     let _env = env_lock::lock_env([
-        ("GOOSE_PATH_ROOT", Some(root_path.as_str())),
         ("GOOSE_DISABLE_KEYRING", Some("1")),
         ("GROQ_API_KEY", None::<&str>),
     ]);
-    let config_dir = goose::config::paths::Paths::config_dir();
-    std::fs::create_dir_all(&config_dir).unwrap();
-    std::fs::write(
-        config_dir.join(goose::config::base::CONFIG_YAML_NAME),
+    let config_dir = write_acp_global_config(
         "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_DISABLE_KEYRING: true\n",
-    )
-    .unwrap();
+    );
 
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
@@ -570,7 +825,9 @@ fn test_custom_dictation_secret_save_delete() {
 }
 
 #[test]
+#[serial]
 fn test_raw_config_and_secret_methods_are_removed() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
@@ -590,11 +847,13 @@ fn test_raw_config_and_secret_methods_are_removed() {
 }
 
 #[test]
+#[serial]
 fn test_provider_switching_updates_session_state() {
+    let _env = env_lock::lock_env([("ANTHROPIC_API_KEY", Some("test-key"))]);
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let config = TestConnectionConfig {
-            provider_factory: Some(mock_provider_factory()),
             current_model: "gpt-4o".to_string(),
             ..Default::default()
         };
@@ -618,7 +877,9 @@ fn test_provider_switching_updates_session_state() {
 }
 
 #[test]
+#[serial]
 fn test_custom_unknown_method() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
@@ -629,6 +890,7 @@ fn test_custom_unknown_method() {
 }
 
 #[test]
+#[serial]
 fn test_developer_fs_requests_use_acp_session_id() {
     run_test(async {
         let seen_session_id = Arc::new(Mutex::new(None::<String>));
@@ -648,9 +910,14 @@ fn test_developer_fs_requests_use_acp_session_id() {
             Arc::new(IgnoreSessionId),
         )
         .await;
+        let config_dir = write_acp_global_config(&format!(
+            "GOOSE_MODEL: gpt-4.1\nGOOSE_PROVIDER: openai\nOPENAI_HOST: {}\n",
+            openai.uri()
+        ));
         let config = TestConnectionConfig {
             // gpt-5-nano routes to the Responses API; use a Chat Completions
             // model so the canned SSE fixtures are parsed correctly.
+            data_root: config_dir,
             current_model: "gpt-4.1".to_string(),
             read_text_file: Some(Arc::new(move |req| {
                 *seen_session_id_clone.lock().unwrap() = Some(req.session_id.0.to_string());
@@ -683,7 +950,9 @@ fn test_developer_fs_requests_use_acp_session_id() {
 }
 
 #[test]
+#[serial]
 fn test_custom_provider_supported_models_lists_raw_provider_models() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let provider_factory: AcpProviderFactory =

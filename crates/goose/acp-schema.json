@@ -210,6 +210,434 @@
       ],
       "description": "How a session system prompt update should be applied."
     },
+    "SteerSessionRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "prompt": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ContentBlock"
+          },
+          "default": []
+        },
+        "expectedRunId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "expectedRunId"
+      ],
+      "description": "Add user input to the currently active prompt without starting a new prompt.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/steer"
+    },
+    "ContentBlock": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/TextContent",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "text"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "Text content. May be plain text or formatted with Markdown.\n\nAll agents MUST support text content blocks in prompts.\nClients SHOULD render this text as Markdown."
+        },
+        {
+          "$ref": "#/$defs/ImageContent",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "image"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "Images for visual context or analysis.\n\nRequires the `image` prompt capability when included in prompts."
+        },
+        {
+          "$ref": "#/$defs/AudioContent",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "audio"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "Audio data for transcription or analysis.\n\nRequires the `audio` prompt capability when included in prompts."
+        },
+        {
+          "$ref": "#/$defs/ResourceLink",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "resource_link"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "References to resources that the agent can access.\n\nAll agents MUST support resource links in prompts."
+        },
+        {
+          "$ref": "#/$defs/EmbeddedResource",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "resource"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "Complete resource contents embedded directly in the message.\n\nPreferred for including context as it avoids extra round-trips.\n\nRequires the `embeddedContext` prompt capability when included in prompts."
+        }
+      ],
+      "description": "Content blocks represent displayable information in the Agent Client Protocol.\n\nThey provide a structured way to handle various types of user-facing content—whether\nit's text from language models, images for analysis, or embedded resources for context.\n\nContent blocks appear in:\n- User prompts sent via `session/prompt`\n- Language model output streamed through `session/update` notifications\n- Progress updates and results from tool calls\n\nThis structure is compatible with the Model Context Protocol (MCP), enabling\nagents to seamlessly forward content from MCP tool outputs without transformation.\n\nSee protocol docs: [Content](https://agentclientprotocol.com/protocol/content)",
+      "discriminator": {
+        "propertyName": "type"
+      }
+    },
+    "Annotations": {
+      "type": "object",
+      "properties": {
+        "audience": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/Role"
+          }
+        },
+        "lastModified": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "priority": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "description": "Optional annotations for the client. The client can use annotations to inform how objects are used or displayed"
+    },
+    "Role": {
+      "type": "string",
+      "enum": [
+        "assistant",
+        "user"
+      ],
+      "description": "The sender or recipient of messages and data in a conversation."
+    },
+    "TextContent": {
+      "type": "object",
+      "properties": {
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "text"
+      ],
+      "description": "Text provided to or from an LLM."
+    },
+    "ImageContent": {
+      "type": "object",
+      "properties": {
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "uri": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "data",
+        "mimeType"
+      ],
+      "description": "An image provided to or from an LLM."
+    },
+    "AudioContent": {
+      "type": "object",
+      "properties": {
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "data": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": "string"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "data",
+        "mimeType"
+      ],
+      "description": "Audio provided to or from an LLM."
+    },
+    "ResourceLink": {
+      "type": "object",
+      "properties": {
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mimeType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "size": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uri": {
+          "type": "string"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "name",
+        "uri"
+      ],
+      "description": "A resource that the server is capable of reading, included in a prompt or tool call result."
+    },
+    "EmbeddedResourceResource": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TextResourceContents"
+        },
+        {
+          "$ref": "#/$defs/BlobResourceContents"
+        }
+      ],
+      "description": "Resource content that can be embedded in a message."
+    },
+    "TextResourceContents": {
+      "type": "object",
+      "properties": {
+        "mimeType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "text": {
+          "type": "string"
+        },
+        "uri": {
+          "type": "string"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "text",
+        "uri"
+      ],
+      "description": "Text-based resource contents."
+    },
+    "BlobResourceContents": {
+      "type": "object",
+      "properties": {
+        "blob": {
+          "type": "string"
+        },
+        "mimeType": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "uri": {
+          "type": "string"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "blob",
+        "uri"
+      ],
+      "description": "Binary resource contents."
+    },
+    "EmbeddedResource": {
+      "type": "object",
+      "properties": {
+        "annotations": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Annotations"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "resource": {
+          "$ref": "#/$defs/EmbeddedResourceResource"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "resource"
+      ],
+      "description": "The contents of a resource, embedded into a prompt or tool call result."
+    },
+    "SteerSessionResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "runId": {
+          "type": "string"
+        },
+        "messageId": {
+          "type": "string",
+          "description": "Stable id of the queued steer message. The same id later appears as\n`messageId` on the streamed `UserMessageChunk` (with `_meta.goose.steer`),\nletting clients correlate a queued steer with its pickup."
+        }
+      },
+      "required": [
+        "runId",
+        "messageId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/steer"
+    },
     "DeleteSessionRequest": {
       "type": "object",
       "properties": {
@@ -224,44 +652,419 @@
       "x-side": "agent",
       "x-method": "session/delete"
     },
-    "GetExtensionsRequest_unstable": {
+    "GetConfigExtensionsRequest_unstable": {
       "type": "object",
       "description": "List configured extensions and any warnings.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/extensions/list"
     },
-    "GetExtensionsResponse_unstable": {
+    "GetConfigExtensionsResponse_unstable": {
       "type": "object",
       "properties": {
         "extensions": {
           "type": "array",
-          "items": {},
-          "description": "Array of ExtensionEntry objects with `enabled` flag, `configKey`, and flattened config details."
+          "items": {
+            "$ref": "#/$defs/GooseExtensionEntry"
+          }
         },
         "warnings": {
           "type": "array",
           "items": {
             "type": "string"
-          }
+          },
+          "default": []
         }
       },
       "required": [
-        "extensions",
-        "warnings"
+        "extensions"
       ],
       "description": "List configured extensions and any warnings.",
       "x-side": "agent",
       "x-method": "_goose/unstable/config/extensions/list"
     },
-    "AddConfigExtensionRequest_unstable": {
+    "GooseExtensionEntry": {
+      "type": "object",
+      "properties": {
+        "extension": {
+          "$ref": "#/$defs/GooseExtension"
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "configKey": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "extension",
+        "enabled"
+      ]
+    },
+    "GooseExtension": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "timeout": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "builtin"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "platform"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "server": {
+              "$ref": "#/$defs/McpServer"
+            },
+            "envKeys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "timeout": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "socket": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "mcp"
+            }
+          },
+          "required": [
+            "type",
+            "server"
+          ]
+        }
+      ]
+    },
+    "McpServer": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/McpServerHttp",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "http"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "HTTP transport configuration\n\nOnly available when the Agent capabilities indicate `mcp_capabilities.http` is `true`."
+        },
+        {
+          "$ref": "#/$defs/McpServerSse",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "sse"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "SSE transport configuration\n\nOnly available when the Agent capabilities indicate `mcp_capabilities.sse` is `true`."
+        },
+        {
+          "$ref": "#/$defs/McpServerStdio",
+          "description": "Stdio transport configuration\n\nAll Agents MUST support this transport."
+        }
+      ],
+      "description": "Configuration for connecting to an MCP (Model Context Protocol) server.\n\nMCP servers provide tools and context that the agent can use when\nprocessing prompts.\n\nSee protocol docs: [MCP Servers](https://agentclientprotocol.com/protocol/session-setup#mcp-servers)"
+    },
+    "HttpHeader": {
       "type": "object",
       "properties": {
         "name": {
-          "type": "string"
+          "type": "string",
+          "description": "The name of the HTTP header."
         },
-        "extensionConfig": {
-          "description": "Extension configuration. Must be a JSON object matching one of the\n`ExtensionConfig` variants (e.g. `stdio`, `streamable_http`, `builtin`).\n`name` and `enabled` are injected server-side.",
-          "default": null
+        "value": {
+          "type": "string",
+          "description": "The value to set for the HTTP header."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "description": "An HTTP header to set when making requests to the MCP server."
+    },
+    "McpServerHttp": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name identifying this MCP server."
+        },
+        "url": {
+          "type": "string",
+          "description": "URL to the MCP server."
+        },
+        "headers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HttpHeader"
+          },
+          "description": "HTTP headers to set when making requests to the MCP server."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        },
+        "type": {
+          "type": "string",
+          "const": "http"
+        }
+      },
+      "required": [
+        "type",
+        "name",
+        "url",
+        "headers"
+      ],
+      "description": "HTTP transport configuration for MCP."
+    },
+    "McpServerSse": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name identifying this MCP server."
+        },
+        "url": {
+          "type": "string",
+          "description": "URL to the MCP server."
+        },
+        "headers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HttpHeader"
+          },
+          "description": "HTTP headers to set when making requests to the MCP server."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        },
+        "type": {
+          "type": "string",
+          "const": "sse"
+        }
+      },
+      "required": [
+        "type",
+        "name",
+        "url",
+        "headers"
+      ],
+      "description": "SSE transport configuration for MCP."
+    },
+    "McpServerStdio": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name identifying this MCP server."
+        },
+        "command": {
+          "type": "string",
+          "description": "Path to the MCP server executable."
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Command-line arguments to pass to the MCP server."
+        },
+        "env": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnvVariable"
+          },
+          "description": "Environment variables to set when launching the MCP server."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "name",
+        "command",
+        "args",
+        "env"
+      ],
+      "description": "Stdio transport configuration for MCP."
+    },
+    "EnvVariable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the environment variable."
+        },
+        "value": {
+          "type": "string",
+          "description": "The value to set for the environment variable."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "description": "An environment variable to set when launching an MCP server."
+    },
+    "GetAvailableExtensionsRequest_unstable": {
+      "type": "object",
+      "description": "List Goose-owned extension definitions available to configure or enable.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/extensions/available"
+    },
+    "GetAvailableExtensionsResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "extensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/GooseExtension"
+          }
+        }
+      },
+      "required": [
+        "extensions"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/extensions/available"
+    },
+    "AddConfigExtensionRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "extension": {
+          "$ref": "#/$defs/GooseExtension"
         },
         "enabled": {
           "type": "boolean",
@@ -269,7 +1072,7 @@
         }
       },
       "required": [
-        "name"
+        "extension"
       ],
       "description": "Persist a new extension to the user's global goose config.",
       "x-side": "agent",
@@ -289,7 +1092,7 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/config/extensions/remove"
     },
-    "ToggleConfigExtensionRequest_unstable": {
+    "SetConfigExtensionEnabledRequest_unstable": {
       "type": "object",
       "properties": {
         "configKey": {
@@ -303,9 +1106,9 @@
         "configKey",
         "enabled"
       ],
-      "description": "Toggle the `enabled` flag for a persisted extension in the user's global goose config.",
+      "description": "Set the `enabled` flag for a persisted extension in the user's global goose config.",
       "x-side": "agent",
-      "x-method": "_goose/unstable/config/extensions/toggle"
+      "x-method": "_goose/unstable/config/extensions/set-enabled"
     },
     "GetSessionExtensionsRequest_unstable": {
       "type": "object",
@@ -545,9 +1348,8 @@
             "integer",
             "null"
           ],
-          "format": "uint",
-          "minimum": 0,
-          "description": "Context window size in tokens."
+          "description": "Context window size in tokens.",
+          "minimum": 0
         },
         "reasoning": {
           "type": [
@@ -1541,6 +2343,7 @@
       "type": "string",
       "enum": [
         "autoCompactThreshold",
+        "gooseThinkingEffort",
         "voiceAutoSubmitPhrases",
         "voiceDictationProvider",
         "voiceDictationPreferredMic"
@@ -1886,6 +2689,105 @@
       "description": "Import session response — metadata about the newly created session.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/import"
+    },
+    "GetSessionInfoRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "description": "Return list-style metadata for a single session without loading the conversation.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/info"
+    },
+    "GetSessionInfoResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "session": {
+          "$ref": "#/$defs/SessionInfo"
+        }
+      },
+      "required": [
+        "session"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/info"
+    },
+    "SessionInfo": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "$ref": "#/$defs/SessionId",
+          "description": "Unique identifier for the session"
+        },
+        "cwd": {
+          "type": "string",
+          "description": "The working directory for this session. Must be an absolute path."
+        },
+        "additionalDirectories": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "**UNSTABLE**\n\nThis capability is not part of the spec yet, and may be removed or changed at any point.\n\nAuthoritative ordered additional workspace roots for this session. Each path must be absolute.\n\nWhen omitted or empty, there are no additional roots for the session."
+        },
+        "title": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Human-readable title for the session"
+        },
+        "updatedAt": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "ISO 8601 timestamp of last activity"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "sessionId",
+        "cwd"
+      ],
+      "description": "Information about a session returned by session/list"
+    },
+    "SessionId": {
+      "type": "string",
+      "description": "A unique identifier for a conversation session between a client and agent.\n\nSessions maintain their own context, conversation history, and state,\nallowing multiple independent interactions with the same agent.\n\nSee protocol docs: [Session ID](https://agentclientprotocol.com/protocol/session-setup#session-id)"
+    },
+    "ElicitationRespondRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "elicitationId": {
+          "type": "string"
+        },
+        "userData": {
+          "default": null
+        }
+      },
+      "required": [
+        "sessionId",
+        "elicitationId"
+      ],
+      "description": "Submit a response for a pending MCP elicitation in an active session.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/elicitation/respond"
     },
     "UpdateSessionProjectRequest_unstable": {
       "type": "object",
@@ -2651,6 +3553,209 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/dictation/models/select"
     },
+    "GooseSessionNotification_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "update": {
+          "$ref": "#/$defs/GooseSessionUpdate"
+        }
+      },
+      "required": [
+        "sessionId",
+        "update"
+      ],
+      "description": "Goose-custom session update notification — a parallel to ACP's\n`session/update` carrying goose-specific update variants.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/update"
+    },
+    "GooseSessionUpdate": {
+      "oneOf": [
+        {
+          "$ref": "#/$defs/SessionUsageUpdate",
+          "type": "object",
+          "properties": {
+            "sessionUpdate": {
+              "type": "string",
+              "const": "usage_update"
+            }
+          },
+          "required": [
+            "sessionUpdate"
+          ]
+        },
+        {
+          "$ref": "#/$defs/StatusMessageUpdate",
+          "type": "object",
+          "properties": {
+            "sessionUpdate": {
+              "type": "string",
+              "const": "status_message"
+            }
+          },
+          "required": [
+            "sessionUpdate"
+          ]
+        },
+        {
+          "$ref": "#/$defs/InteractionUpdate",
+          "type": "object",
+          "properties": {
+            "sessionUpdate": {
+              "type": "string",
+              "const": "interaction_update"
+            }
+          },
+          "required": [
+            "sessionUpdate"
+          ]
+        }
+      ],
+      "description": "Discriminated union of goose-specific session update payloads.\nVariant tag matches ACP's convention (`sessionUpdate: \"<snake_case>\"`).\n\n`discriminator.mapping` is what makes TS codegen (`@hey-api/openapi-ts`)\nemit the correct snake_case tag value even when this enum has a single\nvariant. Add a mapping entry per variant.",
+      "discriminator": {
+        "propertyName": "sessionUpdate",
+        "mapping": {
+          "usage_update": "#/$defs/SessionUsageUpdate",
+          "status_message": "#/$defs/StatusMessageUpdate",
+          "interaction_update": "#/$defs/InteractionUpdate"
+        }
+      }
+    },
+    "SessionUsageUpdate": {
+      "type": "object",
+      "properties": {
+        "used": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "contextLimit": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accumulatedInputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accumulatedOutputTokens": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "accumulatedCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "required": [
+        "used",
+        "contextLimit",
+        "accumulatedInputTokens",
+        "accumulatedOutputTokens"
+      ],
+      "description": "Streaming context-window usage update for a session."
+    },
+    "StatusMessage": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "notice"
+            }
+          },
+          "required": [
+            "type",
+            "message"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "message": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "progress"
+            }
+          },
+          "required": [
+            "type",
+            "message"
+          ]
+        }
+      ]
+    },
+    "StatusMessageUpdate": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/StatusMessage"
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "description": "Live UI/session status. This is not conversation transcript content, and\nshould not be persisted or replayed as history."
+    },
+    "Interaction": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "state": {
+              "$ref": "#/$defs/InteractionState"
+            },
+            "message": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "requestedSchema": {},
+            "type": {
+              "type": "string",
+              "const": "elicitation"
+            }
+          },
+          "required": [
+            "type",
+            "id",
+            "state"
+          ]
+        }
+      ]
+    },
+    "InteractionState": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "submitted"
+      ]
+    },
+    "InteractionUpdate": {
+      "type": "object",
+      "properties": {
+        "interaction": {
+          "$ref": "#/$defs/Interaction"
+        },
+        "_meta": {}
+      },
+      "required": [
+        "interaction"
+      ]
+    },
     "ExtRequest": {
       "properties": {
         "id": {
@@ -2729,6 +3834,15 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/SteerSessionRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/steer",
+                  "title": "SteerSessionRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/DeleteSessionRequest"
                     }
                   ],
@@ -2738,11 +3852,20 @@
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/GetExtensionsRequest_unstable"
+                      "$ref": "#/$defs/GetConfigExtensionsRequest_unstable"
                     }
                   ],
                   "description": "Params for _goose/unstable/config/extensions/list",
-                  "title": "GetExtensionsRequest_unstable"
+                  "title": "GetConfigExtensionsRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/GetAvailableExtensionsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/extensions/available",
+                  "title": "GetAvailableExtensionsRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -2765,11 +3888,11 @@
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ToggleConfigExtensionRequest_unstable"
+                      "$ref": "#/$defs/SetConfigExtensionEnabledRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/unstable/config/extensions/toggle",
-                  "title": "ToggleConfigExtensionRequest_unstable"
+                  "description": "Params for _goose/unstable/config/extensions/set-enabled",
+                  "title": "SetConfigExtensionEnabledRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -2995,6 +4118,24 @@
                   ],
                   "description": "Params for _goose/unstable/session/import",
                   "title": "ImportSessionRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/GetSessionInfoRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/info",
+                  "title": "GetSessionInfoRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ElicitationRespondRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/elicitation/respond",
+                  "title": "ElicitationRespondRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -3241,10 +4382,26 @@
                     {
                       "allOf": [
                         {
-                          "$ref": "#/$defs/GetExtensionsResponse_unstable"
+                          "$ref": "#/$defs/SteerSessionResponse_unstable"
                         }
                       ],
-                      "title": "GetExtensionsResponse_unstable"
+                      "title": "SteerSessionResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/GetConfigExtensionsResponse_unstable"
+                        }
+                      ],
+                      "title": "GetConfigExtensionsResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/GetAvailableExtensionsResponse_unstable"
+                        }
+                      ],
+                      "title": "GetAvailableExtensionsResponse_unstable"
                     },
                     {
                       "allOf": [
@@ -3409,6 +4566,14 @@
                     {
                       "allOf": [
                         {
+                          "$ref": "#/$defs/GetSessionInfoResponse_unstable"
+                        }
+                      ],
+                      "title": "GetSessionInfoResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
                           "$ref": "#/$defs/CreateSourceResponse_unstable"
                         }
                       ],
@@ -3523,6 +4688,42 @@
         }
       ],
       "x-docs-ignore": true
+    },
+    "ExtNotification": {
+      "properties": {
+        "method": {
+          "type": "string"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/GooseSessionNotification_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/update",
+                  "title": "GooseSessionNotification_unstable"
+                }
+              ]
+            },
+            {
+              "description": "Untyped params",
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "method"
+      ],
+      "type": "object",
+      "x-docs-ignore": true
     }
   },
   "anyOf": [
@@ -3543,6 +4744,15 @@
       ],
       "description": "Extension response (agent → client)",
       "title": "Response"
+    },
+    {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ExtNotification"
+        }
+      ],
+      "description": "Extension notification (agent → client, fire-and-forget)",
+      "title": "Notification"
     }
   ]
 }

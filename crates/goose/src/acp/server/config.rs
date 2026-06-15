@@ -1,4 +1,5 @@
 use super::*;
+use goose_providers::thinking::ThinkingEffort;
 
 impl GooseAcpAgent {
     pub(super) async fn on_preferences_read(
@@ -37,8 +38,8 @@ impl GooseAcpAgent {
 
         for preference in &req.values {
             let def = preference_def(preference.key)?;
-            (def.validate)(&preference.value)?;
-            updates.push((def.config_key.to_string(), preference.value.clone()));
+            let value = (def.prepare)(&preference.value)?;
+            updates.push((def.config_key.to_string(), value));
         }
 
         config.set_param_values(&updates).internal_err()?;
@@ -114,11 +115,11 @@ impl GooseAcpAgent {
 
         let config = self.config()?;
         let model = model_id.clone().unwrap_or_else(|| {
-            crate::config::get_provider_entry(&config, &provider_id)
+            crate::config::get_provider_entry(config, &provider_id)
                 .map(|e| e.model)
                 .unwrap_or_default()
         });
-        crate::config::set_active_provider(&config, &provider_id, &model)
+        crate::config::set_active_provider(config, &provider_id, &model)
             .internal_err_ctx("Failed to save default provider")?;
 
         Ok(DefaultsReadResponse {
@@ -131,29 +132,34 @@ impl GooseAcpAgent {
 struct PreferenceDef {
     key: PreferenceKey,
     config_key: &'static str,
-    validate: fn(&serde_json::Value) -> Result<(), agent_client_protocol::Error>,
+    prepare: fn(&serde_json::Value) -> Result<serde_json::Value, agent_client_protocol::Error>,
 }
 
 const PREFERENCE_DEFS: &[PreferenceDef] = &[
     PreferenceDef {
         key: PreferenceKey::AutoCompactThreshold,
         config_key: "GOOSE_AUTO_COMPACT_THRESHOLD",
-        validate: validate_auto_compact_threshold,
+        prepare: prepare_auto_compact_threshold,
+    },
+    PreferenceDef {
+        key: PreferenceKey::GooseThinkingEffort,
+        config_key: "GOOSE_THINKING_EFFORT",
+        prepare: prepare_thinking_effort,
     },
     PreferenceDef {
         key: PreferenceKey::VoiceAutoSubmitPhrases,
         config_key: "VOICE_AUTO_SUBMIT_PHRASES",
-        validate: validate_voice_auto_submit_phrases,
+        prepare: prepare_voice_auto_submit_phrases,
     },
     PreferenceDef {
         key: PreferenceKey::VoiceDictationProvider,
         config_key: "VOICE_DICTATION_PROVIDER",
-        validate: validate_voice_dictation_provider,
+        prepare: prepare_voice_dictation_provider,
     },
     PreferenceDef {
         key: PreferenceKey::VoiceDictationPreferredMic,
         config_key: "VOICE_DICTATION_PREFERRED_MIC",
-        validate: validate_voice_dictation_preferred_mic,
+        prepare: prepare_voice_dictation_preferred_mic,
     },
 ];
 
@@ -169,35 +175,50 @@ fn preference_def(
         })
 }
 
-fn validate_auto_compact_threshold(
+fn prepare_auto_compact_threshold(
     value: &serde_json::Value,
-) -> Result<(), agent_client_protocol::Error> {
-    let Some(value) = value.as_f64() else {
+) -> Result<serde_json::Value, agent_client_protocol::Error> {
+    let Some(threshold) = value.as_f64() else {
         return Err(agent_client_protocol::Error::invalid_params()
             .data("autoCompactThreshold must be a number"));
     };
-    if !value.is_finite() || value <= 0.0 || value > 1.0 {
+    if !threshold.is_finite() || threshold <= 0.0 || threshold > 1.0 {
         return Err(agent_client_protocol::Error::invalid_params()
             .data("autoCompactThreshold must be greater than 0 and at most 1"));
     }
 
-    Ok(())
+    Ok(value.clone())
 }
 
-fn validate_voice_auto_submit_phrases(
+fn prepare_thinking_effort(
     value: &serde_json::Value,
-) -> Result<(), agent_client_protocol::Error> {
+) -> Result<serde_json::Value, agent_client_protocol::Error> {
+    let Some(value) = value.as_str() else {
+        return Err(agent_client_protocol::Error::invalid_params()
+            .data("gooseThinkingEffort must be a string"));
+    };
+    let effort = value.parse::<ThinkingEffort>().map_err(|err| {
+        agent_client_protocol::Error::invalid_params()
+            .data(format!("Invalid gooseThinkingEffort: {err}"))
+    })?;
+
+    Ok(serde_json::Value::String(effort.to_string()))
+}
+
+fn prepare_voice_auto_submit_phrases(
+    value: &serde_json::Value,
+) -> Result<serde_json::Value, agent_client_protocol::Error> {
     if !value.is_string() {
         return Err(agent_client_protocol::Error::invalid_params()
             .data("voiceAutoSubmitPhrases must be a string"));
     }
 
-    Ok(())
+    Ok(value.clone())
 }
 
-fn validate_voice_dictation_provider(
+fn prepare_voice_dictation_provider(
     value: &serde_json::Value,
-) -> Result<(), agent_client_protocol::Error> {
+) -> Result<serde_json::Value, agent_client_protocol::Error> {
     let Some(value) = value.as_str() else {
         return Err(agent_client_protocol::Error::invalid_params()
             .data("voiceDictationProvider must be a string"));
@@ -207,12 +228,12 @@ fn validate_voice_dictation_provider(
             .data("voiceDictationProvider is not supported"));
     }
 
-    Ok(())
+    Ok(serde_json::Value::String(value.to_string()))
 }
 
-fn validate_voice_dictation_preferred_mic(
+fn prepare_voice_dictation_preferred_mic(
     value: &serde_json::Value,
-) -> Result<(), agent_client_protocol::Error> {
+) -> Result<serde_json::Value, agent_client_protocol::Error> {
     let Some(value) = value.as_str() else {
         return Err(agent_client_protocol::Error::invalid_params()
             .data("voiceDictationPreferredMic must be a string"));
@@ -222,7 +243,7 @@ fn validate_voice_dictation_preferred_mic(
             .data("voiceDictationPreferredMic must be non-empty"));
     }
 
-    Ok(())
+    Ok(serde_json::Value::String(value.to_string()))
 }
 
 fn is_supported_voice_dictation_provider(value: &str) -> bool {

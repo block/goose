@@ -21,7 +21,6 @@ use crate::providers::base::{
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 
-use crate::providers::errors::ProviderError;
 use crate::providers::formats::gcpvertexai::{
     create_request, response_to_streaming_message, GcpLocation, ModelProvider, RequestContext,
     DEFAULT_MODEL, KNOWN_MODELS,
@@ -31,6 +30,7 @@ use crate::providers::openai_compatible::{map_http_error_to_provider_error, sani
 use crate::providers::retry::RetryConfig;
 use crate::providers::utils::RequestLog;
 use crate::session_context::SESSION_ID_HEADER;
+use goose_providers::errors::ProviderError;
 use rmcp::model::Tool;
 
 const GCP_VERTEX_AI_PROVIDER_NAME: &str = "gcp_vertex_ai";
@@ -618,8 +618,7 @@ impl Provider for GcpVertexAIProvider {
             let mut message_stream = response_to_streaming_message(framed, &context_clone);
 
             while let Some(message) = message_stream.next().await {
-                let (message, usage) = message
-                    .map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                let (message, usage) = message.map_err(ProviderError::from_stream_error)?;
                 log.write(&message, usage.as_ref().map(|u| &u.usage))?;
                 yield (message, usage);
             }

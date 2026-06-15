@@ -3,10 +3,6 @@ use super::base::{
     ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
-use super::errors::ProviderError;
-use super::formats::openai::{
-    create_request_with_options, get_usage, response_to_message, OpenAiFormatOptions,
-};
 use super::formats::openai_responses::{
     create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
 };
@@ -15,12 +11,18 @@ use super::openai_compatible::{
     handle_response_openai_compat, handle_status, stream_openai_compat, stream_responses_compat,
 };
 use super::retry::ProviderRetry;
-use super::utils::ImageFormat;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::{
+    create_request_with_options, get_usage, response_to_message, OpenAiFormatOptions,
+};
+use goose_providers::formats::openai::{is_openai_responses_model, ModelConfigParams};
+use goose_providers::images::ImageFormat;
 use reqwest::StatusCode;
 use std::collections::HashMap;
 
@@ -476,7 +478,7 @@ impl OpenAiProvider {
     }
 
     fn is_responses_model(model_name: &str) -> bool {
-        super::utils::is_openai_responses_model(model_name)
+        is_openai_responses_model(model_name)
     }
 
     fn should_use_responses_api(model_name: &str, base_path: &str) -> bool {
@@ -821,8 +823,7 @@ impl Provider for OpenAiProvider {
 
                 let message = responses_api_to_message(&responses_api_response)?;
                 let usage_data = get_responses_usage(&responses_api_response);
-                let usage =
-                    super::base::ProviderUsage::new(model_config.model_name.clone(), usage_data);
+                let usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
 
                 log.write(
                     &serde_json::to_value(&message).unwrap_or_default(),
@@ -833,7 +834,13 @@ impl Provider for OpenAiProvider {
             }
         } else {
             let payload = create_request_with_options(
-                model_config,
+                ModelConfigParams {
+                    model_name: model_config.model_name.as_str(),
+                    thinking_effort: model_config.thinking_effort(),
+                    temperature: model_config.temperature,
+                    max_tokens: model_config.max_tokens,
+                    request_params: model_config.request_params.as_ref(),
+                },
                 system,
                 messages,
                 tools,
@@ -871,8 +878,7 @@ impl Provider for OpenAiProvider {
                 })?;
 
                 let usage_data = get_usage(json.get("usage").unwrap_or(&serde_json::Value::Null));
-                let usage =
-                    super::base::ProviderUsage::new(model_config.model_name.clone(), usage_data);
+                let usage = ProviderUsage::new(model_config.model_name.clone(), usage_data);
 
                 log.write(
                     &serde_json::to_value(&message).unwrap_or_default(),
