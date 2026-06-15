@@ -42,7 +42,6 @@ use futures::StreamExt;
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::create_request;
 use goose_providers::images::ImageFormat;
-use goose_providers::model::ModelConfig;
 use reqwest::Client;
 use rmcp::model::{object, CallToolRequestParams, RawContent, Tool};
 use serde_json::{json, Value};
@@ -566,9 +565,8 @@ impl LocalInterpreter {
         &self,
         format_instruction: &str,
     ) -> Result<String, ProviderError> {
-        let model_config = ModelConfig::new(&self.model)
+        let model_config = crate::model_config::model_config_from_user_config("local", &self.model)
             .map_err(|e| ProviderError::RequestFailed(format!("Model config error: {e}")))?
-            .with_canonical_limits("local")
             .with_toolshim(false)
             .with_toolshim_model(None);
 
