@@ -319,6 +319,7 @@ pub(crate) struct SessionListPageQuery<'a> {
     pub(crate) filters: SessionListFilters<'a>,
     pub(crate) cursor: Option<&'a SessionListCursor>,
     pub(crate) page_size: usize,
+    pub(crate) include_last_message_snippet: bool,
 }
 
 #[derive(Debug, Default)]
@@ -441,13 +442,6 @@ impl SessionManager {
         query: SessionListPageQuery<'_>,
     ) -> Result<SessionListPage> {
         self.storage.list_sessions_paged(query).await
-    }
-
-    pub(crate) async fn hydrate_last_message_snippets(
-        &self,
-        sessions: &mut [Session],
-    ) -> Result<()> {
-        self.storage.hydrate_last_message_snippets(sessions).await
     }
 
     pub async fn list_all_sessions(&self) -> Result<Vec<Session>> {
@@ -1738,6 +1732,7 @@ impl SessionStorage {
         }
 
         let page_size = query.page_size;
+        let include_last_message_snippet = query.include_last_message_snippet;
         let mut sessions = self
             .list_sessions_matching(SessionListQuery {
                 filters: query.filters,
@@ -1757,6 +1752,9 @@ impl SessionStorage {
         };
         if has_next_page {
             sessions.truncate(page_size);
+        }
+        if include_last_message_snippet {
+            self.hydrate_last_message_snippets(&mut sessions).await?;
         }
 
         Ok(SessionListPage {
@@ -2359,6 +2357,7 @@ mod tests {
                 },
                 cursor,
                 page_size,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2552,6 +2551,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2593,6 +2593,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2627,6 +2628,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2665,6 +2667,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2685,6 +2688,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2723,6 +2727,7 @@ mod tests {
                 filters: filters.clone(),
                 cursor: None,
                 page_size: 1,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2739,6 +2744,7 @@ mod tests {
                 filters,
                 cursor: cursor.next_cursor.as_ref(),
                 page_size: 1,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -3156,12 +3162,29 @@ mod tests {
         .id
     }
 
+    async fn listed_snippets(sm: &SessionManager) -> HashMap<String, Option<String>> {
+        let types = [SessionType::User];
+        sm.list_sessions_paged(SessionListPageQuery {
+            filters: SessionListFilters {
+                types: Some(&types),
+                working_dir: Some(Path::new("/tmp/snippet")),
+                ..Default::default()
+            },
+            cursor: None,
+            page_size: 100,
+            include_last_message_snippet: true,
+        })
+        .await
+        .unwrap()
+        .sessions
+        .into_iter()
+        .map(|session| (session.id, session.last_message_snippet))
+        .collect()
+    }
+
     async fn hydrated_snippet_of(sm: &SessionManager, id: &str) -> Option<String> {
-        let mut sessions = vec![sm.get_session(id, false).await.unwrap()];
-        sm.hydrate_last_message_snippets(&mut sessions)
-            .await
-            .unwrap();
-        sessions.pop().unwrap().last_message_snippet
+        let mut snippets = listed_snippets(sm).await;
+        snippets.remove(id).unwrap()
     }
 
     fn message_at(mut message: Message, created: i64) -> Message {
@@ -3447,17 +3470,7 @@ mod tests {
         )
         .await
         .unwrap();
-        let mut sessions = vec![
-            sm.get_session(&visible_id, false).await.unwrap(),
-            sm.get_session(&empty_id, false).await.unwrap(),
-        ];
-        sm.hydrate_last_message_snippets(&mut sessions)
-            .await
-            .unwrap();
-        let by_id = sessions
-            .into_iter()
-            .map(|session| (session.id, session.last_message_snippet))
-            .collect::<HashMap<_, _>>();
+        let by_id = listed_snippets(&sm).await;
 
         assert_eq!(
             by_id
@@ -3487,11 +3500,6 @@ mod tests {
             .await
             .unwrap();
         }
-        let mut sessions = vec![sm.get_session(&id, false).await.unwrap()];
-        sm.hydrate_last_message_snippets(&mut sessions)
-            .await
-            .unwrap();
-
-        assert_eq!(sessions[0].last_message_snippet, None);
+        assert_eq!(hydrated_snippet_of(&sm, &id).await, None);
     }
 }

@@ -192,7 +192,7 @@ impl GooseAcpAgent {
         )?;
 
         // ACP clients see their own (Acp) sessions plus legacy User/Scheduled ones.
-        let mut page = self
+        let page = self
             .session_manager
             .list_sessions_paged(SessionListPageQuery {
                 filters: SessionListFilters {
@@ -203,16 +203,10 @@ impl GooseAcpAgent {
                 },
                 cursor: cursor.as_ref(),
                 page_size: SESSION_LIST_PAGE_SIZE,
+                include_last_message_snippet,
             })
             .await
             .internal_err()?;
-
-        if include_last_message_snippet {
-            self.session_manager
-                .hydrate_last_message_snippets(&mut page.sessions)
-                .await
-                .internal_err()?;
-        }
 
         let session_infos: Vec<SessionInfo> =
             page.sessions.into_iter().map(build_session_info).collect();
