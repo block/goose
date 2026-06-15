@@ -33,11 +33,6 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
     }
 }
 
-/// Detect an absolute path to an existing image file within `text`.
-///
-/// Anchors on each image extension and walks back to a `/`-rooted, boundary-
-/// delimited start so paths containing spaces (e.g. macOS screenshots) are
-/// detected without being confused by URLs or longer extensions.
 pub fn detect_image_path(text: &str) -> Option<&str> {
     const EXTENSIONS: [&str; 3] = [".png", ".jpg", ".jpeg"];
     const MAX_PATH_LEN: usize = 4096;
