@@ -1,11 +1,10 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, FileJson, LoaderCircle } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
 import { defineMessages, useIntl } from '../i18n';
 import { acpExportSession } from '../acp/sessions';
 import type { Session } from '../api';
-import { shouldShowNewChatTitle } from '../sessions';
+import { getSessionDisplayName } from '../sessions';
 import { errorMessage } from '../utils/conversionUtils';
 import { cn } from '../utils';
 import { Button } from './ui/button';
@@ -71,19 +70,6 @@ interface ParsedSessionJson {
 interface FullTextSelection {
   path: string;
   value: string;
-}
-
-function getSessionDisplayName(session: Session): string {
-  if (session.user_set_name) {
-    return session.name;
-  }
-  if (session.recipe?.title) {
-    return session.recipe.title;
-  }
-  if (shouldShowNewChatTitle(session)) {
-    return DEFAULT_CHAT_TITLE;
-  }
-  return session.name;
 }
 
 function parseSessionJson(json: string): ParsedSessionJson {
