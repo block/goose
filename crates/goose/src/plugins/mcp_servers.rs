@@ -60,7 +60,7 @@ pub fn plugin_mcp_servers(plugin_name: &str, plugin_root: &Path) -> Result<Vec<E
         configs.extend(document_to_extension_configs(
             plugin_name,
             plugin_root,
-            document,
+            document.mcp_servers,
         ));
     }
 
@@ -69,11 +69,11 @@ pub fn plugin_mcp_servers(plugin_name: &str, plugin_root: &Path) -> Result<Vec<E
         .as_ref()
         .filter(|value| is_inline_config(value))
     {
-        let document = serde_json::from_value::<McpServersDocument>(value.clone())?;
+        let servers = parse_inline_servers(value)?;
         configs.extend(document_to_extension_configs(
             plugin_name,
             plugin_root,
-            document,
+            servers,
         ));
     }
 
@@ -103,17 +103,24 @@ fn mcp_config_paths(
 }
 
 fn is_inline_config(value: &serde_json::Value) -> bool {
-    value
-        .as_object()
-        .is_some_and(|object| object.contains_key("mcpServers"))
+    value.as_object().is_some_and(|object| {
+        !object
+            .keys()
+            .all(|key| matches!(key.as_str(), "paths" | "exclusive"))
+    })
+}
+
+fn parse_inline_servers(value: &serde_json::Value) -> Result<HashMap<String, McpServerConfig>> {
+    serde_json::from_value(value.clone())
+        .with_context(|| "Failed to parse inline Open Plugins MCP servers")
 }
 
 fn document_to_extension_configs(
     plugin_name: &str,
     plugin_root: &Path,
-    document: McpServersDocument,
+    servers: HashMap<String, McpServerConfig>,
 ) -> Vec<ExtensionConfig> {
-    let mut entries: Vec<_> = document.mcp_servers.into_iter().collect();
+    let mut entries: Vec<_> = servers.into_iter().collect();
     entries.sort_by(|a, b| a.0.cmp(&b.0));
 
     entries
@@ -163,7 +170,7 @@ fn expand_plugin_root(value: &str, plugin_root: &str) -> String {
 
 pub fn validate_mcp_servers_manifest_value(value: &serde_json::Value) -> Result<()> {
     if is_inline_config(value) {
-        serde_json::from_value::<McpServersDocument>(value.clone())?;
+        validate_servers(parse_inline_servers(value)?)?;
         return Ok(());
     }
 
@@ -173,7 +180,11 @@ pub fn validate_mcp_servers_manifest_value(value: &serde_json::Value) -> Result<
 
 pub fn validate_mcp_server_document(value: &serde_json::Value) -> Result<()> {
     let document = serde_json::from_value::<McpServersDocument>(value.clone())?;
-    for (name, server) in document.mcp_servers {
+    validate_servers(document.mcp_servers)
+}
+
+fn validate_servers(servers: HashMap<String, McpServerConfig>) -> Result<()> {
+    for (name, server) in servers {
         if server.command.trim().is_empty() {
             bail!(
                 "Open Plugins MCP server '{}' command must not be empty",
@@ -260,9 +271,7 @@ mod tests {
             r#"{
               "name": "test-plugin",
               "mcpServers": {
-                "mcpServers": {
-                  "api": {"command": "npx", "args": ["@company/mcp-server"]}
-                }
+                "api": {"command": "npx", "args": ["@company/mcp-server"]}
               }
             }"#,
         )
@@ -305,9 +314,7 @@ mod tests {
     #[test]
     fn validates_manifest_mcp_servers_value() {
         validate_mcp_servers_manifest_value(&serde_json::json!({
-            "mcpServers": {
-                "api": {"command": "npx"}
-            }
+            "api": {"command": "npx"}
         }))
         .unwrap();
         validate_mcp_servers_manifest_value(&serde_json::json!({
@@ -315,5 +322,14 @@ mod tests {
             "exclusive": true
         }))
         .unwrap();
+    }
+
+    #[test]
+    fn rejects_inline_mcp_server_with_empty_command() {
+        let error = validate_mcp_servers_manifest_value(&serde_json::json!({
+            "api": {"command": ""}
+        }))
+        .unwrap_err();
+        assert!(error.to_string().contains("command must not be empty"));
     }
 }

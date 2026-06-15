@@ -408,6 +408,7 @@ async fn collect_extension_configs(
     recipe: Option<&Recipe>,
     session_id: &str,
 ) -> Result<Vec<ExtensionConfig>, ExtensionError> {
+    let recipe_extensions = recipe.and_then(|r| r.extensions.as_deref());
     let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
         EnabledExtensionsState::for_session(
             &agent.config.session_manager,
@@ -418,7 +419,7 @@ async fn collect_extension_configs(
     } else if session_config.no_profile {
         Vec::new()
     } else {
-        resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
+        resolve_extensions_for_new_session(recipe_extensions, None)
     };
 
     let cli_flag_extensions = parse_cli_flag_extensions(
@@ -428,7 +429,7 @@ async fn collect_extension_configs(
     );
 
     let mut all: Vec<ExtensionConfig> = configured_extensions;
-    if !session_config.no_profile && !session_config.resume && recipe.is_none() {
+    if !session_config.no_profile && !session_config.resume && recipe_extensions.is_none() {
         let project_root = std::env::current_dir().ok();
         all.extend(goose::plugins::mcp_servers::enabled_plugin_mcp_servers(
             project_root.as_deref(),
