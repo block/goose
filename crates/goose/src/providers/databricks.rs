@@ -243,6 +243,18 @@ impl DatabricksProvider {
         Self::is_claude_model(model_name) || is_openai_responses_model(model_name)
     }
 
+    fn uses_responses_api(
+        endpoint_info: Option<&DatabricksEndpointInfo>,
+        model_names: &[&str],
+    ) -> bool {
+        match endpoint_info {
+            Some(info) => info.supports_responses_api,
+            None => model_names
+                .iter()
+                .any(|name| is_openai_responses_model(name)),
+        }
+    }
+
     fn endpoint_model_candidates(value: &Value) -> Vec<DatabricksUpstreamModel> {
         let mut candidates: Vec<DatabricksUpstreamModel> = Vec::new();
 
@@ -442,25 +454,23 @@ impl DatabricksProvider {
                 continue;
             }
 
-            return Ok({
-                let mut resolved_info = if info.name == original_endpoint_name {
-                    info
-                } else {
-                    let upstream_model_name = info
-                        .upstream_model_name
-                        .clone()
-                        .or_else(|| Some(info.name.clone()));
-                    DatabricksEndpointInfo {
-                        name: original_endpoint_name,
-                        upstream_model_name,
-                        upstream_model_provider: info.upstream_model_provider.clone(),
-                        reasoning: info.reasoning,
-                        supports_responses_api,
-                    }
-                };
-                resolved_info.supports_responses_api = supports_responses_api;
-                resolved_info
-            });
+            let mut resolved_info = if info.name == original_endpoint_name {
+                info
+            } else {
+                let upstream_model_name = info
+                    .upstream_model_name
+                    .clone()
+                    .or_else(|| Some(info.name.clone()));
+                DatabricksEndpointInfo {
+                    name: original_endpoint_name,
+                    upstream_model_name,
+                    upstream_model_provider: info.upstream_model_provider.clone(),
+                    reasoning: info.reasoning,
+                    supports_responses_api,
+                }
+            };
+            resolved_info.supports_responses_api = supports_responses_api;
+            return Ok(resolved_info);
         }
 
         last_info
@@ -564,9 +574,7 @@ impl DatabricksProvider {
         let model_to_use = model_name.unwrap_or(&self.model.model_name);
         let (endpoint_name, _) = extract_reasoning_effort(model_to_use);
         let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await.ok();
-        let is_responses_model = endpoint_info
-            .as_ref()
-            .is_some_and(|info| info.supports_responses_api);
+        let is_responses_model = Self::uses_responses_api(endpoint_info.as_ref(), &[model_to_use]);
         let path = self.get_endpoint_path(model_to_use, is_embedding, is_responses_model);
 
         if let Some(session_id) = session_id {
@@ -648,9 +656,10 @@ impl Provider for DatabricksProvider {
             .as_ref()
             .and_then(|info| info.upstream_model_name.as_deref())
             .unwrap_or(&model_config.model_name);
-        let is_responses_model = endpoint_info
-            .as_ref()
-            .is_some_and(|info| info.supports_responses_api);
+        let is_responses_model = Self::uses_responses_api(
+            endpoint_info.as_ref(),
+            &[&model_config.model_name, effective_model_name],
+        );
         let path = if is_responses_model {
             "serving-endpoints/responses".to_string()
         } else {
@@ -1079,5 +1088,42 @@ mod tests {
         let info = DatabricksProvider::endpoint_info_from_value(&endpoint).unwrap();
 
         assert!(info.supports_responses_api);
+    }
+
+    #[test]
+    fn responses_routing_prefers_metadata_over_model_name() {
+        let responses_info = DatabricksEndpointInfo {
+            name: "custom".into(),
+            upstream_model_name: None,
+            upstream_model_provider: None,
+            reasoning: None,
+            supports_responses_api: true,
+        };
+        assert!(DatabricksProvider::uses_responses_api(
+            Some(&responses_info),
+            &["databricks-claude-sonnet-4"]
+        ));
+
+        let chat_info = DatabricksEndpointInfo {
+            supports_responses_api: false,
+            ..responses_info
+        };
+        assert!(!DatabricksProvider::uses_responses_api(
+            Some(&chat_info),
+            &["gpt-5.4"]
+        ));
+    }
+
+    #[test]
+    fn responses_routing_falls_back_to_model_name_without_metadata() {
+        assert!(DatabricksProvider::uses_responses_api(None, &["gpt-5.4"]));
+        assert!(DatabricksProvider::uses_responses_api(
+            None,
+            &["databricks-claude-sonnet-4", "gpt-5.4"]
+        ));
+        assert!(!DatabricksProvider::uses_responses_api(
+            None,
+            &["databricks-claude-sonnet-4"]
+        ));
     }
 }
