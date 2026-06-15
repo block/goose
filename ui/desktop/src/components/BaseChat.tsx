@@ -131,8 +131,12 @@ export default function BaseChat({
     return initialMessage;
   }, [initialMessage, recipe?.prompt, session?.user_recipe_values]);
 
+  // noAutoSubmit only suppresses auto-submitting the initial prompt of a fresh session
+  // (goose://new-session?prompt=...). Once the conversation has messages, later flows
+  // such as forks or resumes should auto-submit normally.
+  const suppressInitialAutoSubmit = noAutoSubmit && messages.length === 0;
   const canAutoSubmit =
-    !noAutoSubmit &&
+    !suppressInitialAutoSubmit &&
     (session?.session_type === 'scheduled' || !recipe || hasNotAcceptedRecipe === false);
 
   useAutoSubmit({
@@ -549,16 +553,16 @@ export default function BaseChat({
         recipe.parameters.length > 0 &&
         !session?.user_recipe_values &&
         session?.session_type !== 'scheduled' && (
-        <ParameterInputModal
-          parameters={recipe.parameters}
-          onSubmit={setRecipeUserParams}
-          onClose={() => setView('chat')}
-          initialValues={
-            (window.appConfig?.get('recipeParameters') as Record<string, string> | undefined) ||
-            undefined
-          }
-        />
-      )}
+          <ParameterInputModal
+            parameters={recipe.parameters}
+            onSubmit={setRecipeUserParams}
+            onClose={() => setView('chat')}
+            initialValues={
+              (window.appConfig?.get('recipeParameters') as Record<string, string> | undefined) ||
+              undefined
+            }
+          />
+        )}
 
       <CreateRecipeFromSessionModal
         isOpen={isCreateRecipeModalOpen}
