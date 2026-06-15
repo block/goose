@@ -488,9 +488,6 @@ pub trait Provider: Send + Sync {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let model_config = model_config
-            .clone()
-            .with_default_thinking_effort(Config::global().get_goose_thinking_effort());
         let stream = self
             .stream(&model_config, session_id, system, messages, tools)
             .await?;
@@ -505,9 +502,7 @@ pub trait Provider: Send + Sync {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let model_config = self
-            .get_model_config()
-            .with_default_thinking_effort(Config::global().get_goose_thinking_effort());
+        let model_config = self.get_model_config();
         let fast_config = model_config.use_fast_model();
 
         let result = self
