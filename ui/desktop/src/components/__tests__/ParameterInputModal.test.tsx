@@ -155,7 +155,6 @@ describe('ParameterInputModal', () => {
     it('pre-fills form with default values from parameters', () => {
       renderWithIntl(<ParameterInputModal {...defaultProps} />);
 
-      // eslint-disable-next-line no-undef
       expect((screen.getByLabelText(/boolean parameter/i) as HTMLSelectElement).value).toBe('true');
     });
   });
