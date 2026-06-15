@@ -1853,8 +1853,14 @@
   "localInferenceSettings.description": {
     "defaultMessage": "下载和管理用于本地推理的大模型，无需 API 密钥。在 HuggingFace 搜索任意 GGUF 模型，或使用下方推荐。"
   },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "关闭"
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "下载"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "下载已取消"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "下载失败"
@@ -1888,6 +1894,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "剩余 {time}"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "重试"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "显示全部推荐（还有 {count} 个）"

@@ -1853,8 +1853,14 @@
   "localInferenceSettings.description": {
     "defaultMessage": "APIキーなしで推論できるローカルLLMモデルをダウンロード・管理します。Hugging Faceで任意のGGUFモデルを検索するか、以下の注目モデルを使用できます。"
   },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "閉じる"
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "ダウンロード"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "ダウンロードがキャンセルされました"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "ダウンロードに失敗しました"
@@ -1888,6 +1894,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "残り{time}"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "再試行"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "注目モデルをすべて表示（あと{count}件）"
