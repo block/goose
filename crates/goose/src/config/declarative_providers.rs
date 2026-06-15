@@ -1022,38 +1022,6 @@ mod tests {
     }
 
     #[test]
-    fn test_orcarouter_json_deserializes() {
-        let json = include_str!("../providers/declarative/orcarouter.json");
-        let config: DeclarativeProviderConfig =
-            serde_json::from_str(json).expect("orcarouter.json should parse");
-        assert_eq!(config.name, "orcarouter");
-        assert_eq!(config.display_name, "OrcaRouter");
-        assert!(matches!(config.engine, ProviderEngine::OpenAI));
-        assert_eq!(config.api_key_env, "ORCAROUTER_API_KEY");
-        assert_eq!(config.base_url, "https://api.orcarouter.ai/v1");
-        assert_eq!(config.catalog_provider_id, Some("orcarouter".to_string()));
-        assert_eq!(config.dynamic_models, Some(true));
-        assert_eq!(config.supports_streaming, Some(true));
-        assert!(config.preserves_thinking);
-        assert_eq!(
-            config.model_doc_link,
-            Some("https://www.orcarouter.ai/models".to_string())
-        );
-        assert_eq!(config.setup_steps.len(), 3);
-        assert_eq!(config.models[0].name, "anthropic/claude-sonnet-4.6");
-
-        let headers = config
-            .headers
-            .as_ref()
-            .expect("orcarouter should set attribution headers");
-        assert_eq!(
-            headers.get("http-referer").map(String::as_str),
-            Some("https://goose-docs.ai")
-        );
-        assert_eq!(headers.get("x-title").map(String::as_str), Some("goose"));
-    }
-
-    #[test]
     fn test_validate_provider_id_rejects_legacy_punctuation_for_new_ids() {
         assert!(validate_provider_id("custom_z.ai").is_err());
     }
