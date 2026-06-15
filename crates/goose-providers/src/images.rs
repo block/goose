@@ -40,6 +40,11 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
 /// on each image-extension occurrence and walk back over `/`-rooted starts,
 /// returning the longest candidate that is an existing image file. The backward
 /// scan is bounded so extension-heavy text can't cause quadratic work.
+///
+/// The extension must terminate the candidate (so `/tmp/foo.png.backup` is not
+/// truncated to `/tmp/foo.png`) and the leading `/` must follow a whitespace or
+/// quote boundary (so a `://` in a URL like `https://host/x.png` is not mistaken
+/// for an absolute path).
 pub fn detect_image_path(text: &str) -> Option<&str> {
     const EXTENSIONS: [&str; 3] = [".png", ".jpg", ".jpeg"];
     const MAX_PATH_LEN: usize = 4096;
@@ -54,18 +59,33 @@ pub fn detect_image_path(text: &str) -> Option<&str> {
             break;
         };
 
-        let mut floor = end.saturating_sub(MAX_PATH_LEN);
-        while floor < end && !text.is_char_boundary(floor) {
-            floor += 1;
-        }
-        if let Some(window) = text.get(floor..end) {
-            for (rel, _) in window.match_indices('/') {
-                let Some(candidate) = text.get(floor + rel..end) else {
-                    continue;
-                };
-                let path = Path::new(candidate);
-                if path.is_absolute() && path.is_file() && is_image_file(path) {
-                    return Some(candidate);
+        let terminated = text
+            .get(end..)
+            .and_then(|rest| rest.chars().next())
+            .is_none_or(|c| c == '/' || c.is_whitespace());
+
+        if terminated {
+            let mut floor = end.saturating_sub(MAX_PATH_LEN);
+            while floor < end && !text.is_char_boundary(floor) {
+                floor += 1;
+            }
+            if let Some(window) = text.get(floor..end) {
+                for (rel, _) in window.match_indices('/') {
+                    let start = floor + rel;
+                    let preceded_by_boundary = text
+                        .get(..start)
+                        .and_then(|prefix| prefix.chars().next_back())
+                        .is_none_or(|c| c.is_whitespace() || c == '"' || c == '\'');
+                    if !preceded_by_boundary {
+                        continue;
+                    }
+                    let Some(candidate) = text.get(start..end) else {
+                        continue;
+                    };
+                    let path = Path::new(candidate);
+                    if path.is_absolute() && path.is_file() && is_image_file(path) {
+                        return Some(candidate);
+                    }
                 }
             }
         }
@@ -81,8 +101,12 @@ fn find_ascii_ci(haystack: &str, needle: &str, from: usize) -> Option<usize> {
     if nb.is_empty() || hb.len() < nb.len() || from > hb.len() - nb.len() {
         return None;
     }
-    (from..=hb.len() - nb.len())
-        .find(|&i| hb[i..i + nb.len()].iter().zip(nb).all(|(a, b)| a.eq_ignore_ascii_case(b)))
+    (from..=hb.len() - nb.len()).find(|&i| {
+        hb[i..i + nb.len()]
+            .iter()
+            .zip(nb)
+            .all(|(a, b)| a.eq_ignore_ascii_case(b))
+    })
 }
 
 /// Check if a file is actually an image by examining its magic bytes
@@ -210,6 +234,27 @@ mod tests {
         let upper_str = upper.to_str().unwrap();
         let text = format!("see {}", upper_str);
         assert_eq!(detect_image_path(&text), Some(upper_str));
+    }
+
+    #[test]
+    fn test_detect_image_path_ignores_urls_and_longer_extensions() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let png_data = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+        // A real image whose path is a suffix of a URL must not be extracted
+        // from that URL via the `://` separator.
+        let dir = temp_dir.path().to_str().unwrap().trim_start_matches('/');
+        let png_path = temp_dir.path().join("photo.png");
+        std::fs::write(&png_path, png_data).unwrap();
+        let url = format!("https:/{}/photo.png", dir);
+        assert_eq!(detect_image_path(&url), None);
+
+        // A backup file sharing the image extension prefix must not be
+        // truncated to the bare image path.
+        let real = temp_dir.path().join("shot.png");
+        std::fs::write(&real, png_data).unwrap();
+        let backup = format!("{}.backup", real.to_str().unwrap());
+        assert_eq!(detect_image_path(&backup), None);
     }
 
     #[test]
