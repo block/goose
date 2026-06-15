@@ -94,23 +94,14 @@ function getNodePath(parentPath: string, key: string, isArrayItem: boolean): str
     : `${parentPath}[${JSON.stringify(key)}]`;
 }
 
-function escapeInlineString(value: string): string {
-  return value
-    .replace(/\\/g, '\\\\')
-    .replace(/\n/g, '\\n')
-    .replace(/\r/g, '\\r')
-    .replace(/\t/g, '\\t')
-    .replace(/"/g, '\\"');
-}
-
 function getStringPreview(value: string): string {
   if (value.length <= LONG_STRING_THRESHOLD) {
-    return escapeInlineString(value);
+    return JSON.stringify(value);
   }
 
-  return `${escapeInlineString(value.slice(0, STRING_PREVIEW_START))} ... ${escapeInlineString(
-    value.slice(-STRING_PREVIEW_END)
-  )}`;
+  return JSON.stringify(
+    `${value.slice(0, STRING_PREVIEW_START)} ... ${value.slice(-STRING_PREVIEW_END)}`
+  );
 }
 
 function JsonPrimitiveValue({
@@ -124,7 +115,7 @@ function JsonPrimitiveValue({
 }) {
   if (typeof value === 'string') {
     const isLong = value.length > LONG_STRING_THRESHOLD;
-    const preview = `"${getStringPreview(value)}"`;
+    const preview = getStringPreview(value);
 
     if (isLong) {
       return (
