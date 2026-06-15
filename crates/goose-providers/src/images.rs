@@ -44,7 +44,8 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
 /// The extension must terminate the candidate (so `/tmp/foo.png.backup` is not
 /// truncated to `/tmp/foo.png`) and the leading `/` must follow a whitespace or
 /// quote boundary (so a `://` in a URL like `https://host/x.png` is not mistaken
-/// for an absolute path).
+/// for an absolute path). A path may be wrapped in matching quotes
+/// (`"/tmp/Screen Shot.png"`), in which case the closing quote terminates it.
 pub fn detect_image_path(text: &str) -> Option<&str> {
     const EXTENSIONS: [&str; 3] = [".png", ".jpg", ".jpeg"];
     const MAX_PATH_LEN: usize = 4096;
@@ -59,10 +60,9 @@ pub fn detect_image_path(text: &str) -> Option<&str> {
             break;
         };
 
-        let terminated = text
-            .get(end..)
-            .and_then(|rest| rest.chars().next())
-            .is_none_or(|c| c == '/' || c.is_whitespace());
+        let terminator = text.get(end..).and_then(|rest| rest.chars().next());
+        let terminated =
+            terminator.is_none_or(|c| c == '/' || c.is_whitespace() || c == '"' || c == '\'');
 
         if terminated {
             let mut floor = end.saturating_sub(MAX_PATH_LEN);
@@ -234,6 +234,17 @@ mod tests {
         let upper_str = upper.to_str().unwrap();
         let text = format!("see {}", upper_str);
         assert_eq!(detect_image_path(&text), Some(upper_str));
+
+        // Quoted path with spaces: the closing quote terminates the candidate.
+        let text = format!("describe \"{}\" please", png_path_str);
+        assert_eq!(detect_image_path(&text), Some(png_path_str));
+        let text = format!("describe '{}'", png_path_str);
+        assert_eq!(detect_image_path(&text), Some(png_path_str));
+
+        // A stray closing quote in prose must not act as a terminator for an
+        // unquoted path.
+        let text = format!("here {}\" trailing", png_path_str);
+        assert_eq!(detect_image_path(&text), Some(png_path_str));
     }
 
     #[test]
