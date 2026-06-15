@@ -9,10 +9,8 @@ use tokio::process::Command;
 
 use super::base::{
     stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
-    ProviderUsage, Usage,
 };
 use super::cli_common::{error_from_event, extract_usage_tokens};
-use super::errors::ProviderError;
 use super::utils::filter_extensions_from_system_prompt;
 use crate::config::base::GeminiCliCommand;
 use crate::config::search_path::SearchPaths;
@@ -23,6 +21,8 @@ use crate::providers::base::ConfigKey;
 use crate::subprocess::configure_subprocess;
 use async_stream::try_stream;
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::errors::ProviderError;
 use rmcp::model::Role;
 use rmcp::model::Tool;
 

@@ -1,21 +1,24 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::errors::ProviderError;
+use goose_providers::images::ImageFormat;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
-    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 use super::embedding::EmbeddingCapable;
-use super::errors::ProviderError;
 use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat, RequestLog};
+use super::utils::{get_model, RequestLog};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
+use goose_providers::formats::openai::ModelConfigParams;
 use rmcp::model::Tool;
 
 const LITELLM_PROVIDER_NAME: &str = "litellm";
@@ -225,8 +228,14 @@ impl Provider for LiteLLMProvider {
         } else {
             Some(session_id)
         };
-        let mut payload = super::formats::openai::create_request(
-            model_config,
+        let mut payload = goose_providers::formats::openai::create_request(
+            ModelConfigParams {
+                model_name: model_config.model_name.as_str(),
+                thinking_effort: model_config.thinking_effort(),
+                temperature: model_config.temperature,
+                max_tokens: model_config.max_tokens,
+                request_params: model_config.request_params.as_ref(),
+            },
             system,
             messages,
             tools,
@@ -245,8 +254,8 @@ impl Provider for LiteLLMProvider {
             })
             .await?;
 
-        let message = super::formats::openai::response_to_message(&response)?;
-        let usage = super::formats::openai::get_usage(&response);
+        let message = goose_providers::formats::openai::response_to_message(&response)?;
+        let usage = goose_providers::formats::openai::get_usage(&response);
         let response_model = get_model(&response);
         let mut log = RequestLog::start(model_config, &payload)?;
         log.write(&response, Some(&usage))?;
