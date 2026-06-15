@@ -45,27 +45,42 @@ pub(crate) fn message_from_native_tool_text(
 }
 
 fn parse_openai_message_json(generated_text: &str) -> Option<Value> {
-    json_candidates(generated_text).into_iter().find(|value| {
-        value
-            .get("tool_calls")
-            .and_then(|tool_calls| tool_calls.as_array())
-            .is_some_and(|tool_calls| !tool_calls.is_empty())
-    })
+    json_candidates(generated_text)
+        .into_iter()
+        .find(|value| value.get("tool_calls").is_some_and(is_tool_call_array))
 }
 
 fn parse_tool_calls_json(generated_text: &str) -> Option<Value> {
     for value in json_candidates(generated_text) {
-        if value.as_array().is_some() {
+        if is_tool_call_array(&value) {
             return Some(value);
         }
-        if let Some(tool_calls) = value.get("tool_calls") {
+        if let Some(tool_calls) = value
+            .get("tool_calls")
+            .filter(|value| is_tool_call_array(value))
+        {
             return Some(tool_calls.clone());
         }
-        if value.get("name").is_some() || value.get("function").is_some() {
+        if is_tool_call_value(&value) {
             return Some(Value::Array(vec![value]));
         }
     }
     None
+}
+
+fn is_tool_call_array(value: &Value) -> bool {
+    value
+        .as_array()
+        .is_some_and(|items| !items.is_empty() && items.iter().all(is_tool_call_value))
+}
+
+fn is_tool_call_value(value: &Value) -> bool {
+    value.get("name").and_then(|name| name.as_str()).is_some()
+        || value
+            .get("function")
+            .and_then(|function| function.get("name"))
+            .and_then(|name| name.as_str())
+            .is_some()
 }
 
 fn json_candidates(text: &str) -> Vec<Value> {
@@ -256,6 +271,29 @@ mod tests {
         let text = r#"{"tool_calls":[{"name":"developer__shell","arguments":{"command":"pwd"}}]}"#;
         let message = message_from_native_tool_text(text, "msg").unwrap().unwrap();
         assert_eq!(tool_count(&message), 1);
+    }
+
+    #[test]
+    fn parses_top_level_tool_call_array() {
+        let text = r#"[{"name":"developer__shell","arguments":{"command":"pwd"}}]"#;
+        let message = message_from_native_tool_text(text, "msg").unwrap().unwrap();
+        assert_eq!(tool_count(&message), 1);
+    }
+
+    #[test]
+    fn ignores_plain_json_arrays() {
+        let text = r#"["a","b"]"#;
+        assert!(message_from_native_tool_text(text, "msg")
+            .unwrap()
+            .is_none());
+    }
+
+    #[test]
+    fn ignores_non_tool_call_arrays_in_tool_calls_field() {
+        let text = r#"{"tool_calls":["a","b"]}"#;
+        assert!(message_from_native_tool_text(text, "msg")
+            .unwrap()
+            .is_none());
     }
 
     #[test]
