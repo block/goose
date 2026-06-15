@@ -1,9 +1,9 @@
-use crate::providers::base::{FilterOut, ThinkFilter};
-use crate::providers::errors::ProviderError;
 use crate::providers::local_inference::backend::LocalInferenceBackend;
 use crate::providers::local_inference::local_model_registry::ModelSettings;
 use crate::providers::local_inference::multimodal::ExtractedImage;
 use crate::providers::utils::RequestLog;
+use goose_providers::errors::ProviderError;
+use goose_providers::thinking::{FilterOut, ThinkFilter};
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::{AddBos, ChatTemplateResult, LlamaChatTemplate, LlamaModel};

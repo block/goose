@@ -6,25 +6,20 @@ use axum::routing::post;
 use axum::{
     extract::Path,
     http::StatusCode,
-    routing::{delete, get, put},
+    routing::{get, put},
     Json, Router,
 };
+use goose::agents::ExtensionConfig;
 use goose::recipe::Recipe;
 #[cfg(feature = "nostr")]
 use goose::session::nostr_share;
-use goose::session::session_manager::{SessionInsights, SessionType};
-use goose::session::Session;
+#[cfg(feature = "nostr")]
+use goose::session::session_manager::SessionType;
+use goose::session::{EnabledExtensionsState, Session};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use utoipa::ToSchema;
-
-#[derive(Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct SessionListResponse {
-    /// List of available session information objects
-    sessions: Vec<Session>,
-}
 
 #[derive(Deserialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
@@ -43,12 +38,6 @@ pub struct UpdateSessionUserRecipeValuesRequest {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct UpdateSessionUserRecipeValuesResponse {
     recipe: Recipe,
-}
-
-#[derive(Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ImportSessionRequest {
-    json: String,
 }
 
 #[cfg_attr(not(feature = "nostr"), allow(dead_code))]
@@ -93,31 +82,6 @@ const MAX_NAME_LENGTH: usize = 200;
 
 #[utoipa::path(
     get,
-    path = "/sessions",
-    responses(
-        (status = 200, description = "List of available sessions retrieved successfully", body = SessionListResponse),
-        (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 500, description = "Internal server error")
-    ),
-    security(
-        ("api_key" = [])
-    ),
-    tag = "Session Management"
-)]
-async fn list_sessions(
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<SessionListResponse>, StatusCode> {
-    let sessions = state
-        .session_manager()
-        .list_sessions()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-    Ok(Json(SessionListResponse { sessions }))
-}
-
-#[utoipa::path(
-    get,
     path = "/sessions/{session_id}",
     params(
         ("session_id" = String, Path, description = "Unique identifier for the session")
@@ -144,29 +108,6 @@ async fn get_session(
         .map_err(|_| StatusCode::NOT_FOUND)?;
 
     Ok(Json(session))
-}
-#[utoipa::path(
-    get,
-    path = "/sessions/insights",
-    responses(
-        (status = 200, description = "Session insights retrieved successfully", body = SessionInsights),
-        (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 500, description = "Internal server error")
-    ),
-    security(
-        ("api_key" = [])
-    ),
-    tag = "Session Management"
-)]
-async fn get_session_insights(
-    State(state): State<Arc<AppState>>,
-) -> Result<Json<SessionInsights>, StatusCode> {
-    let insights = state
-        .session_manager()
-        .get_insights()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-    Ok(Json(insights))
 }
 
 #[utoipa::path(
@@ -286,107 +227,6 @@ async fn update_session_user_recipe_values(
             status: StatusCode::INTERNAL_SERVER_ERROR,
         }),
     }
-}
-
-#[utoipa::path(
-    delete,
-    path = "/sessions/{session_id}",
-    params(
-        ("session_id" = String, Path, description = "Unique identifier for the session")
-    ),
-    responses(
-        (status = 200, description = "Session deleted successfully"),
-        (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 404, description = "Session not found"),
-        (status = 500, description = "Internal server error")
-    ),
-    security(
-        ("api_key" = [])
-    ),
-    tag = "Session Management"
-)]
-async fn delete_session(
-    State(state): State<Arc<AppState>>,
-    Path(session_id): Path<String>,
-) -> Result<StatusCode, StatusCode> {
-    state
-        .session_manager()
-        .delete_session(&session_id)
-        .await
-        .map_err(|e| {
-            if e.to_string().contains("not found") {
-                StatusCode::NOT_FOUND
-            } else {
-                StatusCode::INTERNAL_SERVER_ERROR
-            }
-        })?;
-
-    // Cancel any in-flight replies before dropping the bus, so spawned
-    // agent tasks stop consuming tokens for a deleted session.
-    if let Some(bus) = state.get_event_bus(&session_id).await {
-        bus.cancel_all_requests().await;
-    }
-    state.remove_event_bus(&session_id).await;
-
-    Ok(StatusCode::OK)
-}
-
-#[utoipa::path(
-    get,
-    path = "/sessions/{session_id}/export",
-    params(
-        ("session_id" = String, Path, description = "Unique identifier for the session")
-    ),
-    responses(
-        (status = 200, description = "Session exported successfully", body = String),
-        (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 404, description = "Session not found"),
-        (status = 500, description = "Internal server error")
-    ),
-    security(
-        ("api_key" = [])
-    ),
-    tag = "Session Management"
-)]
-async fn export_session(
-    State(state): State<Arc<AppState>>,
-    Path(session_id): Path<String>,
-) -> Result<Json<String>, StatusCode> {
-    let exported = state
-        .session_manager()
-        .export_session(&session_id)
-        .await
-        .map_err(|_| StatusCode::NOT_FOUND)?;
-
-    Ok(Json(exported))
-}
-
-#[utoipa::path(
-    post,
-    path = "/sessions/import",
-    request_body = ImportSessionRequest,
-    responses(
-        (status = 200, description = "Session imported successfully", body = Session),
-        (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 400, description = "Bad request - Invalid JSON"),
-        (status = 500, description = "Internal server error")
-    ),
-    security(
-        ("api_key" = [])
-    ),
-    tag = "Session Management"
-)]
-async fn import_session(
-    State(state): State<Arc<AppState>>,
-    Json(request): Json<ImportSessionRequest>,
-) -> Result<Json<Session>, StatusCode> {
-    let session = state
-        .session_manager()
-        .import_session(&request.json, Some(SessionType::User))
-        .await
-        .map_err(|_| StatusCode::BAD_REQUEST)?;
-
-    Ok(Json(session))
 }
 
 #[cfg_attr(not(feature = "nostr"), allow(unused_variables))]
@@ -569,65 +409,22 @@ async fn fork_session(
     }))
 }
 
-pub fn routes(state: Arc<AppState>) -> Router {
-    Router::new()
-        .route("/sessions", get(list_sessions))
-        .route("/sessions/search", get(search_sessions))
-        .route("/sessions/{session_id}", get(get_session))
-        .route("/sessions/{session_id}", delete(delete_session))
-        .route("/sessions/{session_id}/export", get(export_session))
-        .route(
-            "/sessions/{session_id}/share/nostr",
-            post(share_session_nostr).layer(DefaultBodyLimit::max(25 * 1024 * 1024)),
-        )
-        .route(
-            "/sessions/import",
-            post(import_session).layer(DefaultBodyLimit::max(25 * 1024 * 1024)),
-        )
-        .route(
-            "/sessions/import/nostr",
-            post(import_session_nostr).layer(DefaultBodyLimit::max(25 * 1024 * 1024)),
-        )
-        .route("/sessions/insights", get(get_session_insights))
-        .route("/sessions/{session_id}/name", put(update_session_name))
-        .route(
-            "/sessions/{session_id}/user_recipe_values",
-            put(update_session_user_recipe_values),
-        )
-        .route("/sessions/{session_id}/fork", post(fork_session))
-        .with_state(state)
-}
-#[derive(Deserialize, ToSchema)]
+#[derive(Serialize, ToSchema)]
 #[serde(rename_all = "camelCase")]
-pub struct SearchSessionsQuery {
-    /// Search query string (keywords separated by spaces)
-    query: String,
-    /// Maximum number of results to return (default: 10, max: 50)
-    #[serde(default = "default_limit")]
-    limit: usize,
-    /// Filter results to sessions after this date (ISO 8601 format)
-    after_date: Option<String>,
-    /// Filter results to sessions before this date (ISO 8601 format)
-    before_date: Option<String>,
-}
-
-fn default_limit() -> usize {
-    10
+pub struct SessionExtensionsResponse {
+    extensions: Vec<ExtensionConfig>,
 }
 
 #[utoipa::path(
     get,
-    path = "/sessions/search",
+    path = "/sessions/{session_id}/extensions",
     params(
-        ("query" = String, Query, description = "Search query string"),
-        ("limit" = Option<usize>, Query, description = "Maximum results (default: 10, max: 50)"),
-        ("after_date" = Option<String>, Query, description = "Filter after date (ISO 8601)"),
-        ("before_date" = Option<String>, Query, description = "Filter before date (ISO 8601)")
+        ("session_id" = String, Path, description = "Unique identifier for the session")
     ),
     responses(
-        (status = 200, description = "Matching sessions", body = Vec<Session>),
-        (status = 400, description = "Bad request - Invalid query"),
-        (status = 401, description = "Unauthorized"),
+        (status = 200, description = "Session extensions retrieved successfully", body = SessionExtensionsResponse),
+        (status = 401, description = "Unauthorized - Invalid or missing API key"),
+        (status = 404, description = "Session not found"),
         (status = 500, description = "Internal server error")
     ),
     security(
@@ -635,39 +432,44 @@ fn default_limit() -> usize {
     ),
     tag = "Session Management"
 )]
-async fn search_sessions(
+async fn get_session_extensions(
     State(state): State<Arc<AppState>>,
-    axum::extract::Query(params): axum::extract::Query<SearchSessionsQuery>,
-) -> Result<Json<Vec<Session>>, StatusCode> {
-    let query = params.query.trim();
-    if query.is_empty() {
-        return Err(StatusCode::BAD_REQUEST);
-    }
-
-    let limit = params.limit.min(50);
-
-    let after_date = params
-        .after_date
-        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
-        .map(|dt| dt.with_timezone(&chrono::Utc));
-
-    let before_date = params
-        .before_date
-        .and_then(|s| chrono::DateTime::parse_from_rfc3339(&s).ok())
-        .map(|dt| dt.with_timezone(&chrono::Utc));
-
-    let sessions = state
+    Path(session_id): Path<String>,
+) -> Result<Json<SessionExtensionsResponse>, StatusCode> {
+    let session = state
         .session_manager()
-        .search_chat_sessions(
-            query,
-            Some(limit),
-            after_date,
-            before_date,
-            None,
-            vec![SessionType::User, SessionType::Scheduled],
-        )
+        .get_session(&session_id, false)
         .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| StatusCode::NOT_FOUND)?;
 
-    Ok(Json(sessions))
+    let extensions = EnabledExtensionsState::extensions_or_default(
+        Some(&session.extension_data),
+        goose::config::Config::global(),
+    );
+
+    Ok(Json(SessionExtensionsResponse { extensions }))
+}
+
+pub fn routes(state: Arc<AppState>) -> Router {
+    Router::new()
+        .route("/sessions/{session_id}", get(get_session))
+        .route(
+            "/sessions/{session_id}/share/nostr",
+            post(share_session_nostr).layer(DefaultBodyLimit::max(25 * 1024 * 1024)),
+        )
+        .route(
+            "/sessions/import/nostr",
+            post(import_session_nostr).layer(DefaultBodyLimit::max(25 * 1024 * 1024)),
+        )
+        .route("/sessions/{session_id}/name", put(update_session_name))
+        .route(
+            "/sessions/{session_id}/user_recipe_values",
+            put(update_session_user_recipe_values),
+        )
+        .route("/sessions/{session_id}/fork", post(fork_session))
+        .route(
+            "/sessions/{session_id}/extensions",
+            get(get_session_extensions),
+        )
+        .with_state(state)
 }

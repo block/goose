@@ -8,6 +8,9 @@ use anyhow::{anyhow, Context, Result};
 use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
+use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::{is_openai_responses_model, ModelConfigParams};
+use goose_providers::images::ImageFormat;
 use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -22,15 +25,13 @@ tokio::task_local! {
 }
 
 use super::base::{
-    collect_stream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-    DEFAULT_PROVIDER_TIMEOUT_SECS,
+    collect_stream, Provider, ProviderDef, ProviderMetadata, DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::errors::ProviderError;
-use super::formats::openai::{create_request, get_usage, response_to_message};
 use super::formats::openai_responses::create_responses_request;
 use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, is_openai_responses_model, ImageFormat, RequestLog};
+use super::utils::{get_model, RequestLog};
+use goose_providers::formats::openai::{create_request, get_usage, response_to_message};
 
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::{Message, MessageContent};
@@ -38,6 +39,7 @@ use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, MessageStream};
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use rmcp::model::{RawContent, Tool};
 use std::ops::Deref;
 
@@ -442,7 +444,13 @@ impl GithubCopilotProvider {
 
         if supports_streaming {
             let payload = create_request(
-                model_config,
+                ModelConfigParams {
+                    model_name: model_config.model_name.as_str(),
+                    thinking_effort: model_config.thinking_effort(),
+                    temperature: model_config.temperature,
+                    max_tokens: model_config.max_tokens,
+                    request_params: model_config.request_params.as_ref(),
+                },
                 system,
                 messages,
                 tools,
@@ -478,7 +486,13 @@ impl GithubCopilotProvider {
                 Some(session_id)
             };
             let payload = create_request(
-                model_config,
+                ModelConfigParams {
+                    model_name: model_config.model_name.as_str(),
+                    thinking_effort: model_config.thinking_effort(),
+                    temperature: model_config.temperature,
+                    max_tokens: model_config.max_tokens,
+                    request_params: model_config.request_params.as_ref(),
+                },
                 system,
                 messages,
                 tools,
@@ -726,8 +740,7 @@ fn promote_tool_choice(response: Value) -> Value {
 
 #[cfg(test)]
 mod tests {
-    use super::{normalize_host, promote_tool_choice, GithubCopilotProvider, GithubCopilotUrls};
-    use crate::providers::utils::is_openai_responses_model;
+    use super::*;
     use serde_json::json;
 
     #[test]

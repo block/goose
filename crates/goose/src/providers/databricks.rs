@@ -1,6 +1,10 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use goose_providers::formats::openai::{
+    extract_reasoning_effort, is_openai_responses_model, openai_reasoning_effort_for_thinking,
+};
+use goose_providers::images::ImageFormat;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::sync::LazyLock;
@@ -14,15 +18,14 @@ use super::base::{
 };
 use super::databricks_auth::{DatabricksAuth, DatabricksAuthProvider};
 use super::embedding::EmbeddingCapable;
-use super::errors::ProviderError;
-use super::formats::databricks::create_request;
+use super::formats::databricks::{create_request_for_provider, DATABRICKS_PROVIDER_NAME};
 use super::formats::openai_responses::create_responses_request;
 use super::openai_compatible::{
     handle_response_openai_compat, handle_status, map_http_error_to_provider_error, sanitize_url,
     stream_openai_compat, stream_responses_compat,
 };
 use super::retry::ProviderRetry;
-use super::utils::{is_openai_responses_model, ImageFormat, RequestLog};
+use super::utils::RequestLog;
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use crate::instance_id::get_instance_id;
@@ -31,6 +34,7 @@ use crate::providers::retry::{
     RetryConfig, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS,
     DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
 };
+use goose_providers::errors::ProviderError;
 use rmcp::model::Tool;
 use serde_json::json;
 
@@ -54,7 +58,6 @@ struct CachedDatabricksEndpointInfo {
     fetched_at: Instant,
 }
 
-const DATABRICKS_PROVIDER_NAME: &str = "databricks";
 const DATABRICKS_ENDPOINT_METADATA_TTL_SECS: u64 = 60;
 static DATABRICKS_ENDPOINT_INFO_CACHE: LazyLock<
     Mutex<std::collections::HashMap<String, CachedDatabricksEndpointInfo>>,
@@ -485,7 +488,7 @@ impl DatabricksProvider {
         if is_embedding {
             "serving-endpoints/text-embedding-3-small/invocations".to_string()
         } else {
-            let (clean_name, _) = super::utils::extract_reasoning_effort(model_name);
+            let (clean_name, _) = extract_reasoning_effort(model_name);
             if Self::is_responses_model(&clean_name) {
                 "serving-endpoints/responses".to_string()
             } else {
@@ -586,7 +589,7 @@ impl Provider for DatabricksProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let (endpoint_name, _) = super::utils::extract_reasoning_effort(&model_config.model_name);
+        let (endpoint_name, _) = extract_reasoning_effort(&model_config.model_name);
         let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await.ok();
         let effective_model_name = endpoint_info
             .as_ref()
@@ -618,7 +621,7 @@ impl Provider for DatabricksProvider {
             payload["model"] = Value::String(endpoint_name.clone());
             if payload.get("reasoning").is_none() {
                 if let Some(effort) = model_config.thinking_effort().and_then(|effort| {
-                    super::utils::openai_reasoning_effort_for_thinking(effective_model_name, effort)
+                    openai_reasoning_effort_for_thinking(effective_model_name, effort)
                 }) {
                     payload.as_object_mut().unwrap().insert(
                         "reasoning".to_string(),
@@ -666,7 +669,8 @@ impl Provider for DatabricksProvider {
                 model_config
             };
 
-            let mut payload = create_request(
+            let mut payload = create_request_for_provider(
+                DATABRICKS_PROVIDER_NAME,
                 request_model_config,
                 system,
                 messages,
@@ -821,7 +825,7 @@ impl Provider for DatabricksProvider {
     }
 
     async fn fetch_model_info(&self, model_name: &str) -> Result<ModelInfo, ProviderError> {
-        let (endpoint_name, _) = super::utils::extract_reasoning_effort(model_name);
+        let (endpoint_name, _) = extract_reasoning_effort(model_name);
         let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await?;
         Ok(Self::model_info_from_endpoint(endpoint_info))
     }

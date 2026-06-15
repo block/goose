@@ -65,6 +65,15 @@ const i18n = defineMessages({
     id: 'securityToggle.apiTokenDescription',
     defaultMessage: 'Authentication token for the classification service',
   },
+  overrideNotice: {
+    id: 'securityToggle.overrideNotice',
+    defaultMessage: 'This setting is managed by your organization and cannot be changed.',
+  },
+  warpNotice: {
+    id: 'securityToggle.warpNotice',
+    defaultMessage:
+      'Command injection detection works best when connected to WARP (required to reach the classification service).',
+  },
   commandEndpointDescription: {
     id: 'securityToggle.commandEndpointDescription',
     defaultMessage: 'Enter the full URL for your command injection classification service',
@@ -175,6 +184,19 @@ export const SecurityToggle = () => {
   const intl = useIntl();
   const { config, upsert } = useConfig();
 
+  const promptEnabledOverride = window.appConfig?.get('SECURITY_PROMPT_ENABLED_OVERRIDE') as
+    | string
+    | undefined;
+  const commandClassifierOverride = window.appConfig?.get(
+    'SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE'
+  ) as string | undefined;
+  const isPromptOverridden =
+    promptEnabledOverride === 'true' || promptEnabledOverride === 'false';
+  const isCommandClassifierOverridden =
+    commandClassifierOverride === 'true' || commandClassifierOverride === 'false';
+  const promptOverrideValue = promptEnabledOverride === 'true';
+  const commandClassifierOverrideValue = commandClassifierOverride === 'true';
+
   const modelMapping = useMemo(() => {
     const mappingEnv = window.appConfig?.get('SECURITY_ML_MODEL_MAPPING') as string | undefined;
     if (!mappingEnv) {
@@ -224,7 +246,9 @@ export const SecurityToggle = () => {
     return Object.values(modelMapping).some((modelInfo) => modelInfo.model_type === 'command');
   }, [modelMapping]);
 
-  const effectiveCommandClassifierEnabled = commandClassifierEnabled ?? false;
+  const effectiveCommandClassifierEnabled = isCommandClassifierOverridden
+    ? commandClassifierOverrideValue
+    : (commandClassifierEnabled ?? false);
   const effectiveModel = mlModel || availablePromptModels[0]?.value || '';
   const [thresholdInput, setThresholdInput] = useState(configThreshold.toString());
   const [endpointInput, setEndpointInput] = useState(mlEndpoint);
@@ -290,6 +314,8 @@ export const SecurityToggle = () => {
     await upsert('SECURITY_COMMAND_CLASSIFIER_TOKEN', token, true); // true = secret
   };
 
+  const effectiveEnabled = isPromptOverridden ? promptOverrideValue : enabled;
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between py-2 px-2 hover:bg-background-secondary rounded-lg transition-all">
@@ -298,22 +324,32 @@ export const SecurityToggle = () => {
           <p className="text-xs text-text-secondary max-w-md mt-[2px]">
             {intl.formatMessage(i18n.promptInjectionDescription)}
           </p>
+          {isPromptOverridden && (
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+              {intl.formatMessage(i18n.overrideNotice)}
+            </p>
+          )}
         </div>
-        <div className="flex items-center">
-          <Switch checked={enabled} onCheckedChange={handleToggle} variant="mono" />
+        <div className={`flex items-center ${isPromptOverridden ? 'opacity-40' : ''}`}>
+          <Switch
+            checked={isPromptOverridden ? promptOverrideValue : enabled}
+            onCheckedChange={handleToggle}
+            disabled={isPromptOverridden}
+            variant="mono"
+          />
         </div>
       </div>
 
       <div
         className={`overflow-hidden transition-all duration-300 ease-in-out ${
-          enabled ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'
+          effectiveEnabled ? 'max-h-[1000px] opacity-100' : 'max-h-0 opacity-0'
         }`}
       >
         <div className="space-y-4 px-2 pb-2">
           {/* Detection Threshold */}
-          <div className={enabled ? '' : 'opacity-50'}>
+          <div className={effectiveEnabled ? '' : 'opacity-50'}>
             <label
-              className={`text-sm font-medium ${enabled ? 'text-text-primary' : 'text-text-secondary'}`}
+              className={`text-sm font-medium ${effectiveEnabled ? 'text-text-primary' : 'text-text-secondary'}`}
             >
               {intl.formatMessage(i18n.detectionThreshold)}
             </label>
@@ -338,9 +374,9 @@ export const SecurityToggle = () => {
                   handleThresholdChange(value);
                 }
               }}
-              disabled={!enabled}
+              disabled={!effectiveEnabled}
               className={`w-24 px-2 py-1 text-sm border rounded ${
-                enabled
+                effectiveEnabled
                   ? 'border-border-primary bg-background-primary text-text-primary'
                   : 'border-border-primary bg-background-secondary text-text-secondary cursor-not-allowed'
               }`}
@@ -353,26 +389,40 @@ export const SecurityToggle = () => {
             <div className="flex items-center justify-between py-2 hover:bg-background-secondary rounded-lg transition-all">
               <div>
                 <h4
-                  className={`text-sm font-medium ${enabled ? 'text-text-primary' : 'text-text-secondary'}`}
+                  className={`text-sm font-medium ${effectiveEnabled ? 'text-text-primary' : 'text-text-secondary'}`}
                 >
                   {intl.formatMessage(i18n.enableCommandInjection)}
                 </h4>
                 <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                   {intl.formatMessage(i18n.commandInjectionDescription)}
                 </p>
+                {isCommandClassifierOverridden && (
+                  <>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                      {intl.formatMessage(i18n.overrideNotice)}
+                    </p>
+                    {commandClassifierOverrideValue && (
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                        {intl.formatMessage(i18n.warpNotice)}
+                      </p>
+                    )}
+                  </>
+                )}
               </div>
-              <div className="flex items-center">
+              <div
+                className={`flex items-center ${isCommandClassifierOverridden ? 'opacity-40' : ''}`}
+              >
                 <Switch
                   checked={effectiveCommandClassifierEnabled}
                   onCheckedChange={handleCommandClassifierToggle}
-                  disabled={!enabled}
+                  disabled={!effectiveEnabled || isCommandClassifierOverridden}
                   variant="mono"
                 />
               </div>
             </div>
 
             {hasCommandModel ? (
-              enabled &&
+              effectiveEnabled &&
               effectiveCommandClassifierEnabled && (
                 <div className="text-sm text-gray-700 dark:text-gray-300 mt-2">
                   ✓ {intl.formatMessage(i18n.commandClassifierActive)}
@@ -381,12 +431,16 @@ export const SecurityToggle = () => {
             ) : (
               <div
                 className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                  enabled && effectiveCommandClassifierEnabled
+                  effectiveEnabled && effectiveCommandClassifierEnabled
                     ? 'max-h-[32rem] opacity-100 mt-3'
                     : 'max-h-0 opacity-0'
                 }`}
               >
-                <div className={enabled && effectiveCommandClassifierEnabled ? '' : 'opacity-50'}>
+                <div
+                  className={
+                    effectiveEnabled && effectiveCommandClassifierEnabled ? '' : 'opacity-50'
+                  }
+                >
                   <ClassifierEndpointInputs
                     endpointValue={commandEndpointInput}
                     tokenValue={commandTokenInput}
@@ -394,7 +448,7 @@ export const SecurityToggle = () => {
                     onTokenChange={setCommandTokenInput}
                     onEndpointBlur={handleCommandEndpointChange}
                     onTokenBlur={handleCommandTokenChange}
-                    disabled={!enabled || !effectiveCommandClassifierEnabled}
+                    disabled={!effectiveEnabled || !effectiveCommandClassifierEnabled}
                     endpointPlaceholder="https://example.com/classify"
                     tokenPlaceholder="token..."
                     endpointLabel={intl.formatMessage(i18n.classificationEndpoint)}
@@ -412,7 +466,7 @@ export const SecurityToggle = () => {
             <div className="flex items-center justify-between py-2 hover:bg-background-secondary rounded-lg transition-all">
               <div>
                 <h4
-                  className={`text-sm font-medium ${enabled ? 'text-text-primary' : 'text-text-secondary'}`}
+                  className={`text-sm font-medium ${effectiveEnabled ? 'text-text-primary' : 'text-text-secondary'}`}
                 >
                   {intl.formatMessage(i18n.enablePromptInjectionMl)}
                 </h4>
@@ -424,7 +478,7 @@ export const SecurityToggle = () => {
                 <Switch
                   checked={mlEnabled}
                   onCheckedChange={handleMlToggle}
-                  disabled={!enabled}
+                  disabled={!effectiveEnabled}
                   variant="mono"
                 />
               </div>
@@ -433,15 +487,17 @@ export const SecurityToggle = () => {
             {/* Configuration Section */}
             <div
               className={`overflow-hidden transition-all duration-300 ease-in-out ${
-                enabled && mlEnabled ? 'max-h-[32rem] opacity-100 mt-3' : 'max-h-0 opacity-0'
+                effectiveEnabled && mlEnabled
+                  ? 'max-h-[32rem] opacity-100 mt-3'
+                  : 'max-h-0 opacity-0'
               }`}
             >
-              <div className={enabled && mlEnabled ? '' : 'opacity-50'}>
+              <div className={effectiveEnabled && mlEnabled ? '' : 'opacity-50'}>
                 {showModelDropdown ? (
                   <div className="space-y-3">
                     <div>
                       <label
-                        className={`text-sm font-medium ${enabled && mlEnabled ? 'text-text-primary' : 'text-text-secondary'}`}
+                        className={`text-sm font-medium ${effectiveEnabled && mlEnabled ? 'text-text-primary' : 'text-text-secondary'}`}
                       >
                         {intl.formatMessage(i18n.detectionModel)}
                       </label>
@@ -451,9 +507,9 @@ export const SecurityToggle = () => {
                       <select
                         value={effectiveModel}
                         onChange={(e) => handleModelChange(e.target.value)}
-                        disabled={!enabled || !mlEnabled}
+                        disabled={!effectiveEnabled || !mlEnabled}
                         className={`w-full px-3 py-2 text-sm border rounded ${
-                          enabled && mlEnabled
+                          effectiveEnabled && mlEnabled
                             ? 'border-border-primary bg-background-primary text-text-primary'
                             : 'border-border-primary bg-background-secondary text-text-secondary cursor-not-allowed'
                         }`}
@@ -474,7 +530,7 @@ export const SecurityToggle = () => {
                     onTokenChange={setTokenInput}
                     onEndpointBlur={handleEndpointChange}
                     onTokenBlur={handleTokenChange}
-                    disabled={!enabled || !mlEnabled}
+                    disabled={!effectiveEnabled || !mlEnabled}
                     endpointPlaceholder="https://router.huggingface.co/hf-inference/models/protectai/deberta-v3-base-prompt-injection-v2"
                     tokenPlaceholder="hf_..."
                     endpointLabel={intl.formatMessage(i18n.classificationEndpoint)}

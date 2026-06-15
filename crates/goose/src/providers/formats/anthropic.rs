@@ -1,10 +1,13 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::mcp_utils::extract_text_from_resource;
-use crate::model::{ModelConfig, ThinkingEffort};
-use crate::providers::base::Usage;
-use crate::providers::errors::ProviderError;
-use crate::providers::utils::{convert_image, ImageFormat};
+use crate::model::ModelConfig;
+use crate::providers::canonical::maybe_get_canonical_model;
 use anyhow::{anyhow, Result};
+use goose_providers::canonical::ThinkingMode;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::errors::ProviderError;
+use goose_providers::images::{convert_image, ImageFormat};
+use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
 use serde_json::{json, Value};
@@ -12,6 +15,8 @@ use std::collections::HashSet;
 use std::fmt;
 use std::str::FromStr;
 use std::sync::Arc;
+
+pub(crate) const ANTHROPIC_PROVIDER_NAME: &str = "anthropic";
 
 macro_rules! string_enum {
     ($name:ident { $($variant:ident => $str:literal),+ $(,)? }) => {
@@ -67,27 +72,51 @@ impl AnthropicFormatOptions {
     }
 }
 
-pub fn supports_adaptive_thinking(model_name: &str) -> bool {
-    let lower = model_name.to_lowercase();
-    lower.contains("claude-opus-4-6") || lower.contains("claude-sonnet-4-6")
+fn canonical_thinking_mode(provider_name: &str, model_name: &str) -> Option<ThinkingMode> {
+    maybe_get_canonical_model(provider_name, model_name).and_then(|model| model.thinking_mode)
+}
+
+fn canonical_reasoning(provider_name: &str, model_config: &ModelConfig) -> Option<bool> {
+    maybe_get_canonical_model(provider_name, &model_config.model_name)
+        .and_then(|model| model.reasoning)
+}
+
+pub fn model_supports_temperature(provider_name: &str, model_config: &ModelConfig) -> bool {
+    maybe_get_canonical_model(provider_name, &model_config.model_name)
+        .and_then(|model| model.temperature)
+        .unwrap_or(true)
 }
 
 pub fn thinking_type(model_config: &ModelConfig) -> ThinkingType {
-    let model_lower = model_config.model_name.to_lowercase();
-    if !model_lower.contains("claude") {
+    thinking_type_for_provider(ANTHROPIC_PROVIDER_NAME, model_config)
+}
+
+pub fn thinking_type_for_provider(provider_name: &str, model_config: &ModelConfig) -> ThinkingType {
+    let mode = canonical_thinking_mode(provider_name, &model_config.model_name);
+    let reasoning = model_config
+        .reasoning
+        .or_else(|| canonical_reasoning(provider_name, model_config));
+
+    if reasoning != Some(true) {
         return ThinkingType::Disabled;
     }
 
-    let is_adaptive_model = supports_adaptive_thinking(&model_config.model_name);
+    if mode == Some(ThinkingMode::AlwaysOnAdaptive) {
+        return ThinkingType::Adaptive;
+    }
+
     let effort = model_config.thinking_effort();
 
     if effort.is_none() && legacy_thinking_budget_tokens().is_some() {
-        return ThinkingType::Enabled;
+        return match mode {
+            Some(ThinkingMode::Adaptive) => ThinkingType::Adaptive,
+            _ => ThinkingType::Enabled,
+        };
     }
 
     match effort.unwrap_or(ThinkingEffort::Off) {
         ThinkingEffort::Off => ThinkingType::Disabled,
-        _ if is_adaptive_model => ThinkingType::Adaptive,
+        _ if mode == Some(ThinkingMode::Adaptive) => ThinkingType::Adaptive,
         _ => ThinkingType::Enabled,
     }
 }
@@ -117,6 +146,8 @@ const EVENT_MESSAGE_STOP: &str = "message_stop";
 const EVENT_CONTENT_BLOCK_START: &str = "content_block_start";
 const EVENT_CONTENT_BLOCK_DELTA: &str = "content_block_delta";
 const EVENT_CONTENT_BLOCK_STOP: &str = "content_block_stop";
+const STOP_REASON_REFUSAL: &str = "refusal";
+const REFUSAL_FALLBACK_DETAILS: &str = "No additional details were provided.";
 
 /// Coerce a tool call's optional arguments into the JSON value Anthropic
 /// expects for the `input` field of a `tool_use` content block.
@@ -484,7 +515,7 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
             let total_tokens_i32 =
                 (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
 
-            tracing::debug!("🔍 Anthropic ACTUAL token counts from direct object: input={}, output={}, total={}", 
+            tracing::debug!("🔍 Anthropic ACTUAL token counts from direct object: input={}, output={}, total={}",
                     total_input_i32, output_tokens_i32, total_tokens_i32);
 
             Ok(Usage::new(
@@ -510,6 +541,13 @@ pub fn thinking_effort(model_config: &ModelConfig) -> ThinkingEffort {
     model_config
         .thinking_effort()
         .unwrap_or(ThinkingEffort::High)
+}
+
+pub fn adaptive_output_effort(model_config: &ModelConfig) -> ThinkingEffort {
+    match thinking_effort(model_config) {
+        ThinkingEffort::Off => ThinkingEffort::High,
+        effort => effort,
+    }
 }
 
 pub fn thinking_budget_tokens(model_config: &ModelConfig) -> i32 {
@@ -550,15 +588,16 @@ fn legacy_thinking_budget_tokens() -> Option<i32> {
 
 fn apply_thinking_config(
     payload: &mut Value,
+    provider_name: &str,
     model_config: &ModelConfig,
     max_tokens: i32,
     options: AnthropicFormatOptions,
 ) {
     let obj = payload.as_object_mut().unwrap();
-    match thinking_type(model_config) {
+    match thinking_type_for_provider(provider_name, model_config) {
         ThinkingType::Adaptive => {
             obj.insert("thinking".to_string(), json!({"type": "adaptive"}));
-            let effort = thinking_effort(model_config).to_string();
+            let effort = adaptive_output_effort(model_config).to_string();
             obj.insert("output_config".to_string(), json!({"effort": effort}));
         }
         ThinkingType::Enabled => {
@@ -618,6 +657,24 @@ pub fn create_request_with_options(
     tools: &[Tool],
     options: AnthropicFormatOptions,
 ) -> Result<Value> {
+    create_request_with_options_for_provider(
+        ANTHROPIC_PROVIDER_NAME,
+        model_config,
+        system,
+        messages,
+        tools,
+        options,
+    )
+}
+
+pub fn create_request_with_options_for_provider(
+    provider_name: &str,
+    model_config: &ModelConfig,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+    options: AnthropicFormatOptions,
+) -> Result<Value> {
     let options = options.for_model(model_config);
     let anthropic_messages = format_messages_with_options(messages, options);
     let tool_specs = format_tools(tools);
@@ -648,14 +705,22 @@ pub fn create_request_with_options(
             .insert("tools".to_string(), json!(tool_specs));
     }
 
-    if let Some(temp) = model_config.temperature {
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("temperature".to_string(), json!(temp));
+    if model_supports_temperature(provider_name, model_config) {
+        if let Some(temp) = model_config.temperature {
+            payload
+                .as_object_mut()
+                .unwrap()
+                .insert("temperature".to_string(), json!(temp));
+        }
     }
 
-    apply_thinking_config(&mut payload, model_config, max_tokens, options);
+    apply_thinking_config(
+        &mut payload,
+        provider_name,
+        model_config,
+        max_tokens,
+        options,
+    );
 
     Ok(payload)
 }
@@ -663,12 +728,7 @@ pub fn create_request_with_options(
 /// Process streaming response from Anthropic's API
 pub fn response_to_streaming_message<S>(
     mut stream: S,
-) -> impl futures::Stream<
-    Item = anyhow::Result<(
-        Option<Message>,
-        Option<crate::providers::base::ProviderUsage>,
-    )>,
-> + 'static
+) -> impl futures::Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
 where
     S: futures::Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
@@ -702,7 +762,7 @@ where
     try_stream! {
         let mut accumulated_tool_calls: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
         let mut current_tool_id: Option<String> = None;
-        let mut final_usage: Option<crate::providers::base::ProviderUsage> = None;
+        let mut final_usage: Option<ProviderUsage> = None;
         let mut message_id: Option<String> = None;
         let mut thinking: Option<ThinkingState> = None;
 
@@ -744,7 +804,7 @@ where
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown")
                                 .to_string();
-                            final_usage = Some(crate::providers::base::ProviderUsage::new(model, usage));
+                            final_usage = Some(ProviderUsage::new(model, usage));
                         }
                     }
                     continue;
@@ -884,14 +944,41 @@ where
                                 (None, None) => None,
                             };
 
-                            let merged_usage = crate::providers::base::Usage::new(merged_input, merged_output, merged_total);
-                            final_usage = Some(crate::providers::base::ProviderUsage::new(existing_usage.model.clone(), merged_usage));
+                            let merged_usage = Usage::new(merged_input, merged_output, merged_total);
+                            final_usage = Some(ProviderUsage::new(existing_usage.model.clone(), merged_usage));
                         } else {
                             let model = event.data.get("model")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown")
                                 .to_string();
-                            final_usage = Some(crate::providers::base::ProviderUsage::new(model, delta_usage));
+                            final_usage = Some(ProviderUsage::new(model, delta_usage));
+                        }
+                    }
+                    if let Some(delta) = event.data.get("delta") {
+                        let stop_details = delta.get("stop_details").filter(|d| !d.is_null());
+                        if delta.get("stop_reason").and_then(|v| v.as_str()) == Some(STOP_REASON_REFUSAL) {
+                            let str_field = |key: &str| stop_details
+                                .and_then(|d| d.get(key))
+                                .and_then(|v| v.as_str())
+                                .map(str::to_string);
+                            let details = str_field("explanation")
+                                .or_else(|| stop_details.map(|d| d.to_string()))
+                                .unwrap_or_else(|| REFUSAL_FALLBACK_DETAILS.to_string());
+                            let category = str_field("category");
+                            // The refusal delta carries the request's usage;
+                            // flush it so refused turns are still accounted.
+                            if let Some(usage) = final_usage.take() {
+                                yield (None, Some(usage));
+                            }
+                            Err(ProviderError::Refusal { details, category })?;
+                        } else if let Some(details) = stop_details {
+                            // No specific handling for these stop details yet —
+                            // forward them rather than silently dropping the turn.
+                            let mut message = Message::assistant().with_text(format!(
+                                "The provider ended the response with: {details}"
+                            ));
+                            message.id = message_id.clone();
+                            yield (Some(message), None);
                         }
                     }
                     continue;
@@ -903,7 +990,7 @@ where
                             .and_then(|v| v.as_str())
                             .unwrap_or("unknown")
                             .to_string();
-                        final_usage = Some(crate::providers::base::ProviderUsage::new(model, usage));
+                        final_usage = Some(ProviderUsage::new(model, usage));
                     }
                     break;
                 }
@@ -1519,6 +1606,14 @@ mod tests {
             thinking_type(&cfg_with_effort("claude-opus-4-6", "high")),
             ThinkingType::Adaptive
         );
+        assert_eq!(
+            thinking_type(&cfg_with_effort("claude-opus-4-7", "high")),
+            ThinkingType::Adaptive
+        );
+        assert_eq!(
+            thinking_type(&cfg_with_effort("claude-opus-4-8", "high")),
+            ThinkingType::Adaptive
+        );
         // Adaptive model with off → disabled
         assert_eq!(
             thinking_type(&cfg_with_effort("claude-opus-4-6", "off")),
@@ -1534,6 +1629,41 @@ mod tests {
             thinking_type(&cfg_with_effort("claude-3-7-sonnet-20250219", "off")),
             ThinkingType::Disabled
         );
+    }
+
+    #[test]
+    fn test_thinking_type_always_on_adaptive() {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
+
+        assert_eq!(
+            thinking_type(&cfg("claude-fable-5")),
+            ThinkingType::Adaptive
+        );
+        assert_eq!(
+            thinking_type(&cfg_with_effort("claude-fable-5", "off")),
+            ThinkingType::Adaptive
+        );
+        assert_eq!(
+            thinking_type(&cfg_with_effort("claude-fable-5", "high")),
+            ThinkingType::Adaptive
+        );
+    }
+
+    #[test]
+    fn test_create_request_fable_5_omits_temperature() -> Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
+        let mut config = cfg("claude-fable-5");
+        config.max_tokens = Some(4096);
+        config.temperature = Some(0.7);
+        let messages = vec![Message::user().with_text("Hello")];
+
+        let payload = create_request(&config, "system", &messages, &[])?;
+
+        assert_eq!(payload["thinking"]["type"], "adaptive");
+        assert!(payload.get("temperature").is_none());
+        assert_eq!(payload["output_config"]["effort"], "high");
+
+        Ok(())
     }
 
     #[test]
@@ -1580,16 +1710,10 @@ mod tests {
     }
 
     async fn collect_stream(events: &str) -> StreamedParts {
-        use futures::StreamExt;
-
-        let lines: Vec<Result<String, anyhow::Error>> =
-            events.lines().map(|l| Ok(l.to_string())).collect();
-        let stream = Box::pin(futures::stream::iter(lines));
-        let mut msg_stream = std::pin::pin!(response_to_streaming_message(stream));
         let mut parts = StreamedParts::default();
 
-        while let Some(Ok((message, _usage))) = msg_stream.next().await {
-            if let Some(msg) = message {
+        for result in collect_stream_results(events).await {
+            if let Ok((Some(msg), _usage)) = result {
                 for c in &msg.content {
                     match c {
                         MessageContent::Thinking(t) => {
@@ -1737,5 +1861,90 @@ mod tests {
         );
         assert_eq!(parts.text, vec!["Let me search for that."]);
         assert_eq!(parts.tool_calls, vec!["search"]);
+    }
+
+    async fn collect_stream_results(
+        events: &str,
+    ) -> Vec<anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> {
+        use futures::StreamExt;
+
+        let lines: Vec<Result<String, anyhow::Error>> =
+            events.lines().map(|l| Ok(l.to_string())).collect();
+        let stream = Box::pin(futures::stream::iter(lines));
+        response_to_streaming_message(stream).collect().await
+    }
+
+    fn expect_refusal(
+        results: Vec<anyhow::Result<(Option<Message>, Option<ProviderUsage>)>>,
+    ) -> (String, Option<String>) {
+        let err = results
+            .into_iter()
+            .find_map(|r| r.err())
+            .expect("refusal should surface as a stream error");
+        match err.downcast_ref::<ProviderError>() {
+            Some(ProviderError::Refusal { details, category }) => {
+                (details.clone(), category.clone())
+            }
+            other => panic!("expected ProviderError::Refusal, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_streaming_refusal() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"refusal","stop_details":{"explanation":"This request violates the usage policy.","category":"cyber"}},"usage":{"output_tokens":5}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let results = collect_stream_results(events).await;
+        let usage = results
+            .iter()
+            .filter_map(|r| r.as_ref().ok())
+            .find_map(|(_, usage)| usage.clone())
+            .expect("a refused request should still yield its usage");
+        assert_eq!(usage.usage.input_tokens, Some(10));
+        assert_eq!(usage.usage.output_tokens, Some(5));
+
+        let (details, category) = expect_refusal(results);
+        assert_eq!(details, "This request violates the usage policy.");
+        assert_eq!(category.as_deref(), Some("cyber"));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_refusal_forwards_unrecognized_stop_details() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"refusal","stop_details":{"code":42}},"usage":{"output_tokens":5}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let (details, category) = expect_refusal(collect_stream_results(events).await);
+        assert!(details.contains("\"code\":42"), "details: {details}");
+        assert_eq!(category, None);
+    }
+
+    #[tokio::test]
+    async fn test_streaming_forwards_unhandled_stop_details() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"model_context_window_exceeded","stop_details":{"reason":"context_window"}},"usage":{"output_tokens":5}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let parts = collect_stream(events).await;
+        assert_eq!(parts.text.len(), 1);
+        assert!(
+            parts.text[0].starts_with("The provider ended the response with:"),
+            "text: {}",
+            parts.text[0]
+        );
+        assert!(parts.text[0].contains("context_window"));
     }
 }

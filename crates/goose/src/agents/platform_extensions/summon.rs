@@ -16,7 +16,7 @@ use crate::sources::parse_frontmatter;
 use crate::utils::safe_truncate;
 use anyhow::Result;
 use async_trait::async_trait;
-use goose_sdk::custom_requests::{SourceEntry, SourceType};
+use goose_sdk_types::custom_requests::{SourceEntry, SourceType};
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult, Meta,
     ServerCapabilities, ServerNotification, Tool,
@@ -1422,7 +1422,20 @@ impl SummonClient {
             if filter.is_empty() {
                 extensions = Vec::new();
             } else {
+                let available_names: Vec<String> =
+                    extensions.iter().map(|ext| ext.name()).collect();
                 extensions.retain(|ext| filter.contains(&ext.name()));
+                let unmatched: Vec<&str> = filter
+                    .iter()
+                    .filter(|name| !available_names.iter().any(|n| n == *name))
+                    .map(String::as_str)
+                    .collect();
+                if !unmatched.is_empty() {
+                    warn!(
+                        "Delegate requested extensions not available in session: {:?}. Available: {:?}",
+                        unmatched, available_names
+                    );
+                }
             }
         }
 
