@@ -11,7 +11,7 @@ use crate::providers::claude_acp::{CLAUDE_ACP_BINARY, CLAUDE_ACP_PROVIDER_NAME};
 use crate::providers::codex_acp::CODEX_ACP_PROVIDER_NAME;
 use crate::providers::copilot_acp::{COPILOT_ACP_BINARY, COPILOT_ACP_PROVIDER_NAME};
 use crate::providers::formats::anthropic::ANTHROPIC_PROVIDER_NAME;
-use crate::providers::google::GOOGLE_PROVIDER_NAME;
+use crate::providers::google::{GOOGLE_API_HOST, GOOGLE_PROVIDER_NAME};
 use crate::providers::huggingface::HuggingFaceProvider;
 use crate::providers::huggingface_auth;
 use crate::providers::ollama::{ollama_host_configured, OLLAMA_PROVIDER_NAME};
@@ -92,7 +92,13 @@ pub fn anthropic_inventory() -> InventoryRegistration {
 pub fn google_inventory() -> InventoryRegistration {
     InventoryRegistration::new(true, || {
         let config = Config::global();
-        let mut identity = InventoryIdentityInput::new(GOOGLE_PROVIDER_NAME, GOOGLE_PROVIDER_NAME);
+        let mut identity = InventoryIdentityInput::new(GOOGLE_PROVIDER_NAME, GOOGLE_PROVIDER_NAME)
+            .with_public(
+                "host",
+                config
+                    .get_param::<String>("GOOGLE_HOST")
+                    .unwrap_or_else(|_| GOOGLE_API_HOST.to_string()),
+            );
         if let Some(api_key) = config_secret_value(config, "GOOGLE_API_KEY") {
             identity = identity.with_secret("api_key", api_key);
         }
