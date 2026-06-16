@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useId, useState, useEffect } from 'react';
 import { Parameter } from '../recipe';
 import { Button } from './ui/button';
 import { defineMessages, useIntl } from '../i18n';
@@ -68,11 +68,12 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   initialValues,
 }) => {
   const intl = useIntl();
+  const fieldIdPrefix = useId();
+  const fieldId = (key: string): string => `${fieldIdPrefix}-${key}`;
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [showCancelOptions, setShowCancelOptions] = useState(false);
 
-  // Pre-fill the form with default values from the recipe and initialValues from deeplink
   useEffect(() => {
     const defaultValues: Record<string, string> = {};
     parameters.forEach((param) => {
@@ -90,10 +91,8 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   };
 
   const handleSubmit = (): void => {
-    // Clear previous validation errors
     setValidationErrors({});
 
-    // Check if all *required* parameters are filled
     const requiredParams: Parameter[] = parameters.filter((p) => p.requirement === 'required');
     const errors: Record<string, string> = {};
 
@@ -113,7 +112,6 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   };
 
   const handleCancel = (): void => {
-    // Always show cancel options if recipe has any parameters (required or optional)
     const hasAnyParams = parameters.length > 0;
 
     if (hasAnyParams) {
@@ -123,18 +121,9 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
     }
   };
 
-  const handleCancelOption = (option: 'new-chat' | 'back-to-form'): void => {
-    if (option === 'new-chat') {
-      onClose();
-    } else {
-      setShowCancelOptions(false); // Go back to the parameter form
-    }
-  };
-
   return (
     <div className="fixed inset-0 backdrop-blur-sm z-50 flex justify-center items-center animate-[fadein_200ms_ease-in]">
       {showCancelOptions ? (
-        // Cancel options modal
         <div className="bg-background-primary border border-border-primary rounded-xl p-8 shadow-2xl w-full max-w-md">
           <h2 className="text-xl font-bold text-text-primary mb-4">
             {intl.formatMessage(i18n.cancelRecipeSetup)}
@@ -142,25 +131,19 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
           <p className="text-text-primary mb-6">{intl.formatMessage(i18n.whatToDo)}</p>
           <div className="flex flex-col gap-3">
             <Button
-              onClick={() => handleCancelOption('back-to-form')}
+              onClick={() => setShowCancelOptions(false)}
               variant="default"
               size="lg"
               className="w-full rounded-full"
             >
               {intl.formatMessage(i18n.backToForm)}
             </Button>
-            <Button
-              onClick={() => handleCancelOption('new-chat')}
-              variant="outline"
-              size="lg"
-              className="w-full rounded-full"
-            >
+            <Button onClick={onClose} variant="outline" size="lg" className="w-full rounded-full">
               {intl.formatMessage(i18n.startNewChat)}
             </Button>
           </div>
         </div>
       ) : (
-        // Main parameter form
         <div className="bg-background-primary border border-border-primary rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden">
           <div className="p-8 pb-4 flex-shrink-0">
             <h2 className="text-xl font-bold text-text-primary mb-6">
@@ -171,16 +154,19 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
             <form onSubmit={handleSubmit} className="space-y-4 mb-4">
               {parameters.map((param) => (
                 <div key={param.key}>
-                  <label className="block text-md font-medium text-text-primary mb-2">
+                  <label
+                    htmlFor={fieldId(param.key)}
+                    className="block text-md font-medium text-text-primary mb-2"
+                  >
                     {param.description || param.key}
                     {param.requirement === 'required' && (
                       <span className="text-red-500 ml-1">*</span>
                     )}
                   </label>
 
-                  {/* Render different input types */}
                   {param.input_type === 'select' && param.options ? (
                     <select
+                      id={fieldId(param.key)}
                       value={inputValues[param.key] || ''}
                       onChange={(e) => handleChange(param.key, e.target.value)}
                       className={`w-full p-3 border rounded-lg bg-background-secondary text-text-primary focus:outline-none focus:ring-2 ${
@@ -198,6 +184,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                     </select>
                   ) : param.input_type === 'boolean' ? (
                     <select
+                      id={fieldId(param.key)}
                       value={inputValues[param.key] || ''}
                       onChange={(e) => handleChange(param.key, e.target.value)}
                       className={`w-full p-3 border rounded-lg bg-background-secondary text-text-primary focus:outline-none focus:ring-2 ${
@@ -212,6 +199,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                     </select>
                   ) : (
                     <input
+                      id={fieldId(param.key)}
                       type={param.input_type === 'number' ? 'number' : 'text'}
                       value={inputValues[param.key] || ''}
                       onChange={(e) => handleChange(param.key, e.target.value)}
@@ -220,7 +208,9 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                           ? 'border-red-500 focus:ring-red-500'
                           : 'border-border-primary focus:ring-border-secondary'
                       }`}
-                      placeholder={param.default || intl.formatMessage(i18n.enterValue, { key: param.key })}
+                      placeholder={
+                        param.default || intl.formatMessage(i18n.enterValue, { key: param.key })
+                      }
                     />
                   )}
 

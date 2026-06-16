@@ -200,7 +200,7 @@ pub fn stream_openai_compat(
         while let Some(message) = message_stream.next().await {
             let (message, usage) = message.map_err(|e|
                 e.downcast::<ProviderError>()
-                    .unwrap_or_else(|e| ProviderError::RequestFailed(format!("Stream decode error: {e}")))
+                    .unwrap_or_else(ProviderError::stream_decode_error)
             )?;
             log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
             yield (message, usage);
@@ -223,7 +223,8 @@ pub fn stream_responses_compat(
         pin!(message_stream);
         while let Some(message) = message_stream.next().await {
             let (message, usage) = message.map_err(|e|
-                ProviderError::RequestFailed(format!("Stream decode error: {e}"))
+                e.downcast::<ProviderError>()
+                    .unwrap_or_else(ProviderError::stream_decode_error)
             )?;
             log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
             yield (message, usage);
