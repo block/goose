@@ -9,19 +9,7 @@
   "dynamic_models": true,
   "models": [
     {
-      "name": "meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
-      "context_limit": 524288
-    },
-    {
-      "name": "meta-llama/Llama-4-Scout-17B-16E-Instruct",
-      "context_limit": 327680
-    },
-    {
-      "name": "meta-llama/Meta-Llama-3.3-70B-Instruct-Turbo",
-      "context_limit": 131072
-    },
-    {
-      "name": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+      "name": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
       "context_limit": 131072
     },
     {
@@ -29,16 +17,24 @@
       "context_limit": 131072
     },
     {
-      "name": "Qwen/Qwen2.5-72B-Instruct-Turbo",
-      "context_limit": 32768
+      "name": "deepseek-ai/DeepSeek-R1",
+      "context_limit": 163839
     },
     {
-      "name": "Qwen/QwQ-32B-Preview",
-      "context_limit": 32768
+      "name": "Qwen/Qwen3-Coder-480B-A35B-Instruct-FP8",
+      "context_limit": 262144
     },
     {
-      "name": "mistralai/Mixtral-8x22B-Instruct-v0.1",
-      "context_limit": 65536
+      "name": "Qwen/Qwen3-235B-A22B-Instruct-2507-tput",
+      "context_limit": 262144
+    },
+    {
+      "name": "moonshotai/Kimi-K2.5",
+      "context_limit": 262144
+    },
+    {
+      "name": "openai/gpt-oss-120b",
+      "context_limit": 131072
     }
   ],
   "preserves_thinking": true,
