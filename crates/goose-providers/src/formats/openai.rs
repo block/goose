@@ -653,11 +653,40 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     ));
                 } else {
                     match safely_parse_json(&arguments_str) {
-                        Ok(params) => {
+                        // Valid JSON, and an object: the normal path.
+                        Ok(params) if params.is_object() => {
                             content.push(MessageContent::tool_request_with_metadata(
                                 id,
                                 Ok(CallToolRequestParams::new(function_name)
                                     .with_arguments(object(params))),
+                                metadata.as_ref(),
+                            ));
+                        }
+                        // Valid JSON but NOT an object (a bare array/string/number).
+                        // Weaker models emit this; surface a tool error so the model
+                        // retries with a proper object instead of crashing the run
+                        // (rmcp's `object()` debug-asserts on non-objects).
+                        Ok(other) => {
+                            let error = ErrorData {
+                                code: ErrorCode::INVALID_PARAMS,
+                                message: Cow::from(format!(
+                                    "Tool arguments for id {} must be a JSON object, got {}. Raw arguments: '{}'",
+                                    id,
+                                    match other {
+                                        Value::Array(_) => "an array",
+                                        Value::String(_) => "a string",
+                                        Value::Number(_) => "a number",
+                                        Value::Bool(_) => "a boolean",
+                                        Value::Null => "null",
+                                        Value::Object(_) => unreachable!(),
+                                    },
+                                    arguments_str
+                                )),
+                                data: None,
+                            };
+                            content.push(MessageContent::tool_request_with_metadata(
+                                id,
+                                Err(error),
                                 metadata.as_ref(),
                             ));
                         }
@@ -1934,6 +1963,36 @@ mod tests {
                     assert!(msg.starts_with("Could not interpret tool use parameters"));
                 }
                 _ => panic!("Expected InvalidParameters error"),
+            }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_non_object_arguments() -> anyhow::Result<()> {
+        // Weaker models sometimes emit tool arguments that are valid JSON but
+        // not an object (here, a bare array). This must surface as a tool error,
+        // NOT panic via rmcp's `object()` debug-assert.
+        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
+            json!("[1, 2, 3]");
+
+        let message = response_to_message(&response)?;
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            match &request.tool_call {
+                Err(ErrorData {
+                    code: ErrorCode::INVALID_PARAMS,
+                    message: msg,
+                    data: None,
+                }) => {
+                    assert!(msg.contains("must be a JSON object"));
+                    assert!(msg.contains("an array"));
+                }
+                _ => panic!("Expected InvalidParameters error for non-object args"),
             }
         } else {
             panic!("Expected ToolRequest content");
