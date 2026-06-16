@@ -457,7 +457,6 @@ impl OpenAiProvider {
         } else if normalized.ends_with("chat/completions") {
             stripped.to_string()
         } else {
-            // This is the path to the api /zen or /zen/go
             format!("{}/v1/chat/completions", normalized)
         }
     }
