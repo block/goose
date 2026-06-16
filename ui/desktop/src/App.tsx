@@ -580,8 +580,6 @@ export function AppInner() {
 
   useEffect(() => {
     const handleNewChat = (_event: IpcRendererEvent, ..._args: unknown[]) => {
-      // Navigate to the Home tab to start a new chat, mirroring the "New Chat"
-      // navigation item (which routes to '/').
       navigate('/');
     };
 
