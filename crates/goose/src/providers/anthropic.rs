@@ -156,10 +156,7 @@ impl AnthropicProvider {
         }
 
         let model = if let Some(ref fast_model_name) = config.fast_model {
-            model.with_fast_model_config(crate::model_config::model_config_from_user_config(
-                &config.name,
-                fast_model_name,
-            )?)
+            crate::model_config::with_configured_fast_model(model, &config.name, fast_model_name)?
         } else {
             model
         };
