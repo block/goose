@@ -1363,7 +1363,7 @@ GitHub Copilot uses a device flow for authentication, so no API keys are require
 4. Paste the code to authorize the application
 5. When you return to goose, GitHub Copilot will be available as a provider in both CLI and Desktop.
 
-## Azure OpenAI Credential Chain
+## Azure OpenAI Authentication
 
 goose supports three authentication methods for Azure OpenAI:
 
