@@ -980,6 +980,9 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     cleanedUp: false,
   };
   attachWindowToGoosedLease(mainWindow.id, goosedLease);
+  mainWindow.once('closed', () => {
+    void releaseWindowGoosedLease(mainWindow.id);
+  });
 
   const serverReady = await checkServerStatus(goosedClient, errorLog, {
     onEvent: recordStartupEvent,
@@ -1257,8 +1260,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       }
       windowPowerSaveBlockers.delete(windowId);
     }
-
-    void releaseWindowGoosedLease(windowId);
   });
   return mainWindow;
 };
