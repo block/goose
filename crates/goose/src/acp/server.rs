@@ -67,7 +67,8 @@ use futures::future::BoxFuture;
 use futures::stream::{self, StreamExt};
 use futures::FutureExt;
 use rmcp::model::{
-    AnnotateAble, CallToolResult, RawContent, RawTextContent, ResourceContents, Role,
+    AnnotateAble, CallToolResult, ElicitationAction, RawContent, RawTextContent, ResourceContents,
+    Role,
 };
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
@@ -2660,7 +2661,11 @@ impl GooseAcpAgent {
         req: ElicitationRespondRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         ActionRequiredManager::global()
-            .submit_response(req.elicitation_id.clone(), req.user_data.clone())
+            .submit_response(
+                req.elicitation_id.clone(),
+                req.user_data.clone(),
+                ElicitationAction::Accept,
+            )
             .await
             .invalid_params_err_ctx("Failed to submit elicitation response")?;
 
@@ -2669,6 +2674,7 @@ impl GooseAcpAgent {
             .with_content(MessageContent::action_required_elicitation_response(
                 req.elicitation_id.clone(),
                 req.user_data,
+                ElicitationAction::Accept,
             ))
             .agent_only();
 

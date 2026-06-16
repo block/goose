@@ -273,6 +273,27 @@ describe('App Component - Brand New State', () => {
     expect(mockNavigate).not.toHaveBeenCalled();
   });
 
+  it('should navigate home when the main process emits new-chat', async () => {
+    mockElectron.getConfig.mockReturnValue({
+      GOOSE_DEFAULT_PROVIDER: 'openai',
+      GOOSE_DEFAULT_MODEL: 'gpt-4',
+      GOOSE_ALLOWLIST_WARNING: false,
+    });
+
+    render(<AppInner />, { wrapper: IntlTestWrapper });
+
+    await waitFor(() => {
+      expect(mockElectron.reactReady).toHaveBeenCalled();
+    });
+
+    const newChatHandler = mockElectron.on.mock.calls.find(([channel]) => channel === 'new-chat')?.[1];
+    expect(newChatHandler).toBeDefined();
+
+    newChatHandler?.({} as any);
+
+    expect(mockNavigate).toHaveBeenCalledWith('/');
+  });
+
   it('should seed recipe sessions with the recipe prompt when no initial message is provided', () => {
     expect(
       resolveSessionInitialMessage(
