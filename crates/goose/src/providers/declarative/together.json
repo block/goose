@@ -5,7 +5,7 @@
   "description": "Open-source and custom AI models via Together AI's OpenAI-compatible API.",
   "api_key_env": "TOGETHER_API_KEY",
   "base_url": "https://api.together.xyz/v1",
-  "catalog_provider_id": "together",
+  "catalog_provider_id": "togetherai",
   "dynamic_models": true,
   "models": [
     {
