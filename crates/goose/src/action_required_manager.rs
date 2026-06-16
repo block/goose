@@ -364,4 +364,62 @@ mod tests {
             ElicitationResponse::Accept(json!({ "answer": "late" }))
         );
     }
+
+    #[tokio::test]
+    async fn request_and_wait_returns_decline_and_cancel_actions() {
+        let manager = Arc::new(ActionRequiredManager::new());
+        let decline_waiter = {
+            let manager = manager.clone();
+            tokio::spawn(async move {
+                manager
+                    .request_and_wait(
+                        "session-a".to_string(),
+                        "Need input A".to_string(),
+                        json!({ "type": "object" }),
+                        Duration::from_secs(5),
+                    )
+                    .await
+            })
+        };
+        let cancel_waiter = {
+            let manager = manager.clone();
+            tokio::spawn(async move {
+                manager
+                    .request_and_wait(
+                        "session-b".to_string(),
+                        "Need input B".to_string(),
+                        json!({ "type": "object" }),
+                        Duration::from_secs(5),
+                    )
+                    .await
+            })
+        };
+
+        let decline_messages = wait_for_elicitation_messages(&manager, "session-a").await;
+        let decline_request_id = elicitation_id(&decline_messages[0]);
+        let cancel_messages = wait_for_elicitation_messages(&manager, "session-b").await;
+        let cancel_request_id = elicitation_id(&cancel_messages[0]);
+
+        manager
+            .claim_response("session-a", &decline_request_id)
+            .await
+            .unwrap()
+            .submit(ElicitationResponse::Decline)
+            .unwrap();
+        manager
+            .claim_response("session-b", &cancel_request_id)
+            .await
+            .unwrap()
+            .submit(ElicitationResponse::Cancel)
+            .unwrap();
+
+        assert_eq!(
+            decline_waiter.await.unwrap().unwrap(),
+            ElicitationResponse::Decline
+        );
+        assert_eq!(
+            cancel_waiter.await.unwrap().unwrap(),
+            ElicitationResponse::Cancel
+        );
+    }
 }

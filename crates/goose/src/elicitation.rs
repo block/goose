@@ -1,4 +1,5 @@
 use anyhow::Result;
+use rmcp::model::ElicitationAction;
 use serde_json::Value;
 
 use crate::action_required_manager::{ActionRequiredManager, ElicitationResponse};
@@ -8,8 +9,15 @@ use crate::session::SessionManager;
 fn elicitation_response_user_data(response: &ElicitationResponse) -> Value {
     match response {
         ElicitationResponse::Accept(user_data) => user_data.clone(),
-        ElicitationResponse::Decline => serde_json::json!({ "action": "decline" }),
-        ElicitationResponse::Cancel => serde_json::json!({ "action": "cancel" }),
+        ElicitationResponse::Decline | ElicitationResponse::Cancel => serde_json::json!({}),
+    }
+}
+
+fn elicitation_response_action(response: &ElicitationResponse) -> ElicitationAction {
+    match response {
+        ElicitationResponse::Accept(_) => ElicitationAction::Accept,
+        ElicitationResponse::Decline => ElicitationAction::Decline,
+        ElicitationResponse::Cancel => ElicitationAction::Cancel,
     }
 }
 
@@ -22,6 +30,7 @@ fn generated_elicitation_response_message(
         .with_content(MessageContent::action_required_elicitation_response(
             elicitation_id.to_string(),
             elicitation_response_user_data(response),
+            elicitation_response_action(response),
         ))
         .agent_only()
 }

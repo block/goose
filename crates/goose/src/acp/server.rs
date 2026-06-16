@@ -3656,6 +3656,7 @@ print(\"hello, world\")
             goose_mode: GooseMode::default(),
             archived_at: None,
             project_id: None,
+            last_message_snippet: None,
         }
     }
 

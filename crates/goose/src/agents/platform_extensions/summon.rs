@@ -58,6 +58,7 @@ pub struct DelegateParams {
     pub model: Option<String>,
     pub temperature: Option<f32>,
     pub max_turns: Option<usize>,
+    pub working_dir: Option<String>,
     #[serde(default)]
     pub r#async: bool,
 }
@@ -79,6 +80,7 @@ pub struct CompletedTask {
     pub result: Result<String, String>,
     pub turns_taken: u32,
     pub duration: Duration,
+    pub completed_at: Instant,
 }
 
 #[derive(Debug, Deserialize)]
@@ -401,6 +403,13 @@ fn max_background_tasks() -> usize {
         .unwrap_or(5)
 }
 
+fn completed_task_ttl() -> Duration {
+    let secs = Config::global()
+        .get_param::<u64>("GOOSE_COMPLETED_TASK_TTL_SECS")
+        .unwrap_or(600);
+    Duration::from_secs(secs)
+}
+
 fn is_session_id(s: &str) -> bool {
     let parts: Vec<&str> = s.split('_').collect();
     parts.len() == 2 && parts[0].len() == 8 && parts[0].chars().all(|c| c.is_ascii_digit())
@@ -533,6 +542,10 @@ impl SummonClient {
                     "type": "integer",
                     "minimum": 1,
                     "description": "Maximum turns for this delegate. Overrides recipe settings.max_turns and GOOSE_SUBAGENT_MAX_TURNS."
+                },
+                "working_dir": {
+                    "type": "string",
+                    "description": "Working directory for the delegate. Must be within the parent session's working directory. Defaults to the parent's working directory."
                 },
                 "async": {
                     "type": "boolean",
@@ -1096,7 +1109,7 @@ impl SummonClient {
             .context
             .session_manager
             .create_session(
-                working_dir,
+                task_config.parent_working_dir.clone(),
                 "Delegated task".to_string(),
                 SessionType::SubAgent,
                 GooseMode::Auto,
@@ -1212,7 +1225,7 @@ impl SummonClient {
                 return Err(format!(
                     "Source '{}' has kind '{}' which cannot be delegated from summon",
                     source_name, source.source_type
-                ))
+                ));
             }
         };
 
@@ -1370,7 +1383,20 @@ impl SummonClient {
             if filter.is_empty() {
                 extensions = Vec::new();
             } else {
+                let available_names: Vec<String> =
+                    extensions.iter().map(|ext| ext.name()).collect();
                 extensions.retain(|ext| filter.contains(&ext.name()));
+                let unmatched: Vec<&str> = filter
+                    .iter()
+                    .filter(|name| !available_names.iter().any(|n| n == *name))
+                    .map(String::as_str)
+                    .collect();
+                if !unmatched.is_empty() {
+                    warn!(
+                        "Delegate requested extensions not available in session: {:?}. Available: {:?}",
+                        unmatched, available_names
+                    );
+                }
             }
         }
 
@@ -1387,8 +1413,14 @@ impl SummonClient {
             );
         }
 
-        let task_config = TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
-            .with_max_turns(Some(max_turns));
+        let effective_working_dir = match &params.working_dir {
+            Some(dir) => resolve_working_dir(&session.working_dir, dir)?,
+            None => session.working_dir.clone(),
+        };
+
+        let task_config =
+            TaskConfig::new(provider, &session.id, &effective_working_dir, extensions)
+                .with_max_turns(Some(max_turns));
 
         Ok(task_config)
     }
@@ -1536,9 +1568,13 @@ impl SummonClient {
                     result,
                     turns_taken,
                     duration,
+                    completed_at: Instant::now(),
                 },
             );
         }
+
+        let ttl = completed_task_ttl();
+        completed.retain(|_id, task| task.completed_at.elapsed() <= ttl);
     }
 
     fn get_task_description(params: &DelegateParams) -> String {
@@ -1599,7 +1635,7 @@ impl SummonClient {
             .context
             .session_manager
             .create_session(
-                working_dir,
+                task_config.parent_working_dir.clone(),
                 description.clone(),
                 SessionType::SubAgent,
                 GooseMode::Auto,
@@ -1817,6 +1853,34 @@ impl McpClientTrait for SummonClient {
     }
 }
 
+/// Resolve a requested `working_dir` override against the parent session
+/// directory. Relative paths are joined to the parent dir; the result must
+/// canonicalize to an existing directory contained within the parent dir.
+fn resolve_working_dir(parent_dir: &Path, requested: &str) -> Result<PathBuf, anyhow::Error> {
+    let requested_path = PathBuf::from(requested);
+    let resolved = if requested_path.is_absolute() {
+        requested_path
+    } else {
+        parent_dir.join(&requested_path)
+    };
+    let canonical = resolved
+        .canonicalize()
+        .map_err(|e| anyhow::anyhow!("working_dir '{}' could not be resolved: {}", requested, e))?;
+    let parent_canonical = parent_dir
+        .canonicalize()
+        .unwrap_or_else(|_| parent_dir.to_path_buf());
+    if !canonical.starts_with(&parent_canonical) {
+        anyhow::bail!(
+            "working_dir '{}' is outside the parent session directory",
+            requested
+        );
+    }
+    if !canonical.is_dir() {
+        anyhow::bail!("working_dir '{}' is not a directory", requested);
+    }
+    Ok(canonical)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1847,6 +1911,58 @@ You review code."#;
         assert!(source.description.contains("sonnet"));
     }
 
+    #[test]
+    fn test_resolve_working_dir_relative_subdir() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path().canonicalize().unwrap();
+        let subdir = parent.join("sub");
+        fs::create_dir(&subdir).unwrap();
+
+        let resolved = resolve_working_dir(&parent, "sub").unwrap();
+        assert_eq!(resolved, subdir.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_resolve_working_dir_rejects_traversal_outside_parent() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path().join("parent");
+        let sibling = temp_dir.path().join("sibling");
+        fs::create_dir(&parent).unwrap();
+        fs::create_dir(&sibling).unwrap();
+
+        let err = resolve_working_dir(&parent, "../sibling").unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("outside the parent session directory"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_resolve_working_dir_rejects_file_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path().canonicalize().unwrap();
+        let file = parent.join("a.txt");
+        fs::write(&file, "hello").unwrap();
+
+        let err = resolve_working_dir(&parent, "a.txt").unwrap_err();
+        assert!(
+            err.to_string().contains("is not a directory"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_resolve_working_dir_rejects_nonexistent_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path().canonicalize().unwrap();
+
+        let err = resolve_working_dir(&parent, "does-not-exist").unwrap_err();
+        assert!(
+            err.to_string().contains("could not be resolved"),
+            "unexpected error: {err}"
+        );
+    }
     #[test]
     fn test_agent_scan_skips_non_agent_markdown() {
         let temp_dir = TempDir::new().unwrap();
@@ -2387,6 +2503,7 @@ You review code."#;
                     result: Ok("Task completed successfully with output".to_string()),
                     turns_taken: 5,
                     duration: Duration::from_secs(60),
+                    completed_at: Instant::now(),
                 },
             );
             completed.insert(
@@ -2397,6 +2514,7 @@ You review code."#;
                     result: Err("Something went wrong".to_string()),
                     turns_taken: 3,
                     duration: Duration::from_secs(30),
+                    completed_at: Instant::now(),
                 },
             );
         }
