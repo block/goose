@@ -899,6 +899,9 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
           recipeParameters: recipeParameters,
           scheduledJobId: scheduledJobId,
           SECURITY_ML_MODEL_MAPPING: process.env.SECURITY_ML_MODEL_MAPPING,
+          SECURITY_PROMPT_ENABLED_OVERRIDE: process.env.SECURITY_PROMPT_ENABLED_OVERRIDE,
+          SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE:
+            process.env.SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE,
         }),
       ],
       partition: 'persist:goose',
@@ -1879,6 +1882,33 @@ ipcMain.handle('select-file-or-directory', async (_event, defaultPath?: string) 
   return null;
 });
 
+// Native picker tailored for session imports: shows hidden files (so users can
+// reach `~/.claude/projects/...` or `~/.pi/agent/sessions/...`), filters for
+// .json/.jsonl, and returns the file's contents inline so the renderer doesn't
+// need a separate read step.
+ipcMain.handle('select-import-session-file', async () => {
+  const result = (await dialog.showOpenDialog({
+    title: 'Import session',
+    defaultPath: os.homedir(),
+    properties: ['openFile', 'showHiddenFiles'],
+    filters: [
+      { name: 'Session files', extensions: ['json', 'jsonl'] },
+      { name: 'All files', extensions: ['*'] },
+    ],
+  })) as unknown as OpenDialogReturnValue;
+
+  if (result.canceled || result.filePaths.length === 0) {
+    return null;
+  }
+  const filePath = result.filePaths[0];
+  try {
+    const contents = await fs.readFile(filePath, 'utf8');
+    return { filePath, contents };
+  } catch (err) {
+    return { filePath, contents: '', error: errorMessage(err) };
+  }
+});
+
 // ── Mesh-LLM lifecycle (see mesh.ts) ────────────────────────────────
 
 ipcMain.handle('check-mesh', () => mesh.check());
@@ -2254,7 +2284,7 @@ async function appMain() {
           accelerator: shortcuts.newChat,
           click() {
             const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (focusedWindow) focusedWindow.webContents.send('new-chat');
+            if (focusedWindow) focusedWindow.webContents.send('set-view', '');
           },
         })
       );

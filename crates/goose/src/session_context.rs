@@ -22,6 +22,20 @@ pub fn current_session_id() -> Option<String> {
     SESSION_ID.try_with(|id| id.clone()).ok().flatten()
 }
 
+/// Local OS user running goose, shared by the OTLP `user.name` resource
+/// attribute and the `session.user` span attribute so the two never drift.
+pub fn session_user() -> String {
+    std::env::var("USER")
+        .or_else(|_| std::env::var("LOGNAME"))
+        .unwrap_or_else(|_| "unknown".to_string())
+}
+
+/// Hostname of the machine running goose, shared by the OTLP `host.name`
+/// resource attribute and the `session.host` span attribute.
+pub fn session_host() -> String {
+    gethostname::gethostname().to_string_lossy().to_string()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

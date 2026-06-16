@@ -1,6 +1,8 @@
 use anyhow::{bail, Result};
 use serde::{Deserialize, Serialize};
 
+use crate::providers::huggingface_auth;
+
 use utoipa::ToSchema;
 
 const HF_API_BASE: &str = "https://huggingface.co/api/models";
@@ -245,6 +247,26 @@ fn build_download_url(repo_id: &str, filename: &str) -> String {
     format!("{}/{}/resolve/main/{}", HF_DOWNLOAD_BASE, repo_id, filename)
 }
 
+pub fn hf_authorization_header(token: Option<&str>) -> Option<String> {
+    token
+        .filter(|token| !token.is_empty())
+        .map(|token| format!("Bearer {}", token))
+}
+
+fn apply_hf_auth(request: reqwest::RequestBuilder, token: Option<&str>) -> reqwest::RequestBuilder {
+    if let Some(header) = hf_authorization_header(token) {
+        request.header("Authorization", header)
+    } else {
+        request
+    }
+}
+
+async fn optional_hf_token(
+    token: impl std::future::Future<Output = Result<Option<String>>>,
+) -> Option<String> {
+    token.await.ok().flatten()
+}
+
 fn parent_components(filename: &str) -> Vec<&str> {
     filename.rsplit_once('/').map_or(Vec::new(), |(parent, _)| {
         parent.split('/').filter(|part| !part.is_empty()).collect()
@@ -404,13 +426,13 @@ fn group_into_variants(repo_id: &str, files: Vec<HfApiSibling>) -> Vec<HfQuantVa
 
 pub async fn search_gguf_models(query: &str, limit: usize) -> Result<Vec<HfModelInfo>> {
     let client = reqwest::Client::new();
+    let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
     let url = format!(
         "{}?search={}&filter=gguf&sort=downloads&direction=-1&limit={}",
         HF_API_BASE, query, limit
     );
 
-    let response = client
-        .get(&url)
+    let response = apply_hf_auth(client.get(&url), token.as_deref())
         .header("User-Agent", "goose-ai-agent")
         .send()
         .await?;
@@ -469,10 +491,10 @@ pub async fn search_gguf_models(query: &str, limit: usize) -> Result<Vec<HfModel
 /// Fetch GGUF files for a repo and return them grouped by quantization.
 pub async fn get_repo_gguf_variants(repo_id: &str) -> Result<Vec<HfQuantVariant>> {
     let client = reqwest::Client::new();
+    let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
     let url = format!("{}/{}?blobs=true", HF_API_BASE, repo_id);
 
-    let response = client
-        .get(&url)
+    let response = apply_hf_auth(client.get(&url), token.as_deref())
         .header("User-Agent", "goose-ai-agent")
         .send()
         .await?;
@@ -494,10 +516,10 @@ pub async fn get_repo_gguf_variants(repo_id: &str) -> Result<Vec<HfQuantVariant>
 /// Fetch raw GGUF files (kept for resolve_model_spec).
 pub async fn get_repo_gguf_files(repo_id: &str) -> Result<Vec<HfGgufFile>> {
     let client = reqwest::Client::new();
+    let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
     let url = format!("{}/{}?blobs=true", HF_API_BASE, repo_id);
 
-    let response = client
-        .get(&url)
+    let response = apply_hf_auth(client.get(&url), token.as_deref())
         .header("User-Agent", "goose-ai-agent")
         .send()
         .await?;
@@ -556,9 +578,9 @@ pub async fn resolve_model_spec_full(spec: &str) -> Result<(String, ResolvedMode
     let (repo_id, quant) = parse_model_spec(spec)?;
 
     let client = reqwest::Client::new();
+    let token = optional_hf_token(huggingface_auth::resolve_token_async()).await;
     let url = format!("{}/{}?blobs=true", HF_API_BASE, repo_id);
-    let response = client
-        .get(&url)
+    let response = apply_hf_auth(client.get(&url), token.as_deref())
         .header("User-Agent", "goose-ai-agent")
         .send()
         .await?;
@@ -737,6 +759,16 @@ mod tests {
         assert_eq!(parse_quantization("Model-IQ4_NL.gguf"), "IQ4_NL");
         assert_eq!(parse_quantization("Model-F16.gguf"), "F16");
         assert_eq!(parse_quantization("random-name.gguf"), "unknown");
+    }
+
+    #[test]
+    fn test_hf_authorization_header() {
+        assert_eq!(
+            hf_authorization_header(Some("hf_test")).as_deref(),
+            Some("Bearer hf_test")
+        );
+        assert_eq!(hf_authorization_header(Some("")), None);
+        assert_eq!(hf_authorization_header(None), None);
     }
 
     #[test]
@@ -924,6 +956,21 @@ mod tests {
 
         assert_eq!(mmproj.filename, "mmproj-BF16.gguf");
         assert_eq!(mmproj.quantization, "BF16");
+    }
+
+    #[tokio::test]
+    async fn optional_hf_token_returns_resolved_token() {
+        let token = optional_hf_token(async { Ok(Some("token".to_string())) }).await;
+
+        assert_eq!(token.as_deref(), Some("token"));
+    }
+
+    #[tokio::test]
+    async fn optional_hf_token_ignores_resolution_errors() {
+        let token =
+            optional_hf_token(async { Err(anyhow::anyhow!("refresh token revoked")) }).await;
+
+        assert_eq!(token, None);
     }
 
     #[test]

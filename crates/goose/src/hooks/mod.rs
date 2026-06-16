@@ -233,6 +233,11 @@ impl HookManager {
         Self::from_plugins(plugins)
     }
 
+    #[cfg(test)]
+    pub(crate) fn from_plugins_for_test(plugins: Vec<DiscoveredPlugin>) -> Self {
+        Self::from_plugins(plugins)
+    }
+
     fn from_plugins(plugins: Vec<DiscoveredPlugin>) -> Self {
         let mut rules: HashMap<HookEvent, Vec<LoadedRule>> = HashMap::new();
         let mut total = 0usize;
@@ -618,6 +623,33 @@ mod tests {
 
         let written = std::fs::read_to_string(&marker).unwrap();
         assert_eq!(written.trim(), root.to_string_lossy());
+    }
+
+    #[tokio::test]
+    async fn stop_hook_emit_blocking_returns_denial() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = write_plugin(
+            tmp.path(),
+            "p",
+            r#"{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"printf '%s' '{\"decision\":\"block\",\"reason\":\"say something first\"}'"}]}]}}"#,
+        );
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+
+        let decision = mgr
+            .emit_blocking(HookEvent::Stop, HookContext::new(HookEvent::Stop, "s"))
+            .await;
+
+        assert_eq!(
+            decision,
+            HookDecision::Deny {
+                reason: "say something first".into(),
+                plugin: "p".into(),
+            }
+        );
     }
 
     #[tokio::test]

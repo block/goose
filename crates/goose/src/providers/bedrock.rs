@@ -1,9 +1,6 @@
 use std::collections::HashMap;
 
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
-};
-use super::errors::ProviderError;
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -14,6 +11,8 @@ use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::{types as bedrock, Client};
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::errors::ProviderError;
 use reqwest::header::HeaderValue;
 use rmcp::model::Tool;
 use serde_json::Value;
@@ -291,6 +290,10 @@ impl BedrockProvider {
                         err
                     ))
                 }
+                ConverseError::ValidationException(err) => ProviderError::ExecutionError(format!(
+                    "Bedrock validation error: {}",
+                    err.message().unwrap_or("unknown validation error")
+                )),
                 ConverseError::ModelErrorException(err) => {
                     ProviderError::ExecutionError(format!("Failed to call Bedrock: {:?}", err))
                 }
