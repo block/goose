@@ -9,7 +9,6 @@ use goose_providers::errors::ProviderError;
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::formats::google::{create_request, response_to_streaming_message};
-use crate::providers::inventory::{config_secret_value, InventoryIdentityInput};
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -23,7 +22,7 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
-const GOOGLE_PROVIDER_NAME: &str = "google";
+pub(crate) const GOOGLE_PROVIDER_NAME: &str = "google";
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-pro";
 pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash";
@@ -135,27 +134,6 @@ impl ProviderDef for GoogleProvider {
         _extensions: Vec<crate::config::ExtensionConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
-    }
-
-    fn supports_inventory_refresh() -> bool {
-        true
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        let config = crate::config::Config::global();
-        let mut identity = InventoryIdentityInput::new(GOOGLE_PROVIDER_NAME, GOOGLE_PROVIDER_NAME)
-            .with_public(
-                "host",
-                config
-                    .get_param::<String>("GOOGLE_HOST")
-                    .unwrap_or_else(|_| GOOGLE_API_HOST.to_string()),
-            );
-
-        if let Some(api_key) = config_secret_value(config, "GOOGLE_API_KEY") {
-            identity = identity.with_secret("api_key", api_key);
-        }
-
-        Ok(identity)
     }
 }
 

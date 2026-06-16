@@ -9,11 +9,9 @@ use crate::acp::{
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::model::ModelConfig;
-use crate::providers::acp_tooling::{acp_adapter_installed, acp_inventory_identity};
 use crate::providers::base::{current_working_dir, ProviderDef, ProviderMetadata};
-use crate::providers::inventory::InventoryIdentityInput;
 
-const CODEX_ACP_PROVIDER_NAME: &str = "codex-acp";
+pub(crate) const CODEX_ACP_PROVIDER_NAME: &str = "codex-acp";
 const CODEX_ACP_DOC_URL: &str = "https://github.com/zed-industries/codex-acp";
 
 pub struct CodexAcpProvider;
@@ -106,18 +104,6 @@ impl ProviderDef for CodexAcpProvider {
             let metadata = Self::metadata();
             AcpProvider::connect(metadata.name, model, goose_mode, provider_config).await
         })
-    }
-
-    fn supports_inventory_refresh() -> bool {
-        true
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        acp_inventory_identity(CODEX_ACP_PROVIDER_NAME, CODEX_ACP_PROVIDER_NAME)
-    }
-
-    fn inventory_configured() -> bool {
-        acp_adapter_installed(CODEX_ACP_PROVIDER_NAME)
     }
 }
 
