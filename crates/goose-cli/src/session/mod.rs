@@ -986,20 +986,24 @@ impl CliSession {
         let new_model_config =
             build_switched_model_config(&chosen_provider, &chosen_model, current_model_config)?;
         let extensions = self.agent.get_extension_configs().await;
-        let new_provider = goose::providers::create(&chosen_provider, new_model_config, extensions)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
+        let probe_provider = goose::providers::create(
+            &chosen_provider,
+            new_model_config.clone(),
+            extensions.clone(),
+        )
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
 
         // Probe the model before committing the switch: some providers list
         // models their account can't actually run (e.g. NVIDIA returns 404
         // "function not found"), and a dead/stuck endpoint shouldn't silently
         // become the session model.
         let _ = cliclack::log::info(format!("Checking '{chosen_model}' responds…"));
-        let probe_config = new_provider.get_model_config();
+        let probe_config = probe_provider.get_model_config();
         let probe_msg = [Message::user().with_text("ok")];
         match tokio::time::timeout(
             Duration::from_secs(30),
-            new_provider.complete(&probe_config, "model-check", "", &probe_msg, &[]),
+            probe_provider.complete(&probe_config, "model-check", "", &probe_msg, &[]),
         )
         .await
         {
@@ -1018,6 +1022,15 @@ impl CliSession {
             }
         }
 
+        // The probe can consume one-time per-provider state: an ACP provider
+        // (claude-acp/codex-acp) treats its first prompt as its handoff-context
+        // opportunity, so installing the probed instance would drop the existing
+        // conversation history on the user's first real prompt. Drop the probe
+        // and install a fresh instance.
+        drop(probe_provider);
+        let new_provider = goose::providers::create(&chosen_provider, new_model_config, extensions)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
         self.agent
             .update_provider(new_provider, &self.session_id)
             .await?;
