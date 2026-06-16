@@ -452,13 +452,19 @@ impl OpenAiProvider {
         let normalized = stripped.trim_end_matches('/');
         if normalized.is_empty() {
             "v1/chat/completions".to_string()
-        } else if normalized == "v1" || normalized.ends_with("/v1") {
-            format!("{}/chat/completions", normalized)
         } else if normalized.ends_with("chat/completions") {
             stripped.to_string()
+        } else if Self::ends_with_version_segment(normalized) {
+            format!("{}/chat/completions", normalized)
         } else {
             format!("{}/v1/chat/completions", normalized)
         }
+    }
+
+    fn ends_with_version_segment(path: &str) -> bool {
+        let last = path.rsplit('/').next().unwrap_or(path);
+        last.strip_prefix('v')
+            .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()))
     }
 
     fn normalize_base_path(base_path: &str) -> String {
@@ -1231,6 +1237,21 @@ mod tests {
     fn derive_base_path_should_support_no_base_path() {
         let r = OpenAiProvider::derive_base_path("https://opencode.ai/");
         assert_eq!(r, "https://opencode.ai/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_preserves_non_v1_version_prefix() {
+        // Zhipu's default base_url is https://open.bigmodel.cn/api/paas/v4 and
+        // from_custom_config passes url.path() ("/api/paas/v4") here. The
+        // existing /api/paas/v4 version must not gain an extra /v1 segment.
+        let r = OpenAiProvider::derive_base_path("/api/paas/v4");
+        assert_eq!(r, "api/paas/v4/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_does_not_treat_v_word_as_version() {
+        let r = OpenAiProvider::derive_base_path("/api/voice");
+        assert_eq!(r, "api/voice/v1/chat/completions");
     }
 
     #[test]
