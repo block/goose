@@ -904,15 +904,14 @@ impl CliSession {
                 Ok(c) => c.with_canonical_limits(&meta.name),
                 Err(_) => continue,
             };
-            let temp_provider = match goose::providers::create(&meta.name, model_config, Vec::new())
-                .await
-            {
-                Ok(p) => p,
-                Err(_) => {
-                    skipped.push(meta.display_name.clone());
-                    continue;
-                }
-            };
+            let temp_provider =
+                match goose::providers::create(&meta.name, model_config, Vec::new()).await {
+                    Ok(p) => p,
+                    Err(_) => {
+                        skipped.push(meta.display_name.clone());
+                        continue;
+                    }
+                };
 
             match tokio::time::timeout(
                 Duration::from_secs(15),
