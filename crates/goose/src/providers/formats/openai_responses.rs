@@ -1,11 +1,12 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
-use anyhow::{anyhow, Error};
+use anyhow::Error;
 use async_stream::try_stream;
 use chrono;
 use futures::Stream;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, openai_reasoning_effort_for_thinking,
 };
@@ -249,11 +250,10 @@ fn is_known_responses_stream_event_type(event_type: &str) -> bool {
 
 fn parse_responses_stream_event(data_line: &str) -> anyhow::Result<Option<ResponsesStreamEvent>> {
     let raw_event: Value = serde_json::from_str(data_line).map_err(|e| {
-        anyhow!(
+        ProviderError::stream_decode_error(format!(
             "Failed to parse Responses stream event: {}: {:?}",
-            e,
-            data_line
-        )
+            e, data_line
+        ))
     })?;
 
     let Some(event_type) = raw_event.get("type").and_then(Value::as_str) else {
@@ -265,11 +265,10 @@ fn parse_responses_stream_event(data_line: &str) -> anyhow::Result<Option<Respon
     }
 
     let event = serde_json::from_value(raw_event).map_err(|e| {
-        anyhow!(
+        ProviderError::stream_decode_error(format!(
             "Failed to parse Responses stream event: {}: {:?}",
-            e,
-            data_line
-        )
+            e, data_line
+        ))
     })?;
     Ok(Some(event))
 }
@@ -911,11 +910,17 @@ where
                 }
 
                 ResponsesStreamEvent::ResponseFailed { error, .. } => {
-                    Err(anyhow!("Responses API failed: {:?}", error))?;
+                    Err::<(), ProviderError>(ProviderError::RequestFailed(format!(
+                        "Responses API failed: {:?}",
+                        error
+                    )))?;
                 }
 
                 ResponsesStreamEvent::Error { error } => {
-                    Err(anyhow!("Responses API error: {:?}", error))?;
+                    Err::<(), ProviderError>(ProviderError::RequestFailed(format!(
+                        "Responses API error: {:?}",
+                        error
+                    )))?;
                 }
 
                 _ => {
