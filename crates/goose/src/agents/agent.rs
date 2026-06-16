@@ -16,7 +16,7 @@ use super::mcp_client::GooseMcpHostInfo;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::action_required_manager::{ActionRequiredManager, ElicitationResponse};
+use crate::action_required_manager::{ActionRequiredManager, ElicitationOutcome};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
     get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
@@ -1465,9 +1465,9 @@ impl Agent {
                     // The success path returns an empty stream after the MCP
                     // server receives the user's accept/decline/cancel action.
                     let response = match action {
-                        ElicitationAction::Accept => ElicitationResponse::Accept(user_data.clone()),
-                        ElicitationAction::Decline => ElicitationResponse::Decline,
-                        ElicitationAction::Cancel => ElicitationResponse::Cancel,
+                        ElicitationAction::Accept => ElicitationOutcome::Accept(user_data.clone()),
+                        ElicitationAction::Decline => ElicitationOutcome::Decline,
+                        ElicitationAction::Cancel => ElicitationOutcome::Cancel,
                     };
                     crate::elicitation::complete_elicitation_with_message(
                         &session_manager,

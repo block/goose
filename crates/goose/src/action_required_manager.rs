@@ -11,7 +11,7 @@ use uuid::Uuid;
 use crate::conversation::message::{Message, MessageContent};
 
 #[derive(Debug, Clone, PartialEq)]
-pub(crate) enum ElicitationResponse {
+pub(crate) enum ElicitationOutcome {
     Accept(Value),
     Decline,
     Cancel,
@@ -19,7 +19,7 @@ pub(crate) enum ElicitationResponse {
 
 struct PendingRequest {
     session_id: String,
-    response_tx: Option<tokio::sync::oneshot::Sender<ElicitationResponse>>,
+    response_tx: Option<tokio::sync::oneshot::Sender<ElicitationOutcome>>,
 }
 
 pub(crate) struct PendingResponseClaim {
@@ -28,7 +28,7 @@ pub(crate) struct PendingResponseClaim {
 }
 
 impl PendingResponseClaim {
-    pub(crate) fn submit(mut self, response: ElicitationResponse) -> Result<()> {
+    pub(crate) fn submit(mut self, response: ElicitationOutcome) -> Result<()> {
         let tx = self
             .pending
             .response_tx
@@ -69,7 +69,7 @@ impl ActionRequiredManager {
         message: String,
         schema: Value,
         timeout_duration: Duration,
-    ) -> Result<ElicitationResponse> {
+    ) -> Result<ElicitationOutcome> {
         let id = Uuid::new_v4().to_string();
         let (tx, rx) = tokio::sync::oneshot::channel();
         let pending_request = PendingRequest {
@@ -147,9 +147,9 @@ impl ActionRequiredManager {
         &self,
         request_id: &str,
         pending_request: Arc<Mutex<PendingRequest>>,
-        mut rx: tokio::sync::oneshot::Receiver<ElicitationResponse>,
+        mut rx: tokio::sync::oneshot::Receiver<ElicitationOutcome>,
         timeout_duration: Duration,
-    ) -> Result<ElicitationResponse> {
+    ) -> Result<ElicitationOutcome> {
         match timeout(timeout_duration, &mut rx).await {
             Ok(response) => Self::finish_waiting(request_id, response),
             Err(_) => {
@@ -168,8 +168,8 @@ impl ActionRequiredManager {
 
     fn finish_waiting(
         request_id: &str,
-        response: Result<ElicitationResponse, tokio::sync::oneshot::error::RecvError>,
-    ) -> Result<ElicitationResponse> {
+        response: Result<ElicitationOutcome, tokio::sync::oneshot::error::RecvError>,
+    ) -> Result<ElicitationOutcome> {
         match response {
             Ok(user_data) => Ok(user_data),
             Err(_) => {
@@ -253,13 +253,13 @@ mod tests {
             .claim_response("session-a", &request_id)
             .await
             .unwrap()
-            .submit(ElicitationResponse::Accept(json!({ "answer": "right" })))
+            .submit(ElicitationOutcome::Accept(json!({ "answer": "right" })))
             .unwrap();
 
         let response = waiter.await.unwrap().unwrap();
         assert_eq!(
             response,
-            ElicitationResponse::Accept(json!({ "answer": "right" }))
+            ElicitationOutcome::Accept(json!({ "answer": "right" }))
         );
     }
 
@@ -308,22 +308,22 @@ mod tests {
             .claim_response("session-a", &request_id_a)
             .await
             .unwrap()
-            .submit(ElicitationResponse::Accept(json!({ "answer": "a" })))
+            .submit(ElicitationOutcome::Accept(json!({ "answer": "a" })))
             .unwrap();
         manager
             .claim_response("session-b", &request_id_b)
             .await
             .unwrap()
-            .submit(ElicitationResponse::Accept(json!({ "answer": "b" })))
+            .submit(ElicitationOutcome::Accept(json!({ "answer": "b" })))
             .unwrap();
 
         assert_eq!(
             waiter_a.await.unwrap().unwrap(),
-            ElicitationResponse::Accept(json!({ "answer": "a" }))
+            ElicitationOutcome::Accept(json!({ "answer": "a" }))
         );
         assert_eq!(
             waiter_b.await.unwrap().unwrap(),
-            ElicitationResponse::Accept(json!({ "answer": "b" }))
+            ElicitationOutcome::Accept(json!({ "answer": "b" }))
         );
     }
 
@@ -356,12 +356,12 @@ mod tests {
         tokio::time::sleep(Duration::from_millis(50)).await;
 
         claim
-            .submit(ElicitationResponse::Accept(json!({ "answer": "late" })))
+            .submit(ElicitationOutcome::Accept(json!({ "answer": "late" })))
             .unwrap();
 
         assert_eq!(
             waiter.await.unwrap().unwrap(),
-            ElicitationResponse::Accept(json!({ "answer": "late" }))
+            ElicitationOutcome::Accept(json!({ "answer": "late" }))
         );
     }
 
@@ -404,22 +404,22 @@ mod tests {
             .claim_response("session-a", &decline_request_id)
             .await
             .unwrap()
-            .submit(ElicitationResponse::Decline)
+            .submit(ElicitationOutcome::Decline)
             .unwrap();
         manager
             .claim_response("session-b", &cancel_request_id)
             .await
             .unwrap()
-            .submit(ElicitationResponse::Cancel)
+            .submit(ElicitationOutcome::Cancel)
             .unwrap();
 
         assert_eq!(
             decline_waiter.await.unwrap().unwrap(),
-            ElicitationResponse::Decline
+            ElicitationOutcome::Decline
         );
         assert_eq!(
             cancel_waiter.await.unwrap().unwrap(),
-            ElicitationResponse::Cancel
+            ElicitationOutcome::Cancel
         );
     }
 }

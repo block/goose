@@ -10,7 +10,7 @@ use agent_client_protocol::{
 };
 use tracing::warn;
 
-use crate::action_required_manager::ElicitationResponse;
+use crate::action_required_manager::ElicitationOutcome;
 use crate::session::SessionManager;
 
 impl super::GooseAcpAgent {
@@ -71,7 +71,7 @@ impl super::GooseAcpAgent {
                 &self.session_manager,
                 &session_id,
                 &elicitation_id,
-                ElicitationResponse::Cancel,
+                ElicitationOutcome::Cancel,
             )
             .await;
             return Ok(());
@@ -85,7 +85,7 @@ impl super::GooseAcpAgent {
                         &self.session_manager,
                         &session_id,
                         &elicitation_id,
-                        ElicitationResponse::Cancel,
+                        ElicitationOutcome::Cancel,
                     )
                     .await;
                     return Err(agent_client_protocol::Error::internal_error()
@@ -116,7 +116,7 @@ impl super::GooseAcpAgent {
                             elicitation_id = %callback_elicitation_id,
                             "ACP elicitation request failed"
                         );
-                        ElicitationResponse::Cancel
+                        ElicitationOutcome::Cancel
                     }
                 };
 
@@ -135,7 +135,7 @@ impl super::GooseAcpAgent {
                 &self.session_manager,
                 &session_id,
                 &elicitation_id,
-                ElicitationResponse::Cancel,
+                ElicitationOutcome::Cancel,
             )
             .await;
             return Err(error);
@@ -149,7 +149,7 @@ impl super::GooseAcpAgent {
             &self.session_manager,
             session_id,
             elicitation_id,
-            ElicitationResponse::Cancel,
+            ElicitationOutcome::Cancel,
         )
         .await;
     }
@@ -213,18 +213,18 @@ pub(super) fn client_supports_form_elicitation(
         .is_some()
 }
 
-fn elicitation_response_from_acp(response: CreateElicitationResponse) -> ElicitationResponse {
+fn elicitation_response_from_acp(response: CreateElicitationResponse) -> ElicitationOutcome {
     match response.action {
         AcpElicitationAction::Accept(action) => {
             let content = serde_json::to_value(action.content.unwrap_or_default())
                 .unwrap_or_else(|_| serde_json::Value::Object(serde_json::Map::new()));
-            ElicitationResponse::Accept(content)
+            ElicitationOutcome::Accept(content)
         }
-        AcpElicitationAction::Decline => ElicitationResponse::Decline,
-        AcpElicitationAction::Cancel => ElicitationResponse::Cancel,
+        AcpElicitationAction::Decline => ElicitationOutcome::Decline,
+        AcpElicitationAction::Cancel => ElicitationOutcome::Cancel,
         action => {
             warn!(?action, "Unsupported ACP elicitation action");
-            ElicitationResponse::Cancel
+            ElicitationOutcome::Cancel
         }
     }
 }
@@ -233,7 +233,7 @@ async fn record_acp_elicitation_response(
     session_manager: &SessionManager,
     session_id: &str,
     elicitation_id: &str,
-    response: ElicitationResponse,
+    response: ElicitationOutcome,
 ) {
     if let Err(error) = crate::elicitation::complete_elicitation_with_generated_message(
         session_manager,

@@ -2,28 +2,28 @@ use anyhow::Result;
 use rmcp::model::ElicitationAction;
 use serde_json::Value;
 
-use crate::action_required_manager::{ActionRequiredManager, ElicitationResponse};
+use crate::action_required_manager::{ActionRequiredManager, ElicitationOutcome};
 use crate::conversation::message::{Message, MessageContent};
 use crate::session::SessionManager;
 
-fn elicitation_response_user_data(response: &ElicitationResponse) -> Value {
+fn elicitation_response_user_data(response: &ElicitationOutcome) -> Value {
     match response {
-        ElicitationResponse::Accept(user_data) => user_data.clone(),
-        ElicitationResponse::Decline | ElicitationResponse::Cancel => serde_json::json!({}),
+        ElicitationOutcome::Accept(user_data) => user_data.clone(),
+        ElicitationOutcome::Decline | ElicitationOutcome::Cancel => serde_json::json!({}),
     }
 }
 
-fn elicitation_response_action(response: &ElicitationResponse) -> ElicitationAction {
+fn elicitation_response_action(response: &ElicitationOutcome) -> ElicitationAction {
     match response {
-        ElicitationResponse::Accept(_) => ElicitationAction::Accept,
-        ElicitationResponse::Decline => ElicitationAction::Decline,
-        ElicitationResponse::Cancel => ElicitationAction::Cancel,
+        ElicitationOutcome::Accept(_) => ElicitationAction::Accept,
+        ElicitationOutcome::Decline => ElicitationAction::Decline,
+        ElicitationOutcome::Cancel => ElicitationAction::Cancel,
     }
 }
 
 fn generated_elicitation_response_message(
     elicitation_id: &str,
-    response: &ElicitationResponse,
+    response: &ElicitationOutcome,
 ) -> Message {
     Message::user()
         .with_generated_id()
@@ -39,7 +39,7 @@ pub(crate) async fn complete_elicitation_with_message(
     session_manager: &SessionManager,
     session_id: &str,
     elicitation_id: &str,
-    response: ElicitationResponse,
+    response: ElicitationOutcome,
     response_message: &Message,
 ) -> Result<()> {
     let claim = ActionRequiredManager::global()
@@ -57,7 +57,7 @@ pub(crate) async fn complete_elicitation_with_generated_message(
     session_manager: &SessionManager,
     session_id: &str,
     elicitation_id: &str,
-    response: ElicitationResponse,
+    response: ElicitationOutcome,
 ) -> Result<()> {
     let response_message = generated_elicitation_response_message(elicitation_id, &response);
     complete_elicitation_with_message(

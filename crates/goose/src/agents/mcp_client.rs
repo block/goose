@@ -1,4 +1,4 @@
-use crate::action_required_manager::{ActionRequiredManager, ElicitationResponse};
+use crate::action_required_manager::{ActionRequiredManager, ElicitationOutcome};
 use crate::agents::tool_execution::ToolCallContext;
 use crate::agents::types::SharedProvider;
 use crate::session_context::{SESSION_ID_HEADER, WORKING_DIR_HEADER};
@@ -408,13 +408,13 @@ impl ClientHandler for GooseClient {
             .request_and_wait(session_id, message, schema_value, Duration::from_secs(300))
             .await
             .map(|response| match response {
-                ElicitationResponse::Accept(user_data) => {
+                ElicitationOutcome::Accept(user_data) => {
                     CreateElicitationResult::new(ElicitationAction::Accept).with_content(user_data)
                 }
-                ElicitationResponse::Decline => {
+                ElicitationOutcome::Decline => {
                     CreateElicitationResult::new(ElicitationAction::Decline)
                 }
-                ElicitationResponse::Cancel => {
+                ElicitationOutcome::Cancel => {
                     CreateElicitationResult::new(ElicitationAction::Cancel)
                 }
             })
