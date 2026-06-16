@@ -51,7 +51,7 @@ use crate::security::security_inspector::SecurityInspector;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager, SessionNameUpdate};
 use crate::tool_inspection::ToolInspectionManager;
-use crate::tool_monitor::RepetitionInspector;
+use crate::tool_monitor::{RepetitionInspector, DEFAULT_MAX_TOOL_REPETITIONS};
 use crate::utils::is_token_cancelled;
 use goose_providers::errors::ProviderError;
 use goose_providers::thinking::ThinkingEffort;
@@ -584,7 +584,9 @@ impl Agent {
         )));
 
         // Add repetition inspector (lower priority - basic repetition checking)
-        tool_inspection_manager.add_inspector(Box::new(RepetitionInspector::new(None)));
+        tool_inspection_manager.add_inspector(Box::new(RepetitionInspector::new(Some(
+            DEFAULT_MAX_TOOL_REPETITIONS,
+        ))));
 
         tool_inspection_manager
     }

@@ -6,6 +6,9 @@ use async_trait::async_trait;
 use rmcp::model::CallToolRequestParams;
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::Mutex;
+
+pub const DEFAULT_MAX_TOOL_REPETITIONS: u32 = 2;
 
 // Helper struct for internal tracking
 #[derive(Debug, Clone)]
@@ -33,6 +36,11 @@ impl InternalToolCall {
 #[derive(Debug)]
 pub struct RepetitionInspector {
     max_repetitions: Option<u32>,
+    state: Mutex<RepetitionState>,
+}
+
+#[derive(Debug)]
+struct RepetitionState {
     last_call: Option<InternalToolCall>,
     repeat_count: u32,
     call_counts: HashMap<String, u32>,
@@ -42,13 +50,35 @@ impl RepetitionInspector {
     pub fn new(max_repetitions: Option<u32>) -> Self {
         Self {
             max_repetitions,
-            last_call: None,
-            repeat_count: 0,
-            call_counts: HashMap::new(),
+            state: Mutex::new(RepetitionState {
+                last_call: None,
+                repeat_count: 0,
+                call_counts: HashMap::new(),
+            }),
         }
     }
 
     pub fn check_tool_call(&mut self, tool_call: CallToolRequestParams) -> bool {
+        self.state
+            .get_mut()
+            .expect("repetition inspector state should not be poisoned")
+            .check_tool_call(tool_call, self.max_repetitions)
+    }
+
+    pub fn reset(&mut self) {
+        self.state
+            .get_mut()
+            .expect("repetition inspector state should not be poisoned")
+            .reset();
+    }
+}
+
+impl RepetitionState {
+    fn check_tool_call(
+        &mut self,
+        tool_call: CallToolRequestParams,
+        max_repetitions: Option<u32>,
+    ) -> bool {
         let internal_call = InternalToolCall::from_tool_call(&tool_call);
         let total_calls = self
             .call_counts
@@ -56,7 +86,7 @@ impl RepetitionInspector {
             .or_insert(0);
         *total_calls += 1;
 
-        if self.max_repetitions.is_none() {
+        if max_repetitions.is_none() {
             self.last_call = Some(internal_call);
             self.repeat_count = 1;
             return true;
@@ -65,7 +95,7 @@ impl RepetitionInspector {
         if let Some(last) = &self.last_call {
             if last.matches(&internal_call) {
                 self.repeat_count += 1;
-                if self.repeat_count > self.max_repetitions.unwrap() {
+                if self.repeat_count > max_repetitions.unwrap() {
                     return false;
                 }
             } else {
@@ -79,7 +109,7 @@ impl RepetitionInspector {
         true
     }
 
-    pub fn reset(&mut self) {
+    fn reset(&mut self) {
         self.last_call = None;
         self.repeat_count = 0;
         self.call_counts.clear();
@@ -104,17 +134,15 @@ impl ToolInspector for RepetitionInspector {
         _goose_mode: GooseMode,
     ) -> Result<Vec<InspectionResult>> {
         let mut results = Vec::new();
+        let mut state = self
+            .state
+            .lock()
+            .expect("repetition inspector state should not be poisoned");
 
         // Check repetition limits for each tool request
         for tool_request in tool_requests {
             if let Ok(tool_call) = &tool_request.tool_call {
-                // Create a temporary clone to check without modifying state
-                let mut temp_inspector = RepetitionInspector::new(self.max_repetitions);
-                temp_inspector.last_call = self.last_call.clone();
-                temp_inspector.repeat_count = self.repeat_count;
-                temp_inspector.call_counts = self.call_counts.clone();
-
-                if !temp_inspector.check_tool_call(tool_call.clone()) {
+                if !state.check_tool_call(tool_call.clone(), self.max_repetitions) {
                     results.push(InspectionResult {
                         tool_request_id: tool_request.id.clone(),
                         action: InspectionAction::Deny,
