@@ -634,9 +634,9 @@ impl OpenAiProvider {
         Ok(models)
     }
 
-    /// Read `meta.n_ctx` from the `/v1/models` response for the given model name.
-    /// llama.cpp and Ollama include this non-standard field with the actual allocated
-    /// context window size. Returns `None` if the field is absent (e.g. real OpenAI).
+    /// llama.cpp and Ollama expose the actual allocated context window in the
+    /// non-standard `meta.n_ctx` field of `/v1/models`. Returns `None` when absent
+    /// (e.g. real OpenAI).
     async fn fetch_n_ctx_from_api(&self, model_name: &str) -> Option<usize> {
         let models_path =
             Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
