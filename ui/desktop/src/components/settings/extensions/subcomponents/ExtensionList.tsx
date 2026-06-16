@@ -154,10 +154,6 @@ export function getSubtitle(config: ExtensionConfig) {
     }
     case 'sse':
     case 'streamable_http': {
-      // Lead with the extension's own description when it has one; the transport
-      // ("HTTP"/"SSE") is a short qualifier, not the headline. Previously every
-      // entry was prefixed with the verbose "STREAMABLE HTTP extension", which
-      // buried the description that actually tells the user what it does.
       const label = config.type === 'sse' ? 'SSE' : 'HTTP';
       return {
         description: config.description ? `${label}: ${config.description}` : `${label} extension`,
