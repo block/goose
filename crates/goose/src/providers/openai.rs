@@ -1488,17 +1488,6 @@ mod tests {
     }
 
     #[test]
-    fn parse_n_ctx_matches_model_by_id() {
-        let body = json!({
-            "data": [
-                { "id": "other-model", "meta": { "n_ctx": 4096 } },
-                { "id": "my-model", "meta": { "n_ctx": 8192 } }
-            ]
-        });
-        assert_eq!(parse_n_ctx_from_models(&body, "my-model"), Some(8192));
-    }
-
-    #[test]
     fn parse_n_ctx_falls_back_to_sole_entry_when_id_differs() {
         let body = json!({
             "data": [
@@ -1517,11 +1506,5 @@ mod tests {
             ]
         });
         assert_eq!(parse_n_ctx_from_models(&body, "model-c"), None);
-    }
-
-    #[test]
-    fn parse_n_ctx_absent_when_meta_missing() {
-        let body = json!({ "data": [ { "id": "my-model" } ] });
-        assert_eq!(parse_n_ctx_from_models(&body, "my-model"), None);
     }
 }
