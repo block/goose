@@ -88,6 +88,17 @@ impl opentelemetry_sdk::trace::SpanExporter for TokioSpanExporter {
         }
     }
 
+    fn shutdown_with_timeout(
+        &self,
+        timeout: std::time::Duration,
+    ) -> opentelemetry_sdk::error::OTelSdkResult {
+        self.inner.shutdown_with_timeout(timeout)
+    }
+
+    fn force_flush(&self) -> opentelemetry_sdk::error::OTelSdkResult {
+        self.inner.force_flush()
+    }
+
     fn set_resource(&mut self, resource: &Resource) {
         self.inner.set_resource(resource);
     }
@@ -111,6 +122,13 @@ impl opentelemetry_sdk::logs::LogExporter for TokioLogExporter {
         } else {
             self.rt.block_on(self.inner.export(batch))
         }
+    }
+
+    fn shutdown_with_timeout(
+        &self,
+        timeout: std::time::Duration,
+    ) -> opentelemetry_sdk::error::OTelSdkResult {
+        self.inner.shutdown_with_timeout(timeout)
     }
 
     fn set_resource(&mut self, resource: &Resource) {
