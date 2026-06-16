@@ -234,7 +234,12 @@ pub fn load_hint_files(
         .iter()
         .map(|name| Paths::in_config_dir(name))
         .collect();
-    global_hints_paths.push(Paths::in_agents_home_dir(AGENTS_MD_FILENAME));
+    if hints_filenames
+        .iter()
+        .any(|name| name == AGENTS_MD_FILENAME)
+    {
+        global_hints_paths.push(Paths::in_agents_home_dir(AGENTS_MD_FILENAME));
+    }
 
     for global_hints_path in &global_hints_paths {
         if global_hints_path.is_file() {
@@ -337,7 +342,10 @@ mod tests {
         let gitignore = create_dummy_gitignore();
         let hints = load_hint_files(
             project.path(),
-            &[GOOSE_HINTS_FILENAME.to_string()],
+            &[
+                GOOSE_HINTS_FILENAME.to_string(),
+                AGENTS_MD_FILENAME.to_string(),
+            ],
             &gitignore,
         );
 
@@ -345,6 +353,33 @@ mod tests {
 
         assert!(hints.contains("Global Hints"));
         assert!(hints.contains("Global agents home instructions"));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_global_agents_md_skipped_when_not_in_context_file_names() {
+        let root = TempDir::new().unwrap();
+        std::env::set_var("GOOSE_PATH_ROOT", root.path());
+
+        let agents_home = root.path().join(".agents");
+        fs::create_dir_all(&agents_home).unwrap();
+        fs::write(
+            agents_home.join(AGENTS_MD_FILENAME),
+            "Global agents home instructions",
+        )
+        .unwrap();
+
+        let project = TempDir::new().unwrap();
+        let gitignore = create_dummy_gitignore();
+        let hints = load_hint_files(
+            project.path(),
+            &[GOOSE_HINTS_FILENAME.to_string()],
+            &gitignore,
+        );
+
+        std::env::remove_var("GOOSE_PATH_ROOT");
+
+        assert!(!hints.contains("Global agents home instructions"));
     }
 
     #[test]
