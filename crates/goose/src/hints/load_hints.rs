@@ -245,12 +245,15 @@ pub fn load_hint_files(
         if global_hints_path.is_file() {
             let mut visited = HashSet::new();
             let hints_dir = global_hints_path.parent().unwrap();
+            let global_ignore_patterns = GitignoreBuilder::new(hints_dir)
+                .build()
+                .unwrap_or_else(|_| Gitignore::empty());
             let expanded_content = read_referenced_files(
                 global_hints_path,
                 hints_dir,
                 &mut visited,
                 0,
-                ignore_patterns,
+                &global_ignore_patterns,
             );
             if !expanded_content.is_empty() {
                 global_hints_contents.push(expanded_content);
@@ -353,6 +356,40 @@ mod tests {
 
         assert!(hints.contains("Global Hints"));
         assert!(hints.contains("Global agents home instructions"));
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_global_agents_md_imports_not_filtered_by_project_gitignore() {
+        let root = TempDir::new().unwrap();
+        std::env::set_var("GOOSE_PATH_ROOT", root.path());
+
+        let agents_home = root.path().join(".agents");
+        fs::create_dir_all(&agents_home).unwrap();
+        fs::write(agents_home.join("policy.md"), "Imported policy content").unwrap();
+        fs::write(
+            agents_home.join(AGENTS_MD_FILENAME),
+            "Global header\n@policy.md\n",
+        )
+        .unwrap();
+
+        let project = TempDir::new().unwrap();
+        let mut builder = GitignoreBuilder::new(project.path());
+        builder.add_line(None, "*.md").unwrap();
+        let gitignore = builder.build().unwrap();
+
+        let hints = load_hint_files(
+            project.path(),
+            &[
+                GOOSE_HINTS_FILENAME.to_string(),
+                AGENTS_MD_FILENAME.to_string(),
+            ],
+            &gitignore,
+        );
+
+        std::env::remove_var("GOOSE_PATH_ROOT");
+
+        assert!(hints.contains("Imported policy content"));
     }
 
     #[test]
