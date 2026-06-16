@@ -715,6 +715,12 @@ pub fn get_usage(usage: &Value) -> Usage {
     let cache_read_input_tokens = usage
         .get("cache_read_input_tokens")
         .and_then(|v| v.as_i64())
+        .or_else(|| {
+            usage
+                .get("prompt_tokens_details")
+                .and_then(|d| d.get("cached_tokens"))
+                .and_then(|v| v.as_i64())
+        })
         .map(|v| v as i32);
 
     let cache_write_input_tokens = usage
@@ -2512,6 +2518,20 @@ mod tests {
         assert_eq!(usage.total_tokens, Some(105));
         assert_eq!(usage.cache_read_input_tokens, Some(60));
         assert_eq!(usage.cache_write_input_tokens, Some(10));
+    }
+
+    #[test]
+    fn test_get_usage_reads_openai_native_cached_tokens() {
+        let usage = get_usage(&json!({
+            "prompt_tokens": 120,
+            "completion_tokens": 30,
+            "total_tokens": 150,
+            "prompt_tokens_details": {
+                "cached_tokens": 80
+            }
+        }));
+
+        assert_eq!(usage.cache_read_input_tokens, Some(80));
     }
 
     #[tokio::test]
