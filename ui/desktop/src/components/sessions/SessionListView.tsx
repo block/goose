@@ -46,6 +46,7 @@ import {
   type SessionListItem,
 } from '../../acp/sessions';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import { clearSessionCache } from '../../hooks/useChatStream';
 
 const i18n = defineMessages({
   editSessionTitle: { id: 'sessions.edit.title', defaultMessage: 'Edit Session Description' },
@@ -505,6 +506,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         window.dispatchEvent(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
+        clearSessionCache(sessionToDeleteId);
       } catch (error) {
         console.error('Error deleting session:', error);
         toast.error(intl.formatMessage(i18n.deleteFailed, { name: sessionName, error: errorMessage(error, 'Unknown error') }));
