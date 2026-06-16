@@ -8,6 +8,7 @@
  */
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { defineMessages, useIntl } from '../i18n';
 import { AppEvents } from '../constants/events';
 import ChatInput from './ChatInput';
@@ -31,6 +32,10 @@ const i18n = defineMessages({
   goodEvening: { id: 'hub.goodEvening', defaultMessage: 'Good evening' },
 });
 
+interface HubRouteState {
+  workingDir?: string;
+}
+
 function useClock(): { time: string; meridiem: string; hour: number } {
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
@@ -52,8 +57,10 @@ export default function Hub({
   setView: (view: View, viewOptions?: ViewOptions) => void;
 }) {
   const intl = useIntl();
+  const location = useLocation();
   const { extensionsList } = useConfig();
-  const [workingDir, setWorkingDir] = useState(getInitialWorkingDir());
+  const routeWorkingDir = (location.state as HubRouteState | null)?.workingDir?.trim();
+  const [workingDir, setWorkingDir] = useState(() => routeWorkingDir || getInitialWorkingDir());
   const [isCreatingSession, setIsCreatingSession] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const { time, meridiem, hour } = useClock();
@@ -71,6 +78,12 @@ export default function Hub({
     });
     return () => cancelAnimationFrame(frameId);
   }, []);
+
+  useEffect(() => {
+    if (routeWorkingDir) {
+      setWorkingDir(routeWorkingDir);
+    }
+  }, [routeWorkingDir]);
 
   const handleSubmit = async (input: UserInput) => {
     const { msg: userMessage, images } = input;
@@ -133,6 +146,7 @@ export default function Hub({
             toolCount={0}
             onWorkingDirChange={setWorkingDir}
             inputRef={inputRef}
+            sessionWorkingDir={workingDir}
           />
         </ChatInputCard>
       </div>

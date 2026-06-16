@@ -239,6 +239,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
   ({ onSelectSession, selectedSessionId }) => {
     const intl = useIntl();
     const [sessions, setSessions] = useState<SessionListItem[]>([]);
+    const [projectSessions, setProjectSessions] = useState<SessionListItem[]>([]);
     const [selectedProject, setSelectedProject] = useState<string | null>(null);
     const [isPrefetchingSessions, setIsPrefetchingSessions] = useState(false);
     const [dateGroups, setDateGroups] = useState<DateGroup[]>([]);
@@ -286,10 +287,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     };
 
     const fileInputRef = useRef<HTMLInputElement>(null);
-    const projectGroups = useMemo(() => groupSessionsByProject(sessions), [sessions]);
+    const projectGroups = useMemo(() => groupSessionsByProject(projectSessions), [projectSessions]);
     const projectFilteredSessions = useMemo(() => {
       if (selectedProject === null) return sessions;
-      return sessions.filter((session) => normalizeProjectPath(session.workingDir) === selectedProject);
+      return sessions.filter(
+        (session) => normalizeProjectPath(session.workingDir) === selectedProject
+      );
     }, [selectedProject, sessions]);
 
     useEffect(() => {
@@ -317,7 +320,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     }, [debouncedSearchTerm, dateGroups.length]);
 
     const loadRemainingSessionPages = useCallback(
-      async (initialCursor: string, loadId: number, keyword?: string) => {
+      async (
+        initialCursor: string,
+        loadId: number,
+        keyword?: string,
+        updateProjectSessions = false
+      ) => {
         let cursor: string | null = initialCursor;
         setIsPrefetchingSessions(true);
 
@@ -332,6 +340,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                 const seen = new Set(prev.map((s) => s.id));
                 return [...prev, ...resp.sessions.filter((s) => !seen.has(s.id))];
               });
+              if (updateProjectSessions) {
+                setProjectSessions((prev) => {
+                  const seen = new Set(prev.map((s) => s.id));
+                  return [...prev, ...resp.sessions.filter((s) => !seen.has(s.id))];
+                });
+              }
             });
           }
         } catch (err) {
@@ -349,6 +363,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       async (keyword: string = debouncedSearchTermRef.current) => {
         const loadId = loadGenerationRef.current + 1;
         loadGenerationRef.current = loadId;
+        const isProjectIndexLoad = keyword.trim().length === 0;
         // Only show the skeleton on the first load; subsequent loads (e.g. typing a
         // search keyword) update the list in place without flashing the skeleton.
         const isFirstLoad = !hasLoadedRef.current;
@@ -366,10 +381,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
           startTransition(() => {
             setSessions(resp.sessions);
+            if (isProjectIndexLoad) {
+              setProjectSessions(resp.sessions);
+            }
           });
 
           if (resp.nextCursor) {
-            void loadRemainingSessionPages(resp.nextCursor, loadId, keyword);
+            void loadRemainingSessionPages(resp.nextCursor, loadId, keyword, isProjectIndexLoad);
           }
         } catch (err) {
           if (loadGenerationRef.current !== loadId) return;
@@ -377,6 +395,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           console.error('Failed to load sessions:', err);
           setError('Failed to load sessions. Please try again later.');
           setSessions([]);
+          if (isProjectIndexLoad) {
+            setProjectSessions([]);
+          }
         } finally {
           if (loadGenerationRef.current === loadId && isFirstLoad) {
             setIsLoading(false);
@@ -478,6 +499,11 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           s.id === sessionId ? { ...s, name: newDescription, userSetName: true } : s
         )
       );
+      setProjectSessions((prevSessions) =>
+        prevSessions.map((s) =>
+          s.id === sessionId ? { ...s, name: newDescription, userSetName: true } : s
+        )
+      );
       window.dispatchEvent(
         new CustomEvent(AppEvents.SESSION_RENAMED, {
           detail: { sessionId, newName: newDescription, userInitiated: true },
@@ -525,6 +551,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
         clearSessionCache(sessionToDeleteId);
+        setSessions((prevSessions) =>
+          prevSessions.filter((session) => session.id !== sessionToDeleteId)
+        );
+        setProjectSessions((prevSessions) =>
+          prevSessions.filter((session) => session.id !== sessionToDeleteId)
+        );
       } catch (error) {
         console.error('Error deleting session:', error);
         toast.error(intl.formatMessage(i18n.deleteFailed, { name: sessionName, error: errorMessage(error, 'Unknown error') }));
@@ -980,7 +1012,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
                           : 'bg-background-secondary text-text-secondary hover:bg-background-tertiary'
                       }`}
                     >
-                      {intl.formatMessage(i18n.allProjects)} ({sessions.length})
+                      {intl.formatMessage(i18n.allProjects)} ({projectSessions.length})
                     </button>
                     {projectGroups.map((project) => (
                       <button

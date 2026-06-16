@@ -3950,6 +3950,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "अधिक सत्र लोड हो रहे हैं..."
   },
+  "sessions.projects.all": {
+    "defaultMessage": "सभी"
+  },
+  "sessions.projects.label": {
+    "defaultMessage": "प्रोजेक्ट"
+  },
   "sessions.save": {
     "defaultMessage": "सहेजें"
   },

@@ -3950,6 +3950,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "さらにセッションを読み込み中..."
   },
+  "sessions.projects.all": {
+    "defaultMessage": "すべて"
+  },
+  "sessions.projects.label": {
+    "defaultMessage": "プロジェクト"
+  },
   "sessions.save": {
     "defaultMessage": "保存"
   },

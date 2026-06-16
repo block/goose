@@ -3950,6 +3950,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "Загрузка дополнительных сеансов..."
   },
+  "sessions.projects.all": {
+    "defaultMessage": "Все"
+  },
+  "sessions.projects.label": {
+    "defaultMessage": "Проекты"
+  },
   "sessions.save": {
     "defaultMessage": "Сохранить"
   },

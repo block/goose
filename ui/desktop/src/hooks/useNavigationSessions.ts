@@ -7,6 +7,7 @@ import { AppEvents } from '../constants/events';
 import type { Session } from '../api';
 import { acpListRecentSessions, type SessionListItem } from '../acp/sessions';
 import { groupSessionsByProject } from '../utils/projectSessions';
+import { getInitialWorkingDir } from '../utils/workingDir';
 
 const MAX_RECENT_SESSIONS = 25;
 
@@ -175,6 +176,26 @@ export function useNavigationSessions() {
 
   const handleNavClick = useCallback(
     (path: string) => {
+      if (path === '/') {
+        const sessionId =
+          currentSessionId || lastSessionIdRef.current || chatContext?.chat?.sessionId;
+
+        if (!sessionId) {
+          navigate('/', { state: { workingDir: getInitialWorkingDir() } });
+          return;
+        }
+
+        void getSession({ path: { session_id: sessionId }, throwOnError: false })
+          .then((response) => {
+            const workingDir = (response.data as Session | undefined)?.working_dir?.trim();
+            navigate('/', { state: { workingDir: workingDir || getInitialWorkingDir() } });
+          })
+          .catch(() => {
+            navigate('/', { state: { workingDir: getInitialWorkingDir() } });
+          });
+        return;
+      }
+
       if (path === '/pair') {
         const sessionId =
           currentSessionId || lastSessionIdRef.current || chatContext?.chat?.sessionId;

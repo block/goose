@@ -3950,6 +3950,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "正在加载更多会话…"
   },
+  "sessions.projects.all": {
+    "defaultMessage": "全部"
+  },
+  "sessions.projects.label": {
+    "defaultMessage": "项目"
+  },
   "sessions.save": {
     "defaultMessage": "保存"
   },

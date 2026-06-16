@@ -197,6 +197,7 @@ interface ChatInputProps {
   append?: (message: Message) => void;
   onWorkingDirChange?: (newDir: string) => void;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
+  sessionWorkingDir?: string | null;
   sessionModel?: string | null;
   sessionProvider?: string | null;
   sessionLoaded?: boolean;
@@ -228,6 +229,7 @@ export default function ChatInput({
   append: _append,
   onWorkingDirChange,
   inputRef,
+  sessionWorkingDir: initialSessionWorkingDir,
   sessionModel,
   sessionProvider,
   sessionLoaded,
@@ -303,7 +305,15 @@ export default function ChatInput({
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
-  const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
+  const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(
+    initialSessionWorkingDir ?? null
+  );
+
+  useEffect(() => {
+    if (initialSessionWorkingDir !== undefined) {
+      setSessionWorkingDir(initialSessionWorkingDir);
+    }
+  }, [initialSessionWorkingDir]);
 
   // Hide non-essential bottom-bar controls when the chat input is narrow.
   // Only the model selector, mic, and send button remain visible.

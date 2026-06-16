@@ -3950,6 +3950,12 @@
   "sessions.loadingMore": {
     "defaultMessage": "Daha fazla oturum yükleniyor..."
   },
+  "sessions.projects.all": {
+    "defaultMessage": "Tümü"
+  },
+  "sessions.projects.label": {
+    "defaultMessage": "Projeler"
+  },
   "sessions.save": {
     "defaultMessage": "Kaydet"
   },

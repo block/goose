@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react';
+import { useCallback, useEffect, useState, useRef } from 'react';
 import { IpcRendererEvent } from 'electron';
 import {
   HashRouter,
@@ -10,6 +10,8 @@ import {
 } from 'react-router-dom';
 import { openSharedSessionFromDeepLink, importNostrSessionFromDeepLink } from './sessionLinks';
 import { type SharedSessionDetails } from './sharedSessions';
+import { getSession } from './api';
+import type { Session } from './api';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import { toast, ToastContainer } from 'react-toastify';
@@ -75,6 +77,19 @@ export function resolveSessionInitialMessage(
   return (
     initialMessage ??
     (session.recipe?.prompt ? { msg: session.recipe.prompt, images: [] } : undefined)
+  );
+}
+
+export function getNewChatSourceSessionId(
+  visibleSessionId: string | undefined,
+  activeSessions: Array<{ sessionId: string }>,
+  chatSessionId?: string
+): string | undefined {
+  return (
+    visibleSessionId ||
+    activeSessions[activeSessions.length - 1]?.sessionId ||
+    chatSessionId ||
+    undefined
   );
 }
 
@@ -347,6 +362,9 @@ export function AppInner() {
 
   const navigate = useNavigate();
   const setView = useNavigation();
+  const [searchParams] = useSearchParams();
+  const routedSessionId = searchParams.get('resumeSessionId') ?? undefined;
+  const lastRoutedSessionIdRef = useRef<string | undefined>(undefined);
 
   const [chat, setChat] = useState<ChatType>({
     sessionId: '',
@@ -360,6 +378,34 @@ export function AppInner() {
   const [activeSessions, setActiveSessions] = useState<
     Array<{ sessionId: string; initialMessage?: UserInput }>
   >([]);
+
+  useEffect(() => {
+    if (routedSessionId) {
+      lastRoutedSessionIdRef.current = routedSessionId;
+    }
+  }, [routedSessionId]);
+
+  const navigateToNewChat = useCallback(() => {
+    const activeSessionId = getNewChatSourceSessionId(
+      routedSessionId || lastRoutedSessionIdRef.current,
+      activeSessions,
+      chat.sessionId
+    );
+
+    if (!activeSessionId) {
+      navigate('/', { state: { workingDir: getInitialWorkingDir() } });
+      return;
+    }
+
+    void getSession({ path: { session_id: activeSessionId }, throwOnError: false })
+      .then((response) => {
+        const workingDir = (response.data as Session | undefined)?.working_dir?.trim();
+        navigate('/', { state: { workingDir: workingDir || getInitialWorkingDir() } });
+      })
+      .catch(() => {
+        navigate('/', { state: { workingDir: getInitialWorkingDir() } });
+      });
+  }, [activeSessions, chat.sessionId, navigate, routedSessionId]);
 
   useEffect(() => {
     const handleAddActiveSession = (event: Event) => {
@@ -569,6 +615,8 @@ export function AppInner() {
 
       if (section && newView === 'settings') {
         navigate(`/settings?section=${section}`);
+      } else if (!newView) {
+        navigateToNewChat();
       } else {
         navigate(`/${newView}`);
       }
@@ -576,16 +624,16 @@ export function AppInner() {
 
     window.electron.on('set-view', handleSetView);
     return () => window.electron.off('set-view', handleSetView);
-  }, [navigate]);
+  }, [navigate, navigateToNewChat]);
 
   useEffect(() => {
     const handleNewChat = (_event: IpcRendererEvent, ..._args: unknown[]) => {
-      navigate('/');
+      navigateToNewChat();
     };
 
     window.electron.on('new-chat', handleNewChat);
     return () => window.electron.off('new-chat', handleNewChat);
-  }, [navigate]);
+  }, [navigateToNewChat]);
 
   useEffect(() => {
     const handleFocusInput = (_event: IpcRendererEvent, ..._args: unknown[]) => {

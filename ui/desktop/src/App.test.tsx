@@ -4,10 +4,12 @@
  * @vitest-environment jsdom
  */
 import React from 'react';
-import { screen, render, waitFor } from '@testing-library/react';
+import { act, screen, render, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { AppInner, resolveSessionInitialMessage } from './App';
+import { AppInner, getNewChatSourceSessionId, resolveSessionInitialMessage } from './App';
 import { IntlTestWrapper } from './i18n/test-utils';
+import { getSession } from './api';
+import { AppEvents } from './constants/events';
 
 // Set up globals for jsdom
 Object.defineProperty(window, 'location', {
@@ -52,6 +54,7 @@ vi.mock('./api', () => {
     validateConfig: vi.fn().mockResolvedValue(undefined),
     startAgent: vi.fn().mockResolvedValue(test_chat),
     resumeAgent: vi.fn().mockResolvedValue(test_chat),
+    getSession: vi.fn(),
   };
 });
 
@@ -162,6 +165,13 @@ const mockElectron = {
   setSetting: vi.fn().mockResolvedValue(undefined),
 };
 
+const getLatestElectronHandler = (channel: string) => {
+  const calls = mockElectron.on.mock.calls.filter(
+    ([registeredChannel]) => registeredChannel === channel
+  );
+  return calls[calls.length - 1]?.[1];
+};
+
 // Mock appConfig
 const mockAppConfig = {
   get: vi.fn((key: string): string | null => {
@@ -194,6 +204,12 @@ describe('App Component - Brand New State', () => {
     vi.clearAllMocks();
     mockNavigate.mockClear();
     mockSetSearchParams.mockClear();
+    vi.mocked(getSession).mockResolvedValue({
+      data: {
+        id: 'active-session',
+        working_dir: '/active/project',
+      },
+    } as any);
     mockAppConfig.get.mockImplementation((key: string): string | null => {
       if (key === 'GOOSE_WORKING_DIR') return '/test/dir';
       return null;
@@ -291,7 +307,56 @@ describe('App Component - Brand New State', () => {
 
     newChatHandler?.({} as any);
 
-    expect(mockNavigate).toHaveBeenCalledWith('/');
+    expect(mockNavigate).toHaveBeenCalledWith('/', { state: { workingDir: '/test/dir' } });
+  });
+
+  it('should use the active session working directory when set-view opens a new chat', async () => {
+    mockElectron.getConfig.mockReturnValue({
+      GOOSE_DEFAULT_PROVIDER: 'openai',
+      GOOSE_DEFAULT_MODEL: 'gpt-4',
+      GOOSE_ALLOWLIST_WARNING: false,
+    });
+
+    render(<AppInner />, { wrapper: IntlTestWrapper });
+
+    await waitFor(() => {
+      expect(mockElectron.reactReady).toHaveBeenCalled();
+    });
+
+    const initialSetViewHandlers = mockElectron.on.mock.calls.filter(
+      ([channel]) => channel === 'set-view'
+    ).length;
+
+    act(() => {
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.ADD_ACTIVE_SESSION, {
+          detail: { sessionId: 'active-session' },
+        })
+      );
+    });
+
+    await waitFor(() => {
+      expect(mockElectron.on.mock.calls.filter(([channel]) => channel === 'set-view')).toHaveLength(
+        initialSetViewHandlers + 1
+      );
+    });
+
+    const setViewHandler = getLatestElectronHandler('set-view');
+    expect(setViewHandler).toBeDefined();
+
+    act(() => {
+      setViewHandler?.({} as any, '');
+    });
+
+    await waitFor(() => {
+      expect(getSession).toHaveBeenCalledWith({
+        path: { session_id: 'active-session' },
+        throwOnError: false,
+      });
+      expect(mockNavigate).toHaveBeenCalledWith('/', {
+        state: { workingDir: '/active/project' },
+      });
+    });
   });
 
   it('should seed recipe sessions with the recipe prompt when no initial message is provided', () => {
@@ -308,5 +373,29 @@ describe('App Component - Brand New State', () => {
       msg: 'Write a release note for the latest change',
       images: [],
     });
+  });
+
+  it('should prefer the visible session when choosing a New Chat source session', () => {
+    expect(
+      getNewChatSourceSessionId(
+        'visible',
+        [{ sessionId: 'background' }, { sessionId: 'stale-active' }],
+        'chat'
+      )
+    ).toBe('visible');
+  });
+
+  it('should fall back to the last active session before the shared chat session', () => {
+    expect(
+      getNewChatSourceSessionId(
+        undefined,
+        [{ sessionId: 'background' }, { sessionId: 'active' }],
+        'chat'
+      )
+    ).toBe('active');
+  });
+
+  it('should fall back to the shared chat session when there is no routed or active session', () => {
+    expect(getNewChatSourceSessionId(undefined, [], 'chat')).toBe('chat');
   });
 });
