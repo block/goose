@@ -52,6 +52,8 @@ import type {
   GetConfigExtensionsResponse_unstable,
   GetSessionExtensionsRequest_unstable,
   GetSessionExtensionsResponse_unstable,
+  GetSessionInfoRequest_unstable,
+  GetSessionInfoResponse_unstable,
   GetToolsRequest_unstable,
   GetToolsResponse_unstable,
   GooseSessionNotification_unstable,
@@ -98,6 +100,8 @@ import type {
   RenameSessionRequest_unstable,
   SetConfigExtensionEnabledRequest_unstable,
   SetSessionSystemPromptRequest_unstable,
+  SteerSessionRequest_unstable,
+  SteerSessionResponse_unstable,
   UnarchiveSessionRequest_unstable,
   UpdateSessionProjectRequest_unstable,
   UpdateSourceRequest_unstable,
@@ -120,6 +124,7 @@ import {
   zGetAvailableExtensionsResponse_unstable,
   zGetConfigExtensionsResponse_unstable,
   zGetSessionExtensionsResponse_unstable,
+  zGetSessionInfoResponse_unstable,
   zGetToolsResponse_unstable,
   zGooseSessionNotification_unstable,
   zGooseToolCallResponse_unstable,
@@ -139,6 +144,7 @@ import {
   zProviderSupportedModelsListResponse_unstable,
   zReadResourceResponse_unstable,
   zRefreshProviderInventoryResponse_unstable,
+  zSteerSessionResponse_unstable,
   zUpdateSourceResponse_unstable,
 } from './zod.gen.js';
 
@@ -204,6 +210,18 @@ export class GooseExtClient {
       "_goose/unstable/session/system-prompt/set",
       params,
     );
+  }
+
+  async sessionSteer_unstable(
+    params: SteerSessionRequest_unstable,
+  ): Promise<SteerSessionResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/session/steer",
+      params,
+    );
+    return zSteerSessionResponse_unstable.parse(
+      raw,
+    ) as SteerSessionResponse_unstable;
   }
 
   async sessionDelete(params: DeleteSessionRequest): Promise<void> {
@@ -544,6 +562,18 @@ export class GooseExtClient {
     return zImportSessionResponse_unstable.parse(
       raw,
     ) as ImportSessionResponse_unstable;
+  }
+
+  async sessionInfo_unstable(
+    params: GetSessionInfoRequest_unstable,
+  ): Promise<GetSessionInfoResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/session/info",
+      params,
+    );
+    return zGetSessionInfoResponse_unstable.parse(
+      raw,
+    ) as GetSessionInfoResponse_unstable;
   }
 
   async elicitationRespond_unstable(

@@ -15,7 +15,7 @@
 export { defineMessages, useIntl } from 'react-intl';
 
 /** The set of locales that have translation catalogs. */
-const SUPPORTED_LOCALES = new Set(['en', 'ru', 'tr', 'zh-CN']);
+const SUPPORTED_LOCALES = new Set(['en', 'hi', 'ru', 'tr', 'zh-CN', 'ja']);
 
 /**
  * Map Simplified Chinese aliases (zh, zh-Hans*, zh-SG, zh-MY) to "zh-CN".

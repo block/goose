@@ -7,6 +7,7 @@ use thiserror::Error;
 use utoipa::ToSchema;
 
 pub mod message;
+pub mod token_usage;
 mod tool_result_serde;
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
