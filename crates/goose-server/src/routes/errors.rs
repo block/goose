@@ -5,7 +5,7 @@ use axum::{
 };
 use goose::config::ConfigError;
 use goose::model::ConfigError as ModelConfigError;
-use goose::providers::errors::ProviderError;
+use goose_providers::errors::ProviderError;
 use serde::Serialize;
 use utoipa::ToSchema;
 

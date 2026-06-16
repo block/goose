@@ -5,10 +5,11 @@ use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
 use goose::conversation::Conversation;
 use goose::download_manager::{DownloadProgress, DownloadStatus};
-use goose::model::{ModelConfig, ThinkingEffort};
+use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::{Permission, PrincipalType};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
-use goose::session::{Session, SessionInsights, SessionType, SystemInfo};
+use goose::session::{Session, SessionType, SystemInfo};
+use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, IconTheme, ImageContent, JsonObject,
     RawAudioContent, RawContent, RawEmbeddedResource, RawImageContent, RawResource, RawTextContent,
@@ -439,14 +440,8 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::session_events::session_events,
         super::routes::session_events::session_reply,
         super::routes::session_events::session_cancel,
-        super::routes::session::list_sessions,
-        super::routes::session::search_sessions,
         super::routes::session::get_session,
-        super::routes::session::get_session_insights,
         super::routes::session::update_session_name,
-        super::routes::session::delete_session,
-        super::routes::session::export_session,
-        super::routes::session::import_session,
         super::routes::session::share_session_nostr,
         super::routes::session::import_session_nostr,
         super::routes::session::update_session_user_recipe_values,
@@ -521,11 +516,9 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::session_events::SessionReplyRequest,
         super::routes::session_events::SessionReplyResponse,
         super::routes::session_events::CancelRequest,
-        super::routes::session::ImportSessionRequest,
         super::routes::session::ShareSessionNostrRequest,
         super::routes::session::ShareSessionNostrResponse,
         super::routes::session::ImportSessionNostrRequest,
-        super::routes::session::SessionListResponse,
         super::routes::session::UpdateSessionNameRequest,
         super::routes::session::UpdateSessionUserRecipeValuesRequest,
         super::routes::session::UpdateSessionUserRecipeValuesResponse,
@@ -586,7 +579,6 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::config_management::ProviderModelInfoQuery,
         Session,
         goose::config::goose_mode::GooseMode,
-        SessionInsights,
         SessionType,
         SystemInfo,
         Conversation,
