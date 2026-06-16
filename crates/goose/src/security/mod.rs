@@ -10,30 +10,16 @@ use crate::conversation::message::{Message, ToolRequest};
 use crate::permission::permission_judge::PermissionCheckResult;
 use anyhow::Result;
 use scanner::PromptInjectionScanner;
+use std::env;
 use std::sync::OnceLock;
 use uuid::Uuid;
 
-fn set_default_if_not_exist(config: &Config, key: &str, default_env: &str) {
-    if config.get_param::<bool>(key).is_ok() {
-        return;
-    }
-    if let Ok(parsed) = config.get_param::<bool>(default_env) {
-        let _ = config.set_param(key, parsed);
-    }
-}
-
-pub fn set_security_defaults() {
-    let config = Config::global();
-    set_default_if_not_exist(
-        config,
-        "SECURITY_PROMPT_ENABLED",
-        "DEFAULT_SECURITY_PROMPT_ENABLED",
-    );
-    set_default_if_not_exist(
-        config,
-        "SECURITY_COMMAND_CLASSIFIER_ENABLED",
-        "DEFAULT_SECURITY_COMMAND_CLASSIFIER_ENABLED",
-    );
+pub(crate) fn get_override(env_key: &str) -> Option<bool> {
+    env::var(env_key).ok().and_then(|v| match v.as_str() {
+        "true" => Some(true),
+        "false" => Some(false),
+        _ => None,
+    })
 }
 
 pub struct SecurityManager {
@@ -52,15 +38,17 @@ pub struct SecurityResult {
 
 impl SecurityManager {
     pub fn new() -> Self {
-        set_security_defaults();
         Self {
             scanner: OnceLock::new(),
         }
     }
 
     pub fn is_prompt_injection_detection_enabled(&self) -> bool {
-        let config = Config::global();
+        if let Some(overridden) = get_override("SECURITY_PROMPT_ENABLED_OVERRIDE") {
+            return overridden;
+        }
 
+        let config = Config::global();
         config
             .get_param::<bool>("SECURITY_PROMPT_ENABLED")
             .unwrap_or(false)
@@ -73,9 +61,15 @@ impl SecurityManager {
             .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
             .unwrap_or(false);
 
-        let command_enabled = config
-            .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
-            .unwrap_or(false);
+        let command_enabled = if let Some(overridden) =
+            get_override("SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE")
+        {
+            overridden
+        } else {
+            config
+                .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
+                .unwrap_or(false)
+        };
 
         prompt_enabled || command_enabled
     }
@@ -95,9 +89,14 @@ impl SecurityManager {
 
         let scanner = self.scanner.get_or_init(|| {
             let config = Config::global();
-            let command_classifier_enabled = config
-                .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
-                .unwrap_or(false);
+            let command_classifier_enabled =
+                if let Some(overridden) = get_override("SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE") {
+                    overridden
+                } else {
+                    config
+                        .get_param::<bool>("SECURITY_COMMAND_CLASSIFIER_ENABLED")
+                        .unwrap_or(false)
+                };
             let prompt_classifier_enabled = config
                 .get_param::<bool>("SECURITY_PROMPT_CLASSIFIER_ENABLED")
                 .unwrap_or(false);
@@ -163,22 +162,26 @@ impl SecurityManager {
                     let tool_call_json =
                         serde_json::to_string(&tool_call).unwrap_or_else(|_| "{}".to_string());
 
+                    let action = if above_threshold { "BLOCK" } else { "LOG" };
+
                     tracing::warn!(
                         monotonic_counter.goose.prompt_injection_finding = 1,
-                        threat_type = "command_injection",
-                        above_threshold = above_threshold,
-                        tool_name = %tool_call.name,
-                        tool_request_id = %tool_request.id,
-                        tool_call_json = %tool_call_json,
-                        confidence = analysis_result.confidence,
-                        explanation = %sanitized_explanation,
-                        finding_id = %finding_id,
-                        threshold = config_threshold,
+                        security.event_type = "prompt_injection_scan",
+                        security.action = action,
+                        security.confidence = analysis_result.confidence,
+                        security.threshold = config_threshold,
+                        security.above_threshold = above_threshold,
+                        security.threat_type = "command_injection",
+                        security.finding_id = %finding_id,
+                        security.explanation = %sanitized_explanation,
+                        tool.name = %tool_call.name,
+                        tool.request_id = %tool_request.id,
+                        tool.call_json = %tool_call_json,
                         "{}",
                         if above_threshold {
-                            "Prompt injection detection: Current tool call flagged as malicious after security analysis (above threshold)"
+                            "prompt injection scan: finding above threshold"
                         } else {
-                            "Prompt injection detection: Security finding below threshold (logged but not blocking execution)"
+                            "prompt injection scan: finding below threshold"
                         }
                     );
                     if above_threshold {
@@ -197,12 +200,16 @@ impl SecurityManager {
 
                     tracing::info!(
                         monotonic_counter.goose.prompt_injection_tool_call_passed = 1,
-                        tool_name = %tool_call.name,
-                        tool_request_id = %tool_request.id,
-                        tool_call_json = %tool_call_json,
-                        confidence = analysis_result.confidence,
-                        explanation = %sanitized_explanation,
-                        "Current tool call passed security analysis"
+                        security.event_type = "prompt_injection_scan",
+                        security.action = "ALLOW",
+                        security.confidence = analysis_result.confidence,
+                        security.threshold = config_threshold,
+                        security.above_threshold = false,
+                        security.threat_type = "command_injection",
+                        tool.name = %tool_call.name,
+                        tool.request_id = %tool_request.id,
+                        tool.call_json = %tool_call_json,
+                        "prompt injection scan: tool call passed"
                     );
                 }
             }

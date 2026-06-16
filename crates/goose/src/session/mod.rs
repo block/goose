@@ -2,6 +2,7 @@ mod chat_history_search;
 mod diagnostics;
 pub mod extension_data;
 pub mod import_formats;
+mod last_message_snippet;
 mod legacy;
 #[cfg(feature = "nostr")]
 pub mod nostr_share;

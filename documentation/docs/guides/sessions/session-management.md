@@ -5,7 +5,7 @@ sidebar_label: Session Management
 ---
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2, Trash2, Download, Upload, ChefHat } from 'lucide-react';
+import { AppWindow, PanelLeft, FolderDot, Paperclip, Copy, Edit2, Trash2, Download, Upload, ChefHat, History } from 'lucide-react';
 
 
 A session is a single, continuous interaction between you and goose, providing a space to ask questions and prompt action. This guide covers how to manage the session lifecycle.
@@ -86,15 +86,14 @@ In your first session, goose prompts you to [set up an LLM (Large Language Model
 
         You can edit session names after they're created:
 
-        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-        2. Click `View All` at the bottom of the `Chat` section
-        3. Hover over the session you'd like to rename
-        4. Click the <Edit2 className="inline" size={16} /> button that appears on the session card
-        5. In the "Edit Session Description" modal that opens:
+        1. Click <History className="inline" size={16} /> `Session History` in the sidebar
+        2. Hover over the session you'd like to rename
+        3. Click the <Edit2 className="inline" size={16} /> button that appears on the session card
+        4. In the "Edit Session Description" modal that opens:
            - Enter your new session description (up to 200 characters)
            - Press `Enter` to save or `Escape` to cancel
            - Or click the `Save` or `Cancel` buttons
-        6. A success toast notification will confirm the change
+        5. A success toast notification will confirm the change
 
         Session names appear in the `Chat` section of the sidebar, the `Window` menu, and the Dock (macOS) or taskbar (Windows) menu.
 
@@ -182,11 +181,10 @@ Search allows you to find specific content within sessions or find specific sess
     
     To search conversation history across all your sessions:
 
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click `View All` at the bottom of the `Chat` section
-    3. Use `Cmd+F` (or `Ctrl+F`) to open the search bar
-    4. Enter your search term
-    5. Use keyboard shortcuts and search bar buttons to navigate the results (`Cmd+E` not supported)
+    1. Click <History className="inline" size={16} /> `Session History` in the sidebar
+    2. Use `Cmd+F` (or `Ctrl+F`) to open the search bar
+    3. Enter your search term
+    4. Use keyboard shortcuts and search bar buttons to navigate the results (`Cmd+E` not supported)
 
     This searches the content of messages in your conversations. The search is limited to the 10 most recent matching messages across sessions. If your search term appears in many messages, the search will only return a subset of sessions.
 
@@ -291,10 +289,9 @@ Search allows you to find specific content within sessions or find specific sess
 
     To find and resume sessions beyond your 10 most recent:
 
-    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-    2. Click `View All` at the bottom of the `Chat` section
-    3. Find the session you'd like to resume. goose provides [search features](#search-sessions) to help you find the session.
-    4. Choose how to resume:
+    1. Click <History className="inline" size={16} /> `Session History` in the sidebar
+    2. Find the session you'd like to resume. goose provides [search features](#search-sessions) to help you find the session.
+    3. Choose how to resume:
        - Click `Resume` to continue in the current window
        - Click `New Window` to open in a new window
 
@@ -345,11 +342,10 @@ Create a complete copy of any session to reuse configurations, experiment with v
         
         Duplicate a session from the session list:
 
-        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-        2. Click `View All` at the bottom of the `Chat` section
-        3. Find the session you want to duplicate
-        4. Hover over the session card to reveal the action buttons
-        5. Click the <Copy className="inline" size={16} /> button that appears in the top-right corner
+        1. Click <History className="inline" size={16} /> `Session History` in the sidebar
+        2. Find the session you want to duplicate
+        3. Hover over the session card to reveal the action buttons
+        4. Click the <Copy className="inline" size={16} /> button that appears in the top-right corner
 
         The duplicated session includes:
         - Complete conversation history
@@ -399,12 +395,11 @@ Create a complete copy of any session to reuse configurations, experiment with v
     <TabItem value="ui" label="goose Desktop" default>
         You can delete sessions directly from the Desktop app:
 
-        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-        2. Click `View All` at the bottom of the `Chat` section
-        3. Find the session you want to delete
-        4. Hover over the session card to reveal the action buttons
-        5. Click the <Trash2 className="inline" size={16} /> button that appears
-        6. Confirm the deletion in the modal that appears
+        1. Click <History className="inline" size={16} /> `Session History` in the sidebar
+        2. Find the session you want to delete
+        3. Hover over the session card to reveal the action buttons
+        4. Click the <Trash2 className="inline" size={16} /> button that appears
+        5. Confirm the deletion in the modal that appears
 
         :::warning Permanent deletion
         Deleting a session from goose Desktop will also delete it from the CLI. This action cannot be undone.
@@ -423,12 +418,11 @@ Create a complete copy of any session to reuse configurations, experiment with v
     <TabItem value="ui" label="goose Desktop" default>
         Import complete sessions from JSON files to restore, share, or migrate sessions between goose instances. Importing creates a new session with a new ID rather than overwriting existing sessions.
 
-        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-        2. Click `View All` at the bottom of the `Chat` section
-        3. Click the <Upload className="inline" size={16} /> `Import Session` button in the top-right corner
-        4. Select a `.json` session file that was previously exported from goose
-        5. The session will be imported with a new session ID
-        6. A success notification will confirm the import
+        1. Click <History className="inline" size={16} /> `Session History` in the sidebar
+        2. Click the <Upload className="inline" size={16} /> `Import Session` button in the top-right corner
+        3. Select a `.json` session file that was previously exported from goose
+        4. The session will be imported with a new session ID
+        5. A success notification will confirm the import
 
     </TabItem>
     <TabItem value="cli" label="goose CLI">
@@ -442,12 +436,11 @@ Create a complete copy of any session to reuse configurations, experiment with v
     <TabItem value="ui" label="goose Desktop" default>
         Export complete sessions as JSON files for backup, sharing, migration, or archival. Exported files preserve all session data including conversation history, metadata, and settings.
 
-        1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
-        2. Click `View All` at the bottom of the `Chat` section
-        3. Find the session you want to export
-        4. Hover over the session card to reveal the action buttons
-        5. Click the <Download className="inline" size={16} /> button that appears
-        6. The session will be downloaded as a `.json` file named after the session description
+        1. Click <History className="inline" size={16} /> `Session History` in the sidebar
+        2. Find the session you want to export
+        3. Hover over the session card to reveal the action buttons
+        4. Click the <Download className="inline" size={16} /> button that appears
+        5. The session will be downloaded as a `.json` file named after the session description
 
     </TabItem>
     <TabItem value="cli" label="goose CLI">

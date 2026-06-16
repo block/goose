@@ -3,9 +3,9 @@ use crate::mcp_utils::extract_text_from_resource;
 use crate::utils::sanitize_unicode_tags;
 use chrono::Utc;
 use rmcp::model::{
-    AnnotateAble, CallToolRequestParams, CallToolResult, Content, ImageContent, JsonObject,
-    PromptMessage, PromptMessageContent, PromptMessageRole, RawContent, RawImageContent,
-    RawTextContent, Role, TextContent,
+    AnnotateAble, CallToolRequestParams, CallToolResult, Content, ElicitationAction, ImageContent,
+    JsonObject, PromptMessage, PromptMessageContent, PromptMessageRole, RawContent,
+    RawImageContent, RawTextContent, Role, TextContent,
 };
 use serde::{Deserialize, Deserializer, Serialize};
 use std::collections::HashSet;
@@ -212,7 +212,14 @@ pub enum ActionRequiredData {
     ElicitationResponse {
         id: String,
         user_data: serde_json::Value,
+        #[serde(default = "default_elicitation_action")]
+        #[schema(value_type = String)]
+        action: ElicitationAction,
     },
+}
+
+fn default_elicitation_action() -> ElicitationAction {
+    ElicitationAction::Accept
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, ToSchema)]
@@ -478,11 +485,13 @@ impl MessageContent {
     pub fn action_required_elicitation_response<S: Into<String>>(
         id: S,
         user_data: serde_json::Value,
+        action: ElicitationAction,
     ) -> Self {
         MessageContent::ActionRequired(ActionRequired {
             data: ActionRequiredData::ElicitationResponse {
                 id: id.into(),
                 user_data,
+                action,
             },
         })
     }
@@ -667,6 +676,11 @@ pub struct MessageMetadata {
     pub agent_visible: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub inference: Option<InferenceMetadata>,
+    /// Whether this message is a steer injected into an active run. UI-only:
+    /// surfaced as `_meta.goose.steer` so clients can mark the steer boundary
+    /// without matching user-visible text. Never sent to providers.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub steer: bool,
 }
 
 impl Default for MessageMetadata {
@@ -675,6 +689,7 @@ impl Default for MessageMetadata {
             user_visible: true,
             agent_visible: true,
             inference: None,
+            steer: false,
         }
     }
 }
@@ -741,6 +756,11 @@ impl MessageMetadata {
 
     pub fn with_inference(mut self, inference: InferenceMetadata) -> Self {
         self.inference = Some(inference);
+        self
+    }
+
+    pub fn with_steer(mut self) -> Self {
+        self.steer = true;
         self
     }
 }
@@ -1028,6 +1048,11 @@ impl Message {
         self
     }
 
+    pub fn with_steer(mut self) -> Self {
+        self.metadata.steer = true;
+        self
+    }
+
     pub fn with_inference_if_assistant(self, inference: InferenceMetadata) -> Self {
         if self.role == Role::Assistant && self.metadata.inference.is_none() {
             self.with_inference(inference)
@@ -1071,13 +1096,15 @@ pub struct TokenState {
 
 #[cfg(test)]
 mod tests {
-    use crate::conversation::message::{Message, MessageContent, MessageMetadata};
+    use crate::conversation::message::{
+        ActionRequiredData, Message, MessageContent, MessageMetadata,
+    };
     use crate::conversation::*;
     use rmcp::model::{
         AnnotateAble, CallToolRequestParams, PromptMessage, PromptMessageContent,
         PromptMessageRole, RawEmbeddedResource, RawImageContent, ResourceContents,
     };
-    use rmcp::model::{ErrorCode, ErrorData};
+    use rmcp::model::{ElicitationAction, ErrorCode, ErrorData};
     use rmcp::object;
     use serde_json::Value;
 
@@ -1232,6 +1259,29 @@ mod tests {
         };
         assert_eq!(thinking.thinking, "step by step");
         assert!(thinking.signature.is_empty());
+    }
+
+    #[test]
+    fn test_elicitation_response_defaults_action_to_accept() {
+        let action_required: ActionRequiredData = serde_json::from_value(serde_json::json!({
+            "actionType": "elicitationResponse",
+            "id": "request-123",
+            "user_data": { "name": "goose" }
+        }))
+        .unwrap();
+
+        let ActionRequiredData::ElicitationResponse {
+            id,
+            user_data,
+            action,
+        } = action_required
+        else {
+            panic!("Expected elicitation response");
+        };
+
+        assert_eq!(id, "request-123");
+        assert_eq!(user_data, serde_json::json!({ "name": "goose" }));
+        assert_eq!(action, ElicitationAction::Accept);
     }
 
     #[test]

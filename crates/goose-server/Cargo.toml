@@ -81,7 +81,6 @@ tokio-tungstenite = { version = "0.29", default-features = false, features = ["c
 url = { workspace = true }
 rand = { workspace = true }
 hex = { version = "0.4.3", default-features = false, features = ["std"] }
-subtle = { version = "2.5", default-features = false, features = ["std"] }
 socket2 = { version = "0.6", default-features = false }
 fs2 = { workspace = true }
 rustls = { workspace = true, optional = true }
