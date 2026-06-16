@@ -2,7 +2,7 @@
   "name": "moonshot",
   "engine": "openai",
   "display_name": "Moonshot",
-  "description": "Moonshot AI (Kimi) models. Set MOONSHOT_BASE_URL to override the default endpoint (e.g. https://api.moonshot.ai for international users).",
+  "description": "Moonshot AI (Kimi) models. Set MOONSHOT_BASE_URL to override the default endpoint (e.g. https://api.moonshot.ai/v1 for international users).",
   "api_key_env": "MOONSHOT_API_KEY",
   "base_url": "${MOONSHOT_BASE_URL}",
   "env_vars": [
@@ -11,7 +11,7 @@
       "required": false,
       "secret": false,
       "default": "https://api.moonshot.cn/v1/chat/completions",
-      "description": "Moonshot API base URL. Use https://api.moonshot.ai/v1/chat/completions for international access outside China Mainland."
+      "description": "Moonshot API base URL. Use https://api.moonshot.ai/v1 for international access outside China Mainland."
     }
   ],
   "models": [
