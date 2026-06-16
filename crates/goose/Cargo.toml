@@ -122,7 +122,8 @@ strum = { workspace = true }
 once_cell = { workspace = true }
 etcetera = { workspace = true }
 fs-err = { version = "3.1", default-features = false }
-goose-sdk = { path = "../goose-sdk", default-features = false }
+goose-providers = { path = "../goose-providers", default-features = false }
+goose-sdk-types = { path = "../goose-sdk-types" }
 rand = { workspace = true }
 utoipa = { workspace = true, features = ["chrono"] }
 tokio-cron-scheduler = { version = "0.15", default-features = false }
@@ -213,6 +214,9 @@ pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 icu_calendar = { version = "=2.1.1", default-features = false }
 icu_locale = { version = "=2.1.1", default-features = false }
 llama-cpp-sys-2 = { workspace = true, optional = true }
+image = { version = "0.24.9", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+subtle = { version = "2.5", default-features = false, features = ["std"] }
+gethostname = "1.1.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true }
@@ -247,6 +251,7 @@ http = { workspace = true }
 goose-mcp = { path = "../goose-mcp", default-features = false }
 insta = { version = "1", default-features = false }
 dtor = { version = "1.0.5", default-features = false, features = ["proc_macro"] }
+tower = { version = "0.5.2", default-features = false, features = ["util"] }
 
 [[example]]
 name = "agent"
@@ -267,7 +272,7 @@ path = "src/bin/analyze_cli.rs"
 
 [[bin]]
 name = "build_canonical_models"
-path = "src/providers/canonical/build_canonical_models.rs"
+path = "src/bin/build_canonical_models.rs"
 
 [[bin]]
 name = "generate-acp-schema"

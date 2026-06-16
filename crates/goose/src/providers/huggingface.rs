@@ -3,7 +3,6 @@ use super::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::errors::ProviderError;
 use super::huggingface_auth;
 use super::inventory::{default_inventory_identity, InventoryIdentityInput};
 use super::openai_compatible::OpenAiCompatibleProvider;
@@ -13,6 +12,7 @@ use crate::conversation::message::Message;
 use crate::model::ModelConfig;
 use anyhow::{anyhow, Result};
 use futures::future::BoxFuture;
+use goose_providers::errors::ProviderError;
 use rmcp::model::Tool;
 
 pub const HUGGINGFACE_API_HOST: &str = "https://router.huggingface.co/v1";

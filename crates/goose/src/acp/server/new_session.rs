@@ -18,14 +18,14 @@ impl GooseAcpAgent {
         debug!(?args, "new session request");
         let t_start = std::time::Instant::now();
         validate_absolute_cwd(&args.cwd)?;
-        let project_id = meta_string(args.meta.as_ref(), "projectId");
-        let session_type = match meta_string(args.meta.as_ref(), "client") {
+        let project_id = meta_string(args.meta.as_ref(), "projectId")?;
+        let session_type = match meta_string(args.meta.as_ref(), "client")? {
             Some(_) => SessionType::User,
             None => SessionType::Acp,
         };
         let config = Config::global();
         let (resolved_provider, resolved_model_config) =
-            match meta_string(args.meta.as_ref(), "provider") {
+            match meta_string(args.meta.as_ref(), "provider")? {
                 Some(provider) => {
                     let model_config =
                         super::resolve_provider_default_model_config(&provider).await?;
@@ -96,7 +96,11 @@ impl GooseAcpAgent {
             meta.insert("extensionResults".to_string(), extension_results);
             response = response.meta(meta);
         }
-        super::send_session_setup_notifications(cx, &goose_session)?;
+        super::send_session_setup_notifications(
+            cx,
+            &goose_session,
+            self.supports_goose_custom_notifications(),
+        )?;
         debug!(
             target: "perf",
             sid = %sid,

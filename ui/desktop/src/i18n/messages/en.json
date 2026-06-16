@@ -155,15 +155,6 @@
   "bottomMenuExtensionSelection.searchExtensions": {
     "defaultMessage": "search extensions..."
   },
-  "bottomMenuModeSelection.autoFallback": {
-    "defaultMessage": "auto"
-  },
-  "bottomMenuModeSelection.automaticModeDescription": {
-    "defaultMessage": "Automatic mode selection"
-  },
-  "bottomMenuModeSelection.currentModeTitle": {
-    "defaultMessage": "Current mode: {label} - {description}"
-  },
   "cardButtons.configure": {
     "defaultMessage": "Configure"
   },
@@ -3740,6 +3731,9 @@
   "securityToggle.mlTokenDescription": {
     "defaultMessage": "Authentication token for the ML service (e.g., HuggingFace token)"
   },
+  "securityToggle.overrideNotice": {
+    "defaultMessage": "This setting is managed by your organization and cannot be changed."
+  },
   "securityToggle.promptInjectionDescription": {
     "defaultMessage": "Detect and prevent potential prompt injection attacks"
   },
@@ -3748,6 +3742,9 @@
   },
   "securityToggle.thresholdDescription": {
     "defaultMessage": "Higher values are more strict (0.01 = very lenient, 1.0 = maximum strict)"
+  },
+  "securityToggle.warpNotice": {
+    "defaultMessage": "Command injection detection works best when connected to WARP (required to reach the classification service)."
   },
   "sessionHistory.cancel": {
     "defaultMessage": "Cancel"
@@ -3808,9 +3805,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
-  },
-  "sessionItem.messageCount": {
-    "defaultMessage": "{count} messages"
   },
   "sessionSharingSection.alreadyConfigured": {
     "defaultMessage": "Session sharing has already been configured"
@@ -3934,9 +3928,6 @@
   },
   "sessions.error.tryAgain": {
     "defaultMessage": "Try Again"
-  },
-  "sessions.extensions": {
-    "defaultMessage": "Extensions:"
   },
   "sessions.import": {
     "defaultMessage": "Import Session"

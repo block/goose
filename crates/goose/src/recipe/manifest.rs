@@ -133,8 +133,8 @@ sub_recipes:
         let sub_recipes = recipe.sub_recipes.unwrap();
 
         assert_eq!(
-            sub_recipes[0].path,
-            child_path.to_string_lossy().to_string()
+            fs::canonicalize(sub_recipes[0].path.clone()).unwrap(),
+            fs::canonicalize(child_path.to_string_lossy().to_string()).unwrap()
         );
     }
 }

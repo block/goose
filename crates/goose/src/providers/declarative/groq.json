@@ -9,17 +9,17 @@
     {
       "name": "moonshotai/kimi-k2-instruct-0905",
       "context_limit": 262144,
-      "max_tokens": 16384
+      "max_tokens": 8192
     },
     {
       "name": "openai/gpt-oss-120b",
       "context_limit": 131072,
-      "max_tokens": 65536
+      "max_tokens": 8192
     },
     {
       "name": "openai/gpt-oss-20b",
       "context_limit": 131072,
-      "max_tokens": 65536
+      "max_tokens": 8192
     },
     {
       "name": "meta-llama/llama-4-maverick-17b-128e-instruct",
@@ -34,22 +34,22 @@
     {
       "name": "qwen/qwen3-32b",
       "context_limit": 131072,
-      "max_tokens": 40960
+      "max_tokens": 8192
     },
     {
       "name": "llama-3.3-70b-versatile",
       "context_limit": 131072,
-      "max_tokens": 32768
+      "max_tokens": 8192
     },
     {
       "name": "llama-3.1-8b-instant",
       "context_limit": 131072,
-      "max_tokens": 131072
+      "max_tokens": 8192
     },
     {
       "name": "openai/gpt-oss-safeguard-20b",
       "context_limit": 131072,
-      "max_tokens": 65536
+      "max_tokens": 8192
     },
     {
       "name": "meta-llama/llama-guard-4-12b",
