@@ -716,6 +716,17 @@
     ]
   },
   {
+    "id": "stackql",
+    "name": "StackQL",
+    "description": "Query and provision cloud and SaaS resources across 60+ providers using SQL",
+    "command": "npx -y @stackql/mcp-server",
+    "link": "https://github.com/stackql/stackql",
+    "installation_notes": "Install using npx (Node.js required). The launcher downloads the signed stackql binary on first run and verifies its SHA-256. Defaults to read_only mode; provider credentials are supplied via standard cloud environment variables in the client config. See https://stackql.io/docs/installing-stackql#installing-the-mcp-server",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "summon",
     "name": "Summon",
     "description": "Load skills and delegate tasks to subagents",
