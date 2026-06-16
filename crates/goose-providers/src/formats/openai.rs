@@ -1128,13 +1128,29 @@ where
                         };
 
                         let content = match parsed {
-                            Ok(params) => {
+                            // Valid JSON, and an object: the normal path.
+                            Ok(params) if params.is_object() => {
                                 MessageContent::tool_request_with_metadata(
                                     id.clone(),
                                     Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(params))),
                                     metadata.as_ref(),
                                 )
                             },
+                            // Valid JSON but NOT an object (a bare array/string/number).
+                            // Surface a tool error so the model retries instead of
+                            // crashing the run (rmcp's `object()` debug-asserts on
+                            // non-objects). Mirrors the non-streaming decoder.
+                            Ok(_) => {
+                                let error = ErrorData {
+                                    code: ErrorCode::INVALID_PARAMS,
+                                    message: Cow::from(format!(
+                                        "Tool arguments for id {} must be a JSON object. Raw arguments: '{}'",
+                                        id, arguments
+                                    )),
+                                    data: None,
+                                };
+                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                            }
                             Err(e) => {
                                 let error = ErrorData {
                                     code: ErrorCode::INVALID_PARAMS,
@@ -2805,6 +2821,38 @@ data: [DONE]"#;
         }
 
         panic!("Expected tool call message with nested extra_content metadata");
+    }
+
+    #[tokio::test]
+    async fn test_streaming_non_object_arguments_does_not_panic() -> anyhow::Result<()> {
+        // Streamed tool call whose arguments are valid JSON but NOT an object.
+        // Must yield an INVALID_PARAMS tool error, not panic via rmcp `object()`.
+        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"id":"call_bad","function":{"name":"test_tool","arguments":"[1, 2, 3]"},"type":"function","index":0}]},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: [DONE]"#;
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        while let Some(Ok((message, _usage))) = messages.next().await {
+            if let Some(msg) = message {
+                if let MessageContent::ToolRequest(request) = &msg.content[0] {
+                    match &request.tool_call {
+                        Err(ErrorData {
+                            code: ErrorCode::INVALID_PARAMS,
+                            message: m,
+                            ..
+                        }) => {
+                            assert!(m.contains("must be a JSON object"));
+                            return Ok(());
+                        }
+                        _ => panic!("expected INVALID_PARAMS for non-object streamed args"),
+                    }
+                }
+            }
+        }
+        panic!("expected a tool request message");
     }
 
     #[tokio::test]
