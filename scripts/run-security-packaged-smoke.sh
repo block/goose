@@ -35,6 +35,29 @@ cleanup() {
   fi
 }
 
+copy_init_config() {
+  if [[ -f "$ROOT_DIR/init-config.yaml" ]]; then
+    cp "$ROOT_DIR/init-config.yaml" "$WORKDIR/init-config.yaml"
+    return
+  fi
+
+  if [[ -f "$ROOT_DIR/distro/security-cn/config/init-config.yaml.example" ]]; then
+    cp "$ROOT_DIR/distro/security-cn/config/init-config.yaml.example" "$WORKDIR/init-config.yaml"
+  fi
+}
+
+search_in_file() {
+  local pattern="$1"
+  local file_path="$2"
+
+  if command -v rg >/dev/null 2>&1; then
+    rg -n "$pattern" "$file_path"
+    return
+  fi
+
+  grep -En "$pattern" "$file_path"
+}
+
 ensure_bundle() {
   if [[ "${SECURITY_PACKAGED_SKIP_REBUILD:-0}" == "1" && -x "$APP_BIN" ]]; then
     return
@@ -114,21 +137,93 @@ assert_no_preview_update_noise() {
   local pattern='Setting up auto-updater|STARTUP UPDATE CHECK|GitHubUpdater:|latest-mac\.yml|Falling back to GitHub API|Using GitHub API fallback'
 
   for _ in $(seq 1 10); do
-    if [[ -f "$MAIN_LOG_PATH" ]] && rg -n "$pattern" "$MAIN_LOG_PATH" >/dev/null; then
+    if [[ -f "$MAIN_LOG_PATH" ]] && search_in_file "$pattern" "$MAIN_LOG_PATH" >/dev/null; then
       echo "Unexpected release updater activity detected in local-preview main log: $MAIN_LOG_PATH" >&2
-      rg -n "$pattern" "$MAIN_LOG_PATH" >&2 || true
+      search_in_file "$pattern" "$MAIN_LOG_PATH" >&2 || true
       return 1
     fi
     sleep 1
   done
 }
 
+assert_packaged_backend_defaults() {
+  NODE_TLS_REJECT_UNAUTHORIZED=0 \
+  SECURITY_BACKEND_BASE_URL="$BASE_URL" \
+  SECURITY_BACKEND_SECRET="$PACKAGED_SECRET" \
+    node <<'NODE'
+const baseUrl = process.env.SECURITY_BACKEND_BASE_URL;
+const secret = process.env.SECURITY_BACKEND_SECRET;
+
+const headers = {
+  "Content-Type": "application/json",
+  "X-Secret-Key": secret,
+};
+
+async function readConfigValue(key) {
+  const response = await fetch(`${baseUrl}/config/read`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify({ key, is_secret: false }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Failed to read config ${key}: ${response.status}`);
+  }
+
+  const parsed = await response.json();
+  if (parsed == null) {
+    return "";
+  }
+  if (typeof parsed === "object" && Object.prototype.hasOwnProperty.call(parsed, "masked_value")) {
+    return String(parsed.masked_value ?? "");
+  }
+  return String(parsed);
+}
+
+const provider = await readConfigValue("GOOSE_PROVIDER");
+const model = await readConfigValue("GOOSE_MODEL");
+const openaiBaseUrl = await readConfigValue("OPENAI_BASE_URL");
+
+if (provider !== "openai") {
+  throw new Error(`Expected GOOSE_PROVIDER=openai, got ${provider || "[empty]"}`);
+}
+
+if (model !== "deepseek-v4-flash") {
+  throw new Error(`Expected GOOSE_MODEL=deepseek-v4-flash, got ${model || "[empty]"}`);
+}
+
+if (openaiBaseUrl !== "https://tokenhub.tencentmaas.com/plan/v3") {
+  throw new Error(
+    `Expected OPENAI_BASE_URL=https://tokenhub.tencentmaas.com/plan/v3, got ${openaiBaseUrl || "[empty]"}`,
+  );
+}
+
+console.log(`configured_provider=${provider}`);
+console.log(`configured_model=${model}`);
+console.log(`configured_base_url=${openaiBaseUrl}`);
+NODE
+}
+
+has_packaged_chat_credentials() {
+  if [[ -n "${TP_ENT_API_KEY:-}" || -n "${OPENAI_API_KEY:-}" ]]; then
+    return 0
+  fi
+
+  if [[ ! -f "$WORKDIR/init-config.yaml" ]]; then
+    return 1
+  fi
+
+  local configured_key
+  configured_key="$(
+    sed -n 's/^OPENAI_API_KEY:[[:space:]]*//p' "$WORKDIR/init-config.yaml" | head -n 1 | tr -d '"' | tr -d "'"
+  )"
+
+  [[ -n "$configured_key" && "$configured_key" != *'${'* ]]
+}
+
 rm -rf "$SMOKE_ROOT"
 mkdir -p "$USER_DATA_DIR" "$GOOSE_PATH_ROOT" "$WORKDIR"
-
-if [[ -f "$ROOT_DIR/init-config.yaml" ]]; then
-  cp "$ROOT_DIR/init-config.yaml" "$WORKDIR/init-config.yaml"
-fi
+copy_init_config
 
 trap cleanup EXIT
 ensure_bundle
@@ -166,29 +261,38 @@ curl -sk \
   -H "X-Secret-Key: $PACKAGED_SECRET" \
   "$BASE_URL/status" >/dev/null
 
-PACKAGED_CHAT_OUTPUT="$(
+assert_packaged_backend_defaults
+
+if has_packaged_chat_credentials; then
+  PACKAGED_CHAT_OUTPUT="$(
+    NODE_TLS_REJECT_UNAUTHORIZED=0 \
+    SECURITY_CHAT_BASE_URL="$BASE_URL" \
+    SECURITY_CHAT_SECRET="$PACKAGED_SECRET" \
+    SECURITY_CHAT_WORKDIR="$WORKDIR" \
+      node scripts/check-security-chat-request.mjs
+  )"
+
+  printf '%s\n' "$PACKAGED_CHAT_OUTPUT"
+  PACKAGED_SESSION_ID="$(printf '%s\n' "$PACKAGED_CHAT_OUTPUT" | awk -F= '/^session_id=/{print $2; exit}')"
+  if [[ -z "$PACKAGED_SESSION_ID" ]]; then
+    echo "Failed to determine session_id from packaged chat output" >&2
+    exit 1
+  fi
+
   NODE_TLS_REJECT_UNAUTHORIZED=0 \
   SECURITY_CHAT_BASE_URL="$BASE_URL" \
   SECURITY_CHAT_SECRET="$PACKAGED_SECRET" \
-  SECURITY_CHAT_WORKDIR="$WORKDIR" \
-    node scripts/check-security-chat-request.mjs
-)"
+  SECURITY_APPS_SESSION_ID="$PACKAGED_SESSION_ID" \
+    node scripts/check-security-apps-request.mjs
 
-printf '%s\n' "$PACKAGED_CHAT_OUTPUT"
-PACKAGED_SESSION_ID="$(printf '%s\n' "$PACKAGED_CHAT_OUTPUT" | awk -F= '/^session_id=/{print $2; exit}')"
-if [[ -z "$PACKAGED_SESSION_ID" ]]; then
-  echo "Failed to determine session_id from packaged chat output" >&2
-  exit 1
+  echo "packaged_chat=ok"
+  echo "packaged_apps_request=ok"
+else
+  echo "packaged_chat=skipped_no_api_key"
+  echo "packaged_apps_request=skipped_no_api_key"
 fi
 
-NODE_TLS_REJECT_UNAUTHORIZED=0 \
-SECURITY_CHAT_BASE_URL="$BASE_URL" \
-SECURITY_CHAT_SECRET="$PACKAGED_SECRET" \
-SECURITY_APPS_SESSION_ID="$PACKAGED_SESSION_ID" \
-  node scripts/check-security-apps-request.mjs
-
 node scripts/check-security-apps-runtime.mjs "$GOOSE_PATH_ROOT"
-echo "packaged_chat=ok"
 echo "packaged_update_noise=clean"
 
 echo "packaged_smoke=ok"

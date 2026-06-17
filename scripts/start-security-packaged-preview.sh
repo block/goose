@@ -23,6 +23,17 @@ PACKAGED_SECRET="${GOOSE_SERVER__SECRET_KEY:-security-goose-packaged-preview-sec
 STARTUP_LOG_DIR="$USER_DATA_DIR/logs/startup"
 STARTUP_LOG_PATH=""
 
+copy_init_config() {
+  if [[ -f "$ROOT_DIR/init-config.yaml" ]]; then
+    cp "$ROOT_DIR/init-config.yaml" "$WORKDIR/init-config.yaml"
+    return
+  fi
+
+  if [[ -f "$ROOT_DIR/distro/security-cn/config/init-config.yaml.example" ]]; then
+    cp "$ROOT_DIR/distro/security-cn/config/init-config.yaml.example" "$WORKDIR/init-config.yaml"
+  fi
+}
+
 ensure_bundle() {
   if [[ "${SECURITY_PACKAGED_SKIP_REBUILD:-0}" == "1" && -x "$APP_BIN" ]]; then
     return
@@ -53,10 +64,7 @@ wait_for_startup_log() {
 }
 
 mkdir -p "$USER_DATA_DIR" "$GOOSE_PATH_ROOT" "$WORKDIR"
-
-if [[ -f "$ROOT_DIR/init-config.yaml" ]]; then
-  cp "$ROOT_DIR/init-config.yaml" "$WORKDIR/init-config.yaml"
-fi
+copy_init_config
 
 ensure_bundle
 ./scripts/check-security-macos-bundle.sh --arch arm64 --expect local-preview >/dev/null
