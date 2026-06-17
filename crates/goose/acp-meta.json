@@ -196,6 +196,11 @@
       "responseType": "ImportSessionResponse_unstable"
     },
     {
+      "method": "_goose/unstable/session/info",
+      "requestType": "GetSessionInfoRequest_unstable",
+      "responseType": "GetSessionInfoResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/elicitation/respond",
       "requestType": "ElicitationRespondRequest_unstable",
       "responseType": "EmptyResponse"

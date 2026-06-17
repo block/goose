@@ -62,6 +62,14 @@ pub struct Limit {
     pub output: Option<usize>,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ThinkingMode {
+    Enabled,
+    Adaptive,
+    AlwaysOnAdaptive,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CanonicalModel {
     /// Model identifier (e.g., "anthropic/claude-3-5-sonnet")
@@ -81,6 +89,10 @@ pub struct CanonicalModel {
     /// Whether the model supports reasoning/thinking
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning: Option<bool>,
+
+    /// Request shape to use when enabling thinking/reasoning.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thinking_mode: Option<ThinkingMode>,
 
     /// Whether the model supports tool calling
     #[serde(default)]

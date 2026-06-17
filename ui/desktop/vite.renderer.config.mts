@@ -1,5 +1,6 @@
 import { defineConfig } from 'vite';
 import tailwindcss from '@tailwindcss/vite';
+import { resolve } from 'path';
 
 // https://vitejs.dev/config
 export default defineConfig({
@@ -8,6 +9,14 @@ export default defineConfig({
   },
 
   plugins: [tailwindcss()],
+
+  resolve: {
+    dedupe: ['react', 'react-dom'],
+    alias: {
+      react: resolve(__dirname, 'node_modules/react'),
+      'react-dom': resolve(__dirname, 'node_modules/react-dom'),
+    },
+  },
 
   build: {
     target: 'esnext'

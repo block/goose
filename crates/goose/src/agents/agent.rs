@@ -363,7 +363,10 @@ impl Agent {
                 permission_manager,
                 provider.clone(),
             ),
-            hook_manager: crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref()),
+            hook_manager: crate::hooks::HookManager::load(
+                std::env::current_dir().ok().as_deref(),
+                use_login_shell_path,
+            ),
             #[cfg(test)]
             stop_hook_block_cap_override: None,
             container: Mutex::new(None),
@@ -1450,17 +1453,20 @@ impl Agent {
 
         for content in &user_message.content {
             if let MessageContent::ActionRequired(action_required) = content {
-                if let ActionRequiredData::ElicitationResponse { id, user_data } =
-                    &action_required.data
+                if let ActionRequiredData::ElicitationResponse {
+                    id,
+                    user_data,
+                    action,
+                } = &action_required.data
                 {
                     // Surface stale/cancelled/timed-out elicitations as a hard
                     // error so callers (e.g. the HTTP handler) can propagate
                     // failure to the client instead of silently reporting
                     // success while the blocked tool call stays unblocked.
-                    // The success path returns an empty stream; an Err here
-                    // makes the contract: Ok(empty) on accept, Err on reject.
+                    // The success path returns an empty stream after the MCP
+                    // server receives the user's accept/decline/cancel action.
                     ActionRequiredManager::global()
-                        .submit_response(id.clone(), user_data.clone())
+                        .submit_response(id.clone(), user_data.clone(), action.clone())
                         .await
                         .map_err(|e| {
                             error!("Failed to submit elicitation response: {}", e);
@@ -1719,7 +1725,15 @@ impl Agent {
             .count();
 
         let working_dir = session.working_dir.clone();
-        let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream", trace_output = tracing::field::Empty, session.id = %session_config.id);
+        let reply_stream_span = tracing::info_span!(
+            target: "goose::agents::agent",
+            "reply_stream",
+            trace_output = tracing::field::Empty,
+            session.id = %session_config.id,
+            session.user = %crate::session_context::session_user(),
+            session.host = %crate::session_context::session_host(),
+            session.agent_type = "goose",
+        );
         let inner = Box::pin(async_stream::try_stream! {
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or_else(|| {
@@ -2135,10 +2149,14 @@ impl Agent {
                                                 request.metadata.as_ref(),
                                                 request.tool_meta.clone(),
                                             );
-                                        messages_to_add.push(request_msg);
                                         let final_response = request_to_response_map
                                             .remove(&request.id)
                                             .unwrap_or_else(|| Message::user().with_generated_id());
+                                        // Response placeholder is created before tools run, so clamp request to avoid inverted ordering.
+                                        if request_msg.created > final_response.created {
+                                            request_msg.created = final_response.created;
+                                        }
+                                        messages_to_add.push(request_msg);
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
                                     } else {

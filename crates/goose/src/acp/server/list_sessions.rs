@@ -1,10 +1,8 @@
-use super::{meta_string, session_meta, GooseAcpAgent, ResultExt};
+use super::{build_session_info, meta_string, GooseAcpAgent, ResultExt};
 use crate::session::session_manager::{
     SessionListCursor, SessionListFilters, SessionListPageQuery, SessionType,
 };
-use agent_client_protocol::schema::{
-    ListSessionsRequest, ListSessionsResponse, Meta, SessionId, SessionInfo,
-};
+use agent_client_protocol::schema::{ListSessionsRequest, ListSessionsResponse, Meta, SessionInfo};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -70,6 +68,32 @@ fn session_types_from_meta(
         }
         Ok(session_types)
     }
+}
+
+fn include_last_message_snippet_from_meta(
+    meta: Option<&Meta>,
+) -> Result<bool, agent_client_protocol::Error> {
+    let Some(value) = meta.and_then(|meta| meta.get("goose")) else {
+        return Ok(false);
+    };
+    if value.is_null() {
+        return Ok(false);
+    }
+
+    let Some(goose_meta) = value.as_object() else {
+        return Err(agent_client_protocol::Error::invalid_params().data("goose must be an object"));
+    };
+    let Some(value) = goose_meta.get("includeLastMessageSnippet") else {
+        return Ok(false);
+    };
+    if value.is_null() {
+        return Ok(false);
+    }
+
+    value.as_bool().ok_or_else(|| {
+        agent_client_protocol::Error::invalid_params()
+            .data("goose.includeLastMessageSnippet must be a boolean")
+    })
 }
 
 // bind cursors to the effective filters so they cannot be reused for a different list.
@@ -158,6 +182,8 @@ impl GooseAcpAgent {
         let cwd = req.cwd.as_deref();
         let keyword = session_keyword_from_meta(req.meta.as_ref())?;
         let session_types = session_types_from_meta(req.meta.as_ref())?;
+        let include_last_message_snippet =
+            include_last_message_snippet_from_meta(req.meta.as_ref())?;
         let cursor = decode_session_list_cursor(
             req.cursor.as_deref(),
             cwd,
@@ -177,24 +203,13 @@ impl GooseAcpAgent {
                 },
                 cursor: cursor.as_ref(),
                 page_size: SESSION_LIST_PAGE_SIZE,
+                include_last_message_snippet,
             })
             .await
             .internal_err()?;
-        let session_infos: Vec<SessionInfo> = page
-            .sessions
-            .into_iter()
-            .map(|s| {
-                let meta = session_meta(&s);
-                let title = s.display_title();
-                let mut info = SessionInfo::new(SessionId::new(s.id), s.working_dir)
-                    .updated_at(s.updated_at.to_rfc3339())
-                    .meta(meta);
-                if let Some(t) = title {
-                    info = info.title(t);
-                }
-                info
-            })
-            .collect();
+
+        let session_infos: Vec<SessionInfo> =
+            page.sessions.into_iter().map(build_session_info).collect();
         let next_cursor = page
             .next_cursor
             .as_ref()

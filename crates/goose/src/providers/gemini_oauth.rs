@@ -1015,9 +1015,10 @@ impl Provider for GeminiOAuthProvider {
             let message_stream = response_to_streaming_message(raw_lines);
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e|
-                    ProviderError::RequestFailed(format!("Stream decode error: {}", e))
-                )?;
+                let (message, usage) = message.map_err(|e| {
+                    e.downcast::<ProviderError>()
+                        .unwrap_or_else(ProviderError::stream_decode_error)
+                })?;
                 if message.is_some() || usage.is_some() {
                     log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
                 }

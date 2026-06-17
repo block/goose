@@ -112,12 +112,18 @@ impl Agent {
                     .map_err(|_| anyhow::anyhow!("Confirmation channel closed for request {}", request.id))?;
 
                 if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
+                    let action = match confirmation.permission {
+                        Permission::AllowOnce | Permission::AlwaysAllow => "ALLOW",
+                        _ => "BLOCK",
+                    };
                     tracing::info!(
                         monotonic_counter.goose.prompt_injection_user_decisions = 1,
-                        decision = ?confirmation.permission,
-                        finding_id = %finding_id,
-                        tool_request_id = %request.id,
-                        "Prompt injection detection: user decision on command injection finding"
+                        security.event_type = "user_decision",
+                        security.action = action,
+                        security.finding_id = %finding_id,
+                        tool.request_id = %request.id,
+                        user.decision = ?confirmation.permission,
+                        "security finding: user decision"
                     );
                 }
 

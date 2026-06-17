@@ -162,22 +162,26 @@ impl SecurityManager {
                     let tool_call_json =
                         serde_json::to_string(&tool_call).unwrap_or_else(|_| "{}".to_string());
 
+                    let action = if above_threshold { "BLOCK" } else { "LOG" };
+
                     tracing::warn!(
                         monotonic_counter.goose.prompt_injection_finding = 1,
-                        threat_type = "command_injection",
-                        above_threshold = above_threshold,
-                        tool_name = %tool_call.name,
-                        tool_request_id = %tool_request.id,
-                        tool_call_json = %tool_call_json,
-                        confidence = analysis_result.confidence,
-                        explanation = %sanitized_explanation,
-                        finding_id = %finding_id,
-                        threshold = config_threshold,
+                        security.event_type = "prompt_injection_scan",
+                        security.action = action,
+                        security.confidence = analysis_result.confidence,
+                        security.threshold = config_threshold,
+                        security.above_threshold = above_threshold,
+                        security.threat_type = "command_injection",
+                        security.finding_id = %finding_id,
+                        security.explanation = %sanitized_explanation,
+                        tool.name = %tool_call.name,
+                        tool.request_id = %tool_request.id,
+                        tool.call_json = %tool_call_json,
                         "{}",
                         if above_threshold {
-                            "Prompt injection detection: Current tool call flagged as malicious after security analysis (above threshold)"
+                            "prompt injection scan: finding above threshold"
                         } else {
-                            "Prompt injection detection: Security finding below threshold (logged but not blocking execution)"
+                            "prompt injection scan: finding below threshold"
                         }
                     );
                     if above_threshold {
@@ -196,12 +200,16 @@ impl SecurityManager {
 
                     tracing::info!(
                         monotonic_counter.goose.prompt_injection_tool_call_passed = 1,
-                        tool_name = %tool_call.name,
-                        tool_request_id = %tool_request.id,
-                        tool_call_json = %tool_call_json,
-                        confidence = analysis_result.confidence,
-                        explanation = %sanitized_explanation,
-                        "Current tool call passed security analysis"
+                        security.event_type = "prompt_injection_scan",
+                        security.action = "ALLOW",
+                        security.confidence = analysis_result.confidence,
+                        security.threshold = config_threshold,
+                        security.above_threshold = false,
+                        security.threat_type = "command_injection",
+                        tool.name = %tool_call.name,
+                        tool.request_id = %tool_request.id,
+                        tool.call_json = %tool_call_json,
+                        "prompt injection scan: tool call passed"
                     );
                 }
             }

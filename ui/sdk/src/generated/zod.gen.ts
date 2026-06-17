@@ -1132,6 +1132,48 @@ export const zImportSessionResponse_unstable = z.object({
 });
 
 /**
+ * Return list-style metadata for a single session without loading the conversation.
+ */
+export const zGetSessionInfoRequest_unstable = z.object({
+    sessionId: z.string()
+});
+
+/**
+ * A unique identifier for a conversation session between a client and agent.
+ *
+ * Sessions maintain their own context, conversation history, and state,
+ * allowing multiple independent interactions with the same agent.
+ *
+ * See protocol docs: [Session ID](https://agentclientprotocol.com/protocol/session-setup#session-id)
+ */
+export const zSessionId = z.string();
+
+/**
+ * Information about a session returned by session/list
+ */
+export const zSessionInfo = z.object({
+    sessionId: zSessionId,
+    cwd: z.string(),
+    additionalDirectories: z.array(z.string()).optional(),
+    title: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    updatedAt: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    _meta: z.union([
+        z.record(z.unknown()),
+        z.null()
+    ]).optional()
+});
+
+export const zGetSessionInfoResponse_unstable = z.object({
+    session: zSessionInfo
+});
+
+/**
  * Submit a response for a pending MCP elicitation in an active session.
  */
 export const zElicitationRespondRequest_unstable = z.object({
@@ -1592,6 +1634,7 @@ export const zExtRequest = z.object({
             zOnboardingImportApplyRequest_unstable,
             zExportSessionRequest_unstable,
             zImportSessionRequest_unstable,
+            zGetSessionInfoRequest_unstable,
             zElicitationRespondRequest_unstable,
             zUpdateSessionProjectRequest_unstable,
             zRenameSessionRequest_unstable,
@@ -1653,6 +1696,7 @@ export const zExtResponse = z.union([
                 zOnboardingImportApplyResponse_unstable,
                 zExportSessionResponse_unstable,
                 zImportSessionResponse_unstable,
+                zGetSessionInfoResponse_unstable,
                 zCreateSourceResponse_unstable,
                 zListSourcesResponse_unstable,
                 zUpdateSourceResponse_unstable,

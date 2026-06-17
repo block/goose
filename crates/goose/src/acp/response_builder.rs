@@ -5,8 +5,8 @@ use crate::session::Session;
 use agent_client_protocol::schema::{
     AvailableCommand, AvailableCommandInput, AvailableCommandsUpdate, ModelId, ModelInfo,
     SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOption, SessionId,
-    SessionMode, SessionModeId, SessionModeState, SessionModelState, SessionNotification,
-    SessionUpdate, UnstructuredCommandInput,
+    SessionInfo, SessionMode, SessionModeId, SessionModeState, SessionModelState,
+    SessionNotification, SessionUpdate, UnstructuredCommandInput,
 };
 use agent_client_protocol::{Client, ConnectionTo};
 use goose_providers::thinking::ThinkingEffort;
@@ -19,6 +19,70 @@ pub(super) fn session_provider_selection(session: &Session) -> &str {
         .provider_name
         .as_deref()
         .unwrap_or(DEFAULT_PROVIDER_ID)
+}
+
+pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_json::Value> {
+    let mut meta = serde_json::Map::new();
+    meta.insert(
+        "messageCount".to_string(),
+        serde_json::Value::Number(session.message_count.into()),
+    );
+    meta.insert(
+        "createdAt".to_string(),
+        serde_json::Value::String(session.created_at.to_rfc3339()),
+    );
+    if let Some(ref archived_at) = session.archived_at {
+        meta.insert(
+            "archivedAt".to_string(),
+            serde_json::Value::String(archived_at.to_rfc3339()),
+        );
+    }
+    meta.insert(
+        "userSetName".to_string(),
+        serde_json::Value::Bool(session.user_set_name),
+    );
+    meta.insert(
+        "hasRecipe".to_string(),
+        serde_json::Value::Bool(session.recipe.is_some()),
+    );
+
+    if let Some(ref pid) = session.project_id {
+        meta.insert(
+            "projectId".to_string(),
+            serde_json::Value::String(pid.clone()),
+        );
+    }
+    if let Some(ref provider) = session.provider_name {
+        meta.insert(
+            "providerId".to_string(),
+            serde_json::Value::String(provider.clone()),
+        );
+    }
+    if let Some(ref mc) = session.model_config {
+        meta.insert(
+            "modelId".to_string(),
+            serde_json::Value::String(mc.model_name.clone()),
+        );
+    }
+    if let Some(ref snippet) = session.last_message_snippet {
+        meta.insert(
+            "lastMessageSnippet".to_string(),
+            serde_json::Value::String(snippet.clone()),
+        );
+    }
+    meta
+}
+
+pub(super) fn build_session_info(session: Session) -> SessionInfo {
+    let meta = session_meta(&session);
+    let title = session.display_title();
+    let mut info = SessionInfo::new(SessionId::new(session.id), session.working_dir)
+        .updated_at(session.updated_at.to_rfc3339())
+        .meta(meta);
+    if let Some(title) = title {
+        info = info.title(title);
+    }
+    info
 }
 
 pub(super) fn build_model_state(

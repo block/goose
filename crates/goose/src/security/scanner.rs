@@ -170,15 +170,16 @@ impl PromptInjectionScanner {
             self.combine_confidences(tool_result.confidence, context_result.ml_confidence);
 
         tracing::info!(
-            tool_confidence = %tool_result.confidence,
-            context_confidence = ?context_result.ml_confidence,
-            final_confidence = %final_confidence,
-            used_command_ml = tool_result.ml_confidence.is_some(),
-            used_prompt_ml = context_result.ml_confidence.is_some(),
-            used_pattern_detection = tool_result.used_pattern_detection,
-            threshold = %threshold,
-            malicious = final_confidence >= threshold,
-            "Security analysis complete"
+            security.event_type = "prompt_injection_scan",
+            security.confidence = final_confidence,
+            security.threshold = threshold,
+            security.above_threshold = final_confidence >= threshold,
+            scanner.tool_confidence = tool_result.confidence,
+            scanner.context_confidence = ?context_result.ml_confidence,
+            scanner.used_command_ml = tool_result.ml_confidence.is_some(),
+            scanner.used_prompt_ml = context_result.ml_confidence.is_some(),
+            scanner.used_pattern_detection = tool_result.used_pattern_detection,
+            "prompt injection scan: analysis complete"
         );
 
         let final_result = DetailedScanResult {
