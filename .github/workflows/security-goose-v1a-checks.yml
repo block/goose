@@ -122,6 +122,12 @@ jobs:
         shell: bash
         run: git diff --check
 
+      - name: Build repo goosed for packaged preview
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          cargo build --release -p goose-server --bin goosed
+
       - name: Run packaged bundle smoke
         shell: bash
         run: |
