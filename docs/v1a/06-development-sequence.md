@@ -79,8 +79,8 @@
 任务：
 
 - 创建 `model-catalog.json`
-- 配置 `GOOSE_PROVIDER__HOST`
-- 配置 `GOOSE_PROVIDER__API_KEY`
+- 配置 `OPENAI_BASE_URL`
+- 配置 `OPENAI_API_KEY`
 - 配置 `GOOSE_PREDEFINED_MODELS`
 - 主入口模型列表接成 `Auto + 真实模型名`
 

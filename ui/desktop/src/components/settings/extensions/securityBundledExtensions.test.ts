@@ -19,6 +19,18 @@ describe('security bundled extension catalog', () => {
     expect(entries.every((entry) => entry.cmd === 'node')).toBe(true);
   });
 
+  it('keeps node as the source catalog command and relies on desktop sync to resolve the actual runner', () => {
+    const threatIntel = bundledExtensions.find((entry) => entry.id === 'threat-intel-mcp');
+    const browserAssist = bundledExtensions.find((entry) => entry.id === 'browser-assist-mcp');
+
+    expect(threatIntel?.args).toEqual(['distro/security-cn/extensions/threat-intel-mcp/server.mjs']);
+    expect(browserAssist?.args).toEqual([
+      'distro/security-cn/extensions/browser-assist-mcp/server.mjs',
+    ]);
+    expect(threatIntel?.cmd).toBe('node');
+    expect(browserAssist?.cmd).toBe('node');
+  });
+
   it('marks browser-assist and threat-intel as zero-config local preview entries', () => {
     const browserAssist = bundledExtensions.find((entry) => entry.id === 'browser-assist-mcp');
     const threatIntel = bundledExtensions.find((entry) => entry.id === 'threat-intel-mcp');

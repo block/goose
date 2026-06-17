@@ -3,6 +3,7 @@ import { Button } from '../../ui/button';
 import { Loader2, Download, CheckCircle, AlertCircle } from 'lucide-react';
 import { errorMessage } from '../../../utils/conversionUtils';
 import { defineMessages, useIntl } from '../../../i18n';
+import { parseDesktopUpdateMode } from '../../../updateMode';
 
 const i18n = defineMessages({
   loading: {
@@ -85,6 +86,19 @@ const i18n = defineMessages({
     id: 'updateSection.installNowHint',
     defaultMessage: 'Or click "Install & Restart" to update now.',
   },
+  localPreviewDisabled: {
+    id: 'updateSection.localPreviewDisabled',
+    defaultMessage: 'Local preview builds do not check signed release updates.',
+  },
+  localPreviewDisabledDetail: {
+    id: 'updateSection.localPreviewDisabledDetail',
+    defaultMessage:
+      'Use the official preview launcher for local testing. Signed release packages keep the real update channel.',
+  },
+  updatesDisabled: {
+    id: 'updateSection.updatesDisabled',
+    defaultMessage: 'Release update checks are unavailable in this build.',
+  },
 });
 
 type UpdateStatus =
@@ -110,6 +124,9 @@ interface UpdateEventData {
 
 export default function UpdateSection() {
   const intl = useIntl();
+  const updateMode = parseDesktopUpdateMode(window.appConfig?.get('SECURITY_UPDATER_MODE'));
+  const updatesDisabledReason = window.appConfig?.get('SECURITY_UPDATER_DISABLED_REASON');
+  const releaseUpdatesEnabled = updateMode === 'enabled';
   const [updateStatus, setUpdateStatus] = useState<UpdateStatus>('idle');
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo>({
     currentVersion: '',
@@ -123,6 +140,10 @@ export default function UpdateSection() {
     // Get current version on mount
     const currentVersion = window.electron.getVersion();
     setUpdateInfo((prev) => ({ ...prev, currentVersion }));
+
+    if (!releaseUpdatesEnabled) {
+      return;
+    }
 
     // Check if there's already an update state from the auto-check
     window.electron.getUpdateState().then((state) => {
@@ -214,9 +235,13 @@ export default function UpdateSection() {
         clearTimeout(progressTimeoutRef.current);
       }
     };
-  }, []);
+  }, [releaseUpdatesEnabled]);
 
   const checkForUpdates = async () => {
+    if (!releaseUpdatesEnabled) {
+      return;
+    }
+
     setUpdateStatus('checking');
     setProgress(0);
     lastProgressRef.current = 0; // Reset progress tracking for new download
@@ -243,6 +268,20 @@ export default function UpdateSection() {
       setUpdateStatus('error');
       setTimeout(() => setUpdateStatus('idle'), 5000);
     }
+  };
+
+  const getDisabledMessage = () => {
+    if (updateMode === 'local-preview-disabled' || updatesDisabledReason === 'local-preview') {
+      return {
+        title: intl.formatMessage(i18n.localPreviewDisabled),
+        detail: intl.formatMessage(i18n.localPreviewDisabledDetail),
+      };
+    }
+
+    return {
+      title: intl.formatMessage(i18n.updatesDisabled),
+      detail: '',
+    };
   };
 
   const installUpdate = () => {
@@ -308,7 +347,7 @@ export default function UpdateSection() {
         <div className="flex items-center gap-2">
           <Button
             onClick={checkForUpdates}
-            disabled={updateStatus !== 'idle' && updateStatus !== 'error'}
+            disabled={!releaseUpdatesEnabled || (updateStatus !== 'idle' && updateStatus !== 'error')}
             variant="secondary"
             size="sm"
           >
@@ -326,6 +365,16 @@ export default function UpdateSection() {
           <div className="flex items-center gap-2 text-xs text-text-secondary">
             {getStatusIcon()}
             <span>{getStatusMessage()}</span>
+          </div>
+        )}
+
+        {!releaseUpdatesEnabled && (
+          <div className="flex items-start gap-2 text-xs text-amber-700 dark:text-amber-400">
+            <AlertCircle className="mt-0.5 w-4 h-4 shrink-0" />
+            <div className="space-y-1">
+              <p>{getDisabledMessage().title}</p>
+              {getDisabledMessage().detail ? <p>{getDisabledMessage().detail}</p> : null}
+            </div>
           </div>
         )}
 

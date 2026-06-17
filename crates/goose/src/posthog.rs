@@ -13,8 +13,10 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use uuid::Uuid;
 
-const POSTHOG_API_KEY: &str = "phc_RyX5CaY01VtZJCQyhSR5KFh6qimUy81YwxsEpotAftT";
-const POSTHOG_CAPTURE_URL: &str = "https://us.i.posthog.com/capture/";
+const DEFAULT_POSTHOG_API_KEY: &str = "phc_yS3ZTSB2WBmKf6aiBHstbfV4Nc2cxc7KxVavBxNjBBSn";
+const DEFAULT_POSTHOG_API_HOST: &str = "https://us.i.posthog.com";
+const POSTHOG_PROJECT_API_KEY_KEY: &str = "GOOSE_POSTHOG_PROJECT_API_KEY";
+const POSTHOG_API_HOST_KEY: &str = "GOOSE_POSTHOG_API_HOST";
 
 /// Config key for telemetry opt-out preference
 pub const TELEMETRY_ENABLED_KEY: &str = "GOOSE_TELEMETRY_ENABLED";
@@ -57,11 +59,60 @@ pub fn is_telemetry_enabled() -> bool {
 
 #[derive(Serialize)]
 struct CaptureEvent {
-    api_key: &'static str,
+    api_key: String,
     event: String,
     distinct_id: String,
     properties: HashMap<String, serde_json::Value>,
     timestamp: Option<String>,
+}
+
+fn read_optional_config_string(key: &str) -> Option<String> {
+    Config::global()
+        .get_param::<String>(key)
+        .ok()
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+}
+
+fn resolve_posthog_project_api_key_with_sources<E, C>(env_lookup: E, config_lookup: C) -> String
+where
+    E: Fn(&str) -> Option<String>,
+    C: Fn(&str) -> Option<String>,
+{
+    env_lookup(POSTHOG_PROJECT_API_KEY_KEY)
+        .or_else(|| config_lookup(POSTHOG_PROJECT_API_KEY_KEY))
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| DEFAULT_POSTHOG_API_KEY.to_string())
+}
+
+fn resolve_posthog_api_host_with_sources<E, C>(env_lookup: E, config_lookup: C) -> String
+where
+    E: Fn(&str) -> Option<String>,
+    C: Fn(&str) -> Option<String>,
+{
+    env_lookup(POSTHOG_API_HOST_KEY)
+        .or_else(|| config_lookup(POSTHOG_API_HOST_KEY))
+        .map(|value| value.trim().trim_end_matches('/').to_string())
+        .filter(|value| !value.is_empty())
+        .unwrap_or_else(|| DEFAULT_POSTHOG_API_HOST.to_string())
+}
+
+fn resolve_posthog_project_api_key() -> String {
+    resolve_posthog_project_api_key_with_sources(
+        |key| std::env::var(key).ok(),
+        read_optional_config_string,
+    )
+}
+
+fn resolve_posthog_capture_url() -> String {
+    format!(
+        "{}/capture/",
+        resolve_posthog_api_host_with_sources(
+            |key| std::env::var(key).ok(),
+            read_optional_config_string,
+        )
+    )
 }
 
 async fn posthog_capture(
@@ -70,16 +121,17 @@ async fn posthog_capture(
     properties: HashMap<String, serde_json::Value>,
 ) -> Result<(), String> {
     let payload = CaptureEvent {
-        api_key: POSTHOG_API_KEY,
+        api_key: resolve_posthog_project_api_key(),
         event: event_name.to_string(),
         distinct_id: distinct_id.to_string(),
         properties,
         timestamp: Some(Utc::now().to_rfc3339()),
     };
+    let capture_url = resolve_posthog_capture_url();
 
     let client = reqwest::Client::new();
     client
-        .post(POSTHOG_CAPTURE_URL)
+        .post(capture_url)
         .header("Content-Type", "application/json")
         .json(&payload)
         .send()
@@ -601,4 +653,69 @@ pub async fn emit_event(
         .collect();
 
     posthog_capture(event_name, &installation.installation_id, sanitized).await
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn posthog_uses_defaults_when_no_override_is_present() {
+        assert_eq!(
+            resolve_posthog_project_api_key_with_sources(|_| None, |_| None),
+            DEFAULT_POSTHOG_API_KEY
+        );
+        assert_eq!(
+            resolve_posthog_api_host_with_sources(|_| None, |_| None),
+            DEFAULT_POSTHOG_API_HOST
+        );
+    }
+
+    #[test]
+    fn posthog_prefers_env_over_config() {
+        let project_api_key = resolve_posthog_project_api_key_with_sources(
+            |key| match key {
+                POSTHOG_PROJECT_API_KEY_KEY => Some("phc_env_override".to_string()),
+                _ => None,
+            },
+            |key| match key {
+                POSTHOG_PROJECT_API_KEY_KEY => Some("phc_config_fallback".to_string()),
+                _ => None,
+            },
+        );
+        let api_host = resolve_posthog_api_host_with_sources(
+            |key| match key {
+                POSTHOG_API_HOST_KEY => Some("https://env.posthog.example/".to_string()),
+                _ => None,
+            },
+            |key| match key {
+                POSTHOG_API_HOST_KEY => Some("https://config.posthog.example".to_string()),
+                _ => None,
+            },
+        );
+
+        assert_eq!(project_api_key, "phc_env_override");
+        assert_eq!(api_host, "https://env.posthog.example");
+    }
+
+    #[test]
+    fn posthog_uses_config_when_env_override_is_missing() {
+        let project_api_key = resolve_posthog_project_api_key_with_sources(
+            |_| None,
+            |key| match key {
+                POSTHOG_PROJECT_API_KEY_KEY => Some("phc_config_only".to_string()),
+                _ => None,
+            },
+        );
+        let api_host = resolve_posthog_api_host_with_sources(
+            |_| None,
+            |key| match key {
+                POSTHOG_API_HOST_KEY => Some("https://config-only.posthog.example/".to_string()),
+                _ => None,
+            },
+        );
+
+        assert_eq!(project_api_key, "phc_config_only");
+        assert_eq!(api_host, "https://config-only.posthog.example");
+    }
 }

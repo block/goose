@@ -6,8 +6,10 @@ import * as os from 'os';
 import log from './logger';
 import { safeJsonParse, errorMessage } from './conversionUtils';
 import { loadSecurityDistroDefaults } from '../branding/distro';
+import { resolveDesktopReleaseRepository } from '../updateMode';
 
 const securityDistroDefaults = loadSecurityDistroDefaults();
+const desktopReleaseRepository = resolveDesktopReleaseRepository(process.env);
 
 interface GitHubRelease {
   tag_name: string;
@@ -30,8 +32,8 @@ interface UpdateCheckResult {
 }
 
 export class GitHubUpdater {
-  private readonly owner = process.env.GITHUB_OWNER || 'block';
-  private readonly repo = process.env.GITHUB_REPO || 'goose';
+  private readonly owner = desktopReleaseRepository.owner;
+  private readonly repo = desktopReleaseRepository.repo;
   private readonly bundleName =
     process.env.GOOSE_BUNDLE_NAME?.trim() || securityDistroDefaults.productName || 'Goose';
   private readonly apiUrl = `https://api.github.com/repos/${this.owner}/${this.repo}/releases/latest`;

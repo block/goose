@@ -15,19 +15,19 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   importRecipeTitle: {
     id: 'importRecipeForm.importRecipeTitle',
-    defaultMessage: 'Import Recipe',
+    defaultMessage: 'Import Task Template',
   },
   recipeDeeplinkLabel: {
     id: 'importRecipeForm.recipeDeeplinkLabel',
-    defaultMessage: 'Recipe Deeplink',
+    defaultMessage: 'Task Template Link',
   },
   deeplinkPlaceholder: {
     id: 'importRecipeForm.deeplinkPlaceholder',
-    defaultMessage: 'Paste your goose://recipe?config=... deeplink here',
+    defaultMessage: 'Paste your goose://recipe?config=... link here',
   },
   deeplinkHint: {
     id: 'importRecipeForm.deeplinkHint',
-    defaultMessage: 'Paste a recipe deeplink starting with "goose://recipe?config="',
+    defaultMessage: 'Paste a task template link starting with "goose://recipe?config="',
   },
   or: {
     id: 'importRecipeForm.or',
@@ -35,11 +35,11 @@ const i18n = defineMessages({
   },
   recipeFileLabel: {
     id: 'importRecipeForm.recipeFileLabel',
-    defaultMessage: 'Recipe File',
+    defaultMessage: 'Task Template File',
   },
   recipeFileHint: {
     id: 'importRecipeForm.recipeFileHint',
-    defaultMessage: 'Upload a YAML or JSON file containing the recipe structure',
+    defaultMessage: 'Upload a YAML or JSON file containing the task template structure',
   },
   example: {
     id: 'importRecipeForm.example',
@@ -47,7 +47,8 @@ const i18n = defineMessages({
   },
   reviewWarning: {
     id: 'importRecipeForm.reviewWarning',
-    defaultMessage: 'Ensure you review contents of recipe files before adding them to your goose interface.',
+    defaultMessage:
+      'Review task template files before adding them to your workspace.',
   },
   cancel: {
     id: 'importRecipeForm.cancel',
@@ -59,15 +60,16 @@ const i18n = defineMessages({
   },
   importRecipeButton: {
     id: 'importRecipeForm.importRecipeButton',
-    defaultMessage: 'Import Recipe',
+    defaultMessage: 'Import Task Template',
   },
   expectedRecipeStructure: {
     id: 'importRecipeForm.expectedRecipeStructure',
-    defaultMessage: 'Expected Recipe Structure',
+    defaultMessage: 'Expected Task Template Structure',
   },
   schemaDescription: {
     id: 'importRecipeForm.schemaDescription',
-    defaultMessage: 'Your YAML or JSON file should follow this structure. Required fields are: title, description, and either instructions or prompt.',
+    defaultMessage:
+      'Your YAML or JSON file should follow this structure. Required fields are: title, description, and either instructions or prompt.',
   },
 });
 

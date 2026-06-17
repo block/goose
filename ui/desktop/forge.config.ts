@@ -47,7 +47,12 @@ let cfg = {
     NSRemindersUsageDescription: `${appDisplayName} needs access to your reminders to help manage and query reminders.`,
     LSEnvironment: {
       MallocNanoZone: '0',
-      ...(macosBundleMode.disableKeyringByDefault ? { GOOSE_DISABLE_KEYRING: '1' } : {}),
+      ...(macosBundleMode.disableKeyringByDefault
+        ? {
+            GOOSE_DISABLE_KEYRING: '1',
+            GOOSE_LOCAL_PREVIEW_BUNDLE: '1',
+          }
+        : {}),
     },
     SecurityGooseSigningMode: macosBundleMode.signingMode,
     SecurityGooseDisableKeyringByDefault: macosBundleMode.disableKeyringByDefault,

@@ -1,9 +1,9 @@
 {
   "distributionId": "security-cn",
-  "productName": "Security Goose",
-  "productNameZh": "Security Goose 安全工作台",
+  "productName": "收到",
+  "productNameZh": "收到",
   "defaultLocale": "zh-CN",
   "targetPlatform": "macos",
   "bundleId": "com.securitygoose.preview",
-  "notes": "Goal 3 will replace placeholder brand assets and packaging identifiers."
+  "notes": "客户端对外品牌已收口为 收到，内部兼容标识继续保留 Goose 系技术 id。"
 }

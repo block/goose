@@ -47,6 +47,10 @@ node scripts/check-security-github-release-readiness.mjs
 - `signing` environment 是否存在
 - 当前 `gh` 身份是否具备 workflow 操作权限
 
+如果执行者需要一份“可直接照着执行”的 secrets 注入、workflow 触发、artifact 下载和 Go/No-Go 模板，请同时打开：
+
+- [`signed-release-handoff-panel.md`](./signed-release-handoff-panel.md)
+
 ## Recommended CI path
 
 优先使用手工 workflow，而不是先推正式 release tag：
@@ -203,9 +207,8 @@ node scripts/render-security-macos-release-evidence.mjs \
 4. 首次启动可进入 Security Goose 主界面，而不是 bare Electron `default_app`。
 5. 默认语言是 `zh-CN` 口径。
 6. Settings 里的 provider / model 默认接线符合 `distro/security-cn/config/desktop-env.example` 与 `model-catalog.json`。
-7. Recipes 页顶部仍可见安全任务入口区。
-8. `漏洞研判`、`告警分析`、`网页调查` 仍走 recipe-backed 路径。
-9. `IOC 研判`、`报告生成`、`业务逻辑排查（WooYun-style）` 仍走 guided preview 路径。
+7. 任务模板页“已保存任务模板”列表仍可见 6 个内置安全任务模板。
+8. `漏洞研判`、`告警分析`、`IOC 研判`、`网页调查`、`报告生成`、`业务逻辑排查（WooYun-style）` 都仍走 recipe-backed 路径。
 10. Extensions 视图里的推荐安全扩展状态没有回退。
 
 ## Release tag path

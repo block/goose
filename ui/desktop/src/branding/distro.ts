@@ -14,7 +14,10 @@ export interface SecurityDistroDefaults {
   defaultProvider?: string;
   defaultModel?: string;
   predefinedModels: string;
+  pricingMode: 'enabled' | 'disabled-token-plan';
 }
+
+const DEFAULT_SECURITY_APP_NAME = '收到';
 
 interface ProductMetadata {
   distributionId?: string;
@@ -78,6 +81,32 @@ function readTextFile(filePath: string): string | undefined {
   return fs.readFileSync(filePath, 'utf8');
 }
 
+function readTopLevelScalar(contents: string, key: string): string | undefined {
+  for (const rawLine of contents.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith('#')) {
+      continue;
+    }
+
+    const separatorIndex = line.indexOf(':');
+    if (separatorIndex <= 0) {
+      continue;
+    }
+
+    const candidateKey = line.slice(0, separatorIndex).trim();
+    if (candidateKey !== key) {
+      continue;
+    }
+
+    return line
+      .slice(separatorIndex + 1)
+      .trim()
+      .replace(/^['"]|['"]$/g, '');
+  }
+
+  return undefined;
+}
+
 function getSearchRoots(searchRoot?: string): string[] {
   const roots = [
     searchRoot,
@@ -123,12 +152,22 @@ export function loadSecurityDistroDefaults(searchRoot?: string): SecurityDistroD
     readJsonFile<Array<Record<string, unknown>>>(
       path.join(distroDir, 'config', 'model-catalog.json')
     );
+  const providerDefaults = distroDir
+    ? readTextFile(path.join(distroDir, 'config', 'provider-defaults.yaml'))
+    : undefined;
+  const defaultBaseUrl = providerDefaults
+    ? readTopLevelScalar(providerDefaults, 'base_url')
+    : undefined;
+  const pricingMode =
+    typeof defaultBaseUrl === 'string' && defaultBaseUrl.includes('tokenhub.tencentmaas.com/plan/')
+      ? 'disabled-token-plan'
+      : 'enabled';
 
   return {
     distroDir,
     distributionId: metadata?.distributionId,
     bundleId: metadata?.bundleId,
-    productName: metadata?.productName?.trim() || 'Goose',
+    productName: metadata?.productName?.trim() || DEFAULT_SECURITY_APP_NAME,
     productNameZh: metadata?.productNameZh?.trim(),
     locale: desktopEnv.GOOSE_LOCALE || metadata?.defaultLocale,
     defaultProvider: desktopEnv.GOOSE_DEFAULT_PROVIDER,
@@ -136,5 +175,6 @@ export function loadSecurityDistroDefaults(searchRoot?: string): SecurityDistroD
     predefinedModels:
       desktopEnv.GOOSE_PREDEFINED_MODELS ||
       JSON.stringify(Array.isArray(modelCatalog) ? modelCatalog : []),
+    pricingMode,
   };
 }

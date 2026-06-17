@@ -14,17 +14,59 @@
   "appLayout.openNavigation": {
     "defaultMessage": "Open navigation"
   },
+  "appsView.builtInSectionDescription": {
+    "defaultMessage": "These offline mini-tools ship with the current build and are meant for quick analyst workflows."
+  },
+  "appsView.builtInSectionTitle": {
+    "defaultMessage": "Built-in security tools"
+  },
+  "appsView.builtInSecurityApp": {
+    "defaultMessage": "Built-in security tool"
+  },
   "appsView.customApp": {
-    "defaultMessage": "Custom app"
+    "defaultMessage": "Imported / custom app"
+  },
+  "appsView.customSectionDescription": {
+    "defaultMessage": "Apps you import or generate in chat continue to appear here."
+  },
+  "appsView.customSectionTitle": {
+    "defaultMessage": "Imported / custom apps"
   },
   "appsView.description": {
-    "defaultMessage": "Applications from your MCP servers and Apps built by goose itself. You can ask it to create new apps through the chat interface and they will appear here."
+    "defaultMessage": "Built-in security tools plus apps managed by the current apps runtime appear here. This build ships a small curated set of classic analyst utilities by default."
+  },
+  "appsView.encodeHashLabCategory": {
+    "defaultMessage": "Encoding / decoding / hashing"
+  },
+  "appsView.encodeHashLabDescription": {
+    "defaultMessage": "Use an offline multi-step operation pipeline for suspicious strings, headers, payloads, JSON, and token fragments."
+  },
+  "appsView.encodeHashLabTitle": {
+    "defaultMessage": "Encode & Hash Lab"
   },
   "appsView.errorLoading": {
     "defaultMessage": "Error loading apps: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Import App"
+  },
+  "appsView.iocToolboxCategory": {
+    "defaultMessage": "IOC triage"
+  },
+  "appsView.iocToolboxDescription": {
+    "defaultMessage": "Normalize and deduplicate domains, IPs, URLs, hashes, emails, and CVEs for fast IOC triage."
+  },
+  "appsView.iocToolboxTitle": {
+    "defaultMessage": "IOC Toolbox"
+  },
+  "appsView.jwtInspectorCategory": {
+    "defaultMessage": "Auth token review"
+  },
+  "appsView.jwtInspectorDescription": {
+    "defaultMessage": "Decode token headers and claims locally to flag unsigned, expired, or suspicious JWT fields before deeper auth investigation."
+  },
+  "appsView.jwtInspectorTitle": {
+    "defaultMessage": "JWT Inspector"
   },
   "appsView.launch": {
     "defaultMessage": "Launch"
@@ -33,13 +75,22 @@
     "defaultMessage": "Loading apps..."
   },
   "appsView.noAppsDescription": {
-    "defaultMessage": "Open a chat and ask goose for the app you want to have. It can build one for you and that will appear here. Or if somebody shared an app, you can import it using the button above."
+    "defaultMessage": "Import an app package or ask the assistant to create one in chat. Built-in security tools should appear here automatically when the apps runtime is healthy."
   },
   "appsView.noAppsTitle": {
     "defaultMessage": "No apps available"
   },
   "appsView.retry": {
     "defaultMessage": "Retry"
+  },
+  "appsView.secretCredentialScannerCategory": {
+    "defaultMessage": "Secret / credential review"
+  },
+  "appsView.secretCredentialScannerDescription": {
+    "defaultMessage": "Scan logs, configs, and snippets locally for cloud keys, collaboration webhooks, tokens, private keys, and other secret-like material."
+  },
+  "appsView.secretCredentialScannerTitle": {
+    "defaultMessage": "Secret Scanner"
   },
   "appsView.title": {
     "defaultMessage": "Apps"
@@ -120,7 +171,7 @@
     "defaultMessage": "\"{title}\" has been saved and is ready to use."
   },
   "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "Recipe created successfully!"
+    "defaultMessage": "Task template created successfully!"
   },
   "bottomMenuExtensionSelection.extensionToggleError": {
     "defaultMessage": "Extension Toggle Error"
@@ -171,7 +222,7 @@
     "defaultMessage": "Context window"
   },
   "chatInput.createRecipeFromSession": {
-    "defaultMessage": "Create Recipe from Session"
+    "defaultMessage": "Save as Task Template"
   },
   "chatInput.dictationError": {
     "defaultMessage": "Dictation Error"
@@ -213,7 +264,7 @@
     "defaultMessage": "Unknown type"
   },
   "chatInput.viewEditRecipe": {
-    "defaultMessage": "View/Edit Recipe"
+    "defaultMessage": "View/Edit Task Template"
   },
   "chatInput.viewExtensions": {
     "defaultMessage": "View extensions"
@@ -222,13 +273,13 @@
     "defaultMessage": "Waiting for images to save..."
   },
   "chatSettings.modeDescription": {
-    "defaultMessage": "Configure how Goose interacts with tools and extensions"
+    "defaultMessage": "Configure how the assistant interacts with tools and extensions"
   },
   "chatSettings.modeTitle": {
     "defaultMessage": "Mode"
   },
   "chatSettings.responseStylesDescription": {
-    "defaultMessage": "Choose how Goose should format and style its responses"
+    "defaultMessage": "Choose how the assistant should format and style its responses"
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Response Styles"
@@ -324,7 +375,7 @@
     "defaultMessage": "Max Turns"
   },
   "conversationLimitsDropdown.maxTurnsDescription": {
-    "defaultMessage": "Maximum agent turns before Goose asks for user input"
+    "defaultMessage": "Maximum agent turns before the assistant asks for user input"
   },
   "costTracker.costUnavailable": {
     "defaultMessage": "Cost data not available for {model} ({inputTokens} input, {outputTokens} output tokens)"
@@ -354,13 +405,13 @@
     "defaultMessage": "Copy this link to share with friends or paste directly in Chrome to open"
   },
   "createEditRecipe.createRecipeTitle": {
-    "defaultMessage": "Create Recipe"
+    "defaultMessage": "Create Task Template"
   },
   "createEditRecipe.createSubtitle": {
-    "defaultMessage": "Create a new recipe to define agent behavior and capabilities for reusable chat sessions."
+    "defaultMessage": "Create a new task template to define agent behavior and capabilities for reusable chat sessions."
   },
   "createEditRecipe.editSubtitle": {
-    "defaultMessage": "You can edit the recipe below to change the agent's behavior in a new session."
+    "defaultMessage": "You can edit the task template below to change the agent's behavior in a new session."
   },
   "createEditRecipe.generatingDeeplink": {
     "defaultMessage": "Generating deeplink..."
@@ -369,28 +420,28 @@
     "defaultMessage": "Learn more"
   },
   "createEditRecipe.recipeSavedAndLaunchedMsg": {
-    "defaultMessage": "Recipe saved and launched successfully"
+    "defaultMessage": "Task template saved and launched successfully"
   },
   "createEditRecipe.recipeSavedMsg": {
-    "defaultMessage": "Recipe saved successfully"
+    "defaultMessage": "Task template saved successfully"
   },
   "createEditRecipe.saveAndRunFailed": {
     "defaultMessage": "Save and Run Failed"
   },
   "createEditRecipe.saveAndRunFailedMsg": {
-    "defaultMessage": "Failed to save and run recipe: {error}"
+    "defaultMessage": "Failed to save and start the task: {error}"
   },
   "createEditRecipe.saveAndRunRecipe": {
-    "defaultMessage": "Save & Run Recipe"
+    "defaultMessage": "Save & Start Task"
   },
   "createEditRecipe.saveFailed": {
     "defaultMessage": "Save Failed"
   },
   "createEditRecipe.saveFailedMsg": {
-    "defaultMessage": "Failed to save recipe: {error}"
+    "defaultMessage": "Failed to save task template: {error}"
   },
   "createEditRecipe.saveRecipe": {
-    "defaultMessage": "Save Recipe"
+    "defaultMessage": "Save Task Template"
   },
   "createEditRecipe.saving": {
     "defaultMessage": "Saving..."
@@ -402,7 +453,7 @@
     "defaultMessage": "Please fill in all required fields and ensure JSON schema is valid."
   },
   "createEditRecipe.viewEditRecipeTitle": {
-    "defaultMessage": "View/edit recipe"
+    "defaultMessage": "View/Edit Task Template"
   },
   "createRecipeFromSession.analyzingTitle": {
     "defaultMessage": "Analyzing your conversation"
@@ -411,10 +462,10 @@
     "defaultMessage": "Cancel"
   },
   "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "Create & Run Recipe"
+    "defaultMessage": "Save & Start Task"
   },
   "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "Create Recipe"
+    "defaultMessage": "Save Task Template"
   },
   "createRecipeFromSession.creating": {
     "defaultMessage": "Creating..."
@@ -423,10 +474,10 @@
     "defaultMessage": "Extracting insights from your chat"
   },
   "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "An unexpected error occurred while creating the recipe. Please try again."
+    "defaultMessage": "An unexpected error occurred while creating the task template. Please try again."
   },
   "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "Failed to create recipe"
+    "defaultMessage": "Failed to create task template"
   },
   "createRecipeFromSession.stageComplete": {
     "defaultMessage": "Complete!"
@@ -438,7 +489,7 @@
     "defaultMessage": "Finalizing details..."
   },
   "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "Generating recipe structure..."
+    "defaultMessage": "Generating task template structure..."
   },
   "createRecipeFromSession.stageIdentifying": {
     "defaultMessage": "Identifying key patterns..."
@@ -447,22 +498,22 @@
     "defaultMessage": "Reading your conversation..."
   },
   "createRecipeFromSession.subtitle": {
-    "defaultMessage": "Create a reusable recipe based on your current conversation."
+    "defaultMessage": "Create a reusable task template based on your current conversation."
   },
   "createRecipeFromSession.title": {
-    "defaultMessage": "Create Recipe from Session"
+    "defaultMessage": "Save as Task Template"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "Cancel"
   },
   "createSubRecipeInline.closeModal": {
-    "defaultMessage": "Close create subrecipe modal"
+    "defaultMessage": "Close create subtask template modal"
   },
   "createSubRecipeInline.createAndAdd": {
-    "defaultMessage": "Create & Add Subrecipe"
+    "defaultMessage": "Create & Add Subtask Template"
   },
   "createSubRecipeInline.createdSuccess": {
-    "defaultMessage": "Subrecipe created successfully"
+    "defaultMessage": "Subtask template created successfully"
   },
   "createSubRecipeInline.creating": {
     "defaultMessage": "Creating..."
@@ -471,13 +522,13 @@
     "defaultMessage": "Duplicate Name"
   },
   "createSubRecipeInline.duplicateNameMsg": {
-    "defaultMessage": "A subrecipe named \"{name}\" already exists. Please use a unique name."
+    "defaultMessage": "A subtask template named \"{name}\" already exists. Please use a unique name."
   },
   "createSubRecipeInline.instructionsLabel": {
     "defaultMessage": "Instructions"
   },
   "createSubRecipeInline.instructionsPlaceholder": {
-    "defaultMessage": "Instructions for the AI when this subrecipe is called..."
+    "defaultMessage": "Instructions for the AI when this subtask template is called..."
   },
   "createSubRecipeInline.nameHint": {
     "defaultMessage": "Unique identifier used to generate the tool name"
@@ -492,16 +543,16 @@
     "defaultMessage": "Pre-configured Values"
   },
   "createSubRecipeInline.preconfiguredValuesHint": {
-    "defaultMessage": "Optional parameter values that are always passed to the subrecipe"
+    "defaultMessage": "Optional parameter values that are always passed to the subtask template"
   },
   "createSubRecipeInline.recipeDescriptionLabel": {
-    "defaultMessage": "Recipe Description"
+    "defaultMessage": "Task Template Description"
   },
   "createSubRecipeInline.recipeDescriptionPlaceholder": {
-    "defaultMessage": "What this recipe does when executed"
+    "defaultMessage": "What this task template does when started"
   },
   "createSubRecipeInline.recipeTitleLabel": {
-    "defaultMessage": "Recipe Title"
+    "defaultMessage": "Task Template Title"
   },
   "createSubRecipeInline.recipeTitlePlaceholder": {
     "defaultMessage": "e.g., Security Analysis Tool"
@@ -510,7 +561,7 @@
     "defaultMessage": "Save Failed"
   },
   "createSubRecipeInline.saveFailedMsg": {
-    "defaultMessage": "Failed to save subrecipe: {error}"
+    "defaultMessage": "Failed to save subtask template: {error}"
   },
   "createSubRecipeInline.sequentialHint": {
     "defaultMessage": "(Forces sequential execution of multiple instances)"
@@ -519,10 +570,10 @@
     "defaultMessage": "Sequential when repeated"
   },
   "createSubRecipeInline.subtitle": {
-    "defaultMessage": "Create a simple recipe to use as a callable tool in your main recipe"
+    "defaultMessage": "Create a simple task template to use as a callable tool inside your main task template"
   },
   "createSubRecipeInline.title": {
-    "defaultMessage": "Create New Subrecipe"
+    "defaultMessage": "Create New Subtask Template"
   },
   "createSubRecipeInline.toolDescriptionLabel": {
     "defaultMessage": "Tool Description"
@@ -534,7 +585,7 @@
     "defaultMessage": "Validation Failed"
   },
   "createSubRecipeInline.validationMsg": {
-    "defaultMessage": "Name, title, recipe description, and instructions are required."
+    "defaultMessage": "Name, title, task template description, and instructions are required."
   },
   "creditsExhaustedNotification.addCredits": {
     "defaultMessage": "Add credits"
@@ -984,7 +1035,7 @@
     "defaultMessage": "Information request was cancelled."
   },
   "elicitationRequest.defaultMessage": {
-    "defaultMessage": "Goose needs some information from you."
+    "defaultMessage": "The assistant needs some information from you."
   },
   "elicitationRequest.expired": {
     "defaultMessage": "This request has expired. The extension will need to ask again."
@@ -1212,7 +1263,7 @@
     "defaultMessage": "Extensions enabled here are used as the default for new chats. You can also toggle active extensions during chat."
   },
   "extensionsView.description": {
-    "defaultMessage": "These extensions use the Model Context Protocol (MCP). They can expand Goose's capabilities using three main components: Prompts, Resources, and Tools. {searchShortcut} to search."
+    "defaultMessage": "These extensions use the Model Context Protocol (MCP). They can expand the app capabilities using three main components: Prompts, Resources, and Tools. {searchShortcut} to search."
   },
   "extensionsView.heading": {
     "defaultMessage": "Extensions"
@@ -1230,10 +1281,10 @@
     "defaultMessage": "AA:BB:CC:... or sha256/base64"
   },
   "externalBackendSection.description": {
-    "defaultMessage": "By default goose launches a server for you, use this to connect to an external goose server"
+    "defaultMessage": "By default the app launches a local server for you. Use this to connect to an external server instead."
   },
   "externalBackendSection.restartNote": {
-    "defaultMessage": "Changes require restarting Goose to take effect. New chat windows will connect to the external server."
+    "defaultMessage": "Changes require restarting the app to take effect. New chat windows will connect to the external server."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "Secret Key"
@@ -1248,7 +1299,7 @@
     "defaultMessage": "Server URL"
   },
   "externalBackendSection.title": {
-    "defaultMessage": "Goose Server"
+    "defaultMessage": "Backend Server"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Invalid URL format"
@@ -1260,7 +1311,7 @@
     "defaultMessage": "Use external server"
   },
   "externalBackendSection.useExternalServerDescription": {
-    "defaultMessage": "Connect to a goose server running elsewhere (requires app restart)"
+    "defaultMessage": "Connect to a server running elsewhere (requires app restart)"
   },
   "freeOptionCards.chooseOption": {
     "defaultMessage": "Choose an option to get started."
@@ -1359,7 +1410,7 @@
     "defaultMessage": "Developer"
   },
   "goosehintsModal.dialogDescription": {
-    "defaultMessage": "Provide additional context about your project to improve communication with Goose"
+    "defaultMessage": "Provide additional context about your project to improve communication with the assistant"
   },
   "goosehintsModal.dialogTitle": {
     "defaultMessage": "Configure Project Hints (.goosehints)"
@@ -1380,7 +1431,7 @@
     "defaultMessage": ".goosehints file found at: {filePath}"
   },
   "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints is a text file used to provide additional context about your project and improve the communication with Goose."
+    "defaultMessage": ".goosehints is a text file used to provide additional context about your project and improve communication with the assistant."
   },
   "goosehintsModal.helpText2": {
     "defaultMessage": "Please make sure {bold} extension is enabled in the extensions page. This extension is required to use .goosehints. You'll need to restart your session for .goosehints updates to take effect."
@@ -1407,7 +1458,7 @@
     "defaultMessage": "Configure"
   },
   "goosehintsSection.description": {
-    "defaultMessage": "Configure your project's .goosehints file to provide additional context to Goose"
+    "defaultMessage": "Configure your project's .goosehints file to provide additional context to the assistant"
   },
   "goosehintsSection.title": {
     "defaultMessage": "Project Hints (.goosehints)"
@@ -1548,22 +1599,22 @@
     "defaultMessage": "Cancel"
   },
   "importRecipeForm.deeplinkHint": {
-    "defaultMessage": "Paste a recipe deeplink starting with \"goose://recipe?config=\""
+    "defaultMessage": "Paste a task template link starting with \"goose://recipe?config=\""
   },
   "importRecipeForm.deeplinkPlaceholder": {
-    "defaultMessage": "Paste your goose://recipe?config=... deeplink here"
+    "defaultMessage": "Paste your goose://recipe?config=... link here"
   },
   "importRecipeForm.example": {
     "defaultMessage": "example"
   },
   "importRecipeForm.expectedRecipeStructure": {
-    "defaultMessage": "Expected Recipe Structure"
+    "defaultMessage": "Expected Task Template Structure"
   },
   "importRecipeForm.importRecipeButton": {
-    "defaultMessage": "Import Recipe"
+    "defaultMessage": "Import Task Template"
   },
   "importRecipeForm.importRecipeTitle": {
-    "defaultMessage": "Import Recipe"
+    "defaultMessage": "Import Task Template"
   },
   "importRecipeForm.importing": {
     "defaultMessage": "Importing..."
@@ -1572,16 +1623,16 @@
     "defaultMessage": "OR"
   },
   "importRecipeForm.recipeDeeplinkLabel": {
-    "defaultMessage": "Recipe Deeplink"
+    "defaultMessage": "Task Template Link"
   },
   "importRecipeForm.recipeFileHint": {
-    "defaultMessage": "Upload a YAML or JSON file containing the recipe structure"
+    "defaultMessage": "Upload a YAML or JSON file containing the task template structure"
   },
   "importRecipeForm.recipeFileLabel": {
-    "defaultMessage": "Recipe File"
+    "defaultMessage": "Task Template File"
   },
   "importRecipeForm.reviewWarning": {
-    "defaultMessage": "Ensure you review contents of recipe files before adding them to your goose interface."
+    "defaultMessage": "Review task template files before adding them to your workspace."
   },
   "importRecipeForm.schemaDescription": {
     "defaultMessage": "Your YAML or JSON file should follow this structure. Required fields are: title, description, and either instructions or prompt."
@@ -1827,7 +1878,7 @@
     "defaultMessage": "Ask {appName} anything..."
   },
   "launcher.securityTasksDescription": {
-    "defaultMessage": "Launch a security recipe or a skill-guided preview chat. Recommended extensions stay optional and are marked as local preview, disabled stub, or blocked."
+    "defaultMessage": "Launch a native security task template. If the current workspace is missing a bundled task template runtime, the entry falls back to the mapped skill prompt. Recommended extensions stay optional and are marked as local preview, disabled stub, or blocked."
   },
   "launcher.securityTasksTitle": {
     "defaultMessage": "Security starters"
@@ -2442,7 +2493,7 @@
     "defaultMessage": "New Chat"
   },
   "navigation.itemRecipes": {
-    "defaultMessage": "Recipes"
+    "defaultMessage": "Task Templates"
   },
   "navigation.itemScheduler": {
     "defaultMessage": "Scheduler"
@@ -2479,6 +2530,9 @@
   },
   "onboardingGuard.welcomeDescription": {
     "defaultMessage": "Your local AI agent. Connect an AI model provider to get started with {appName}."
+  },
+  "onboardingGuard.welcomeDescriptionBuiltIn": {
+    "defaultMessage": "Your local AI agent. {appName} is ready with the built-in {providerName} backend. Start with {modelName} and switch models at any time."
   },
   "onboardingGuard.welcomeTitle": {
     "defaultMessage": "Welcome to {appName}"
@@ -2571,7 +2625,7 @@
     "defaultMessage": "Cancel"
   },
   "parameterInputModal.cancelRecipeSetup": {
-    "defaultMessage": "Cancel Recipe Setup"
+    "defaultMessage": "Cancel Task Setup"
   },
   "parameterInputModal.enterValue": {
     "defaultMessage": "Enter value for {key}..."
@@ -2580,7 +2634,7 @@
     "defaultMessage": "False"
   },
   "parameterInputModal.recipeParameters": {
-    "defaultMessage": "Recipe Parameters"
+    "defaultMessage": "Task Parameters"
   },
   "parameterInputModal.select": {
     "defaultMessage": "Select..."
@@ -2589,10 +2643,10 @@
     "defaultMessage": "Select an option..."
   },
   "parameterInputModal.startNewChat": {
-    "defaultMessage": "Start New Chat (No Recipe)"
+    "defaultMessage": "Start New Chat (No Task Template)"
   },
   "parameterInputModal.startRecipe": {
-    "defaultMessage": "Start Recipe"
+    "defaultMessage": "Start Task"
   },
   "parameterInputModal.true": {
     "defaultMessage": "True"
@@ -2927,6 +2981,12 @@
   "providerSelector.addCustomProviderTitle": {
     "defaultMessage": "Add Custom Provider"
   },
+  "providerSelector.advancedProviderSetup": {
+    "defaultMessage": "Advanced Provider Setup"
+  },
+  "providerSelector.advancedProviderSetupDescription": {
+    "defaultMessage": "Only use this if you need a different provider, a custom host, or your own API key."
+  },
   "providerSelector.connectProvider": {
     "defaultMessage": "Connect to a Provider"
   },
@@ -2939,6 +2999,12 @@
   "providerSelector.selectProvider": {
     "defaultMessage": "Select a provider"
   },
+  "providerSelector.useBuiltInModels": {
+    "defaultMessage": "Use Built-in Models"
+  },
+  "providerSelector.useBuiltInModelsDescription": {
+    "defaultMessage": "{providerName} is already connected. Start with {modelName} and switch models later."
+  },
   "providerSelector.useFreeLocal": {
     "defaultMessage": "Use Free/Local Providers"
   },
@@ -2950,6 +3016,9 @@
   },
   "providerSettings.onboardingDescription": {
     "defaultMessage": "Select an AI model provider to get started with goose. You'll need to use API keys generated by each provider which will be encrypted and stored locally. You can change your provider at any time in settings."
+  },
+  "providerSettings.onboardingDescriptionBuiltIn": {
+    "defaultMessage": "{providerName} is already wired in as the built-in backend for this local version. Use this page only if you need to override it with another provider, host, or API key."
   },
   "providerSettings.otherProviders": {
     "defaultMessage": "Other providers"
@@ -2979,13 +3048,13 @@
     "defaultMessage": "Submit"
   },
   "recipeActivityEditor.activitiesDescription": {
-    "defaultMessage": "The top-line prompts and activity buttons that will display in the recipe chat window."
+    "defaultMessage": "The top-line prompts and activity buttons that will display in the task template chat window."
   },
   "recipeActivityEditor.activitiesLabel": {
     "defaultMessage": "Activities"
   },
   "recipeActivityEditor.activityButtonsDescription": {
-    "defaultMessage": "Clickable buttons that will appear below the message to help users interact with your recipe."
+    "defaultMessage": "Clickable buttons that will appear below the message to help users interact with your task template."
   },
   "recipeActivityEditor.activityButtonsLabel": {
     "defaultMessage": "Activity Buttons"
@@ -2997,16 +3066,16 @@
     "defaultMessage": "Add new activity..."
   },
   "recipeActivityEditor.messageDescription": {
-    "defaultMessage": "A formatted message that will appear at the top of the recipe. Supports markdown formatting."
+    "defaultMessage": "A formatted message that will appear at the top of the task template. Supports markdown formatting."
   },
   "recipeActivityEditor.messageLabel": {
     "defaultMessage": "Message"
   },
   "recipeActivityEditor.messagePlaceholder": {
-    "defaultMessage": "Enter a user facing introduction message for your recipe (supports **bold**, *italic*, `code`, etc.)"
+    "defaultMessage": "Enter a user-facing introduction message for your task template (supports **bold**, *italic*, `code`, etc.)"
   },
   "recipeExtensionSelector.description": {
-    "defaultMessage": "Select which extensions should be available when running this recipe. Leave empty to use default extensions."
+    "defaultMessage": "Select which extensions should be available when running this task template. Leave empty to use default extensions."
   },
   "recipeExtensionSelector.extensionsSelected": {
     "defaultMessage": "{count,plural,one{# extension selected} other{# extensions selected}}"
@@ -3030,13 +3099,13 @@
     "defaultMessage": "Advanced Options"
   },
   "recipeFormFields.advancedOptionsHint": {
-    "defaultMessage": "Activities, parameters, model, extensions, response schema, subrecipes"
+    "defaultMessage": "Activities, parameters, model, extensions, response schema, subtask templates"
   },
   "recipeFormFields.descriptionLabel": {
     "defaultMessage": "Description"
   },
   "recipeFormFields.descriptionPlaceholder": {
-    "defaultMessage": "Brief description of what this recipe does"
+    "defaultMessage": "Brief description of what this task template does"
   },
   "recipeFormFields.enterValueFor": {
     "defaultMessage": "Enter value for {key}"
@@ -3066,7 +3135,7 @@
     "defaultMessage": "(Optional - Instructions or Prompt are required)"
   },
   "recipeFormFields.promptPlaceholder": {
-    "defaultMessage": "Pre-filled prompt when the recipe starts"
+    "defaultMessage": "Pre-filled prompt when the task starts"
   },
   "recipeFormFields.responseJsonSchema": {
     "defaultMessage": "Response JSON Schema"
@@ -3075,16 +3144,16 @@
     "defaultMessage": "Define the expected structure of the AI's response using JSON Schema format"
   },
   "recipeFormFields.templateVarHint": {
-    "defaultMessage": "Use '{{parameter_name}}' to define parameters that can be filled in when running the recipe."
+    "defaultMessage": "Use '{{parameter_name}}' to define parameters that can be filled in when running the task."
   },
   "recipeFormFields.titleLabel": {
     "defaultMessage": "Title"
   },
   "recipeFormFields.titlePlaceholder": {
-    "defaultMessage": "Recipe title"
+    "defaultMessage": "Task template title"
   },
   "recipeHeader.recipeLabel": {
-    "defaultMessage": "Recipe"
+    "defaultMessage": "Task Template"
   },
   "recipeModelSelector.backToModelList": {
     "defaultMessage": "Back to model list"
@@ -3123,7 +3192,7 @@
     "defaultMessage": "Use default provider"
   },
   "recipeNameField.defaultLabel": {
-    "defaultMessage": "Recipe Name"
+    "defaultMessage": "Task Template Name"
   },
   "recipeNameField.formatHint": {
     "defaultMessage": "Will be automatically formatted (lowercase, dashes for spaces)"
@@ -3135,19 +3204,19 @@
     "defaultMessage": "Description:"
   },
   "recipeWarningModal.firstTimeDescription": {
-    "defaultMessage": "You are about to execute a recipe that you haven't run before."
+    "defaultMessage": "You are about to execute a task template that you haven't run before."
   },
   "recipeWarningModal.hiddenCharsWarning": {
-    "defaultMessage": "This recipe contains hidden characters that will be ignored for your safety, as they could be used for malicious purposes."
+    "defaultMessage": "This task template contains hidden characters that will be ignored for your safety, as they could be used for malicious purposes."
   },
   "recipeWarningModal.instructionsLabel": {
     "defaultMessage": "Instructions:"
   },
   "recipeWarningModal.newRecipeWarningTitle": {
-    "defaultMessage": "⚠️ New Recipe Warning"
+    "defaultMessage": "⚠️ New Task Template Warning"
   },
   "recipeWarningModal.recipePreview": {
-    "defaultMessage": "Recipe Preview:"
+    "defaultMessage": "Task Template Preview:"
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ Security Warning"
@@ -3156,10 +3225,10 @@
     "defaultMessage": "Title:"
   },
   "recipeWarningModal.trustAndExecute": {
-    "defaultMessage": "Trust and Execute"
+    "defaultMessage": "Trust and Run"
   },
   "recipeWarningModal.trustSource": {
-    "defaultMessage": "Only proceed if you trust the source of this recipe."
+    "defaultMessage": "Only proceed if you trust the source of this task template."
   },
   "recipesView.addSchedule": {
     "defaultMessage": "Add schedule"
@@ -3189,31 +3258,31 @@
     "defaultMessage": "Copy YAML"
   },
   "recipesView.copyYamlFailedMsg": {
-    "defaultMessage": "Failed to copy recipe YAML to clipboard"
+    "defaultMessage": "Failed to copy task template YAML to clipboard"
   },
   "recipesView.createRecipe": {
-    "defaultMessage": "Create Recipe"
+    "defaultMessage": "Create Task Template"
   },
   "recipesView.deeplinkCopiedMsg": {
-    "defaultMessage": "Recipe deeplink has been copied to clipboard"
+    "defaultMessage": "Task template link has been copied to clipboard"
   },
   "recipesView.deeplinkCopiedTitle": {
     "defaultMessage": "Deeplink copied"
   },
   "recipesView.deleteRecipe": {
-    "defaultMessage": "Delete recipe"
+    "defaultMessage": "Delete task template"
   },
   "recipesView.deleteRecipeConfirm": {
     "defaultMessage": "Are you sure you want to delete \"{title}\"?"
   },
   "recipesView.deleteRecipeDetail": {
-    "defaultMessage": "Recipe file will be deleted."
+    "defaultMessage": "Task template file will be deleted."
   },
   "recipesView.deleteRecipeTitle": {
-    "defaultMessage": "Delete Recipe"
+    "defaultMessage": "Delete Task Template"
   },
   "recipesView.editRecipe": {
-    "defaultMessage": "Edit recipe"
+    "defaultMessage": "Edit task template"
   },
   "recipesView.editSchedule": {
     "defaultMessage": "Edit schedule"
@@ -3222,46 +3291,46 @@
     "defaultMessage": "Edit slash command"
   },
   "recipesView.errorLoadingRecipes": {
-    "defaultMessage": "Error Loading Recipes"
+    "defaultMessage": "Error Loading Task Templates"
   },
   "recipesView.exportFailedMsg": {
-    "defaultMessage": "Failed to export recipe to file"
+    "defaultMessage": "Failed to export task template to file"
   },
   "recipesView.exportFailedTitle": {
     "defaultMessage": "Export failed"
   },
   "recipesView.exportRecipeDialogTitle": {
-    "defaultMessage": "Export Recipe"
+    "defaultMessage": "Export Task Template"
   },
   "recipesView.exportToFile": {
     "defaultMessage": "Export to File"
   },
   "recipesView.noMatchingRecipes": {
-    "defaultMessage": "No matching recipes found"
+    "defaultMessage": "No matching task templates found"
   },
   "recipesView.noSavedRecipes": {
-    "defaultMessage": "No saved recipes"
+    "defaultMessage": "No saved task templates"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "Recipe saved from chats will show up here."
+    "defaultMessage": "Task templates saved from chats will show up here."
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "Open in new window"
   },
   "recipesView.recipeDeletedSuccess": {
-    "defaultMessage": "Recipe deleted successfully"
+    "defaultMessage": "Task template deleted successfully"
   },
   "recipesView.recipeExportedMsg": {
-    "defaultMessage": "Recipe saved to {filePath}"
+    "defaultMessage": "Task template saved to {filePath}"
   },
   "recipesView.recipeExportedTitle": {
-    "defaultMessage": "Recipe exported"
+    "defaultMessage": "Task template exported"
   },
   "recipesView.recipesDescription": {
-    "defaultMessage": "View and manage your saved recipes to quickly start new sessions with predefined configurations. {shortcut} to search."
+    "defaultMessage": "View and manage your saved task templates to quickly start new sessions with predefined configurations. {shortcut} to search."
   },
   "recipesView.recipesTitle": {
-    "defaultMessage": "Recipes"
+    "defaultMessage": "Task Templates"
   },
   "recipesView.remove": {
     "defaultMessage": "Remove"
@@ -3279,40 +3348,37 @@
     "defaultMessage": "{action} Schedule"
   },
   "recipesView.scheduleRemovedMsg": {
-    "defaultMessage": "Recipe will no longer run automatically"
+    "defaultMessage": "Task template will no longer run automatically"
   },
   "recipesView.scheduleRemovedTitle": {
     "defaultMessage": "Schedule removed"
   },
   "recipesView.scheduleSavedMsg": {
-    "defaultMessage": "Recipe will run {schedule}"
+    "defaultMessage": "Task template will run {schedule}"
   },
   "recipesView.scheduleSavedTitle": {
     "defaultMessage": "Schedule saved"
   },
   "recipesView.searchRecipesPlaceholder": {
-    "defaultMessage": "Search recipes..."
-  },
-  "recipesView.securityTasksUnavailable": {
-    "defaultMessage": "Recipe runtime not found in this workspace, starting a guided preview chat instead."
+    "defaultMessage": "Search task templates..."
   },
   "recipesView.shareRecipe": {
-    "defaultMessage": "Share recipe"
+    "defaultMessage": "Share task template"
   },
   "recipesView.slashCommandDescription": {
-    "defaultMessage": "Set a slash command to quickly run this recipe from any chat"
+    "defaultMessage": "Set a slash command to quickly run this task template from any chat"
   },
   "recipesView.slashCommandPlaceholder": {
     "defaultMessage": "command-name"
   },
   "recipesView.slashCommandRemovedMsg": {
-    "defaultMessage": "Recipe slash command has been removed"
+    "defaultMessage": "Task template slash command has been removed"
   },
   "recipesView.slashCommandRemovedTitle": {
     "defaultMessage": "Slash command removed"
   },
   "recipesView.slashCommandSavedMsg": {
-    "defaultMessage": "Use /{command} to run this recipe"
+    "defaultMessage": "Use /{command} to run this task template"
   },
   "recipesView.slashCommandSavedTitle": {
     "defaultMessage": "Slash command saved"
@@ -3321,16 +3387,16 @@
     "defaultMessage": "Slash Command"
   },
   "recipesView.slashCommandUsageHint": {
-    "defaultMessage": "Use /{command} in any chat to run this recipe"
+    "defaultMessage": "Use /{command} in any chat to run this task template"
   },
   "recipesView.tryAgain": {
     "defaultMessage": "Try Again"
   },
   "recipesView.useRecipe": {
-    "defaultMessage": "Use recipe"
+    "defaultMessage": "Start task"
   },
   "recipesView.yamlCopiedMsg": {
-    "defaultMessage": "Recipe YAML has been copied to clipboard"
+    "defaultMessage": "Task template YAML has been copied to clipboard"
   },
   "recipesView.yamlCopiedTitle": {
     "defaultMessage": "YAML copied"
@@ -3459,7 +3525,7 @@
     "defaultMessage": "Recent Sessions"
   },
   "scheduleDetailView.recipeSource": {
-    "defaultMessage": "Recipe Source:"
+    "defaultMessage": "Task Template Source:"
   },
   "scheduleDetailView.runScheduleError": {
     "defaultMessage": "Run Schedule Error"
@@ -3540,7 +3606,7 @@
     "defaultMessage": "Edit Schedule"
   },
   "scheduleModal.failedParseRecipe": {
-    "defaultMessage": "Failed to parse recipe from file."
+    "defaultMessage": "Failed to parse task template from file."
   },
   "scheduleModal.failedReadFile": {
     "defaultMessage": "Failed to read the selected file."
@@ -3558,16 +3624,16 @@
     "defaultMessage": "e.g., daily-summary-job"
   },
   "scheduleModal.provideValidRecipe": {
-    "defaultMessage": "Please provide a valid recipe source."
+    "defaultMessage": "Please provide a valid task template source."
   },
   "scheduleModal.recipeDescription": {
-    "defaultMessage": "Description: {description}"
+    "defaultMessage": "Template description: {description}"
   },
   "scheduleModal.recipeParsed": {
-    "defaultMessage": "Recipe parsed successfully"
+    "defaultMessage": "Task template parsed successfully"
   },
   "scheduleModal.recipeTitle": {
-    "defaultMessage": "Title: {title}"
+    "defaultMessage": "Template title: {title}"
   },
   "scheduleModal.scheduleIdRequired": {
     "defaultMessage": "Schedule ID is required."
@@ -3591,13 +3657,13 @@
     "defaultMessage": "YAML"
   },
   "schedulesView.confirmDelete": {
-    "defaultMessage": "Remove schedule \"{id}\"? The recipe will be kept."
+    "defaultMessage": "Remove schedule \"{id}\"? The task template will be kept."
   },
   "schedulesView.createSchedule": {
     "defaultMessage": "Create Schedule"
   },
   "schedulesView.description": {
-    "defaultMessage": "Create and manage scheduled tasks to run recipes automatically at specified times."
+    "defaultMessage": "Create and manage scheduled tasks to run task templates automatically at specified times."
   },
   "schedulesView.edit": {
     "defaultMessage": "Edit"
@@ -3695,6 +3761,57 @@
   "secureStorageNotice.defaultMessage": {
     "defaultMessage": "Keys are stored securely in the keychain"
   },
+  "securityPreviewLaunchGuard.commandsLabel": {
+    "defaultMessage": "Reopen it from the repo root with one of these supported commands:"
+  },
+  "securityPreviewLaunchGuard.description": {
+    "defaultMessage": "{appName} is using fallback local state, so the visible chats, model selection, or working directory may differ from the isolated preview session."
+  },
+  "securityPreviewLaunchGuard.title": {
+    "defaultMessage": "This local preview was opened outside the supported launcher."
+  },
+  "securityRuntimeNotice.driftedRecipes": {
+    "defaultMessage": "Drifted task templates: {ids}"
+  },
+  "securityRuntimeNotice.driftedSkills": {
+    "defaultMessage": "Drifted skills: {ids}"
+  },
+  "securityRuntimeNotice.missingRecipes": {
+    "defaultMessage": "Missing task templates: {ids}"
+  },
+  "securityRuntimeNotice.missingSkills": {
+    "defaultMessage": "Missing skills: {ids}"
+  },
+  "securityRuntimeNotice.overviewDescription": {
+    "defaultMessage": "The current working directory is missing or has drifted from the bundled security skills or task templates. Some task starters may fall back to guided chat or run with older instructions."
+  },
+  "securityRuntimeNotice.overviewTitle": {
+    "defaultMessage": "Security runtime needs attention"
+  },
+  "securityRuntimeNotice.packagedReseedHint": {
+    "defaultMessage": "Packaged local preview should be reopened through the official launcher so missing assets can be seeded into the current working directory again."
+  },
+  "securityRuntimeNotice.repoResyncHint": {
+    "defaultMessage": "Repo preview can resync the mirrored runtime assets with `node scripts/sync-security-runtime-assets.mjs`."
+  },
+  "securityRuntimeNotice.skippedMissingDistro": {
+    "defaultMessage": "The bundled security distro source is unavailable, so the app could not verify its local skill and task template assets."
+  },
+  "securityRuntimeNotice.skippedMissingWorkingDir": {
+    "defaultMessage": "The working directory is unavailable, so the app could not verify its local skill and task template assets."
+  },
+  "securityRuntimeNotice.taskRecipeDrifted": {
+    "defaultMessage": "Task template runtime file differs from the bundled source"
+  },
+  "securityRuntimeNotice.taskRecipeMissing": {
+    "defaultMessage": "Task template runtime file missing in the current working directory"
+  },
+  "securityRuntimeNotice.taskSkillDrifted": {
+    "defaultMessage": "Skill asset differs from the bundled source"
+  },
+  "securityRuntimeNotice.taskSkillMissing": {
+    "defaultMessage": "Skill asset missing in the current working directory"
+  },
   "securityTasks.alertInvestigation.description": {
     "defaultMessage": "Triage a security alert for authenticity, scope, cause, and response actions."
   },
@@ -3705,7 +3822,7 @@
     "defaultMessage": "Preview"
   },
   "securityTasks.badgeReady": {
-    "defaultMessage": "Recipe"
+    "defaultMessage": "Template"
   },
   "securityTasks.extensionDetailBlockedExternal": {
     "defaultMessage": "Requires external proprietary API, account, or service agreement before it can be enabled."
@@ -3714,7 +3831,7 @@
     "defaultMessage": "Catalog entry exists, but the real gateway/runtime is intentionally deferred."
   },
   "securityTasks.extensionDetailLocalPreview": {
-    "defaultMessage": "Can be enabled now with the current Goose-native local preview implementation."
+    "defaultMessage": "Can be enabled now with the current local preview implementation."
   },
   "securityTasks.extensionOverviewDescription": {
     "defaultMessage": "Enable real local preview chains from Settings → Extensions. Stub and blocked entries stay visible so task recommendations remain honest."
@@ -3738,13 +3855,25 @@
     "defaultMessage": "IOC Analysis"
   },
   "securityTasks.mappingRecipe": {
-    "defaultMessage": "Recipe"
+    "defaultMessage": "Task template mapping"
   },
   "securityTasks.mappingSkill": {
-    "defaultMessage": "Skill"
+    "defaultMessage": "Skill mapping"
+  },
+  "securityTasks.methodologyBoundary": {
+    "defaultMessage": "The current UI can show an attached task template, but it does not show explicit skill-load telemetry. Skill mappings remain guidance-first rather than confirmed runtime signals."
   },
   "securityTasks.openExtensions": {
     "defaultMessage": "Open Extensions"
+  },
+  "securityTasks.primaryPathLabel": {
+    "defaultMessage": "Primary path"
+  },
+  "securityTasks.primaryPathRecipe": {
+    "defaultMessage": "Task template runtime"
+  },
+  "securityTasks.primaryPathSkill": {
+    "defaultMessage": "Skill-guided prompt"
   },
   "securityTasks.recommendedExtensions": {
     "defaultMessage": "Recommended extensions"
@@ -3756,10 +3885,10 @@
     "defaultMessage": "Report Writing"
   },
   "securityTasks.savedRecipesTitle": {
-    "defaultMessage": "Saved recipes"
+    "defaultMessage": "Saved task templates"
   },
   "securityTasks.sectionDescription": {
-    "defaultMessage": "These entry points stay on top of Goose recipes and skills. Recipe-backed tasks start with the existing recipe runtime; the rest open guided preview chats. Recommended extensions stay optional and keep their current real-preview, disabled-stub, or blocker state."
+    "defaultMessage": "These entry points stay on top of the existing task template and skill runtime. All six bundled security tasks prefer the task template runtime first; if a task template runtime is missing in the current workspace, the app falls back to the mapped skill prompt instead of adding a parallel execution layer. Recommended extensions stay optional and keep their current real-preview, disabled-stub, or blocker state."
   },
   "securityTasks.sectionTitle": {
     "defaultMessage": "Security task starters"
@@ -3768,7 +3897,7 @@
     "defaultMessage": "Start guided chat"
   },
   "securityTasks.startRecipe": {
-    "defaultMessage": "Use recipe"
+    "defaultMessage": "Start task"
   },
   "securityTasks.vulnTriage.description": {
     "defaultMessage": "Assess CVE, advisory, PoC, patch, and asset context into an actionable conclusion."
@@ -4278,19 +4407,133 @@
     "defaultMessage": "Save"
   },
   "skillsView.addSkill": {
-    "defaultMessage": "Add Skill"
+    "defaultMessage": "Import Skill"
   },
   "skillsView.adjustSearchTerms": {
     "defaultMessage": "Try adjusting your search terms"
   },
-  "skillsView.comingSoon": {
-    "defaultMessage": "Coming soon"
+  "skillsView.builtInDetailDescription": {
+    "defaultMessage": "This is a built-in skill. The app can list it, but there is no current-project skill package to inspect or restore."
+  },
+  "skillsView.bundledSkillsTitle": {
+    "defaultMessage": "Bundled Skills"
+  },
+  "skillsView.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "skillsView.currentProjectStatus": {
+    "defaultMessage": "Current project"
+  },
+  "skillsView.deleteAction": {
+    "defaultMessage": "Delete"
+  },
+  "skillsView.deleteSkill": {
+    "defaultMessage": "Delete local skill"
+  },
+  "skillsView.deleteSkillConfirmMessage": {
+    "defaultMessage": "Delete the current-project skill \"{skillName}\" from .agents/skills? This does not touch bundled sources or other directories."
+  },
+  "skillsView.deleteSkillConfirmTitle": {
+    "defaultMessage": "Delete local skill?"
+  },
+  "skillsView.deleteSkillErrorMessage": {
+    "defaultMessage": "Could not remove the selected local skill from the current project runtime."
+  },
+  "skillsView.deleteSkillErrorTitle": {
+    "defaultMessage": "Could not delete local skill"
+  },
+  "skillsView.deleteSkillSuccessMessage": {
+    "defaultMessage": "Removed \"{skillName}\" from the current project runtime."
+  },
+  "skillsView.deleteSkillSuccessTitle": {
+    "defaultMessage": "Local skill deleted"
+  },
+  "skillsView.descriptionLabel": {
+    "defaultMessage": "Description"
+  },
+  "skillsView.detailDescription": {
+    "defaultMessage": "Review this skill description, its active skill folder, and the SKILL.md body used for guidance."
+  },
+  "skillsView.detailTitle": {
+    "defaultMessage": "{skillName} details"
+  },
+  "skillsView.detailsAction": {
+    "defaultMessage": "Details"
   },
   "skillsView.errorLoadingSkills": {
     "defaultMessage": "Error Loading Skills"
   },
+  "skillsView.importConflictMessage": {
+    "defaultMessage": "A skill named \"{skillName}\" already exists in the current project. Overwrite it with the selected package?"
+  },
+  "skillsView.importConflictTitle": {
+    "defaultMessage": "Overwrite existing skill?"
+  },
+  "skillsView.importSkillErrorMessage": {
+    "defaultMessage": "Could not import the selected skill package."
+  },
+  "skillsView.importSkillErrorTitle": {
+    "defaultMessage": "Skill import failed"
+  },
+  "skillsView.importSkillSuccessMessage": {
+    "defaultMessage": "Installed \"{skillName}\" into the current project runtime."
+  },
+  "skillsView.importSkillSuccessTitle": {
+    "defaultMessage": "Skill imported"
+  },
+  "skillsView.invalidRecoveryInvalidFrontmatter": {
+    "defaultMessage": "Fix the YAML frontmatter syntax in SKILL.md, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryLabel": {
+    "defaultMessage": "Recovery suggestion"
+  },
+  "skillsView.invalidRecoveryMissingFrontmatter": {
+    "defaultMessage": "Add YAML frontmatter with at least a non-empty name field to SKILL.md, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryMissingName": {
+    "defaultMessage": "Add a non-empty name field to SKILL.md frontmatter, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryMissingSkillMd": {
+    "defaultMessage": "Add SKILL.md to the skill folder root, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryNameMismatch": {
+    "defaultMessage": "Rename the folder or update the frontmatter name so both match, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryUnsupported": {
+    "defaultMessage": "Repair the local package layout, then re-import it as a skill folder or zip."
+  },
+  "skillsView.invalidSkillDescription": {
+    "defaultMessage": "This current-project skill package is missing a valid SKILL.md frontmatter name or directory layout."
+  },
+  "skillsView.invalidSkillPackageStatus": {
+    "defaultMessage": "Invalid skill package"
+  },
+  "skillsView.launchPromptConfirm": {
+    "defaultMessage": "Start chat"
+  },
+  "skillsView.launchPromptDescription": {
+    "defaultMessage": "This skill requires slash-command input before the app opens the chat session."
+  },
+  "skillsView.launchPromptTitle": {
+    "defaultMessage": "Start {skillName}"
+  },
+  "skillsView.loadingSkillFile": {
+    "defaultMessage": "Loading SKILL.md…"
+  },
+  "skillsView.localSkillsTitle": {
+    "defaultMessage": "My Skills / Local Skills"
+  },
+  "skillsView.missingRuntimeStatus": {
+    "defaultMessage": "Missing runtime"
+  },
   "skillsView.noMatchingSkills": {
     "defaultMessage": "No matching skills found"
+  },
+  "skillsView.noSecuritySkillsDescription": {
+    "defaultMessage": "This build only surfaces built-in skills, bundled security skills, and local skills installed into the current project."
+  },
+  "skillsView.noSkillFileAvailable": {
+    "defaultMessage": "No SKILL.md file is available for this skill source."
   },
   "skillsView.noSkillsDescription": {
     "defaultMessage": "Skills are loaded from SKILL.md files in ~/.config/agents/skills/, .goose/skills/, or other supported directories."
@@ -4298,17 +4541,128 @@
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "No skills installed"
   },
+  "skillsView.noSkillsInstalledDetail": {
+    "defaultMessage": "The current project has no managed local skills yet. Import a skill folder or zip to install it into .agents/skills."
+  },
+  "skillsView.ok": {
+    "defaultMessage": "OK"
+  },
+  "skillsView.overriddenLocallyStatus": {
+    "defaultMessage": "Overridden locally"
+  },
+  "skillsView.overrideBundledWarning": {
+    "defaultMessage": "This will replace the current-project runtime copy of a bundled security skill. You can restore the bundled version later."
+  },
+  "skillsView.overwriteAction": {
+    "defaultMessage": "Overwrite"
+  },
+  "skillsView.overwriteLocalWarning": {
+    "defaultMessage": "This will replace the existing current-project skill package in .agents/skills."
+  },
+  "skillsView.requiredInputHint": {
+    "defaultMessage": "This skill needs input before the chat starts. The app will send the slash command with the value you provide here."
+  },
+  "skillsView.requiredInputLabel": {
+    "defaultMessage": "Required input"
+  },
+  "skillsView.restoreBundledSkill": {
+    "defaultMessage": "Restore bundled version"
+  },
+  "skillsView.restoreConfirmMessage": {
+    "defaultMessage": "Restore the bundled skill \"{skillName}\" into the current project runtime and discard the local override?"
+  },
+  "skillsView.restoreConfirmTitle": {
+    "defaultMessage": "Restore bundled version?"
+  },
+  "skillsView.restoreShortAction": {
+    "defaultMessage": "Restore"
+  },
+  "skillsView.restoreSkillErrorMessage": {
+    "defaultMessage": "Could not restore the bundled skill into the current project runtime."
+  },
+  "skillsView.restoreSkillErrorTitle": {
+    "defaultMessage": "Could not restore bundled skill"
+  },
+  "skillsView.restoreSkillSuccessMessage": {
+    "defaultMessage": "Restored bundled skill \"{skillName}\" into the current project runtime."
+  },
+  "skillsView.restoreSkillSuccessTitle": {
+    "defaultMessage": "Bundled skill restored"
+  },
+  "skillsView.revealCurrentProjectFolder": {
+    "defaultMessage": "Reveal skill folder"
+  },
+  "skillsView.revealCurrentProjectFolderErrorMessage": {
+    "defaultMessage": "Could not open the selected skill folder."
+  },
+  "skillsView.revealCurrentProjectFolderErrorTitle": {
+    "defaultMessage": "Could not open skill folder"
+  },
+  "skillsView.revealCurrentProjectFolderSuccessMessage": {
+    "defaultMessage": "Opened \"{directoryPath}\" in Finder."
+  },
+  "skillsView.revealCurrentProjectFolderSuccessTitle": {
+    "defaultMessage": "Skill folder opened"
+  },
+  "skillsView.runtimeDiagnosisInvalid": {
+    "defaultMessage": "Current-project skill package is invalid and may not be discoverable by the current runtime."
+  },
+  "skillsView.runtimeDiagnosisLabel": {
+    "defaultMessage": "Runtime diagnosis"
+  },
+  "skillsView.runtimeDiagnosisLocalOverride": {
+    "defaultMessage": "Current-project runtime copy differs from the bundled security source."
+  },
+  "skillsView.runtimeDiagnosisMissingRuntime": {
+    "defaultMessage": "Bundled security source exists, but the current project runtime copy is missing."
+  },
+  "skillsView.scopedBuiltInStatus": {
+    "defaultMessage": "Built-in"
+  },
   "skillsView.searchSkillsPlaceholder": {
     "defaultMessage": "Search skills..."
   },
+  "skillsView.securitySkillsDescription": {
+    "defaultMessage": "This build shows three skill groups: built-in skills, bundled security skills, and local skills installed into the current project. Skills from other directories such as Claude or Codex are not shown here by default. {shortcut} to search."
+  },
+  "skillsView.securitySkillsDiscoveryDescription": {
+    "defaultMessage": "The / menu only shows skills the current runtime has discovered for this session. Newly imported local skills usually appear there after you reopen the session."
+  },
+  "skillsView.skillFileBodyLabel": {
+    "defaultMessage": "SKILL.md body"
+  },
+  "skillsView.skillFileLabel": {
+    "defaultMessage": "SKILL.md"
+  },
+  "skillsView.skillFolderLabel": {
+    "defaultMessage": "Skill folder"
+  },
   "skillsView.skillsDescription": {
-    "defaultMessage": "View installed skills that extend Goose capabilities. {shortcut} to search."
+    "defaultMessage": "View installed skills that extend the app capabilities. {shortcut} to search."
   },
   "skillsView.skillsTitle": {
     "defaultMessage": "Skills"
   },
+  "skillsView.startAction": {
+    "defaultMessage": "Start"
+  },
+  "skillsView.startChatFromSkill": {
+    "defaultMessage": "Start chat from this skill"
+  },
+  "skillsView.startChatFromSkillErrorMessage": {
+    "defaultMessage": "Could not start a new chat from the selected skill."
+  },
+  "skillsView.startChatFromSkillErrorTitle": {
+    "defaultMessage": "Could not start chat from skill"
+  },
+  "skillsView.startChatFromSkillUnavailable": {
+    "defaultMessage": "The current / menu has not discovered this skill yet. Reopen the session after importing, restoring, or fixing the skill package, then try again."
+  },
   "skillsView.tryAgain": {
     "defaultMessage": "Try Again"
+  },
+  "skillsView.unavailableValue": {
+    "defaultMessage": "Unavailable"
   },
   "spellcheckToggle.description": {
     "defaultMessage": "Check spelling in the chat input. Requires restart to take effect."
@@ -4341,25 +4695,25 @@
     "defaultMessage": "Add Existing"
   },
   "subRecipeEditor.createNew": {
-    "defaultMessage": "Create New Subrecipe"
+    "defaultMessage": "Create New Subtask Template"
   },
   "subRecipeEditor.deleteSubrecipe": {
-    "defaultMessage": "Delete subrecipe {name}"
+    "defaultMessage": "Delete subtask template {name}"
   },
   "subRecipeEditor.description": {
-    "defaultMessage": "Subrecipes are recipes that can be called as tools during execution. They enable multi-step workflows and reusable components."
+    "defaultMessage": "Subtask templates are task templates that can be called as tools during execution. They enable multi-step workflows and reusable components."
   },
   "subRecipeEditor.duplicateName": {
     "defaultMessage": "Duplicate Name"
   },
   "subRecipeEditor.duplicateNameMsg": {
-    "defaultMessage": "A subrecipe named \"{name}\" already exists. Please use a unique name."
+    "defaultMessage": "A subtask template named \"{name}\" already exists. Please use a unique name."
   },
   "subRecipeEditor.editSubrecipe": {
-    "defaultMessage": "Edit subrecipe {name}"
+    "defaultMessage": "Edit subtask template {name}"
   },
   "subRecipeEditor.label": {
-    "defaultMessage": "Subrecipes"
+    "defaultMessage": "Subtask Templates"
   },
   "subRecipeEditor.preconfiguredValues": {
     "defaultMessage": "Pre-configured values:"
@@ -4368,7 +4722,7 @@
     "defaultMessage": "Sequential"
   },
   "subRecipeModal.addTitle": {
-    "defaultMessage": "Add Subrecipe"
+    "defaultMessage": "Add Subtask Template"
   },
   "subRecipeModal.apply": {
     "defaultMessage": "Apply"
@@ -4380,16 +4734,16 @@
     "defaultMessage": "Cancel"
   },
   "subRecipeModal.closeModal": {
-    "defaultMessage": "Close subrecipe modal"
+    "defaultMessage": "Close subtask template modal"
   },
   "subRecipeModal.configureTitle": {
-    "defaultMessage": "Configure Subrecipe"
+    "defaultMessage": "Configure Subtask Template"
   },
   "subRecipeModal.descriptionLabel": {
     "defaultMessage": "Description"
   },
   "subRecipeModal.descriptionPlaceholder": {
-    "defaultMessage": "Optional description of what this subrecipe does..."
+    "defaultMessage": "Optional description of what this subtask template does..."
   },
   "subRecipeModal.invalidFile": {
     "defaultMessage": "Invalid File"
@@ -4407,7 +4761,7 @@
     "defaultMessage": "e.g., security_scan"
   },
   "subRecipeModal.pathHint": {
-    "defaultMessage": "Browse for an existing recipe file or enter a path manually"
+    "defaultMessage": "Browse for an existing task template file or enter a path manually"
   },
   "subRecipeModal.pathLabel": {
     "defaultMessage": "Path"
@@ -4419,16 +4773,16 @@
     "defaultMessage": "Pre-configured Values"
   },
   "subRecipeModal.preconfiguredValuesHint": {
-    "defaultMessage": "Optional parameter values that are always passed to the subrecipe"
+    "defaultMessage": "Optional parameter values that are always passed to the subtask template"
   },
   "subRecipeModal.sequentialHint": {
-    "defaultMessage": "(Forces sequential execution of multiple subrecipe instances)"
+    "defaultMessage": "(Forces sequential execution of multiple subtask template instances)"
   },
   "subRecipeModal.sequentialLabel": {
     "defaultMessage": "Sequential when repeated"
   },
   "subRecipeModal.subtitle": {
-    "defaultMessage": "Configure a subrecipe that can be called as a tool during recipe execution"
+    "defaultMessage": "Configure a subtask template that can be called as a tool during task execution"
   },
   "switchModelModal.backToModelList": {
     "defaultMessage": "Back to model list"
@@ -4662,7 +5016,7 @@
     "defaultMessage": "Allow {toolName}?"
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
-    "defaultMessage": "Goose would like to call {toolName}. Allow?"
+    "defaultMessage": "The assistant would like to call {toolName}. Allow?"
   },
   "tunnelSection.appStoreQrInstructions": {
     "defaultMessage": "Scan this QR code with your iPhone camera to install the goose mobile app from the App Store"
@@ -4790,6 +5144,12 @@
   "updateSection.loading": {
     "defaultMessage": "Loading..."
   },
+  "updateSection.localPreviewDisabled": {
+    "defaultMessage": "Local preview builds do not check signed release updates."
+  },
+  "updateSection.localPreviewDisabledDetail": {
+    "defaultMessage": "Use the official preview launcher for local testing. Signed release packages keep the real update channel."
+  },
   "updateSection.manualInstallNote": {
     "defaultMessage": "After download, you'll need to manually install the update."
   },
@@ -4807,6 +5167,9 @@
   },
   "updateSection.updateAvailable": {
     "defaultMessage": "Update available!"
+  },
+  "updateSection.updatesDisabled": {
+    "defaultMessage": "Release update checks are unavailable in this build."
   },
   "updateSection.versionAvailable": {
     "defaultMessage": "→ {version} available"

@@ -94,6 +94,9 @@ if (actualMode === 'local-preview') {
   if (lsEnv.GOOSE_DISABLE_KEYRING !== '1') {
     fail('Expected local-preview bundle LSEnvironment.GOOSE_DISABLE_KEYRING=1');
   }
+  if (lsEnv.GOOSE_LOCAL_PREVIEW_BUNDLE !== '1') {
+    fail('Expected local-preview bundle LSEnvironment.GOOSE_LOCAL_PREVIEW_BUNDLE=1');
+  }
 }
 
 if (actualMode === 'signed') {

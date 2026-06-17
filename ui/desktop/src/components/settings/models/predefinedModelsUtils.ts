@@ -5,6 +5,10 @@ function getAppConfigString(key: string): string | null {
   return typeof value === 'string' && value.trim() ? value : null;
 }
 
+export function getConfiguredDefaultProvider(): string | null {
+  return getAppConfigString('GOOSE_DEFAULT_PROVIDER');
+}
+
 // Helper functions for predefined models - shared across components
 export function getPredefinedModelsFromEnv(): Model[] {
   try {
@@ -47,6 +51,27 @@ export function getConfiguredDefaultPredefinedModel(): Model | null {
   }
 
   return predefinedModels[0];
+}
+
+export function isSingleProviderCatalogMode(): boolean {
+  const defaultProvider = getConfiguredDefaultProvider();
+  const predefinedModels = getPredefinedModelsFromEnv();
+
+  return Boolean(
+    defaultProvider &&
+      predefinedModels.length > 0 &&
+      predefinedModels.every((model) => model.provider === defaultProvider)
+  );
+}
+
+export function getSingleProviderCatalogLabel(): string {
+  const defaultProvider = getConfiguredDefaultProvider();
+  const predefinedModels = getPredefinedModelsFromEnv();
+  const autoModel = predefinedModels.find(
+    (model) => model.provider === defaultProvider && model.name === 'auto'
+  );
+
+  return autoModel?.subtext || autoModel?.alias || defaultProvider || '';
 }
 
 export function getModelDisplayName(modelName: string): string {

@@ -60,20 +60,17 @@ import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { errorMessage } from '../../utils/conversionUtils';
 import { AppEvents } from '../../constants/events';
 import { defineMessages, useIntl } from '../../i18n';
-import { startNewSession } from '../../sessions';
-import { SecurityExtensionOverview, SecurityTaskExtensionHints } from '../security/SecurityExtensionHints';
 import {
   collectAvailableRecipeIds,
-  collectAvailableRecipeRuntimeIds,
-  SECURITY_TASK_IDS,
-  resolveSecurityTaskLaunchConfig,
+  getSecurityTaskIdForRecipeManifest,
+  resolveSecurityTaskLaunchConfigForRecipeManifest,
 } from '../../security/taskCatalog';
-import { SECURITY_TASK_COPY, securityTaskUiMessages } from '../../security/taskMessages';
+import { securityTaskUiMessages } from '../../security/taskMessages';
 
 const i18n = defineMessages({
   deleteRecipeTitle: {
     id: 'recipesView.deleteRecipeTitle',
-    defaultMessage: 'Delete Recipe',
+    defaultMessage: 'Delete Task Template',
   },
   deleteRecipeConfirm: {
     id: 'recipesView.deleteRecipeConfirm',
@@ -81,11 +78,11 @@ const i18n = defineMessages({
   },
   deleteRecipeDetail: {
     id: 'recipesView.deleteRecipeDetail',
-    defaultMessage: 'Recipe file will be deleted.',
+    defaultMessage: 'Task template file will be deleted.',
   },
   recipeDeletedSuccess: {
     id: 'recipesView.recipeDeletedSuccess',
-    defaultMessage: 'Recipe deleted successfully',
+    defaultMessage: 'Task template deleted successfully',
   },
   deeplinkCopiedTitle: {
     id: 'recipesView.deeplinkCopiedTitle',
@@ -93,7 +90,7 @@ const i18n = defineMessages({
   },
   deeplinkCopiedMsg: {
     id: 'recipesView.deeplinkCopiedMsg',
-    defaultMessage: 'Recipe deeplink has been copied to clipboard',
+    defaultMessage: 'Task template link has been copied to clipboard',
   },
   copyFailedTitle: {
     id: 'recipesView.copyFailedTitle',
@@ -109,15 +106,15 @@ const i18n = defineMessages({
   },
   yamlCopiedMsg: {
     id: 'recipesView.yamlCopiedMsg',
-    defaultMessage: 'Recipe YAML has been copied to clipboard',
+    defaultMessage: 'Task template YAML has been copied to clipboard',
   },
   copyYamlFailedMsg: {
     id: 'recipesView.copyYamlFailedMsg',
-    defaultMessage: 'Failed to copy recipe YAML to clipboard',
+    defaultMessage: 'Failed to copy task template YAML to clipboard',
   },
   exportRecipeDialogTitle: {
     id: 'recipesView.exportRecipeDialogTitle',
-    defaultMessage: 'Export Recipe',
+    defaultMessage: 'Export Task Template',
   },
   yamlFiles: {
     id: 'recipesView.yamlFiles',
@@ -129,11 +126,11 @@ const i18n = defineMessages({
   },
   recipeExportedTitle: {
     id: 'recipesView.recipeExportedTitle',
-    defaultMessage: 'Recipe exported',
+    defaultMessage: 'Task template exported',
   },
   recipeExportedMsg: {
     id: 'recipesView.recipeExportedMsg',
-    defaultMessage: 'Recipe saved to {filePath}',
+    defaultMessage: 'Task template saved to {filePath}',
   },
   exportFailedTitle: {
     id: 'recipesView.exportFailedTitle',
@@ -141,7 +138,7 @@ const i18n = defineMessages({
   },
   exportFailedMsg: {
     id: 'recipesView.exportFailedMsg',
-    defaultMessage: 'Failed to export recipe to file',
+    defaultMessage: 'Failed to export task template to file',
   },
   scheduleSavedTitle: {
     id: 'recipesView.scheduleSavedTitle',
@@ -149,7 +146,7 @@ const i18n = defineMessages({
   },
   scheduleSavedMsg: {
     id: 'recipesView.scheduleSavedMsg',
-    defaultMessage: 'Recipe will run {schedule}',
+    defaultMessage: 'Task template will run {schedule}',
   },
   scheduleRemovedTitle: {
     id: 'recipesView.scheduleRemovedTitle',
@@ -157,7 +154,7 @@ const i18n = defineMessages({
   },
   scheduleRemovedMsg: {
     id: 'recipesView.scheduleRemovedMsg',
-    defaultMessage: 'Recipe will no longer run automatically',
+    defaultMessage: 'Task template will no longer run automatically',
   },
   slashCommandSavedTitle: {
     id: 'recipesView.slashCommandSavedTitle',
@@ -165,7 +162,7 @@ const i18n = defineMessages({
   },
   slashCommandSavedMsg: {
     id: 'recipesView.slashCommandSavedMsg',
-    defaultMessage: 'Use /{command} to run this recipe',
+    defaultMessage: 'Use /{command} to run this task template',
   },
   slashCommandRemovedTitle: {
     id: 'recipesView.slashCommandRemovedTitle',
@@ -173,7 +170,7 @@ const i18n = defineMessages({
   },
   slashCommandRemovedMsg: {
     id: 'recipesView.slashCommandRemovedMsg',
-    defaultMessage: 'Recipe slash command has been removed',
+    defaultMessage: 'Task template slash command has been removed',
   },
   runs: {
     id: 'recipesView.runs',
@@ -189,7 +186,7 @@ const i18n = defineMessages({
   },
   useRecipe: {
     id: 'recipesView.useRecipe',
-    defaultMessage: 'Use recipe',
+    defaultMessage: 'Start task',
   },
   openInNewWindow: {
     id: 'recipesView.openInNewWindow',
@@ -197,11 +194,11 @@ const i18n = defineMessages({
   },
   editRecipe: {
     id: 'recipesView.editRecipe',
-    defaultMessage: 'Edit recipe',
+    defaultMessage: 'Edit task template',
   },
   shareRecipe: {
     id: 'recipesView.shareRecipe',
-    defaultMessage: 'Share recipe',
+    defaultMessage: 'Share task template',
   },
   copyDeeplink: {
     id: 'recipesView.copyDeeplink',
@@ -225,11 +222,11 @@ const i18n = defineMessages({
   },
   deleteRecipe: {
     id: 'recipesView.deleteRecipe',
-    defaultMessage: 'Delete recipe',
+    defaultMessage: 'Delete task template',
   },
   errorLoadingRecipes: {
     id: 'recipesView.errorLoadingRecipes',
-    defaultMessage: 'Error Loading Recipes',
+    defaultMessage: 'Error Loading Task Templates',
   },
   tryAgain: {
     id: 'recipesView.tryAgain',
@@ -237,15 +234,15 @@ const i18n = defineMessages({
   },
   noSavedRecipes: {
     id: 'recipesView.noSavedRecipes',
-    defaultMessage: 'No saved recipes',
+    defaultMessage: 'No saved task templates',
   },
   noSavedRecipesDescription: {
     id: 'recipesView.noSavedRecipesDescription',
-    defaultMessage: 'Recipe saved from chats will show up here.',
+    defaultMessage: 'Task templates saved from chats will show up here.',
   },
   noMatchingRecipes: {
     id: 'recipesView.noMatchingRecipes',
-    defaultMessage: 'No matching recipes found',
+    defaultMessage: 'No matching task templates found',
   },
   adjustSearchTerms: {
     id: 'recipesView.adjustSearchTerms',
@@ -253,24 +250,24 @@ const i18n = defineMessages({
   },
   recipesTitle: {
     id: 'recipesView.recipesTitle',
-    defaultMessage: 'Recipes',
+    defaultMessage: 'Task Templates',
+  },
+  savedRecipesTitle: {
+    id: 'securityTasks.savedRecipesTitle',
+    defaultMessage: 'Saved task templates',
   },
   createRecipe: {
     id: 'recipesView.createRecipe',
-    defaultMessage: 'Create Recipe',
+    defaultMessage: 'Create Task Template',
   },
   recipesDescription: {
     id: 'recipesView.recipesDescription',
     defaultMessage:
-      'View and manage your saved recipes to quickly start new sessions with predefined configurations. {shortcut} to search.',
+      'View and manage your saved task templates to quickly start new sessions with predefined configurations. {shortcut} to search.',
   },
   searchRecipesPlaceholder: {
     id: 'recipesView.searchRecipesPlaceholder',
-    defaultMessage: 'Search recipes...',
-  },
-  securityTasksUnavailable: {
-    id: 'recipesView.securityTasksUnavailable',
-    defaultMessage: 'Recipe runtime not found in this workspace, starting a guided preview chat instead.',
+    defaultMessage: 'Search task templates...',
   },
   scheduleDialogTitle: {
     id: 'recipesView.scheduleDialogTitle',
@@ -294,7 +291,7 @@ const i18n = defineMessages({
   },
   slashCommandDescription: {
     id: 'recipesView.slashCommandDescription',
-    defaultMessage: 'Set a slash command to quickly run this recipe from any chat',
+    defaultMessage: 'Set a slash command to quickly run this task template from any chat',
   },
   slashCommandPlaceholder: {
     id: 'recipesView.slashCommandPlaceholder',
@@ -302,7 +299,7 @@ const i18n = defineMessages({
   },
   slashCommandUsageHint: {
     id: 'recipesView.slashCommandUsageHint',
-    defaultMessage: 'Use /{command} in any chat to run this recipe',
+    defaultMessage: 'Use /{command} in any chat to run this task template',
   },
   remove: {
     id: 'recipesView.remove',
@@ -335,27 +332,10 @@ export default function RecipesView() {
   const [scheduleValid, setScheduleIsValid] = useState(true);
 
   const [searchTerm, setSearchTerm] = useState('');
-  const runtimeRecipeIds = useMemo(
-    () => collectAvailableRecipeRuntimeIds(savedRecipes),
+  const availableRecipeIds = useMemo(() => collectAvailableRecipeIds(savedRecipes), [savedRecipes]);
+  const hasCuratedSecurityTaskTemplates = useMemo(
+    () => savedRecipes.some((recipeManifest) => Boolean(getSecurityTaskIdForRecipeManifest(recipeManifest))),
     [savedRecipes]
-  );
-  const availableRecipeIds = useMemo(
-    () => collectAvailableRecipeIds(savedRecipes),
-    [savedRecipes]
-  );
-  const securityTasks = useMemo(
-    () =>
-      SECURITY_TASK_IDS.map((taskId) => {
-        const launch = resolveSecurityTaskLaunchConfig(taskId, intl.locale, availableRecipeIds);
-
-        return {
-          taskId,
-          copy: SECURITY_TASK_COPY[taskId],
-          launch,
-          runtimeRecipeId: launch.recipeId ? runtimeRecipeIds.get(launch.recipeId) : undefined,
-        };
-      }),
-    [availableRecipeIds, intl.locale, runtimeRecipeIds]
   );
 
   const filteredRecipes = useMemo(() => {
@@ -412,16 +392,23 @@ export default function RecipesView() {
     }
   };
 
-  const handleStartRecipeChat = async (recipeId: string) => {
+  const handleStartRecipeChat = async (recipeManifest: RecipeManifest) => {
+    const securityTaskLaunch = resolveSecurityTaskLaunchConfigForRecipeManifest(
+      recipeManifest,
+      intl.locale,
+      availableRecipeIds
+    );
+
     try {
       const newAgent = await startAgent({
         body: {
           working_dir: getInitialWorkingDir(),
-          recipe_id: recipeId,
+          recipe_id: recipeManifest.id,
         },
         throwOnError: true,
       });
       const session = newAgent.data;
+      const initialPrompt = securityTaskLaunch?.starterPrompt ?? session.recipe?.prompt ?? undefined;
       trackRecipeStarted(true, undefined, false);
 
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
@@ -429,9 +416,7 @@ export default function RecipesView() {
       setView('pair', {
         disableAnimation: true,
         resumeSessionId: session.id,
-        initialMessage: session.recipe?.prompt
-          ? { msg: session.recipe.prompt, images: [] }
-          : undefined,
+        initialMessage: initialPrompt ? { msg: initialPrompt, images: [] } : undefined,
       });
     } catch (error) {
       console.error('Failed to load recipe:', error);
@@ -441,50 +426,34 @@ export default function RecipesView() {
     }
   };
 
-  const handleStartRecipeChatInNewWindow = async (recipeId: string) => {
+  const handleStartRecipeChatInNewWindow = async (recipeManifest: RecipeManifest) => {
+    const securityTaskLaunch = resolveSecurityTaskLaunchConfigForRecipeManifest(
+      recipeManifest,
+      intl.locale,
+      availableRecipeIds
+    );
+
     try {
-      window.electron.createChatWindow({
+      const launchOptions: {
+        dir: string;
+        viewType: 'pair';
+        recipeId: string;
+        query?: string;
+      } = {
         dir: getInitialWorkingDir(),
         viewType: 'pair',
-        recipeId,
-      });
+        recipeId: recipeManifest.id,
+      };
+
+      if (securityTaskLaunch?.starterPrompt) {
+        launchOptions.query = securityTaskLaunch.starterPrompt;
+      }
+
+      window.electron.createChatWindow(launchOptions);
       trackRecipeStarted(true, undefined, true);
     } catch (error) {
       console.error('Failed to open recipe in new window:', error);
       trackRecipeStarted(false, getErrorType(error), true);
-    }
-  };
-
-  const handleStartSecurityTask = async (
-    taskId: (typeof SECURITY_TASK_IDS)[number],
-    runtimeRecipeId?: string,
-    openInNewWindow = false
-  ) => {
-    const launch = resolveSecurityTaskLaunchConfig(taskId, intl.locale, availableRecipeIds);
-
-    try {
-      if (openInNewWindow) {
-        window.electron.createChatWindow({
-          dir: getInitialWorkingDir(),
-          query: launch.starterPrompt,
-          recipeId: runtimeRecipeId,
-        });
-        return;
-      }
-
-      await startNewSession(launch.starterPrompt, setView, getInitialWorkingDir(), {
-        recipeId: runtimeRecipeId,
-      });
-
-      if (launch.availability === 'preview') {
-        toastSuccess({
-          title: intl.formatMessage(securityTaskUiMessages.badgePreview),
-          msg: intl.formatMessage(i18n.securityTasksUnavailable),
-        });
-      }
-    } catch (error) {
-      console.error('Failed to start security task:', error);
-      setError(errorMessage(error, 'Failed to start security task'));
     }
   };
 
@@ -822,7 +791,7 @@ export default function RecipesView() {
           <Button
             onClick={async (e) => {
               e.stopPropagation();
-              await handleStartRecipeChat(recipeManifestResponse.id);
+              await handleStartRecipeChat(recipeManifestResponse);
             }}
             size="sm"
             className="h-8 w-8 p-0"
@@ -833,7 +802,7 @@ export default function RecipesView() {
           <Button
             onClick={async (e) => {
               e.stopPropagation();
-              await handleStartRecipeChatInNewWindow(recipeManifestResponse.id);
+              await handleStartRecipeChatInNewWindow(recipeManifestResponse);
             }}
             variant="outline"
             size="sm"
@@ -1029,119 +998,16 @@ export default function RecipesView() {
           <div className="flex-1 min-h-0 relative px-8">
             <ScrollArea className="h-full">
               <div className="pb-8 space-y-8">
-                <section className="space-y-3 pt-2" data-testid="recipes-security-tasks">
-                  <div className="space-y-3">
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <h2 className="text-2xl font-light">
-                          {intl.formatMessage(securityTaskUiMessages.securitySectionTitle)}
-                        </h2>
-                        <p className="text-sm text-text-secondary mt-1 max-w-3xl">
-                          {intl.formatMessage(securityTaskUiMessages.securitySectionDescription)}
-                        </p>
-                      </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        data-testid="recipes-security-open-extensions"
-                        onClick={() => {
-                          setView('extensions');
-                        }}
-                      >
-                        {intl.formatMessage(securityTaskUiMessages.openExtensions)}
-                      </Button>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div>
-                        <p className="text-xs font-medium uppercase tracking-[0.16em] text-text-secondary">
-                          {intl.formatMessage(securityTaskUiMessages.extensionOverviewTitle)}
-                        </p>
-                        <p className="mt-1 text-xs text-text-secondary">
-                          {intl.formatMessage(securityTaskUiMessages.extensionOverviewDescription)}
-                        </p>
-                      </div>
-                      <SecurityExtensionOverview />
-                    </div>
-                  </div>
-
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                    {securityTasks.map(({ taskId, copy, launch, runtimeRecipeId }) => (
-                      <Card
-                        key={taskId}
-                        data-testid={`recipes-security-task-${taskId}`}
-                        className="p-4 bg-background-primary border border-border-primary shadow-none"
-                      >
-                        <div className="flex flex-col h-full gap-3">
-                          <div className="flex items-start justify-between gap-2">
-                            <h3 className="text-base">{intl.formatMessage(copy.title)}</h3>
-                            <span
-                              data-testid={`recipes-security-task-badge-${taskId}`}
-                              className="rounded-full border border-border-primary px-2 py-0.5 text-[10px] uppercase tracking-[0.12em] text-text-secondary"
-                            >
-                              {intl.formatMessage(
-                                launch.availability === 'ready'
-                                  ? securityTaskUiMessages.badgeReady
-                                  : securityTaskUiMessages.badgePreview
-                              )}
-                            </span>
-                          </div>
-
-                          <p className="text-sm text-text-secondary line-clamp-3">
-                            {intl.formatMessage(copy.description)}
-                          </p>
-
-                          <div className="space-y-1 text-xs text-text-secondary">
-                            {launch.recipeId && (
-                              <div>
-                                {intl.formatMessage(securityTaskUiMessages.mappingRecipe)}:{' '}
-                                <span className="font-mono">{launch.recipeId}</span>
-                              </div>
-                            )}
-                            <div>
-                              {intl.formatMessage(securityTaskUiMessages.mappingSkill)}:{' '}
-                              <span className="font-mono">{launch.skillId}</span>
-                            </div>
-                          </div>
-
-                          <SecurityTaskExtensionHints extensionIds={launch.recommendedExtensionIds} />
-
-                          <div className="mt-auto flex items-center gap-2">
-                            <Button
-                              onClick={async () => {
-                                await handleStartSecurityTask(taskId, runtimeRecipeId);
-                              }}
-                              size="sm"
-                              data-testid={`recipes-security-task-primary-${taskId}`}
-                            >
-                              {intl.formatMessage(
-                                launch.availability === 'ready'
-                                  ? securityTaskUiMessages.startRecipe
-                                  : securityTaskUiMessages.startPreview
-                              )}
-                            </Button>
-                            <Button
-                              onClick={async () => {
-                                await handleStartSecurityTask(taskId, runtimeRecipeId, true);
-                              }}
-                              variant="outline"
-                              size="sm"
-                              data-testid={`recipes-security-task-secondary-${taskId}`}
-                            >
-                              {intl.formatMessage(i18n.openInNewWindow)}
-                            </Button>
-                          </div>
-                        </div>
-                      </Card>
-                    ))}
-                  </div>
-                </section>
-
                 <section className="space-y-3">
                   <div>
                     <h2 className="text-2xl font-light">
-                      {intl.formatMessage(securityTaskUiMessages.savedRecipesTitle)}
+                      {intl.formatMessage(i18n.savedRecipesTitle)}
                     </h2>
+                    {hasCuratedSecurityTaskTemplates ? (
+                      <p className="mt-2 text-xs text-text-secondary">
+                        {intl.formatMessage(securityTaskUiMessages.methodologyBoundary)}
+                      </p>
+                    ) : null}
                   </div>
 
                   <SearchView
@@ -1194,9 +1060,9 @@ export default function RecipesView() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>
-                {intl.formatMessage(i18n.scheduleDialogTitle, {
-                  action: scheduleRecipeManifest.schedule_cron ? 'Edit' : 'Add',
-                })}
+                {scheduleRecipeManifest.schedule_cron
+                  ? intl.formatMessage(i18n.editSchedule)
+                  : intl.formatMessage(i18n.addSchedule)}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">

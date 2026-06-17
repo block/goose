@@ -24,6 +24,7 @@ import { getInitialWorkingDir } from '../utils/workingDir';
 import { createSession } from '../sessions';
 import LoadingGoose from './LoadingGoose';
 import { UserInput } from '../types/message';
+import { SecurityPreviewLaunchGuard } from './security/SecurityPreviewLaunchGuard';
 
 const i18n = defineMessages({
   goodMorning: { id: 'hub.goodMorning', defaultMessage: 'Good morning' },
@@ -114,6 +115,7 @@ export default function Hub({
           <span className="text-2xl font-light text-text-secondary">{meridiem}</span>
         </div>
         <p className="text-xl text-text-secondary mb-6">{greeting}</p>
+        <SecurityPreviewLaunchGuard className="mb-4" />
 
         <ChatInputCard>
           <ChatInput

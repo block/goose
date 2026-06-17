@@ -1,24 +1,35 @@
 # Branding Assets
 
-`product-metadata.json` is the current Goal 3 source of truth for:
+`product-metadata.json` remains the source of truth for:
 
 - branded app name
 - macOS preview bundle id
 - default desktop locale
 
-Current conflict with the Goal 3 checklist:
+The desktop icon family now has a separate canonical source:
 
-- the repo does not yet contain replacement icon or splash assets
+- `ui/desktop/src/images/brand-mark.svg`
 
-Minimal non-breaking resolution in this branch:
+That file is pinned to IBM Carbon `AiEnabledEdt`, which is the approved replacement for the old
+Goose bird mark in this fork.
 
-- wire name, locale, bundle metadata first
-- keep reusing upstream Goose icon files in `ui/desktop/src/images/`
-- add real replacement assets here before switching forge/icon paths
+Generated desktop assets:
 
-Expected future files:
+- `ui/desktop/src/images/glyph.svg`
+- `ui/desktop/src/images/icon.svg`
+- `ui/desktop/src/images/icon.png`
+- `ui/desktop/src/images/icon.icns`
+- `ui/desktop/src/images/icon.ico`
+- `ui/desktop/src/images/iconTemplate*.png`
+- `ui/desktop/src/images/iconTemplateUpdate*.png`
 
-- `icon.icns`
-- `icon.png`
-- `icon.svg`
-- `tray-template.png`
+Regeneration flow:
+
+- run `ui/desktop/src/images/prepare.sh`
+- it first rebuilds `glyph.svg` and `icon.svg` from `brand-mark.svg`
+- it then refreshes the PNG / ICNS / ICO / tray assets used by Electron Forge and runtime tray/dock icons
+
+In-app brand icon scope:
+
+- replace the old Goose mascot/logo in sidebar, onboarding, loading, recipe landing, and chat watermark
+- keep provider logos, third-party marks, and generic action icons on their existing icon systems

@@ -1,12 +1,18 @@
 #!/usr/bin/env sh
 
+node ./generate-brand-assets.mjs
+
 # Create template icons for the menu bar
 convert -background none -resize 22x22 glyph.svg iconTemplate.png
 convert -background none -resize 44x44 glyph.svg iconTemplate@2x.png
+convert iconTemplate.png \( -size 7x7 xc:none -fill black -draw 'circle 3,3 3,0' \) -gravity southeast -geometry +1+1 -compose over -composite iconTemplateUpdate.png
+convert iconTemplate@2x.png \( -size 13x13 xc:none -fill black -draw 'circle 6,6 6,0' \) -gravity southeast -geometry +2+2 -compose over -composite iconTemplateUpdate@2x.png
 
 # Create main application icons from icon.svg
 convert -background none -resize 1024x1024 icon.svg icon.png
 convert -background none -resize 2048x2048 icon.svg icon@2x.png
+convert -background none -resize 512x512 icon.svg icon-512.png
+convert -background none -resize 1024x1024 icon.svg icon-light.png
 
 # Create Windows icon (ico) with multiple sizes
 convert icon.svg -background none -define icon:auto-resize=256,128,64,48,32,16 icon.ico
@@ -24,4 +30,5 @@ convert -background none -resize 512x512 icon.svg icon.iconset/icon_256x256@2x.p
 convert -background none -resize 512x512 icon.svg icon.iconset/icon_512x512.png
 convert -background none -resize 1024x1024 icon.svg icon.iconset/icon_512x512@2x.png
 iconutil -c icns icon.iconset
+cp icon.icns icon-light.icns
 rm -rf icon.iconset

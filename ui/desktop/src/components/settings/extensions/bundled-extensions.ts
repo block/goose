@@ -34,6 +34,11 @@ function getConfiguredDistroDir(): string | undefined {
   return typeof distroDir === 'string' && distroDir.trim() ? distroDir.trim() : undefined;
 }
 
+function getConfiguredBundledNodeCmd(): string | undefined {
+  const nodeCmd = window.appConfig?.get('GOOSE_DESKTOP_STDIO_NODE_CMD');
+  return typeof nodeCmd === 'string' && nodeCmd.trim() ? nodeCmd.trim() : undefined;
+}
+
 function joinPlatformPath(basePath: string, relativePath: string): string {
   const separator = basePath.includes('\\') ? '\\' : '/';
   const normalizedBase = basePath.replace(/[\\/]+$/, '');
@@ -57,6 +62,41 @@ function resolveBundledArgs(args: string[] = []): string[] {
   });
 }
 
+function isSecurityLocalNodeWrapper(bundledExt: BundledExtension): boolean {
+  if (bundledExt.type !== 'stdio' || bundledExt.cmd !== 'node') {
+    return false;
+  }
+
+  const firstArg = bundledExt.args?.[0];
+  return typeof firstArg === 'string' && firstArg.startsWith('distro/security-cn/extensions/');
+}
+
+function resolveBundledCommand(bundledExt: BundledExtension): string {
+  if (!isSecurityLocalNodeWrapper(bundledExt)) {
+    return bundledExt.cmd || '';
+  }
+
+  return getConfiguredBundledNodeCmd() || bundledExt.cmd || '';
+}
+
+function resolveBundledEnvs(
+  bundledExt: BundledExtension
+): { [key: string]: string } | undefined {
+  if (!isSecurityLocalNodeWrapper(bundledExt)) {
+    return bundledExt.envs;
+  }
+
+  const nodeCmd = getConfiguredBundledNodeCmd();
+  if (!nodeCmd) {
+    return bundledExt.envs;
+  }
+
+  return {
+    ...(bundledExt.envs || {}),
+    ELECTRON_RUN_AS_NODE: '1',
+  };
+}
+
 function createBundledExtensionConfig(bundledExt: BundledExtension): ExtensionConfig {
   switch (bundledExt.type) {
     case 'builtin':
@@ -74,9 +114,9 @@ function createBundledExtensionConfig(bundledExt: BundledExtension): ExtensionCo
         name: bundledExt.name,
         description: bundledExt.description,
         timeout: bundledExt.timeout,
-        cmd: bundledExt.cmd || '',
+        cmd: resolveBundledCommand(bundledExt),
         args: resolveBundledArgs(bundledExt.args || []),
-        envs: bundledExt.envs,
+        envs: resolveBundledEnvs(bundledExt),
         env_keys: bundledExt.env_keys || [],
         bundled: true,
       };

@@ -12,23 +12,46 @@ import CustomProviderForm from '../settings/providers/modal/subcomponents/forms/
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
 import { Gift, Key, Plus } from 'lucide-react';
 import { defineMessages, useIntl } from '../../i18n';
+import {
+  getConfiguredDefaultPredefinedModel,
+  getSingleProviderCatalogLabel,
+  isSingleProviderCatalogMode,
+} from '../settings/models/predefinedModelsUtils';
 
 const i18n = defineMessages({
   useFreeLocal: {
     id: 'providerSelector.useFreeLocal',
     defaultMessage: 'Use Free/Local Providers',
   },
+  useBuiltInModels: {
+    id: 'providerSelector.useBuiltInModels',
+    defaultMessage: 'Use Built-in Models',
+  },
   freeLocalDescription: {
     id: 'providerSelector.freeLocalDescription',
     defaultMessage: 'Use a local model or a provider with free credits',
+  },
+  useBuiltInModelsDescription: {
+    id: 'providerSelector.useBuiltInModelsDescription',
+    defaultMessage:
+      '{providerName} is already connected. Start with {modelName} and switch models later.',
   },
   connectProvider: {
     id: 'providerSelector.connectProvider',
     defaultMessage: 'Connect to a Provider',
   },
+  advancedProviderSetup: {
+    id: 'providerSelector.advancedProviderSetup',
+    defaultMessage: 'Advanced Provider Setup',
+  },
   connectProviderDescription: {
     id: 'providerSelector.connectProviderDescription',
     defaultMessage: 'Connect OpenAI, Anthropic, Google, etc',
+  },
+  advancedProviderSetupDescription: {
+    id: 'providerSelector.advancedProviderSetupDescription',
+    defaultMessage:
+      'Only use this if you need a different provider, a custom host, or your own API key.',
   },
   selectProvider: {
     id: 'providerSelector.selectProvider',
@@ -45,9 +68,10 @@ const i18n = defineMessages({
 });
 
 const FREE_OPTIONS = 'free-options' as const;
+const BUILT_IN_BACKEND = 'built-in-backend' as const;
 const OWN_PROVIDER = 'own-provider' as const;
 
-type SelectedPath = typeof FREE_OPTIONS | typeof OWN_PROVIDER | null;
+type SelectedPath = typeof FREE_OPTIONS | typeof BUILT_IN_BACKEND | typeof OWN_PROVIDER | null;
 
 interface ProviderOption {
   value: string;
@@ -56,7 +80,7 @@ interface ProviderOption {
 }
 
 interface ProviderSelectorProps {
-  onConfigured: (providerName: string, modelId?: string) => void;
+  onConfigured: (providerName: string, modelId?: string) => void | Promise<void>;
   onFirstSelection?: () => void;
 }
 
@@ -69,6 +93,11 @@ export default function ProviderSelector({
   const [selectedOption, setSelectedOption] = useState<ProviderOption | null>(null);
   const [selectedPath, setSelectedPath] = useState<SelectedPath>(null);
   const [showCustomModal, setShowCustomModal] = useState(false);
+  const [isConfiguringBuiltIn, setIsConfiguringBuiltIn] = useState(false);
+  const defaultPredefinedModel = getConfiguredDefaultPredefinedModel();
+  const prefersBuiltInProviderFlow = isSingleProviderCatalogMode() && defaultPredefinedModel;
+  const builtInProviderName = getSingleProviderCatalogLabel() || 'TokenPlan';
+  const builtInModelName = defaultPredefinedModel?.alias || defaultPredefinedModel?.name || 'Auto';
 
   useEffect(() => {
     const load = async () => {
@@ -116,6 +145,24 @@ export default function ProviderSelector({
     onFirstSelection?.();
   };
 
+  const handleBuiltInProviderClick = async () => {
+    if (!defaultPredefinedModel) {
+      handleFreeCreditClick();
+      return;
+    }
+
+    setSelectedPath(BUILT_IN_BACKEND);
+    setSelectedOption(null);
+    setIsConfiguringBuiltIn(true);
+    onFirstSelection?.();
+
+    try {
+      await onConfigured(defaultPredefinedModel.provider, defaultPredefinedModel.name);
+    } finally {
+      setIsConfiguringBuiltIn(false);
+    }
+  };
+
   const handleOwnProviderClick = () => {
     setSelectedPath(OWN_PROVIDER);
     onFirstSelection?.();
@@ -140,19 +187,27 @@ export default function ProviderSelector({
     <div>
       <div className="grid grid-cols-2 gap-3 mb-6">
         <div
-          onClick={handleFreeCreditClick}
+          onClick={prefersBuiltInProviderFlow ? () => void handleBuiltInProviderClick() : handleFreeCreditClick}
           className={`p-4 border rounded-xl transition-all duration-200 cursor-pointer group ${
-            selectedPath === FREE_OPTIONS
+            selectedPath === FREE_OPTIONS || selectedPath === BUILT_IN_BACKEND
               ? 'border-blue-400 bg-background-muted'
               : 'border-border-default bg-background-muted hover:border-blue-400'
           }`}
         >
           <Gift size={20} className="text-text-muted mb-2" />
           <span className="font-medium text-text-default text-base block">
-            {intl.formatMessage(i18n.useFreeLocal)}
+            {prefersBuiltInProviderFlow
+              ? intl.formatMessage(i18n.useBuiltInModels)
+              : intl.formatMessage(i18n.useFreeLocal)}
           </span>
           <p className="text-text-muted text-sm mt-1">
-            {intl.formatMessage(i18n.freeLocalDescription)}
+            {prefersBuiltInProviderFlow
+              ? intl.formatMessage(i18n.useBuiltInModelsDescription, {
+                  providerName: builtInProviderName,
+                  modelName: builtInModelName,
+                })
+              : intl.formatMessage(i18n.freeLocalDescription)}
+            {prefersBuiltInProviderFlow && isConfiguringBuiltIn ? '…' : ''}
           </p>
         </div>
 
@@ -166,13 +221,19 @@ export default function ProviderSelector({
         >
           <Key size={20} className="text-text-muted mb-2" />
           <span className="font-medium text-text-default text-base block">
-            {intl.formatMessage(i18n.connectProvider)}
+            {prefersBuiltInProviderFlow
+              ? intl.formatMessage(i18n.advancedProviderSetup)
+              : intl.formatMessage(i18n.connectProvider)}
           </span>
-          <p className="text-text-muted text-sm mt-1">{intl.formatMessage(i18n.connectProviderDescription)}</p>
+          <p className="text-text-muted text-sm mt-1">
+            {prefersBuiltInProviderFlow
+              ? intl.formatMessage(i18n.advancedProviderSetupDescription)
+              : intl.formatMessage(i18n.connectProviderDescription)}
+          </p>
         </div>
       </div>
 
-      {selectedPath === FREE_OPTIONS && (
+      {!prefersBuiltInProviderFlow && selectedPath === FREE_OPTIONS && (
         <div className="animate-in fade-in slide-in-from-top-2 duration-300">
           <FreeOptionCards onConfigured={onConfigured} />
         </div>

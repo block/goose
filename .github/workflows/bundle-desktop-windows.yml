@@ -45,12 +45,25 @@ jobs:
   build-desktop-windows:
     name: Build Desktop (Windows)
     runs-on: windows-latest
+    outputs:
+      bundle_name: ${{ steps.bundle_metadata.outputs.bundle_name }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
           ref: ${{ inputs.ref != '' && inputs.ref || '' }}
+
+      - name: Resolve bundle metadata
+        id: bundle_metadata
+        shell: bash
+        run: |
+          BUNDLE_NAME="$(node -p "require('./distro/security-cn/branding/product-metadata.json').productName")"
+          {
+            echo "bundle_name<<EOF"
+            echo "$BUNDLE_NAME"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
         uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238  # v6.2.0
@@ -171,6 +184,7 @@ jobs:
         shell: bash
         env:
           ELECTRON_PLATFORM: win32
+          GOOSE_BUNDLE_NAME: ${{ steps.bundle_metadata.outputs.bundle_name }}
         run: |
           cd ui/desktop
 
@@ -181,13 +195,15 @@ jobs:
 
       - name: Copy exe to final out folder and prepare flat distribution
         shell: bash
+        env:
+          BUNDLE_NAME: ${{ steps.bundle_metadata.outputs.bundle_name }}
         run: |
           cd ui/desktop
-          mkdir -p ./out/Goose-win32-x64/resources/bin
-          cp -r src/bin/* out/Goose-win32-x64/resources/bin/
+          mkdir -p "./out/${BUNDLE_NAME}-win32-x64/resources/bin"
+          cp -r src/bin/* "./out/${BUNDLE_NAME}-win32-x64/resources/bin/"
 
           mkdir -p ./dist-windows
-          cp -r ./out/Goose-win32-x64/* ./dist-windows/
+          cp -r "./out/${BUNDLE_NAME}-win32-x64/." ./dist-windows/
 
           echo "📋 Final flat distribution structure:"
           ls -la ./dist-windows/
@@ -228,14 +244,14 @@ jobs:
           trusted-signing-account-name: ${{ secrets.AZURE_SIGNING_ACCOUNT_NAME }}
           certificate-profile-name: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
           files: |
-            ${{ github.workspace }}/dist-windows/Goose.exe
+            ${{ github.workspace }}/dist-windows/${{ needs.build-desktop-windows.outputs.bundle_name }}.exe
             ${{ github.workspace }}/dist-windows/resources/bin/goosed.exe
 
       - name: Verify signed executables
         shell: pwsh
         run: |
           $files = @(
-            "dist-windows/Goose.exe",
+            "dist-windows/${{ needs.build-desktop-windows.outputs.bundle_name }}.exe",
             "dist-windows/resources/bin/goosed.exe"
           )
           foreach ($file in $files) {

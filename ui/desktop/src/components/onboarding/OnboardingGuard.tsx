@@ -6,6 +6,12 @@ import { Goose } from '../icons';
 import { Button } from '../ui/button';
 import ProviderSelector from './ProviderSelector';
 import OnboardingSuccess from './OnboardingSuccess';
+import { SecurityPreviewLaunchGuard } from '../security/SecurityPreviewLaunchGuard';
+import {
+  getConfiguredDefaultPredefinedModel,
+  getSingleProviderCatalogLabel,
+  isSingleProviderCatalogMode,
+} from '../settings/models/predefinedModelsUtils';
 import {
   trackOnboardingStarted,
   trackOnboardingCompleted,
@@ -25,6 +31,11 @@ const i18n = defineMessages({
     id: 'onboardingGuard.welcomeDescription',
     defaultMessage:
       'Your local AI agent. Connect an AI model provider to get started with {appName}.',
+  },
+  welcomeDescriptionBuiltIn: {
+    id: 'onboardingGuard.welcomeDescriptionBuiltIn',
+    defaultMessage:
+      'Your local AI agent. {appName} is ready with the built-in {providerName} backend. Start with {modelName} and switch models at any time.',
   },
   checkProviderErrorTitle: {
     id: 'onboardingGuard.checkProviderErrorTitle',
@@ -50,6 +61,10 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const intl = useIntl();
   const navigate = useNavigate();
   const appName = getConfiguredProductName();
+  const defaultPredefinedModel = getConfiguredDefaultPredefinedModel();
+  const builtInProviderName = getSingleProviderCatalogLabel() || 'TokenPlan';
+  const builtInModelName = defaultPredefinedModel?.alias || defaultPredefinedModel?.name || 'Auto';
+  const prefersBuiltInProviderFlow = isSingleProviderCatalogMode();
   const { read, upsert, getProviders } = useConfig();
   const { getFallbackModelAndProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
 
@@ -205,9 +220,17 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
                 {intl.formatMessage(i18n.welcomeTitle, { appName })}
               </h1>
               <p className="text-text-muted text-base sm:text-lg">
-                {intl.formatMessage(i18n.welcomeDescription, { appName })}
+                {prefersBuiltInProviderFlow
+                  ? intl.formatMessage(i18n.welcomeDescriptionBuiltIn, {
+                      appName,
+                      providerName: builtInProviderName,
+                      modelName: builtInModelName,
+                    })
+                  : intl.formatMessage(i18n.welcomeDescription, { appName })}
               </p>
             </div>
+
+            <SecurityPreviewLaunchGuard className="mb-6" />
 
             <ProviderSelector
               onConfigured={handleConfigured}

@@ -10,12 +10,12 @@ import { defineMessages, useIntl } from '../../../i18n';
 const i18n = defineMessages({
   title: {
     id: 'externalBackendSection.title',
-    defaultMessage: 'Goose Server',
+    defaultMessage: 'Backend Server',
   },
   description: {
     id: 'externalBackendSection.description',
     defaultMessage:
-      'By default goose launches a server for you, use this to connect to an external goose server',
+      'By default the app launches a local server for you. Use this to connect to an external server instead.',
   },
   useExternalServer: {
     id: 'externalBackendSection.useExternalServer',
@@ -23,7 +23,7 @@ const i18n = defineMessages({
   },
   useExternalServerDescription: {
     id: 'externalBackendSection.useExternalServerDescription',
-    defaultMessage: 'Connect to a goose server running elsewhere (requires app restart)',
+    defaultMessage: 'Connect to a server running elsewhere (requires app restart)',
   },
   serverUrl: {
     id: 'externalBackendSection.serverUrl',
@@ -57,7 +57,7 @@ const i18n = defineMessages({
   restartNote: {
     id: 'externalBackendSection.restartNote',
     defaultMessage:
-      'Changes require restarting Goose to take effect. New chat windows will connect to the external server.',
+      'Changes require restarting the app to take effect. New chat windows will connect to the external server.',
   },
   urlProtocolError: {
     id: 'externalBackendSection.urlProtocolError',

@@ -13,6 +13,7 @@ import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 import TelemetrySettings from './TelemetrySettings';
 import { trackSettingToggled } from '../../../utils/analytics';
+import { isSecurityModelPricingHidden } from '../../../pricingMode';
 
 const i18n = defineMessages({
   appearanceTitle: { id: 'settings.appearance.title', defaultMessage: 'Appearance' },
@@ -123,6 +124,7 @@ interface AppSettingsSectionProps {
 }
 
 export default function AppSettingsSection({ scrollToSection }: AppSettingsSectionProps) {
+  const pricingHidden = isSecurityModelPricingHidden();
   const [menuBarIconEnabled, setMenuBarIconEnabled] = useState(true);
   const [dockIconEnabled, setDockIconEnabled] = useState(true);
   const [wakelockEnabled, setWakelockEnabled] = useState(true);
@@ -370,7 +372,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           </div>
 
           {/* Cost Tracking */}
-          {COST_TRACKING_ENABLED && (
+          {COST_TRACKING_ENABLED && !pricingHidden && (
             <div className="flex items-center justify-between mb-4">
               <div>
                 <h3 className="text-text-primary">{intl.formatMessage(i18n.costTracking)}</h3>

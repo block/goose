@@ -53,8 +53,8 @@ Security Goose Desktop
 Goose 官方已经支持：
 
 - 基础 provider 变量：`GOOSE_PROVIDER`、`GOOSE_MODEL`
-- 自定义 endpoint：`GOOSE_PROVIDER__HOST`
-- 自定义 API key：`GOOSE_PROVIDER__API_KEY`
+- OpenAI-compatible endpoint：`OPENAI_BASE_URL`
+- OpenAI-compatible API key：`OPENAI_API_KEY`
 - 自定义模型清单：`GOOSE_PREDEFINED_MODELS`
 - 发行版初始化：`init-config.yaml`
 
@@ -143,7 +143,7 @@ Goose 文档也明确提到，`GOOSE_CONTEXT_LIMIT` 对 LiteLLM proxy 很有用�
 
 ```json
 {
-  "defaultModel": "auto",
+  "defaultModel": "deepseek-v4-flash",
   "models": [
     {
       "id": "auto",

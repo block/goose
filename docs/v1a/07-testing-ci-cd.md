@@ -27,6 +27,7 @@
 - `scripts/check-security-apple-signing-env.mjs`
 - `scripts/check-security-github-release-readiness.mjs`
 - `scripts/render-security-macos-release-evidence.mjs`
+- `distro/security-cn/docs/signed-release-handoff-panel.md`
 
 这条脚本当前覆盖：
 
@@ -63,6 +64,14 @@
 - 渲染 `summary.json`
 - 把 `preflight / codesign / spctl / stapler` 证据压成可上传 artifact 的固定结构
 - 对 `signed` 和 `local-preview` 两种期望值给出不同 verdict
+
+`signed-release-handoff-panel.md` 当前覆盖：
+
+- Apple secrets 注入到 GitHub `signing` environment 的命令
+- `bundle-desktop-manual.yml` 的 signed 演练触发命令
+- evidence artifact 下载命令
+- signed 安装验收 checklist
+- 最终 Go / No-Go 判定模板
 
 注意：
 

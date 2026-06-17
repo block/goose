@@ -33,6 +33,7 @@ function toIntlMessages(
 describe('LauncherView', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete (window as unknown as Record<string, unknown>).appConfig;
     (window as unknown as { electron: unknown }).electron = {
       createChatWindow,
       closeWindow,
@@ -59,6 +60,8 @@ describe('LauncherView', () => {
     expect(screen.getAllByText('Local preview').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Disabled stub').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Blocked').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Primary path/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/does not show explicit skill-load telemetry/i)).toBeInTheDocument();
   });
 
   it('starts recipe-backed tasks through the existing chat window launcher', async () => {
@@ -81,7 +84,94 @@ describe('LauncherView', () => {
     );
   });
 
-  it('keeps the zh-CN security launcher copy and recipe/preview badge split stable', () => {
+  it('downgrades missing runtime recipes to preview and surfaces runtime warnings', () => {
+    const runtimeDiagnostics = {
+      sourceSkillIds: ['vuln-triage'],
+      sourceRecipeIds: ['security-vuln-triage'],
+      missingSkillIds: ['vuln-triage'],
+      driftedSkillIds: [],
+      missingRecipeIds: ['security-vuln-triage'],
+      driftedRecipeIds: [],
+    };
+
+    (window as unknown as Record<string, unknown>).appConfig = {
+      get: (key: string) => {
+        if (key === 'SECURITY_RUNTIME_DIAGNOSTICS') {
+          return runtimeDiagnostics;
+        }
+        if (key === 'SECURITY_PREVIEW_SESSION_MODE') {
+          return 'repo-preview';
+        }
+        return undefined;
+      },
+      getAll: () => ({
+        SECURITY_RUNTIME_DIAGNOSTICS: runtimeDiagnostics,
+        SECURITY_PREVIEW_SESSION_MODE: 'repo-preview',
+      }),
+    };
+
+    render(
+      <IntlTestWrapper>
+        <LauncherView />
+      </IntlTestWrapper>
+    );
+
+    expect(screen.getByTestId('launcher-security-task-badge-vuln-triage')).toHaveTextContent(
+      'Preview'
+    );
+    expect(screen.getByTestId('security-runtime-overview-notice')).toHaveTextContent(
+      'Missing skills: vuln-triage'
+    );
+    expect(screen.getByTestId('security-task-runtime-hint-vuln-triage')).toHaveTextContent(
+      'Skill asset missing'
+    );
+  });
+
+  it('uses the preview starter path when launcher diagnostics say the recipe runtime is missing', async () => {
+    const user = userEvent.setup();
+    const runtimeDiagnostics = {
+      sourceSkillIds: ['vuln-triage'],
+      sourceRecipeIds: ['security-vuln-triage'],
+      missingSkillIds: [],
+      driftedSkillIds: [],
+      missingRecipeIds: ['security-vuln-triage'],
+      driftedRecipeIds: [],
+    };
+
+    (window as unknown as Record<string, unknown>).appConfig = {
+      get: (key: string) => {
+        if (key === 'SECURITY_RUNTIME_DIAGNOSTICS') {
+          return runtimeDiagnostics;
+        }
+        if (key === 'SECURITY_PREVIEW_SESSION_MODE') {
+          return 'repo-preview';
+        }
+        return undefined;
+      },
+      getAll: () => ({
+        SECURITY_RUNTIME_DIAGNOSTICS: runtimeDiagnostics,
+        SECURITY_PREVIEW_SESSION_MODE: 'repo-preview',
+      }),
+    };
+
+    render(
+      <IntlTestWrapper>
+        <LauncherView />
+      </IntlTestWrapper>
+    );
+
+    await user.click(screen.getByRole('button', { name: /Vulnerability Triage/i }));
+
+    expect(createChatWindow).toHaveBeenCalledWith(
+      expect.objectContaining({
+        dir: '/tmp/security-goose',
+        recipeId: undefined,
+        query: expect.stringContaining('recipe runtime is unavailable in this workspace'),
+      })
+    );
+  });
+
+  it('keeps the zh-CN security launcher copy and template badge stable', () => {
     render(
       <IntlTestWrapper locale="zh-CN" defaultLocale="zh-CN" messages={toIntlMessages(zhCN)}>
         <LauncherView />
@@ -96,7 +186,7 @@ describe('LauncherView', () => {
     expect(screen.getByText('报告生成')).toBeInTheDocument();
     expect(screen.getByText('业务逻辑排查')).toBeInTheDocument();
     expect(screen.getAllByText('推荐扩展').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Recipe')).toHaveLength(3);
-    expect(screen.getAllByText('预览')).toHaveLength(3);
+    expect(screen.getAllByText('模板')).toHaveLength(6);
+    expect(screen.queryByText('预览')).not.toBeInTheDocument();
   });
 });

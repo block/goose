@@ -5,8 +5,18 @@ function getDesktopRoot(scriptDir = __dirname) {
   return path.resolve(scriptDir, '..');
 }
 
-function getElectronForgeStartArgs(forwardedArgs = []) {
-  return forwardedArgs.length > 0 ? ['start', '--', ...forwardedArgs] : ['start'];
+function normalizeForwardedArgs(forwardedArgs = []) {
+  let normalizedArgs = [...forwardedArgs];
+  while (normalizedArgs[0] === '--') {
+    normalizedArgs = normalizedArgs.slice(1);
+  }
+  return normalizedArgs;
+}
+
+function getElectronForgeStartArgs(desktopRoot, forwardedArgs = []) {
+  const normalizedArgs = normalizeForwardedArgs(forwardedArgs);
+  const baseArgs = ['start', desktopRoot];
+  return normalizedArgs.length > 0 ? [...baseArgs, '--', ...normalizedArgs] : baseArgs;
 }
 
 function getElectronForgeCommand(platform = process.platform) {
@@ -17,7 +27,7 @@ function main(forwardedArgs = process.argv.slice(2)) {
   const desktopRoot = getDesktopRoot();
   const child = spawn(
     getElectronForgeCommand(),
-    getElectronForgeStartArgs(forwardedArgs),
+    getElectronForgeStartArgs(desktopRoot, forwardedArgs),
     {
       cwd: desktopRoot,
       env: process.env,
@@ -43,6 +53,7 @@ if (require.main === module) {
 module.exports = {
   getDesktopRoot,
   getElectronForgeCommand,
+  normalizeForwardedArgs,
   getElectronForgeStartArgs,
   main,
 };

@@ -52,48 +52,52 @@ describe('getLocale', () => {
     expect(getLocale()).toEqual({ locale: 'en-GB', messageLocale: 'en' });
   });
 
-  it('returns Russian when navigator.languages contains ru', () => {
+  it('falls back to English when navigator.languages contains unsupported Russian locales', () => {
     vi.stubGlobal('navigator', { languages: ['ru'] });
-    expect(getLocale()).toEqual({ locale: 'ru', messageLocale: 'ru' });
+    expect(getLocale()).toEqual({ locale: 'en', messageLocale: 'en' });
   });
 
-  it('preserves Russian regional tag for formatting', () => {
+  it('falls back to English when navigator.languages contains unsupported Russian regional locales', () => {
     vi.stubGlobal('navigator', { languages: ['ru-RU'] });
-    expect(getLocale()).toEqual({ locale: 'ru-RU', messageLocale: 'ru' });
+    expect(getLocale()).toEqual({ locale: 'en', messageLocale: 'en' });
   });
 
-  it('supports Turkish from navigator.languages', () => {
+  it('falls back to English when navigator.languages contains unsupported Turkish locales', () => {
     vi.stubGlobal('navigator', { languages: ['tr-TR'] });
-    expect(getLocale()).toEqual({ locale: 'tr-TR', messageLocale: 'tr' });
+    expect(getLocale()).toEqual({ locale: 'en', messageLocale: 'en' });
   });
 
-  it('supports explicit Turkish locale', () => {
+  it('falls back to English when GOOSE_LOCALE is set to unsupported Turkish locale', () => {
     mockAppConfig({ GOOSE_LOCALE: 'tr' });
     vi.stubGlobal('navigator', { languages: ['xx-XX'] });
-    expect(getLocale()).toEqual({ locale: 'tr', messageLocale: 'tr' });
+    expect(getLocale()).toEqual({ locale: 'en', messageLocale: 'en' });
   });
 
-
-  it('supports Japanese from navigator.languages', () => {
-    vi.stubGlobal('navigator', { languages: ['ja-JP'] });
-    expect(getLocale()).toEqual({ locale: 'ja-JP', messageLocale: 'ja' });
+  it('maps Simplified Chinese locales to zh-CN', () => {
+    vi.stubGlobal('navigator', { languages: ['zh-Hans-CN'] });
+    expect(getLocale()).toEqual({ locale: 'zh-CN', messageLocale: 'zh-CN' });
   });
 
-  it('supports POSIX-style Japanese locale from GOOSE_LOCALE', () => {
-    mockAppConfig({ GOOSE_LOCALE: 'ja_JP' });
+  it('supports POSIX-style zh-CN locale from GOOSE_LOCALE', () => {
+    mockAppConfig({ GOOSE_LOCALE: 'zh_CN' });
     vi.stubGlobal('navigator', { languages: ['xx-XX'] });
-    expect(getLocale()).toEqual({ locale: 'ja-JP', messageLocale: 'ja' });
+    expect(getLocale()).toEqual({ locale: 'zh-CN', messageLocale: 'zh-CN' });
   });
 
-  it('supports Hindi from navigator.languages', () => {
+  it('falls back to English when navigator.languages contains unsupported Japanese locales', () => {
+    vi.stubGlobal('navigator', { languages: ['ja-JP'] });
+    expect(getLocale()).toEqual({ locale: 'en', messageLocale: 'en' });
+  });
+
+  it('falls back to English when navigator.languages contains unsupported Hindi locales', () => {
     vi.stubGlobal('navigator', { languages: ['hi-IN'] });
-    expect(getLocale()).toEqual({ locale: 'hi-IN', messageLocale: 'hi' });
+    expect(getLocale()).toEqual({ locale: 'en', messageLocale: 'en' });
   });
 
-  it('supports explicit Hindi locale', () => {
+  it('falls back to English when GOOSE_LOCALE is set to unsupported Hindi locale', () => {
     mockAppConfig({ GOOSE_LOCALE: 'hi' });
     vi.stubGlobal('navigator', { languages: ['xx-XX'] });
-    expect(getLocale()).toEqual({ locale: 'hi', messageLocale: 'hi' });
+    expect(getLocale()).toEqual({ locale: 'en', messageLocale: 'en' });
   });
 
   it('falls back to base language when locale tag is invalid BCP 47', () => {
@@ -105,10 +109,11 @@ describe('getLocale', () => {
 });
 
 describe('loadMessages', () => {
-  it('returns empty object for English locale', async () => {
+  it('returns compiled English messages for branding-aware runtime replacement', async () => {
     const { loadMessages } = await import('./index');
     const messages = await loadMessages('en');
-    expect(messages).toEqual({});
+    expect(messages).toHaveProperty('onboardingGuard.welcomeTitle');
+    expect(messages).toHaveProperty('launcher.placeholder');
   });
 
   it('returns empty object for unsupported locale (with warning)', async () => {

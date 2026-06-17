@@ -18,19 +18,21 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   createRecipeTitle: {
     id: 'createEditRecipe.createRecipeTitle',
-    defaultMessage: 'Create Recipe',
+    defaultMessage: 'Create Task Template',
   },
   viewEditRecipeTitle: {
     id: 'createEditRecipe.viewEditRecipeTitle',
-    defaultMessage: 'View/edit recipe',
+    defaultMessage: 'View/Edit Task Template',
   },
   createSubtitle: {
     id: 'createEditRecipe.createSubtitle',
-    defaultMessage: 'Create a new recipe to define agent behavior and capabilities for reusable chat sessions.',
+    defaultMessage:
+      'Create a new task template to define agent behavior and capabilities for reusable chat sessions.',
   },
   editSubtitle: {
     id: 'createEditRecipe.editSubtitle',
-    defaultMessage: "You can edit the recipe below to change the agent's behavior in a new session.",
+    defaultMessage:
+      "You can edit the task template below to change the agent's behavior in a new session.",
   },
   learnMore: {
     id: 'createEditRecipe.learnMore',
@@ -66,11 +68,11 @@ const i18n = defineMessages({
   },
   saveRecipe: {
     id: 'createEditRecipe.saveRecipe',
-    defaultMessage: 'Save Recipe',
+    defaultMessage: 'Save Task Template',
   },
   saveAndRunRecipe: {
     id: 'createEditRecipe.saveAndRunRecipe',
-    defaultMessage: 'Save & Run Recipe',
+    defaultMessage: 'Save & Start Task',
   },
   validationFailed: {
     id: 'createEditRecipe.validationFailed',
@@ -82,7 +84,7 @@ const i18n = defineMessages({
   },
   recipeSavedMsg: {
     id: 'createEditRecipe.recipeSavedMsg',
-    defaultMessage: 'Recipe saved successfully',
+    defaultMessage: 'Task template saved successfully',
   },
   saveFailed: {
     id: 'createEditRecipe.saveFailed',
@@ -90,11 +92,11 @@ const i18n = defineMessages({
   },
   saveFailedMsg: {
     id: 'createEditRecipe.saveFailedMsg',
-    defaultMessage: 'Failed to save recipe: {error}',
+    defaultMessage: 'Failed to save task template: {error}',
   },
   recipeSavedAndLaunchedMsg: {
     id: 'createEditRecipe.recipeSavedAndLaunchedMsg',
-    defaultMessage: 'Recipe saved and launched successfully',
+    defaultMessage: 'Task template saved and launched successfully',
   },
   saveAndRunFailed: {
     id: 'createEditRecipe.saveAndRunFailed',
@@ -102,7 +104,7 @@ const i18n = defineMessages({
   },
   saveAndRunFailedMsg: {
     id: 'createEditRecipe.saveAndRunFailedMsg',
-    defaultMessage: 'Failed to save and run recipe: {error}',
+    defaultMessage: 'Failed to save and start the task: {error}',
   },
 });
 

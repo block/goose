@@ -11,6 +11,8 @@ import { ItemIcon } from './ItemIcon';
 import { CommandType, getSlashCommands } from '../api';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { defineMessages, useIntl } from '../i18n';
+import { filterVisibleSkillCommands } from '../security/skillVisibility';
+import { getManagedLocalVisibleSkillNames } from '../security/managedSkillsView';
 
 const i18n = defineMessages({
   scanningFiles: {
@@ -484,12 +486,19 @@ const MentionPopover = forwardRef<
         setIsLoading(true);
         try {
           if (isSlashCommand) {
-            const response = await getSlashCommands({
-              query: { working_dir: currentWorkingDir },
-              throwOnError: true,
-            });
+            const [response, managedSkills] = await Promise.all([
+              getSlashCommands({
+                query: { working_dir: currentWorkingDir },
+                throwOnError: true,
+              }),
+              window.electron.listManagedSkills(currentWorkingDir).catch(() => null),
+            ]);
             if (cancelled) return;
-            const commandItems: DisplayItem[] = (response.data?.commands || [])
+            const commandItems: DisplayItem[] = filterVisibleSkillCommands(
+              response.data?.commands || [],
+              undefined,
+              managedSkills ? getManagedLocalVisibleSkillNames(managedSkills) : []
+            )
               .filter((cmd) => cmd.command_type !== 'Agent')
               .map((cmd) => ({
                 name: cmd.command,

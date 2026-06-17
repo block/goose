@@ -13,7 +13,10 @@ const requiredSkillIds = [
 const requiredRecipeIds = [
   "security-vuln-triage",
   "alert-investigation",
+  "ioc-analysis",
   "web-investigation",
+  "report-writing",
+  "wooyun-legacy",
 ];
 const requiredDesktopTaskMappings = [
   {
@@ -31,6 +34,7 @@ const requiredDesktopTaskMappings = [
   {
     taskId: "ioc-analysis",
     skillId: "ioc-analysis",
+    recipeId: "ioc-analysis",
     recommendedExtensions: ["threat-intel-mcp"],
   },
   {
@@ -42,11 +46,13 @@ const requiredDesktopTaskMappings = [
   {
     taskId: "report-writing",
     skillId: "report-writing",
+    recipeId: "report-writing",
     recommendedExtensions: [],
   },
   {
     taskId: "wooyun-legacy",
     skillId: "wooyun-legacy",
+    recipeId: "wooyun-legacy",
     recommendedExtensions: ["browser-assist-mcp"],
   },
 ];
@@ -64,6 +70,9 @@ const blockedSecurityExtensionIds = [
   "aiseesec-mcp",
   "local-security-gateway-mcp",
 ];
+const allowedRuntimeSkillExtraPrefixes = new Map([
+  ["wooyun-legacy", ["external/upstream"]],
+]);
 
 const requiredFiles = [
   "docs/v1a/README.md",
@@ -93,6 +102,7 @@ const requiredFiles = [
   "distro/security-cn/extensions/bundled-extensions.security.json.example",
   "distro/security-cn/docs/operator-guide.md",
   "distro/security-cn/docs/capability-catalog.md",
+  "distro/security-cn/docs/signed-release-handoff-panel.md",
   "distro/security-cn/docs/signed-release-runbook.md",
   ".github/workflows/security-goose-v1a-checks.yml",
   "scripts/check-security-github-release-readiness.mjs",
@@ -100,6 +110,10 @@ const requiredFiles = [
   "scripts/render-security-macos-release-evidence.mjs",
   "scripts/smoke-security-extensions.mjs",
   "scripts/install-wooyun-legacy-skill.mjs",
+  "ui/desktop/src/branding/desktopBrandAssets.test.ts",
+  "ui/desktop/src/components/icons/Goose.test.tsx",
+  "ui/desktop/src/images/brand-mark.svg",
+  "ui/desktop/src/images/generate-brand-assets.mjs",
   "ui/desktop/src/components/recipes/RecipesView.test.tsx",
 ];
 
@@ -137,6 +151,13 @@ function listRelativeFiles(rootDir, currentDir = rootDir) {
   }
 
   return relativeFiles.sort();
+}
+
+function isAllowedRuntimeSkillExtra(skillId, relativePath) {
+  const prefixes = allowedRuntimeSkillExtraPrefixes.get(skillId) ?? [];
+  return prefixes.some(
+    (prefix) => relativePath === prefix || relativePath.startsWith(`${prefix}${path.sep}`),
+  );
 }
 
 function parseEnvFile(contents) {
@@ -218,6 +239,26 @@ for (const relPath of jsonFiles) {
   JSON.parse(readFile(relPath));
 }
 
+const brandMark = readFile("ui/desktop/src/images/brand-mark.svg");
+if (!brandMark.includes("IBM Carbon AiEnabledEdt")) {
+  throw new Error("ui/desktop/src/images/brand-mark.svg is not pinned to the Carbon AiEnabledEdt source");
+}
+
+const generatedGlyph = readFile("ui/desktop/src/images/glyph.svg");
+if (!generatedGlyph.includes("Generated from brand-mark.svg via generate-brand-assets.mjs")) {
+  throw new Error("ui/desktop/src/images/glyph.svg is no longer marked as generated from brand-mark.svg");
+}
+
+const generatedIcon = readFile("ui/desktop/src/images/icon.svg");
+if (!generatedIcon.includes("Generated from brand-mark.svg via generate-brand-assets.mjs")) {
+  throw new Error("ui/desktop/src/images/icon.svg is no longer marked as generated from brand-mark.svg");
+}
+
+const imagePrepareScript = readFile("ui/desktop/src/images/prepare.sh");
+if (!imagePrepareScript.includes("generate-brand-assets.mjs")) {
+  throw new Error("ui/desktop/src/images/prepare.sh no longer regenerates branding svg assets first");
+}
+
 const readme = readFile("docs/v1a/README.md");
 if (readme.includes("/Users/nano/git/CSO")) {
   throw new Error("docs/v1a/README.md still points to the old CSO path");
@@ -266,6 +307,29 @@ for (const model of modelCatalog) {
   if (!model.name || !model.provider) {
     throw new Error("Every model catalog entry must include name and provider");
   }
+}
+const expectedTokenPlanModelIds = [
+  "auto",
+  "deepseek-v4-flash",
+  "deepseek-v4-flash-202605",
+  "deepseek-v4-pro",
+  "deepseek-v4-pro-202606",
+  "glm-5",
+  "glm-5-turbo",
+  "glm-5.1",
+  "kimi-k2.5",
+  "kimi-k2.6",
+  "minimax-m2.5",
+  "minimax-m2.7",
+  "minimax-m3",
+];
+if (
+  JSON.stringify(modelCatalog.map((model) => model.name)) !==
+  JSON.stringify(expectedTokenPlanModelIds)
+) {
+  throw new Error(
+    "model-catalog.json must stay aligned with the curated Token Plan model id list",
+  );
 }
 
 const productMetadata = JSON.parse(
@@ -320,6 +384,24 @@ if (desktopEnv.GOOSE_LOCALE !== productMetadata.defaultLocale) {
 if (!desktopEnv.GOOSE_DEFAULT_PROVIDER || !desktopEnv.GOOSE_DEFAULT_MODEL) {
   throw new Error("desktop-env.example must define default provider and model");
 }
+if (desktopEnv.GOOSE_TELEMETRY_ENABLED !== "true") {
+  throw new Error(
+    "desktop-env.example must default GOOSE_TELEMETRY_ENABLED to true for Security Goose preview telemetry",
+  );
+}
+if (desktopEnv.GOOSE_POSTHOG_API_HOST !== "https://us.i.posthog.com") {
+  throw new Error(
+    "desktop-env.example must pin GOOSE_POSTHOG_API_HOST to https://us.i.posthog.com",
+  );
+}
+if (
+  desktopEnv.GOOSE_POSTHOG_PROJECT_API_KEY !==
+  "phc_yS3ZTSB2WBmKf6aiBHstbfV4Nc2cxc7KxVavBxNjBBSn"
+) {
+  throw new Error(
+    "desktop-env.example must pin GOOSE_POSTHOG_PROJECT_API_KEY to the Security Goose PostHog project token",
+  );
+}
 
 const predefinedModels = JSON.parse(desktopEnv.GOOSE_PREDEFINED_MODELS);
 if (!Array.isArray(predefinedModels) || predefinedModels.length === 0) {
@@ -367,19 +449,42 @@ if (initConfig.GOOSE_PROVIDER !== providerDefaults.provider) {
     "init-config.yaml.example GOOSE_PROVIDER must match provider-defaults.yaml provider",
   );
 }
-if (initConfig.GOOSE_PROVIDER__TYPE !== providerDefaults.provider_type) {
+if (initConfig.OPENAI_BASE_URL !== providerDefaults.base_url) {
   throw new Error(
-    "init-config.yaml.example GOOSE_PROVIDER__TYPE must match provider-defaults.yaml provider_type",
-  );
-}
-if (initConfig.GOOSE_PROVIDER__HOST !== providerDefaults.host) {
-  throw new Error(
-    "init-config.yaml.example GOOSE_PROVIDER__HOST must match provider-defaults.yaml host",
+    "init-config.yaml.example OPENAI_BASE_URL must match provider-defaults.yaml base_url",
   );
 }
 if (initConfig.GOOSE_MODEL !== providerDefaults.default_model) {
   throw new Error(
     "init-config.yaml.example GOOSE_MODEL must match provider-defaults.yaml default_model",
+  );
+}
+if (initConfig.GOOSE_TELEMETRY_ENABLED !== "true") {
+  throw new Error(
+    "init-config.yaml.example must default GOOSE_TELEMETRY_ENABLED to true for Security Goose preview telemetry",
+  );
+}
+if (initConfig.GOOSE_POSTHOG_API_HOST !== "https://us.i.posthog.com") {
+  throw new Error(
+    "init-config.yaml.example must pin GOOSE_POSTHOG_API_HOST to https://us.i.posthog.com",
+  );
+}
+if (
+  initConfig.GOOSE_POSTHOG_PROJECT_API_KEY !==
+  "phc_yS3ZTSB2WBmKf6aiBHstbfV4Nc2cxc7KxVavBxNjBBSn"
+) {
+  throw new Error(
+    "init-config.yaml.example must pin GOOSE_POSTHOG_PROJECT_API_KEY to the Security Goose PostHog project token",
+  );
+}
+
+const docsInitConfig = parseSimpleConfigFile(
+  readFile("docs/v1a/examples/init-config.yaml.example"),
+  ":",
+);
+if (JSON.stringify(docsInitConfig) !== JSON.stringify(initConfig)) {
+  throw new Error(
+    "docs/v1a/examples/init-config.yaml.example must stay in sync with distro/security-cn/config/init-config.yaml.example",
   );
 }
 
@@ -392,6 +497,7 @@ for (const skillId of requiredSkillIds) {
   const runtimeContents = normalizeLineEndings(readFile(runtimePath));
   const frontmatter = parseSkillFrontmatter(sourceContents);
   const sourceFiles = listRelativeFiles(sourceDir);
+  const runtimeFiles = listRelativeFiles(runtimeDir);
 
   if (frontmatter.name !== skillId) {
     throw new Error(`${sourcePath} frontmatter name must match ${skillId}`);
@@ -441,6 +547,19 @@ for (const skillId of requiredSkillIds) {
         )}`,
       );
     }
+  }
+
+  const unexpectedRuntimeFiles = runtimeFiles.filter(
+    (relativePath) =>
+      !sourceFiles.includes(relativePath) && !isAllowedRuntimeSkillExtra(skillId, relativePath),
+  );
+
+  if (unexpectedRuntimeFiles.length > 0) {
+    throw new Error(
+      `${path.relative(repoRoot, runtimeDir)} contains unexpected mirrored files: ${unexpectedRuntimeFiles.join(
+        ", ",
+      )}`,
+    );
   }
 }
 
@@ -597,26 +716,68 @@ if (!launcherViewSource.includes("SecurityTaskExtensionHints")) {
 }
 
 const recipesViewSource = readFile("ui/desktop/src/components/recipes/RecipesView.tsx");
-if (!recipesViewSource.includes("SECURITY_TASK_IDS.map")) {
-  throw new Error("RecipesView.tsx must render the curated security task starter cards");
+if (!recipesViewSource.includes("listSavedRecipes")) {
+  throw new Error("RecipesView.tsx must keep using Goose-native saved recipe discovery");
 }
-if (!recipesViewSource.includes("handleStartSecurityTask")) {
-  throw new Error("RecipesView.tsx must keep the existing Goose recipe/session launch path");
+if (!recipesViewSource.includes("handleStartRecipeChat")) {
+  throw new Error("RecipesView.tsx must keep the existing Goose recipe launch path");
 }
-if (!recipesViewSource.includes("SecurityExtensionOverview")) {
-  throw new Error("RecipesView.tsx must render the Goal 9 extension status overview");
+if (!recipesViewSource.includes("savedRecipesTitle")) {
+  throw new Error("RecipesView.tsx must present the native saved recipes section");
 }
-if (!recipesViewSource.includes("SecurityTaskExtensionHints")) {
-  throw new Error("RecipesView.tsx must render task-level extension recommendation hints");
+if (recipesViewSource.includes("SECURITY_TASK_IDS.map")) {
+  throw new Error("RecipesView.tsx must not reintroduce a parallel security task starter panel");
 }
-if (!recipesViewSource.includes("setView('extensions')")) {
-  throw new Error("RecipesView.tsx must reuse the existing extensions view for Goal 9");
+if (recipesViewSource.includes("SecurityExtensionOverview")) {
+  throw new Error("RecipesView.tsx must not duplicate extension overview UI above the native recipe list");
+}
+if (recipesViewSource.includes("setView('extensions')")) {
+  throw new Error("RecipesView.tsx must not add a parallel extensions shortcut in place of Goose-native recipes");
+}
+
+const expectedBuiltInSecurityApps = [
+  "ioc-toolbox",
+  "encode-hash-lab",
+  "secret-credential-scanner",
+  "jwt-inspector",
+];
+const legacyDefaultApps = ["clock", "chat"];
+
+const defaultAppsSource = readFile("crates/goose/src/goose_apps/default_apps.rs");
+for (const appName of expectedBuiltInSecurityApps) {
+  if (!defaultAppsSource.includes(`"${appName}"`)) {
+    throw new Error(`default_apps.rs must include curated security app ${appName}`);
+  }
+}
+for (const legacyApp of legacyDefaultApps) {
+  if (!defaultAppsSource.includes(`"${legacyApp}"`)) {
+    throw new Error(`default_apps.rs must continue to track legacy app ${legacyApp} for cleanup`);
+  }
+}
+
+const appsViewSource = readFile("ui/desktop/src/components/apps/AppsView.tsx");
+for (const appName of expectedBuiltInSecurityApps) {
+  if (!appsViewSource.includes(`'${appName}'`)) {
+    throw new Error(`AppsView.tsx must recognize curated security app ${appName}`);
+  }
+}
+for (const requiredSnippet of [
+  "apps-built-in-security-section",
+  "apps-imported-custom-section",
+  "Built-in security tools",
+  "Imported / custom apps",
+]) {
+  if (!appsViewSource.includes(requiredSnippet)) {
+    throw new Error(`AppsView.tsx must keep the curated security app sectioning (${requiredSnippet})`);
+  }
 }
 
 const operatorGuide = readFile("distro/security-cn/docs/operator-guide.md");
 for (const requiredSnippet of [
   "scripts/check-security-v1a.sh",
   "scripts/smoke-security-extensions.mjs",
+  "scripts/check-security-apps-runtime.mjs",
+  "scripts/run-security-visual-apps-smoke.sh",
   "pnpm --dir ui/desktop run bundle:default",
   "pnpm --dir ui/desktop run bundle:intel",
   "gateway",
@@ -624,8 +785,6 @@ for (const requiredSnippet of [
   "AGS",
   "在线 marketplace",
   "企业后台",
-  "Open Extensions",
-  "Recommended extensions",
 ]) {
   if (!operatorGuide.includes(requiredSnippet)) {
     throw new Error(

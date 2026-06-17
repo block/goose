@@ -20,8 +20,10 @@ SMOKE_ROOT="${SECURITY_PACKAGED_SMOKE_ROOT:-$ROOT_DIR/.preview/packaged-smoke}"
 USER_DATA_DIR="${GOOSE_USER_DATA_DIR:-$SMOKE_ROOT/user-data}"
 GOOSE_PATH_ROOT="${GOOSE_PATH_ROOT:-$SMOKE_ROOT/goose-path-root}"
 WORKDIR="${SECURITY_PACKAGED_WORKDIR:-$SMOKE_ROOT/workdir}"
+PACKAGED_SECRET="${GOOSE_SERVER__SECRET_KEY:-security-goose-packaged-smoke-secret}"
 STARTUP_LOG_DIR="$USER_DATA_DIR/logs/startup"
 STARTUP_LOG_PATH=""
+MAIN_LOG_PATH="$USER_DATA_DIR/logs/main.log"
 APP_PID=""
 
 cleanup() {
@@ -34,7 +36,7 @@ cleanup() {
 }
 
 ensure_bundle() {
-  if [[ -x "$APP_BIN" ]]; then
+  if [[ "${SECURITY_PACKAGED_SKIP_REBUILD:-0}" == "1" && -x "$APP_BIN" ]]; then
     return
   fi
 
@@ -42,11 +44,40 @@ ensure_bundle() {
 }
 
 wait_for_runtime_assets() {
-  local recipe_path="$WORKDIR/.goose/recipes/security-vuln-triage.yaml"
-  local skill_path="$WORKDIR/.agents/skills/vuln-triage/SKILL.md"
+  local required_recipes=(
+    "$WORKDIR/.goose/recipes/security-vuln-triage.yaml"
+    "$WORKDIR/.goose/recipes/alert-investigation.yaml"
+    "$WORKDIR/.goose/recipes/web-investigation.yaml"
+  )
+  local required_skills=(
+    "$WORKDIR/.agents/skills/vuln-triage/SKILL.md"
+    "$WORKDIR/.agents/skills/alert-triage/SKILL.md"
+    "$WORKDIR/.agents/skills/ioc-analysis/SKILL.md"
+    "$WORKDIR/.agents/skills/asset-risk-summary/SKILL.md"
+    "$WORKDIR/.agents/skills/report-writing/SKILL.md"
+    "$WORKDIR/.agents/skills/wooyun-legacy/SKILL.md"
+  )
 
   for _ in $(seq 1 60); do
-    if [[ -f "$recipe_path" && -f "$skill_path" ]]; then
+    local missing=0
+
+    for recipe_path in "${required_recipes[@]}"; do
+      if [[ ! -f "$recipe_path" ]]; then
+        missing=1
+        break
+      fi
+    done
+
+    if [[ "$missing" == "0" ]]; then
+      for skill_path in "${required_skills[@]}"; do
+        if [[ ! -f "$skill_path" ]]; then
+          missing=1
+          break
+        fi
+      done
+    fi
+
+    if [[ "$missing" == "0" ]]; then
       return 0
     fi
     sleep 1
@@ -79,8 +110,25 @@ wait_for_startup_log() {
   return 1
 }
 
+assert_no_preview_update_noise() {
+  local pattern='Setting up auto-updater|STARTUP UPDATE CHECK|GitHubUpdater:|latest-mac\.yml|Falling back to GitHub API|Using GitHub API fallback'
+
+  for _ in $(seq 1 10); do
+    if [[ -f "$MAIN_LOG_PATH" ]] && rg -n "$pattern" "$MAIN_LOG_PATH" >/dev/null; then
+      echo "Unexpected release updater activity detected in local-preview main log: $MAIN_LOG_PATH" >&2
+      rg -n "$pattern" "$MAIN_LOG_PATH" >&2 || true
+      return 1
+    fi
+    sleep 1
+  done
+}
+
 rm -rf "$SMOKE_ROOT"
 mkdir -p "$USER_DATA_DIR" "$GOOSE_PATH_ROOT" "$WORKDIR"
+
+if [[ -f "$ROOT_DIR/init-config.yaml" ]]; then
+  cp "$ROOT_DIR/init-config.yaml" "$WORKDIR/init-config.yaml"
+fi
 
 trap cleanup EXIT
 ensure_bundle
@@ -90,6 +138,8 @@ cleanup
 
 GOOSE_USER_DATA_DIR="$USER_DATA_DIR" \
 GOOSE_PATH_ROOT="$GOOSE_PATH_ROOT" \
+GOOSE_SERVER__SECRET_KEY="$PACKAGED_SECRET" \
+GOOSE_LOCAL_PREVIEW_BUNDLE=1 \
 GOOSE_DISABLE_KEYRING="${GOOSE_DISABLE_KEYRING:-1}" \
   "$APP_BIN" --dir "$WORKDIR" >/dev/null 2>&1 &
 APP_PID="$!"
@@ -108,12 +158,46 @@ fi
 
 wait_for_runtime_assets
 wait_for_startup_log
+assert_no_preview_update_noise
+
+BASE_URL="$(node -e 'const fs = require("node:fs"); const diagnostics = JSON.parse(fs.readFileSync(process.argv[1], "utf8")); if (!diagnostics.baseUrl) process.exit(1); process.stdout.write(String(diagnostics.baseUrl));' "$STARTUP_LOG_PATH")"
+
+curl -sk \
+  -H "X-Secret-Key: $PACKAGED_SECRET" \
+  "$BASE_URL/status" >/dev/null
+
+PACKAGED_CHAT_OUTPUT="$(
+  NODE_TLS_REJECT_UNAUTHORIZED=0 \
+  SECURITY_CHAT_BASE_URL="$BASE_URL" \
+  SECURITY_CHAT_SECRET="$PACKAGED_SECRET" \
+  SECURITY_CHAT_WORKDIR="$WORKDIR" \
+    node scripts/check-security-chat-request.mjs
+)"
+
+printf '%s\n' "$PACKAGED_CHAT_OUTPUT"
+PACKAGED_SESSION_ID="$(printf '%s\n' "$PACKAGED_CHAT_OUTPUT" | awk -F= '/^session_id=/{print $2; exit}')"
+if [[ -z "$PACKAGED_SESSION_ID" ]]; then
+  echo "Failed to determine session_id from packaged chat output" >&2
+  exit 1
+fi
+
+NODE_TLS_REJECT_UNAUTHORIZED=0 \
+SECURITY_CHAT_BASE_URL="$BASE_URL" \
+SECURITY_CHAT_SECRET="$PACKAGED_SECRET" \
+SECURITY_APPS_SESSION_ID="$PACKAGED_SESSION_ID" \
+  node scripts/check-security-apps-request.mjs
+
+node scripts/check-security-apps-runtime.mjs "$GOOSE_PATH_ROOT"
+echo "packaged_chat=ok"
+echo "packaged_update_noise=clean"
 
 echo "packaged_smoke=ok"
 echo "bundle=$APP_BUNDLE"
 echo "app_bin=$APP_BIN"
 echo "goosed=$BUNDLED_GOOSED"
 echo "startup_log=$STARTUP_LOG_PATH"
+echo "main_log=$MAIN_LOG_PATH"
+echo "base_url=$BASE_URL"
 echo "workdir=$WORKDIR"
 echo "user_data_dir=$USER_DATA_DIR"
 echo "goose_path_root=$GOOSE_PATH_ROOT"

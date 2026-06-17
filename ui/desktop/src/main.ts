@@ -54,12 +54,25 @@ import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-insta
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
 import { loadSecurityDistroDefaults } from './branding/distro';
-import { seedBundledSecurityRuntimeAssets } from './securityRuntimeBootstrap';
-
-function shouldSetupUpdater(): boolean {
-  // Setup updater if either the flag is enabled OR dev updates are enabled
-  return UPDATES_ENABLED || process.env.ENABLE_DEV_UPDATES === 'true';
-}
+import {
+  inspectBundledSecurityRuntimeAssets,
+  seedBundledSecurityRuntimeAssets,
+} from './securityRuntimeBootstrap';
+import { openDirectoryInExplorer } from './utils/openDirectoryInExplorer';
+import {
+  deleteManagedLocalSkill,
+  importManagedSkill,
+  listManagedSkillsInventory,
+  restoreBundledSkill,
+} from './security/managedSkills';
+import {
+  resolveAdditionalGooseConfigFiles,
+  resolveBackendSecretEnv,
+  resolveDesktopUserDataDir,
+  resolvePreviewGoosePathRoot,
+  resolveSecurityPreviewSessionMode,
+} from './securityBackendConfig';
+import { resolveDesktopUpdateMode } from './updateMode';
 
 const securityDistroDefaults = loadSecurityDistroDefaults();
 const APP_DISPLAY_NAME = process.env.GOOSE_APP_NAME?.trim() || securityDistroDefaults.productName;
@@ -94,16 +107,13 @@ function resolvePreviewRepoRoot(): string | undefined {
 const PREVIEW_REPO_ROOT = resolvePreviewRepoRoot();
 
 function resolvePreviewUserDataDir(): string | undefined {
-  const explicitUserDataDir = process.env.GOOSE_USER_DATA_DIR?.trim();
-  if (explicitUserDataDir) {
-    return expandTilde(explicitUserDataDir);
-  }
-
-  if (!PREVIEW_REPO_ROOT) {
-    return undefined;
-  }
-
-  return path.join(PREVIEW_REPO_ROOT, '.preview', 'user-data');
+  return resolveDesktopUserDataDir({
+    explicitValue: process.env.GOOSE_USER_DATA_DIR,
+    previewRepoRoot: PREVIEW_REPO_ROOT,
+    isPackaged: app.isPackaged,
+    existingEnv: process.env,
+    appName: APP_DISPLAY_NAME,
+  });
 }
 
 function applyPreviewIsolationPaths(): void {
@@ -838,11 +848,12 @@ const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version }
   getBundledConfig();
 
 const resolveGoosePathRoot = (): string | undefined => {
-  const pathRoot = process.env.GOOSE_PATH_ROOT?.trim();
-  if (pathRoot) {
-    return expandTilde(pathRoot);
-  }
-  return undefined;
+  return resolvePreviewGoosePathRoot(process.env.GOOSE_PATH_ROOT, PREVIEW_REPO_ROOT, {
+    isPackaged: app.isPackaged,
+    existingEnv: process.env,
+    appName: APP_DISPLAY_NAME,
+    userDataDir: app.getPath('userData'),
+  });
 };
 
 const GENERATED_SECRET = crypto.randomBytes(32).toString('hex');
@@ -850,6 +861,9 @@ const GENERATED_SECRET = crypto.randomBytes(32).toString('hex');
 const getServerSecret = (settings: Settings): string => {
   if (settings.externalGoosed?.enabled && settings.externalGoosed.secret) {
     return settings.externalGoosed.secret;
+  }
+  if (process.env.GOOSE_SERVER__SECRET_KEY?.trim()) {
+    return process.env.GOOSE_SERVER__SECRET_KEY;
   }
   if (process.env.GOOSE_EXTERNAL_BACKEND) {
     if (!process.env.GOOSE_SERVER__SECRET_KEY) {
@@ -871,21 +885,52 @@ const buildAcpWebSocketUrl = (baseUrl: string, token: string): string => {
   return url.toString();
 };
 
+const securityPreviewSessionMode = resolveSecurityPreviewSessionMode({
+  explicitUserDataDir: process.env.GOOSE_USER_DATA_DIR,
+  explicitGoosePathRoot: process.env.GOOSE_PATH_ROOT,
+  previewRepoRoot: PREVIEW_REPO_ROOT,
+  isPackaged: app.isPackaged,
+  existingEnv: process.env,
+  appName: APP_DISPLAY_NAME,
+  userDataDir: app.getPath('userData'),
+});
+
+const securityUpdaterRuntime = resolveDesktopUpdateMode({
+  previewSessionMode: securityPreviewSessionMode,
+  updatesEnabled: UPDATES_ENABLED,
+  enableDevUpdates: process.env.ENABLE_DEV_UPDATES === 'true',
+});
+
+const resolveSecurityRuntimeDiagnostics = (workingDir?: string) =>
+  inspectBundledSecurityRuntimeAssets({
+    distroDir: securityDistroDefaults.distroDir,
+    workingDir,
+  });
+
 let appConfig = {
   GOOSE_APP_NAME: APP_DISPLAY_NAME,
   GOOSE_APP_NAME_ZH: APP_DISPLAY_NAME_ZH,
   GOOSE_DISTRO_DIR: securityDistroDefaults.distroDir,
+  GOOSE_DESKTOP_STDIO_NODE_CMD: process.execPath,
   GOOSE_DEFAULT_PROVIDER: defaultProvider,
   GOOSE_DEFAULT_MODEL: defaultModel,
   GOOSE_PREDEFINED_MODELS: predefinedModels,
+  SECURITY_MODEL_PRICING_MODE: securityDistroDefaults.pricingMode,
   GOOSE_API_HOST: 'https://localhost',
   GOOSE_PATH_ROOT: resolveGoosePathRoot(),
   GOOSE_WORKING_DIR: '',
+  GOOSE_VISIBLE_SKILLS_SCOPE: securityDistroDefaults.distroDir
+    ? 'builtin-and-security'
+    : undefined,
   // Start with the env-var override; the OS region locale is filled in after app.ready
   // (see updateLocaleFromSystem below) since getSystemLocale() cannot be called earlier.
   GOOSE_LOCALE: process.env.GOOSE_LOCALE || securityDistroDefaults.locale || undefined,
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
+  SECURITY_PREVIEW_SESSION_MODE: securityPreviewSessionMode,
+  SECURITY_UPDATER_MODE: securityUpdaterRuntime.mode,
+  SECURITY_UPDATER_DISABLED_REASON: securityUpdaterRuntime.disabledReason,
+  SECURITY_RUNTIME_DIAGNOSTICS: resolveSecurityRuntimeDiagnostics(getDefaultWorkingDir()),
 };
 
 const windowMap = new Map<number, BrowserWindow>();
@@ -927,6 +972,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     distroDir: securityDistroDefaults.distroDir,
     workingDir: requestedWorkingDir,
   });
+  const runtimeDiagnostics = resolveSecurityRuntimeDiagnostics(requestedWorkingDir);
 
   if (app.isPackaged && runtimeBootstrap.skippedReason) {
     log.info(
@@ -938,6 +984,17 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   ) {
     log.info(
       `Seeded packaged security runtime assets into ${requestedWorkingDir}: skills=${runtimeBootstrap.seededSkillDirs.join(',') || 'none'} recipes=${runtimeBootstrap.seededRecipeFiles.join(',') || 'none'}`
+    );
+  }
+
+  if (
+    runtimeDiagnostics.missingSkillIds.length > 0 ||
+    runtimeDiagnostics.driftedSkillIds.length > 0 ||
+    runtimeDiagnostics.missingRecipeIds.length > 0 ||
+    runtimeDiagnostics.driftedRecipeIds.length > 0
+  ) {
+    log.info(
+      `Security runtime attention for ${requestedWorkingDir}: missing_skills=${runtimeDiagnostics.missingSkillIds.join(',') || 'none'} drifted_skills=${runtimeDiagnostics.driftedSkillIds.join(',') || 'none'} missing_recipes=${runtimeDiagnostics.missingRecipeIds.join(',') || 'none'} drifted_recipes=${runtimeDiagnostics.driftedRecipeIds.join(',') || 'none'}`
     );
   }
 
@@ -965,7 +1022,20 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     serverSecret,
     dir: requestedWorkingDir,
     env: {
+      GOOSE_ADDITIONAL_CONFIG_FILES: resolveAdditionalGooseConfigFiles({
+        existingValue: process.env.GOOSE_ADDITIONAL_CONFIG_FILES,
+        previewRepoRoot: PREVIEW_REPO_ROOT,
+        workingDir: requestedWorkingDir,
+      }),
       GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
+      GOOSE_VISIBLE_SKILLS_SCOPE: appConfig.GOOSE_VISIBLE_SKILLS_SCOPE as string | undefined,
+      ...resolveBackendSecretEnv({
+        existingValue: process.env.GOOSE_ADDITIONAL_CONFIG_FILES,
+        previewRepoRoot: PREVIEW_REPO_ROOT,
+        workingDir: requestedWorkingDir,
+        secretKeys: ['OPENAI_API_KEY'],
+        existingEnv: process.env,
+      }),
     },
     externalGoosed: settings.externalGoosed,
     isPackaged: app.isPackaged,
@@ -1032,6 +1102,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
           REQUEST_DIR: requestedWorkingDir,
           GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
+          SECURITY_RUNTIME_DIAGNOSTICS: runtimeDiagnostics,
           recipeDeeplink: recipeDeeplink,
           recipeId: recipeId,
           recipeParameters: recipeParameters,
@@ -1375,7 +1446,13 @@ const createLauncher = () => {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      additionalArguments: [JSON.stringify(appConfig)],
+      additionalArguments: [
+        JSON.stringify({
+          ...appConfig,
+          GOOSE_WORKING_DIR: getDefaultWorkingDir() || '',
+          SECURITY_RUNTIME_DIAGNOSTICS: resolveSecurityRuntimeDiagnostics(getDefaultWorkingDir()),
+        }),
+      ],
       partition: 'persist:goose',
     },
     skipTaskbar: true,
@@ -2200,6 +2277,46 @@ ipcMain.handle('list-files', async (_event, dirPath, extension) => {
   }
 });
 
+ipcMain.handle('list-managed-skills', async (_event, workingDir: string) => {
+  return listManagedSkillsInventory({
+    bundledSkillRoot: securityDistroDefaults.distroDir
+      ? path.join(securityDistroDefaults.distroDir, 'skills')
+      : undefined,
+    workingDir,
+  });
+});
+
+ipcMain.handle(
+  'import-managed-skill',
+  async (_event, request: { overwrite?: boolean; sourcePath: string; workingDir: string }) => {
+    return await importManagedSkill({
+      bundledSkillRoot: securityDistroDefaults.distroDir
+        ? path.join(securityDistroDefaults.distroDir, 'skills')
+        : undefined,
+      ...request,
+    });
+  }
+);
+
+ipcMain.handle(
+  'delete-managed-local-skill',
+  async (_event, request: { skillId: string; workingDir: string }) => {
+    return deleteManagedLocalSkill(request);
+  }
+);
+
+ipcMain.handle(
+  'restore-bundled-skill',
+  async (_event, request: { skillId: string; workingDir: string }) => {
+    return restoreBundledSkill({
+      bundledSkillRoot: securityDistroDefaults.distroDir
+        ? path.join(securityDistroDefaults.distroDir, 'skills')
+        : undefined,
+      ...request,
+    });
+  }
+);
+
 ipcMain.handle('show-message-box', async (_event, options) => {
   return dialog.showMessageBox(options);
 });
@@ -2262,7 +2379,7 @@ async function appMain() {
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
 
-  registerUpdateIpcHandlers();
+  registerUpdateIpcHandlers(securityUpdaterRuntime);
 
   // Handle microphone permission requests
   session.defaultSession.setPermissionRequestHandler((_webContents, permission, callback) => {
@@ -2323,13 +2440,17 @@ async function appMain() {
 
   // Setup auto-updater AFTER window is created and displayed (with delay to avoid blocking)
   setTimeout(() => {
-    if (shouldSetupUpdater()) {
+    if (securityUpdaterRuntime.shouldSetupUpdater) {
       log.info('Setting up auto-updater after window creation...');
       try {
-        setupAutoUpdater();
+        setupAutoUpdater(securityUpdaterRuntime);
       } catch (error) {
         log.error('Error setting up auto-updater:', error);
       }
+    } else {
+      log.info(
+        `Skipping auto-updater setup for session mode ${securityPreviewSessionMode} (${securityUpdaterRuntime.mode})`
+      );
     }
   }, 2000);
 
@@ -2794,12 +2915,17 @@ async function appMain() {
     event.returnValue = app.getVersion();
   });
 
-  ipcMain.handle('open-directory-in-explorer', async (_event, path: string) => {
+  ipcMain.handle('open-directory-in-explorer', async (_event, directoryPath: string) => {
     try {
-      return !!(await shell.openPath(path));
+      return await openDirectoryInExplorer(directoryPath, {
+        openPath: (targetPath) => shell.openPath(targetPath),
+      });
     } catch (error) {
       console.error('Error opening directory in explorer:', error);
-      return false;
+      return {
+        error: errorMessage(error, 'Unable to open the selected directory.'),
+        opened: false,
+      };
     }
   });
 

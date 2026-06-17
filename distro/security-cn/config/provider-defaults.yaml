@@ -1,7 +1,7 @@
 provider: openai
 provider_type: openai
-host: https://tokenhub.tencentmaas.com/plan/v3
-default_model: auto
+base_url: https://tokenhub.tencentmaas.com/plan/v3
+default_model: deepseek-v4-flash
 desktop_locale: zh-CN
 model_catalog_file: distro/security-cn/config/model-catalog.json
 desktop_env_file: distro/security-cn/config/desktop-env.example

@@ -46,11 +46,23 @@ vi.mock('./deprecated-bundled-extensions.json', () => ({
 }));
 
 const MOCK_DISTRO_DIR = path.join('/mock', 'repo', 'distro', 'security-cn');
+const MOCK_NODE_CMD = path.join('/mock', 'repo', 'ui', 'desktop', 'electron');
 
 beforeEach(() => {
   (window as unknown as Record<string, unknown>).appConfig = {
-    get: (key: string) => (key === 'GOOSE_DISTRO_DIR' ? MOCK_DISTRO_DIR : undefined),
-    getAll: () => ({ GOOSE_DISTRO_DIR: MOCK_DISTRO_DIR }),
+    get: (key: string) => {
+      if (key === 'GOOSE_DISTRO_DIR') {
+        return MOCK_DISTRO_DIR;
+      }
+      if (key === 'GOOSE_DESKTOP_STDIO_NODE_CMD') {
+        return MOCK_NODE_CMD;
+      }
+      return undefined;
+    },
+    getAll: () => ({
+      GOOSE_DISTRO_DIR: MOCK_DISTRO_DIR,
+      GOOSE_DESKTOP_STDIO_NODE_CMD: MOCK_NODE_CMD,
+    }),
   };
 });
 
@@ -94,7 +106,10 @@ describe('syncBundledExtensions', () => {
     expect(browserAssistCall).toBeDefined();
     expect(browserAssistCall?.[1]).toMatchObject({
       type: 'stdio',
-      cmd: 'node',
+      cmd: MOCK_NODE_CMD,
+      envs: {
+        ELECTRON_RUN_AS_NODE: '1',
+      },
     });
     const browserAssistArgs = (browserAssistCall?.[1] as { args?: string[] }).args ?? [];
     expect(browserAssistArgs).toHaveLength(1);

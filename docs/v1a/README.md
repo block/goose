@@ -112,8 +112,8 @@ V1 的定义：
 7. 如果一个能力可以直接通过 Goose 的：
    - `GOOSE_PROVIDER`
    - `GOOSE_MODEL`
-   - `GOOSE_PROVIDER__HOST`
-   - `GOOSE_PROVIDER__API_KEY`
+   - `OPENAI_BASE_URL`
+   - `OPENAI_API_KEY`
    - `GOOSE_PREDEFINED_MODELS`
    - `init-config.yaml`
    完成，则 V1a 不应先引入自定义网关或 LiteLLM。

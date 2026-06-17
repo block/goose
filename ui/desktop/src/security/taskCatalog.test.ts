@@ -2,10 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   collectAvailableRecipeIds,
   collectAvailableRecipeRuntimeIds,
+  getSecurityTaskIdForRecipeManifest,
   SECURITY_TASK_IDS,
   SECURITY_TASKS,
   getSecurityTaskById,
   resolveSecurityTaskLaunchConfig,
+  resolveSecurityTaskLaunchConfigForRecipeManifest,
 } from './taskCatalog';
 
 describe('security task catalog', () => {
@@ -26,12 +28,17 @@ describe('security task catalog', () => {
     const availableRecipeIds = new Set([
       'security-vuln-triage',
       'alert-investigation',
+      'ioc-analysis',
+      'report-writing',
       'web-investigation',
+      'wooyun-legacy',
     ]);
 
     expect(resolveSecurityTaskLaunchConfig('vuln-triage', 'zh-CN', availableRecipeIds)).toMatchObject({
       launchMode: 'recipe',
       availability: 'ready',
+      primaryPath: 'recipe',
+      preferredRecipeId: 'security-vuln-triage',
       recipeId: 'security-vuln-triage',
     });
 
@@ -40,13 +47,41 @@ describe('security task catalog', () => {
     ).toMatchObject({
       launchMode: 'recipe',
       availability: 'ready',
+      primaryPath: 'recipe',
+      preferredRecipeId: 'alert-investigation',
       recipeId: 'alert-investigation',
     });
 
     expect(resolveSecurityTaskLaunchConfig('web-investigation', 'zh-CN', availableRecipeIds)).toMatchObject({
       launchMode: 'recipe',
       availability: 'ready',
+      primaryPath: 'recipe',
+      preferredRecipeId: 'web-investigation',
       recipeId: 'web-investigation',
+    });
+
+    expect(resolveSecurityTaskLaunchConfig('ioc-analysis', 'zh-CN', availableRecipeIds)).toMatchObject({
+      launchMode: 'recipe',
+      availability: 'ready',
+      primaryPath: 'recipe',
+      preferredRecipeId: 'ioc-analysis',
+      recipeId: 'ioc-analysis',
+    });
+
+    expect(resolveSecurityTaskLaunchConfig('report-writing', 'zh-CN', availableRecipeIds)).toMatchObject({
+      launchMode: 'recipe',
+      availability: 'ready',
+      primaryPath: 'recipe',
+      preferredRecipeId: 'report-writing',
+      recipeId: 'report-writing',
+    });
+
+    expect(resolveSecurityTaskLaunchConfig('wooyun-legacy', 'zh-CN', availableRecipeIds)).toMatchObject({
+      launchMode: 'recipe',
+      availability: 'ready',
+      primaryPath: 'recipe',
+      preferredRecipeId: 'wooyun-legacy',
+      recipeId: 'wooyun-legacy',
     });
   });
 
@@ -56,12 +91,16 @@ describe('security task catalog', () => {
     expect(resolveSecurityTaskLaunchConfig('vuln-triage', 'en', noRecipes)).toMatchObject({
       launchMode: 'prompt',
       availability: 'preview',
+      primaryPath: 'recipe',
+      preferredRecipeId: 'security-vuln-triage',
       recipeId: undefined,
     });
 
     expect(resolveSecurityTaskLaunchConfig('ioc-analysis', 'zh-CN', noRecipes)).toMatchObject({
       launchMode: 'prompt',
       availability: 'preview',
+      primaryPath: 'recipe',
+      preferredRecipeId: 'ioc-analysis',
       recipeId: undefined,
       skillId: 'ioc-analysis',
     });
@@ -101,20 +140,93 @@ describe('security task catalog', () => {
     });
   });
 
-  it('generates localized starter prompts for guided chat tasks', () => {
-    const zhPrompt = resolveSecurityTaskLaunchConfig('report-writing', 'zh-CN').starterPrompt;
-    const enPrompt = resolveSecurityTaskLaunchConfig('report-writing', 'en').starterPrompt;
+  it('maps saved recipe manifests back to the curated security task catalog', () => {
+    const runtimeManifest = {
+      id: 'd698463cf7ebcf7f',
+      file_path: '/tmp/security-goose/.goose/recipes/security-vuln-triage.yaml',
+    };
 
-    expect(zhPrompt).toContain('report-writing');
-    expect(zhPrompt).toContain('结构化');
-    expect(enPrompt).toContain('report-writing');
-    expect(enPrompt).toContain('structured');
+    expect(getSecurityTaskIdForRecipeManifest(runtimeManifest)).toBe('vuln-triage');
+
+    expect(
+      resolveSecurityTaskLaunchConfigForRecipeManifest(
+        runtimeManifest,
+        'en',
+        new Set(['security-vuln-triage'])
+      )
+    ).toMatchObject({
+      recipeId: 'security-vuln-triage',
+      preferredRecipeId: 'security-vuln-triage',
+      launchMode: 'recipe',
+      availability: 'ready',
+    });
+  });
+
+  it('generates localized starter prompts for guided chat tasks', () => {
+    const availableRecipeIds = new Set(['report-writing']);
+    const zhPrompt = resolveSecurityTaskLaunchConfig('report-writing', 'zh-CN', availableRecipeIds)
+      .starterPrompt;
+    const enPrompt = resolveSecurityTaskLaunchConfig('report-writing', 'en', availableRecipeIds)
+      .starterPrompt;
+
+    expect(zhPrompt).toContain('report-writing recipe');
+    expect(zhPrompt).toContain('核心结论');
+    expect(zhPrompt).toContain('待确认项');
+    expect(enPrompt).toContain('report-writing recipe');
+    expect(enPrompt).toContain('Core conclusions');
+    expect(enPrompt).toContain('Open questions');
+  });
+
+  it('uses recipe-primary starter prompts when the mapped recipe is active', () => {
+    const availableRecipeIds = new Set(['security-vuln-triage', 'alert-investigation', 'web-investigation']);
+
+    const vulnPrompt = resolveSecurityTaskLaunchConfig(
+      'vuln-triage',
+      'en',
+      availableRecipeIds
+    ).starterPrompt;
+    const alertPrompt = resolveSecurityTaskLaunchConfig(
+      'alert-investigation',
+      'en',
+      availableRecipeIds
+    ).starterPrompt;
+
+    expect(vulnPrompt).toContain('This task already runs on the security-vuln-triage recipe');
+    expect(vulnPrompt).not.toContain('if it is available in this session');
+    expect(alertPrompt).toContain('Missing data');
+    expect(alertPrompt).toContain('alert-investigation recipe as the primary workflow');
+  });
+
+  it('uses fallback prompt wording when a recipe-backed task loses its runtime recipe', () => {
+    const prompt = resolveSecurityTaskLaunchConfig('web-investigation', 'en', new Set()).starterPrompt;
+
+    expect(prompt).toContain('recipe runtime is unavailable in this workspace');
+    expect(prompt).toContain('primary methodology');
+  });
+
+  it('keeps recipe-backed prompts aligned with the former skill output sections', () => {
+    const availableRecipeIds = new Set(['ioc-analysis', 'report-writing', 'wooyun-legacy']);
+    const iocPrompt = resolveSecurityTaskLaunchConfig('ioc-analysis', 'en', availableRecipeIds)
+      .starterPrompt;
+    const reportPrompt = resolveSecurityTaskLaunchConfig('report-writing', 'en', availableRecipeIds)
+      .starterPrompt;
+    const wooyunPrompt = resolveSecurityTaskLaunchConfig('wooyun-legacy', 'en', availableRecipeIds)
+      .starterPrompt;
+
+    expect(iocPrompt).toContain('IOC summary');
+    expect(iocPrompt).toContain('Key findings');
+    expect(iocPrompt).toContain('Linked entities');
+    expect(reportPrompt).toContain('Background');
+    expect(reportPrompt).toContain('Action items');
+    expect(wooyunPrompt).toContain('Execution mode');
+    expect(wooyunPrompt).toContain('Key evidence');
+    expect(wooyunPrompt).toContain('distinguish direct evidence from historical analogy');
   });
 
   it('exposes task metadata for WooYun-style investigation', () => {
     const task = getSecurityTaskById('wooyun-legacy');
     expect(task.skillId).toBe('wooyun-legacy');
-    expect(task.recipeId).toBeUndefined();
+    expect(task.recipeId).toBe('wooyun-legacy');
   });
 
   it('tracks recommended security extensions without creating a parallel task layer', () => {

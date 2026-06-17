@@ -1,6 +1,10 @@
-export const DEFAULT_APP_NAME = 'Goose';
-
-const BRANDING_SKIP_PATTERNS = [/goose:\/\//i, /\.goosehints\b/i, /\bgoosed\b/i];
+export const DEFAULT_APP_NAME = '收到';
+const UPSTREAM_BRAND_NAME = 'Goose';
+const PROTECTED_BRANDING_TOKENS = [
+  /goose:\/\/[^\s"')\]]*/gi,
+  /\.goosehints\b/gi,
+  /\bgoosed\b/gi,
+];
 
 export function resolveProductName(value: unknown): string {
   return typeof value === 'string' && value.trim() ? value.trim() : DEFAULT_APP_NAME;
@@ -35,11 +39,29 @@ export function getTaskCompleteBody(appName: string): string {
 }
 
 function brandMessageText(message: string, appName: string): string {
-  if (!message || BRANDING_SKIP_PATTERNS.some((pattern) => pattern.test(message))) {
+  if (!message) {
     return message;
   }
 
-  return message.replace(/\bGoose\b/g, appName).replace(/\bgoose\b/g, appName);
+  const protectedTokens: string[] = [];
+  const protectedMessage = PROTECTED_BRANDING_TOKENS.reduce((current, pattern) => {
+    return current.replace(pattern, (token) => {
+      const placeholder = `__SECURITY_BRAND_TOKEN_${protectedTokens.length}__`;
+      protectedTokens.push(token);
+      return placeholder;
+    });
+  }, message);
+
+  const brandedMessage = protectedMessage
+    .replace(/\bSecurity Goose\b/g, appName)
+    .replace(/\bsecurity goose\b/g, appName)
+    .replace(/\bGoose\b/g, appName)
+    .replace(/\bgoose\b/g, appName);
+
+  return protectedTokens.reduce(
+    (current, token, index) => current.replace(`__SECURITY_BRAND_TOKEN_${index}__`, token),
+    brandedMessage
+  );
 }
 
 export function brandMessageCatalog(
@@ -47,7 +69,7 @@ export function brandMessageCatalog(
   configuredAppName: string
 ): Record<string, string> {
   const appName = resolveProductName(configuredAppName);
-  if (appName === DEFAULT_APP_NAME) {
+  if (appName === UPSTREAM_BRAND_NAME) {
     return messages;
   }
 

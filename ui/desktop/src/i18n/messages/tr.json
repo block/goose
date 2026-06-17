@@ -56,14 +56,14 @@
   "authSettings.deleteCredential": {
     "defaultMessage": "Kimlik bilgisini sil"
   },
+  "authSettings.deleted": {
+    "defaultMessage": "Kimlik bilgisi silindi"
+  },
   "authSettings.deleteMessage": {
     "defaultMessage": "{provider} için {name} kimlik bilgisi silinsin mi?"
   },
   "authSettings.deleteTitle": {
     "defaultMessage": "Kimlik bilgisini sil"
-  },
-  "authSettings.deleted": {
-    "defaultMessage": "Kimlik bilgisi silindi"
   },
   "authSettings.description": {
     "defaultMessage": "goose tarafından yerel olarak saklanan sağlayıcı kimlik bilgilerini yönetin."
@@ -89,11 +89,11 @@
   "authSettings.reauthorize": {
     "defaultMessage": "Yeniden yetkilendir"
   },
-  "authSettings.signIn": {
-    "defaultMessage": "Oturum aç"
-  },
   "authSettings.signedIn": {
     "defaultMessage": "Kimlik bilgisi yapılandırıldı"
+  },
+  "authSettings.signIn": {
+    "defaultMessage": "Oturum aç"
   },
   "authSettings.storageProviderCache": {
     "defaultMessage": "Sağlayıcı önbelleği"
@@ -122,6 +122,12 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "Tarif başarıyla oluşturuldu!"
   },
+  "bottomMenuExtensionSelection.extensionsForNewChats": {
+    "defaultMessage": "Yeni sohbetler için uzantılar"
+  },
+  "bottomMenuExtensionSelection.extensionsForThisSession": {
+    "defaultMessage": "Bu sohbet oturumunun uzantıları"
+  },
   "bottomMenuExtensionSelection.extensionToggleError": {
     "defaultMessage": "Uzantı Geçiş Hatası"
   },
@@ -133,12 +139,6 @@
   },
   "bottomMenuExtensionSelection.extensionWillBeEnabled": {
     "defaultMessage": "{name} yeni sohbetlerde etkinleştirilecek"
-  },
-  "bottomMenuExtensionSelection.extensionsForNewChats": {
-    "defaultMessage": "Yeni sohbetler için uzantılar"
-  },
-  "bottomMenuExtensionSelection.extensionsForThisSession": {
-    "defaultMessage": "Bu sohbet oturumunun uzantıları"
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "uzantıları yönet"
@@ -698,11 +698,11 @@
   "customProviderForm.attachments": {
     "defaultMessage": "Ekler"
   },
-  "customProviderForm.authHint": {
-    "defaultMessage": "Ollama gibi yerel LLM'ler genellikle API anahtarı gerektirmez."
-  },
   "customProviderForm.authentication": {
     "defaultMessage": "Kimlik doğrulama"
+  },
+  "customProviderForm.authHint": {
+    "defaultMessage": "Ollama gibi yerel LLM'ler genellikle API anahtarı gerektirmez."
   },
   "customProviderForm.availableModels": {
     "defaultMessage": "Mevcut Modeller (virgülle ayrılmış)"
@@ -998,17 +998,20 @@
   "elicitationRequest.waitingForResponse": {
     "defaultMessage": "Yanıtınızı bekliyorum ({timeRemaining} kaldı)"
   },
+  "environmentBadge.dev": {
+    "defaultMessage": "Geliştirici"
+  },
   "envVarsSection.add": {
     "defaultMessage": "Ekle"
   },
   "envVarsSection.bothRequired": {
     "defaultMessage": "Hem değişken adı hem de değer girilmelidir"
   },
-  "envVarsSection.envVarsDescription": {
-    "defaultMessage": "Ortam değişkenleri için anahtar/değer çiftleri ekleyin. Her iki alanı da doldurduktan sonra eklemek için \"+\" butonuna tıklayın. Mevcut gizli değerleri değiştirmek için düzenle düğmesine tıklayın."
-  },
   "envVarsSection.environmentVariables": {
     "defaultMessage": "Ortam Değişkenleri"
+  },
+  "envVarsSection.envVarsDescription": {
+    "defaultMessage": "Ortam değişkenleri için anahtar/değer çiftleri ekleyin. Her iki alanı da doldurduktan sonra eklemek için \"+\" butonuna tıklayın. Mevcut gizli değerleri değiştirmek için düzenle düğmesine tıklayın."
   },
   "envVarsSection.noSpaces": {
     "defaultMessage": "Değişken adı boşluk içeremez"
@@ -1018,9 +1021,6 @@
   },
   "envVarsSection.variableName": {
     "defaultMessage": "Değişken adı"
-  },
-  "environmentBadge.dev": {
-    "defaultMessage": "Geliştirici"
   },
   "errorBoundary.errorGeneric": {
     "defaultMessage": "Bir hata oluştu."
@@ -1181,9 +1181,6 @@
   "extensionModal.unsavedChangesTitle": {
     "defaultMessage": "Kaydedilmemiş Değişiklikler"
   },
-  "extensionTimeoutField.timeoutLabel": {
-    "defaultMessage": "Zaman aşımı"
-  },
   "extensionsSection.addCustomExtension": {
     "defaultMessage": "Özel uzantı ekle"
   },
@@ -1219,6 +1216,9 @@
   },
   "extensionsView.searchPlaceholder": {
     "defaultMessage": "Uzantıları ara..."
+  },
+  "extensionTimeoutField.timeoutLabel": {
+    "defaultMessage": "Zaman aşımı"
   },
   "externalBackendSection.certFingerprint": {
     "defaultMessage": "Sertifika Parmak İzi (isteğe bağlı)"
@@ -1520,11 +1520,11 @@
   "huggingFaceSignInPrompt.failedToConfigure": {
     "defaultMessage": "Hugging Face oturumu açılamadı: {error}"
   },
-  "huggingFaceSignInPrompt.signIn": {
-    "defaultMessage": "Oturum aç"
-  },
   "huggingFaceSignInPrompt.signedIn": {
     "defaultMessage": "Hugging Face oturumu açıldı"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "Oturum aç"
   },
   "huggingFaceSignInPrompt.signingIn": {
     "defaultMessage": "Oturum açılıyor..."
@@ -1559,14 +1559,14 @@
   "importRecipeForm.expectedRecipeStructure": {
     "defaultMessage": "Beklenen Tarif Yapısı"
   },
+  "importRecipeForm.importing": {
+    "defaultMessage": "İçe aktarılıyor..."
+  },
   "importRecipeForm.importRecipeButton": {
     "defaultMessage": "Tarifi İçe Aktar"
   },
   "importRecipeForm.importRecipeTitle": {
     "defaultMessage": "Tarifi İçe Aktar"
-  },
-  "importRecipeForm.importing": {
-    "defaultMessage": "İçe aktarılıyor..."
   },
   "importRecipeForm.or": {
     "defaultMessage": "VEYA"
@@ -1666,18 +1666,6 @@
   },
   "jsonSchemaForm.submit": {
     "defaultMessage": "Gönder"
-  },
-  "keyValueEditor.addValue": {
-    "defaultMessage": "Önceden yapılandırılmış değer ekleyin"
-  },
-  "keyValueEditor.defaultKeyPlaceholder": {
-    "defaultMessage": "Parametre adı..."
-  },
-  "keyValueEditor.defaultValuePlaceholder": {
-    "defaultMessage": "Parametre değeri..."
-  },
-  "keyValueEditor.removeValue": {
-    "defaultMessage": "Önceden yapılandırılmış değeri kaldır {key}"
   },
   "keyboardShortcuts.alwaysOnTopDescription": {
     "defaultMessage": "Pencereyi her zaman üstte değiştir"
@@ -1823,6 +1811,18 @@
   "keyboardShortcuts.toggleNavigationLabel": {
     "defaultMessage": "Gezinmeyi Değiştir"
   },
+  "keyValueEditor.addValue": {
+    "defaultMessage": "Önceden yapılandırılmış değer ekleyin"
+  },
+  "keyValueEditor.defaultKeyPlaceholder": {
+    "defaultMessage": "Parametre adı..."
+  },
+  "keyValueEditor.defaultValuePlaceholder": {
+    "defaultMessage": "Parametre değeri..."
+  },
+  "keyValueEditor.removeValue": {
+    "defaultMessage": "Önceden yapılandırılmış değeri kaldır {key}"
+  },
   "launcher.placeholder": {
     "defaultMessage": "{appName}'e herhangi bir şey sorun..."
   },
@@ -1862,17 +1862,17 @@
   "localInferenceSettings.download": {
     "defaultMessage": "İndir"
   },
-  "localInferenceSettings.downloadFailed": {
-    "defaultMessage": "İndirme başarısız oldu"
-  },
-  "localInferenceSettings.downloadProgress": {
-    "defaultMessage": "{downloaded} / {total} (%{percent})"
-  },
   "localInferenceSettings.downloadedModels": {
     "defaultMessage": "İndirilen Modeller"
   },
+  "localInferenceSettings.downloadFailed": {
+    "defaultMessage": "İndirme başarısız oldu"
+  },
   "localInferenceSettings.downloading": {
     "defaultMessage": "İndiriliyor"
+  },
+  "localInferenceSettings.downloadProgress": {
+    "defaultMessage": "{downloaded} / {total} (%{percent})"
   },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Öne Çıkan Modeller"
@@ -1955,11 +1955,11 @@
   "localModelPicker.checkingModels": {
     "defaultMessage": "Mevcut modeller kontrol ediliyor..."
   },
-  "localModelPicker.downloadModel": {
-    "defaultMessage": "{modelId}'yi ({size}) indirin"
-  },
   "localModelPicker.downloading": {
     "defaultMessage": "{modelId} indiriliyor"
+  },
+  "localModelPicker.downloadModel": {
+    "defaultMessage": "{modelId}'yi ({size}) indirin"
   },
   "localModelPicker.failedToLoad": {
     "defaultMessage": "Mevcut modeller yüklenemedi. Lütfen tekrar deneyin."
@@ -2147,6 +2147,9 @@
   "messageQueue.paused": {
     "defaultMessage": "Duraklatıldı"
   },
+  "messageQueue.queued": {
+    "defaultMessage": "sıraya alınmış"
+  },
   "messageQueue.queuePaused": {
     "defaultMessage": "Sıra Duraklatıldı"
   },
@@ -2155,9 +2158,6 @@
   },
   "messageQueue.queuePausedExpanded": {
     "defaultMessage": "Kuyruk kesinti nedeniyle duraklatıldı. Devam etmek için \"Şimdi Gönder\" seçeneğini kullanın veya yeni bir mesaj ekleyin."
-  },
-  "messageQueue.queued": {
-    "defaultMessage": "sıraya alınmış"
   },
   "messageQueue.removeFromQueue": {
     "defaultMessage": "Bu mesajı sıradan kaldır"
@@ -2204,35 +2204,11 @@
   "microphoneSelector.test": {
     "defaultMessage": "testi"
   },
-  "modeSelectionItem.autonomousDescription": {
-    "defaultMessage": "Tam dosya değiştirme yetenekleri, dosyaları özgürce düzenleyin, oluşturun ve silin."
-  },
-  "modeSelectionItem.autonomousLabel": {
-    "defaultMessage": "Özerk"
-  },
-  "modeSelectionItem.chatOnlyDescription": {
-    "defaultMessage": "Araç veya uzantı kullanmadan seçilen sağlayıcıyla etkileşime geçin."
-  },
-  "modeSelectionItem.chatOnlyLabel": {
-    "defaultMessage": "Yalnızca sohbet"
-  },
-  "modeSelectionItem.manualDescription": {
-    "defaultMessage": "Tüm araçlar, uzantılar ve dosya değişiklikleri insan onayı gerektirecektir"
-  },
-  "modeSelectionItem.manualLabel": {
-    "defaultMessage": "Manuel"
-  },
-  "modeSelectionItem.smartDescription": {
-    "defaultMessage": "Risk düzeyine göre hangi eylemlerin onaylanması gerektiğini akıllıca belirleyin"
-  },
-  "modeSelectionItem.smartLabel": {
-    "defaultMessage": "Akıllı"
+  "modelAndProviderContext.modelChangedTitle": {
+    "defaultMessage": "Model değiştirildi"
   },
   "modelAndProviderContext.modelChangeFailed": {
     "defaultMessage": "{provider}/{model} başarısız oldu"
-  },
-  "modelAndProviderContext.modelChangedTitle": {
-    "defaultMessage": "Model değiştirildi"
   },
   "modelAndProviderContext.selectModel": {
     "defaultMessage": "Modeli Seçin"
@@ -2245,6 +2221,27 @@
   },
   "modelAndProviderContext.unknownProviderTitle": {
     "defaultMessage": "Sağlayıcı adı araması"
+  },
+  "modelsBottomBar.changeModel": {
+    "defaultMessage": "Modeli Değiştir"
+  },
+  "modelsBottomBar.currentModel": {
+    "defaultMessage": "Mevcut model"
+  },
+  "modelsBottomBar.loadingModel": {
+    "defaultMessage": "Model yükleniyor..."
+  },
+  "modelsBottomBar.localModelSettings": {
+    "defaultMessage": "Yerel Model Ayarları"
+  },
+  "modelsBottomBar.localModelSettingsTitle": {
+    "defaultMessage": "Yerel Model Ayarları — {modelName}"
+  },
+  "modelsBottomBar.resolvedModel": {
+    "defaultMessage": "Çözümlenen model"
+  },
+  "modelsBottomBar.selectModel": {
+    "defaultMessage": "Modeli Seçin"
   },
   "modelSettingsButtons.configureProviders": {
     "defaultMessage": "Sağlayıcıları yapılandırma"
@@ -2405,32 +2402,35 @@
   "modelSettingsPanel.topP": {
     "defaultMessage": "Üst P"
   },
-  "modelsBottomBar.changeModel": {
-    "defaultMessage": "Modeli Değiştir"
-  },
-  "modelsBottomBar.currentModel": {
-    "defaultMessage": "Mevcut model"
-  },
-  "modelsBottomBar.loadingModel": {
-    "defaultMessage": "Model yükleniyor..."
-  },
-  "modelsBottomBar.localModelSettings": {
-    "defaultMessage": "Yerel Model Ayarları"
-  },
-  "modelsBottomBar.localModelSettingsTitle": {
-    "defaultMessage": "Yerel Model Ayarları — {modelName}"
-  },
-  "modelsBottomBar.resolvedModel": {
-    "defaultMessage": "Çözümlenen model"
-  },
-  "modelsBottomBar.selectModel": {
-    "defaultMessage": "Modeli Seçin"
-  },
   "modelsSection.resetDescription": {
     "defaultMessage": "Yeni bir başlangıç yapmak için seçtiğiniz model ve sağlayıcı ayarlarını temizleyin"
   },
   "modelsSection.resetTitle": {
     "defaultMessage": "Sağlayıcıyı ve Modeli Sıfırla"
+  },
+  "modeSelectionItem.autonomousDescription": {
+    "defaultMessage": "Tam dosya değiştirme yetenekleri, dosyaları özgürce düzenleyin, oluşturun ve silin."
+  },
+  "modeSelectionItem.autonomousLabel": {
+    "defaultMessage": "Özerk"
+  },
+  "modeSelectionItem.chatOnlyDescription": {
+    "defaultMessage": "Araç veya uzantı kullanmadan seçilen sağlayıcıyla etkileşime geçin."
+  },
+  "modeSelectionItem.chatOnlyLabel": {
+    "defaultMessage": "Yalnızca sohbet"
+  },
+  "modeSelectionItem.manualDescription": {
+    "defaultMessage": "Tüm araçlar, uzantılar ve dosya değişiklikleri insan onayı gerektirecektir"
+  },
+  "modeSelectionItem.manualLabel": {
+    "defaultMessage": "Manuel"
+  },
+  "modeSelectionItem.smartDescription": {
+    "defaultMessage": "Risk düzeyine göre hangi eylemlerin onaylanması gerektiğini akıllıca belirleyin"
+  },
+  "modeSelectionItem.smartLabel": {
+    "defaultMessage": "Akıllı"
   },
   "navigation.itemApps": {
     "defaultMessage": "Uygulamalar"
@@ -2479,6 +2479,9 @@
   },
   "onboardingGuard.welcomeDescription": {
     "defaultMessage": "Yerel AI temsilciniz. Başlamak için {appName}'i bir AI model sağlayıcısına bağlayın."
+  },
+  "onboardingGuard.welcomeDescriptionBuiltIn": {
+    "defaultMessage": "Your local AI agent. {appName} is ready with the built-in {providerName} backend. Start with {modelName} and switch models at any time."
   },
   "onboardingGuard.welcomeTitle": {
     "defaultMessage": "{appName}'e hoş geldiniz"
@@ -2714,10 +2717,10 @@
   "promptsSettings.edit": {
     "defaultMessage": "Düzenle"
   },
-  "promptsSettings.editPromptTitle": {
+  "promptsSettings.editingLabel": {
     "defaultMessage": "Düzenleme: {name}"
   },
-  "promptsSettings.editingLabel": {
+  "promptsSettings.editPromptTitle": {
     "defaultMessage": "Düzenleme: {name}"
   },
   "promptsSettings.enterPromptContent": {
@@ -2828,11 +2831,11 @@
   "providerConfigForm.noApiKey": {
     "defaultMessage": "API anahtarınız yok mu?"
   },
-  "providerConfigForm.signInWith": {
-    "defaultMessage": "{providerName} ile oturum açın"
-  },
   "providerConfigForm.signingIn": {
     "defaultMessage": "Oturum açılıyor..."
+  },
+  "providerConfigForm.signInWith": {
+    "defaultMessage": "{providerName} ile oturum açın"
   },
   "providerConfigurationModal.addApiKeyDescription": {
     "defaultMessage": "Bu sağlayıcının goose'a entegre olması için API anahtarlarınızı ekleyin"
@@ -2894,11 +2897,11 @@
   "providerConfigurationModal.seeDocumentation": {
     "defaultMessage": "Daha fazla ayrıntı için <link>belgelere</link> bakın."
   },
-  "providerConfigurationModal.signInWith": {
-    "defaultMessage": "{providerName} ile oturum açın"
-  },
   "providerConfigurationModal.signingIn": {
     "defaultMessage": "Oturum açılıyor..."
+  },
+  "providerConfigurationModal.signInWith": {
+    "defaultMessage": "{providerName} ile oturum açın"
   },
   "providerGrid.addProvider": {
     "defaultMessage": "Sağlayıcı Ekle"
@@ -2927,6 +2930,12 @@
   "providerSelector.addCustomProviderTitle": {
     "defaultMessage": "Özel Sağlayıcı Ekle"
   },
+  "providerSelector.advancedProviderSetup": {
+    "defaultMessage": "Advanced Provider Setup"
+  },
+  "providerSelector.advancedProviderSetupDescription": {
+    "defaultMessage": "Only use this if you need a different provider, a custom host, or your own API key."
+  },
   "providerSelector.connectProvider": {
     "defaultMessage": "Bir Sağlayıcıya Bağlan"
   },
@@ -2939,6 +2948,12 @@
   "providerSelector.selectProvider": {
     "defaultMessage": "Bir sağlayıcı seçin"
   },
+  "providerSelector.useBuiltInModels": {
+    "defaultMessage": "Use Built-in Models"
+  },
+  "providerSelector.useBuiltInModelsDescription": {
+    "defaultMessage": "{providerName} is already connected. Start with {modelName} and switch models later."
+  },
   "providerSelector.useFreeLocal": {
     "defaultMessage": "Ücretsiz/Yerel Sağlayıcıları Kullanın"
   },
@@ -2950,6 +2965,9 @@
   },
   "providerSettings.onboardingDescription": {
     "defaultMessage": "goose'yi kullanmaya başlamak için bir yapay zeka modeli sağlayıcısı seçin. Her sağlayıcı tarafından oluşturulan ve yerel olarak şifrelenecek ve saklanacak API anahtarlarını kullanmanız gerekecektir. Sağlayıcınızı istediğiniz zaman ayarlardan değiştirebilirsiniz."
+  },
+  "providerSettings.onboardingDescriptionBuiltIn": {
+    "defaultMessage": "{providerName} is already wired in as the built-in backend for this local version. Use this page only if you need to override it with another provider, host, or API key."
   },
   "providerSettings.otherProviders": {
     "defaultMessage": "Diğer sağlayıcılar"
@@ -3128,39 +3146,6 @@
   "recipeNameField.formatHint": {
     "defaultMessage": "Otomatik olarak biçimlendirilecektir (küçük harf, boşluklar için kısa çizgiler)"
   },
-  "recipeWarningModal.cancel": {
-    "defaultMessage": "İptal"
-  },
-  "recipeWarningModal.descriptionLabel": {
-    "defaultMessage": "Açıklama:"
-  },
-  "recipeWarningModal.firstTimeDescription": {
-    "defaultMessage": "Daha önce çalıştırmadığınız bir tarifi uygulamak üzeresiniz."
-  },
-  "recipeWarningModal.hiddenCharsWarning": {
-    "defaultMessage": "Bu tarif, kötü amaçlarla kullanılabilecekleri için güvenliğiniz açısından göz ardı edilecek gizli karakterler içermektedir."
-  },
-  "recipeWarningModal.instructionsLabel": {
-    "defaultMessage": "Talimatlar:"
-  },
-  "recipeWarningModal.newRecipeWarningTitle": {
-    "defaultMessage": "⚠️ Yeni Tarif Uyarısı"
-  },
-  "recipeWarningModal.recipePreview": {
-    "defaultMessage": "Tarif Önizlemesi:"
-  },
-  "recipeWarningModal.securityWarningTitle": {
-    "defaultMessage": "⚠️ Güvenlik Uyarısı"
-  },
-  "recipeWarningModal.titleLabel": {
-    "defaultMessage": "Başlık:"
-  },
-  "recipeWarningModal.trustAndExecute": {
-    "defaultMessage": "Güvenin ve Uygulayın"
-  },
-  "recipeWarningModal.trustSource": {
-    "defaultMessage": "Yalnızca bu tarifin kaynağına güveniyorsanız devam edin."
-  },
   "recipesView.addSchedule": {
     "defaultMessage": "Program ekle"
   },
@@ -3293,9 +3278,6 @@
   "recipesView.searchRecipesPlaceholder": {
     "defaultMessage": "Tarif ara..."
   },
-  "recipesView.securityTasksUnavailable": {
-    "defaultMessage": "Recipe runtime not found in this workspace, starting a guided preview chat instead."
-  },
   "recipesView.shareRecipe": {
     "defaultMessage": "Tarifi paylaş"
   },
@@ -3338,6 +3320,39 @@
   "recipesView.yamlFiles": {
     "defaultMessage": "YAML Dosyaları"
   },
+  "recipeWarningModal.cancel": {
+    "defaultMessage": "İptal"
+  },
+  "recipeWarningModal.descriptionLabel": {
+    "defaultMessage": "Açıklama:"
+  },
+  "recipeWarningModal.firstTimeDescription": {
+    "defaultMessage": "Daha önce çalıştırmadığınız bir tarifi uygulamak üzeresiniz."
+  },
+  "recipeWarningModal.hiddenCharsWarning": {
+    "defaultMessage": "Bu tarif, kötü amaçlarla kullanılabilecekleri için güvenliğiniz açısından göz ardı edilecek gizli karakterler içermektedir."
+  },
+  "recipeWarningModal.instructionsLabel": {
+    "defaultMessage": "Talimatlar:"
+  },
+  "recipeWarningModal.newRecipeWarningTitle": {
+    "defaultMessage": "⚠️ Yeni Tarif Uyarısı"
+  },
+  "recipeWarningModal.recipePreview": {
+    "defaultMessage": "Tarif Önizlemesi:"
+  },
+  "recipeWarningModal.securityWarningTitle": {
+    "defaultMessage": "⚠️ Güvenlik Uyarısı"
+  },
+  "recipeWarningModal.titleLabel": {
+    "defaultMessage": "Başlık:"
+  },
+  "recipeWarningModal.trustAndExecute": {
+    "defaultMessage": "Güvenin ve Uygulayın"
+  },
+  "recipeWarningModal.trustSource": {
+    "defaultMessage": "Yalnızca bu tarifin kaynağına güveniyorsanız devam edin."
+  },
   "resetProviderSection.resetButton": {
     "defaultMessage": "Sağlayıcıyı ve Modeli Sıfırla"
   },
@@ -3368,11 +3383,11 @@
   "scheduleDetailView.cronExpression": {
     "defaultMessage": "Cron İfadesi:"
   },
-  "scheduleDetailView.currentSession": {
-    "defaultMessage": "Mevcut Oturum:"
-  },
   "scheduleDetailView.currentlyRunning": {
     "defaultMessage": "Şu anda Çalışıyor"
+  },
+  "scheduleDetailView.currentSession": {
+    "defaultMessage": "Mevcut Oturum:"
   },
   "scheduleDetailView.dir": {
     "defaultMessage": "Yön: {path}"
@@ -3437,12 +3452,6 @@
   "scheduleDetailView.noSessions": {
     "defaultMessage": "Bu program için oturum bulunamadı."
   },
-  "scheduleDetailView.pauseSchedule": {
-    "defaultMessage": "Programı Duraklat"
-  },
-  "scheduleDetailView.pauseUnpauseError": {
-    "defaultMessage": "Duraklatma/Duraklatmayı Kaldırma Hatası"
-  },
   "scheduleDetailView.paused": {
     "defaultMessage": "Duraklatıldı"
   },
@@ -3451,6 +3460,12 @@
   },
   "scheduleDetailView.pausedWarning": {
     "defaultMessage": "Bu program duraklatıldı ve otomatik olarak çalışmayacak. Manuel olarak tetiklemek için \"Şimdi Programlamayı Çalıştır\" seçeneğini kullanın veya otomatik yürütmeye devam etmek için duraklatmayı kaldırın."
+  },
+  "scheduleDetailView.pauseSchedule": {
+    "defaultMessage": "Programı Duraklat"
+  },
+  "scheduleDetailView.pauseUnpauseError": {
+    "defaultMessage": "Duraklatma/Duraklatmayı Kaldırma Hatası"
   },
   "scheduleDetailView.processStarted": {
     "defaultMessage": "İşlem Başlatıldı:"
@@ -3500,17 +3515,17 @@
   "scheduleDetailView.tokens": {
     "defaultMessage": "Jetonlar: {count}"
   },
-  "scheduleDetailView.unpauseSchedule": {
-    "defaultMessage": "Programı Duraklatmayı Kaldır"
-  },
   "scheduleDetailView.unpausedMsg": {
     "defaultMessage": "Duraklatılmamış \"{id}\""
   },
-  "scheduleDetailView.updateScheduleError": {
-    "defaultMessage": "Güncelleme Zamanlaması Hatası"
+  "scheduleDetailView.unpauseSchedule": {
+    "defaultMessage": "Programı Duraklatmayı Kaldır"
   },
   "scheduleDetailView.updatedMsg": {
     "defaultMessage": "\"{id}\" güncellendi"
+  },
+  "scheduleDetailView.updateScheduleError": {
+    "defaultMessage": "Güncelleme Zamanlaması Hatası"
   },
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Program Kimliğini Görüntüleme: {id}"
@@ -3635,11 +3650,11 @@
   "schedulesView.pause": {
     "defaultMessage": "Duraklat"
   },
-  "schedulesView.pauseError": {
-    "defaultMessage": "Zamanlamayı Duraklat Hatası"
-  },
   "schedulesView.paused": {
     "defaultMessage": "Duraklatıldı"
+  },
+  "schedulesView.pauseError": {
+    "defaultMessage": "Zamanlamayı Duraklat Hatası"
   },
   "schedulesView.refresh": {
     "defaultMessage": "Yenile"
@@ -3659,6 +3674,9 @@
   "schedulesView.schedulePausedMsg": {
     "defaultMessage": "\"{id}\" programı başarıyla duraklatıldı"
   },
+  "schedulesView.scheduler": {
+    "defaultMessage": "Zamanlayıcı"
+  },
   "schedulesView.scheduleUnpaused": {
     "defaultMessage": "Duraklatmayı Kaldırmayı Planla"
   },
@@ -3670,9 +3688,6 @@
   },
   "schedulesView.scheduleUpdatedMsg": {
     "defaultMessage": "\"{id}\" programı başarıyla güncellendi"
-  },
-  "schedulesView.scheduler": {
-    "defaultMessage": "Zamanlayıcı"
   },
   "schedulesView.unpauseError": {
     "defaultMessage": "Duraklatmayı Kaldırma Programı Hatası"
@@ -3694,6 +3709,57 @@
   },
   "secureStorageNotice.defaultMessage": {
     "defaultMessage": "Anahtarlar anahtarlıkta güvenli bir şekilde saklanır"
+  },
+  "securityPreviewLaunchGuard.commandsLabel": {
+    "defaultMessage": "Reopen it from the repo root with one of these supported commands:"
+  },
+  "securityPreviewLaunchGuard.description": {
+    "defaultMessage": "{appName} is using fallback local state, so the visible chats, model selection, or working directory may differ from the isolated preview session."
+  },
+  "securityPreviewLaunchGuard.title": {
+    "defaultMessage": "This local preview was opened outside the supported launcher."
+  },
+  "securityRuntimeNotice.driftedRecipes": {
+    "defaultMessage": "Drifted recipes: {ids}"
+  },
+  "securityRuntimeNotice.driftedSkills": {
+    "defaultMessage": "Drifted skills: {ids}"
+  },
+  "securityRuntimeNotice.missingRecipes": {
+    "defaultMessage": "Missing recipes: {ids}"
+  },
+  "securityRuntimeNotice.missingSkills": {
+    "defaultMessage": "Missing skills: {ids}"
+  },
+  "securityRuntimeNotice.overviewDescription": {
+    "defaultMessage": "The current working directory is missing or has drifted from the bundled security skills or recipes. Some task starters may fall back to guided chat or run with older instructions."
+  },
+  "securityRuntimeNotice.overviewTitle": {
+    "defaultMessage": "Security runtime needs attention"
+  },
+  "securityRuntimeNotice.packagedReseedHint": {
+    "defaultMessage": "Packaged local preview should be reopened through the official launcher so missing assets can be seeded into the current working directory again."
+  },
+  "securityRuntimeNotice.repoResyncHint": {
+    "defaultMessage": "Repo preview can resync the mirrored runtime assets with `node scripts/sync-security-runtime-assets.mjs`."
+  },
+  "securityRuntimeNotice.skippedMissingDistro": {
+    "defaultMessage": "The bundled security distro source is unavailable, so Security Goose could not verify its local skill and recipe assets."
+  },
+  "securityRuntimeNotice.skippedMissingWorkingDir": {
+    "defaultMessage": "The working directory is unavailable, so Security Goose could not verify its local skill and recipe assets."
+  },
+  "securityRuntimeNotice.taskRecipeDrifted": {
+    "defaultMessage": "Recipe runtime file differs from the bundled source"
+  },
+  "securityRuntimeNotice.taskRecipeMissing": {
+    "defaultMessage": "Recipe runtime file missing in the current working directory"
+  },
+  "securityRuntimeNotice.taskSkillDrifted": {
+    "defaultMessage": "Skill asset differs from the bundled source"
+  },
+  "securityRuntimeNotice.taskSkillMissing": {
+    "defaultMessage": "Skill asset missing in the current working directory"
   },
   "securityTasks.alertInvestigation.description": {
     "defaultMessage": "Triage a security alert for authenticity, scope, cause, and response actions."
@@ -3738,13 +3804,25 @@
     "defaultMessage": "IOC Analysis"
   },
   "securityTasks.mappingRecipe": {
-    "defaultMessage": "Recipe"
+    "defaultMessage": "Recipe mapping"
   },
   "securityTasks.mappingSkill": {
-    "defaultMessage": "Skill"
+    "defaultMessage": "Skill mapping"
+  },
+  "securityTasks.methodologyBoundary": {
+    "defaultMessage": "Current Goose UI can show an attached recipe, but it does not show explicit skill-load telemetry. Skill mappings remain guidance-first rather than confirmed runtime signals."
   },
   "securityTasks.openExtensions": {
     "defaultMessage": "Open Extensions"
+  },
+  "securityTasks.primaryPathLabel": {
+    "defaultMessage": "Primary path"
+  },
+  "securityTasks.primaryPathRecipe": {
+    "defaultMessage": "Recipe runtime"
+  },
+  "securityTasks.primaryPathSkill": {
+    "defaultMessage": "Skill-guided prompt"
   },
   "securityTasks.recommendedExtensions": {
     "defaultMessage": "Recommended extensions"
@@ -3759,7 +3837,7 @@
     "defaultMessage": "Saved recipes"
   },
   "securityTasks.sectionDescription": {
-    "defaultMessage": "These entry points stay on top of Goose recipes and skills. Recipe-backed tasks start with the existing recipe runtime; the rest open guided preview chats."
+    "defaultMessage": "These entry points stay on top of Goose recipes and skills. Recipe-backed tasks start with the existing recipe runtime; the rest open skill-guided preview chats. Recommended extensions stay optional and keep their current real-preview, disabled-stub, or blocker state."
   },
   "securityTasks.sectionTitle": {
     "defaultMessage": "Security task starters"
@@ -3908,75 +3986,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "Akış"
   },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "Oturum paylaşımı zaten yapılandırılmış"
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "Temel URL"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "Bağlantı başarısız oldu."
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "Bağlantı başarılı!"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "Bağlantı zaman aşımına uğradı. Sunucu yavaş olabilir veya erişilemez olabilir."
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "Oturum paylaşımı yapılandırılmıştır ancak tamamen etkinleştirilmiştir; oturumlarınız yalnızca paylaş düğmesini açıkça tıklattığınızda paylaşılır."
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "Oturumlarınızı başkalarıyla paylaşmak için oturum paylaşımını etkinleştirebilirsiniz."
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "Oturum paylaşımını etkinleştir"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "Geçersiz URL biçimi. Lütfen geçerli bir URL girin (ör. https://example.com/api)."
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "Sunucu hatası: HTTP {status}. Sunucu doğru yapılandırılmamış olabilir."
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "Bağlantıyı Test Et"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "Test ediliyor..."
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "Bağlantı test ediliyor..."
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "Oturum Paylaşımı"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "Bilinmeyen bir hata oluştu."
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "Sunucuya ulaşılamıyor. Lütfen URL'yi ve ağ bağlantınızı kontrol edin."
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Bu oturum herhangi bir mesaj içermiyor"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Mesaj bulunamadı"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Oturum Ayrıntıları Yüklenirken Hata Oluştu"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Tekrar Deneyin"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "sen"
-  },
   "sessions.action.delete": {
     "defaultMessage": "Oturumu sil"
   },
@@ -4034,6 +4043,9 @@
   "sessions.import": {
     "defaultMessage": "Oturumu İçe Aktar"
   },
+  "sessions.importing": {
+    "defaultMessage": "İçe aktarılıyor..."
+  },
   "sessions.importNostr": {
     "defaultMessage": "Bağlantıyı İçe Aktar"
   },
@@ -4045,9 +4057,6 @@
   },
   "sessions.importNostr.title": {
     "defaultMessage": "Nostr Oturumunu İçe Aktar"
-  },
-  "sessions.importing": {
-    "defaultMessage": "İçe aktarılıyor..."
   },
   "sessions.loadingMore": {
     "defaultMessage": "Daha fazla oturum yükleniyor..."
@@ -4076,26 +4085,26 @@
   "sessions.toast.copied": {
     "defaultMessage": "Panoya kopyalandı"
   },
-  "sessions.toast.deleteFailed": {
-    "defaultMessage": "\"{name}\" oturumu silinemedi: {error}"
-  },
   "sessions.toast.deleted": {
     "defaultMessage": "Oturum başarıyla silindi"
   },
-  "sessions.toast.duplicateFailed": {
-    "defaultMessage": "Oturum kopyalanamadı: {error}"
+  "sessions.toast.deleteFailed": {
+    "defaultMessage": "\"{name}\" oturumu silinemedi: {error}"
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "\"{name}\" oturumu başarıyla kopyalandı"
   },
+  "sessions.toast.duplicateFailed": {
+    "defaultMessage": "Oturum kopyalanamadı: {error}"
+  },
   "sessions.toast.exported": {
     "defaultMessage": "Oturum başarıyla dışa aktarıldı"
   },
-  "sessions.toast.importFailed": {
-    "defaultMessage": "Oturum içe aktarılamadı: {error}"
-  },
   "sessions.toast.imported": {
     "defaultMessage": "Oturum başarıyla içe aktarıldı"
+  },
+  "sessions.toast.importFailed": {
+    "defaultMessage": "Oturum içe aktarılamadı: {error}"
   },
   "sessions.toast.shareNostr": {
     "defaultMessage": "Şifrelenmiş Nostr paylaşım bağlantısı oluşturuldu"
@@ -4103,17 +4112,86 @@
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Nostr paylaşım bağlantısı oluşturulamadı: {error}"
   },
+  "sessions.toast.updated": {
+    "defaultMessage": "Oturum açıklaması başarıyla güncellendi"
+  },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Oturum açıklaması güncellenemedi: {error}"
   },
-  "sessions.toast.updated": {
-    "defaultMessage": "Oturum açıklaması başarıyla güncellendi"
+  "sessionSharingSection.alreadyConfigured": {
+    "defaultMessage": "Oturum paylaşımı zaten yapılandırılmış"
+  },
+  "sessionSharingSection.baseUrl": {
+    "defaultMessage": "Temel URL"
+  },
+  "sessionSharingSection.connectionFailed": {
+    "defaultMessage": "Bağlantı başarısız oldu."
+  },
+  "sessionSharingSection.connectionSuccess": {
+    "defaultMessage": "Bağlantı başarılı!"
+  },
+  "sessionSharingSection.connectionTimedOut": {
+    "defaultMessage": "Bağlantı zaman aşımına uğradı. Sunucu yavaş olabilir veya erişilemez olabilir."
+  },
+  "sessionSharingSection.descriptionConfigured": {
+    "defaultMessage": "Oturum paylaşımı yapılandırılmıştır ancak tamamen etkinleştirilmiştir; oturumlarınız yalnızca paylaş düğmesini açıkça tıklattığınızda paylaşılır."
+  },
+  "sessionSharingSection.descriptionDefault": {
+    "defaultMessage": "Oturumlarınızı başkalarıyla paylaşmak için oturum paylaşımını etkinleştirebilirsiniz."
+  },
+  "sessionSharingSection.enableSharing": {
+    "defaultMessage": "Oturum paylaşımını etkinleştir"
+  },
+  "sessionSharingSection.invalidUrl": {
+    "defaultMessage": "Geçersiz URL biçimi. Lütfen geçerli bir URL girin (ör. https://example.com/api)."
+  },
+  "sessionSharingSection.serverError": {
+    "defaultMessage": "Sunucu hatası: HTTP {status}. Sunucu doğru yapılandırılmamış olabilir."
+  },
+  "sessionSharingSection.testConnection": {
+    "defaultMessage": "Bağlantıyı Test Et"
+  },
+  "sessionSharingSection.testing": {
+    "defaultMessage": "Test ediliyor..."
+  },
+  "sessionSharingSection.testingConnection": {
+    "defaultMessage": "Bağlantı test ediliyor..."
+  },
+  "sessionSharingSection.title": {
+    "defaultMessage": "Oturum Paylaşımı"
+  },
+  "sessionSharingSection.unknownError": {
+    "defaultMessage": "Bilinmeyen bir hata oluştu."
+  },
+  "sessionSharingSection.unreachableServer": {
+    "defaultMessage": "Sunucuya ulaşılamıyor. Lütfen URL'yi ve ağ bağlantınızı kontrol edin."
+  },
+  "sessionSharingSection.urlPlaceholder": {
+    "defaultMessage": "https://example.com/api"
   },
   "sessionsView.error.failedToLoad": {
     "defaultMessage": "Oturum ayrıntıları yüklenemedi. Lütfen daha sonra tekrar deneyin."
   },
   "sessionsView.loading": {
     "defaultMessage": "Yükleniyor..."
+  },
+  "sessionViewComponents.empty.description": {
+    "defaultMessage": "Bu oturum herhangi bir mesaj içermiyor"
+  },
+  "sessionViewComponents.empty.title": {
+    "defaultMessage": "Mesaj bulunamadı"
+  },
+  "sessionViewComponents.error.loading": {
+    "defaultMessage": "Oturum Ayrıntıları Yüklenirken Hata Oluştu"
+  },
+  "sessionViewComponents.error.tryAgain": {
+    "defaultMessage": "Tekrar Deneyin"
+  },
+  "sessionViewComponents.role.assistant": {
+    "defaultMessage": "Goose"
+  },
+  "sessionViewComponents.role.user": {
+    "defaultMessage": "sen"
   },
   "settings.appearance.description": {
     "defaultMessage": "goose'nin sisteminizde nasıl görüneceğini yapılandırın"
@@ -4283,14 +4361,119 @@
   "skillsView.adjustSearchTerms": {
     "defaultMessage": "Arama terimlerinizi ayarlamayı deneyin"
   },
-  "skillsView.comingSoon": {
-    "defaultMessage": "Yakında"
+  "skillsView.builtInDetailDescription": {
+    "defaultMessage": "This is a Goose built-in skill. Security Goose can list it, but there is no current-project skill package to inspect or restore."
+  },
+  "skillsView.bundledSkillsTitle": {
+    "defaultMessage": "Bundled Skills"
+  },
+  "skillsView.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "skillsView.currentProjectStatus": {
+    "defaultMessage": "Current project"
+  },
+  "skillsView.deleteAction": {
+    "defaultMessage": "Delete"
+  },
+  "skillsView.deleteSkill": {
+    "defaultMessage": "Delete local skill"
+  },
+  "skillsView.deleteSkillConfirmMessage": {
+    "defaultMessage": "Delete the current-project skill \"{skillName}\" from .agents/skills? This does not touch bundled sources or other directories."
+  },
+  "skillsView.deleteSkillConfirmTitle": {
+    "defaultMessage": "Delete local skill?"
+  },
+  "skillsView.deleteSkillSuccessMessage": {
+    "defaultMessage": "Removed \"{skillName}\" from the current project runtime."
+  },
+  "skillsView.deleteSkillSuccessTitle": {
+    "defaultMessage": "Local skill deleted"
+  },
+  "skillsView.deleteSkillErrorTitle": {
+    "defaultMessage": "Could not delete local skill"
+  },
+  "skillsView.deleteSkillErrorMessage": {
+    "defaultMessage": "Could not remove the selected local skill from the current project runtime."
+  },
+  "skillsView.descriptionLabel": {
+    "defaultMessage": "Description"
+  },
+  "skillsView.detailDescription": {
+    "defaultMessage": "Review the active skill package, current-project runtime state, and bundled source reference for this skill."
+  },
+  "skillsView.detailsAction": {
+    "defaultMessage": "Details"
+  },
+  "skillsView.detailTitle": {
+    "defaultMessage": "{skillName} details"
   },
   "skillsView.errorLoadingSkills": {
     "defaultMessage": "Beceriler Yüklenirken Hata Oluştu"
   },
+  "skillsView.importConflictMessage": {
+    "defaultMessage": "A skill named \"{skillName}\" already exists in the current project. Overwrite it with the selected package?"
+  },
+  "skillsView.importConflictTitle": {
+    "defaultMessage": "Overwrite existing skill?"
+  },
+  "skillsView.importSkillErrorTitle": {
+    "defaultMessage": "Skill import failed"
+  },
+  "skillsView.importSkillErrorMessage": {
+    "defaultMessage": "Could not import the selected skill package."
+  },
+  "skillsView.importSkillSuccessMessage": {
+    "defaultMessage": "Installed \"{skillName}\" into the current project runtime."
+  },
+  "skillsView.importSkillSuccessTitle": {
+    "defaultMessage": "Skill imported"
+  },
+  "skillsView.invalidRecoveryInvalidFrontmatter": {
+    "defaultMessage": "Fix the YAML frontmatter syntax in SKILL.md, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryLabel": {
+    "defaultMessage": "Recovery suggestion"
+  },
+  "skillsView.invalidRecoveryMissingFrontmatter": {
+    "defaultMessage": "Add YAML frontmatter with at least a non-empty name field to SKILL.md, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryMissingName": {
+    "defaultMessage": "Add a non-empty name field to SKILL.md frontmatter, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryMissingSkillMd": {
+    "defaultMessage": "Add SKILL.md to the skill folder root, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryNameMismatch": {
+    "defaultMessage": "Rename the folder or update the frontmatter name so both match, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryUnsupported": {
+    "defaultMessage": "Repair the local package layout, then re-import it as a skill folder or zip."
+  },
+  "skillsView.invalidSkillDescription": {
+    "defaultMessage": "This current-project skill package is missing a valid SKILL.md frontmatter name or directory layout."
+  },
+  "skillsView.invalidSkillPackageStatus": {
+    "defaultMessage": "Invalid skill package"
+  },
+  "skillsView.loadingSkillFile": {
+    "defaultMessage": "Loading SKILL.md…"
+  },
+  "skillsView.localSkillsTitle": {
+    "defaultMessage": "My Skills / Local Skills"
+  },
+  "skillsView.missingRuntimeStatus": {
+    "defaultMessage": "Missing runtime"
+  },
   "skillsView.noMatchingSkills": {
     "defaultMessage": "Eşleşen beceri bulunamadı"
+  },
+  "skillsView.noSecuritySkillsDescription": {
+    "defaultMessage": "This Security Goose build only shows Goose built-in skills and bundled Security Goose security skills. If the list is empty, sync .agents/skills and reopen the official preview entry."
+  },
+  "skillsView.noSkillFileAvailable": {
+    "defaultMessage": "No SKILL.md file is available for this skill source."
   },
   "skillsView.noSkillsDescription": {
     "defaultMessage": "Beceriler ~/.config/agents/skills/,.goose/skills/ veya desteklenen diğer dizinlerdeki SKILL.md dosyalarından yüklenir."
@@ -4298,8 +4481,86 @@
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "Hiçbir beceri yüklü değil"
   },
+  "skillsView.noSkillsInstalledDetail": {
+    "defaultMessage": "The current project has no managed local skills yet. Import a skill folder or zip to install it into .agents/skills."
+  },
+  "skillsView.ok": {
+    "defaultMessage": "OK"
+  },
+  "skillsView.overriddenLocallyStatus": {
+    "defaultMessage": "Overridden locally"
+  },
+  "skillsView.overrideBundledWarning": {
+    "defaultMessage": "This will replace the current-project runtime copy of a bundled Security Goose skill. You can restore the bundled version later."
+  },
+  "skillsView.overwriteAction": {
+    "defaultMessage": "Overwrite"
+  },
+  "skillsView.overwriteLocalWarning": {
+    "defaultMessage": "This will replace the existing current-project skill package in .agents/skills."
+  },
+  "skillsView.restoreBundledSkill": {
+    "defaultMessage": "Restore bundled version"
+  },
+  "skillsView.restoreConfirmMessage": {
+    "defaultMessage": "Restore the bundled Security Goose skill \"{skillName}\" into the current project runtime and discard the local override?"
+  },
+  "skillsView.restoreConfirmTitle": {
+    "defaultMessage": "Restore bundled version?"
+  },
+  "skillsView.restoreShortAction": {
+    "defaultMessage": "Restore"
+  },
+  "skillsView.restoreSkillSuccessMessage": {
+    "defaultMessage": "Restored bundled skill \"{skillName}\" into the current project runtime."
+  },
+  "skillsView.restoreSkillSuccessTitle": {
+    "defaultMessage": "Bundled skill restored"
+  },
+  "skillsView.restoreSkillErrorTitle": {
+    "defaultMessage": "Could not restore bundled skill"
+  },
+  "skillsView.restoreSkillErrorMessage": {
+    "defaultMessage": "Could not restore the bundled skill into the current project runtime."
+  },
+  "skillsView.revealCurrentProjectFolder": {
+    "defaultMessage": "Reveal current-project folder"
+  },
+  "skillsView.revealCurrentProjectFolderSuccessTitle": {
+    "defaultMessage": "Skill folder opened"
+  },
+  "skillsView.revealCurrentProjectFolderSuccessMessage": {
+    "defaultMessage": "Opened \"{directoryPath}\" in Finder."
+  },
+  "skillsView.revealCurrentProjectFolderErrorTitle": {
+    "defaultMessage": "Could not open skill folder"
+  },
+  "skillsView.revealCurrentProjectFolderErrorMessage": {
+    "defaultMessage": "Could not open the selected skill folder."
+  },
+  "skillsView.runtimeDiagnosisInvalid": {
+    "defaultMessage": "Current-project skill package is invalid and may not be discoverable by Goose."
+  },
+  "skillsView.runtimeDiagnosisLabel": {
+    "defaultMessage": "Runtime diagnosis"
+  },
+  "skillsView.runtimeDiagnosisLocalOverride": {
+    "defaultMessage": "Current-project runtime copy differs from the bundled Security Goose source."
+  },
+  "skillsView.runtimeDiagnosisMissingRuntime": {
+    "defaultMessage": "Bundled Security Goose source exists, but the current project runtime copy is missing."
+  },
+  "skillsView.scopedBuiltInStatus": {
+    "defaultMessage": "Built-in"
+  },
   "skillsView.searchSkillsPlaceholder": {
     "defaultMessage": "Arama becerileri..."
+  },
+  "skillsView.securitySkillsDescription": {
+    "defaultMessage": "This Security Goose build only shows Goose built-in skills and bundled Security Goose security skills. {shortcut} to search."
+  },
+  "skillsView.skillFileLabel": {
+    "defaultMessage": "SKILL.md"
   },
   "skillsView.skillsDescription": {
     "defaultMessage": "Goose yeteneklerini genişleten yüklü becerileri görüntüleyin. Aramak için {shortcut}."
@@ -4309,6 +4570,9 @@
   },
   "skillsView.tryAgain": {
     "defaultMessage": "Tekrar Deneyin"
+  },
+  "skillsView.unavailableValue": {
+    "defaultMessage": "Unavailable"
   },
   "spellcheckToggle.description": {
     "defaultMessage": "Sohbet girişinde yazımı kontrol edin. Etkili olması için yeniden başlatma gerekir."
@@ -4604,11 +4868,11 @@
   "themeSelector.theme": {
     "defaultMessage": "Tema"
   },
-  "toolApprovalButtons.allowOnce": {
-    "defaultMessage": "Bir Kez İzin Ver"
-  },
   "toolApprovalButtons.allowedOnce": {
     "defaultMessage": "Bir kez izin verildi"
+  },
+  "toolApprovalButtons.allowOnce": {
+    "defaultMessage": "Bir Kez İzin Ver"
   },
   "toolApprovalButtons.alwaysAllow": {
     "defaultMessage": "Her Zaman İzin Ver"
@@ -4721,11 +4985,11 @@
   "tunnelSection.showQrCode": {
     "defaultMessage": "QR Kodunu Göster"
   },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Tüneli Başlat"
-  },
   "tunnelSection.starting": {
     "defaultMessage": "Başlıyor..."
+  },
+  "tunnelSection.startTunnel": {
+    "defaultMessage": "Tüneli Başlat"
   },
   "tunnelSection.statusDisabled": {
     "defaultMessage": "Tünel devre dışı"
@@ -4769,14 +5033,14 @@
   "updateSection.currentVersion": {
     "defaultMessage": "Güncel sürüm"
   },
-  "updateSection.downloadReady": {
-    "defaultMessage": "Güncelleme indirildi ve kuruluma hazır!"
-  },
   "updateSection.downloadingProgress": {
     "defaultMessage": "Güncelleme indiriliyor... {percent}%"
   },
   "updateSection.downloadingUpdate": {
     "defaultMessage": "Güncelleme indiriliyor..."
+  },
+  "updateSection.downloadReady": {
+    "defaultMessage": "Güncelleme indirildi ve kuruluma hazır!"
   },
   "updateSection.installAndRestart": {
     "defaultMessage": "Yükle ve Yeniden Başlat"
@@ -4790,6 +5054,12 @@
   "updateSection.loading": {
     "defaultMessage": "Yükleniyor..."
   },
+  "updateSection.localPreviewDisabled": {
+    "defaultMessage": "Local preview builds do not check signed release updates."
+  },
+  "updateSection.localPreviewDisabledDetail": {
+    "defaultMessage": "Use the official preview launcher for local testing. Signed release packages keep the real update channel."
+  },
   "updateSection.manualInstallNote": {
     "defaultMessage": "İndirdikten sonra güncellemeyi manuel olarak yüklemeniz gerekecektir."
   },
@@ -4802,11 +5072,14 @@
   "updateSection.readyInstallManual": {
     "defaultMessage": "✓ Güncelleme hazır! Kurulum talimatları için \"Yükle ve Yeniden Başlat\"a tıklayın."
   },
-  "updateSection.upToDate": {
-    "defaultMessage": "(güncel)"
-  },
   "updateSection.updateAvailable": {
     "defaultMessage": "Güncelleme mevcut!"
+  },
+  "updateSection.updatesDisabled": {
+    "defaultMessage": "Release update checks are unavailable in this build."
+  },
+  "updateSection.upToDate": {
+    "defaultMessage": "(güncel)"
   },
   "updateSection.versionAvailable": {
     "defaultMessage": "→ {version} mevcut"
@@ -4858,5 +5131,14 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Düzenlenen mesajla yeni bir oturum oluşturun"
+  },
+  "skillsView.skillFolderLabel": {
+    "defaultMessage": "Skill folder"
+  },
+  "skillsView.securitySkillsDiscoveryDescription": {
+    "defaultMessage": "The / menu only shows skills the current Goose runtime has discovered for this session. Newly imported local skills usually appear there after you reopen the session."
+  },
+  "skillsView.skillFileBodyLabel": {
+    "defaultMessage": "SKILL.md body"
   }
 }

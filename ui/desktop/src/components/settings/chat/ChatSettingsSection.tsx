@@ -14,7 +14,7 @@ const i18n = defineMessages({
   },
   modeDescription: {
     id: 'chatSettings.modeDescription',
-    defaultMessage: 'Configure how Goose interacts with tools and extensions',
+    defaultMessage: 'Configure how the assistant interacts with tools and extensions',
   },
   responseStylesTitle: {
     id: 'chatSettings.responseStylesTitle',
@@ -22,7 +22,7 @@ const i18n = defineMessages({
   },
   responseStylesDescription: {
     id: 'chatSettings.responseStylesDescription',
-    defaultMessage: 'Choose how Goose should format and style its responses',
+    defaultMessage: 'Choose how the assistant should format and style its responses',
   },
 });
 

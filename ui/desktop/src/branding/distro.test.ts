@@ -10,13 +10,13 @@ describe('parseEnvFile', () => {
       GOOSE_DEFAULT_PROVIDER=openai
       GOOSE_LOCALE=zh-CN
 
-      GOOSE_DEFAULT_MODEL=auto
+      GOOSE_DEFAULT_MODEL=deepseek-v4-flash
     `);
 
     expect(parsed).toEqual({
       GOOSE_DEFAULT_PROVIDER: 'openai',
       GOOSE_LOCALE: 'zh-CN',
-      GOOSE_DEFAULT_MODEL: 'auto',
+      GOOSE_DEFAULT_MODEL: 'deepseek-v4-flash',
     });
   });
 });
@@ -25,11 +25,12 @@ describe('loadSecurityDistroDefaults', () => {
   it('loads branding and desktop defaults from distro/security-cn', () => {
     const defaults = loadSecurityDistroDefaults(path.resolve(process.cwd(), '../..'));
 
-    expect(defaults.productName).toBe('Security Goose');
-    expect(defaults.productNameZh).toBe('Security Goose 安全工作台');
+    expect(defaults.productName).toBe('收到');
+    expect(defaults.productNameZh).toBe('收到');
     expect(defaults.locale).toBe('zh-CN');
     expect(defaults.defaultProvider).toBe('openai');
-    expect(defaults.defaultModel).toBe('auto');
+    expect(defaults.defaultModel).toBe('deepseek-v4-flash');
+    expect(defaults.pricingMode).toBe('disabled-token-plan');
 
     const predefinedModels = JSON.parse(defaults.predefinedModels);
     expect(predefinedModels[0]).toMatchObject({
@@ -37,13 +38,20 @@ describe('loadSecurityDistroDefaults', () => {
       provider: 'openai',
       alias: 'Auto',
     });
-    expect(predefinedModels).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name: 'deepseek-v4-flash' }),
-        expect.objectContaining({ name: 'deepseek-v4-pro' }),
-        expect.objectContaining({ name: 'kimi-k2.6' }),
-        expect.objectContaining({ name: 'glm-5.1' }),
-      ])
-    );
+    expect(predefinedModels.map((model: { name: string }) => model.name)).toEqual([
+      'auto',
+      'deepseek-v4-flash',
+      'deepseek-v4-flash-202605',
+      'deepseek-v4-pro',
+      'deepseek-v4-pro-202606',
+      'glm-5',
+      'glm-5-turbo',
+      'glm-5.1',
+      'kimi-k2.5',
+      'kimi-k2.6',
+      'minimax-m2.5',
+      'minimax-m2.7',
+      'minimax-m3',
+    ]);
   });
 });

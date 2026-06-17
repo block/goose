@@ -10,7 +10,7 @@ const i18n = defineMessages({
   launcherSectionDescription: {
     id: 'launcher.securityTasksDescription',
     defaultMessage:
-      'Launch a security recipe or a skill-guided preview chat. Recommended extensions stay optional and are marked as local preview, disabled stub, or blocked.',
+      'Launch a native security task template. If the current workspace is missing a bundled task template runtime, the entry falls back to the mapped skill prompt. Recommended extensions stay optional and are marked as local preview, disabled stub, or blocked.',
   },
   securitySectionTitle: {
     id: 'securityTasks.sectionTitle',
@@ -19,7 +19,12 @@ const i18n = defineMessages({
   securitySectionDescription: {
     id: 'securityTasks.sectionDescription',
     defaultMessage:
-      'These entry points stay on top of Goose recipes and skills. Recipe-backed tasks start with the existing recipe runtime; the rest open guided preview chats. Recommended extensions stay optional and keep their current real-preview, disabled-stub, or blocker state.',
+      'These entry points stay on top of the existing task template and skill runtime. All six bundled security tasks prefer the task template runtime first; if a task template runtime is missing in the current workspace, the app falls back to the mapped skill prompt instead of adding a parallel execution layer. Recommended extensions stay optional and keep their current real-preview, disabled-stub, or blocker state.',
+  },
+  methodologyBoundary: {
+    id: 'securityTasks.methodologyBoundary',
+    defaultMessage:
+      'The current UI can show an attached task template, but it does not show explicit skill-load telemetry. Skill mappings remain guidance-first rather than confirmed runtime signals.',
   },
   extensionOverviewTitle: {
     id: 'securityTasks.extensionOverviewTitle',
@@ -32,7 +37,7 @@ const i18n = defineMessages({
   },
   savedRecipesTitle: {
     id: 'securityTasks.savedRecipesTitle',
-    defaultMessage: 'Saved recipes',
+    defaultMessage: 'Saved task templates',
   },
   openExtensions: {
     id: 'securityTasks.openExtensions',
@@ -40,7 +45,7 @@ const i18n = defineMessages({
   },
   startRecipe: {
     id: 'securityTasks.startRecipe',
-    defaultMessage: 'Use recipe',
+    defaultMessage: 'Start task',
   },
   startPreview: {
     id: 'securityTasks.startPreview',
@@ -48,7 +53,7 @@ const i18n = defineMessages({
   },
   badgeReady: {
     id: 'securityTasks.badgeReady',
-    defaultMessage: 'Recipe',
+    defaultMessage: 'Template',
   },
   badgePreview: {
     id: 'securityTasks.badgePreview',
@@ -56,11 +61,23 @@ const i18n = defineMessages({
   },
   mappingRecipe: {
     id: 'securityTasks.mappingRecipe',
-    defaultMessage: 'Recipe',
+    defaultMessage: 'Task template mapping',
   },
   mappingSkill: {
     id: 'securityTasks.mappingSkill',
-    defaultMessage: 'Skill',
+    defaultMessage: 'Skill mapping',
+  },
+  primaryPathLabel: {
+    id: 'securityTasks.primaryPathLabel',
+    defaultMessage: 'Primary path',
+  },
+  primaryPathRecipe: {
+    id: 'securityTasks.primaryPathRecipe',
+    defaultMessage: 'Task template runtime',
+  },
+  primaryPathSkill: {
+    id: 'securityTasks.primaryPathSkill',
+    defaultMessage: 'Skill-guided prompt',
   },
   recommendedExtensions: {
     id: 'securityTasks.recommendedExtensions',
@@ -80,7 +97,7 @@ const i18n = defineMessages({
   },
   extensionDetailLocalPreview: {
     id: 'securityTasks.extensionDetailLocalPreview',
-    defaultMessage: 'Can be enabled now with the current Goose-native local preview implementation.',
+    defaultMessage: 'Can be enabled now with the current local preview implementation.',
   },
   extensionDetailDisabledStub: {
     id: 'securityTasks.extensionDetailDisabledStub',
@@ -145,6 +162,7 @@ export const securityTaskUiMessages = {
   launcherSectionDescription: i18n.launcherSectionDescription,
   securitySectionTitle: i18n.securitySectionTitle,
   securitySectionDescription: i18n.securitySectionDescription,
+  methodologyBoundary: i18n.methodologyBoundary,
   extensionOverviewTitle: i18n.extensionOverviewTitle,
   extensionOverviewDescription: i18n.extensionOverviewDescription,
   savedRecipesTitle: i18n.savedRecipesTitle,
@@ -155,6 +173,9 @@ export const securityTaskUiMessages = {
   badgePreview: i18n.badgePreview,
   mappingRecipe: i18n.mappingRecipe,
   mappingSkill: i18n.mappingSkill,
+  primaryPathLabel: i18n.primaryPathLabel,
+  primaryPathRecipe: i18n.primaryPathRecipe,
+  primaryPathSkill: i18n.primaryPathSkill,
   recommendedExtensions: i18n.recommendedExtensions,
   extensionStatusLocalPreview: i18n.extensionStatusLocalPreview,
   extensionStatusDisabledStub: i18n.extensionStatusDisabledStub,

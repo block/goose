@@ -6,7 +6,7 @@ import { defineMessages, useIntl } from '../i18n';
 const i18n = defineMessages({
   cancelRecipeSetup: {
     id: 'parameterInputModal.cancelRecipeSetup',
-    defaultMessage: 'Cancel Recipe Setup',
+    defaultMessage: 'Cancel Task Setup',
   },
   whatToDo: {
     id: 'parameterInputModal.whatToDo',
@@ -18,11 +18,11 @@ const i18n = defineMessages({
   },
   startNewChat: {
     id: 'parameterInputModal.startNewChat',
-    defaultMessage: 'Start New Chat (No Recipe)',
+    defaultMessage: 'Start New Chat (No Task Template)',
   },
   recipeParameters: {
     id: 'parameterInputModal.recipeParameters',
-    defaultMessage: 'Recipe Parameters',
+    defaultMessage: 'Task Parameters',
   },
   selectOption: {
     id: 'parameterInputModal.selectOption',
@@ -50,7 +50,7 @@ const i18n = defineMessages({
   },
   startRecipe: {
     id: 'parameterInputModal.startRecipe',
-    defaultMessage: 'Start Recipe',
+    defaultMessage: 'Start Task',
   },
 });
 

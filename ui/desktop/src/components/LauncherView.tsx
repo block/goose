@@ -1,9 +1,17 @@
 import { useMemo, useRef, useState } from 'react';
 import { getConfiguredProductName } from '../branding/productText';
 import { SecurityExtensionOverview, SecurityTaskExtensionHints } from './security/SecurityExtensionHints';
+import {
+  SecurityRuntimeOverviewNotice,
+  SecurityTaskRuntimeHint,
+} from './security/SecurityRuntimeNotice';
 import { defineMessages, useIntl } from '../i18n';
 import { SECURITY_TASK_IDS, resolveSecurityTaskLaunchConfig } from '../security/taskCatalog';
 import { SECURITY_TASK_COPY, securityTaskUiMessages } from '../security/taskMessages';
+import {
+  getSecurityRuntimeAvailableRecipeIds,
+  getSecurityRuntimeDiagnostics,
+} from '../securityRuntimeDiagnostics';
 import { getInitialWorkingDir } from '../utils/workingDir';
 
 const messages = defineMessages({
@@ -18,14 +26,19 @@ export default function LauncherView() {
   const inputRef = useRef<HTMLInputElement>(null);
   const intl = useIntl();
   const appName = getConfiguredProductName();
+  const runtimeDiagnostics = getSecurityRuntimeDiagnostics();
+  const availableRecipeIds = useMemo(
+    () => getSecurityRuntimeAvailableRecipeIds(runtimeDiagnostics),
+    [runtimeDiagnostics]
+  );
   const launcherTasks = useMemo(
     () =>
       SECURITY_TASK_IDS.map((taskId) => ({
         taskId,
         copy: SECURITY_TASK_COPY[taskId],
-        launch: resolveSecurityTaskLaunchConfig(taskId, intl.locale),
+        launch: resolveSecurityTaskLaunchConfig(taskId, intl.locale, availableRecipeIds),
       })),
-    [intl.locale]
+    [availableRecipeIds, intl.locale]
   );
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -41,7 +54,7 @@ export default function LauncherView() {
   };
 
   const handleTaskLaunch = (taskId: (typeof SECURITY_TASK_IDS)[number]) => {
-    const task = resolveSecurityTaskLaunchConfig(taskId, intl.locale);
+    const task = resolveSecurityTaskLaunchConfig(taskId, intl.locale, availableRecipeIds);
     window.electron.createChatWindow({
       dir: getInitialWorkingDir(),
       query: task.starterPrompt,
@@ -86,8 +99,12 @@ export default function LauncherView() {
                 {intl.formatMessage(securityTaskUiMessages.launcherSectionDescription)}
               </p>
             </div>
+            <p className="text-xs text-text-secondary">
+              {intl.formatMessage(securityTaskUiMessages.methodologyBoundary)}
+            </p>
 
             <SecurityExtensionOverview />
+            <SecurityRuntimeOverviewNotice />
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -116,6 +133,19 @@ export default function LauncherView() {
                 </div>
                 <p className="text-xs leading-5 text-text-secondary">
                   {intl.formatMessage(copy.description)}
+                </p>
+
+                <SecurityTaskRuntimeHint taskId={taskId} />
+
+                <p className="text-xs text-text-secondary">
+                  {intl.formatMessage(securityTaskUiMessages.primaryPathLabel)}:{' '}
+                  <span className="font-medium">
+                    {intl.formatMessage(
+                      launch.primaryPath === 'recipe'
+                        ? securityTaskUiMessages.primaryPathRecipe
+                        : securityTaskUiMessages.primaryPathSkill
+                    )}
+                  </span>
                 </p>
 
                 <SecurityTaskExtensionHints

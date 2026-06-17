@@ -11,15 +11,15 @@ import {
 
 describe('productText', () => {
   it('brands onboarding and launcher copy with the product name', () => {
-    expect(getOnboardingTitle('Security Goose')).toBe('Welcome to Security Goose');
-    expect(getLauncherPlaceholder('Security Goose')).toBe('Ask Security Goose anything...');
-    expect(getOnboardingDescription('Security Goose')).toContain('Security Goose');
+    expect(getOnboardingTitle('收到')).toBe('Welcome to 收到');
+    expect(getLauncherPlaceholder('收到')).toBe('Ask 收到 anything...');
+    expect(getOnboardingDescription('收到')).toContain('收到');
   });
 
   it('brands task completion notifications with the product name', () => {
-    expect(getTaskCompleteTitle('Security Goose')).toBe('Security Goose finished the task.');
-    expect(getTaskCompleteBody('Security Goose')).toBe(
-      'Click here to bring Security Goose back into focus.'
+    expect(getTaskCompleteTitle('收到')).toBe('收到 finished the task.');
+    expect(getTaskCompleteBody('收到')).toBe(
+      'Click here to bring 收到 back into focus.'
     );
   });
 
@@ -27,16 +27,18 @@ describe('productText', () => {
     expect(
       brandMessageCatalog(
         {
-          title: 'Goose finished the task.',
+          title: 'Security Goose finished the task.',
           deepLink: 'Paste goose://recipe link here...',
-          hints: 'Configure Project Hints (.goosehints)',
+          hints: 'Configure Project Hints (.goosehints) to improve communication with Goose.',
+          backend: 'goosed must keep running.',
         },
-        'Security Goose'
+        '收到'
       )
     ).toEqual({
-      title: 'Security Goose finished the task.',
+      title: '收到 finished the task.',
       deepLink: 'Paste goose://recipe link here...',
-      hints: 'Configure Project Hints (.goosehints)',
+      hints: 'Configure Project Hints (.goosehints) to improve communication with 收到.',
+      backend: 'goosed must keep running.',
     });
   });
 });

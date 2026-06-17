@@ -1,8 +1,7 @@
 /**
  * @vitest-environment jsdom
  */
-import { render, screen, waitFor, within } from '@testing-library/react';
-import userEvent from '@testing-library/user-event';
+import { render, screen, waitFor } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import RecipesView from './RecipesView';
 import { IntlTestWrapper } from '../../i18n/test-utils';
@@ -11,8 +10,7 @@ import zhCN from '../../i18n/messages/zh-CN.json';
 const mocks = vi.hoisted(() => ({
   listSavedRecipes: vi.fn(),
   setView: vi.fn(),
-  startNewSession: vi.fn(),
-  toastSuccess: vi.fn(),
+  startAgent: vi.fn(),
 }));
 
 vi.mock('../../recipe/recipe_management', async () => {
@@ -30,14 +28,19 @@ vi.mock('../../hooks/useNavigation', () => ({
   useNavigation: () => mocks.setView,
 }));
 
-vi.mock('../../sessions', () => ({
-  startNewSession: mocks.startNewSession,
-}));
-
 vi.mock('../../toasts', () => ({
-  toastSuccess: mocks.toastSuccess,
+  toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }));
+
+vi.mock('../../api', async () => {
+  const actual = await vi.importActual<typeof import('../../api')>('../../api');
+
+  return {
+    ...actual,
+    startAgent: mocks.startAgent,
+  };
+});
 
 vi.mock('../../utils/workingDir', () => ({
   getInitialWorkingDir: () => '/tmp/security-goose',
@@ -54,18 +57,10 @@ function toIntlMessages(
   );
 }
 
-function getTaskCard(title: string): HTMLElement {
-  const heading = screen.getByRole('heading', { name: title });
-  const card = heading.closest('[class*="p-4"]');
-  if (!card) {
-    throw new Error(`Task card not found for ${title}`);
-  }
-  return card as HTMLElement;
-}
-
-describe('RecipesView security task starters', () => {
+describe('RecipesView built-in security recipes', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    delete (window as unknown as Record<string, unknown>).appConfig;
     (window as unknown as { electron: unknown }).electron = {
       createChatWindow: vi.fn(),
       on: vi.fn(),
@@ -81,7 +76,7 @@ describe('RecipesView security task starters', () => {
         id: 'security-vuln-triage',
         file_path: '/tmp/security-goose/.goose/recipes/security-vuln-triage.yaml',
         recipe: {
-          title: 'Security Vulnerability Triage',
+          title: 'Vulnerability Triage',
           description: 'Triage a vulnerability',
         },
         last_modified: '2026-06-14T00:00:00.000Z',
@@ -96,6 +91,15 @@ describe('RecipesView security task starters', () => {
         last_modified: '2026-06-14T00:00:00.000Z',
       },
       {
+        id: 'ioc-analysis',
+        file_path: '/tmp/security-goose/.goose/recipes/ioc-analysis.yaml',
+        recipe: {
+          title: 'IOC Analysis',
+          description: 'Investigate IOC clues',
+        },
+        last_modified: '2026-06-14T00:00:00.000Z',
+      },
+      {
         id: 'web-investigation',
         file_path: '/tmp/security-goose/.goose/recipes/web-investigation.yaml',
         recipe: {
@@ -104,11 +108,36 @@ describe('RecipesView security task starters', () => {
         },
         last_modified: '2026-06-14T00:00:00.000Z',
       },
+      {
+        id: 'report-writing',
+        file_path: '/tmp/security-goose/.goose/recipes/report-writing.yaml',
+        recipe: {
+          title: 'Report Writing',
+          description: 'Turn findings into a report',
+        },
+        last_modified: '2026-06-14T00:00:00.000Z',
+      },
+      {
+        id: 'wooyun-legacy',
+        file_path: '/tmp/security-goose/.goose/recipes/wooyun-legacy.yaml',
+        recipe: {
+          title: 'WooYun-style Review',
+          description: 'Review business workflows',
+        },
+        last_modified: '2026-06-14T00:00:00.000Z',
+      },
     ]);
-    mocks.startNewSession.mockResolvedValue(undefined);
+    mocks.startAgent.mockResolvedValue({
+      data: {
+        id: 'session-1',
+        recipe: {
+          prompt: 'Recipe prompt',
+        },
+      },
+    });
   });
 
-  it('renders recipe-backed and preview security starters with the expected mappings', async () => {
+  it('renders the six built-in security task templates through the native saved recipes list', async () => {
     render(
       <IntlTestWrapper>
         <RecipesView />
@@ -118,38 +147,23 @@ describe('RecipesView security task starters', () => {
     await waitFor(() => {
       expect(mocks.listSavedRecipes).toHaveBeenCalledTimes(1);
     });
+    await screen.findByText('Vulnerability Triage');
 
-    const section = screen
-      .getByRole('heading', { name: 'Security task starters' })
-      .closest('section');
-
-    expect(section).not.toBeNull();
-
-    const securitySection = within(section as HTMLElement);
-
-    expect(securitySection.getByText('security-vuln-triage')).toBeInTheDocument();
-    expect(securitySection.getByText('alert-investigation')).toBeInTheDocument();
-    expect(securitySection.getByText('web-investigation')).toBeInTheDocument();
-    expect(securitySection.getAllByText('ioc-analysis')).toHaveLength(2);
-    expect(securitySection.getByText('report-writing')).toBeInTheDocument();
-    expect(securitySection.getByText('wooyun-legacy')).toBeInTheDocument();
-
-    expect(securitySection.getAllByRole('button', { name: 'Use recipe' })).toHaveLength(3);
-    expect(securitySection.getAllByRole('button', { name: 'Start guided chat' })).toHaveLength(
-      3
-    );
-    expect(securitySection.getAllByText('Threat Intel').length).toBeGreaterThan(0);
-    expect(securitySection.getAllByText('Browser Assist').length).toBeGreaterThan(0);
-    expect(securitySection.getAllByText('AiseeSec').length).toBeGreaterThan(0);
-    expect(securitySection.getAllByText('Security Gateway').length).toBeGreaterThan(0);
-    expect(securitySection.getAllByText('Local preview').length).toBeGreaterThan(0);
-    expect(securitySection.getAllByText('Disabled stub').length).toBeGreaterThan(0);
-    expect(securitySection.getAllByText('Blocked').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('heading', { name: 'Security task starters' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Open Extensions' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Saved task templates' })).toBeInTheDocument();
+    expect(screen.getByText('Vulnerability Triage')).toBeInTheDocument();
+    expect(screen.getByText('Alert Investigation')).toBeInTheDocument();
+    expect(screen.getByText('IOC Analysis')).toBeInTheDocument();
+    expect(screen.getByText('Web Investigation')).toBeInTheDocument();
+    expect(screen.getByText('Report Writing')).toBeInTheDocument();
+    expect(screen.getByText('WooYun-style Review')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Start task' })).toHaveLength(6);
+    expect(screen.queryByRole('button', { name: 'Start guided chat' })).not.toBeInTheDocument();
+    expect(screen.getByText(/does not show explicit skill-load telemetry/i)).toBeInTheDocument();
   });
 
-  it('opens the existing extensions view from the security starter section', async () => {
-    const user = userEvent.setup();
-
+  it('starts a built-in security task template with the curated starter prompt contract', async () => {
     render(
       <IntlTestWrapper>
         <RecipesView />
@@ -159,49 +173,32 @@ describe('RecipesView security task starters', () => {
     await waitFor(() => {
       expect(mocks.listSavedRecipes).toHaveBeenCalledTimes(1);
     });
+    await screen.findByText('Vulnerability Triage');
 
-    await user.click(screen.getByRole('button', { name: 'Open Extensions' }));
-
-    expect(mocks.setView).toHaveBeenCalledWith('extensions');
-  });
-
-  it('starts preview-only security tasks without a recipeId and shows the preview toast', async () => {
-    const user = userEvent.setup();
-
-    (window as unknown as { electron: unknown }).electron = {
-      createChatWindow: vi.fn(),
-      on: vi.fn(),
-      off: vi.fn(),
-    };
-
-    render(
-      <IntlTestWrapper>
-        <RecipesView />
-      </IntlTestWrapper>
-    );
+    screen.getAllByRole('button', { name: 'Start task' })[0].click();
 
     await waitFor(() => {
-      expect(mocks.listSavedRecipes).toHaveBeenCalledTimes(1);
+      expect(mocks.startAgent).toHaveBeenCalledWith(
+        expect.objectContaining({
+          body: expect.objectContaining({
+            recipe_id: 'security-vuln-triage',
+          }),
+        })
+      );
+      expect(mocks.setView).toHaveBeenCalledWith(
+        'pair',
+        expect.objectContaining({
+          resumeSessionId: 'session-1',
+          initialMessage: {
+            msg: expect.stringContaining('security-vuln-triage recipe'),
+            images: [],
+          },
+        })
+      );
     });
-
-    const iocCard = getTaskCard('IOC Analysis');
-    await user.click(within(iocCard).getByRole('button', { name: 'Start guided chat' }));
-
-    expect(mocks.startNewSession).toHaveBeenCalledWith(
-      expect.stringContaining('IOC clues:'),
-      mocks.setView,
-      '/tmp/security-goose',
-      { recipeId: undefined }
-    );
-    expect(mocks.toastSuccess).toHaveBeenCalledWith(
-      expect.objectContaining({
-        title: 'Preview',
-      })
-    );
   });
 
-  it('opens recipe-backed tasks in a new window through the existing desktop launcher bridge', async () => {
-    const user = userEvent.setup();
+  it('opens built-in security recipes in a new window through the native recipe action', async () => {
     const createChatWindow = vi.fn();
 
     (window as unknown as { electron: unknown }).electron = {
@@ -219,20 +216,24 @@ describe('RecipesView security task starters', () => {
     await waitFor(() => {
       expect(mocks.listSavedRecipes).toHaveBeenCalledTimes(1);
     });
+    await screen.findByText('IOC Analysis');
 
-    const vulnCard = getTaskCard('Vulnerability Triage');
-    await user.click(within(vulnCard).getByRole('button', { name: 'Open in new window' }));
+    const openButtons = screen.getAllByRole('button', { name: 'Open in new window' });
+    openButtons[2].click();
 
-    expect(createChatWindow).toHaveBeenCalledWith(
-      expect.objectContaining({
-        dir: '/tmp/security-goose',
-        recipeId: 'security-vuln-triage',
-        query: expect.stringContaining('security-vuln-triage'),
-      })
-    );
+    await waitFor(() => {
+      expect(createChatWindow).toHaveBeenCalledWith(
+        expect.objectContaining({
+          dir: '/tmp/security-goose',
+          viewType: 'pair',
+          recipeId: 'ioc-analysis',
+          query: expect.stringContaining('ioc-analysis recipe'),
+        })
+      );
+    });
   });
 
-  it('keeps the zh-CN recipes security section copy and task labels stable', async () => {
+  it('keeps the zh-CN Recipes view on the native saved task templates path', async () => {
     render(
       <IntlTestWrapper locale="zh-CN" defaultLocale="zh-CN" messages={toIntlMessages(zhCN)}>
         <RecipesView />
@@ -242,14 +243,12 @@ describe('RecipesView security task starters', () => {
     await waitFor(() => {
       expect(mocks.listSavedRecipes).toHaveBeenCalledTimes(1);
     });
+    await screen.findByText('IOC Analysis');
 
-    expect(screen.getByRole('heading', { name: '安全任务入口' })).toBeInTheDocument();
-    expect(screen.getByText('漏洞研判')).toBeInTheDocument();
-    expect(screen.getByText('告警分析')).toBeInTheDocument();
-    expect(screen.getByText('IOC 研判')).toBeInTheDocument();
-    expect(screen.getByText('网页调查')).toBeInTheDocument();
-    expect(screen.getByText('报告生成')).toBeInTheDocument();
-    expect(screen.getByText('业务逻辑排查')).toBeInTheDocument();
-    expect(screen.getAllByText('推荐扩展').length).toBeGreaterThan(0);
+    expect(screen.queryByRole('heading', { name: '安全任务入口' })).not.toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: '已保存任务模板' })).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: '启动任务' })).toHaveLength(6);
+    expect(screen.queryByRole('button', { name: '启动引导对话' })).not.toBeInTheDocument();
+    expect(screen.getByText(/还不能显式显示技能加载遥测/)).toBeInTheDocument();
   });
 });

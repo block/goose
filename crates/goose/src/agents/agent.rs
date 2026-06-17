@@ -2126,41 +2126,44 @@ impl Agent {
                                     .collect();
 
                                 for request in frontend_requests.iter().chain(remaining_requests.iter()) {
-                                    if request.tool_call.is_ok() {
-                                        let mut request_msg = Message::assistant()
-                                            .with_id(format!("msg_{}", Uuid::new_v4()));
+                                    match request.tool_call.as_ref() {
+                                        Ok(tool_call) => {
+                                            let mut request_msg = Message::assistant()
+                                                .with_id(format!("msg_{}", Uuid::new_v4()));
 
-                                        // Providers like Kimi require reasoning_content on all assistant
-                                        // messages with tool_calls when thinking mode is enabled.
-                                        for rc in &reasoning_content {
-                                            request_msg = request_msg.with_content(rc.clone());
+                                            // Providers like Kimi require reasoning_content on all assistant
+                                            // messages with tool_calls when thinking mode is enabled.
+                                            for rc in &reasoning_content {
+                                                request_msg = request_msg.with_content(rc.clone());
+                                            }
+
+                                            request_msg = request_msg
+                                                .with_tool_request_with_metadata(
+                                                    request.id.clone(),
+                                                    Ok(tool_call.clone()),
+                                                    request.metadata.as_ref(),
+                                                    request.tool_meta.clone(),
+                                                );
+                                            messages_to_add.push(request_msg);
+                                            let final_response = request_to_response_map
+                                                .remove(&request.id)
+                                                .unwrap_or_else(|| Message::user().with_generated_id());
+                                            yield AgentEvent::Message(final_response.clone());
+                                            messages_to_add.push(final_response);
                                         }
-
-                                        request_msg = request_msg
-                                            .with_tool_request_with_metadata(
-                                                request.id.clone(),
-                                                request.tool_call.clone(),
-                                                request.metadata.as_ref(),
-                                                request.tool_meta.clone(),
+                                        Err(err) => {
+                                            error!(
+                                                "Tool call could not be parsed: {}",
+                                                err,
                                             );
-                                        messages_to_add.push(request_msg);
-                                        let final_response = request_to_response_map
-                                            .remove(&request.id)
-                                            .unwrap_or_else(|| Message::user().with_generated_id());
-                                        yield AgentEvent::Message(final_response.clone());
-                                        messages_to_add.push(final_response);
-                                    } else {
-                                        error!(
-                                            "Tool call could not be parsed: {}",
-                                            request.tool_call.as_ref().unwrap_err(),
-                                        );
-                                        yield AgentEvent::Message(
-                                            Message::assistant().with_text(
-                                                "A tool call could not be parsed — the response may have been truncated. Try breaking the task into smaller steps or resending your message."
-                                            )
-                                        );
-                                        exit_chat = true;
-                                        break;
+                                            yield AgentEvent::Message(
+                                                Message::assistant().with_text(
+                                                    "A tool call could not be parsed — the response may have been truncated. Try breaking the task into smaller steps or resending your message."
+                                                )
+                                            );
+                                            exit_chat = true;
+                                            break;
+                                        }
                                     }
                                 }
 

@@ -1,0 +1,701 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>JWT 检查台 · JWT Inspector</title>
+  <script type="application/ld+json">
+    {
+      "@context": "https://goose.ai/schema",
+      "@type": "GooseApp",
+      "name": "jwt-inspector",
+      "description": "Decode JWT structure and claims locally for quick security review.",
+      "width": 1040,
+      "height": 780,
+      "resizable": true
+    }
+  </script>
+  <script type="application/x-goose-prd">
+    # JWT Inspector / JWT 检查台
+
+    面向认证、API 和 IAM 场景的本地离线 token 结构检查工具。
+
+    ## Core behavior
+    - 接收 Bearer token 或原始 JWT
+    - 解码 base64url 头部和 payload
+    - 渲染时间字段与风险提示
+    - 标记未签名、过期、缺少关键 claims、结构异常等问题
+    - 支持复制头部、payload 和结构化报告
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --line: #d7dde5;
+      --text: #101820;
+      --muted: #5b6673;
+      --accent: #0f62fe;
+      --pill: #eef2f6;
+      --danger: #da1e28;
+      --warning: #8a3ffc;
+      --warning-soft: rgba(138, 63, 252, 0.1);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: #ffffff; color: var(--text); }
+    body { display: grid; grid-template-rows: auto 1fr; }
+
+    header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #ffffff;
+    }
+
+    h1 { margin: 0; font-size: 22px; font-weight: 650; }
+    header p { margin: 8px 0 0; color: var(--muted); font-size: 13px; line-height: 1.5; }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(360px, 0.95fr) minmax(460px, 1.2fr);
+      min-height: 0;
+      background: #ffffff;
+    }
+
+    .pane {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      padding: 16px 18px 18px;
+    }
+
+    .pane + .pane {
+      border-left: 1px solid var(--line);
+    }
+
+    .pane h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 650;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 300px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px 14px;
+      background: #ffffff;
+      color: var(--text);
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(15, 98, 254, 0.12);
+    }
+
+    .actions, .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .actions { margin-top: 12px; }
+
+    button {
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    button.primary { background: var(--accent); color: #fff; }
+    button.secondary {
+      background: var(--pill);
+      color: var(--text);
+      border-color: rgba(16, 24, 32, 0.06);
+    }
+
+    .meta {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.5;
+    }
+
+    .status {
+      margin-top: 10px;
+      min-height: 18px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .status.error { color: var(--danger); }
+
+    .lead {
+      padding: 0 0 12px;
+      border-bottom: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 14px 18px;
+      padding: 12px 0;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .summary-item {
+      min-width: 92px;
+    }
+
+    .summary-item .label {
+      display: block;
+      font-size: 12px;
+      color: var(--muted);
+      line-height: 1.35;
+    }
+
+    .summary-item strong {
+      display: block;
+      margin-top: 4px;
+      font-size: 18px;
+      line-height: 1.1;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .groups {
+      display: flex;
+      flex: 1 1 auto;
+      flex-direction: column;
+      min-height: 0;
+      overflow: auto;
+      padding-top: 12px;
+    }
+
+    .result-section {
+      padding: 14px 0 16px;
+      border-top: 1px solid var(--line);
+      flex: 0 0 auto;
+    }
+
+    .result-section:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .result-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto auto;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .result-title {
+      font-size: 15px;
+      font-weight: 650;
+    }
+
+    .result-count,
+    .result-severity {
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .result-count {
+      color: var(--muted);
+    }
+
+    .result-severity-high {
+      color: var(--danger);
+    }
+
+    .result-severity-medium {
+      color: var(--warning);
+    }
+
+    .result-body {
+      display: flex;
+      flex-direction: column;
+      margin-top: 10px;
+    }
+
+    .result-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 12px;
+      align-items: start;
+      padding: 10px 0;
+      border-top: 1px solid #eef2f6;
+    }
+
+    .result-row:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+
+    .result-value {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .result-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      justify-content: flex-end;
+    }
+
+    .warning-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .warning-list li {
+      padding: 10px 0 10px 12px;
+      border-left: 3px solid rgba(138, 63, 252, 0.55);
+      background: transparent;
+      color: var(--warning);
+      border-radius: 0;
+    }
+
+    .warning-list li + li {
+      margin-top: 8px;
+    }
+
+    .timing-list {
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .timing-list li + li {
+      margin-top: 8px;
+    }
+
+    .json-view {
+      margin: 0;
+      padding: 12px 14px;
+      border: 1px solid #eef2f6;
+      border-radius: 6px;
+      background: #fafbfd;
+      white-space: pre-wrap;
+      word-break: break-word;
+      overflow-wrap: anywhere;
+      font: 12px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+      max-height: 260px;
+      overflow: auto;
+    }
+
+    .empty {
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 18px 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      background: transparent;
+    }
+
+    .token-copy-bar {
+      padding: 12px 0 2px;
+    }
+
+    .signature-preview {
+      color: var(--muted);
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    @media (max-width: 1100px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+
+      .pane + .pane {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .result-header,
+      .result-row {
+        grid-template-columns: 1fr;
+      }
+
+      .result-actions {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>JWT 检查台</h1>
+    <p>粘贴 Bearer token 或原始 JWT，本地解析 header、payload 和时间字段。适合认证排查、API 调试、IAM/网关核对，以及快速识别未签名、过期或结构异常 token。</p>
+  </header>
+  <div class="workspace">
+    <section class="pane">
+      <h2>Token 输入</h2>
+      <textarea id="tokenInput" spellcheck="false" placeholder="在这里粘贴 Bearer token 或原始 JWT。支持较长 token、代理日志里的 Authorization 片段和多行工单备注中的 token 文本。"></textarea>
+      <div class="actions">
+        <button class="primary" id="inspectBtn">分析 Token</button>
+        <button class="secondary" id="loadDemoBtn">载入演示样例</button>
+        <button class="secondary" id="clearBtn">清空</button>
+      </div>
+      <div class="meta">当前只做本地结构检查，不验证签名真伪，也不请求远端 JWKS。适合做“先看结构、再决定是否深挖”的第一步分析。</div>
+      <div class="status" id="status"></div>
+    </section>
+
+    <section class="pane">
+      <div class="lead">输出重点面向中文安全工作流：快速判断 token 是否未签名、是否过期、是否缺少关键 claims，以及 header / payload 里是否有异常认证字段，便于后续写工单或接入任务模板。</div>
+      <div class="summary" id="summary"></div>
+      <div class="toolbar token-copy-bar">
+        <button class="secondary" data-copy="report">复制结构化结果</button>
+      </div>
+      <div class="groups" id="blocks">
+        <div class="empty">分析一个 token 后，这里会显示 header、payload、时间字段和风险提示。</div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const tokenInput = document.getElementById('tokenInput');
+    const summaryEl = document.getElementById('summary');
+    const blocksEl = document.getElementById('blocks');
+    const statusEl = document.getElementById('status');
+
+    const DEMO_TOKEN = 'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJpc3MiOiJodHRwczovL2FwaS5zZWN1cml0eS1nb29zZS5jbiIsInN1YiI6ImFuYWx5c3Qtcm9vdCIsImF1ZCI6Imdvb3NlLWRlc2t0b3AiLCJpYXQiOjE2MDAwMDAwMDAsIm5iZiI6MTYwMDAwMDAwMCwiZXhwIjoxNjAwMDAzNjAwLCJyb2xlIjoiYW5hbHlzdCJ9.';
+    let lastReport = null;
+
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.className = isError ? 'status error' : 'status';
+    }
+
+    function escapeHtml(value) {
+      return value
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+    }
+
+    async function copyText(text, successMessage) {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          setStatus(successMessage);
+          return true;
+        }
+      } catch {}
+
+      const fallback = document.createElement('textarea');
+      fallback.value = text;
+      fallback.setAttribute('readonly', 'true');
+      fallback.style.position = 'fixed';
+      fallback.style.opacity = '0';
+      fallback.style.left = '-9999px';
+      document.body.appendChild(fallback);
+      fallback.select();
+
+      try {
+        const copied = document.execCommand('copy');
+        if (!copied) {
+          throw new Error('copy failed');
+        }
+        setStatus(successMessage);
+        return true;
+      } catch {
+        setStatus('当前环境无法访问系统剪贴板，请手动复制。', true);
+        return false;
+      } finally {
+        document.body.removeChild(fallback);
+      }
+    }
+
+    function base64UrlToBytes(input) {
+      const normalized = input.replace(/-/g, '+').replace(/_/g, '/');
+      const padded = normalized + '='.repeat((4 - (normalized.length % 4 || 4)) % 4);
+      const binary = atob(padded);
+      const bytes = new Uint8Array(binary.length);
+      for (let index = 0; index < binary.length; index += 1) {
+        bytes[index] = binary.charCodeAt(index);
+      }
+      return bytes;
+    }
+
+    function parseJsonSegment(segment) {
+      const decoded = new TextDecoder().decode(base64UrlToBytes(segment));
+      return {
+        decoded,
+        json: JSON.parse(decoded)
+      };
+    }
+
+    function toPrettyJson(value) {
+      return JSON.stringify(value, null, 2);
+    }
+
+    function formatEpoch(value) {
+      if (typeof value !== 'number') return '—';
+      const date = new Date(value * 1000);
+      if (Number.isNaN(date.getTime())) return '无效时间';
+      return `${date.toLocaleString('zh-CN', { hour12: false })} (${value})`;
+    }
+
+    function inspectToken(rawValue) {
+      const warnings = [];
+      const cleaned = rawValue.replace(/^Bearer\s+/i, '').trim();
+      const parts = cleaned.split('.');
+
+      if (parts.length !== 3) {
+        throw new Error('JWT 必须由 3 段以点分隔的内容组成。');
+      }
+
+      const header = parseJsonSegment(parts[0]);
+      const payload = parseJsonSegment(parts[1]);
+      const algorithm = header.json.alg || 'unknown';
+      const signatureLength = parts[2].length;
+
+      if (algorithm === 'none') {
+        warnings.push('alg=none，属于未签名 token。');
+      }
+      if (signatureLength === 0) {
+        warnings.push('签名段为空，当前 token 不能视为已签名。');
+      }
+      if (!payload.json.exp) {
+        warnings.push('缺少 exp claim，无法直接判断过期时间。');
+      }
+      if (!payload.json.iss) {
+        warnings.push('缺少 iss claim，无法直接确认签发方。');
+      }
+      if (!payload.json.sub) {
+        warnings.push('缺少 sub claim，无法直接确认主体。');
+      }
+      if (!payload.json.aud) {
+        warnings.push('缺少 aud claim，请确认 token 是否限制了受众。');
+      }
+      if (header.json.typ && String(header.json.typ).toUpperCase() !== 'JWT') {
+        warnings.push(`typ=${header.json.typ}，请确认这是否符合预期 token 类型。`);
+      }
+      if (typeof payload.json.exp === 'number' && payload.json.exp * 1000 < Date.now()) {
+        warnings.push('exp 已过期。');
+      }
+      if (typeof payload.json.nbf === 'number' && payload.json.nbf * 1000 > Date.now()) {
+        warnings.push('nbf 晚于当前时间，token 可能尚未生效。');
+      }
+
+      return {
+        summary: {
+          algorithm,
+          subject: payload.json.sub || '—',
+          issuer: payload.json.iss || '—',
+          audience: payload.json.aud || '—',
+          signatureLength
+        },
+        signature: {
+          raw: parts[2],
+          length: signatureLength,
+          status:
+            signatureLength === 0
+              ? '未签名'
+              : algorithm === 'none'
+                ? '声明 alg=none，但仍携带签名段'
+                : '已携带签名段',
+          preview:
+            signatureLength === 0
+              ? '当前第三段为空。'
+              : parts[2].length > 88
+                ? `${parts[2].slice(0, 44)}…${parts[2].slice(-20)}`
+                : parts[2]
+        },
+        header: header.json,
+        payload: payload.json,
+        warnings,
+        timeClaims: {
+          iat: typeof payload.json.iat === 'number' ? payload.json.iat : null,
+          nbf: typeof payload.json.nbf === 'number' ? payload.json.nbf : null,
+          exp: typeof payload.json.exp === 'number' ? payload.json.exp : null
+        }
+      };
+    }
+
+    function renderInspection(report) {
+      summaryEl.innerHTML = [
+        ['算法', report.summary.algorithm],
+        ['主题', report.summary.subject],
+        ['签发方', report.summary.issuer],
+        ['受众', report.summary.audience],
+        ['签名长度', report.summary.signatureLength]
+      ].map(([label, value]) => `
+        <div class="summary-item">
+          <span class="label">${label}</span>
+          <strong>${escapeHtml(String(value))}</strong>
+        </div>
+      `).join('');
+
+      const severityClass = report.warnings.length ? 'result-severity-high' : 'result-severity-medium';
+      const severityLabel = report.warnings.length ? '需复核' : '结构正常';
+      const warningsBlock = report.warnings.length
+        ? `
+          <ul class="warning-list">${report.warnings.map((warning) => `<li>${escapeHtml(warning)}</li>`).join('')}</ul>
+        `
+        : '<div class="result-row"><div class="result-value">当前没有额外结构风险提示。</div></div>';
+
+      const timeRows = ['iat', 'nbf', 'exp']
+        .filter((claim) => report.timeClaims[claim] !== null)
+        .map((claim) => `
+          <li class="result-row">
+            <div class="result-value"><strong>${claim}</strong>: ${escapeHtml(formatEpoch(report.timeClaims[claim]))}</div>
+          </li>
+        `)
+        .join('');
+
+      const signatureSeverityClass =
+        report.signature.length === 0 || report.summary.algorithm === 'none'
+          ? 'result-severity-high'
+          : 'result-severity-medium';
+      const signatureSeverityLabel =
+        report.signature.length === 0 || report.summary.algorithm === 'none'
+          ? '需复核'
+          : '已携带签名段';
+
+      blocksEl.innerHTML = `
+        <section class="result-section">
+          <div class="result-header">
+            <div class="result-title">风险提示</div>
+            <div class="result-count">${report.warnings.length} 条</div>
+            <div class="result-severity ${severityClass}">${severityLabel}</div>
+          </div>
+          <div class="result-body">
+            ${warningsBlock}
+          </div>
+        </section>
+        <section class="result-section">
+          <div class="result-header">
+            <div class="result-title">时间字段</div>
+            <div class="result-count">${timeRows ? '已识别' : '未识别'}</div>
+            <div class="result-severity ${report.timeClaims.exp ? 'result-severity-medium' : 'result-severity-high'}">${report.timeClaims.exp ? '含 exp' : '缺少 exp'}</div>
+          </div>
+          <div class="result-body">
+            ${timeRows ? `<ul class="timing-list">${timeRows}</ul>` : '<div class="result-row"><div class="result-value">当前 payload 没有 iat / nbf / exp 时间字段。</div></div>'}
+          </div>
+        </section>
+        <section class="result-section">
+          <div class="result-header">
+            <div class="result-title">签名状态</div>
+            <div class="result-count">${report.signature.length} 字符</div>
+            <div class="result-actions">
+              <div class="result-severity ${signatureSeverityClass}">${signatureSeverityLabel}</div>
+              <button class="secondary" data-copy="signature">复制签名段</button>
+            </div>
+          </div>
+          <div class="result-body">
+            <div class="result-row">
+              <div class="result-value">
+                <strong>状态</strong>: ${escapeHtml(report.signature.status)}
+              </div>
+            </div>
+            <div class="result-row">
+              <div class="result-value signature-preview">
+                <strong>片段预览</strong>: ${escapeHtml(report.signature.preview)}
+              </div>
+            </div>
+          </div>
+        </section>
+        <section class="result-section">
+          <div class="result-header">
+            <div class="result-title">Header</div>
+            <div class="result-count">${Object.keys(report.header).length} 项</div>
+            <div class="result-actions"><button class="secondary" data-copy="header">复制 JSON</button></div>
+          </div>
+          <div class="result-body">
+            <pre class="json-view">${escapeHtml(toPrettyJson(report.header))}</pre>
+          </div>
+        </section>
+        <section class="result-section">
+          <div class="result-header">
+            <div class="result-title">Payload</div>
+            <div class="result-count">${Object.keys(report.payload).length} 项</div>
+            <div class="result-actions"><button class="secondary" data-copy="payload">复制 JSON</button></div>
+          </div>
+          <div class="result-body">
+            <pre class="json-view">${escapeHtml(toPrettyJson(report.payload))}</pre>
+          </div>
+        </section>
+      `;
+
+      blocksEl.querySelectorAll('[data-copy]').forEach((button) => {
+        button.addEventListener('click', async () => {
+          const key = button.getAttribute('data-copy');
+          let text = '';
+          let successMessage = '已复制结构化结果。';
+
+          if (key === 'header') {
+            text = toPrettyJson(report.header);
+            successMessage = '已复制 Header JSON。';
+          } else if (key === 'payload') {
+            text = toPrettyJson(report.payload);
+            successMessage = '已复制 Payload JSON。';
+          } else if (key === 'signature') {
+            text = report.signature.raw;
+            successMessage = '已复制签名段。';
+          } else {
+            text = JSON.stringify(report, null, 2);
+          }
+
+          await copyText(text, successMessage);
+        });
+      });
+    }
+
+    function inspectCurrentToken() {
+      const value = tokenInput.value.trim();
+      if (!value) {
+        setStatus('请先粘贴 token，再开始分析。', true);
+        return;
+      }
+
+      try {
+        lastReport = inspectToken(value);
+        renderInspection(lastReport);
+        setStatus('已在本地解析 token 结构，可继续复制结果或进入更深入的认证调查。');
+      } catch (error) {
+        lastReport = null;
+        summaryEl.innerHTML = '';
+        blocksEl.innerHTML = '<div class="empty">当前 token 无法被解析，请检查 JWT 结构、base64url 内容和点分段数量。</div>';
+        setStatus(error.message || 'Token 分析失败。', true);
+      }
+    }
+
+    document.getElementById('inspectBtn').addEventListener('click', inspectCurrentToken);
+    document.getElementById('loadDemoBtn').addEventListener('click', () => {
+      tokenInput.value = DEMO_TOKEN;
+      inspectCurrentToken();
+    });
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      tokenInput.value = '';
+      lastReport = null;
+      summaryEl.innerHTML = '';
+      blocksEl.innerHTML = '<div class="empty">分析一个 token 后，这里会显示 header、payload、时间字段和风险提示。</div>';
+      setStatus('已清空 token 输入。');
+    });
+
+    document.querySelector('[data-copy="report"]').addEventListener('click', async () => {
+      if (!lastReport) {
+        setStatus('请先分析 token，再复制结构化结果。', true);
+        return;
+      }
+
+      await copyText(JSON.stringify(lastReport, null, 2), '已复制结构化结果。');
+    });
+  </script>
+</body>
+</html>

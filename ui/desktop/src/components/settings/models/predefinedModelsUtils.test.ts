@@ -4,6 +4,8 @@ import {
   getConfiguredDefaultPredefinedModel,
   getPredefinedModelsFromEnv,
   getProviderDisplayName,
+  getSingleProviderCatalogLabel,
+  isSingleProviderCatalogMode,
 } from './predefinedModelsUtils';
 
 function mockAppConfig(values: Record<string, unknown>) {
@@ -23,10 +25,10 @@ const PREDEFINED_MODELS = JSON.stringify([
   },
   {
     id: 1,
-    name: 'deepseek-v4-pro',
+    name: 'deepseek-v4-flash',
     provider: 'openai',
-    alias: 'DeepSeek V4 Pro',
-    subtext: '强推理',
+    alias: 'DeepSeek V4 Flash',
+    subtext: '低延迟',
   },
 ]);
 
@@ -42,21 +44,21 @@ describe('predefinedModelsUtils', () => {
 
     expect(getPredefinedModelsFromEnv().map((model) => model.name)).toEqual([
       'auto',
-      'deepseek-v4-pro',
+      'deepseek-v4-flash',
     ]);
   });
 
   it('returns the configured default predefined model from desktop defaults', () => {
     mockAppConfig({
       GOOSE_DEFAULT_PROVIDER: 'openai',
-      GOOSE_DEFAULT_MODEL: 'auto',
+      GOOSE_DEFAULT_MODEL: 'deepseek-v4-flash',
       GOOSE_PREDEFINED_MODELS: PREDEFINED_MODELS,
     });
 
     expect(getConfiguredDefaultPredefinedModel()).toMatchObject({
-      name: 'auto',
+      name: 'deepseek-v4-flash',
       provider: 'openai',
-      alias: 'Auto',
+      alias: 'DeepSeek V4 Flash',
     });
   });
 
@@ -77,5 +79,23 @@ describe('predefinedModelsUtils', () => {
     });
 
     expect(getProviderDisplayName('auto')).toBe('TokenPlan');
+  });
+
+  it('uses the auto catalog entry as the single-provider label', () => {
+    mockAppConfig({
+      GOOSE_DEFAULT_PROVIDER: 'openai',
+      GOOSE_PREDEFINED_MODELS: PREDEFINED_MODELS,
+    });
+
+    expect(getSingleProviderCatalogLabel()).toBe('TokenPlan');
+  });
+
+  it('detects when the predefined model catalog is pinned to a single provider', () => {
+    mockAppConfig({
+      GOOSE_DEFAULT_PROVIDER: 'openai',
+      GOOSE_PREDEFINED_MODELS: PREDEFINED_MODELS,
+    });
+
+    expect(isSingleProviderCatalogMode()).toBe(true);
   });
 });

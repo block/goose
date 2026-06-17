@@ -10,7 +10,7 @@ const i18n = defineMessages({
   },
   gooseWouldLikeToCallWithName: {
     id: 'toolConfirmation.gooseWouldLikeToCallWithName',
-    defaultMessage: 'Goose would like to call {toolName}. Allow?',
+    defaultMessage: 'The assistant would like to call {toolName}. Allow?',
   },
 });
 
