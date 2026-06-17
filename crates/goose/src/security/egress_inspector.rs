@@ -287,6 +287,7 @@ fn is_web_tool(name: &str) -> bool {
         "web_fetch" | "fetch" | "browser_navigate" | "http_request"
     ) || name.ends_with("__web_fetch")
         || name.ends_with("__fetch")
+        || name.ends_with("__extract")
         || name.ends_with("__browser_navigate")
 }
 
@@ -296,12 +297,24 @@ fn extract_text_for_inspection(
 ) -> Option<String> {
     let args = tool_call.arguments.as_ref()?;
     let keys: &[&str] = if is_web {
-        &["url", "uri", "endpoint"]
+        &["url", "uri", "endpoint", "urls"]
     } else {
         &["command", "cmd", "script", "input"]
     };
-    keys.iter()
-        .find_map(|k| args.get(*k).and_then(|v| v.as_str()).map(|s| s.to_string()))
+    keys.iter().find_map(|k| {
+        args.get(*k).and_then(|v| match v {
+            serde_json::Value::String(s) => Some(s.clone()),
+            serde_json::Value::Array(items) => {
+                let joined = items
+                    .iter()
+                    .filter_map(|i| i.as_str())
+                    .collect::<Vec<_>>()
+                    .join(" ");
+                (!joined.is_empty()).then_some(joined)
+            }
+            _ => None,
+        })
+    })
 }
 
 #[async_trait]
@@ -390,6 +403,17 @@ impl ToolInspector for EgressInspector {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_is_web_tool() {
+        assert!(is_web_tool("fetch"));
+        assert!(is_web_tool("web_fetch"));
+        assert!(is_web_tool("sofya__fetch"));
+        assert!(is_web_tool("sofya__extract"));
+        // Query-only tools carry no destination, so they are not egress-inspected.
+        assert!(!is_web_tool("sofya__search"));
+        assert!(!is_web_tool("developer__shell"));
+    }
 
     #[test]
     fn test_extract_destinations() {
