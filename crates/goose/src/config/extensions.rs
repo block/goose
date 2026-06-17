@@ -482,6 +482,7 @@ extensions:
                 envs: Default::default(),
                 env_keys: Vec::new(),
                 timeout: Some(120),
+                cwd: None,
                 bundled: None,
                 available_tools: vec!["run".to_string()],
             },
