@@ -86,7 +86,7 @@ jobs:
           - platform: windows
             architecture: x86_64
             target-suffix: pc-windows-msvc
-            build-on: windows-latest
+            build-on: windows-2022
             variant: cuda
 
     steps:

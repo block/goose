@@ -66,6 +66,7 @@ interface CacheInputs {
   runnerHash: string;
   binaryHash: string;
   mcpHarnessHash: string;
+  timeoutMs: number;
 }
 
 interface CacheEntry {
@@ -86,6 +87,21 @@ interface CacheIndex {
   version: number;
   entries: Record<string, CacheEntry>;
 }
+
+// =============================================================================
+// Agent timeout
+// =============================================================================
+// Per-invocation timeout for an agent run, in milliseconds. Larger local models
+// can exceed the old fixed 5-minute cap on heavier scenarios and get killed
+// mid-task (recorded as a failure rather than a timeout). Override the cap with
+// GYM_AGENT_TIMEOUT (seconds) or --agent-timeout=<seconds>; default 300s.
+const AGENT_TIMEOUT_MS = (() => {
+  const flag = process.argv
+    .find((a) => a.startsWith("--agent-timeout="))
+    ?.split("=")[1];
+  const secs = parseInt(flag ?? process.env.GYM_AGENT_TIMEOUT ?? "", 10);
+  return (Number.isFinite(secs) && secs > 0 ? secs : 300) * 1000;
+})();
 
 // =============================================================================
 // Cache Utilities
@@ -180,10 +196,15 @@ function computeCacheKey(pair: TestPair, binaryHashes: Map<string, string>, mcpH
     runnerHash,
     binaryHash,
     mcpHarnessHash,
+    timeoutMs: AGENT_TIMEOUT_MS,
   };
 
-  // Combine all into single key
-  const key = sha256(scenarioHash + modelKey + runnerHash + binaryHash + mcpHarnessHash);
+  // Combine all into single key. The timeout is included so a result cached
+  // under a short timeout (e.g. a 300s ETIMEDOUT) isn't reused when the run is
+  // retried with a larger GYM_AGENT_TIMEOUT.
+  const key = sha256(
+    scenarioHash + modelKey + runnerHash + binaryHash + mcpHarnessHash + AGENT_TIMEOUT_MS,
+  );
 
   return { key, inputs };
 }
@@ -385,7 +406,7 @@ async function runGooseAgent(
       GOOSE_PATH_ROOT: GOOSE_ROOT,
       MCP_HARNESS_LOG: join(workdir, "tool-calls.log"),
     },
-    timeout: 5 * 60 * 1000,
+    timeout: AGENT_TIMEOUT_MS,
     encoding: "utf-8",
   });
 
@@ -479,7 +500,7 @@ async function runOpenCodeAgent(
       XDG_CONFIG_HOME: OPENCODE_ROOT,
       XDG_DATA_HOME: OPENCODE_ROOT,
     },
-    timeout: 5 * 60 * 1000,
+    timeout: AGENT_TIMEOUT_MS,
     encoding: "utf-8",
     shell: "/bin/bash",
   });
@@ -644,7 +665,7 @@ async function runPiAgent(
       PI_CODING_AGENT_DIR: PI_CONFIG_DIR,  // Use isolated config dir
       MCP_HARNESS_LOG: join(workdir, "tool-calls.log"),
     },
-    timeout: 5 * 60 * 1000,
+    timeout: AGENT_TIMEOUT_MS,
     encoding: "utf-8",
     shell: "/bin/bash",
   });

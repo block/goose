@@ -6,7 +6,7 @@ impl GooseAcpAgent {
         req: ReadResourceRequest,
     ) -> Result<ReadResourceResponse, agent_client_protocol::Error> {
         let session_id = &req.session_id;
-        let agent = self.get_session_agent(&req.session_id, None).await?;
+        let agent = self.get_session_agent(&req.session_id).await?;
         let cancel_token = CancellationToken::new();
         let result = agent
             .extension_manager

@@ -715,6 +715,12 @@ pub fn get_usage(usage: &Value) -> Usage {
     let cache_read_input_tokens = usage
         .get("cache_read_input_tokens")
         .and_then(|v| v.as_i64())
+        .or_else(|| {
+            usage
+                .get("prompt_tokens_details")
+                .and_then(|d| d.get("cached_tokens"))
+                .and_then(|v| v.as_i64())
+        })
         .map(|v| v as i32);
 
     let cache_write_input_tokens = usage
@@ -2478,31 +2484,17 @@ mod tests {
     }
 
     #[test]
-    fn test_get_usage_preserves_provider_totals_with_cache_fields() {
-        let usage = get_usage(&json!({
-            "prompt_tokens": 120,
-            "completion_tokens": 30,
-            "total_tokens": 150,
-            "cache_read_input_tokens": 80,
-            "cache_creation_input_tokens": 20
-        }));
-
-        assert_eq!(usage.input_tokens, Some(120));
-        assert_eq!(usage.output_tokens, Some(30));
-        assert_eq!(usage.total_tokens, Some(150));
-        assert_eq!(usage.cache_read_input_tokens, Some(80));
-        assert_eq!(usage.cache_write_input_tokens, Some(20));
-    }
-
-    #[test]
-    fn test_get_usage_reads_nested_usage_object() {
+    fn test_get_usage_reads_nested_usage_with_cache_fields() {
         let usage = get_usage(&json!({
             "id": "chatcmpl_test",
+            "object": "chat.completion",
             "usage": {
                 "prompt_tokens": 84,
                 "completion_tokens": 21,
                 "total_tokens": 105,
-                "cache_read_input_tokens": 60,
+                "prompt_tokens_details": {
+                    "cached_tokens": 60
+                },
                 "cache_creation_input_tokens": 10
             }
         }));

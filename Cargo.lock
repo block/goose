@@ -1160,7 +1160,7 @@ dependencies = [
  "quote",
  "regex",
  "rustc-hash 2.1.2",
- "shlex",
+ "shlex 1.3.0",
  "syn 2.0.117",
 ]
 
@@ -1932,7 +1932,7 @@ dependencies = [
  "find-msvc-tools",
  "jobserver",
  "libc",
- "shlex",
+ "shlex 1.3.0",
 ]
 
 [[package]]
@@ -4618,7 +4618,7 @@ dependencies = [
  "sys-info",
  "tempfile",
  "test-case",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tiktoken-rs",
  "tokenizers",
  "tokio",
@@ -4700,7 +4700,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "sha2 0.11.0",
- "shlex",
+ "shlex 2.0.1",
  "sigstore-verify",
  "strum 0.28.0",
  "tar",
@@ -4764,7 +4764,7 @@ dependencies = [
  "serde_json",
  "tempfile",
  "test-case",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
  "tracing",
@@ -4829,7 +4829,7 @@ dependencies = [
  "serde_path_to_error",
  "serde_yaml",
  "socket2",
- "thiserror 1.0.69",
+ "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
  "tokio-tungstenite 0.29.0",
@@ -7316,7 +7316,7 @@ dependencies = [
  "rmcp",
  "serde",
  "serde_json",
- "shlex",
+ "shlex 1.3.0",
  "thiserror 2.0.18",
  "tokio",
  "tonic",
@@ -9167,6 +9167,12 @@ name = "shlex"
 version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0fda2ff0d084019ba4d7c6f371c95d8fd75ce3524c3cb8fb653a3023f6323e64"
+
+[[package]]
+name = "shlex"
+version = "2.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
 name = "signal-hook-registry"

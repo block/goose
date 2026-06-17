@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { shouldShowNewChatTitle } from '../sessions';
-import { getSessionDisplayName, prependUnique } from '../hooks/useNavigationSessions';
+import { getSessionDisplayName, shouldShowNewChatTitle } from '../sessions';
+import { prependUnique } from '../hooks/useNavigationSessions';
 import type { Session } from '../api';
 import type { SessionListItem } from '../acp/sessions';
 
