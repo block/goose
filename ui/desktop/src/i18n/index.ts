@@ -15,7 +15,7 @@
 export { defineMessages, useIntl } from 'react-intl';
 
 /** The set of locales that have translation catalogs. */
-export const SUPPORTED_LOCALES = ['en', 'hi', 'ja', 'ru', 'tr', 'zh-CN'] as const;
+export const SUPPORTED_LOCALES = ['en', 'es', 'hi', 'ja', 'ru', 'tr', 'zh-CN'] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 const SUPPORTED_LOCALE_SET = new Set<string>(SUPPORTED_LOCALES);
 

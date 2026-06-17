@@ -4100,6 +4100,9 @@
   "settings.language.russian": {
     "defaultMessage": "Russian"
   },
+  "settings.language.spanish": {
+    "defaultMessage": "Spanish"
+  },
   "settings.language.systemDefault": {
     "defaultMessage": "System Default"
   },

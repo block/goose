@@ -171,6 +171,7 @@ const STARTUP_LOGS_DIR = path.join(app.getPath('userData'), 'logs', 'startup');
 const validLanguageSettings = new Set<Settings['language']>([
   'system',
   'en',
+  'es',
   'hi',
   'ja',
   'ru',
