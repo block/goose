@@ -833,6 +833,50 @@ mod tests {
     }
 
     #[test]
+    fn test_iflytek_json_deserializes() {
+        let json = include_str!("../providers/declarative/iflytek.json");
+        let config: DeclarativeProviderConfig =
+            serde_json::from_str(json).expect("iflytek.json should parse");
+        assert_eq!(config.name, "iflytek");
+        assert_eq!(config.display_name, "iFlytek Spark");
+        assert!(matches!(config.engine, ProviderEngine::OpenAI));
+        assert_eq!(config.api_key_env, "SPARK_API_PASSWORD");
+        assert_eq!(config.base_url, "https://spark-api-open.xf-yun.com/v1");
+        assert_eq!(config.dynamic_models, Some(false));
+        assert!(config.skip_canonical_filtering);
+        assert_eq!(config.supports_streaming, Some(true));
+        assert!(config.models.iter().any(|m| m.name == "4.0Ultra"));
+        assert!(config.models.iter().any(|m| m.name == "lite"));
+    }
+
+    #[test]
+    fn test_iflytek_astron_json_deserializes() {
+        let json = include_str!("../providers/declarative/iflytek_astron.json");
+        let config: DeclarativeProviderConfig =
+            serde_json::from_str(json).expect("iflytek_astron.json should parse");
+        assert_eq!(config.name, "iflytek_astron");
+        assert_eq!(config.display_name, "iFlytek Astron MaaS");
+        assert!(matches!(config.engine, ProviderEngine::OpenAI));
+        assert_eq!(config.api_key_env, "ASTRON_API_KEY");
+        assert_eq!(config.base_url, "${ASTRON_BASE_URL}");
+        assert_eq!(config.dynamic_models, Some(false));
+        assert!(config.skip_canonical_filtering);
+        assert_eq!(config.supports_streaming, Some(true));
+
+        let env_vars = config.env_vars.as_ref().expect("env_vars should be set");
+        assert_eq!(env_vars.len(), 1);
+        assert_eq!(env_vars[0].name, "ASTRON_BASE_URL");
+        assert!(!env_vars[0].required);
+        assert!(!env_vars[0].secret);
+        assert_eq!(
+            env_vars[0].default,
+            Some("https://maas-token-api.cn-huabei-1.xf-yun.com/v2".to_string())
+        );
+        assert!(config.models.iter().any(|m| m.name == "xsparkx2"));
+        assert!(config.models.iter().any(|m| m.name == "astron-code-latest"));
+    }
+
+    #[test]
     fn test_existing_json_files_still_deserialize_without_new_fields() {
         let json = include_str!("../providers/declarative/groq.json");
         let config =
