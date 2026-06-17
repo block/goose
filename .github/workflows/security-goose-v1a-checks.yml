@@ -73,6 +73,8 @@ jobs:
 
       - name: Ensure repo goosed for desktop preview
         shell: bash
+        env:
+          GOOSED_BUILD_PROFILE: debug
         run: |
           source bin/activate-hermit
           node ui/desktop/scripts/ensure-goosed-dev.js
