@@ -113,7 +113,6 @@ module.exports = {
           icon: 'src/images/icon.png',
           prefix: '/opt',
           ...(isLinuxVulkanBuild ? { requires: ['vulkan-loader'] } : {}),
-          fpm: ['--rpm-rpmbuild-define', '_build_id_links none'],
         },
       },
     },

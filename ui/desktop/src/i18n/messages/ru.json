@@ -4046,6 +4046,33 @@
   "settings.help.title": {
     "defaultMessage": "Помощь и отзывы"
   },
+  "settings.language.description": {
+    "defaultMessage": "Выберите язык интерфейса goose"
+  },
+  "settings.language.english": {
+    "defaultMessage": "Английский"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "Хинди"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "Японский"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "Русский"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "Системный язык"
+  },
+  "settings.language.title": {
+    "defaultMessage": "Язык"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "Турецкий"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "Китайский (упрощенный)"
+  },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Показывать goose в строке меню"
   },

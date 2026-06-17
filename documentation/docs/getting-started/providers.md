@@ -27,7 +27,7 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [Anthropic](https://www.anthropic.com/)                                     | Offers Claude, an advanced AI model for natural language tasks.                                                                                                                                                           | `ANTHROPIC_API_KEY`, `ANTHROPIC_HOST` (optional)                                                                                                                                                                 |
 | [Atomic Chat](https://github.com/AtomicBot-ai/Atomic-Chat)                | Run local models with Atomic Chat's OpenAI-compatible server. **Because this provider runs locally, you must first [download a model](#local-llms).** | None required. Connects to local server at `localhost:1337` by default. |
 | [Avian](https://avian.io/)                                                   | Cost-effective inference API with DeepSeek, Kimi, GLM, and MiniMax models. OpenAI-compatible with streaming and function calling support.                                                                                  | `AVIAN_API_KEY`, `AVIAN_HOST` (optional)                                                                                                                                            |
-| [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports both API key and Azure credential chain authentication.                                                                                          | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_KEY` (optional)                                                                                           |
+| [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports API key, Entra ID bearer token, and Azure credential chain authentication.                                                                                          | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_KEY` (optional), `AZURE_OPENAI_AD_TOKEN` (optional)                                                                                           |
 | [ChatGPT Codex](https://chatgpt.com/codex) | Access GPT-5 Codex models optimized for code generation and understanding. **Requires a ChatGPT Plus/Pro subscription.** | No manual key. Uses browser-based OAuth authentication for both CLI and Desktop. |
 | [Databricks](https://www.databricks.com/)                                   | Unified data analytics and AI platform for building and deploying models.                                                                                                                                                 | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
 | [Docker Model Runner](https://docs.docker.com/ai/model-runner/)                             | Local models running in Docker Desktop or Docker CE with OpenAI-compatible API endpoints. **Because this provider runs locally, you must first [download a model](#local-llms).**                     | `OPENAI_HOST`, `OPENAI_BASE_PATH`   |
@@ -1363,12 +1363,15 @@ GitHub Copilot uses a device flow for authentication, so no API keys are require
 4. Paste the code to authorize the application
 5. When you return to goose, GitHub Copilot will be available as a provider in both CLI and Desktop.
 
-## Azure OpenAI Credential Chain
+## Azure OpenAI Authentication
 
-goose supports two authentication methods for Azure OpenAI:
+goose supports three authentication methods for Azure OpenAI:
 
-1. **API Key Authentication** - Uses the `AZURE_OPENAI_API_KEY` for direct authentication
-2. **Azure Credential Chain** - Uses Azure CLI credentials automatically without requiring an API key
+1. **Entra ID Bearer Token** - Uses a pre-acquired Microsoft Entra access token from `AZURE_OPENAI_AD_TOKEN`, sent as `Authorization: Bearer <token>`. goose skips Azure CLI and token acquisition entirely, which suits enterprise deployments where only short-lived tokens are exposed to the runtime (e.g. obtained via `az account get-access-token --resource https://cognitiveservices.azure.com --query accessToken --output tsv`)
+2. **API Key Authentication** - Uses the `AZURE_OPENAI_API_KEY` for direct authentication
+3. **Azure Credential Chain** - Uses Azure CLI credentials automatically without requiring an API key
+
+When more than one is configured, `AZURE_OPENAI_AD_TOKEN` takes precedence over `AZURE_OPENAI_API_KEY`, which takes precedence over the credential chain.
 
 To use the Azure Credential Chain:
 - Ensure you're logged in with `az login`

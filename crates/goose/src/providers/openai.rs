@@ -266,7 +266,7 @@ impl OpenAiProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
-        Ok(Self {
+        let mut provider = Self {
             api_client,
             base_path,
             organization,
@@ -279,7 +279,30 @@ impl OpenAiProvider {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: !is_openai,
-        })
+        };
+
+        // Only fill the context limit when nothing else set it: an existing value may be
+        // an explicit GOOSE_CONTEXT_LIMIT, an ACP/server per-session override, or a
+        // GOOSE_PREDEFINED_MODELS entry, none of which we should overwrite. llama.cpp and
+        // Ollama report the real allocated window via the non-standard meta.n_ctx field;
+        // reading it fixes auto-compaction for local servers that would otherwise fall
+        // back to DEFAULT_CONTEXT_LIMIT. The probe is bounded by a short timeout so a
+        // hung /v1/models can't stall provider construction (the shared ApiClient uses
+        // OPENAI_TIMEOUT, up to 600s).
+        if provider.model.context_limit.is_none() {
+            const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+            let model_name = provider.model.model_name.clone();
+            if let Ok(Some(n_ctx)) = tokio::time::timeout(
+                N_CTX_PROBE_TIMEOUT,
+                provider.fetch_n_ctx_from_api(&model_name),
+            )
+            .await
+            {
+                provider.model.context_limit = Some(n_ctx);
+            }
+        }
+
+        Ok(provider)
     }
 
     #[doc(hidden)]
@@ -452,11 +475,19 @@ impl OpenAiProvider {
         let normalized = stripped.trim_end_matches('/');
         if normalized.is_empty() {
             "v1/chat/completions".to_string()
-        } else if normalized == "v1" || normalized.ends_with("/v1") {
+        } else if normalized.ends_with("chat/completions") {
+            stripped.to_string()
+        } else if Self::ends_with_version_segment(normalized) {
             format!("{}/chat/completions", normalized)
         } else {
-            stripped.to_string()
+            format!("{}/v1/chat/completions", normalized)
         }
+    }
+
+    fn ends_with_version_segment(path: &str) -> bool {
+        let last = path.rsplit('/').next().unwrap_or(path);
+        last.strip_prefix('v')
+            .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()))
     }
 
     fn normalize_base_path(base_path: &str) -> String {
@@ -611,6 +642,50 @@ impl OpenAiProvider {
             .collect();
         models.sort();
         Ok(models)
+    }
+
+    /// llama.cpp and Ollama expose the actual allocated context window in the
+    /// non-standard `meta.n_ctx` field of `/v1/models`. Returns `None` when absent
+    /// (e.g. real OpenAI).
+    async fn fetch_n_ctx_from_api(&self, model_name: &str) -> Option<usize> {
+        let models_path =
+            Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
+        let response = self
+            .api_client
+            .request(None, &models_path)
+            .response_get()
+            .await
+            .ok()?;
+        let json = handle_response_openai_compat(response).await.ok()?;
+        parse_n_ctx_from_models(&json, model_name)
+    }
+}
+
+/// Extract `meta.n_ctx` for `model_name` from a `/v1/models` response body.
+fn parse_n_ctx_from_models(json: &serde_json::Value, model_name: &str) -> Option<usize> {
+    let data = json.get("data")?.as_array()?;
+
+    let n_ctx = |entry: &serde_json::Value| -> Option<usize> {
+        entry
+            .get("meta")?
+            .get("n_ctx")?
+            .as_u64()
+            .map(|v| v as usize)
+    };
+
+    if let Some(entry) = data
+        .iter()
+        .find(|e| e.get("id").and_then(|v| v.as_str()) == Some(model_name))
+    {
+        return n_ctx(entry);
+    }
+
+    // For single-model servers without --alias, llama.cpp reports the loaded model
+    // file path as id rather than the client's alias, so no entry matches above.
+    // Fall back to the sole entry's n_ctx.
+    match data.as_slice() {
+        [only] => n_ctx(only),
+        _ => None,
     }
 }
 
@@ -1214,6 +1289,39 @@ mod tests {
     }
 
     #[test]
+    fn derive_base_path_not_removing_api_path() {
+        let r = OpenAiProvider::derive_base_path("https://opencode.ai/zen/go");
+        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_should_support_v1() {
+        let r = OpenAiProvider::derive_base_path("https://opencode.ai/zen/go/v1");
+        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_should_support_no_base_path() {
+        let r = OpenAiProvider::derive_base_path("https://opencode.ai/");
+        assert_eq!(r, "https://opencode.ai/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_preserves_non_v1_version_prefix() {
+        // Zhipu's default base_url is https://open.bigmodel.cn/api/paas/v4 and
+        // from_custom_config passes url.path() ("/api/paas/v4") here. The
+        // existing /api/paas/v4 version must not gain an extra /v1 segment.
+        let r = OpenAiProvider::derive_base_path("/api/paas/v4");
+        assert_eq!(r, "api/paas/v4/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_does_not_treat_v_word_as_version() {
+        let r = OpenAiProvider::derive_base_path("/api/voice");
+        assert_eq!(r, "api/voice/v1/chat/completions");
+    }
+
+    #[test]
     fn parse_base_url_preserves_query_params() {
         let r = OpenAiProvider::parse_base_url("https://gw.example.com/v1?api-version=2024-02-01")
             .unwrap();
@@ -1424,5 +1532,26 @@ mod tests {
             .unwrap(),
             None
         );
+    }
+
+    #[test]
+    fn parse_n_ctx_falls_back_to_sole_entry_when_id_differs() {
+        let body = json!({
+            "data": [
+                { "id": "/models/qwen3.gguf", "meta": { "n_ctx": 32768 } }
+            ]
+        });
+        assert_eq!(parse_n_ctx_from_models(&body, "qwen3"), Some(32768));
+    }
+
+    #[test]
+    fn parse_n_ctx_no_fallback_with_multiple_unmatched_entries() {
+        let body = json!({
+            "data": [
+                { "id": "model-a", "meta": { "n_ctx": 4096 } },
+                { "id": "model-b", "meta": { "n_ctx": 8192 } }
+            ]
+        });
+        assert_eq!(parse_n_ctx_from_models(&body, "model-c"), None);
     }
 }
