@@ -289,7 +289,14 @@ if has_packaged_chat_credentials; then
   echo "packaged_apps_request=ok"
 else
   echo "packaged_chat=skipped_no_api_key"
-  echo "packaged_apps_request=skipped_no_api_key"
+
+  NODE_TLS_REJECT_UNAUTHORIZED=0 \
+  SECURITY_CHAT_BASE_URL="$BASE_URL" \
+  SECURITY_CHAT_SECRET="$PACKAGED_SECRET" \
+  SECURITY_CHAT_WORKDIR="$WORKDIR" \
+    node scripts/check-security-apps-request.mjs
+
+  echo "packaged_apps_request=ok"
 fi
 
 node scripts/check-security-apps-runtime.mjs "$GOOSE_PATH_ROOT"
