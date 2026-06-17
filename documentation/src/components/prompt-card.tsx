@@ -9,18 +9,16 @@ import type { Prompt, Extension } from "@site/src/types/prompt";
 
 function extensionToMCPServer(extension: Extension): MCPServer {
   return {
-    id: extension.command || extension.name,
+    id: extension.command,
     name: extension.name,
     command: extension.command,
     url: extension.url,
-    type: extension.type,
     description: extension.name,
     is_builtin: extension.is_builtin,
     link: extension.link || '',
     installation_notes: extension.installation_notes || '',
     endorsed: false,
     environmentVariables: extension.environmentVariables || [],
-    headers: extension.headers,
   };
 }
 
