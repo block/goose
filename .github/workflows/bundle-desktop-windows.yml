@@ -44,7 +44,7 @@ permissions:
 jobs:
   build-desktop-windows:
     name: Build Desktop (Windows)
-    runs-on: windows-latest
+    runs-on: ${{ inputs.windows_variant == 'cuda' && 'windows-2022' || 'windows-latest' }}
 
     steps:
       - name: Checkout repository

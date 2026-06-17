@@ -1,0 +1,31 @@
+{
+  "name": "orcarouter",
+  "engine": "openai",
+  "display_name": "OrcaRouter",
+  "description": "Adaptive router for OpenAI, Anthropic, Google, xAI, DeepSeek, and 150+ other frontier models through a single OpenAI-compatible API.",
+  "api_key_env": "ORCAROUTER_API_KEY",
+  "base_url": "https://api.orcarouter.ai/v1",
+  "catalog_provider_id": "orcarouter",
+  "headers": {
+    "http-referer": "https://goose-docs.ai",
+    "x-title": "goose"
+  },
+  "models": [
+    { "name": "anthropic/claude-sonnet-4.6", "context_limit": 200000 },
+    { "name": "openai/gpt-5.5", "context_limit": 400000 },
+    { "name": "google/gemini-3-flash-preview", "context_limit": 1000000 },
+    { "name": "anthropic/claude-opus-4.7", "context_limit": 200000 },
+    { "name": "grok/grok-4.3", "context_limit": 256000 },
+    { "name": "deepseek/deepseek-v4-pro", "context_limit": 163840 },
+    { "name": "orcarouter/auto", "context_limit": 128000 }
+  ],
+  "dynamic_models": true,
+  "supports_streaming": true,
+  "preserves_thinking": true,
+  "model_doc_link": "https://www.orcarouter.ai/models",
+  "setup_steps": [
+    "Sign up at https://www.orcarouter.ai",
+    "Create an API key in the console",
+    "Paste the key above as ORCAROUTER_API_KEY"
+  ]
+}

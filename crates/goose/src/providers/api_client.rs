@@ -313,6 +313,10 @@ impl ApiClient {
         })
     }
 
+    pub fn host(&self) -> &str {
+        &self.host
+    }
+
     fn rebuild_client(&mut self) -> Result<()> {
         let mut client_builder = Client::builder()
             .timeout(self.timeout)

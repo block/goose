@@ -273,7 +273,7 @@ impl Connection for AcpServerConnection {
                     .connect_with(transport, {
                         let cx_holder = cx_holder_clone;
                         async move |cx: ConnectionTo<Agent>| {
-                            let _resp = cx
+                            let resp = cx
                                 .send_request(
                                     InitializeRequest::new(ProtocolVersion::LATEST)
                                         .client_capabilities(
@@ -285,6 +285,11 @@ impl Connection for AcpServerConnection {
                                 .block_task()
                                 .await
                                 .unwrap();
+                            assert_eq!(
+                                resp.agent_info.as_ref().map(|info| info.name.as_str()),
+                                Some("goose"),
+                                "initialize response must identify the agent"
+                            );
 
                             *cx_holder.lock().unwrap() = Some(cx.clone());
                             let _ = ready_tx.send(());

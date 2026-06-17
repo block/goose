@@ -154,9 +154,9 @@ export function getSubtitle(config: ExtensionConfig) {
     }
     case 'sse':
     case 'streamable_http': {
-      const prefix = `${config.type.toUpperCase().replace('_', ' ')} extension`;
+      const label = config.type === 'sse' ? 'SSE' : 'HTTP';
       return {
-        description: `${prefix}${config.description ? ': ' + config.description : ''}`,
+        description: config.description ? `${label}: ${config.description}` : `${label} extension`,
         command: config.uri || null,
       };
     }

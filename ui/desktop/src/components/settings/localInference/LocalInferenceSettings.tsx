@@ -1,5 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Download, Trash2, X, ChevronDown, ChevronUp, Settings2, Eye } from 'lucide-react';
+import {
+  Download,
+  Trash2,
+  X,
+  ChevronDown,
+  ChevronUp,
+  Settings2,
+  Eye,
+  RefreshCw,
+} from 'lucide-react';
 import { Button } from '../../ui/button';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
 import { defineMessages, useIntl } from '../../../i18n';
@@ -12,6 +21,7 @@ import {
   deleteLocalModel,
   setConfigProvider,
   type DownloadProgress,
+  type DownloadModelRequest,
   type LocalModelResponse,
 } from '../../../api';
 import { HuggingFaceModelSearch } from './HuggingFaceModelSearch';
@@ -27,7 +37,7 @@ const i18n = defineMessages({
   description: {
     id: 'localInferenceSettings.description',
     defaultMessage:
-      'Download and manage local LLM models for inference without API keys. Search HuggingFace for any GGUF model or use the featured picks below.',
+      'Download and manage local LLM models for inference without API keys. Search HuggingFace for GGUF or MLX models, or use the featured picks below.',
   },
   downloading: {
     id: 'localInferenceSettings.downloading',
@@ -76,6 +86,18 @@ const i18n = defineMessages({
   downloadFailed: {
     id: 'localInferenceSettings.downloadFailed',
     defaultMessage: 'Download failed',
+  },
+  downloadCancelled: {
+    id: 'localInferenceSettings.downloadCancelled',
+    defaultMessage: 'Download cancelled',
+  },
+  retry: {
+    id: 'localInferenceSettings.retry',
+    defaultMessage: 'Retry',
+  },
+  dismiss: {
+    id: 'localInferenceSettings.dismiss',
+    defaultMessage: 'Dismiss',
   },
   deleteConfirm: {
     id: 'localInferenceSettings.deleteConfirm',
@@ -157,6 +179,9 @@ export const LocalInferenceSettings = () => {
   const intl = useIntl();
   const [models, setModels] = useState<LocalModelResponse[]>([]);
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
+  const [downloadRequests, setDownloadRequests] = useState<Map<string, DownloadModelRequest>>(
+    new Map()
+  );
   const [showAllFeatured, setShowAllFeatured] = useState(false);
   const [settingsOpenFor, setSettingsOpenFor] = useState<string | null>(null);
   const { currentModel, currentProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
@@ -170,6 +195,23 @@ export const LocalInferenceSettings = () => {
       const response = await listLocalModels();
       if (response.data) {
         setModels(response.data);
+        const downloadedIds = new Set(
+          response.data
+            .filter((model) => model.status.state === 'Downloaded')
+            .map((model) => model.id)
+        );
+        if (downloadedIds.size > 0) {
+          setDownloads((prev) => {
+            const next = new Map(prev);
+            downloadedIds.forEach((modelId) => next.delete(modelId));
+            return next;
+          });
+          setDownloadRequests((prev) => {
+            const next = new Map(prev);
+            downloadedIds.forEach((modelId) => next.delete(modelId));
+            return next;
+          });
+        }
         response.data.forEach((model) => {
           if (model.status.state === 'Downloading') {
             pollDownloadProgress(model.id);
@@ -218,8 +260,10 @@ export const LocalInferenceSettings = () => {
   const startFeaturedDownload = async (modelId: string) => {
     const model = models.find((m) => m.id === modelId);
     if (!model) return;
+    const request = { spec: model.id };
     try {
-      await downloadHfModel({ body: { spec: model.id } });
+      await downloadHfModel({ body: request });
+      setDownloadRequests((prev) => new Map(prev).set(modelId, request));
       pollDownloadProgress(modelId);
       scrollToDownloads();
     } catch (error) {
@@ -260,11 +304,6 @@ export const LocalInferenceSettings = () => {
             await selectModel(modelId);
           } else if (progress.status === 'failed' || progress.status === 'cancelled') {
             stopPolling(interval);
-            setDownloads((prev) => {
-              const next = new Map(prev);
-              next.delete(modelId);
-              return next;
-            });
             await loadModels();
           }
         } else {
@@ -281,12 +320,42 @@ export const LocalInferenceSettings = () => {
       await cancelLocalModelDownload({ path: { model_id: modelId } });
       setDownloads((prev) => {
         const next = new Map(prev);
-        next.delete(modelId);
+        const progress = next.get(modelId);
+        if (progress) {
+          next.set(modelId, { ...progress, status: 'cancelled' });
+        }
         return next;
       });
       await loadModels();
     } catch (error) {
       console.error('Failed to cancel download:', error);
+    }
+  };
+
+  const dismissDownload = (modelId: string) => {
+    setDownloads((prev) => {
+      const next = new Map(prev);
+      next.delete(modelId);
+      return next;
+    });
+    setDownloadRequests((prev) => {
+      const next = new Map(prev);
+      next.delete(modelId);
+      return next;
+    });
+  };
+
+  const retryDownload = async (modelId: string) => {
+    const request = downloadRequests.get(modelId) ?? { spec: modelId };
+    dismissDownload(modelId);
+    try {
+      const response = await downloadHfModel({ body: request });
+      const nextModelId = response.data ?? modelId;
+      setDownloadRequests((prev) => new Map(prev).set(nextModelId, request));
+      pollDownloadProgress(nextModelId);
+      scrollToDownloads();
+    } catch (error) {
+      console.error('Failed to retry download:', error);
     }
   };
 
@@ -309,7 +378,8 @@ export const LocalInferenceSettings = () => {
     }
   };
 
-  const handleHfDownloadStarted = (modelId: string) => {
+  const handleHfDownloadStarted = (modelId: string, request: DownloadModelRequest) => {
+    setDownloadRequests((prev) => new Map(prev).set(modelId, request));
     pollDownloadProgress(modelId);
     loadModels();
     scrollToDownloads();
@@ -324,6 +394,11 @@ export const LocalInferenceSettings = () => {
   const recommendedModels = notDownloadedModels.filter((m) => m.recommended);
   const displayedFeatured = showAllFeatured ? notDownloadedModels : recommendedModels;
   const showFeaturedToggle = notDownloadedModels.length > recommendedModels.length;
+  const activeDownloadIds = new Set(
+    Array.from(downloads.entries())
+      .filter(([, progress]) => progress.status === 'downloading')
+      .map(([modelId]) => modelId)
+  );
 
   return (
     <div className="space-y-6">
@@ -400,9 +475,38 @@ export const LocalInferenceSettings = () => {
                     </div>
                   )}
                   {progress.status === 'failed' && (
-                    <p className="text-xs text-destructive">
-                      {progress.error || intl.formatMessage(i18n.downloadFailed)}
-                    </p>
+                    <div className="space-y-2">
+                      <p className="text-xs text-destructive">
+                        {progress.error || intl.formatMessage(i18n.downloadFailed)}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => retryDownload(modelId)}>
+                          <RefreshCw className="w-3 h-3 mr-1" />
+                          {intl.formatMessage(i18n.retry)}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => dismissDownload(modelId)}>
+                          <X className="w-3 h-3 mr-1" />
+                          {intl.formatMessage(i18n.dismiss)}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {progress.status === 'cancelled' && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-text-muted">
+                        {progress.error || intl.formatMessage(i18n.downloadCancelled)}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => retryDownload(modelId)}>
+                          <RefreshCw className="w-3 h-3 mr-1" />
+                          {intl.formatMessage(i18n.retry)}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => dismissDownload(modelId)}>
+                          <X className="w-3 h-3 mr-1" />
+                          {intl.formatMessage(i18n.dismiss)}
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </div>
               );
@@ -543,7 +647,7 @@ export const LocalInferenceSettings = () => {
       <div className="border-t border-border-subtle pt-4">
         <HuggingFaceModelSearch
           onDownloadStarted={handleHfDownloadStarted}
-          activeDownloadIds={new Set(downloads.keys())}
+          activeDownloadIds={activeDownloadIds}
           downloadedModelIds={
             new Set(models.filter((m) => m.status.state === 'Downloaded').map((m) => m.id))
           }
