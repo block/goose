@@ -21,6 +21,10 @@ use crate::providers::formats::anthropic::{
     ANTHROPIC_PROVIDER_NAME,
 };
 use goose_providers::conversation::token_usage::Usage;
+use once_cell::sync::Lazy;
+use regex::Regex;
+
+static BEDROCK_VERSION_SUFFIX_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"-v\d+(:\d+)?$").unwrap());
 
 pub fn bedrock_anthropic_thinking_fields(model_config: &ModelConfig) -> Option<Document> {
     let thinking_type = bedrock_anthropic_thinking_type(model_config);
@@ -60,11 +64,21 @@ fn bedrock_anthropic_thinking_type(model_config: &ModelConfig) -> ThinkingType {
     };
 
     let anthropic_config = ModelConfig {
-        model_name: anthropic_model.to_string(),
+        model_name: strip_bedrock_version_suffix(anthropic_model),
         ..model_config.clone()
     };
 
     thinking_type_for_provider(ANTHROPIC_PROVIDER_NAME, &anthropic_config)
+}
+
+/// Bedrock model ids carry a `-v1:0` style suffix (e.g.
+/// `claude-opus-4-1-20250805-v1:0`) that the canonical Anthropic registry does
+/// not recognise. Dropping it lets the date stamp become the terminal segment
+/// the registry already knows how to normalise.
+fn strip_bedrock_version_suffix(model_name: &str) -> String {
+    BEDROCK_VERSION_SUFFIX_RE
+        .replace(model_name, "")
+        .into_owned()
 }
 
 pub fn to_bedrock_message_with_caching(
@@ -569,6 +583,25 @@ mod tests {
     #[test]
     fn test_bedrock_anthropic_thinking_fields_adaptive_with_effort() {
         let mut config = ModelConfig::new_or_fail("us.anthropic.claude-opus-4.7");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("low"),
+        )]));
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {"type": "adaptive"},
+                "output_config": {"effort": "low"}
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_adaptive_with_version_suffix() {
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-opus-4-7-20251101-v1:0");
         config.reasoning = Some(true);
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),

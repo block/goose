@@ -62,6 +62,7 @@ struct ConverseRequestParts {
     system_blocks: Vec<bedrock::SystemContentBlock>,
     messages: Vec<bedrock::Message>,
     tool_config: Option<bedrock::ToolConfiguration>,
+    thinking_fields: Option<aws_smithy_types::Document>,
 }
 
 impl BedrockProvider {
@@ -263,6 +264,7 @@ impl BedrockProvider {
             system_blocks,
             messages: bedrock_messages,
             tool_config,
+            thinking_fields: bedrock_anthropic_thinking_fields(&self.model),
         })
     }
 
@@ -284,7 +286,7 @@ impl BedrockProvider {
             .model_id(model_name.to_string())
             .set_messages(Some(parts.messages));
 
-        if let Some(fields) = bedrock_anthropic_thinking_fields(&self.model) {
+        if let Some(fields) = parts.thinking_fields {
             request = request.additional_model_request_fields(fields);
         }
 
@@ -379,6 +381,10 @@ impl BedrockProvider {
             .set_system(Some(parts.system_blocks))
             .model_id(model_name.to_string())
             .set_messages(Some(parts.messages));
+
+        if let Some(fields) = parts.thinking_fields {
+            request = request.additional_model_request_fields(fields);
+        }
 
         if let Some(tool_config) = parts.tool_config {
             request = request.tool_config(tool_config);
