@@ -25,64 +25,77 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-    - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-      with:
-        ref: main
-        fetch-depth: 0
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: main
+          fetch-depth: 0
 
-    - uses: cashapp/activate-hermit@e49f5cb4dd64ff0b0b659d1d8df499595451155a # v1
-    - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+      - uses: cashapp/activate-hermit@e49f5cb4dd64ff0b0b659d1d8df499595451155a # v1
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
 
-    - name: install dependencies
-      run: |
-        sudo apt update -y
-        sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
+      - name: install dependencies
+        run: |
+          sudo apt update -y
+          sudo apt install -y libdbus-1-dev gnome-keyring libxcb1-dev
 
-    - name: Compute version and create bump branch
-      env:
-        ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-        OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-        GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
-        OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
-        XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-        TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
-      run: |
-        VERSION=$(just get-next-minor-version)
-        echo "version=$VERSION" >> $GITHUB_ENV
-        echo "Version: $VERSION (minor bump on main)"
+      - name: Compute version and create bump branch
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
+          TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
+        run: |
+          VERSION=$(just get-next-minor-version)
+          echo "version=$VERSION" >> $GITHUB_ENV
+          echo "Version: $VERSION (minor bump on main)"
 
-        git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
-        git config --local user.name "github-actions[bot]"
+          git config --local user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
 
-        BRANCH_NAME="version-bump/$VERSION"
-        git switch -c "$BRANCH_NAME"
+          BRANCH_NAME="version-bump/$VERSION"
+          git switch -C "$BRANCH_NAME"
 
-        just prepare-release $VERSION
+          just prepare-release $VERSION
 
-        echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
+          echo "branch_name=$BRANCH_NAME" >> $GITHUB_ENV
 
-    - name: Push bump branch
-      run: |
-        git push origin "${{ env.branch_name }}"
+      - name: Push bump branch
+        run: |
+          git push --force-with-lease origin "${{ env.branch_name }}"
 
-    - name: Create Pull Request
-      run: |
-        PR_BODY=$(cat <<'EOF'
-        Bumps version to **${{ env.version }}**.
+      - name: Create Pull Request if needed
+        run: |
+          EXISTING_PR_URL=$(gh pr list \
+            --base main \
+            --head "${{ env.branch_name }}" \
+            --state open \
+            --json url \
+            --jq '.[0].url // empty')
 
-        **Please follow these steps:**
+          if [ -n "$EXISTING_PR_URL" ]; then
+            echo "Existing PR found: $EXISTING_PR_URL"
+            echo "pr_url=$EXISTING_PR_URL" >> $GITHUB_ENV
+            exit 0
+          fi
 
-        1. Close and reopen this PR to trigger CI checks. Reason: workflows don't run on PRs opened by `GITHUB_TOKEN` ([docs](https://docs.github.com/en/actions/using-workflows/triggering-a-workflow#triggering-a-workflow-from-a-workflow)).
-        2. Review and resolve any merge conflicts.
-        3. Approve and merge this PR.
-        4. The `release/${{ env.version }}` PR will be created automatically.
-        EOF
-        )
-        PR_URL=$(gh pr create \
-          -B main \
-          -H "${{ env.branch_name }}" \
-          --title "chore(release): bump version to ${{ env.version }} (minor)" \
-          --body "$PR_BODY")
-        echo "pr_url=$PR_URL" >> $GITHUB_ENV
-      env:
-        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_BODY=$(cat <<'EOF'
+          Bumps version to **${{ env.version }}**.
+
+          **Please follow these steps:**
+
+          1. Close and reopen this PR to trigger CI checks. Reason: workflows don't run on PRs opened by `GITHUB_TOKEN` ([docs](https://docs.github.com/en/actions/using-workflows/triggering-a-workflow#triggering-a-workflow-from-a-workflow)).
+          2. Review and resolve any merge conflicts.
+          3. Approve and merge this PR.
+          4. The `release/${{ env.version }}` PR will be created automatically.
+          EOF
+          )
+          PR_URL=$(gh pr create \
+            -B main \
+            -H "${{ env.branch_name }}" \
+            --title "chore(release): bump version to ${{ env.version }} (minor)" \
+            --body "$PR_BODY")
+          echo "pr_url=$PR_URL" >> $GITHUB_ENV
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
