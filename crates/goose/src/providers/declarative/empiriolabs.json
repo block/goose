@@ -43,6 +43,7 @@
     }
   ],
   "supports_streaming": true,
+  "dynamic_models": false,
   "model_doc_link": "https://docs.empiriolabs.ai",
   "setup_steps": [
     "Go to https://platform.empiriolabs.ai/dashboard/api-keys",
