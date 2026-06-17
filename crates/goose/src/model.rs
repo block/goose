@@ -140,12 +140,22 @@ impl ModelConfig {
                     Some(limit)
                 }
                 Err(crate::config::ConfigError::NotFound(_)) => None,
-                Err(e) => {
-                    return Err(ConfigError::InvalidValue(
-                        "GOOSE_CONTEXT_LIMIT".to_string(),
-                        String::new(),
-                        e.to_string(),
-                    ))
+                // Quoted YAML values (e.g. `GOOSE_CONTEXT_LIMIT: '200000'`) and
+                // environment variables deserialize as strings rather than
+                // integers; fall back to parsing the string form.
+                Err(_) => {
+                    match crate::config::Config::global().get_param::<String>("GOOSE_CONTEXT_LIMIT")
+                    {
+                        Ok(val) => Some(Self::validate_context_limit(&val, "GOOSE_CONTEXT_LIMIT")?),
+                        Err(crate::config::ConfigError::NotFound(_)) => None,
+                        Err(e) => {
+                            return Err(ConfigError::InvalidValue(
+                                "GOOSE_CONTEXT_LIMIT".to_string(),
+                                String::new(),
+                                e.to_string(),
+                            ))
+                        }
+                    }
                 }
             }
         };
@@ -590,6 +600,32 @@ mod tests {
         ]);
         let config = ModelConfig::new("test-model").unwrap();
         assert_eq!(config.max_tokens, Some(8192));
+    }
+
+    #[test]
+    fn test_context_limit_from_string_value() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_TEMPERATURE", None::<&str>),
+            ("GOOSE_CONTEXT_LIMIT", Some("200000")),
+            ("GOOSE_TOOLSHIM", None::<&str>),
+            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
+        ]);
+        let config = ModelConfig::new("test-model").unwrap();
+        assert_eq!(config.context_limit, Some(200_000));
+        assert_eq!(config.context_limit(), 200_000);
+    }
+
+    #[test]
+    fn test_context_limit_invalid_string_value_errors() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_TEMPERATURE", None::<&str>),
+            ("GOOSE_CONTEXT_LIMIT", Some("not-a-number")),
+            ("GOOSE_TOOLSHIM", None::<&str>),
+            ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
+        ]);
+        assert!(ModelConfig::new("test-model").is_err());
     }
 
     #[test]

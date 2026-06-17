@@ -127,11 +127,24 @@ where
 }
 
 pub fn get_extension_by_name(name: &str) -> Option<ExtensionConfig> {
-    let extensions = get_extensions_map();
-    extensions
+    get_extension_by_name_with_config(Config::global(), name)
+}
+
+fn get_extension_by_name_with_config(config: &Config, name: &str) -> Option<ExtensionConfig> {
+    let extensions = get_extensions_map_with_config(config);
+    let key = name_to_key(name);
+
+    if let Some(entry) = extensions
         .values()
         .find(|entry| entry.config.name() == name)
-        .map(|entry| entry.config.clone())
+        .or_else(|| extensions.get(&key))
+    {
+        return Some(entry.config.clone());
+    }
+
+    get_available_extensions()
+        .into_iter()
+        .find(|config| config.name() == name || config.key() == key)
 }
 
 pub fn set_extension(entry: ExtensionEntry) {
@@ -442,6 +455,57 @@ extensions:
         let extensions = read_extensions(&config);
         assert_eq!(extensions.get("broken").unwrap(), &broken_before);
         assert!(extensions.contains_key("newextension"));
+    }
+
+    #[test]
+    fn test_get_extension_by_name_falls_back_to_available_builtin() {
+        fn spawn_builtin(_: tokio::io::DuplexStream, _: tokio::io::DuplexStream) {}
+        crate::builtin_extension::register_builtin_extension("memory", spawn_builtin);
+
+        let extension = get_extension_by_name("memory").unwrap();
+
+        assert!(matches!(
+            extension,
+            ExtensionConfig::Builtin { ref name, .. } if name == "memory"
+        ));
+    }
+
+    #[test]
+    fn test_get_extension_by_name_resolves_saved_entry_by_key() {
+        let saved = ExtensionEntry {
+            enabled: true,
+            config: ExtensionConfig::Stdio {
+                name: "My Tool".to_string(),
+                description: "saved description".to_string(),
+                cmd: "my-tool".to_string(),
+                args: Vec::new(),
+                envs: Default::default(),
+                env_keys: Vec::new(),
+                timeout: Some(120),
+                cwd: None,
+                bundled: None,
+                available_tools: vec!["run".to_string()],
+            },
+        };
+        let key = saved.config.key();
+        assert_ne!(key, saved.config.name());
+
+        let (config, _config_file, _secrets_file) = test_config("");
+        set_extension_with_config(&config, saved);
+
+        let resolved = get_extension_by_name_with_config(&config, &key).unwrap();
+
+        match resolved {
+            ExtensionConfig::Stdio {
+                timeout,
+                available_tools,
+                ..
+            } => {
+                assert_eq!(timeout, Some(120));
+                assert_eq!(available_tools, vec!["run".to_string()]);
+            }
+            other => panic!("expected stdio, got {other:?}"),
+        }
     }
 
     #[test]

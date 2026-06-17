@@ -319,7 +319,7 @@ struct TokenData {
 }
 
 #[derive(Debug, Clone)]
-struct TokenCache {
+pub(crate) struct TokenCache {
     cache_path: PathBuf,
 }
 
@@ -328,7 +328,7 @@ fn get_cache_path() -> PathBuf {
 }
 
 impl TokenCache {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let cache_path = get_cache_path();
         if let Some(parent) = cache_path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -342,6 +342,9 @@ impl TokenCache {
         } else {
             None
         }
+    }
+    pub(crate) fn has_token(&self) -> bool {
+        self.load().is_some()
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
@@ -976,10 +979,6 @@ impl ProviderDef for ChatGptCodexProvider {
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
-
-    fn inventory_configured() -> bool {
-        TokenCache::new().load().is_some()
-    }
 }
 
 #[async_trait]
@@ -1098,7 +1097,7 @@ mod tests {
         let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
 
         TokenCache::new().clear();
-        assert!(!ChatGptCodexProvider::inventory_configured());
+        assert!(!TokenCache::new().has_token());
 
         TokenCache::new()
             .save(&TokenData {
@@ -1110,7 +1109,7 @@ mod tests {
             })
             .unwrap();
 
-        assert!(ChatGptCodexProvider::inventory_configured());
+        assert!(TokenCache::new().has_token());
     }
 
     #[test_case(

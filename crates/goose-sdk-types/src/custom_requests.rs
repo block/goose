@@ -556,17 +556,6 @@ pub struct ImportSessionResponse {
     pub message_count: u64,
 }
 
-/// Submit a response for a pending MCP elicitation in an active session.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "_goose/unstable/elicitation/respond", response = EmptyResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct ElicitationRespondRequest {
-    pub session_id: String,
-    pub elicitation_id: String,
-    #[serde(default)]
-    pub user_data: serde_json::Value,
-}
-
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct ProviderConfigKey {

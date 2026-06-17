@@ -24,6 +24,7 @@ local-inference = [
     "dep:candle-core",
     "dep:candle-nn",
     "dep:candle-transformers",
+    "dep:hf-hub",
     "dep:llama-cpp-2",
     "dep:llama-cpp-sys-2",
     "dep:tokenizers",
@@ -40,6 +41,7 @@ aws-providers = [
 ]
 cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
 vulkan = ["local-inference", "llama-cpp-2/vulkan"]
+mlx = ["local-inference", "dep:mlx-rs", "dep:mlx-lm", "dep:mlx-lm-utils"]
 rustls-tls = [
     "dep:rustls",
     "reqwest/rustls",
@@ -49,6 +51,7 @@ rustls-tls = [
     "jsonwebtoken/aws_lc_rs",
     "oauth2/reqwest",
     "oauth2/rustls-tls",
+    "hf-hub/rustls-tls",
 ]
 native-tls = [
     "dep:pem",
@@ -205,6 +208,10 @@ process-wrap = { version = "9", default-features = false, features = ["std"] }
 nostr = { version = "0.44", default-features = false, features = ["nip44", "std"], optional = true }
 nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"], optional = true }
 rustls = { workspace = true, optional = true }
+hf-hub = { version = "1.0.0-rc.1", default-features = false, optional = true }
+mlx-rs = { version = "0.25.3", default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true }
+mlx-lm = { git = "https://github.com/jh-block/mlx-lm", optional = true }
+mlx-lm-utils = { git = "https://github.com/jh-block/mlx-lm", optional = true }
 
 pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 

@@ -267,8 +267,14 @@ async fn start_agent(
     let recipe_extensions = original_recipe
         .as_ref()
         .and_then(|r| r.extensions.as_deref());
-    let extensions_to_use =
+    let has_extension_overrides = extension_overrides.is_some();
+    let mut extensions_to_use =
         resolve_extensions_for_new_session(recipe_extensions, extension_overrides);
+    if recipe_extensions.is_none() && !has_extension_overrides {
+        extensions_to_use.extend(goose::plugins::mcp_servers::enabled_plugin_mcp_servers(
+            Some(&PathBuf::from(&working_dir)),
+        ));
+    }
 
     let mut extension_data = session.extension_data.clone();
     let extensions_state = EnabledExtensionsState::new(extensions_to_use);
@@ -400,6 +406,20 @@ async fn resume_agent(
                 status: code,
             })?;
 
+        if !state.has_extension_loading_task(&payload.session_id).await {
+            let session_for_task = session.clone();
+            let agent_for_task = agent.clone();
+            let session_id_for_task = payload.session_id.clone();
+            let task = tokio::spawn(async move {
+                agent_for_task
+                    .load_extensions_from_session(&session_for_task)
+                    .await
+            });
+            state
+                .set_extension_loading_task(session_id_for_task, task)
+                .await;
+        }
+
         let provider_changed = agent
             .restore_provider_from_session(&session)
             .await
@@ -421,8 +441,8 @@ async fn resume_agent(
             session
         };
 
-        let extension_results =
-            if let Some(results) = state.take_extension_loading_task(&payload.session_id).await {
+        let extension_results = match state.take_extension_loading_task(&payload.session_id).await {
+            Ok(Some(results)) => {
                 tracing::debug!(
                     "Using background extension loading results for session {}",
                     payload.session_id
@@ -431,13 +451,26 @@ async fn resume_agent(
                     .remove_extension_loading_task(&payload.session_id)
                     .await;
                 results
-            } else {
+            }
+            Ok(None) => {
                 tracing::debug!(
-                    "No background task found, loading extensions for session {}",
+                    "Extension loading task for session {} was already consumed",
                     payload.session_id
                 );
+                vec![]
+            }
+            Err(e) => {
+                state
+                    .remove_extension_loading_task(&payload.session_id)
+                    .await;
+                tracing::warn!(
+                    "Background extension loading failed for session {}, retrying synchronously: {}",
+                    payload.session_id,
+                    e
+                );
                 agent.load_extensions_from_session(&session).await
-            };
+            }
+        };
 
         (Some(extension_results), session)
     } else {
@@ -719,6 +752,8 @@ async fn agent_add_extension(
     #[cfg(feature = "telemetry")]
     let extension_name = request.config.name();
 
+    ensure_extensions_loaded(&state, &request.session_id).await?;
+
     let agent = state.get_agent(request.session_id.clone()).await?;
 
     agent
@@ -751,6 +786,8 @@ async fn agent_remove_extension(
     State(state): State<Arc<AppState>>,
     Json(request): Json<RemoveExtensionRequest>,
 ) -> Result<StatusCode, ErrorResponse> {
+    ensure_extensions_loaded(&state, &request.session_id).await?;
+
     let agent = state.get_agent(request.session_id.clone()).await?;
 
     agent
@@ -981,13 +1018,47 @@ async fn update_working_dir(
     Ok(StatusCode::OK)
 }
 
-async fn ensure_extensions_loaded(state: &AppState, session_id: &str) {
-    if let Some(_results) = state.take_extension_loading_task(session_id).await {
-        tracing::debug!(
-            "Awaited background extension loading for session {} before serving request",
-            session_id
-        );
-        state.remove_extension_loading_task(session_id).await;
+async fn ensure_extensions_loaded(state: &AppState, session_id: &str) -> Result<(), ErrorResponse> {
+    match state.take_extension_loading_task(session_id).await {
+        Ok(Some(_)) => {
+            tracing::debug!(
+                "Awaited background extension loading for session {} before serving request",
+                session_id
+            );
+            state.remove_extension_loading_task(session_id).await;
+            Ok(())
+        }
+        Ok(None) => Ok(()),
+        Err(e) => {
+            state.remove_extension_loading_task(session_id).await;
+            tracing::warn!(
+                "Background extension loading failed for session {}, retrying synchronously: {}",
+                session_id,
+                e
+            );
+            let session = state
+                .session_manager()
+                .get_session(session_id, false)
+                .await
+                .map_err(|err| ErrorResponse {
+                    message: format!(
+                        "Failed to get session after extension loading failed: {}",
+                        err
+                    ),
+                    status: StatusCode::NOT_FOUND,
+                })?;
+            let agent = state
+                .get_agent(session_id.to_string())
+                .await
+                .map_err(|err| {
+                    ErrorResponse::internal(format!(
+                        "Failed to get agent after extension loading failed: {}",
+                        err
+                    ))
+                })?;
+            agent.load_extensions_from_session(&session).await;
+            Ok(())
+        }
     }
 }
 
@@ -1009,7 +1080,9 @@ async fn read_resource(
 ) -> Result<Json<ReadResourceResponse>, StatusCode> {
     use rmcp::model::ResourceContents;
 
-    ensure_extensions_loaded(&state, &payload.session_id).await;
+    ensure_extensions_loaded(&state, &payload.session_id)
+        .await
+        .map_err(|err| err.status)?;
 
     let agent = state
         .get_agent_for_route(payload.session_id.clone())
@@ -1091,7 +1164,7 @@ async fn call_tool(
     State(state): State<Arc<AppState>>,
     Json(payload): Json<CallToolRequest>,
 ) -> Result<Json<CallToolResponse>, ErrorResponse> {
-    ensure_extensions_loaded(&state, &payload.session_id).await;
+    ensure_extensions_loaded(&state, &payload.session_id).await?;
 
     let agent = state
         .get_agent_for_route(payload.session_id.clone())

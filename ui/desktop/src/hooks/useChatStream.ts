@@ -33,6 +33,10 @@ import type { UseChatSessionParams, UseChatSessionResult } from './useChatSessio
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
+export function clearSessionCache(sessionId: string): void {
+  resultsCache.delete(sessionId);
+}
+
 interface StreamState {
   messages: Message[];
   session: Session | undefined;
