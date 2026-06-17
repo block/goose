@@ -586,6 +586,11 @@ fn legacy_thinking_budget_tokens() -> Option<i32> {
     None
 }
 
+// Anthropic counts thinking tokens against max_tokens, so the budget must leave
+// room for a response. Clamp it to preserve at least this many answer tokens, and
+// drop thinking only when even a minimal budget wouldn't fit under the cap.
+const MIN_ANSWER_TOKENS: i32 = 1024;
+
 fn apply_thinking_config(
     payload: &mut Value,
     provider_name: &str,
@@ -601,31 +606,34 @@ fn apply_thinking_config(
             obj.insert("output_config".to_string(), json!({"effort": effort}));
         }
         ThinkingType::Enabled => {
-            let budget_tokens = thinking_budget_tokens(model_config);
-
-            obj.insert("max_tokens".to_string(), json!(max_tokens + budget_tokens));
-            obj.insert(
-                "thinking".to_string(),
-                json!({
-                    "type": "enabled",
-                    "budget_tokens": budget_tokens
-                }),
-            );
+            let budget_tokens = thinking_budget_tokens(model_config)
+                .min(max_tokens.saturating_sub(MIN_ANSWER_TOKENS));
+            if budget_tokens >= MIN_ANSWER_TOKENS {
+                obj.insert(
+                    "thinking".to_string(),
+                    json!({
+                        "type": "enabled",
+                        "budget_tokens": budget_tokens
+                    }),
+                );
+            }
         }
         ThinkingType::Disabled => {}
     }
 
     if options.preserve_thinking_context {
         if !obj.contains_key("thinking") {
-            let budget_tokens = thinking_budget_tokens(model_config);
-            obj.insert("max_tokens".to_string(), json!(max_tokens + budget_tokens));
-            obj.insert(
-                "thinking".to_string(),
-                json!({
-                    "type": "enabled",
-                    "budget_tokens": budget_tokens
-                }),
-            );
+            let budget_tokens = thinking_budget_tokens(model_config)
+                .min(max_tokens.saturating_sub(MIN_ANSWER_TOKENS));
+            if budget_tokens >= MIN_ANSWER_TOKENS {
+                obj.insert(
+                    "thinking".to_string(),
+                    json!({
+                        "type": "enabled",
+                        "budget_tokens": budget_tokens
+                    }),
+                );
+            }
         }
 
         if let Some(thinking) = obj.get_mut("thinking").and_then(|t| t.as_object_mut()) {
@@ -1301,7 +1309,7 @@ mod tests {
         ]);
 
         let mut config = cfg_with_effort("claude-3-7-sonnet-20250219", "high");
-        config.max_tokens = Some(4096);
+        config.max_tokens = Some(64000);
 
         let messages = vec![Message::user().with_text("Hello")];
         let payload = create_request(&config, "system", &messages, &[])?;
@@ -1309,7 +1317,35 @@ mod tests {
         assert_eq!(payload["thinking"]["type"], "enabled");
         let budget = payload["thinking"]["budget_tokens"].as_i64().unwrap();
         assert!(budget > 0);
-        assert_eq!(payload["max_tokens"], 4096 + budget);
+        assert_eq!(payload["max_tokens"], 64000);
+        assert!(budget < 64000);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_clamps_thinking_budget_to_fit_max_tokens() -> Result<()> {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_THINKING_EFFORT", None::<&str>),
+            ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
+        ]);
+
+        let mut config = cfg_with_effort("claude-3-7-sonnet-20250219", "high");
+        let messages = vec![Message::user().with_text("Hello")];
+
+        // Budget larger than max_tokens is clamped to leave room for a response.
+        config.max_tokens = Some(4096);
+        let payload = create_request(&config, "system", &messages, &[])?;
+        let budget = payload["thinking"]["budget_tokens"].as_i64().unwrap();
+        assert!(budget >= 1024);
+        assert!(budget <= 4096 - 1024);
+        assert_eq!(payload["max_tokens"], 4096);
+
+        // Too small to fit any thinking alongside a response — drop it.
+        config.max_tokens = Some(1500);
+        let payload = create_request(&config, "system", &messages, &[])?;
+        assert!(payload.get("thinking").is_none());
+        assert_eq!(payload["max_tokens"], 1500);
 
         Ok(())
     }
@@ -1343,7 +1379,7 @@ mod tests {
         ]);
 
         let mut config = cfg("glm-4.7");
-        config.max_tokens = Some(4096);
+        config.max_tokens = Some(64000);
         let messages = vec![
             Message::assistant().with_content(MessageContent::thinking("internal", "")),
             Message::user().with_text("Continue"),
@@ -1363,7 +1399,7 @@ mod tests {
         assert_eq!(payload["thinking"]["type"], "enabled");
         assert_eq!(payload["thinking"]["budget_tokens"], 16000);
         assert_eq!(payload["thinking"]["clear_thinking"], false);
-        assert_eq!(payload["max_tokens"], 4096 + 16000);
+        assert_eq!(payload["max_tokens"], 64000);
         assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
         assert_eq!(payload["messages"][0]["content"][0]["thinking"], "internal");
         assert!(payload["messages"][0]["content"][0]
@@ -1389,6 +1425,7 @@ mod tests {
 
         let mut config = cfg("glm-4.7");
         config.request_params = Some(params);
+        config.max_tokens = Some(64000);
         let messages = vec![
             Message::assistant().with_content(MessageContent::thinking("internal", "")),
             Message::user().with_text("Continue"),

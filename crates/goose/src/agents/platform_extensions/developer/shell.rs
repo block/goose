@@ -26,7 +26,7 @@ use crate::subprocess::SubprocessExt;
 /// When inside Flatpak, shell commands must be wrapped with `flatpak-spawn --host`
 /// to execute on the host system rather than inside the sandbox.
 #[cfg(not(windows))]
-fn is_flatpak() -> bool {
+pub(crate) fn is_flatpak() -> bool {
     std::path::Path::new("/.flatpak-info").exists()
 }
 
@@ -34,7 +34,7 @@ fn is_flatpak() -> bool {
 const FLATPAK_HOST_ARGS: [&str; 2] = ["--host", "--watch-bus"];
 
 #[cfg(not(windows))]
-fn flatpak_spawn_command() -> tokio::process::Command {
+pub(crate) fn flatpak_spawn_command() -> tokio::process::Command {
     let mut command = tokio::process::Command::new("flatpak-spawn");
     command.args(FLATPAK_HOST_ARGS);
     command
@@ -201,7 +201,7 @@ pub struct ShellOutput {
 /// a minimal PATH like `/usr/bin:/bin`. This function spawns a login shell to
 /// source the user's profile and recover the full PATH.
 #[cfg(not(windows))]
-fn resolve_login_shell_path() -> Option<String> {
+pub(crate) fn resolve_login_shell_path() -> Option<String> {
     use process_wrap::std::{CommandWrap, ProcessSession};
 
     let shell = unix_shell();
