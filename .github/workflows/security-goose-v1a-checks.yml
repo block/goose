@@ -126,5 +126,4 @@ jobs:
         shell: bash
         run: |
           source bin/activate-hermit
-          pnpm --dir ui/desktop run bundle:default
           ./scripts/run-security-packaged-smoke.sh
