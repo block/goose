@@ -76,6 +76,52 @@ fn canonical_thinking_mode(provider_name: &str, model_name: &str) -> Option<Thin
     maybe_get_canonical_model(provider_name, model_name).and_then(|model| model.thinking_mode)
 }
 
+/// Infer adaptive thinking support from the model name when the canonical
+/// registry has no entry for it.
+///
+/// The registry only carries `thinking_mode` for the first-party `anthropic/`
+/// model IDs. The same Claude models served through other providers (Bedrock,
+/// Vertex, Azure) or through fully custom Anthropic-compatible providers have
+/// no registry entry, so without this fallback they send the deprecated
+/// `{"type": "enabled"}` thinking shape — which Claude Opus 4.7+ rejects with a
+/// 400 ("thinking.type.enabled is not supported for this model"). Adaptive
+/// thinking is supported on Claude Opus and Sonnet 4.6 and later, and is always
+/// on for the Fable family.
+fn inferred_adaptive_thinking_mode(model_name: &str) -> Option<ThinkingMode> {
+    let name = model_name.to_lowercase();
+    if !name.contains("claude") {
+        return None;
+    }
+    if name.contains("fable") {
+        return Some(ThinkingMode::AlwaysOnAdaptive);
+    }
+
+    let family = if name.contains("opus") {
+        "opus"
+    } else if name.contains("sonnet") {
+        "sonnet"
+    } else {
+        return None;
+    };
+
+    claude_family_version(&name, family)
+        .filter(|&(major, minor)| major <= 9 && (major, minor) >= (4, 6))
+        .map(|_| ThinkingMode::Adaptive)
+}
+
+/// Parse the `(major, minor)` version that follows the family token in a
+/// 4.x-style Claude model name (e.g. `claude-opus-4-7`, `claude-sonnet-4.6`,
+/// `claude-opus-4.8-fast`). Names that place a date after the family
+/// (`claude-3-opus-20240229`) yield an implausibly large major, which callers
+/// reject. Returns `None` when no version follows the family token.
+fn claude_family_version(name: &str, family: &str) -> Option<(u32, u32)> {
+    let after = name.split_once(family)?.1.trim_start_matches(['-', '.']);
+    let mut parts = after.split(['-', '.']);
+    let major = parts.next()?.parse().ok()?;
+    let minor = parts.next().and_then(|p| p.parse().ok()).unwrap_or(0);
+    Some((major, minor))
+}
+
 fn canonical_reasoning(provider_name: &str, model_config: &ModelConfig) -> Option<bool> {
     maybe_get_canonical_model(provider_name, &model_config.model_name)
         .and_then(|model| model.reasoning)
@@ -92,7 +138,8 @@ pub fn thinking_type(model_config: &ModelConfig) -> ThinkingType {
 }
 
 pub fn thinking_type_for_provider(provider_name: &str, model_config: &ModelConfig) -> ThinkingType {
-    let mode = canonical_thinking_mode(provider_name, &model_config.model_name);
+    let mode = canonical_thinking_mode(provider_name, &model_config.model_name)
+        .or_else(|| inferred_adaptive_thinking_mode(&model_config.model_name));
     let reasoning = model_config
         .reasoning
         .or_else(|| canonical_reasoning(provider_name, model_config));
@@ -1712,6 +1759,84 @@ mod tests {
         ]);
         let config = cfg_with_effort("claude-3-7-sonnet-20250219", "high");
         assert_eq!(thinking_budget_tokens(&config), 8192);
+    }
+
+    fn cfg_reasoning_with_effort(name: &str, effort: &str) -> ModelConfig {
+        let mut params = std::collections::HashMap::new();
+        params.insert("thinking_effort".to_string(), json!(effort));
+        ModelConfig {
+            model_name: name.to_string(),
+            request_params: Some(params),
+            reasoning: Some(true),
+            ..Default::default()
+        }
+    }
+
+    #[test]
+    fn test_inferred_adaptive_thinking_mode() {
+        // 4.6+ Opus/Sonnet infer adaptive regardless of separator or suffix
+        for name in [
+            "claude-opus-4-6",
+            "claude-opus-4-7",
+            "claude-opus-4-8",
+            "claude-opus-4.8-fast",
+            "claude-sonnet-4-6",
+            "claude-opus-4-9",
+            "claude-opus-5-0",
+        ] {
+            assert_eq!(
+                inferred_adaptive_thinking_mode(name),
+                Some(ThinkingMode::Adaptive),
+                "{name} should infer adaptive"
+            );
+        }
+        assert_eq!(
+            inferred_adaptive_thinking_mode("claude-fable-5"),
+            Some(ThinkingMode::AlwaysOnAdaptive)
+        );
+        // Pre-4.6 and date-suffixed legacy names must not infer adaptive
+        for name in [
+            "claude-opus-4-5",
+            "claude-opus-4-1",
+            "claude-opus-4",
+            "claude-sonnet-4-5",
+            "claude-3-7-sonnet-20250219",
+            "claude-3-opus-20240229",
+            "claude-3-5-sonnet-20241022",
+            "gpt-4o",
+        ] {
+            assert_eq!(
+                inferred_adaptive_thinking_mode(name),
+                None,
+                "{name} should not infer adaptive"
+            );
+        }
+    }
+
+    #[test]
+    fn test_thinking_type_adaptive_for_non_registry_provider() {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
+        // Claude Opus 4.7/4.8 served through a provider with no canonical
+        // registry entry (e.g. a custom Anthropic-compatible endpoint) must
+        // still use adaptive thinking, not the deprecated enabled shape.
+        for name in ["claude-opus-4-7", "claude-opus-4-8"] {
+            assert_eq!(
+                thinking_type_for_provider(
+                    "custom-anthropic-compatible",
+                    &cfg_reasoning_with_effort(name, "high"),
+                ),
+                ThinkingType::Adaptive,
+                "{name} via custom provider should be adaptive"
+            );
+        }
+        // A pre-adaptive model through the same provider still uses enabled.
+        assert_eq!(
+            thinking_type_for_provider(
+                "custom-anthropic-compatible",
+                &cfg_reasoning_with_effort("claude-opus-4-5", "high"),
+            ),
+            ThinkingType::Enabled
+        );
     }
 
     #[test]
