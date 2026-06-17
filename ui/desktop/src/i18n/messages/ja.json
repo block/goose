@@ -4046,6 +4046,33 @@
   "settings.help.title": {
     "defaultMessage": "ヘルプとフィードバック"
   },
+  "settings.language.description": {
+    "defaultMessage": "goose の表示言語を選択"
+  },
+  "settings.language.english": {
+    "defaultMessage": "英語"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "ヒンディー語"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "日本語"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "ロシア語"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "システムデフォルト"
+  },
+  "settings.language.title": {
+    "defaultMessage": "言語"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "トルコ語"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "中国語（簡体字）"
+  },
   "settings.menuBarIcon.description": {
     "defaultMessage": "メニューバーにgooseを表示します"
   },

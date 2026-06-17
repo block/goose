@@ -387,11 +387,11 @@ async fn child_process_client(
 }
 
 /// Retry with OAuth for typed auth challenges and wrapped bare HTTP 401 responses.
-fn should_attempt_oauth_fallback(res: &Result<McpClient, ClientInitializeError>) -> bool {
-    let Err(ClientInitializeError::TransportError {
+fn is_oauth_auth_failure(err: &ClientInitializeError) -> bool {
+    let ClientInitializeError::TransportError {
         error: DynamicTransportError { error, .. },
         ..
-    }) = res
+    } = err
     else {
         return false;
     };
@@ -419,6 +419,32 @@ fn should_attempt_oauth_fallback(res: &Result<McpClient, ClientInitializeError>)
     error
         .to_string()
         .contains("unexpected server response: HTTP 401")
+}
+
+fn should_attempt_oauth_fallback(res: &Result<McpClient, ClientInitializeError>) -> bool {
+    res.as_ref().err().is_some_and(is_oauth_auth_failure)
+}
+
+async fn clear_credentials_on_post_refresh_auth_failure(
+    credential_store: &dyn CredentialStore,
+    name: &str,
+    error: &ExtensionError,
+) -> bool {
+    let ExtensionError::InitializeError(err) = error else {
+        return false;
+    };
+
+    if !is_oauth_auth_failure(err) {
+        return false;
+    }
+
+    if let Err(e) = credential_store.clear().await {
+        warn!(
+            "[OAuth:{}] error clearing rejected credentials: {}",
+            name, e
+        );
+    }
+    true
 }
 
 /// Merge environment variables from direct envs and keychain-stored env_keys
@@ -625,17 +651,36 @@ async fn create_streamable_http_client(
     if credential_store.load().await.is_ok_and(|c| c.is_some()) {
         match oauth_flow(&uri.to_string(), &name.to_string()).await {
             Ok(auth_manager) => {
-                return connect_with_auth(
+                let auth_result = connect_with_auth(
                     auth_manager,
                     uri,
                     timeout_duration,
                     headers,
-                    provider,
-                    client_name,
-                    capabilities,
+                    provider.clone(),
+                    client_name.clone(),
+                    capabilities.clone(),
                     roots_dir,
                 )
                 .await;
+
+                if let Err(error) = &auth_result {
+                    if clear_credentials_on_post_refresh_auth_failure(
+                        credential_store.as_ref(),
+                        name,
+                        error,
+                    )
+                    .await
+                    {
+                        warn!(
+                            "[OAuth:{}] Refreshed token was rejected, falling back to browser auth",
+                            name
+                        );
+                    } else {
+                        return auth_result;
+                    }
+                } else {
+                    return auth_result;
+                }
             }
             Err(e) => {
                 warn!(
@@ -2723,6 +2768,41 @@ mod tests {
             ),
         );
         assert!(should_attempt_oauth_fallback(&Err(err)));
+    }
+
+    #[tokio::test]
+    async fn test_post_refresh_auth_failure_clears_credentials() {
+        use rmcp::transport::auth::{
+            InMemoryCredentialStore, OAuthTokenResponse, StoredCredentials,
+        };
+
+        let token_response: OAuthTokenResponse = serde_json::from_value(serde_json::json!({
+            "access_token": "rejected-token",
+            "token_type": "bearer",
+        }))
+        .expect("valid fake token JSON");
+        let store = InMemoryCredentialStore::new();
+        store
+            .save(StoredCredentials::new(
+                "test-client".to_string(),
+                Some(token_response),
+                vec![],
+                None,
+            ))
+            .await
+            .unwrap();
+
+        let err = streamable_err(
+            rmcp::transport::streamable_http_client::StreamableHttpError::AuthRequired(
+                rmcp::transport::streamable_http_client::AuthRequiredError::new(
+                    "Bearer error=\"invalid_token\"".to_string(),
+                ),
+            ),
+        );
+        let error = ExtensionError::InitializeError(err);
+
+        assert!(clear_credentials_on_post_refresh_auth_failure(&store, "test-ext", &error).await);
+        assert!(store.load().await.unwrap().is_none());
     }
 
     #[tokio::test]

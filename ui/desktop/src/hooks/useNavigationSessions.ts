@@ -146,11 +146,16 @@ export function useNavigationSessions() {
     };
 
     const handleSessionRenamed = (event: Event) => {
-      const { sessionId, newName } = (event as CustomEvent<{ sessionId: string; newName: string }>)
-        .detail;
+      const { sessionId, newName, userInitiated } = (
+        event as CustomEvent<{ sessionId: string; newName: string; userInitiated?: boolean }>
+      ).detail;
 
       setRecentSessions((prev) =>
-        prev.map((session) => (session.id === sessionId ? { ...session, name: newName } : session))
+        prev.map((session) =>
+          session.id === sessionId
+            ? { ...session, name: newName, ...(userInitiated && { user_set_name: true }) }
+            : session
+        )
       );
     };
 
