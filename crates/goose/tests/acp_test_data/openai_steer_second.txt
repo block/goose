@@ -1,0 +1,9 @@
+data: {"id":"chatcmpl-steer2","object":"chat.completion.chunk","created":1766229304,"model":"gpt-4o","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-steer2","object":"chat.completion.chunk","created":1766229304,"model":"gpt-4o","choices":[{"index":0,"delta":{"content":"saw steer"},"finish_reason":null}]}
+
+data: {"id":"chatcmpl-steer2","object":"chat.completion.chunk","created":1766229304,"model":"gpt-4o","choices":[{"index":0,"delta":{},"finish_reason":"stop"}]}
+
+data: {"id":"chatcmpl-steer2","object":"chat.completion.chunk","created":1766229304,"model":"gpt-4o","choices":[],"usage":{"prompt_tokens":120,"completion_tokens":10,"total_tokens":130}}
+
+data: [DONE]

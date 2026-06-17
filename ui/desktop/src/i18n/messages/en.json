@@ -3731,6 +3731,9 @@
   "securityToggle.mlTokenDescription": {
     "defaultMessage": "Authentication token for the ML service (e.g., HuggingFace token)"
   },
+  "securityToggle.overrideNotice": {
+    "defaultMessage": "This setting is managed by your organization and cannot be changed."
+  },
   "securityToggle.promptInjectionDescription": {
     "defaultMessage": "Detect and prevent potential prompt injection attacks"
   },
@@ -3739,6 +3742,39 @@
   },
   "securityToggle.thresholdDescription": {
     "defaultMessage": "Higher values are more strict (0.01 = very lenient, 1.0 = maximum strict)"
+  },
+  "securityToggle.warpNotice": {
+    "defaultMessage": "Command injection detection works best when connected to WARP (required to reach the classification service)."
+  },
+  "sessionActionsHeader.close": {
+    "defaultMessage": "Close"
+  },
+  "sessionActionsHeader.copiedJson": {
+    "defaultMessage": "Session JSON copied"
+  },
+  "sessionActionsHeader.copiedText": {
+    "defaultMessage": "Text copied"
+  },
+  "sessionActionsHeader.copyJson": {
+    "defaultMessage": "Copy JSON"
+  },
+  "sessionActionsHeader.copyText": {
+    "defaultMessage": "Copy text"
+  },
+  "sessionActionsHeader.fullTextTitle": {
+    "defaultMessage": "Text value"
+  },
+  "sessionActionsHeader.jsonFailed": {
+    "defaultMessage": "Failed to load session JSON: {error}"
+  },
+  "sessionActionsHeader.jsonTitle": {
+    "defaultMessage": "Session JSON"
+  },
+  "sessionActionsHeader.loadingJson": {
+    "defaultMessage": "Loading JSON..."
+  },
+  "sessionActionsHeader.viewJson": {
+    "defaultMessage": "View session JSON"
   },
   "sessionHistory.cancel": {
     "defaultMessage": "Cancel"
@@ -3923,9 +3959,6 @@
   "sessions.error.tryAgain": {
     "defaultMessage": "Try Again"
   },
-  "sessions.extensions": {
-    "defaultMessage": "Extensions:"
-  },
   "sessions.import": {
     "defaultMessage": "Import Session"
   },
@@ -4042,6 +4075,33 @@
   },
   "settings.help.title": {
     "defaultMessage": "Help & feedback"
+  },
+  "settings.language.description": {
+    "defaultMessage": "Choose the display language for goose"
+  },
+  "settings.language.english": {
+    "defaultMessage": "English"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "Hindi"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "Japanese"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "Russian"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "System Default"
+  },
+  "settings.language.title": {
+    "defaultMessage": "Language"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "Turkish"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "Chinese (Simplified)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Show goose in the menu bar"

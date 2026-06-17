@@ -41,7 +41,8 @@ impl AuthProvider for AzureAuthProvider {
             super::azureauth::AzureCredentials::ApiKey(_) => {
                 Ok(("api-key".to_string(), auth_token.token_value))
             }
-            super::azureauth::AzureCredentials::DefaultCredential => Ok((
+            super::azureauth::AzureCredentials::BearerToken(_)
+            | super::azureauth::AzureCredentials::DefaultCredential => Ok((
                 "Authorization".to_string(),
                 format!("Bearer {}", auth_token.token_value),
             )),
@@ -56,7 +57,7 @@ impl ProviderDef for AzureProvider {
         ProviderMetadata::new(
             AZURE_PROVIDER_NAME,
             "Azure OpenAI",
-            "Models through Azure OpenAI Service (uses Azure credential chain by default)",
+            "Models through Azure OpenAI Service (supports API key, Entra ID bearer token, and Azure credential chain)",
             "gpt-4o",
             AZURE_OPENAI_KNOWN_MODELS.to_vec(),
             AZURE_DOC_URL,
@@ -65,6 +66,7 @@ impl ProviderDef for AzureProvider {
                 ConfigKey::new("AZURE_OPENAI_DEPLOYMENT_NAME", true, false, None, true),
                 ConfigKey::new("AZURE_OPENAI_API_VERSION", false, false, None, false),
                 ConfigKey::new("AZURE_OPENAI_API_KEY", false, true, Some(""), true),
+                ConfigKey::new("AZURE_OPENAI_AD_TOKEN", false, true, Some(""), true),
             ],
         )
     }
@@ -92,7 +94,11 @@ impl ProviderDef for AzureProvider {
                 .get_secret("AZURE_OPENAI_API_KEY")
                 .ok()
                 .filter(|key: &String| !key.is_empty());
-            let auth = AzureAuth::new(api_key).map_err(|e| match e {
+            let ad_token = config
+                .get_secret("AZURE_OPENAI_AD_TOKEN")
+                .ok()
+                .filter(|token: &String| !token.is_empty());
+            let auth = AzureAuth::new(api_key, ad_token).map_err(|e| match e {
                 AuthError::Credentials(msg) => anyhow::anyhow!("Credentials error: {}", msg),
                 AuthError::TokenExchange(msg) => anyhow::anyhow!("Token exchange error: {}", msg),
             })?;
@@ -135,5 +141,23 @@ mod tests {
         assert!(!is_v1_endpoint(
             "https://my-resource.openai.azure.com/openai"
         ));
+    }
+
+    #[tokio::test]
+    async fn test_auth_header_bearer_token() {
+        let auth = AzureAuth::new(None, Some("my-token".to_string())).unwrap();
+        let provider = AzureAuthProvider { auth };
+        let (header, value) = provider.get_auth_header().await.unwrap();
+        assert_eq!(header, "Authorization");
+        assert_eq!(value, "Bearer my-token");
+    }
+
+    #[tokio::test]
+    async fn test_auth_header_api_key() {
+        let auth = AzureAuth::new(Some("my-key".to_string()), None).unwrap();
+        let provider = AzureAuthProvider { auth };
+        let (header, value) = provider.get_auth_header().await.unwrap();
+        assert_eq!(header, "api-key");
+        assert_eq!(value, "my-key");
     }
 }

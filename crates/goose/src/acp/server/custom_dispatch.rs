@@ -67,6 +67,14 @@ impl GooseAcpAgent {
         self.on_set_session_system_prompt(req).await
     }
 
+    #[custom_method(SteerSessionRequest)]
+    async fn dispatch_steer_session(
+        &self,
+        req: SteerSessionRequest,
+    ) -> Result<SteerSessionResponse, agent_client_protocol::Error> {
+        self.on_steer_session(req).await
+    }
+
     #[custom_method(DeleteSessionRequest)]
     async fn dispatch_delete_session(
         &self,
@@ -313,13 +321,12 @@ impl GooseAcpAgent {
         self.on_import_session(req).await
     }
 
-    #[custom_method(ElicitationRespondRequest)]
-    async fn dispatch_elicitation_respond(
+    #[custom_method(GetSessionInfoRequest)]
+    async fn dispatch_get_session_info(
         &self,
-        _req: ElicitationRespondRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        Err(agent_client_protocol::Error::invalid_params()
-            .data("_goose/unstable/elicitation/respond must be handled by the connection-scoped dispatcher"))
+        req: GetSessionInfoRequest,
+    ) -> Result<GetSessionInfoResponse, agent_client_protocol::Error> {
+        self.on_get_session_info(req).await
     }
 
     #[custom_method(UpdateSessionProjectRequest)]

@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::TryStreamExt;
+use goose_providers::errors::ProviderError;
 use reqwest::StatusCode;
 use serde_json::Value;
 use std::io;
@@ -10,10 +11,9 @@ use tokio_util::io::StreamReader;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata};
-use super::errors::ProviderError;
 use super::formats::anthropic::{
-    create_request_with_options, response_to_streaming_message, thinking_type,
-    AnthropicFormatOptions, ThinkingType,
+    create_request_with_options_for_provider, response_to_streaming_message, thinking_type,
+    AnthropicFormatOptions, ThinkingType, ANTHROPIC_PROVIDER_NAME,
 };
 use super::inventory::{config_secret_value, serialize_string_map, InventoryIdentityInput};
 use super::openai_compatible::handle_status;
@@ -26,7 +26,6 @@ use crate::providers::utils::RequestLog;
 use futures::future::BoxFuture;
 use rmcp::model::Tool;
 
-const ANTHROPIC_PROVIDER_NAME: &str = "anthropic";
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
 const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
@@ -341,7 +340,8 @@ impl Provider for AnthropicProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_request_with_options(
+        let mut payload = create_request_with_options_for_provider(
+            ANTHROPIC_PROVIDER_NAME,
             model_config,
             system,
             messages,
@@ -379,7 +379,7 @@ impl Provider for AnthropicProvider {
             let message_stream = response_to_streaming_message(framed);
             pin!(message_stream);
             while let Some(message) = futures::StreamExt::next(&mut message_stream).await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                let (message, usage) = message.map_err(ProviderError::from_stream_error)?;
                 log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
                 yield (message, usage);
             }

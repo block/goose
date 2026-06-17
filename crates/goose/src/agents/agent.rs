@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -16,7 +16,7 @@ use super::mcp_client::GooseMcpHostInfo;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::action_required_manager::ActionRequiredManager;
+use crate::action_required_manager::{ActionRequiredManager, ElicitationOutcome};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
     get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
@@ -43,7 +43,6 @@ use crate::permission::permission_inspector::PermissionInspector;
 use crate::permission::permission_judge::PermissionCheckResult;
 use crate::permission::PermissionConfirmation;
 use crate::providers::base::{PermissionRouting, Provider};
-use crate::providers::errors::ProviderError;
 use crate::recipe::{Author, Recipe, Response, Settings};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::adversary_inspector::AdversaryInspector;
@@ -54,10 +53,12 @@ use crate::session::{Session, SessionManager, SessionNameUpdate};
 use crate::tool_inspection::ToolInspectionManager;
 use crate::tool_monitor::RepetitionInspector;
 use crate::utils::is_token_cancelled;
+use goose_providers::errors::ProviderError;
+use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
-    ServerNotification, Tool,
+    CallToolRequestParams, CallToolResult, Content, ElicitationAction, ErrorCode, ErrorData,
+    GetPromptResult, Prompt, ServerNotification, Tool,
 };
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
@@ -220,6 +221,14 @@ impl AgentConfig {
         self.use_login_shell_path = Some(use_login_shell_path);
         self
     }
+
+    fn resolve_use_login_shell_path(&self) -> bool {
+        resolve_use_login_shell_path(self.use_login_shell_path, &self.goose_platform)
+    }
+}
+
+fn resolve_use_login_shell_path(explicit: Option<bool>, platform: &GoosePlatform) -> bool {
+    explicit.unwrap_or(matches!(platform, GoosePlatform::GooseDesktop))
 }
 
 /// The main goose Agent
@@ -246,6 +255,7 @@ pub struct Agent {
     container: Mutex<Option<Container>>,
     goal: Mutex<Option<String>>,
     grind: Mutex<Option<String>>,
+    pending_steers: Mutex<HashMap<String, VecDeque<Message>>>,
 }
 
 #[derive(Clone, Debug)]
@@ -334,9 +344,7 @@ impl Agent {
             .unwrap_or_else(|| goose_platform.to_string());
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
-        let use_login_shell_path = config
-            .use_login_shell_path
-            .unwrap_or(matches!(goose_platform, GoosePlatform::GooseDesktop));
+        let use_login_shell_path = config.resolve_use_login_shell_path();
         Self {
             provider: provider.clone(),
             config,
@@ -361,12 +369,16 @@ impl Agent {
                 permission_manager,
                 provider.clone(),
             ),
-            hook_manager: crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref()),
+            hook_manager: crate::hooks::HookManager::load(
+                std::env::current_dir().ok().as_deref(),
+                use_login_shell_path,
+            ),
             #[cfg(test)]
             stop_hook_block_cap_override: None,
             container: Mutex::new(None),
             goal: Mutex::new(None),
             grind: Mutex::new(None),
+            pending_steers: Mutex::new(HashMap::new()),
         }
     }
 
@@ -400,6 +412,36 @@ impl Agent {
         self.hook_manager
             .emit(event, crate::hooks::HookContext::new(event, session_id))
             .await;
+    }
+
+    pub async fn steer(&self, session_id: &str, message: Message) {
+        self.pending_steers
+            .lock()
+            .await
+            .entry(session_id.to_string())
+            .or_default()
+            .push_back(message);
+    }
+
+    pub async fn discard_pending_steers(&self, session_id: &str) {
+        self.pending_steers.lock().await.remove(session_id);
+    }
+
+    async fn has_pending_steers(&self, session_id: &str) -> bool {
+        self.pending_steers
+            .lock()
+            .await
+            .get(session_id)
+            .is_some_and(|messages| !messages.is_empty())
+    }
+
+    async fn drain_pending_steers(&self, session_id: &str) -> Vec<Message> {
+        self.pending_steers
+            .lock()
+            .await
+            .remove(session_id)
+            .map(|messages| messages.into_iter().map(Message::with_steer).collect())
+            .unwrap_or_default()
     }
 
     async fn emit_pre_tool_extended_hooks(
@@ -597,8 +639,10 @@ impl Agent {
     async fn drain_elicitation_messages(&self, session_id: &str) -> Vec<Message> {
         let mut messages = Vec::new();
         let manager = self.config.session_manager.clone();
-        let mut elicitation_rx = ActionRequiredManager::global().request_rx.lock().await;
-        while let Ok(mut elicitation_message) = elicitation_rx.try_recv() {
+        for mut elicitation_message in ActionRequiredManager::global()
+            .drain_requests_for_session(session_id)
+            .await
+        {
             if elicitation_message.id.is_none() {
                 elicitation_message = elicitation_message.with_generated_id();
             }
@@ -1417,25 +1461,35 @@ impl Agent {
 
         for content in &user_message.content {
             if let MessageContent::ActionRequired(action_required) = content {
-                if let ActionRequiredData::ElicitationResponse { id, user_data } =
-                    &action_required.data
+                if let ActionRequiredData::ElicitationResponse {
+                    id,
+                    user_data,
+                    action,
+                } = &action_required.data
                 {
                     // Surface stale/cancelled/timed-out elicitations as a hard
                     // error so callers (e.g. the HTTP handler) can propagate
                     // failure to the client instead of silently reporting
                     // success while the blocked tool call stays unblocked.
-                    // The success path returns an empty stream; an Err here
-                    // makes the contract: Ok(empty) on accept, Err on reject.
-                    ActionRequiredManager::global()
-                        .submit_response(id.clone(), user_data.clone())
-                        .await
-                        .map_err(|e| {
-                            error!("Failed to submit elicitation response: {}", e);
-                            anyhow!("Failed to submit elicitation response: {}", e)
-                        })?;
-                    session_manager
-                        .add_message(&session_config.id, &user_message)
-                        .await?;
+                    // The success path returns an empty stream after the MCP
+                    // server receives the user's accept/decline/cancel action.
+                    let response = match action {
+                        ElicitationAction::Accept => ElicitationOutcome::Accept(user_data.clone()),
+                        ElicitationAction::Decline => ElicitationOutcome::Decline,
+                        ElicitationAction::Cancel => ElicitationOutcome::Cancel,
+                    };
+                    crate::elicitation::complete_elicitation_with_message(
+                        &session_manager,
+                        &session_config.id,
+                        id,
+                        response,
+                        &user_message,
+                    )
+                    .await
+                    .map_err(|e| {
+                        error!("Failed to submit elicitation response: {}", e);
+                        anyhow!("Failed to submit elicitation response: {}", e)
+                    })?;
                     return Ok(Box::pin(futures::stream::empty()));
                 }
             }
@@ -1686,7 +1740,15 @@ impl Agent {
             .count();
 
         let working_dir = session.working_dir.clone();
-        let reply_stream_span = tracing::info_span!(target: "goose::agents::agent", "reply_stream", trace_output = tracing::field::Empty, session.id = %session_config.id);
+        let reply_stream_span = tracing::info_span!(
+            target: "goose::agents::agent",
+            "reply_stream",
+            trace_output = tracing::field::Empty,
+            session.id = %session_config.id,
+            session.user = %crate::session_context::session_user(),
+            session.host = %crate::session_context::session_host(),
+            session.agent_type = "goose",
+        );
         let inner = Box::pin(async_stream::try_stream! {
             let mut turns_taken = 0u32;
             let max_turns = session_config.max_turns.unwrap_or_else(|| {
@@ -1702,10 +1764,33 @@ impl Agent {
             let mut retrying_after_stop_hook_denial = false;
             let mut consecutive_stop_hook_blocks = 0u32;
             let stop_hook_block_cap = self.stop_hook_block_cap();
+            let mut can_drain_pending_steers = false;
 
             loop {
                 if is_token_cancelled(&cancel_token) {
                     break;
+                }
+
+                if can_drain_pending_steers {
+                    for message in self.drain_pending_steers(&session_config.id).await {
+                        let message_text = message.as_concat_text();
+                        if self
+                            .hook_manager
+                            .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
+                        {
+                            let ctx = crate::hooks::HookContext::new(
+                                crate::hooks::HookEvent::UserPromptSubmit,
+                                &session_config.id,
+                            )
+                            .with_message(message_text);
+                            self.hook_manager
+                                .emit(crate::hooks::HookEvent::UserPromptSubmit, ctx)
+                                .await;
+                        }
+                        session_manager.add_message(&session_config.id, &message).await?;
+                        conversation.push(message.clone());
+                        yield AgentEvent::Message(message);
+                    }
                 }
 
                 let final_output = {
@@ -2079,10 +2164,14 @@ impl Agent {
                                                 request.metadata.as_ref(),
                                                 request.tool_meta.clone(),
                                             );
-                                        messages_to_add.push(request_msg);
                                         let final_response = request_to_response_map
                                             .remove(&request.id)
                                             .unwrap_or_else(|| Message::user().with_generated_id());
+                                        // Response placeholder is created before tools run, so clamp request to avoid inverted ordering.
+                                        if request_msg.created > final_response.created {
+                                            request_msg.created = final_response.created;
+                                        }
+                                        messages_to_add.push(request_msg);
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
                                     } else {
@@ -2188,6 +2277,21 @@ impl Agent {
                             );
                             break;
                         }
+                        Err(ref provider_err @ ProviderError::Refusal { ref details, ref category }) => {
+                            #[cfg(feature = "telemetry")]
+                            crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
+                            error!("Error: {}", provider_err);
+
+                            let category = category.as_deref().map(|c| format!("\n\nCategory: {c}")).unwrap_or_default();
+                            yield AgentEvent::Message(Message::assistant().with_text(format!(
+                                "The provider refused this request.\n\n{details}{category}\n\nPlease start a new session to continue — resending this conversation is likely to be refused again."
+                            )));
+                            // A refusal is terminal: skip goal/grind nudges and
+                            // recipe retry_config, which would resend the same
+                            // refused conversation.
+                            exit_chat = true;
+                            break;
+                        }
                         Err(ref provider_err @ ProviderError::NetworkError(_)) => {
                             #[cfg(feature = "telemetry")]
                             crate::posthog::emit_error(provider_err.telemetry_type(), &provider_err.to_string());
@@ -2212,6 +2316,8 @@ impl Agent {
                         }
                     }
                 }
+                can_drain_pending_steers = true;
+
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt) =
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
@@ -2229,7 +2335,7 @@ impl Agent {
                     }
                 }
 
-                if no_tools_called {
+                if no_tools_called && !exit_chat {
                     // Lock, extract state, drop guard before branching — handle_retry_logic
                     // also locks final_output_tool and tokio::sync::Mutex is not reentrant.
                     let final_output = {
@@ -2251,6 +2357,7 @@ impl Agent {
                         None if did_recovery_compact_this_iteration => {
                             // continue from last user message after recovery compact
                         }
+                        None if self.has_pending_steers(&session_config.id).await => {}
                         None if self.goal.lock().await.is_some() && !goal_check_pending => {
                             goal_check_pending = true;
                             let goal = self.goal.lock().await.clone().unwrap();
@@ -2374,6 +2481,10 @@ impl Agent {
                 }
                 conversation.extend(messages_to_add);
 
+                if exit_chat && self.has_pending_steers(&session_config.id).await {
+                    exit_chat = false;
+                }
+
                 if exit_chat {
                     let ctx = crate::hooks::HookContext::new(
                         crate::hooks::HookEvent::Stop,
@@ -2488,6 +2599,54 @@ impl Agent {
 
     pub async fn goose_mode(&self) -> GooseMode {
         *self.current_goose_mode.lock().await
+    }
+
+    pub async fn recreate_provider_for_session(
+        &self,
+        session_id: &str,
+        provider_name: &str,
+        model_config: crate::model::ModelConfig,
+    ) -> Result<()> {
+        let session = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .context("Failed to get session")?;
+
+        let extensions = EnabledExtensionsState::extensions_or_default(
+            Some(&session.extension_data),
+            Config::global(),
+        );
+
+        let provider = crate::providers::create_with_working_dir(
+            provider_name,
+            model_config,
+            extensions,
+            session.working_dir.clone(),
+        )
+        .await
+        .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+
+        self.update_provider(provider, session_id).await?;
+
+        let mode = self.goose_mode().await;
+        self.update_goose_mode(mode, session_id).await
+    }
+
+    pub async fn update_thinking_effort(
+        &self,
+        session_id: &str,
+        effort: ThinkingEffort,
+    ) -> Result<()> {
+        let current_provider = self.provider().await?;
+        let provider_name = current_provider.get_name().to_string();
+        let model_config = current_provider
+            .get_model_config()
+            .with_thinking_effort(effort);
+
+        self.recreate_provider_for_session(session_id, &provider_name, model_config)
+            .await
     }
 
     /// Restore the provider from session data or fall back to global config
@@ -2928,16 +3087,38 @@ mod tests {
     use super::*;
     use crate::permission::permission_confirmation::PrincipalType;
     use crate::plugins::discovery::{DiscoveredPlugin, PluginScope};
-    use crate::providers::base::{
-        stream_from_single_message, MessageStream, PermissionRouting, ProviderUsage, Usage,
-    };
-    use crate::providers::errors::ProviderError;
+    use crate::providers::base::{stream_from_single_message, MessageStream, PermissionRouting};
     use crate::recipe::Response;
     use crate::session::session_manager::SessionType;
+    use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
     use rmcp::model::Tool;
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
+
+    #[test]
+    fn resolve_use_login_shell_path_defaults_by_platform() {
+        assert!(resolve_use_login_shell_path(
+            None,
+            &GoosePlatform::GooseDesktop
+        ));
+        assert!(!resolve_use_login_shell_path(
+            None,
+            &GoosePlatform::GooseCli
+        ));
+    }
+
+    #[test]
+    fn resolve_use_login_shell_path_explicit_overrides_platform() {
+        assert!(resolve_use_login_shell_path(
+            Some(true),
+            &GoosePlatform::GooseCli
+        ));
+        assert!(!resolve_use_login_shell_path(
+            Some(false),
+            &GoosePlatform::GooseDesktop
+        ));
+    }
 
     struct ActionRequiredProvider {
         handled: tokio::sync::Mutex<Vec<(String, PermissionConfirmation)>>,
@@ -2972,8 +3153,7 @@ mod tests {
             _: &str,
             _: &[crate::conversation::message::Message],
             _: &[rmcp::model::Tool],
-        ) -> Result<crate::providers::base::MessageStream, crate::providers::errors::ProviderError>
-        {
+        ) -> Result<crate::providers::base::MessageStream, ProviderError> {
             unimplemented!()
         }
         fn permission_routing(&self) -> PermissionRouting {
@@ -3171,12 +3351,86 @@ exit 0
         }
     }
 
-    async fn create_stop_hook_test_agent(
-        env: &StopHookTestEnv,
-        stop_hook_block_cap: u32,
-    ) -> Result<(Agent, String, Arc<CountingTextProvider>)> {
-        let session_manager = Arc::new(SessionManager::new(env.data_dir()));
-        let permission_manager = Arc::new(PermissionManager::new(env.data_dir()));
+    struct RefusingProvider {
+        call_count: AtomicUsize,
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for RefusingProvider {
+        async fn stream(
+            &self,
+            _model_config: &crate::model::ModelConfig,
+            _session_id: &str,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            self.call_count.fetch_add(1, Ordering::SeqCst);
+            Ok(Box::pin(futures::stream::once(async {
+                Err(ProviderError::Refusal {
+                    details: "This request was declined.".to_string(),
+                    category: Some("cyber".to_string()),
+                })
+            })))
+        }
+
+        fn get_model_config(&self) -> crate::model::ModelConfig {
+            crate::model::ModelConfig::new("mock-model").unwrap()
+        }
+
+        fn get_name(&self) -> &str {
+            "refusing"
+        }
+    }
+
+    #[tokio::test]
+    async fn refusal_exits_turn_without_recipe_retry() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(RefusingProvider {
+            call_count: AtomicUsize::new(0),
+        });
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider.clone()).await?;
+
+        let session_config = SessionConfig {
+            id: session_id,
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: Some(crate::agents::types::RetryConfig {
+                max_retries: 3,
+                checks: vec![crate::agents::types::SuccessCheck::Shell {
+                    command: "false".to_string(),
+                }],
+                on_failure: None,
+                timeout_seconds: None,
+                on_failure_timeout_seconds: None,
+            }),
+        };
+
+        let reply_stream = agent
+            .reply(Message::user().with_text("hi"), session_config, None)
+            .await?;
+        tokio::pin!(reply_stream);
+        while let Some(event) = reply_stream.next().await {
+            event?;
+        }
+
+        assert_eq!(
+            provider.call_count.load(Ordering::SeqCst),
+            1,
+            "a refused request must not be resent"
+        );
+        Ok(())
+    }
+
+    async fn create_test_agent(
+        data_dir: PathBuf,
+        hook_manager: crate::hooks::HookManager,
+        provider: Arc<dyn crate::providers::base::Provider>,
+    ) -> Result<(Agent, String)> {
+        let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+        let permission_manager = Arc::new(PermissionManager::new(data_dir));
         let config = AgentConfig::new(
             session_manager.clone(),
             permission_manager,
@@ -3186,19 +3440,28 @@ exit 0
             GoosePlatform::GooseCli,
         );
         let mut agent = Agent::with_config(config);
-        agent.set_hook_manager_for_test(env.hook_manager());
-        agent.set_stop_hook_block_cap_for_test(stop_hook_block_cap);
-        let provider = Arc::new(CountingTextProvider::new());
+        agent.set_hook_manager_for_test(hook_manager);
         let session = session_manager
             .create_session(
                 PathBuf::default(),
-                "stop-hook-test".to_string(),
+                "test".to_string(),
                 SessionType::Hidden,
                 GooseMode::Auto,
             )
             .await?;
-        agent.update_provider(provider.clone(), &session.id).await?;
-        Ok((agent, session.id, provider))
+        agent.update_provider(provider, &session.id).await?;
+        Ok((agent, session.id))
+    }
+
+    async fn create_stop_hook_test_agent(
+        env: &StopHookTestEnv,
+        stop_hook_block_cap: u32,
+    ) -> Result<(Agent, String, Arc<CountingTextProvider>)> {
+        let provider = Arc::new(CountingTextProvider::new());
+        let (mut agent, session_id) =
+            create_test_agent(env.data_dir(), env.hook_manager(), provider.clone()).await?;
+        agent.set_stop_hook_block_cap_for_test(stop_hook_block_cap);
+        Ok((agent, session_id, provider))
     }
 
     async fn run_stop_hook_test_turn(
@@ -3364,6 +3627,25 @@ exit 0
         );
 
         Ok(())
+    }
+
+    #[tokio::test]
+    async fn discard_pending_steers_clears_queued_messages() {
+        let agent = Agent::new();
+        let session_id = "session-discard";
+
+        agent
+            .steer(session_id, Message::user().with_text("queued steer"))
+            .await;
+        assert!(agent.has_pending_steers(session_id).await);
+
+        agent.discard_pending_steers(session_id).await;
+
+        assert!(
+            !agent.has_pending_steers(session_id).await,
+            "discarding must drop steers orphaned by a cancelled run so they cannot leak into a later prompt"
+        );
+        assert!(agent.drain_pending_steers(session_id).await.is_empty());
     }
 
     #[test]
