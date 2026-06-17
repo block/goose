@@ -73,6 +73,18 @@ describe('getLocale', () => {
     expect(getLocale()).toEqual({ locale: 'tr', messageLocale: 'tr' });
   });
 
+
+  it('supports Japanese from navigator.languages', () => {
+    vi.stubGlobal('navigator', { languages: ['ja-JP'] });
+    expect(getLocale()).toEqual({ locale: 'ja-JP', messageLocale: 'ja' });
+  });
+
+  it('supports POSIX-style Japanese locale from GOOSE_LOCALE', () => {
+    mockAppConfig({ GOOSE_LOCALE: 'ja_JP' });
+    vi.stubGlobal('navigator', { languages: ['xx-XX'] });
+    expect(getLocale()).toEqual({ locale: 'ja-JP', messageLocale: 'ja' });
+  });
+
   it('supports Hindi from navigator.languages', () => {
     vi.stubGlobal('navigator', { languages: ['hi-IN'] });
     expect(getLocale()).toEqual({ locale: 'hi-IN', messageLocale: 'hi' });

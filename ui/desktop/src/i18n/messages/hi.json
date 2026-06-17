@@ -4046,6 +4046,33 @@
   "settings.help.title": {
     "defaultMessage": "सहायता एवं प्रतिक्रिया"
   },
+  "settings.language.description": {
+    "defaultMessage": "goose के लिए प्रदर्शन भाषा चुनें"
+  },
+  "settings.language.english": {
+    "defaultMessage": "अंग्रेज़ी"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "हिन्दी"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "जापानी"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "रूसी"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "सिस्टम डिफ़ॉल्ट"
+  },
+  "settings.language.title": {
+    "defaultMessage": "भाषा"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "तुर्की"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "चीनी (सरलीकृत)"
+  },
   "settings.menuBarIcon.description": {
     "defaultMessage": "मेनू बार में goose दिखाएँ"
   },
