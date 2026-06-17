@@ -58,6 +58,8 @@ pub struct DelegateParams {
     pub model: Option<String>,
     pub temperature: Option<f32>,
     pub max_turns: Option<usize>,
+    pub context: Option<String>,
+    pub working_dir: Option<String>,
     #[serde(default)]
     pub r#async: bool,
 }
@@ -79,6 +81,16 @@ pub struct CompletedTask {
     pub result: Result<String, String>,
     pub turns_taken: u32,
     pub duration: Duration,
+    pub completed_at: Instant,
+}
+
+/// Result from handle_load_task_result with structured metadata for the caller
+#[derive(Debug)]
+struct TaskLoadResult {
+    content: Vec<Content>,
+    status: &'static str,
+    turns: Option<u32>,
+    duration_secs: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -285,6 +297,14 @@ pub fn discover_filesystem_sources(working_dir: &Path) -> Vec<SourceEntry> {
     sources
 }
 
+fn build_instructions_with_context(context: &str, instructions: &str) -> String {
+    let mut result = format!("# Reference Context\n\n{}", context);
+    if !instructions.is_empty() {
+        result.push_str(&format!("\n\n# Task Instructions\n\n{}", instructions));
+    }
+    result
+}
+
 fn build_subagent_instructions(session: Option<&crate::session::Session>) -> String {
     let Some(session) = session else {
         return String::new();
@@ -399,6 +419,13 @@ fn max_background_tasks() -> usize {
     Config::global()
         .get_param::<usize>("GOOSE_MAX_BACKGROUND_TASKS")
         .unwrap_or(5)
+}
+
+fn completed_task_ttl() -> Duration {
+    let secs = Config::global()
+        .get_param::<u64>("GOOSE_COMPLETED_TASK_TTL_SECS")
+        .unwrap_or(600);
+    Duration::from_secs(secs)
 }
 
 fn is_session_id(s: &str) -> bool {
@@ -533,6 +560,14 @@ impl SummonClient {
                     "type": "integer",
                     "minimum": 1,
                     "description": "Maximum turns for this delegate. Overrides recipe settings.max_turns and GOOSE_SUBAGENT_MAX_TURNS."
+                },
+                "context": {
+                    "type": "string",
+                    "description": "Reference context to inject into the delegate's system prompt. Use for background information, file contents, or constraints the delegate needs but that aren't part of the task instructions."
+                },
+                "working_dir": {
+                    "type": "string",
+                    "description": "Working directory for the delegate. Must be within the parent session's working directory. Defaults to the parent's working directory."
                 },
                 "async": {
                     "type": "boolean",
@@ -777,13 +812,29 @@ impl SummonClient {
         let name = source_name.unwrap();
 
         if is_session_id(name) {
-            let content = self.handle_load_task_result(name, cancel).await?;
+            let task_result = self.handle_load_task_result(name, cancel).await?;
             let mut meta = Meta::new();
             meta.0.insert(
                 "subagent_session_id".to_string(),
                 serde_json::Value::String(name.to_string()),
             );
-            return Ok(CallToolResult::success(content).with_meta(Some(meta)));
+            meta.0.insert(
+                "task_status".to_string(),
+                serde_json::Value::String(task_result.status.to_string()),
+            );
+            if let Some(turns) = task_result.turns {
+                meta.0.insert(
+                    "turns_taken".to_string(),
+                    serde_json::Value::Number(turns.into()),
+                );
+            }
+            if let Some(secs) = task_result.duration_secs {
+                meta.0.insert(
+                    "duration_secs".to_string(),
+                    serde_json::Value::Number(secs.into()),
+                );
+            }
+            return Ok(CallToolResult::success(task_result.content).with_meta(Some(meta)));
         }
 
         self.handle_load_source(session_id, name, &working_dir)
@@ -795,33 +846,42 @@ impl SummonClient {
         &self,
         task_id: &str,
         cancel: bool,
-    ) -> Result<Vec<Content>, String> {
+    ) -> Result<TaskLoadResult, String> {
         let mut completed = self.completed_tasks.lock().await;
 
         if let Some(task) = completed.remove(task_id) {
-            let status = if task.result.is_ok() {
-                "✓ Completed"
-            } else {
-                "✗ Failed"
+            let status_key = match &task.result {
+                Ok(_) => "completed",
+                Err(e) if e.starts_with("Task panicked:") => "panicked",
+                Err(_) => "failed",
+            };
+            let status = match status_key {
+                "completed" => "✓ Completed",
+                "panicked" => "✗ Panicked",
+                _ => "✗ Failed",
             };
             let output = match task.result {
                 Ok(output) => output,
                 Err(error) => format!("Error: {}", error),
             };
-
-            return Ok(vec![Content::text(format!(
-                "# Background Task Result: {}\n\n\
-                 **Task:** {}\n\
-                 **Status:** {}\n\
-                 **Duration:** {} ({} turns)\n\n\
-                 ## Output\n\n{}",
-                task_id,
-                task.description,
-                status,
-                round_duration(task.duration),
-                task.turns_taken,
-                output
-            ))]);
+            return Ok(TaskLoadResult {
+                content: vec![Content::text(format!(
+                    "# Background Task Result: {}\n\n\
+                     **Task:** {}\n\
+                     **Status:** {}\n\
+                     **Duration:** {} ({} turns)\n\n\
+                     ## Output\n\n{}",
+                    task_id,
+                    task.description,
+                    status,
+                    round_duration(task.duration),
+                    task.turns_taken,
+                    output
+                ))],
+                status: status_key,
+                turns: Some(task.turns_taken),
+                duration_secs: Some(task.duration.as_secs()),
+            });
         }
 
         drop(completed);
@@ -852,18 +912,23 @@ impl SummonClient {
                     }
                 };
 
-                return Ok(vec![Content::text(format!(
-                    "# Background Task Result: {}\n\n\
-                     **Task:** {}\n\
-                     **Status:** ⊘ Cancelled\n\
-                     **Duration:** {} ({} turns)\n\n\
-                     ## Output\n\n{}",
-                    task_id,
-                    task.description,
-                    round_duration(duration),
-                    turns_taken,
-                    output
-                ))]);
+                return Ok(TaskLoadResult {
+                    content: vec![Content::text(format!(
+                        "# Background Task Result: {}\n\n\
+                         **Task:** {}\n\
+                         **Status:** ⊘ Cancelled\n\
+                         **Duration:** {} ({} turns)\n\n\
+                         ## Output\n\n{}",
+                        task_id,
+                        task.description,
+                        round_duration(duration),
+                        turns_taken,
+                        output
+                    ))],
+                    status: "cancelled",
+                    turns: Some(turns_taken),
+                    duration_secs: Some(duration.as_secs()),
+                });
             }
 
             // Wait for the running task to complete, keeping the tool call
@@ -886,24 +951,37 @@ impl SummonClient {
 
             tokio::select! {
                 result = &mut task.handle => {
-                    let output = match result {
-                        Ok(Ok(s)) => s,
-                        Ok(Err(e)) => format!("Error: {}", e),
-                        Err(e) => format!("Task panicked: {}", e),
+                    let (output, status_key) = match result {
+                        Ok(Ok(s)) => (s, "completed"),
+                        Ok(Err(e)) => (format!("Error: {}", e), "failed"),
+                        Err(e) => (format!("Task panicked: {}", e), "panicked"),
                     };
 
-                    return Ok(vec![Content::text(format!(
-                        "# Background Task Result: {}\n\n\
-                         **Task:** {}\n\
-                         **Status:** ✓ Completed\n\
-                         **Duration:** {} ({} turns)\n\n\
-                         ## Output\n\n{}",
-                        task_id,
-                        task.description,
-                        round_duration(task.started_at.elapsed()),
-                        task.turns.load(Ordering::Relaxed),
-                        output
-                    ))]);
+                    let turns_taken = task.turns.load(Ordering::Relaxed);
+                    let elapsed = task.started_at.elapsed();
+                    let status_display = match status_key {
+                        "completed" => "✓ Completed",
+                        "panicked" => "✗ Panicked",
+                        _ => "✗ Failed",
+                    };
+                    return Ok(TaskLoadResult {
+                        content: vec![Content::text(format!(
+                            "# Background Task Result: {}\n\n\
+                             **Task:** {}\n\
+                             **Status:** {}\n\
+                             **Duration:** {} ({} turns)\n\n\
+                             ## Output\n\n{}",
+                            task_id,
+                            task.description,
+                            status_display,
+                            round_duration(elapsed),
+                            turns_taken,
+                            output
+                        ))],
+                        status: status_key,
+                        turns: Some(turns_taken),
+                        duration_secs: Some(elapsed.as_secs()),
+                    });
                 }
                 _ = tokio::time::sleep(Duration::from_secs(300)) => {
                     self.background_tasks.lock().await.insert(task_id.to_string(), task);
@@ -1090,13 +1168,14 @@ impl SummonClient {
             GooseMode::Auto,
             true, // disable session naming for subagents
             crate::agents::GoosePlatform::GooseCli,
-        );
+        )
+        .with_use_login_shell_path(self.context.use_login_shell_path);
 
         let subagent_session = self
             .context
             .session_manager
             .create_session(
-                working_dir,
+                task_config.parent_working_dir.clone(),
                 "Delegated task".to_string(),
                 SessionType::SubAgent,
                 GooseMode::Auto,
@@ -1167,12 +1246,19 @@ impl SummonClient {
         session_id: &str,
         working_dir: &Path,
     ) -> Result<Recipe, String> {
-        if let Some(source_name) = &params.source {
+        let mut recipe = if let Some(source_name) = &params.source {
             self.build_source_recipe(source_name, params, session_id, working_dir)
-                .await
+                .await?
         } else {
-            self.build_adhoc_recipe(params)
+            self.build_adhoc_recipe(params)?
+        };
+
+        if let Some(ref context) = params.context {
+            let existing = recipe.instructions.unwrap_or_default();
+            recipe.instructions = Some(build_instructions_with_context(context, &existing));
         }
+
+        Ok(recipe)
     }
 
     fn build_adhoc_recipe(&self, params: &DelegateParams) -> Result<Recipe, String> {
@@ -1212,7 +1298,7 @@ impl SummonClient {
                 return Err(format!(
                     "Source '{}' has kind '{}' which cannot be delegated from summon",
                     source_name, source.source_type
-                ))
+                ));
             }
         };
 
@@ -1370,7 +1456,20 @@ impl SummonClient {
             if filter.is_empty() {
                 extensions = Vec::new();
             } else {
+                let available_names: Vec<String> =
+                    extensions.iter().map(|ext| ext.name()).collect();
                 extensions.retain(|ext| filter.contains(&ext.name()));
+                let unmatched: Vec<&str> = filter
+                    .iter()
+                    .filter(|name| !available_names.iter().any(|n| n == *name))
+                    .map(String::as_str)
+                    .collect();
+                if !unmatched.is_empty() {
+                    warn!(
+                        "Delegate requested extensions not available in session: {:?}. Available: {:?}",
+                        unmatched, available_names
+                    );
+                }
             }
         }
 
@@ -1387,8 +1486,14 @@ impl SummonClient {
             );
         }
 
-        let task_config = TaskConfig::new(provider, &session.id, &session.working_dir, extensions)
-            .with_max_turns(Some(max_turns));
+        let effective_working_dir = match &params.working_dir {
+            Some(dir) => resolve_working_dir(&session.working_dir, dir)?,
+            None => session.working_dir.clone(),
+        };
+
+        let task_config =
+            TaskConfig::new(provider, &session.id, &effective_working_dir, extensions)
+                .with_max_turns(Some(max_turns));
 
         Ok(task_config)
     }
@@ -1536,9 +1641,13 @@ impl SummonClient {
                     result,
                     turns_taken,
                     duration,
+                    completed_at: Instant::now(),
                 },
             );
         }
+
+        let ttl = completed_task_ttl();
+        completed.retain(|_id, task| task.completed_at.elapsed() <= ttl);
     }
 
     fn get_task_description(params: &DelegateParams) -> String {
@@ -1593,13 +1702,14 @@ impl SummonClient {
             GooseMode::Auto,
             true, // disable session naming for subagents
             crate::agents::GoosePlatform::GooseCli,
-        );
+        )
+        .with_use_login_shell_path(self.context.use_login_shell_path);
 
         let subagent_session = self
             .context
             .session_manager
             .create_session(
-                working_dir,
+                task_config.parent_working_dir.clone(),
                 description.clone(),
                 SessionType::SubAgent,
                 GooseMode::Auto,
@@ -1817,6 +1927,34 @@ impl McpClientTrait for SummonClient {
     }
 }
 
+/// Resolve a requested `working_dir` override against the parent session
+/// directory. Relative paths are joined to the parent dir; the result must
+/// canonicalize to an existing directory contained within the parent dir.
+fn resolve_working_dir(parent_dir: &Path, requested: &str) -> Result<PathBuf, anyhow::Error> {
+    let requested_path = PathBuf::from(requested);
+    let resolved = if requested_path.is_absolute() {
+        requested_path
+    } else {
+        parent_dir.join(&requested_path)
+    };
+    let canonical = resolved
+        .canonicalize()
+        .map_err(|e| anyhow::anyhow!("working_dir '{}' could not be resolved: {}", requested, e))?;
+    let parent_canonical = parent_dir
+        .canonicalize()
+        .unwrap_or_else(|_| parent_dir.to_path_buf());
+    if !canonical.starts_with(&parent_canonical) {
+        anyhow::bail!(
+            "working_dir '{}' is outside the parent session directory",
+            requested
+        );
+    }
+    if !canonical.is_dir() {
+        anyhow::bail!("working_dir '{}' is not a directory", requested);
+    }
+    Ok(canonical)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1847,6 +1985,58 @@ You review code."#;
         assert!(source.description.contains("sonnet"));
     }
 
+    #[test]
+    fn test_resolve_working_dir_relative_subdir() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path().canonicalize().unwrap();
+        let subdir = parent.join("sub");
+        fs::create_dir(&subdir).unwrap();
+
+        let resolved = resolve_working_dir(&parent, "sub").unwrap();
+        assert_eq!(resolved, subdir.canonicalize().unwrap());
+    }
+
+    #[test]
+    fn test_resolve_working_dir_rejects_traversal_outside_parent() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path().join("parent");
+        let sibling = temp_dir.path().join("sibling");
+        fs::create_dir(&parent).unwrap();
+        fs::create_dir(&sibling).unwrap();
+
+        let err = resolve_working_dir(&parent, "../sibling").unwrap_err();
+        assert!(
+            err.to_string()
+                .contains("outside the parent session directory"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_resolve_working_dir_rejects_file_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path().canonicalize().unwrap();
+        let file = parent.join("a.txt");
+        fs::write(&file, "hello").unwrap();
+
+        let err = resolve_working_dir(&parent, "a.txt").unwrap_err();
+        assert!(
+            err.to_string().contains("is not a directory"),
+            "unexpected error: {err}"
+        );
+    }
+
+    #[test]
+    fn test_resolve_working_dir_rejects_nonexistent_path() {
+        let temp_dir = TempDir::new().unwrap();
+        let parent = temp_dir.path().canonicalize().unwrap();
+
+        let err = resolve_working_dir(&parent, "does-not-exist").unwrap_err();
+        assert!(
+            err.to_string().contains("could not be resolved"),
+            "unexpected error: {err}"
+        );
+    }
     #[test]
     fn test_agent_scan_skips_non_agent_markdown() {
         let temp_dir = TempDir::new().unwrap();
@@ -2084,6 +2274,41 @@ You review code."#;
         assert_eq!(
             SummonClient::get_task_description(&make_params(None, None)),
             "Unknown task"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_context_injected_into_adhoc_recipe() {
+        let temp_dir = TempDir::new().unwrap();
+        let client = SummonClient::new(create_test_context()).unwrap();
+
+        let params = DelegateParams {
+            instructions: Some("do the task".to_string()),
+            context: Some("background info".to_string()),
+            ..Default::default()
+        };
+
+        let recipe = client
+            .build_delegate_recipe(&params, "test", temp_dir.path())
+            .await
+            .unwrap();
+
+        assert_eq!(
+            recipe.instructions.as_deref(),
+            Some("# Reference Context\n\nbackground info")
+        );
+        assert_eq!(recipe.prompt.as_deref(), Some("do the task"));
+    }
+
+    #[test]
+    fn test_build_instructions_with_context_wraps_existing_instructions() {
+        assert_eq!(
+            build_instructions_with_context("background info", "Run deploy steps"),
+            "# Reference Context\n\nbackground info\n\n# Task Instructions\n\nRun deploy steps"
+        );
+        assert_eq!(
+            build_instructions_with_context("background info", ""),
+            "# Reference Context\n\nbackground info"
         );
     }
 
@@ -2360,7 +2585,7 @@ You review code."#;
             .handle_load_task_result("20260204_1", false)
             .await
             .expect("load should wait and return result");
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("Completed"));
         assert!(text.contains("done"));
 
@@ -2387,6 +2612,7 @@ You review code."#;
                     result: Ok("Task completed successfully with output".to_string()),
                     turns_taken: 5,
                     duration: Duration::from_secs(60),
+                    completed_at: Instant::now(),
                 },
             );
             completed.insert(
@@ -2397,6 +2623,7 @@ You review code."#;
                     result: Err("Something went wrong".to_string()),
                     turns_taken: 3,
                     duration: Duration::from_secs(30),
+                    completed_at: Instant::now(),
                 },
             );
         }
@@ -2420,13 +2647,15 @@ You review code."#;
             .handle_load_task_result("20260204_2", false)
             .await
             .unwrap();
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("20260204_2"));
         assert!(text.contains("Successful task"));
         assert!(text.contains("✓ Completed"));
         assert!(text.contains("1m"));
         assert!(text.contains("5 turns"));
         assert!(text.contains("Task completed successfully with output"));
+        assert_eq!(result.status, "completed");
+        assert_eq!(result.turns, Some(5));
 
         assert!(!client
             .completed_tasks
@@ -2438,9 +2667,10 @@ You review code."#;
             .handle_load_task_result("20260204_3", false)
             .await
             .unwrap();
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("✗ Failed"));
         assert!(text.contains("Error: Something went wrong"));
+        assert_eq!(result.status, "failed");
 
         let result = client.handle_load_task_result("20260204_3", false).await;
         assert!(result.is_err());
@@ -2479,10 +2709,12 @@ You review code."#;
             .handle_load_task_result("20260204_1", true)
             .await
             .unwrap();
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("Cancelled"));
         assert!(text.contains("20260204_1"));
         assert!(text.contains("Cancellable task"));
+        assert_eq!(result.status, "cancelled");
+        assert_eq!(result.turns, Some(3));
         assert!(token.is_cancelled());
         assert!(!client
             .background_tasks

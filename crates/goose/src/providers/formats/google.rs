@@ -433,7 +433,9 @@ where
                     .get("status")
                     .and_then(|s| s.as_str())
                     .unwrap_or("UNKNOWN");
-                Err(anyhow::anyhow!("Google API error ({}): {}", status, message))?;
+                Err::<(), ProviderError>(ProviderError::RequestFailed(format!(
+                    "Google API error ({status}): {message}"
+                )))?;
             }
 
             if let Ok(usage) = get_usage(&chunk) {

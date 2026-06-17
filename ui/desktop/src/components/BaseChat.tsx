@@ -39,6 +39,7 @@ import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
+import SessionActionsHeader from './SessionActionsHeader';
 
 const i18n = defineMessages({
   failedToLoadSession: {
@@ -99,7 +100,7 @@ export default function BaseChat({
   const navContext = useNavigationContextSafe();
   const setView = useNavigation();
   const isNavCollapsed = !navContext?.isNavExpanded;
-  const contentClassName = cn('pr-1 pb-10 pt-10', (isMobile || isNavCollapsed) && 'pt-14');
+  const contentClassName = cn('pr-1 pb-10 pt-12', (isMobile || isNavCollapsed) && 'pt-16');
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
   const onStreamFinish = useCallback(() => {}, []);
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
@@ -406,7 +407,7 @@ export default function BaseChat({
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 min-h-0 relative">
           {/* Goose watermark - top right */}
-          <div className="absolute top-3 right-4 z-[60] flex flex-row items-center gap-1">
+          <div className="absolute top-[14px] right-4 z-[60] flex flex-row items-center gap-1">
             <a
               href="https://goose-docs.ai"
               target="_blank"
@@ -420,6 +421,8 @@ export default function BaseChat({
             </a>
             <EnvironmentBadge className="translate-y-px" />
           </div>
+
+          <SessionActionsHeader session={session} />
 
           <ScrollArea
             ref={scrollRef}
