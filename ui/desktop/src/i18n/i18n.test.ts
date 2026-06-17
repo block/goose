@@ -109,7 +109,7 @@ describe('getLocale', () => {
 });
 
 describe('loadMessages', () => {
-  it('returns compiled English messages for branding-aware runtime replacement', async () => {
+  it('returns English runtime messages for branding-aware runtime replacement', async () => {
     const { loadMessages } = await import('./index');
     const messages = await loadMessages('en');
     expect(messages).toHaveProperty('onboardingGuard.welcomeTitle');

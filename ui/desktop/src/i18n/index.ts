@@ -90,32 +90,35 @@ export const currentLocale = resolvedLocale.locale;
 /** Base language for loading message catalogs (e.g. "en"). */
 export const currentMessageLocale = resolvedLocale.messageLocale;
 
-type MessageCatalogModule = { default?: Record<string, string> } | Record<string, string>;
+type RawMessageCatalog = Record<string, string | { defaultMessage?: string }>;
 
-const MESSAGE_LOADERS = import.meta.glob<MessageCatalogModule>('./compiled/*.json');
+const RAW_MESSAGE_CATALOGS = import.meta.glob<RawMessageCatalog>('./messages/*.json', {
+  eager: true,
+  import: 'default',
+});
+
+function normalizeCatalog(catalog: RawMessageCatalog): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(catalog).map(([key, value]) => [
+      key,
+      typeof value === 'string' ? value : value.defaultMessage ?? '',
+    ])
+  );
+}
 
 /**
  * Load compiled messages for a given locale.
  * Returns an empty object when a catalog is unavailable.
  */
 export async function loadMessages(locale: string): Promise<Record<string, string>> {
-  const loadCatalog = MESSAGE_LOADERS[`./compiled/${locale}.json`];
+  const catalog = RAW_MESSAGE_CATALOGS[`./messages/${locale}.json`];
 
-  if (!loadCatalog) {
+  if (!catalog) {
     console.warn(
       `[i18n] No message catalog found for locale "${locale}", falling back to English.`
     );
     return {};
   }
 
-  try {
-    const mod = await loadCatalog();
-    const catalog = (mod as { default?: Record<string, string> }).default;
-    return catalog ?? (mod as Record<string, string>);
-  } catch {
-    console.warn(
-      `[i18n] No message catalog found for locale "${locale}", falling back to English.`
-    );
-    return {};
-  }
+  return normalizeCatalog(catalog);
 }
