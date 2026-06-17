@@ -2824,7 +2824,7 @@ You review code."#;
             .handle_load_task_result("20260204_1", false, true)
             .await
             .unwrap();
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("Running"));
         assert!(text.contains("Long running analysis"));
         assert!(text.contains("7")); // turns taken
@@ -2862,6 +2862,7 @@ You review code."#;
                     result: Ok("final output".to_string()),
                     turns_taken: 4,
                     duration: Duration::from_secs(30),
+                    completed_at: Instant::now(),
                 },
             );
         }
@@ -2871,7 +2872,7 @@ You review code."#;
             .handle_load_task_result("20260204_1", false, true)
             .await
             .unwrap();
-        let text = extract_text(&result[0]);
+        let text = extract_text(&result.content[0]);
         assert!(text.contains("Completed"));
         assert!(text.contains("final output"));
 
@@ -2885,6 +2886,6 @@ You review code."#;
             .handle_load_task_result("20260204_1", false, false)
             .await
             .unwrap();
-        assert!(extract_text(&result[0]).contains("final output"));
+        assert!(extract_text(&result.content[0]).contains("final output"));
     }
 }
