@@ -805,6 +805,26 @@ impl CliSession {
         let current_model_config = provider.get_model_config();
         let current_model_name = current_model_config.model_name.clone();
 
+        // Session model switching — the bare `/model` picker as well as
+        // `/model <name>` — is unsupported when the current provider keeps the
+        // authoritative conversation state in a subprocess: switching away would
+        // continue the next provider from only Goose's partial transcript and
+        // lose the hidden CLI/ACP context. Guard before the picker opens.
+        if current_provider_name.ends_with("-acp") {
+            output::render_error(
+                "Session model switching is not supported for ACP providers in the CLI.",
+            );
+            return Ok(());
+        }
+
+        if provider.manages_own_context() {
+            output::render_error(&format!(
+                "Session model switching is not supported for provider '{}' because it manages its own conversation context.",
+                current_provider_name
+            ));
+            return Ok(());
+        }
+
         if model.is_none() {
             return self
                 .pick_and_switch_model(
@@ -818,21 +838,6 @@ impl CliSession {
         let model_name = model.unwrap_or_default().trim();
         if model_name.is_empty() {
             output::render_error("Model name cannot be empty");
-            return Ok(());
-        }
-
-        if current_provider_name.ends_with("-acp") {
-            output::render_error(
-                "Session model switching is not supported for ACP providers in the CLI.",
-            );
-            return Ok(());
-        }
-
-        if provider.manages_own_context() {
-            output::render_error(&format!(
-                "Session model switching is not supported for provider '{}' because it manages its own conversation context.",
-                current_provider_name
-            ));
             return Ok(());
         }
 
@@ -986,51 +991,45 @@ impl CliSession {
         let new_model_config =
             build_switched_model_config(&chosen_provider, &chosen_model, current_model_config)?;
         let extensions = self.agent.get_extension_configs().await;
-        let probe_provider = goose::providers::create(
-            &chosen_provider,
-            new_model_config.clone(),
-            extensions.clone(),
-        )
-        .await
-        .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
+        let new_provider = goose::providers::create(&chosen_provider, new_model_config, extensions)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
 
         // Probe the model before committing the switch: some providers list
         // models their account can't actually run (e.g. NVIDIA returns 404
         // "function not found"), and a dead/stuck endpoint shouldn't silently
-        // become the session model.
-        let _ = cliclack::log::info(format!("Checking '{chosen_model}' responds…"));
-        let probe_config = probe_provider.get_model_config();
-        let probe_msg = [Message::user().with_text("ok")];
-        match tokio::time::timeout(
-            Duration::from_secs(30),
-            probe_provider.complete(&probe_config, "model-check", "", &probe_msg, &[]),
-        )
-        .await
-        {
-            Ok(Ok(_)) => {}
-            Ok(Err(e)) => {
-                output::render_error(&format!(
-                    "'{chosen_model}' isn't usable on '{chosen_provider}' — {e}. Keeping '{current_model_name}'."
-                ));
-                return Ok(());
-            }
-            Err(_) => {
-                output::render_error(&format!(
-                    "'{chosen_model}' didn't respond within 30s. Keeping '{current_model_name}'."
-                ));
-                return Ok(());
+        // become the session model. Skip providers that manage their own context
+        // (ACP / Claude Code / Gemini CLI): they keep conversation state in a
+        // subprocess, so a synthetic probe would either consume their one-time
+        // handoff context or, if it hangs, wedge the cancellation path while the
+        // client loop is joined on drop — and they don't have the dead-catalog
+        // failure mode the probe guards against.
+        if !chosen_provider.ends_with("-acp") && !new_provider.manages_own_context() {
+            let _ = cliclack::log::info(format!("Checking '{chosen_model}' responds…"));
+            let probe_config = new_provider.get_model_config();
+            let probe_msg = [Message::user().with_text("ok")];
+            match tokio::time::timeout(
+                Duration::from_secs(30),
+                new_provider.complete(&probe_config, "model-check", "", &probe_msg, &[]),
+            )
+            .await
+            {
+                Ok(Ok(_)) => {}
+                Ok(Err(e)) => {
+                    output::render_error(&format!(
+                        "'{chosen_model}' isn't usable on '{chosen_provider}' — {e}. Keeping '{current_model_name}'."
+                    ));
+                    return Ok(());
+                }
+                Err(_) => {
+                    output::render_error(&format!(
+                        "'{chosen_model}' didn't respond within 30s. Keeping '{current_model_name}'."
+                    ));
+                    return Ok(());
+                }
             }
         }
 
-        // The probe can consume one-time per-provider state: an ACP provider
-        // (claude-acp/codex-acp) treats its first prompt as its handoff-context
-        // opportunity, so installing the probed instance would drop the existing
-        // conversation history on the user's first real prompt. Drop the probe
-        // and install a fresh instance.
-        drop(probe_provider);
-        let new_provider = goose::providers::create(&chosen_provider, new_model_config, extensions)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
         self.agent
             .update_provider(new_provider, &self.session_id)
             .await?;
