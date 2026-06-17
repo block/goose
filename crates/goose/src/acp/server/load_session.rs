@@ -29,7 +29,6 @@ fn send_replay_content_chunk(
 fn replay_conversation_to_client(
     cx: &ConnectionTo<Client>,
     session: &Session,
-    supports_goose_custom_notifications: bool,
 ) -> Result<HashMap<String, crate::conversation::message::ToolRequest>, agent_client_protocol::Error>
 {
     let session_id = SessionId::new(session.id.clone());
@@ -49,7 +48,6 @@ fn replay_conversation_to_client(
 
     let mut replay_tool_requests =
         HashMap::<String, crate::conversation::message::ToolRequest>::new();
-    let submitted_elicitation_ids = collect_submitted_elicitation_ids(&messages);
 
     for message in &messages {
         if !message.metadata.user_visible {
@@ -156,33 +154,6 @@ fn replay_conversation_to_client(
                         ),
                     ))?;
                 }
-                MessageContent::ActionRequired(action_required) => {
-                    if let ActionRequiredData::Elicitation {
-                        id,
-                        message: elicitation_message,
-                        requested_schema,
-                    } = &action_required.data
-                    {
-                        if !submitted_elicitation_ids.contains(id) {
-                            send_elicitation_interaction_update(
-                                cx,
-                                supports_goose_custom_notifications,
-                                session_id.0.as_ref(),
-                                InteractionUpdate {
-                                    interaction: Interaction::Elicitation {
-                                        id: id.clone(),
-                                        state: InteractionState::Pending,
-                                        message: Some(elicitation_message.clone()),
-                                        requested_schema: Some(requested_schema.clone()),
-                                    },
-                                    meta: Some(serde_json::Value::Object(replay_message_meta(
-                                        message,
-                                    ))),
-                                },
-                            )?;
-                        }
-                    }
-                }
                 MessageContent::SystemNotification(_) => {}
                 _ => {}
             }
@@ -190,22 +161,6 @@ fn replay_conversation_to_client(
     }
 
     Ok(replay_tool_requests)
-}
-
-fn collect_submitted_elicitation_ids(messages: &[Message]) -> HashSet<String> {
-    let mut submitted_ids = HashSet::new();
-
-    for message in messages {
-        for content_item in &message.content {
-            if let MessageContent::ActionRequired(action_required) = content_item {
-                if let ActionRequiredData::ElicitationResponse { id, .. } = &action_required.data {
-                    submitted_ids.insert(id.clone());
-                }
-            }
-        }
-    }
-
-    submitted_ids
 }
 
 impl GooseAcpAgent {
@@ -234,11 +189,7 @@ impl GooseAcpAgent {
             .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
             .await?;
 
-        let replay_tool_requests = replay_conversation_to_client(
-            cx,
-            &session,
-            self.supports_goose_custom_notifications(),
-        )?;
+        let replay_tool_requests = replay_conversation_to_client(cx, &session)?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
         self.register_acp_session(session_id_str.clone(), agent.clone(), replay_tool_requests)
             .await;
@@ -295,6 +246,7 @@ impl GooseAcpAgent {
             ms = t_start.elapsed().as_millis() as u64,
             "perf: load_session_refactor done"
         );
+        self.closed_session_ids.lock().await.remove(&session_id_str);
         Ok(response)
     }
 }

@@ -8,7 +8,7 @@ impl GooseAcpAgent {
         req: GetToolsRequest,
     ) -> Result<GetToolsResponse, agent_client_protocol::Error> {
         let session_id = &req.session_id;
-        let agent = self.get_session_agent(&req.session_id, None).await?;
+        let agent = self.get_session_agent(&req.session_id).await?;
         let tools = agent.list_tools(session_id, None).await;
         let tools_json = tools
             .into_iter()
@@ -23,7 +23,7 @@ impl GooseAcpAgent {
         req: GooseToolCallRequest,
     ) -> Result<GooseToolCallResponse, agent_client_protocol::Error> {
         let session_id = &req.session_id;
-        let agent = self.get_session_agent(&req.session_id, None).await?;
+        let agent = self.get_session_agent(&req.session_id).await?;
         let tools = agent.list_tools(session_id, None).await;
 
         let Some(tool) = tools.iter().find(|t| *t.name == req.name) else {

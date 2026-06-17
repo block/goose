@@ -63,7 +63,7 @@
     "env": [
       "ALIBABA_CODING_PLAN_API_KEY"
     ],
-    "model_count": 11
+    "model_count": 12
   },
   {
     "id": "alibaba-coding-plan-cn",
@@ -85,7 +85,18 @@
     "env": [
       "ALIBABA_TOKEN_PLAN_API_KEY"
     ],
-    "model_count": 15
+    "model_count": 16
+  },
+  {
+    "id": "alibaba-token-plan-cn",
+    "display_name": "Alibaba Token Plan (China)",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://token-plan.cn-beijing.maas.aliyuncs.com/compatible-mode/v1",
+    "doc": "https://www.alibabacloud.com/help/zh/model-studio/token-plan-overview",
+    "env": [
+      "ALIBABA_TOKEN_PLAN_API_KEY"
+    ],
+    "model_count": 16
   },
   {
     "id": "ambient",
@@ -274,7 +285,7 @@
     "env": [
       "DIGITALOCEAN_ACCESS_TOKEN"
     ],
-    "model_count": 78
+    "model_count": 80
   },
   {
     "id": "dinference",
@@ -384,7 +395,7 @@
     "env": [
       "GITHUB_TOKEN"
     ],
-    "model_count": 22
+    "model_count": 23
   },
   {
     "id": "github-models",
@@ -758,7 +769,19 @@
     "env": [
       "NEBIUS_API_KEY"
     ],
-    "model_count": 31
+    "model_count": 29
+  },
+  {
+    "id": "neon",
+    "display_name": "Neon",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "${NEON_AI_GATEWAY_BASE_URL}/ai-gateway/mlflow/v1",
+    "doc": "https://neon.com/docs",
+    "env": [
+      "NEON_AI_GATEWAY_BASE_URL",
+      "NEON_AI_GATEWAY_TOKEN"
+    ],
+    "model_count": 25
   },
   {
     "id": "neuralwatt",
@@ -1013,7 +1036,7 @@
       "SNOWFLAKE_ACCOUNT",
       "SNOWFLAKE_CORTEX_PAT"
     ],
-    "model_count": 11
+    "model_count": 18
   },
   {
     "id": "stackit",
@@ -1245,6 +1268,17 @@
       "ZHIPU_API_KEY"
     ],
     "model_count": 5
+  },
+  {
+    "id": "zeldoc",
+    "display_name": "Zeldoc",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.zeldoc.ai/v1",
+    "doc": "https://docs.zeldoc.ai",
+    "env": [
+      "ZELDOC_API_KEY"
+    ],
+    "model_count": 1
   },
   {
     "id": "zenmux",

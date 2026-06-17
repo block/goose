@@ -283,6 +283,10 @@ npx tsx src/runner.ts --run-count=5
 
 # Don't auto-open browser
 npx tsx src/runner.ts --no-open
+
+# Raise the per-agent timeout (seconds) for slow local models on heavy
+# scenarios. Default 300s; also settable via GYM_AGENT_TIMEOUT.
+npx tsx src/runner.ts --agent-timeout=1200
 ```
 
 ## Output

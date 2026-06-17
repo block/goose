@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.37.0"
+    "version": "1.38.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -3918,6 +3918,9 @@
               "actionType"
             ],
             "properties": {
+              "action": {
+                "type": "string"
+              },
               "actionType": {
                 "type": "string",
                 "enum": [
@@ -7977,6 +7980,10 @@
           "input_tokens": {
             "type": "integer",
             "format": "int32",
+            "nullable": true
+          },
+          "last_message_snippet": {
+            "type": "string",
             "nullable": true
           },
           "message_count": {
