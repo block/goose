@@ -2364,7 +2364,6 @@ impl GooseAcpAgent {
 
         let run_id = format!("run_{}", Uuid::new_v4());
         let cancel_token = CancellationToken::new();
-        let agent = self.get_session_agent(&session_id, None).await?;
         self.start_active_run(&session_id, run_id.clone(), cancel_token.clone())
             .await?;
 
