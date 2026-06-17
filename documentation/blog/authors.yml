@@ -79,7 +79,7 @@ damien:
 douwe:
   name: Douwe Osinga
   title: Software Engineer
-  image_url: https://avatars.githubusercontent.com/u/43900?v=4
+  image_url: /img/authors/douwe-osinga.png
   url: https://douwe.com
   page: true
   socials:
