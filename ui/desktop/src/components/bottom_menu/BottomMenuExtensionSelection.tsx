@@ -160,9 +160,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
 
     window.addEventListener(AppEvents.SESSION_EXTENSIONS_LOADED, loadExtensionsForCurrentSession);
 
-    // Load immediately so the trigger isn't stuck hidden when no
-    // SESSION_EXTENSIONS_LOADED event fires for the current session
-    // (e.g. switching back to an already-loaded session).
+    // Load immediately in case no SESSION_EXTENSIONS_LOADED event fires for this session.
     loadForSession(sessionId);
 
     return () => {
