@@ -75,12 +75,11 @@ pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_j
 
 pub(super) fn build_session_info(session: Session) -> SessionInfo {
     let meta = session_meta(&session);
-    let title = session.display_title();
     let mut info = SessionInfo::new(SessionId::new(session.id), session.working_dir)
         .updated_at(session.updated_at.to_rfc3339())
         .meta(meta);
-    if let Some(title) = title {
-        info = info.title(title);
+    if !session.name.is_empty() {
+        info = info.title(session.name);
     }
     info
 }
