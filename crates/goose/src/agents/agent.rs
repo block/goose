@@ -88,24 +88,6 @@ fn categorize_tool(tool_name: &str) -> ToolCategory {
     }
 }
 
-/// Remove tool requests with duplicate ids, keeping the first occurrence of each.
-/// Ids are deduplicated across both lists so the same id cannot appear twice.
-fn dedup_tool_requests(
-    frontend_requests: Vec<ToolRequest>,
-    remaining_requests: Vec<ToolRequest>,
-) -> (Vec<ToolRequest>, Vec<ToolRequest>) {
-    let mut seen_ids = std::collections::HashSet::new();
-    let frontend_requests = frontend_requests
-        .into_iter()
-        .filter(|r| seen_ids.insert(r.id.clone()))
-        .collect();
-    let remaining_requests = remaining_requests
-        .into_iter()
-        .filter(|r| seen_ids.insert(r.id.clone()))
-        .collect();
-    (frontend_requests, remaining_requests)
-}
-
 fn extract_string_arg(input: &Value, keys: &[&str]) -> Option<String> {
     let obj = input.as_object()?;
     for k in keys {
@@ -1948,13 +1930,6 @@ impl Agent {
                                 yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;
 
-                                // Providers should emit unique tool-call ids within a turn, but a
-                                // malformed or malicious provider can repeat one. Keep only the
-                                // first occurrence of each id so tools are not executed twice and
-                                // duplicate tool_results don't pollute the conversation history.
-                                let (frontend_requests, remaining_requests) =
-                                    dedup_tool_requests(frontend_requests, remaining_requests);
-
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
                                     let text = filtered_response.as_concat_text();
@@ -3644,45 +3619,6 @@ exit 0
         assert_eq!(categorize_tool("filesystem__cat"), ToolCategory::Read);
         assert_eq!(categorize_tool("scheduler__list"), ToolCategory::Other);
         assert_eq!(categorize_tool("shell"), ToolCategory::Shell);
-    }
-
-    fn tool_request(id: &str, name: &str) -> ToolRequest {
-        ToolRequest {
-            id: id.to_string(),
-            tool_call: Ok(CallToolRequestParams::new(name.to_string())),
-            metadata: None,
-            tool_meta: None,
-        }
-    }
-
-    #[test]
-    fn dedup_tool_requests_keeps_first_occurrence() {
-        let frontend = vec![tool_request("call_1", "a"), tool_request("call_1", "b")];
-        let remaining = vec![
-            tool_request("call_1", "c"),
-            tool_request("call_2", "d"),
-            tool_request("call_2", "e"),
-        ];
-
-        let (frontend, remaining) = dedup_tool_requests(frontend, remaining);
-
-        let frontend_ids: Vec<&str> = frontend.iter().map(|r| r.id.as_str()).collect();
-        assert_eq!(frontend_ids, vec!["call_1"]);
-
-        // call_1 already seen in the frontend list, so it is dropped from remaining too.
-        let remaining_ids: Vec<&str> = remaining.iter().map(|r| r.id.as_str()).collect();
-        assert_eq!(remaining_ids, vec!["call_2"]);
-    }
-
-    #[test]
-    fn dedup_tool_requests_preserves_unique_ids() {
-        let frontend = vec![tool_request("call_1", "a")];
-        let remaining = vec![tool_request("call_2", "b"), tool_request("call_3", "c")];
-
-        let (frontend, remaining) = dedup_tool_requests(frontend, remaining);
-
-        assert_eq!(frontend.len(), 1);
-        assert_eq!(remaining.len(), 2);
     }
 
     #[test]
