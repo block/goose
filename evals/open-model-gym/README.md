@@ -287,6 +287,10 @@ npx tsx src/runner.ts --no-open
 
 # Redirect all run artifacts outside the repo (see Output below)
 npx tsx src/runner.ts --output-dir=~/.goose/gym-runs/latest
+
+# Raise the per-agent timeout (seconds) for slow local models on heavy
+# scenarios. Default 300s; also settable via GYM_AGENT_TIMEOUT.
+npx tsx src/runner.ts --agent-timeout=1200
 ```
 
 ## Output

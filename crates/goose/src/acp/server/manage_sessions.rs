@@ -42,7 +42,7 @@ impl GooseAcpAgent {
             );
         }
 
-        let agent = self.get_session_agent(session_id, None).await?;
+        let agent = self.get_session_agent(session_id).await?;
         match req.mode {
             SessionSystemPromptMode::Set => {
                 if req.text.trim().is_empty() {

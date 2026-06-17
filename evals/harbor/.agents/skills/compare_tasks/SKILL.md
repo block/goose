@@ -40,12 +40,23 @@ jq '{task_name, trial_name}' "$TRIAL_A_DIR/result.json"
 
 ### 2. Headline facts
 
-Pull these fields from each trial's `result.json`. The actual shape (harbor
-0.8 `TrialResult`):
+The fastest path is to let `cmd.py task` do it for you — it already prints
+status, reward, duration, tokens, turns, cost, error class, and the tail of
+the verifier stdout:
+
+```bash
+./evals/harbor/cmd.py task "$RUN_A" "$TASK"
+./evals/harbor/cmd.py task "$RUN_B" "$TASK"
+```
+
+Only drop to raw `jq` against `result.json` if you need a field `cmd.py task`
+doesn't print. The actual shape (harbor 0.8 `TrialResult`):
 
 ```bash
 jq '{
-  reward: (.verifier_result.rewards.reward // null),
+  reward: (.verifier_result.rewards.reward
+           // (.verifier_result.rewards | to_entries | .[0].value)
+           // null),
   rewards_all: .verifier_result.rewards,
   duration_seconds: ((.finished_at | fromdateiso8601) - (.started_at | fromdateiso8601)),
   input_tokens: .agent_result.n_input_tokens,
@@ -56,6 +67,10 @@ jq '{
   error_message: (.exception_info.exception_message // "" | split("\n")[0])
 }' "$TRIAL_A_DIR/result.json"
 ```
+
+The `reward` fallback mirrors `reporter.trial_reward`: if the verifier
+didn't use the conventional `reward` key, take the first value in the
+`rewards` map.
 
 Derive status from those:
 
@@ -72,31 +87,62 @@ timed out during teardown, or it timed out after writing the correct answer).
 If we got points, count them. See `reporter.trial_status` for the canonical
 rule.
 
-Several `agent_result` fields are commonly `null` for older `GooseBinaryAgent`
-runs (notably `n_cache_tokens`, `n_output_tokens`, `cost_usd`). Don't treat
-that as a failure — just omit those facts from the comparison if missing on
-either side. The reporter has fallbacks that read goose's `complete` event
-from `agent/goose.txt`; you don't normally need to replicate them here.
+Several `agent_result` fields can be `null` depending on the harness
+(notably `n_cache_tokens`, `n_output_tokens`, `cost_usd` on some goose
+runs). Don't treat that as a failure — just omit those facts from the
+comparison if missing on either side. `cmd.py task` already applies
+harbor's fallbacks (reading goose's `complete` event from `agent/goose.txt`
+when the structured field is null), so its numbers are the right ones to
+report.
 
 ### 3. Read the task spec
 
 The task definitions are NOT in the harbor Python package. They are plain
-text files on disk, in harbor's dataset cache. Do not run `find /` or
+text files on disk, in harbor's task cache. Do not run `find /` or
 `pip show harbor` — that is the wrong direction.
 
-Find the task directory (works on Linux and macOS):
+Harbor caches under `~/.cache/harbor/` on every platform (it uses
+`Path("~/.cache/harbor").expanduser()` unconditionally — there is no
+`~/Library/Caches/harbor` on macOS, despite what you might expect).
+
+The on-disk layout for package-backed tasks (the common case — everything
+in `terminal-bench/terminal-bench-2` lands here) is:
+
+```
+~/.cache/harbor/tasks/packages/<org>/<task>/<digest>/
+```
+
+Note: no dataset name in the path. Tasks are keyed by org + task name +
+content digest, not by which dataset pulled them. The `<digest>` segment
+changes when the task is republished, so discover the dir rather than
+hardcoding:
 
 ```bash
-TASK_DIR=$(
-  ls -d ~/.cache/harbor/datasets/terminal-bench__terminal-bench-2__*/tasks/"$TASK"/ 2>/dev/null \
-  || ls -d ~/Library/Caches/harbor/datasets/terminal-bench__terminal-bench-2__*/tasks/"$TASK"/ 2>/dev/null
-)
+TASK_DIR=$(ls -d ~/.cache/harbor/tasks/packages/terminal-bench/"$TASK"/*/ 2>/dev/null | head -1)
 echo "$TASK_DIR"
 ls "$TASK_DIR"
 ```
 
-If both lookups return empty, the dataset hasn't been downloaded yet — bail
-out and report that, rather than guessing.
+If that's empty, the task could be from a different org or a git source —
+broaden the search. `find` returns the parent (one level above the
+digest), so descend one more level. Guard against `$PARENT` being empty,
+otherwise the glob expands to `/*/` and matches the filesystem root:
+
+```bash
+PARENT=$(find ~/.cache/harbor/tasks -type d -name "$TASK" 2>/dev/null | head -1)
+if [ -n "$PARENT" ]; then
+  TASK_DIR=$(ls -d "$PARENT"/*/ 2>/dev/null | head -1)
+fi
+```
+
+If both lookups come up empty, the task hasn't been downloaded on this
+machine — bail out and report that, rather than guessing. (Runs sync via
+`cmd.py pull` but the task cache does not, so a machine that only inspects
+results may never have the spec locally.)
+
+`~/.cache/harbor/datasets/` exists too but holds dataset-level metadata,
+not the per-task `instruction.md` / `tests/` / `solution/` files — not
+what you want here.
 
 Inside, you care about three files:
 
@@ -115,11 +161,12 @@ Two sources, prefer the first when present:
 
 - `$TRIAL_DIR/agent/trajectory.json` — harbor's ATIF format, one entry per
   agent step. `jq '.steps[] | {step_id, source, message, tool_calls: [.tool_calls[]?.function_name]}'`
-  gives a compact view. Recent goose runs (after the populate_context_post_run
-  fix) have this; older `GooseBinaryAgent` runs may not.
+  gives a compact view. Most current runs have it; some older harness
+  versions may not.
 - `$TRIAL_DIR/agent/<harness>.txt` — raw stream-json or log. The filename
-  matches the harness: `goose.txt`, `pi.txt`, `opencode.txt`,
-  `claude-code.txt`. `ls "$TRIAL_DIR/agent/"` to find it.
+  matches the harness (commonly `goose.txt` or `pi.txt`; other harnesses
+  use their own name). Don't guess — run `ls "$TRIAL_DIR/agent/"` and use
+  whatever `.txt` file is there.
 
 Skim, don't quote in full. For each agent identify:
 
@@ -170,10 +217,11 @@ Output markdown with these sections in order:
 
 ## Tools you'll need
 
+- `./evals/harbor/cmd.py task <run> <task>` for the headline numbers
 - `ls -d` to discover the `<task>__<suffix>` trial directories
-- `jq` for `result.json`
+- `jq` for any `result.json` field `cmd.py task` doesn't print
 - file reads against `$TRIAL_DIR/agent/` and `$TRIAL_DIR/verifier/`
-- file reads against the dataset cache (`~/.cache/harbor/datasets/...`)
+- `find ~/.cache/harbor/tasks` to locate the task spec
 
 No Python imports, no `harbor` package required. Everything you need is on
 disk as JSON / text files.

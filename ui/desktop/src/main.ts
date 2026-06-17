@@ -130,13 +130,7 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
 };
 
 function detectMenuLocale(): string {
-  const explicit = process.env.GOOSE_LOCALE;
-  if (explicit) return explicit;
-  try {
-    return app.getSystemLocale() || 'en';
-  } catch {
-    return 'en';
-  }
+  return getConfiguredGooseLocale() ?? 'en';
 }
 
 function menuT(label: string): string {
@@ -174,6 +168,19 @@ function translateMenuLabels(items: MenuItem[]): void {
 // Settings management
 const SETTINGS_FILE = path.join(app.getPath('userData'), 'settings.json');
 const STARTUP_LOGS_DIR = path.join(app.getPath('userData'), 'logs', 'startup');
+const validLanguageSettings = new Set<Settings['language']>([
+  'system',
+  'en',
+  'hi',
+  'ja',
+  'ru',
+  'tr',
+  'zh-CN',
+]);
+
+function isValidLanguageSetting(value: unknown): value is Settings['language'] {
+  return typeof value === 'string' && validLanguageSettings.has(value as Settings['language']);
+}
 
 function getSettings(): Settings {
   if (fsSync.existsSync(SETTINGS_FILE)) {
@@ -209,6 +216,23 @@ function updateSettings(modifier: (settings: Settings) => void): void {
   const settings = getSettings();
   modifier(settings);
   fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+}
+
+function getConfiguredGooseLocale(): string | undefined {
+  const language = getSettings().language;
+  if (isValidLanguageSetting(language) && language !== 'system') {
+    return language;
+  }
+
+  if (process.env.GOOSE_LOCALE) {
+    return process.env.GOOSE_LOCALE;
+  }
+
+  try {
+    return app.isReady() ? app.getSystemLocale() || undefined : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 function listGitWorktreeDirs(dir: string): Promise<string[]> {
@@ -314,20 +338,8 @@ app.on('certificate-error', (event, _webContents, url, _error, certificate, call
   }
 });
 
-// Fill in GOOSE_LOCALE from the OS region locale once Electron is ready.
-// Kept separate from the initial appConfig assignment above because
-// app.getSystemLocale() is only available after the app.ready event fires.
 app.whenReady().then(() => {
-  if (!appConfig.GOOSE_LOCALE) {
-    try {
-      const sysLocale = app.getSystemLocale();
-      if (sysLocale) {
-        appConfig.GOOSE_LOCALE = sysLocale;
-      }
-    } catch {
-      // Locale detection is best-effort; renderer will fall back to navigator.language.
-    }
-  }
+  appConfig.GOOSE_LOCALE = getConfiguredGooseLocale();
 });
 
 // Main-process net.fetch: pin to the exact cert goosed generated.
@@ -381,6 +393,7 @@ if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
 // Apply single instance lock on Windows and Linux where it's needed for deep links
 // macOS uses the 'open-url' event instead
 let gotTheLock = true;
+let openUrlHandledLaunch = false;
 if (process.platform !== 'darwin') {
   gotTheLock = app.requestSingleInstanceLock();
 
@@ -430,7 +443,7 @@ if (process.platform !== 'darwin') {
         }
 
         // For non-bot URLs, continue with normal handling
-        handleProtocolUrl(protocolUrl);
+        handleProtocolUrl(protocolUrl, parsedUrl);
       }
 
       // Only focus existing windows for non-bot/recipe URLs
@@ -448,14 +461,30 @@ if (process.platform !== 'darwin') {
   // Handle protocol URLs on Windows and Linux startup
   const protocolUrl = process.argv.find((arg) => arg.startsWith('goose://'));
   if (protocolUrl) {
-    app.whenReady().then(() => {
-      handleProtocolUrl(protocolUrl);
+    app.whenReady().then(async () => {
+      let parsedUrl: URL;
+      try {
+        parsedUrl = new URL(protocolUrl);
+      } catch (error) {
+        log.warn('[Main] Ignoring invalid startup protocol URL:', errorMessage(error));
+        return;
+      }
+
+      openUrlHandledLaunch = true;
+      try {
+        await handleProtocolUrl(protocolUrl, parsedUrl);
+      } catch (error) {
+        log.error('[Main] Failed to handle startup protocol URL:', errorMessage(error));
+        if (BrowserWindow.getAllWindows().length === 0) {
+          const { dirPath } = parseArgs();
+          await createNewWindow(app, dirPath);
+        }
+      }
     });
   }
 }
 
 const pendingDeepLinks = new Map<number, string>(); // windowId -> deep link URL
-let openUrlHandledLaunch = false;
 
 function getResumeSessionId(parsedUrl: URL): string | null {
   try {
@@ -477,10 +506,9 @@ async function createResumeChatWindow(parsedUrl: URL, dir?: string): Promise<boo
   return true;
 }
 
-async function handleProtocolUrl(url: string) {
+async function handleProtocolUrl(url: string, parsedUrl: URL) {
   if (!url) return;
 
-  const parsedUrl = new URL(url);
   const recentDirs = loadRecentDirs();
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
@@ -774,6 +802,55 @@ const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
 const appWindows = new Map<string, BrowserWindow>();
 
+interface GoosedLease {
+  client: Client;
+  cleanup: () => Promise<void>;
+  windowIds: Set<number>;
+  cleanedUp: boolean;
+}
+
+const goosedLeasesByWindowId = new Map<number, GoosedLease>();
+
+const cleanupGoosedLease = async (lease: GoosedLease) => {
+  if (lease.cleanedUp) {
+    return;
+  }
+
+  lease.cleanedUp = true;
+  for (const windowId of lease.windowIds) {
+    goosedLeasesByWindowId.delete(windowId);
+    goosedClients.delete(windowId);
+  }
+  lease.windowIds.clear();
+
+  try {
+    await lease.cleanup();
+  } catch (error) {
+    log.error('Failed to cleanup goosed server:', error);
+  }
+};
+
+const attachWindowToGoosedLease = (windowId: number, lease: GoosedLease) => {
+  lease.windowIds.add(windowId);
+  goosedLeasesByWindowId.set(windowId, lease);
+  goosedClients.set(windowId, lease.client);
+};
+
+const releaseWindowGoosedLease = async (windowId: number) => {
+  const lease = goosedLeasesByWindowId.get(windowId);
+  goosedLeasesByWindowId.delete(windowId);
+  goosedClients.delete(windowId);
+
+  if (!lease) {
+    return;
+  }
+
+  lease.windowIds.delete(windowId);
+  if (lease.windowIds.size === 0) {
+    await cleanupGoosedLease(lease);
+  }
+};
+
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 // Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
@@ -843,11 +920,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     pinnedCertFingerprint = goosedResult.certFingerprint;
   }
 
-  app.on('will-quit', async () => {
-    log.info('App quitting, terminating goosed server');
-    await goosedResult.cleanup();
-  });
-
   const {
     baseUrl,
     workingDir,
@@ -889,6 +961,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       additionalArguments: [
         JSON.stringify({
           ...appConfig,
+          GOOSE_LOCALE: getConfiguredGooseLocale(),
           GOOSE_API_HOST: baseUrl,
           GOOSE_WORKING_DIR: workingDir,
           REQUEST_DIR: dir,
@@ -929,7 +1002,16 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       },
     })
   );
-  goosedClients.set(mainWindow.id, goosedClient);
+  const goosedLease: GoosedLease = {
+    client: goosedClient,
+    cleanup: goosedResult.cleanup,
+    windowIds: new Set<number>(),
+    cleanedUp: false,
+  };
+  attachWindowToGoosedLease(mainWindow.id, goosedLease);
+  mainWindow.once('closed', () => {
+    void releaseWindowGoosedLease(mainWindow.id);
+  });
 
   const serverReady = await checkServerStatus(goosedClient, errorLog, {
     onEvent: recordStartupEvent,
@@ -1229,7 +1311,12 @@ const createLauncher = () => {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
       contextIsolation: true,
-      additionalArguments: [JSON.stringify(appConfig)],
+      additionalArguments: [
+        JSON.stringify({
+          ...appConfig,
+          GOOSE_LOCALE: getConfiguredGooseLocale(),
+        }),
+      ],
       partition: 'persist:goose',
     },
     skipTaskbar: true,
@@ -1619,6 +1706,7 @@ const validSettingKeys: Set<string> = new Set([
   'keyboardShortcuts',
   'theme',
   'useSystemTheme',
+  'language',
   'responseStyle',
   'showPricing',
   'sessionSharing',
@@ -1632,10 +1720,19 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
     return;
   }
 
+  if (key === 'language' && !isValidLanguageSetting(value)) {
+    console.error(`Invalid language setting rejected: ${String(value)}`);
+    return;
+  }
+
   const settings = getSettings();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   (settings as any)[key] = value;
   fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
+
+  if (key === 'language') {
+    appConfig.GOOSE_LOCALE = getConfiguredGooseLocale();
+  }
 
   // Re-register shortcuts if keyboard shortcuts changed
   if (key === 'keyboardShortcuts') {
@@ -2284,7 +2381,7 @@ async function appMain() {
           accelerator: shortcuts.newChat,
           click() {
             const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (focusedWindow) focusedWindow.webContents.send('new-chat');
+            if (focusedWindow) focusedWindow.webContents.send('set-view', '');
           },
         })
       );
@@ -2645,6 +2742,10 @@ async function appMain() {
     event.returnValue = app.getVersion();
   });
 
+  ipcMain.on('get-app-locale', (event) => {
+    event.returnValue = getConfiguredGooseLocale();
+  });
+
   ipcMain.handle('open-directory-in-explorer', async (_event, path: string) => {
     try {
       return !!(await shell.openPath(path));
@@ -2662,9 +2763,9 @@ async function appMain() {
       }
 
       const launchingWindowId = launchingWindow.id;
-      const launchingClient = goosedClients.get(launchingWindowId);
-      if (!launchingClient) {
-        throw new Error('No client found for launching window');
+      const launchingLease = goosedLeasesByWindowId.get(launchingWindowId);
+      if (!launchingLease) {
+        throw new Error('No goosed lease found for launching window');
       }
 
       const appWindow = new BrowserWindow({
@@ -2682,11 +2783,11 @@ async function appMain() {
         },
       });
 
-      goosedClients.set(appWindow.id, launchingClient);
+      attachWindowToGoosedLease(appWindow.id, launchingLease);
       appWindows.set(gooseApp.name, appWindow);
 
-      appWindow.on('close', () => {
-        goosedClients.delete(appWindow.id);
+      appWindow.on('closed', () => {
+        void releaseWindowGoosedLease(appWindow.id);
         appWindows.delete(gooseApp.name);
       });
 
@@ -2791,6 +2892,12 @@ async function getAllowList(): Promise<string[]> {
 app.on('will-quit', async () => {
   // Stop the mesh child process if we spawned one.
   mesh.cleanup();
+
+  const goosedLeases = new Set(goosedLeasesByWindowId.values());
+  if (goosedLeases.size > 0) {
+    log.info(`App quitting, terminating ${goosedLeases.size} goosed server(s)`);
+    await Promise.all([...goosedLeases].map(cleanupGoosedLease));
+  }
 
   for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
     try {
