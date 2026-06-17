@@ -472,6 +472,7 @@ impl GatewayHandler {
                         }
                     }
                 }
+                Ok(AgentEvent::Usage(_)) => {}
                 Ok(AgentEvent::McpNotification(_)) => {
                     tracing::debug!(
                         session_id,

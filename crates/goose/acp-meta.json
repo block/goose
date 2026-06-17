@@ -201,11 +201,6 @@
       "responseType": "GetSessionInfoResponse_unstable"
     },
     {
-      "method": "_goose/unstable/elicitation/respond",
-      "requestType": "ElicitationRespondRequest_unstable",
-      "responseType": "EmptyResponse"
-    },
-    {
       "method": "_goose/unstable/session/project/update",
       "requestType": "UpdateSessionProjectRequest_unstable",
       "responseType": "EmptyResponse"
