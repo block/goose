@@ -92,17 +92,14 @@ export const currentMessageLocale = resolvedLocale.messageLocale;
 
 type MessageCatalogModule = { default?: Record<string, string> } | Record<string, string>;
 
-const MESSAGE_LOADERS: Record<string, () => Promise<MessageCatalogModule>> = {
-  en: () => import('./compiled/en.json'),
-  'zh-CN': () => import('./compiled/zh-CN.json'),
-};
+const MESSAGE_LOADERS = import.meta.glob<MessageCatalogModule>('./compiled/*.json');
 
 /**
  * Load compiled messages for a given locale.
  * Returns an empty object when a catalog is unavailable.
  */
 export async function loadMessages(locale: string): Promise<Record<string, string>> {
-  const loadCatalog = MESSAGE_LOADERS[locale];
+  const loadCatalog = MESSAGE_LOADERS[`./compiled/${locale}.json`];
 
   if (!loadCatalog) {
     console.warn(
