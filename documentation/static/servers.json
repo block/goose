@@ -703,6 +703,7 @@
     "installation_notes": "Remote streamable HTTP extension. Requires a Sofya API key passed as an Authorization Bearer header.",
     "is_builtin": false,
     "endorsed": false,
+    "show_install_command": false,
     "environmentVariables": [],
     "headers": [
       {
