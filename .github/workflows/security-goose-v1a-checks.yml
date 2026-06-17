@@ -53,9 +53,80 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
 
-      - name: Run Goal 7 validation chain
+      - name: Install UI workspace dependencies
         shell: bash
-        run: ./scripts/check-security-v1a.sh
+        run: |
+          source bin/activate-hermit
+          CI=1 pnpm --dir ui install --frozen-lockfile --ignore-scripts
+
+      - name: Build UI SDK
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          pnpm --dir ui --filter @aaif/goose-sdk run build
+
+      - name: Sync Security runtime assets
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          node scripts/sync-security-runtime-assets.mjs
+
+      - name: Ensure repo goosed for desktop preview
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          node ui/desktop/scripts/ensure-goosed-dev.js
+
+      - name: Smoke Security extension wiring
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          node scripts/smoke-security-extensions.mjs
+
+      - name: Check Apple signing boundary
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          node scripts/check-security-apple-signing-env.mjs
+
+      - name: Run desktop V1a tests
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          pnpm --dir ui/desktop exec vitest run \
+            src/branding/distro.test.ts \
+            src/branding/productText.test.ts \
+            src/macosBundleMode.test.ts \
+            src/macosSigningReadiness.test.ts \
+            src/components/settings/models/predefinedModelsUtils.test.ts \
+            src/components/settings/extensions/bundled-extensions.test.ts \
+            src/components/settings/extensions/securityBundledExtensions.test.ts \
+            src/security/taskCatalog.test.ts \
+            src/securityRuntimeBootstrap.test.ts \
+            src/components/LauncherView.test.tsx \
+            src/components/recipes/RecipesView.test.tsx
+
+      - name: Run desktop typecheck
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          pnpm --dir ui/desktop exec tsc --noEmit
+
+      - name: Run desktop lint
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          pnpm --dir ui/desktop run lint:check
+
+      - name: Validate Security distro
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          node scripts/validate-security-distro.mjs
+
+      - name: Check tracked diffs
+        shell: bash
+        run: git diff --check
 
       - name: Run packaged bundle smoke
         shell: bash
