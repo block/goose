@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getSession } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
-import { shouldShowNewChatTitle } from '../sessions';
+import { getSessionDisplayName } from '../sessions';
 import { AppEvents } from '../constants/events';
 import type { Session } from '../api';
 import { acpListRecentSessions, type SessionListItem } from '../acp/sessions';
@@ -199,17 +199,4 @@ export function useNavigationSessions() {
     handleNavClick,
     handleSessionClick,
   };
-}
-
-export function getSessionDisplayName(session: Session): string {
-  if (session.user_set_name) {
-    return session.name;
-  }
-  if (session.recipe?.title) {
-    return session.recipe.title;
-  }
-  if (shouldShowNewChatTitle(session)) {
-    return 'New Chat';
-  }
-  return session.name;
 }

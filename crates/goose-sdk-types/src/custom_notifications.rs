@@ -25,14 +25,12 @@ pub struct GooseSessionNotification {
     "propertyName": "sessionUpdate",
     "mapping": {
         "usage_update": "#/$defs/SessionUsageUpdate",
-        "status_message": "#/$defs/StatusMessageUpdate",
-        "interaction_update": "#/$defs/InteractionUpdate"
+        "status_message": "#/$defs/StatusMessageUpdate"
     }
 }))]
 pub enum GooseSessionUpdate {
     UsageUpdate(SessionUsageUpdate),
     StatusMessage(StatusMessageUpdate),
-    InteractionUpdate(InteractionUpdate),
 }
 
 impl Default for GooseSessionUpdate {
@@ -68,48 +66,6 @@ pub enum StatusMessage {
     Notice { message: String },
     #[serde(rename_all = "camelCase")]
     Progress { message: String },
-}
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct InteractionUpdate {
-    pub interaction: Interaction,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    #[serde(rename = "_meta")]
-    pub meta: Option<serde_json::Value>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(tag = "type", rename_all = "snake_case")]
-pub enum Interaction {
-    #[serde(rename_all = "camelCase")]
-    Elicitation {
-        id: String,
-        state: InteractionState,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        message: Option<String>,
-        #[serde(skip_serializing_if = "Option::is_none")]
-        requested_schema: Option<serde_json::Value>,
-    },
-}
-
-impl Default for Interaction {
-    fn default() -> Self {
-        Self::Elicitation {
-            id: String::new(),
-            state: InteractionState::Pending,
-            message: None,
-            requested_schema: None,
-        }
-    }
-}
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum InteractionState {
-    #[default]
-    Pending,
-    Submitted,
 }
 
 fn notification_schema<T>(generator: &mut SchemaGenerator) -> CustomMethodSchema

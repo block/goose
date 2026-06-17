@@ -8,7 +8,6 @@ pub(super) use crate::acp::response_builder::{
 };
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::acp::{PermissionDecision, ACP_CURRENT_MODEL};
-use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{Envs, PLATFORM_EXTENSIONS};
 use crate::agents::extension_manager::TRUSTED_TOOL_UPDATE_META_KEY;
 use crate::agents::mcp_client::{GooseMcpHostInfo, McpClientTrait};
@@ -44,10 +43,10 @@ use agent_client_protocol::schema::{
     AuthenticateResponse, BlobResourceContents, CancelNotification, CloseSessionRequest,
     CloseSessionResponse, ConfigOptionUpdate, Content, ContentBlock, ContentChunk,
     CurrentModeUpdate, EmbeddedResource, EmbeddedResourceResource, FileSystemCapabilities,
-    ForkSessionRequest, ForkSessionResponse, ImageContent, InitializeRequest, InitializeResponse,
-    ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, LoadSessionResponse,
-    McpCapabilities, McpServer, Meta, NewSessionRequest, NewSessionResponse, PermissionOption,
-    PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
+    ForkSessionRequest, ForkSessionResponse, ImageContent, Implementation, InitializeRequest,
+    InitializeResponse, ListSessionsRequest, ListSessionsResponse, LoadSessionRequest,
+    LoadSessionResponse, McpCapabilities, McpServer, Meta, NewSessionRequest, NewSessionResponse,
+    PermissionOption, PermissionOptionKind, PromptCapabilities, PromptRequest, PromptResponse,
     RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
     SessionCloseCapabilities, SessionConfigOption, SessionId, SessionInfoUpdate,
     SessionListCapabilities, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
@@ -63,12 +62,10 @@ use agent_client_protocol::{
 };
 use anyhow::Result;
 use fs_err as fs;
-use futures::future::BoxFuture;
+use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, StreamExt};
-use futures::FutureExt;
 use rmcp::model::{
-    AnnotateAble, CallToolResult, ElicitationAction, RawContent, RawTextContent, ResourceContents,
-    Role,
+    AnnotateAble, CallToolResult, RawContent, RawTextContent, ResourceContents, Role,
 };
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
@@ -86,6 +83,7 @@ mod config;
 mod custom_dispatch;
 mod dictation;
 mod dispatch;
+mod elicitation;
 mod extensions;
 mod fork_session;
 mod list_sessions;
@@ -171,8 +169,11 @@ struct GooseAcpSession {
     /// Tool_call_ids of chains that have already had a summary task fired.
     /// Idempotence guard so we summarize each chain at most once.
     summarized_chains: HashSet<String>,
-    cancel_token: Option<CancellationToken>,
-    active_run_id: Option<String>,
+}
+
+struct ActivePromptRun {
+    run_id: String,
+    cancel_token: CancellationToken,
 }
 
 /// A run of consecutive ToolRequest blocks within one assistant message,
@@ -199,12 +200,15 @@ pub struct GooseAcpAgentOptions {
 
 pub struct GooseAcpAgent {
     sessions: Arc<Mutex<HashMap<String, GooseAcpSession>>>,
+    active_prompt_runs: Arc<Mutex<HashMap<String, ActivePromptRun>>>,
+    closed_session_ids: Arc<Mutex<HashSet<String>>>,
     agent_manager: Arc<AgentManager>,
     provider_factory: AcpProviderFactory,
     builtins: Vec<String>,
     client_fs_capabilities: OnceCell<FileSystemCapabilities>,
     client_terminal: OnceCell<bool>,
     client_mcp_host_info: OnceCell<GooseMcpHostInfo>,
+    client_supports_acp_elicitation: OnceCell<bool>,
     client_supports_goose_custom_notifications: OnceCell<bool>,
     use_login_shell_path: OnceCell<bool>,
     client_cx: OnceCell<ConnectionTo<Client>>,
@@ -847,6 +851,13 @@ impl GooseAcpAgent {
             .unwrap_or(false)
     }
 
+    fn supports_acp_elicitation(&self) -> bool {
+        self.client_supports_acp_elicitation
+            .get()
+            .copied()
+            .unwrap_or(false)
+    }
+
     // TODO: goose reads Paths::in_state_dir globally (e.g. RequestLog), ignoring this data_dir.
     pub async fn new(options: GooseAcpAgentOptions) -> Result<Self> {
         let session_manager = Arc::new(SessionManager::new(options.data_dir));
@@ -871,12 +882,15 @@ impl GooseAcpAgent {
 
         Ok(Self {
             sessions: Arc::new(Mutex::new(HashMap::new())),
+            active_prompt_runs: Arc::new(Mutex::new(HashMap::new())),
+            closed_session_ids: Arc::new(Mutex::new(HashSet::new())),
             agent_manager,
             provider_factory: options.provider_factory,
             builtins: options.builtins,
             client_fs_capabilities: OnceCell::new(),
             client_terminal: OnceCell::new(),
             client_mcp_host_info: OnceCell::new(),
+            client_supports_acp_elicitation: OnceCell::new(),
             client_supports_goose_custom_notifications: OnceCell::new(),
             use_login_shell_path: OnceCell::new(),
             client_cx: OnceCell::new(),
@@ -1145,8 +1159,6 @@ impl GooseAcpAgent {
             chain_membership: HashMap::new(),
             responded_tool_ids: HashSet::new(),
             summarized_chains: HashSet::new(),
-            cancel_token: None,
-            active_run_id: None,
         };
         self.sessions.lock().await.insert(session_id, acp_session);
     }
@@ -1320,20 +1332,15 @@ impl GooseAcpAgent {
                     message,
                     requested_schema,
                 } => {
-                    send_elicitation_interaction_update(
+                    self.handle_form_elicitation(
                         cx,
-                        self.supports_goose_custom_notifications(),
-                        session_id.0.as_ref(),
-                        InteractionUpdate {
-                            interaction: Interaction::Elicitation {
-                                id: id.clone(),
-                                state: InteractionState::Pending,
-                                message: Some(message.clone()),
-                                requested_schema: Some(requested_schema.clone()),
-                            },
-                            meta: Some(interaction_update_meta(message_id, message_created)),
-                        },
-                    )?;
+                        session_id,
+                        id,
+                        message,
+                        requested_schema,
+                        message_update_meta(message_id, message_created, false),
+                    )
+                    .await?;
                 }
                 ActionRequiredData::ElicitationResponse { .. } => {}
             },
@@ -1944,25 +1951,6 @@ fn status_message_from_system_notification(
     }
 }
 
-fn send_elicitation_interaction_update(
-    cx: &ConnectionTo<Client>,
-    supports_goose_custom_notifications: bool,
-    session_id: &str,
-    update: InteractionUpdate,
-) -> Result<(), agent_client_protocol::Error> {
-    if supports_goose_custom_notifications {
-        cx.send_notification(GooseSessionNotification {
-            session_id: session_id.to_string(),
-            update: GooseSessionUpdate::InteractionUpdate(update),
-        })?;
-    }
-    Ok(())
-}
-
-fn interaction_update_meta(message_id: Option<&str>, created: i64) -> serde_json::Value {
-    serde_json::Value::Object(message_update_meta(message_id, created, false))
-}
-
 fn message_update_meta(message_id: Option<&str>, created: i64, steer: bool) -> Meta {
     let mut goose = serde_json::Map::new();
     goose.insert("created".to_string(), serde_json::json!(created));
@@ -2104,6 +2092,9 @@ impl GooseAcpAgent {
             extract_client_supports_goose_custom_notifications(goose_client_capabilities.as_ref()),
         );
         let _ = self
+            .client_supports_acp_elicitation
+            .set(elicitation::client_supports_form_elicitation(&args));
+        let _ = self
             .use_login_shell_path
             .set(extract_use_login_shell_path(&args));
 
@@ -2122,6 +2113,7 @@ impl GooseAcpAgent {
             )
             .mcp_capabilities(McpCapabilities::new().http(true));
         Ok(InitializeResponse::new(args.protocol_version)
+            .agent_info(Implementation::new("goose", env!("CARGO_PKG_VERSION")))
             .agent_capabilities(capabilities)
             .auth_methods(vec![AuthMethod::Agent(
                 AuthMethodAgent::new("goose-provider", "Configure Provider")
@@ -2137,19 +2129,21 @@ impl GooseAcpAgent {
         self.handle_new_session(cx, args).await
     }
 
-    /// Look up the session's agent.  Optionally sets a cancellation token on
-    /// the session (needed by `on_prompt`).
+    /// Look up the session's agent.
     async fn get_session_agent(
         &self,
         session_id: &str,
-        cancel_token: Option<CancellationToken>,
     ) -> Result<Arc<Agent>, agent_client_protocol::Error> {
+        if self.closed_session_ids.lock().await.contains(session_id) {
+            return Err(agent_client_protocol::Error::resource_not_found(Some(
+                session_id.to_string(),
+            ))
+            .data(format!("Session not found: {}", session_id)));
+        }
+
         {
-            let mut sessions = self.sessions.lock().await;
-            if let Some(session) = sessions.get_mut(session_id) {
-                if let Some(token) = cancel_token {
-                    session.cancel_token = Some(token);
-                }
+            let sessions = self.sessions.lock().await;
+            if let Some(session) = sessions.get(session_id) {
                 return Ok(session.agent.clone());
             }
         }
@@ -2169,13 +2163,6 @@ impl GooseAcpAgent {
         let (agent, _) = self
             .activate_acp_session(cx, &session, HashMap::new())
             .await?;
-
-        if let Some(token) = cancel_token {
-            let mut sessions = self.sessions.lock().await;
-            if let Some(session) = sessions.get_mut(session_id) {
-                session.cancel_token = Some(token);
-            }
-        }
         Ok(agent)
     }
 
@@ -2185,37 +2172,59 @@ impl GooseAcpAgent {
         run_id: String,
         cancel_token: CancellationToken,
     ) -> Result<(), agent_client_protocol::Error> {
-        let mut sessions = self.sessions.lock().await;
-        let session = sessions.get_mut(session_id).ok_or_else(|| {
-            agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
-                .data(format!("Session not found: {}", session_id))
-        })?;
+        if self.closed_session_ids.lock().await.contains(session_id) {
+            return Err(agent_client_protocol::Error::resource_not_found(Some(
+                session_id.to_string(),
+            ))
+            .data(format!("Session not found: {}", session_id)));
+        }
 
-        if let Some(active_run_id) = &session.active_run_id {
+        let mut active_prompt_runs = self.active_prompt_runs.lock().await;
+        if let Some(active_run) = active_prompt_runs.get(session_id) {
             return Err(agent_client_protocol::Error::invalid_params().data(format!(
-                "session already has active run `{active_run_id}`; use _goose/unstable/session/steer"
+                "session already has active run `{}`; use _goose/unstable/session/steer",
+                active_run.run_id.as_str()
             )));
         }
 
-        session.cancel_token = Some(cancel_token);
-        session.active_run_id = Some(run_id);
+        active_prompt_runs.insert(
+            session_id.to_string(),
+            ActivePromptRun {
+                run_id,
+                cancel_token,
+            },
+        );
         Ok(())
     }
 
     async fn clear_active_run(&self, session_id: &str, run_id: &str) {
-        let agent = {
-            let mut sessions = self.sessions.lock().await;
-            let Some(session) = sessions.get_mut(session_id) else {
+        {
+            let mut active_prompt_runs = self.active_prompt_runs.lock().await;
+            let Some(active_run) = active_prompt_runs.get(session_id) else {
                 return;
             };
-            if session.active_run_id.as_deref() != Some(run_id) {
+
+            if active_run.run_id != run_id {
                 return;
             }
-            session.cancel_token = None;
-            session.active_run_id = None;
-            session.agent.clone()
+
+            active_prompt_runs.remove(session_id);
+        }
+
+        let agent = {
+            let sessions = self.sessions.lock().await;
+            sessions
+                .get(session_id)
+                .map(|session| session.agent.clone())
         };
-        agent.discard_pending_steers(session_id).await;
+        if let Some(agent) = agent {
+            agent.discard_pending_steers(session_id).await;
+        }
+
+        if self.closed_session_ids.lock().await.contains(session_id) {
+            self.sessions.lock().await.remove(session_id);
+            let _ = self.agent_manager.remove_session(session_id).await;
+        }
     }
 
     async fn require_active_run(
@@ -2228,26 +2237,23 @@ impl GooseAcpAgent {
                 .data("expectedRunId must not be empty"));
         }
 
-        let sessions = self.sessions.lock().await;
-        let session = sessions.get(session_id).ok_or_else(|| {
-            agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
-                .data(format!("Session not found: {}", session_id))
-        })?;
-        let active_run_id = session.active_run_id.as_ref().ok_or_else(|| {
+        let active_prompt_runs = self.active_prompt_runs.lock().await;
+        let active_run = active_prompt_runs.get(session_id).ok_or_else(|| {
             agent_client_protocol::Error::invalid_params().data("no active run to steer")
         })?;
-        if active_run_id != expected_run_id {
+        if active_run.run_id != expected_run_id {
             return Err(
                 agent_client_protocol::Error::invalid_params().data(serde_json::json!({
                     "message": format!(
-                        "expected active run id `{expected_run_id}` but found `{active_run_id}`"
+                        "expected active run id `{expected_run_id}` but found `{}`",
+                        active_run.run_id.as_str()
                     ),
                     "expectedRunId": expected_run_id,
-                    "actualRunId": active_run_id,
+                    "actualRunId": active_run.run_id.as_str(),
                 })),
             );
         }
-        Ok(active_run_id.clone())
+        Ok(active_run.run_id.clone())
     }
 
     fn active_run_meta(active_run_id: Option<&str>) -> Meta {
@@ -2359,19 +2365,25 @@ impl GooseAcpAgent {
         let cancel_token = CancellationToken::new();
         self.start_active_run(&session_id, run_id.clone(), cancel_token.clone())
             .await?;
+
+        let agent = match self.get_session_agent(&session_id).await {
+            Ok(agent) => agent,
+            Err(error) => {
+                self.clear_active_run(&session_id, &run_id).await;
+                return Err(error);
+            }
+        };
+
+        if cancel_token.is_cancelled() {
+            self.clear_active_run(&session_id, &run_id).await;
+            Self::send_active_run_update(cx, &args.session_id, None)?;
+            return Ok(PromptResponse::new(StopReason::Cancelled));
+        }
+
         if let Err(error) = Self::send_active_run_update(cx, &args.session_id, Some(&run_id)) {
             self.clear_active_run(&session_id, &run_id).await;
             return Err(error);
         }
-
-        let agent = match self.get_session_agent(&session_id, None).await {
-            Ok(agent) => agent,
-            Err(error) => {
-                self.clear_active_run(&session_id, &run_id).await;
-                let _ = Self::send_active_run_update(cx, &args.session_id, None);
-                return Err(error);
-            }
-        };
 
         let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
 
@@ -2604,7 +2616,7 @@ impl GooseAcpAgent {
 
         self.require_active_run(&req.session_id, &req.expected_run_id)
             .await?;
-        let agent = self.get_session_agent(&req.session_id, None).await?;
+        let agent = self.get_session_agent(&req.session_id).await?;
         let active_run_id = self
             .require_active_run(&req.session_id, &req.expected_run_id)
             .await?;
@@ -2641,67 +2653,21 @@ impl GooseAcpAgent {
         debug!(?args, "cancel request");
 
         let session_id = args.session_id.0.to_string();
-        let mut sessions = self.sessions.lock().await;
+        let token = {
+            let active_prompt_runs = self.active_prompt_runs.lock().await;
+            active_prompt_runs
+                .get(&session_id)
+                .map(|active_run| active_run.cancel_token.clone())
+        };
 
-        if let Some(session) = sessions.get_mut(&session_id) {
-            if let Some(ref token) = session.cancel_token {
-                info!(session_id = %session_id, "prompt cancelled");
-                token.cancel();
-            }
-        } else {
+        if let Some(token) = token {
+            info!(session_id = %session_id, "prompt cancelled");
+            token.cancel();
+        } else if !self.sessions.lock().await.contains_key(&session_id) {
             warn!(session_id = %session_id, "cancel request for unknown session");
         }
 
         Ok(())
-    }
-
-    async fn on_elicitation_respond(
-        &self,
-        cx: &ConnectionTo<Client>,
-        req: ElicitationRespondRequest,
-    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
-        ActionRequiredManager::global()
-            .submit_response(
-                req.elicitation_id.clone(),
-                req.user_data.clone(),
-                ElicitationAction::Accept,
-            )
-            .await
-            .invalid_params_err_ctx("Failed to submit elicitation response")?;
-
-        let response_message = Message::user()
-            .with_generated_id()
-            .with_content(MessageContent::action_required_elicitation_response(
-                req.elicitation_id.clone(),
-                req.user_data,
-                ElicitationAction::Accept,
-            ))
-            .agent_only();
-
-        self.session_manager
-            .add_message(&req.session_id, &response_message)
-            .await
-            .internal_err_ctx("Failed to persist elicitation response")?;
-
-        send_elicitation_interaction_update(
-            cx,
-            self.supports_goose_custom_notifications(),
-            &req.session_id,
-            InteractionUpdate {
-                interaction: Interaction::Elicitation {
-                    id: req.elicitation_id,
-                    state: InteractionState::Submitted,
-                    message: None,
-                    requested_schema: None,
-                },
-                meta: Some(interaction_update_meta(
-                    response_message.id.as_deref(),
-                    response_message.created,
-                )),
-            },
-        )?;
-
-        Ok(EmptyResponse {})
     }
 
     async fn on_set_model(
@@ -2709,7 +2675,7 @@ impl GooseAcpAgent {
         session_id: &str,
         model_id: &str,
     ) -> Result<SetSessionModelResponse, agent_client_protocol::Error> {
-        let agent = self.get_session_agent(session_id, None).await?;
+        let agent = self.get_session_agent(session_id).await?;
         let current_provider = agent
             .provider()
             .await
@@ -2738,7 +2704,7 @@ impl GooseAcpAgent {
             .get_session(&session_id.0, false)
             .await
             .internal_err()?;
-        let agent = self.get_session_agent(&session_id.0, None).await?;
+        let agent = self.get_session_agent(&session_id.0).await?;
         let provider = agent
             .provider()
             .await
@@ -2783,7 +2749,7 @@ impl GooseAcpAgent {
                 .data(format!("Invalid mode: {}", mode_id))
         })?;
 
-        let agent = self.get_session_agent(session_id, None).await?;
+        let agent = self.get_session_agent(session_id).await?;
         agent
             .update_goose_mode(mode, session_id)
             .await
@@ -2805,7 +2771,7 @@ impl GooseAcpAgent {
                 agent_client_protocol::Error::invalid_params()
                     .data(format!("Invalid thinking effort: {}", effort_id))
             })?;
-        let agent = self.get_session_agent(session_id, None).await?;
+        let agent = self.get_session_agent(session_id).await?;
         agent
             .update_thinking_effort(session_id, effort)
             .await
@@ -2823,7 +2789,7 @@ impl GooseAcpAgent {
         request_params: Option<std::collections::HashMap<String, serde_json::Value>>,
     ) -> Result<(), agent_client_protocol::Error> {
         let config = self.config()?;
-        let agent = self.get_session_agent(session_id, None).await?;
+        let agent = self.get_session_agent(session_id).await?;
         let current_provider = agent
             .provider()
             .await
@@ -2880,12 +2846,23 @@ impl GooseAcpAgent {
         &self,
         session_id: &str,
     ) -> Result<CloseSessionResponse, agent_client_protocol::Error> {
-        let mut sessions = self.sessions.lock().await;
-        if let Some(session) = sessions.get(session_id) {
-            if let Some(ref token) = session.cancel_token {
-                token.cancel();
-            }
+        self.closed_session_ids
+            .lock()
+            .await
+            .insert(session_id.to_string());
+
+        let active_run_token = {
+            let active_prompt_runs = self.active_prompt_runs.lock().await;
+            active_prompt_runs
+                .get(session_id)
+                .map(|active_run| active_run.cancel_token.clone())
+        };
+
+        if let Some(token) = active_run_token {
+            token.cancel();
         }
+
+        let mut sessions = self.sessions.lock().await;
         sessions.remove(session_id);
         drop(sessions);
 

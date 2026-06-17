@@ -802,6 +802,55 @@ const windowMap = new Map<number, BrowserWindow>();
 const goosedClients = new Map<number, Client>();
 const appWindows = new Map<string, BrowserWindow>();
 
+interface GoosedLease {
+  client: Client;
+  cleanup: () => Promise<void>;
+  windowIds: Set<number>;
+  cleanedUp: boolean;
+}
+
+const goosedLeasesByWindowId = new Map<number, GoosedLease>();
+
+const cleanupGoosedLease = async (lease: GoosedLease) => {
+  if (lease.cleanedUp) {
+    return;
+  }
+
+  lease.cleanedUp = true;
+  for (const windowId of lease.windowIds) {
+    goosedLeasesByWindowId.delete(windowId);
+    goosedClients.delete(windowId);
+  }
+  lease.windowIds.clear();
+
+  try {
+    await lease.cleanup();
+  } catch (error) {
+    log.error('Failed to cleanup goosed server:', error);
+  }
+};
+
+const attachWindowToGoosedLease = (windowId: number, lease: GoosedLease) => {
+  lease.windowIds.add(windowId);
+  goosedLeasesByWindowId.set(windowId, lease);
+  goosedClients.set(windowId, lease.client);
+};
+
+const releaseWindowGoosedLease = async (windowId: number) => {
+  const lease = goosedLeasesByWindowId.get(windowId);
+  goosedLeasesByWindowId.delete(windowId);
+  goosedClients.delete(windowId);
+
+  if (!lease) {
+    return;
+  }
+
+  lease.windowIds.delete(windowId);
+  if (lease.windowIds.size === 0) {
+    await cleanupGoosedLease(lease);
+  }
+};
+
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 // Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
@@ -870,11 +919,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   if (goosedResult.certFingerprint) {
     pinnedCertFingerprint = goosedResult.certFingerprint;
   }
-
-  app.on('will-quit', async () => {
-    log.info('App quitting, terminating goosed server');
-    await goosedResult.cleanup();
-  });
 
   const {
     baseUrl,
@@ -958,7 +1002,16 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       },
     })
   );
-  goosedClients.set(mainWindow.id, goosedClient);
+  const goosedLease: GoosedLease = {
+    client: goosedClient,
+    cleanup: goosedResult.cleanup,
+    windowIds: new Set<number>(),
+    cleanedUp: false,
+  };
+  attachWindowToGoosedLease(mainWindow.id, goosedLease);
+  mainWindow.once('closed', () => {
+    void releaseWindowGoosedLease(mainWindow.id);
+  });
 
   const serverReady = await checkServerStatus(goosedClient, errorLog, {
     onEvent: recordStartupEvent,
@@ -2710,9 +2763,9 @@ async function appMain() {
       }
 
       const launchingWindowId = launchingWindow.id;
-      const launchingClient = goosedClients.get(launchingWindowId);
-      if (!launchingClient) {
-        throw new Error('No client found for launching window');
+      const launchingLease = goosedLeasesByWindowId.get(launchingWindowId);
+      if (!launchingLease) {
+        throw new Error('No goosed lease found for launching window');
       }
 
       const appWindow = new BrowserWindow({
@@ -2730,11 +2783,11 @@ async function appMain() {
         },
       });
 
-      goosedClients.set(appWindow.id, launchingClient);
+      attachWindowToGoosedLease(appWindow.id, launchingLease);
       appWindows.set(gooseApp.name, appWindow);
 
-      appWindow.on('close', () => {
-        goosedClients.delete(appWindow.id);
+      appWindow.on('closed', () => {
+        void releaseWindowGoosedLease(appWindow.id);
         appWindows.delete(gooseApp.name);
       });
 
@@ -2839,6 +2892,12 @@ async function getAllowList(): Promise<string[]> {
 app.on('will-quit', async () => {
   // Stop the mesh child process if we spawned one.
   mesh.cleanup();
+
+  const goosedLeases = new Set(goosedLeasesByWindowId.values());
+  if (goosedLeases.size > 0) {
+    log.info(`App quitting, terminating ${goosedLeases.size} goosed server(s)`);
+    await Promise.all([...goosedLeases].map(cleanupGoosedLease));
+  }
 
   for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {
     try {

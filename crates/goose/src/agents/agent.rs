@@ -16,7 +16,7 @@ use super::mcp_client::GooseMcpHostInfo;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::action_required_manager::ActionRequiredManager;
+use crate::action_required_manager::{ActionRequiredManager, ElicitationOutcome};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
     get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
@@ -57,8 +57,8 @@ use goose_providers::errors::ProviderError;
 use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
-    ServerNotification, Tool,
+    CallToolRequestParams, CallToolResult, Content, ElicitationAction, ErrorCode, ErrorData,
+    GetPromptResult, Prompt, ServerNotification, Tool,
 };
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
@@ -221,6 +221,14 @@ impl AgentConfig {
         self.use_login_shell_path = Some(use_login_shell_path);
         self
     }
+
+    fn resolve_use_login_shell_path(&self) -> bool {
+        resolve_use_login_shell_path(self.use_login_shell_path, &self.goose_platform)
+    }
+}
+
+fn resolve_use_login_shell_path(explicit: Option<bool>, platform: &GoosePlatform) -> bool {
+    explicit.unwrap_or(matches!(platform, GoosePlatform::GooseDesktop))
 }
 
 /// The main goose Agent
@@ -253,6 +261,7 @@ pub struct Agent {
 #[derive(Clone, Debug)]
 pub enum AgentEvent {
     Message(Message),
+    Usage(crate::providers::base::ProviderUsage),
     McpNotification((String, ServerNotification)),
     HistoryReplaced(Conversation),
 }
@@ -336,9 +345,7 @@ impl Agent {
             .unwrap_or_else(|| goose_platform.to_string());
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
-        let use_login_shell_path = config
-            .use_login_shell_path
-            .unwrap_or(matches!(goose_platform, GoosePlatform::GooseDesktop));
+        let use_login_shell_path = config.resolve_use_login_shell_path();
         Self {
             provider: provider.clone(),
             config,
@@ -633,8 +640,10 @@ impl Agent {
     async fn drain_elicitation_messages(&self, session_id: &str) -> Vec<Message> {
         let mut messages = Vec::new();
         let manager = self.config.session_manager.clone();
-        let mut elicitation_rx = ActionRequiredManager::global().request_rx.lock().await;
-        while let Ok(mut elicitation_message) = elicitation_rx.try_recv() {
+        for mut elicitation_message in ActionRequiredManager::global()
+            .drain_requests_for_session(session_id)
+            .await
+        {
             if elicitation_message.id.is_none() {
                 elicitation_message = elicitation_message.with_generated_id();
             }
@@ -1465,16 +1474,23 @@ impl Agent {
                     // success while the blocked tool call stays unblocked.
                     // The success path returns an empty stream after the MCP
                     // server receives the user's accept/decline/cancel action.
-                    ActionRequiredManager::global()
-                        .submit_response(id.clone(), user_data.clone(), action.clone())
-                        .await
-                        .map_err(|e| {
-                            error!("Failed to submit elicitation response: {}", e);
-                            anyhow!("Failed to submit elicitation response: {}", e)
-                        })?;
-                    session_manager
-                        .add_message(&session_config.id, &user_message)
-                        .await?;
+                    let response = match action {
+                        ElicitationAction::Accept => ElicitationOutcome::Accept(user_data.clone()),
+                        ElicitationAction::Decline => ElicitationOutcome::Decline,
+                        ElicitationAction::Cancel => ElicitationOutcome::Cancel,
+                    };
+                    crate::elicitation::complete_elicitation_with_message(
+                        &session_manager,
+                        &session_config.id,
+                        id,
+                        response,
+                        &user_message,
+                    )
+                    .await
+                    .map_err(|e| {
+                        error!("Failed to submit elicitation response: {}", e);
+                        anyhow!("Failed to submit elicitation response: {}", e)
+                    })?;
                     return Ok(Box::pin(futures::stream::empty()));
                 }
             }
@@ -1891,6 +1907,7 @@ impl Agent {
 
                             if let Some(ref usage) = usage {
                                 self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
+                                yield AgentEvent::Usage(usage.clone());
                             }
 
                             if let Some(response) = response {
@@ -3081,6 +3098,30 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
 
+    #[test]
+    fn resolve_use_login_shell_path_defaults_by_platform() {
+        assert!(resolve_use_login_shell_path(
+            None,
+            &GoosePlatform::GooseDesktop
+        ));
+        assert!(!resolve_use_login_shell_path(
+            None,
+            &GoosePlatform::GooseCli
+        ));
+    }
+
+    #[test]
+    fn resolve_use_login_shell_path_explicit_overrides_platform() {
+        assert!(resolve_use_login_shell_path(
+            Some(true),
+            &GoosePlatform::GooseCli
+        ));
+        assert!(!resolve_use_login_shell_path(
+            Some(false),
+            &GoosePlatform::GooseDesktop
+        ));
+    }
+
     struct ActionRequiredProvider {
         handled: tokio::sync::Mutex<Vec<(String, PermissionConfirmation)>>,
     }
@@ -3445,7 +3486,9 @@ exit 0
         while let Some(event) = reply_stream.next().await {
             match event? {
                 AgentEvent::Message(message) => messages.push(message),
-                AgentEvent::McpNotification(_) | AgentEvent::HistoryReplaced(_) => {}
+                AgentEvent::McpNotification(_)
+                | AgentEvent::HistoryReplaced(_)
+                | AgentEvent::Usage(_) => {}
             }
         }
         Ok(messages)
