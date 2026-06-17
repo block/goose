@@ -29,15 +29,17 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --base main \
               --state open \
-              --json headRefName,mergeStateStatus,url \
-              --jq '.[] | select(.headRefName | startswith("version-bump/")) | select(.mergeStateStatus == "DIRTY") | .url')
+              --search 'head:version-bump/' \
+              --json mergeStateStatus,url \
+              --jq '.[] | select(.mergeStateStatus == "DIRTY") | .url')
 
             UNKNOWN_COUNT=$(gh pr list \
               --repo "$GITHUB_REPOSITORY" \
               --base main \
               --state open \
-              --json headRefName,mergeStateStatus \
-              --jq '[.[] | select(.headRefName | startswith("version-bump/")) | select(.mergeStateStatus == "UNKNOWN")] | length')
+              --search 'head:version-bump/' \
+              --json mergeStateStatus \
+              --jq '[.[] | select(.mergeStateStatus == "UNKNOWN")] | length')
 
             if [ -n "$CONFLICTING_PR_URLS" ] || [ "$UNKNOWN_COUNT" = "0" ]; then
               break
