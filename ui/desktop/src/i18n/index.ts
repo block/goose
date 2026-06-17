@@ -2,7 +2,7 @@
  * Locale detection and message loading for the i18n system.
  *
  * Locale resolution order:
- *   1. GOOSE_LOCALE config value (set via environment variable, passed through appConfig)
+ *   1. GOOSE_LOCALE config value (manual setting or environment variable, passed through appConfig)
  *   2. navigator.languages (full accept-language list from OS/browser)
  *   3. "en" (fallback)
  *
@@ -15,7 +15,9 @@
 export { defineMessages, useIntl } from 'react-intl';
 
 /** The set of locales that have translation catalogs. */
-const SUPPORTED_LOCALES = new Set(['en', 'hi', 'ru', 'tr', 'zh-CN', 'ja']);
+export const SUPPORTED_LOCALES = ['en', 'es', 'hi', 'ja', 'ru', 'tr', 'zh-CN'] as const;
+export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
+const SUPPORTED_LOCALE_SET = new Set<string>(SUPPORTED_LOCALES);
 
 /**
  * Map Simplified Chinese aliases (zh, zh-Hans*, zh-SG, zh-MY) to "zh-CN".
@@ -61,12 +63,12 @@ export function getLocale(): { locale: string; messageLocale: string } {
     const tag = resolveChineseAlias(normalized);
 
     // Exact match first
-    if (SUPPORTED_LOCALES.has(tag)) return { locale: tag, messageLocale: tag };
+    if (SUPPORTED_LOCALE_SET.has(tag)) return { locale: tag, messageLocale: tag };
 
     // Try base language (e.g. "pt-BR" → "pt") for the catalog, but keep the
     // full regional tag for formatting so date/number output respects the region.
     const base = tag.split('-')[0];
-    if (SUPPORTED_LOCALES.has(base)) {
+    if (SUPPORTED_LOCALE_SET.has(base)) {
       // Validate the full tag is a well-formed BCP 47 locale before using it
       // for formatting. Invalid tags (e.g. "en-") would cause RangeError in
       // Intl APIs, so fall back to the base language in that case.

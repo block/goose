@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { getSession } from '../api';
 import { useChatContext } from '../contexts/ChatContext';
-import { shouldShowNewChatTitle } from '../sessions';
+import { getSessionDisplayName } from '../sessions';
 import { AppEvents } from '../constants/events';
 import type { Session } from '../api';
 import { acpListRecentSessions, type SessionListItem } from '../acp/sessions';
@@ -146,11 +146,16 @@ export function useNavigationSessions() {
     };
 
     const handleSessionRenamed = (event: Event) => {
-      const { sessionId, newName } = (event as CustomEvent<{ sessionId: string; newName: string }>)
-        .detail;
+      const { sessionId, newName, userInitiated } = (
+        event as CustomEvent<{ sessionId: string; newName: string; userInitiated?: boolean }>
+      ).detail;
 
       setRecentSessions((prev) =>
-        prev.map((session) => (session.id === sessionId ? { ...session, name: newName } : session))
+        prev.map((session) =>
+          session.id === sessionId
+            ? { ...session, name: newName, ...(userInitiated && { user_set_name: true }) }
+            : session
+        )
       );
     };
 
@@ -194,17 +199,4 @@ export function useNavigationSessions() {
     handleNavClick,
     handleSessionClick,
   };
-}
-
-export function getSessionDisplayName(session: Session): string {
-  if (session.user_set_name) {
-    return session.name;
-  }
-  if (session.recipe?.title) {
-    return session.recipe.title;
-  }
-  if (shouldShowNewChatTitle(session)) {
-    return 'New Chat';
-  }
-  return session.name;
 }
