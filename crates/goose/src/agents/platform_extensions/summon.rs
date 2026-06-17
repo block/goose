@@ -142,6 +142,7 @@ fn parse_agent_content(content: &str, path: &Path) -> Option<SourceEntry> {
 fn scan_recipes_from_dir(
     dir: &Path,
     kind: SourceType,
+    suppress_config_warnings: bool,
     sources: &mut Vec<SourceEntry>,
     seen: &mut std::collections::HashSet<String>,
 ) {
@@ -187,10 +188,11 @@ fn scan_recipes_from_dir(
                 });
             }
             Err(e) => {
-                // Files like package.json and tsconfig.json are common in project roots.
-                // Treat valid YAML/JSON that is missing Recipe fields as "not a recipe"
-                // rather than warning on every normal project config file.
-                if e.to_string().contains("missing field") {
+                // The working directory commonly contains project config like package.json
+                // and tsconfig.json, which parse as valid JSON but lack Recipe fields. In that
+                // case treat them as "not a recipe" rather than warning. Dedicated recipe
+                // directories still warn so a real recipe with a typo is not silently dropped.
+                if suppress_config_warnings && e.to_string().contains("missing field") {
                     continue;
                 }
                 warn!("Failed to parse recipe {}: {}", path.display(), e);
@@ -245,7 +247,6 @@ pub fn discover_filesystem_sources(working_dir: &Path) -> Vec<SourceEntry> {
     let config = Paths::config_dir();
 
     let local_recipe_dirs: Vec<PathBuf> = vec![
-        working_dir.to_path_buf(),
         working_dir.join(".goose/recipes"),
         working_dir.join(".agents/recipes"),
     ];
@@ -284,8 +285,16 @@ pub fn discover_filesystem_sources(working_dir: &Path) -> Vec<SourceEntry> {
     .flatten()
     .collect();
 
+    scan_recipes_from_dir(
+        working_dir,
+        SourceType::Recipe,
+        true,
+        &mut sources,
+        &mut seen,
+    );
+
     for dir in local_recipe_dirs {
-        scan_recipes_from_dir(&dir, SourceType::Recipe, &mut sources, &mut seen);
+        scan_recipes_from_dir(&dir, SourceType::Recipe, false, &mut sources, &mut seen);
     }
 
     for dir in local_agent_dirs {
@@ -293,7 +302,7 @@ pub fn discover_filesystem_sources(working_dir: &Path) -> Vec<SourceEntry> {
     }
 
     for dir in global_recipe_dirs {
-        scan_recipes_from_dir(&dir, SourceType::Recipe, &mut sources, &mut seen);
+        scan_recipes_from_dir(&dir, SourceType::Recipe, false, &mut sources, &mut seen);
     }
 
     for dir in global_agent_dirs {
@@ -2099,7 +2108,13 @@ You review code."#;
 
         let mut sources = Vec::new();
         let mut seen = HashSet::new();
-        scan_recipes_from_dir(temp_dir.path(), SourceType::Recipe, &mut sources, &mut seen);
+        scan_recipes_from_dir(
+            temp_dir.path(),
+            SourceType::Recipe,
+            true,
+            &mut sources,
+            &mut seen,
+        );
 
         assert_eq!(sources.len(), 1);
         assert_eq!(sources[0].name, "valid");
