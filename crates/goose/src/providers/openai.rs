@@ -99,7 +99,11 @@ pub(crate) fn ensure_url_scheme(raw_url: &str) -> String {
     }
 
     let host_part = trimmed.split(['/', '?']).next().unwrap_or(trimmed);
-    let bare_host = host_part.split(':').next().unwrap_or(host_part);
+    let bare_host = if let Some(rest) = host_part.strip_prefix('[') {
+        rest.split(']').next().unwrap_or(rest)
+    } else {
+        host_part.split(':').next().unwrap_or(host_part)
+    };
     let is_local = bare_host == "localhost"
         || bare_host == "127.0.0.1"
         || bare_host == "0.0.0.0"
@@ -1415,6 +1419,7 @@ mod tests {
             "http://127.0.0.1:8080/v1"
         );
         assert_eq!(ensure_url_scheme("0.0.0.0:3000"), "http://0.0.0.0:3000");
+        assert_eq!(ensure_url_scheme("[::1]:1234"), "http://[::1]:1234");
     }
 
     #[test]
