@@ -61,6 +61,25 @@ const OVERLOADED_ERROR_MSG: &str =
     "Vertex AI Provider API is temporarily overloaded. This is similar to a rate limit \
      error but indicates backend processing capacity issues.";
 
+/// Decides how to handle a 401/403 auth failure from Vertex AI.
+///
+/// Returns `true` if the request should be retried once after refreshing the
+/// auth token (i.e. we have not retried for auth yet), or `false` if the
+/// failure should be surfaced to the caller. The `already_retried` flag is
+/// updated to record that a retry has been consumed.
+///
+/// This handles the case where a cached/expired gcloud token is used after the
+/// user has reauthenticated: a fresh token is fetched and the request retried,
+/// avoiding the need to restart the application.
+fn should_retry_after_auth_failure(already_retried: &mut bool) -> bool {
+    if *already_retried {
+        false
+    } else {
+        *already_retried = true;
+        true
+    }
+}
+
 fn build_vertex_url(
     host: &str,
     configured_location: &str,
@@ -284,6 +303,7 @@ impl GcpVertexAIProvider {
         let mut overloaded_attempts = 0;
         let mut last_error = None;
         let max_retries = self.retry_config.max_retries;
+        let mut retried_auth = false;
 
         loop {
             if rate_limit_attempts > max_retries && overloaded_attempts > max_retries {
@@ -355,6 +375,12 @@ impl GcpVertexAIProvider {
             } else if status == StatusCode::OK {
                 return Ok(response);
             } else if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+                if should_retry_after_auth_failure(&mut retried_auth) {
+                    tracing::info!(
+                        "Vertex AI returned {status}; refreshing auth token and retrying once"
+                    );
+                    continue;
+                }
                 return Err(ProviderError::Authentication(format!(
                     "Authentication failed with status: {status}"
                 )));
@@ -797,6 +823,22 @@ mod tests {
             url
         );
         assert!(url.as_str().contains("locations/global"));
+    }
+
+    #[test]
+    fn test_should_retry_after_auth_failure_retries_once() {
+        let mut retried = false;
+
+        // First auth failure: should retry and mark as retried.
+        assert!(should_retry_after_auth_failure(&mut retried));
+        assert!(retried);
+
+        // Second auth failure: should not retry again.
+        assert!(!should_retry_after_auth_failure(&mut retried));
+        assert!(retried);
+
+        // Subsequent failures continue to not retry.
+        assert!(!should_retry_after_auth_failure(&mut retried));
     }
 
     #[test]
