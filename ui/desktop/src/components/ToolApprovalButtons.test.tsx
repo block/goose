@@ -53,14 +53,16 @@ describe('ToolApprovalButtons', () => {
     expect(screen.getByText('developer__shell - Allowed once')).toBeInTheDocument();
   });
 
-  it('does not fall back to REST or mark accepted when ACP request is missing', async () => {
-    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+  it('falls back to the REST confirmation when no ACP request is pending', async () => {
     resolveAcpPermissionRequestMock.mockReturnValueOnce(false);
+    confirmToolActionMock.mockResolvedValueOnce({ error: undefined } as Awaited<
+      ReturnType<typeof confirmToolAction>
+    >);
 
     renderWithIntl(
       <ToolApprovalButtons
         data={{
-          id: 'tool-call-missing',
+          id: 'tool-call-rerun',
           toolName: 'developer__shell',
           sessionId: 'session-1',
         }}
@@ -71,16 +73,17 @@ describe('ToolApprovalButtons', () => {
 
     expect(resolveAcpPermissionRequestMock).toHaveBeenCalledWith(
       'session-1',
-      'tool-call-missing',
+      'tool-call-rerun',
       'allow_once'
     );
-    expect(confirmToolActionMock).not.toHaveBeenCalled();
-    expect(screen.queryByText('developer__shell - Allowed once')).not.toBeInTheDocument();
-    expect(consoleError).toHaveBeenCalledWith('No pending ACP permission request found', {
-      sessionId: 'session-1',
-      id: 'tool-call-missing',
+    expect(confirmToolActionMock).toHaveBeenCalledWith({
+      body: {
+        sessionId: 'session-1',
+        id: 'tool-call-rerun',
+        action: 'allow_once',
+        principalType: 'Tool',
+      },
     });
-
-    consoleError.mockRestore();
+    expect(screen.getByText('developer__shell - Allowed once')).toBeInTheDocument();
   });
 });

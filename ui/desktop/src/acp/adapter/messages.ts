@@ -31,7 +31,7 @@ export function applyContentChunk(
   if (existing) {
     const lastContent = existing.content[existing.content.length - 1];
     if (lastContent?.type === 'text' && content.type === 'text') {
-      lastContent.text = mergeTextChunk(lastContent.text, content.text);
+      lastContent.text += content.text;
     } else if (content.type === 'image' && hasImageContent(existing, content)) {
       return messagesChange(state);
     } else {
@@ -140,18 +140,6 @@ function lastMergeableMessageWithRole(
     return undefined;
   }
   return lastMessage;
-}
-
-function mergeTextChunk(existing: string, incoming: string): string {
-  if (!incoming || incoming === existing || existing.endsWith(incoming)) {
-    return existing;
-  }
-
-  if (!existing || incoming.startsWith(existing)) {
-    return incoming;
-  }
-
-  return existing + incoming;
 }
 
 function hasImageContent(message: Message, image: Extract<MessageContent, { type: 'image' }>) {

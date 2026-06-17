@@ -95,6 +95,16 @@ describe('createAcpSessionNotificationAdapter', () => {
         expect(firstContent(messages[1])).toMatchObject({ type: 'text', text: 'Question' });
       });
 
+      it('appends repeated adjacent text deltas', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        adapter.apply(agentText('Hel'));
+        const messages = expectOnlyMessagesChange(adapter.apply(agentText('l')));
+
+        expect(messages).toHaveLength(1);
+        expect(firstContent(messages[0])).toMatchObject({ type: 'text', text: 'Hell' });
+      });
+
       it('maps image and thinking chunks to existing message content shapes', () => {
         const imageAdapter = createAcpSessionNotificationAdapter();
 

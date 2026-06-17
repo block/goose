@@ -78,12 +78,9 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
 
   const handleAction = async (action: Permission) => {
     try {
-      if (USE_ACP_CHAT) {
-        if (!resolveAcpPermissionRequest(sessionId, id, action)) {
-          console.error('No pending ACP permission request found', { sessionId, id });
-          return;
-        }
-
+      // Edit-in-place reruns go through the legacy REST path even when ACP chat is
+      // enabled, so fall back to confirmToolAction when no ACP request is pending.
+      if (USE_ACP_CHAT && resolveAcpPermissionRequest(sessionId, id, action)) {
         setDecision(action);
         setIsClicked(true);
         return;
