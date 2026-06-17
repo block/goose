@@ -90,15 +90,31 @@ export const currentLocale = resolvedLocale.locale;
 /** Base language for loading message catalogs (e.g. "en"). */
 export const currentMessageLocale = resolvedLocale.messageLocale;
 
+type MessageCatalogModule = { default?: Record<string, string> } | Record<string, string>;
+
+const MESSAGE_LOADERS: Record<string, () => Promise<MessageCatalogModule>> = {
+  en: () => import('./compiled/en.json'),
+  'zh-CN': () => import('./compiled/zh-CN.json'),
+};
+
 /**
  * Load compiled messages for a given locale.
- * Returns an empty object for English (react-intl uses defaultMessage as fallback).
+ * Returns an empty object when a catalog is unavailable.
  */
 export async function loadMessages(locale: string): Promise<Record<string, string>> {
+  const loadCatalog = MESSAGE_LOADERS[locale];
+
+  if (!loadCatalog) {
+    console.warn(
+      `[i18n] No message catalog found for locale "${locale}", falling back to English.`
+    );
+    return {};
+  }
+
   try {
-    // Dynamic import so compiled translation bundles are code-split.
-    const mod = await import(`./compiled/${locale}.json`);
-    return mod.default ?? mod;
+    const mod = await loadCatalog();
+    const catalog = (mod as { default?: Record<string, string> }).default;
+    return catalog ?? (mod as Record<string, string>);
   } catch {
     console.warn(
       `[i18n] No message catalog found for locale "${locale}", falling back to English.`
