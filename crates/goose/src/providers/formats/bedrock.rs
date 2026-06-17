@@ -16,7 +16,6 @@ use serde_json::Value;
 
 use crate::conversation::message::{Message, MessageContent};
 use crate::model::ModelConfig;
-use crate::providers::bedrock::BEDROCK_PROVIDER_NAME;
 use crate::providers::formats::anthropic::{
     adaptive_output_effort, thinking_budget_tokens, thinking_type_for_provider, ThinkingType,
     ANTHROPIC_PROVIDER_NAME,
@@ -56,16 +55,10 @@ pub fn bedrock_anthropic_thinking_fields(model_config: &ModelConfig) -> Option<D
 }
 
 fn bedrock_anthropic_thinking_type(model_config: &ModelConfig) -> ThinkingType {
-    let bedrock_type = thinking_type_for_provider(BEDROCK_PROVIDER_NAME, model_config);
-    if bedrock_type != ThinkingType::Disabled {
-        return bedrock_type;
-    }
+    let Some((_, anthropic_model)) = model_config.model_name.rsplit_once("anthropic.") else {
+        return ThinkingType::Disabled;
+    };
 
-    let anthropic_model = model_config
-        .model_name
-        .rsplit_once("anthropic.")
-        .map(|(_, model)| model)
-        .unwrap_or(&model_config.model_name);
     let anthropic_config = ModelConfig {
         model_name: anthropic_model.to_string(),
         ..model_config.clone()
@@ -555,7 +548,7 @@ mod tests {
     }
 
     #[test]
-    fn test_bedrock_anthropic_thinking_fields_adaptive() {
+    fn test_bedrock_anthropic_thinking_fields_always_on_adaptive() {
         let mut config = ModelConfig::new_or_fail("global.anthropic.claude-fable-5");
         config.reasoning = Some(true);
         config.request_params = Some(HashMap::from([(
@@ -571,6 +564,37 @@ mod tests {
                 "output_config": {"effort": "high"}
             })
         );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_adaptive_with_effort() {
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-opus-4.7");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("low"),
+        )]));
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {"type": "adaptive"},
+                "output_config": {"effort": "low"}
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_thinking_fields_skipped_for_non_anthropic() {
+        let mut config = ModelConfig::new_or_fail("us.deepseek.r1-v1:0");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("low"),
+        )]));
+
+        assert!(bedrock_anthropic_thinking_fields(&config).is_none());
     }
 
     #[test]
