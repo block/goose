@@ -17,16 +17,18 @@ import { getGooseInstallLink } from "@site/src/utils/install-links";
 
 function extensionToMCPServer(extension: Extension): MCPServer {
   return {
-    id: extension.command,
+    id: extension.command || extension.name,
     name: extension.name,
     command: extension.command,
     url: extension.url,
+    type: extension.type,
     description: extension.name,
     is_builtin: extension.is_builtin,
     link: extension.link || "",
     installation_notes: extension.installation_notes || "",
     endorsed: false,
     environmentVariables: extension.environmentVariables || [],
+    headers: extension.headers,
   };
 }
 

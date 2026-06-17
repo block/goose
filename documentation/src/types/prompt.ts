@@ -8,10 +8,12 @@ export type Extension = {
   name: string;
   command?: string;
   url?: string;
+  type?: "local" | "remote" | "streamable-http";
   is_builtin: boolean;
   link?: string;
   installation_notes?: string;
   environmentVariables?: EnvironmentVariable[];
+  headers?: EnvironmentVariable[];
 };
 
 export type Prompt = {

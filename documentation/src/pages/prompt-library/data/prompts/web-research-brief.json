@@ -9,13 +9,16 @@
   "extensions": [
     {
       "name": "Sofya",
-      "command": "goose session --with-streamable-http-extension \"https://mcp.sofya.co/mcp\"",
+      "url": "https://mcp.sofya.co/mcp",
+      "type": "streamable-http",
       "is_builtin": false,
       "link": "https://goose-docs.ai/docs/mcp/sofya-mcp",
-      "environmentVariables": [
+      "installation_notes": "Remote streamable HTTP extension. Requires a Sofya API key as an Authorization: Bearer header.",
+      "environmentVariables": [],
+      "headers": [
         {
           "name": "Authorization",
-          "description": "Request header: Bearer ay_live_<YOUR_SOFYA_API_KEY>",
+          "description": "Bearer ay_live_<YOUR_SOFYA_API_KEY>",
           "required": true
         }
       ]
