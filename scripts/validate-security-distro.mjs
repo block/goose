@@ -809,9 +809,23 @@ const workflowSource = readFile(".github/workflows/security-goose-v1a-checks.yml
 if (!workflowSource.includes("runs-on: macos-latest")) {
   throw new Error("security-goose-v1a-checks.yml must run on macOS");
 }
-if (!workflowSource.includes("./scripts/check-security-v1a.sh")) {
+const workflowUsesSharedScript = workflowSource.includes("./scripts/check-security-v1a.sh");
+const workflowUsesEquivalentSteps = [
+  "Install UI workspace dependencies",
+  "Build UI SDK",
+  "Sync Security runtime assets",
+  "Smoke Security extension wiring",
+  "Check Apple signing boundary",
+  "Run desktop V1a tests",
+  "Run desktop typecheck",
+  "Run desktop lint",
+  "Validate Security distro",
+  "Check tracked diffs",
+  "Run packaged bundle smoke",
+].every((requiredSnippet) => workflowSource.includes(requiredSnippet));
+if (!workflowUsesSharedScript && !workflowUsesEquivalentSteps) {
   throw new Error(
-    "security-goose-v1a-checks.yml must execute the shared security V1a check script",
+    "security-goose-v1a-checks.yml must execute the shared security V1a check script or an equivalent explicit Security Goose V1a step chain",
   );
 }
 

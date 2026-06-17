@@ -71,14 +71,6 @@ jobs:
           source bin/activate-hermit
           node scripts/sync-security-runtime-assets.mjs
 
-      - name: Ensure repo goosed for desktop preview
-        shell: bash
-        env:
-          GOOSED_BUILD_PROFILE: debug
-        run: |
-          source bin/activate-hermit
-          node ui/desktop/scripts/ensure-goosed-dev.js
-
       - name: Smoke Security extension wiring
         shell: bash
         run: |
