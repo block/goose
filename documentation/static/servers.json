@@ -694,6 +694,25 @@
     "environmentVariables": []
   },
   {
+    "id": "sofya",
+    "name": "Sofya",
+    "description": "Web search, fetch, extract, and deep research",
+    "url": "https://mcp.sofya.co/mcp",
+    "type": "streamable-http",
+    "link": "https://sofya.co",
+    "installation_notes": "Remote streamable HTTP extension. Requires a Sofya API key passed as an Authorization Bearer header.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [],
+    "headers": [
+      {
+        "name": "Authorization",
+        "description": "Bearer ay_live_<YOUR_SOFYA_API_KEY>",
+        "required": true
+      }
+    ]
+  },
+  {
     "id": "square-mcp",
     "name": "Square",
     "description": "Square API for payments and business management",
