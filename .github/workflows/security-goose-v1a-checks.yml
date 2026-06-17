@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - "codex/**"
     paths:
       - ".github/workflows/security-goose-v1a-checks.yml"
       - ".github/workflows/bundle-desktop.yml"
