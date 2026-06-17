@@ -38,7 +38,7 @@ describe('RecipeActivityEditor', () => {
       renderWithIntl(<RecipeActivityEditor activities={[]} setActivities={mockOnChange} />);
       expect(screen.getByText('Message')).toBeInTheDocument();
       expect(
-        screen.getByPlaceholderText(/Enter a user facing introduction message/)
+        screen.getByPlaceholderText(/Enter a user[- ]facing introduction message/)
       ).toBeInTheDocument();
     });
   });
@@ -49,7 +49,7 @@ describe('RecipeActivityEditor', () => {
       renderWithIntl(<RecipeActivityEditor activities={activities} setActivities={mockOnChange} />);
 
       const messageTextarea = screen.getByPlaceholderText(
-        /Enter a user facing introduction message/
+        /Enter a user[- ]facing introduction message/
       );
       expect(messageTextarea).toHaveValue(' Hello World');
 
@@ -95,7 +95,9 @@ describe('RecipeActivityEditor', () => {
       const user = userEvent.setup();
       renderWithIntl(<RecipeActivityEditor activities={[]} setActivities={mockOnChange} />);
 
-      const messageInput = screen.getByPlaceholderText(/Enter a user facing introduction message/);
+      const messageInput = screen.getByPlaceholderText(
+        /Enter a user[- ]facing introduction message/
+      );
       await user.type(messageInput, 'Test message');
 
       expect(messageInput).toHaveValue('Test message');
@@ -107,7 +109,9 @@ describe('RecipeActivityEditor', () => {
         <RecipeActivityEditor activities={[]} setActivities={mockOnChange} onBlur={mockOnBlur} />
       );
 
-      const messageInput = screen.getByPlaceholderText(/Enter a user facing introduction message/);
+      const messageInput = screen.getByPlaceholderText(
+        /Enter a user[- ]facing introduction message/
+      );
       await user.click(messageInput);
       await user.tab();
 
