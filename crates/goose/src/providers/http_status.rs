@@ -107,25 +107,75 @@ fn parse_http_date(value: &str) -> Option<SystemTime> {
     None
 }
 
-fn check_context_length_exceeded(text: &str) -> bool {
-    let check_phrases = [
-        "too long",
+pub(crate) fn is_context_length_exceeded_message(text: &str) -> bool {
+    let text_lower = text.to_lowercase();
+
+    let direct_context_phrases = [
         "context length",
         "context_length_exceeded",
-        "reduce the length",
-        "token count",
-        "exceeds",
-        "exceed context limit",
-        "input length",
-        "max_tokens",
-        "decrease input length",
+        "context window",
+        "context_window_exceeded",
         "context limit",
+        "maximum context",
+        "max context",
         "maximum prompt length",
+        "max prompt length",
     ];
-    let text_lower = text.to_lowercase();
-    check_phrases
+    if direct_context_phrases
         .iter()
         .any(|phrase| text_lower.contains(phrase))
+    {
+        return true;
+    }
+
+    if text_lower.contains("reduce the length")
+        && ["message", "messages", "input", "prompt"]
+            .iter()
+            .any(|word| text_lower.contains(word))
+    {
+        return true;
+    }
+
+    if [
+        "input is too long",
+        "input too long",
+        "prompt is too long",
+        "prompt too long",
+    ]
+    .iter()
+    .any(|phrase| text_lower.contains(phrase))
+    {
+        return true;
+    }
+
+    let mentions_prompt_input_tokens = [
+        "input token",
+        "input length",
+        "prompt token",
+        "prompt length",
+        "message token",
+        "messages token",
+        "request token",
+        "total token",
+    ]
+    .iter()
+    .any(|phrase| text_lower.contains(phrase));
+    let mentions_limit = [
+        "model limit",
+        "model's limit",
+        "maximum allowed",
+        "max allowed",
+        "maximum number of tokens",
+        "token limit",
+        "tokens limit",
+    ]
+    .iter()
+    .any(|phrase| text_lower.contains(phrase));
+    let mentions_overflow = ["exceed", "too long", "too large", "over the limit"]
+        .iter()
+        .any(|phrase| text_lower.contains(phrase));
+
+    mentions_prompt_input_tokens && mentions_limit && mentions_overflow
 }
 
 pub fn map_http_error_to_provider_error(
@@ -164,7 +214,7 @@ pub fn map_http_error_to_provider_error(
         StatusCode::PAYLOAD_TOO_LARGE => ProviderError::ContextLengthExceeded(extract_message()),
         StatusCode::BAD_REQUEST => {
             let payload_str = extract_message();
-            if check_context_length_exceeded(&payload_str) {
+            if is_context_length_exceeded_message(&payload_str) {
                 ProviderError::ContextLengthExceeded(payload_str)
             } else {
                 ProviderError::RequestFailed(format!("Bad request (400): {}", payload_str))
@@ -341,5 +391,43 @@ mod tests {
     fn retry_after_clamps_infinite_body_seconds() {
         let payload = json!({ "error": { "metadata": { "retry_after_seconds": f64::INFINITY } } });
         assert!(extract_retry_after(&empty_headers(), Some(&payload)).is_none());
+    }
+
+    #[test]
+    fn context_length_classifier_accepts_context_window_errors() {
+        let messages = [
+            "This request exceeds the maximum context length",
+            "context_length_exceeded",
+            "context window exceeded",
+            "Input token count exceeds the maximum number of tokens allowed",
+            "Please reduce the length of the messages",
+            "prompt is too long for this model",
+        ];
+
+        for message in messages {
+            assert!(
+                is_context_length_exceeded_message(message),
+                "expected context-length match for: {message}"
+            );
+        }
+    }
+
+    #[test]
+    fn context_length_classifier_rejects_generic_bad_request_errors() {
+        let messages = [
+            "max_tokens must be less than or equal to 4096",
+            "Requested max_tokens exceeds the model output limit",
+            "Current token count exceeds your organization quota",
+            "temperature exceeds maximum allowed value",
+            "schema is too long",
+            "metadata length exceeds maximum allowed",
+        ];
+
+        for message in messages {
+            assert!(
+                !is_context_length_exceeded_message(message),
+                "expected generic bad request for: {message}"
+            );
+        }
     }
 }
