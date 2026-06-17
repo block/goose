@@ -1,7 +1,7 @@
 use goose::tool_monitor::RepetitionInspector;
 use goose::{
     config::GooseMode,
-    conversation::message::{MessageContent, ToolRequest},
+    conversation::message::{Message, MessageContent, ToolRequest},
     tool_inspection::{InspectionAction, ToolInspector},
 };
 use rmcp::model::CallToolRequestParams;
@@ -80,6 +80,52 @@ async fn inspect_persists_repetition_state_between_calls() {
     assert_eq!(results[0].tool_request_id, "call_3");
     assert_eq!(results[0].action, InspectionAction::Deny);
     assert_eq!(results[0].inspector_name, "repetition");
+}
+
+#[tokio::test]
+async fn inspect_resets_repetition_state_for_new_user_input() {
+    let inspector = RepetitionInspector::new(Some(2));
+    let tool_call =
+        CallToolRequestParams::new("developer__shell").with_arguments(object!({"command": "pwd"}));
+    let first_turn = [Message::user().with_content(MessageContent::text("check pwd"))];
+
+    assert!(inspector
+        .inspect(
+            "test-session",
+            &[tool_request("call_1", tool_call.clone())],
+            &first_turn,
+            GooseMode::Auto,
+        )
+        .await
+        .unwrap()
+        .is_empty());
+    assert!(inspector
+        .inspect(
+            "test-session",
+            &[tool_request("call_2", tool_call.clone())],
+            &first_turn,
+            GooseMode::Auto,
+        )
+        .await
+        .unwrap()
+        .is_empty());
+
+    let second_turn = [
+        Message::user().with_content(MessageContent::text("check pwd")),
+        Message::assistant().with_content(MessageContent::text("done")),
+        Message::user().with_content(MessageContent::text("check pwd again")),
+    ];
+
+    assert!(inspector
+        .inspect(
+            "test-session",
+            &[tool_request("call_3", tool_call)],
+            &second_turn,
+            GooseMode::Auto,
+        )
+        .await
+        .unwrap()
+        .is_empty());
 }
 
 fn tool_request(id: &str, tool_call: CallToolRequestParams) -> ToolRequest {

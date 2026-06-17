@@ -1,9 +1,9 @@
 use crate::config::GooseMode;
-use crate::conversation::message::{Message, ToolRequest};
+use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 use anyhow::Result;
 use async_trait::async_trait;
-use rmcp::model::CallToolRequestParams;
+use rmcp::model::{CallToolRequestParams, Role};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::sync::Mutex;
@@ -44,6 +44,7 @@ struct RepetitionState {
     last_call: Option<InternalToolCall>,
     repeat_count: u32,
     call_counts: HashMap<String, u32>,
+    last_user_input_index: Option<usize>,
 }
 
 impl RepetitionInspector {
@@ -54,6 +55,7 @@ impl RepetitionInspector {
                 last_call: None,
                 repeat_count: 0,
                 call_counts: HashMap::new(),
+                last_user_input_index: None,
             }),
         }
     }
@@ -74,6 +76,15 @@ impl RepetitionInspector {
 }
 
 impl RepetitionState {
+    fn reset_for_user_input(&mut self, user_input_index: Option<usize>) {
+        if self.last_user_input_index != user_input_index {
+            self.last_call = None;
+            self.repeat_count = 0;
+            self.call_counts.clear();
+            self.last_user_input_index = user_input_index;
+        }
+    }
+
     fn check_tool_call(
         &mut self,
         tool_call: CallToolRequestParams,
@@ -113,7 +124,18 @@ impl RepetitionState {
         self.last_call = None;
         self.repeat_count = 0;
         self.call_counts.clear();
+        self.last_user_input_index = None;
     }
+}
+
+fn last_user_input_index(messages: &[Message]) -> Option<usize> {
+    messages.iter().rposition(|message| {
+        message.role == Role::User
+            && message
+                .content
+                .iter()
+                .any(|content| !matches!(content, MessageContent::ToolResponse(_)))
+    })
 }
 
 #[async_trait]
@@ -130,7 +152,7 @@ impl ToolInspector for RepetitionInspector {
         &self,
         _session_id: &str,
         tool_requests: &[ToolRequest],
-        _messages: &[Message],
+        messages: &[Message],
         _goose_mode: GooseMode,
     ) -> Result<Vec<InspectionResult>> {
         let mut results = Vec::new();
@@ -138,6 +160,7 @@ impl ToolInspector for RepetitionInspector {
             .state
             .lock()
             .expect("repetition inspector state should not be poisoned");
+        state.reset_for_user_input(last_user_input_index(messages));
 
         // Check repetition limits for each tool request
         for tool_request in tool_requests {
