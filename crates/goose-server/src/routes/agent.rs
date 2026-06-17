@@ -437,7 +437,38 @@ async fn resume_agent(
                     "No background task found, loading extensions for session {}",
                     payload.session_id
                 );
-                agent.load_extensions_from_session(&session).await
+                let session_for_task = session.clone();
+                let agent_for_task = agent.clone();
+                let session_id_for_task = payload.session_id.clone();
+                let task = tokio::spawn(async move {
+                    agent_for_task
+                        .load_extensions_from_session(&session_for_task)
+                        .await
+                });
+                state
+                    .set_extension_loading_task(session_id_for_task, task)
+                    .await;
+
+                match state.take_extension_loading_task(&payload.session_id).await {
+                    Ok(Some(results)) => {
+                        state
+                            .remove_extension_loading_task(&payload.session_id)
+                            .await;
+                        results
+                    }
+                    Ok(None) => agent.load_extensions_from_session(&session).await,
+                    Err(e) => {
+                        state
+                            .remove_extension_loading_task(&payload.session_id)
+                            .await;
+                        tracing::warn!(
+                            "Synchronous extension loading task failed for session {}, retrying: {}",
+                            payload.session_id,
+                            e
+                        );
+                        agent.load_extensions_from_session(&session).await
+                    }
+                }
             }
             Err(e) => {
                 state
