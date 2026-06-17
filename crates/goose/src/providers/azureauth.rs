@@ -31,6 +31,8 @@ pub struct AuthToken {
 pub enum AzureCredentials {
     /// API key based authentication
     ApiKey(String),
+    /// Pre-acquired Microsoft Entra ID access token (e.g. AZURE_OPENAI_AD_TOKEN)
+    BearerToken(String),
     /// Azure credential chain based authentication
     DefaultCredential,
 }
@@ -70,10 +72,11 @@ impl AzureAuth {
     ///
     /// # Returns
     /// * `Result<Self, AuthError>` - A new AzureAuth instance or an error if initialization fails
-    pub fn new(api_key: Option<String>) -> Result<Self, AuthError> {
-        let credentials = match api_key {
-            Some(key) => AzureCredentials::ApiKey(key),
-            None => AzureCredentials::DefaultCredential,
+    pub fn new(api_key: Option<String>, ad_token: Option<String>) -> Result<Self, AuthError> {
+        let credentials = match (ad_token, api_key) {
+            (Some(token), _) => AzureCredentials::BearerToken(token),
+            (None, Some(key)) => AzureCredentials::ApiKey(key),
+            (None, None) => AzureCredentials::DefaultCredential,
         };
 
         Ok(Self {
@@ -91,7 +94,8 @@ impl AzureAuth {
     ///
     /// This method implements an efficient token management strategy:
     /// 1. For API key auth, returns the API key directly
-    /// 2. For Azure credential chain:
+    /// 2. For bearer token auth, returns the pre-acquired token directly
+    /// 3. For Azure credential chain:
     ///    a. Checks the cache for a valid token
     ///    b. Returns the cached token if not expired
     ///    c. Obtains a new token if needed or expired
@@ -104,6 +108,10 @@ impl AzureAuth {
             AzureCredentials::ApiKey(key) => Ok(AuthToken {
                 token_type: "Bearer".to_string(),
                 token_value: key.clone(),
+            }),
+            AzureCredentials::BearerToken(token) => Ok(AuthToken {
+                token_type: "Bearer".to_string(),
+                token_value: token.clone(),
             }),
             AzureCredentials::DefaultCredential => self.get_default_credential_token().await,
         }
@@ -168,5 +176,45 @@ impl AzureAuth {
         });
 
         Ok(auth_token)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_ad_token_takes_precedence_over_api_key() {
+        let auth = AzureAuth::new(Some("key".to_string()), Some("token".to_string())).unwrap();
+        assert!(matches!(
+            auth.credential_type(),
+            AzureCredentials::BearerToken(_)
+        ));
+    }
+
+    #[test]
+    fn test_api_key_when_no_ad_token() {
+        let auth = AzureAuth::new(Some("key".to_string()), None).unwrap();
+        assert!(matches!(
+            auth.credential_type(),
+            AzureCredentials::ApiKey(_)
+        ));
+    }
+
+    #[test]
+    fn test_default_credential_when_neither() {
+        let auth = AzureAuth::new(None, None).unwrap();
+        assert!(matches!(
+            auth.credential_type(),
+            AzureCredentials::DefaultCredential
+        ));
+    }
+
+    #[tokio::test]
+    async fn test_bearer_token_get_token() {
+        let auth = AzureAuth::new(None, Some("my-token".to_string())).unwrap();
+        let token = auth.get_token().await.unwrap();
+        assert_eq!(token.token_type, "Bearer");
+        assert_eq!(token.token_value, "my-token");
     }
 }

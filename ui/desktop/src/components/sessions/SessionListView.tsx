@@ -46,6 +46,7 @@ import {
   type SessionListItem,
 } from '../../acp/sessions';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import { clearSessionCache } from '../../hooks/useChatStream';
 
 const i18n = defineMessages({
   editSessionTitle: { id: 'sessions.edit.title', defaultMessage: 'Edit Session Description' },
@@ -457,11 +458,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const handleModalSave = useCallback(async (sessionId: string, newDescription: string) => {
       // Update state immediately for optimistic UI
       setSessions((prevSessions) =>
-        prevSessions.map((s) => (s.id === sessionId ? { ...s, name: newDescription } : s))
+        prevSessions.map((s) =>
+          s.id === sessionId ? { ...s, name: newDescription, user_set_name: true } : s
+        )
       );
       window.dispatchEvent(
         new CustomEvent(AppEvents.SESSION_RENAMED, {
-          detail: { sessionId, newName: newDescription },
+          detail: { sessionId, newName: newDescription, userInitiated: true },
         })
       );
     }, []);
@@ -505,6 +508,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         window.dispatchEvent(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
+        clearSessionCache(sessionToDeleteId);
       } catch (error) {
         console.error('Error deleting session:', error);
         toast.error(intl.formatMessage(i18n.deleteFailed, { name: sessionName, error: errorMessage(error, 'Unknown error') }));
@@ -941,9 +945,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 relative px-8">
+            <div className="flex-1 min-h-0 relative">
               <ScrollArea handleScroll={handleScroll} className="h-full" data-search-scroll-area>
-                <div ref={containerRef} className="h-full relative">
+                <div ref={containerRef} className="h-full relative px-8">
                   <SearchView
                     onSearch={handleSearch}
                     className="relative"

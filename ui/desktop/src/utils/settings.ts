@@ -28,6 +28,8 @@ export interface SessionSharingConfig {
   baseUrl: string;
 }
 
+export type LanguageSetting = 'system' | 'en' | 'es' | 'hi' | 'ja' | 'ru' | 'tr' | 'zh-CN';
+
 export interface Settings {
   // Desktop app settings
   showMenuBarIcon: boolean;
@@ -42,6 +44,7 @@ export interface Settings {
   // UI preferences (migrated from localStorage)
   theme: 'dark' | 'light';
   useSystemTheme: boolean;
+  language: LanguageSetting;
   responseStyle: string;
   showPricing: boolean;
   sessionSharing: SessionSharingConfig;
@@ -81,6 +84,7 @@ export const defaultSettings: Settings = {
   // UI preferences
   theme: 'light',
   useSystemTheme: true,
+  language: 'system',
   responseStyle: 'concise',
   showPricing: true,
   sessionSharing: {
