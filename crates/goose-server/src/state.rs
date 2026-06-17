@@ -84,6 +84,11 @@ impl AppState {
         tasks.insert(session_id, Arc::new(Mutex::new(Some(task))));
     }
 
+    pub async fn has_extension_loading_task(&self, session_id: &str) -> bool {
+        let tasks = self.extension_loading_tasks.lock().await;
+        tasks.contains_key(session_id)
+    }
+
     pub async fn take_extension_loading_task(
         &self,
         session_id: &str,
