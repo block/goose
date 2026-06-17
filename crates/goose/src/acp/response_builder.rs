@@ -64,6 +64,12 @@ pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_j
             serde_json::Value::String(mc.model_name.clone()),
         );
     }
+    if let Some(ref snippet) = session.last_message_snippet {
+        meta.insert(
+            "lastMessageSnippet".to_string(),
+            serde_json::Value::String(snippet.clone()),
+        );
+    }
     meta
 }
 

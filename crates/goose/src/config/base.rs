@@ -2480,6 +2480,15 @@ extensions:
     }
 
     #[test]
+    fn get_goose_context_limit_reads_quoted_yaml_value() {
+        let _guard = env_lock::lock_env([("GOOSE_CONTEXT_LIMIT", None::<&str>)]);
+        let config = new_test_config();
+        config.set_param("GOOSE_CONTEXT_LIMIT", "200000").unwrap();
+
+        assert_eq!(config.get_goose_context_limit().unwrap(), Some(200_000));
+    }
+
+    #[test]
     fn get_goose_context_limit_returns_none_when_not_set() {
         let _guard = env_lock::lock_env([("GOOSE_CONTEXT_LIMIT", None::<&str>)]);
         let config = new_test_config();

@@ -2,7 +2,9 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::Stream;
-use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+pub use goose_providers::conversation::token_usage::{
+    DraftStats, ProviderStats, ProviderUsage, Usage,
+};
 use goose_providers::errors::ProviderError;
 use regex::Regex;
 use serde::{Deserialize, Serialize};

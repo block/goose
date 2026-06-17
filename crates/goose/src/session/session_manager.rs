@@ -86,6 +86,8 @@ pub struct Session {
     pub archived_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub project_id: Option<String>,
+    #[serde(default)]
+    pub last_message_snippet: Option<String>,
 }
 
 impl Session {
@@ -314,6 +316,7 @@ pub(crate) struct SessionListPageQuery<'a> {
     pub(crate) filters: SessionListFilters<'a>,
     pub(crate) cursor: Option<&'a SessionListCursor>,
     pub(crate) page_size: usize,
+    pub(crate) include_last_message_snippet: bool,
 }
 
 #[derive(Debug, Default)]
@@ -596,6 +599,7 @@ impl Default for Session {
             goose_mode: GooseMode::default(),
             archived_at: None,
             project_id: None,
+            last_message_snippet: None,
         }
     }
 }
@@ -668,6 +672,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
                 .unwrap_or_default(),
             archived_at: row.try_get("archived_at").ok(),
             project_id: row.try_get("project_id").ok().flatten(),
+            last_message_snippet: None,
         })
     }
 }
@@ -1678,6 +1683,7 @@ impl SessionStorage {
         }
 
         let page_size = query.page_size;
+        let include_last_message_snippet = query.include_last_message_snippet;
         let mut sessions = self
             .list_sessions_matching(SessionListQuery {
                 filters: query.filters,
@@ -1697,6 +1703,10 @@ impl SessionStorage {
         };
         if has_next_page {
             sessions.truncate(page_size);
+        }
+        if include_last_message_snippet {
+            let pool = self.pool().await?;
+            super::last_message_snippet::hydrate_last_message_snippets(pool, &mut sessions).await?;
         }
 
         Ok(SessionListPage {
@@ -2204,6 +2214,7 @@ mod tests {
                 },
                 cursor,
                 page_size,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2397,6 +2408,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2438,6 +2450,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2472,6 +2485,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2510,6 +2524,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2530,6 +2545,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2568,6 +2584,7 @@ mod tests {
                 filters: filters.clone(),
                 cursor: None,
                 page_size: 1,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2584,6 +2601,7 @@ mod tests {
                 filters,
                 cursor: cursor.next_cursor.as_ref(),
                 page_size: 1,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();

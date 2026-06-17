@@ -693,6 +693,12 @@ const SETUP_METADATA: &[CuratedSetupMetadata] = &[
                 placeholder: Some("Paste your API key"),
                 default_value: None,
             },
+            CuratedFieldMetadata {
+                key: "AZURE_OPENAI_AD_TOKEN",
+                label: "Entra ID Token",
+                placeholder: Some("Optional: short-lived Microsoft Entra access token"),
+                default_value: None,
+            },
         ],
     },
     CuratedSetupMetadata {
