@@ -37,8 +37,8 @@ use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
 use goose::config::extensions::name_to_key;
 use goose::config::{Config, GooseMode};
 use input::InputResult;
-use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
+use rmcp::model::{ElicitationAction, PromptMessage};
 use rmcp::model::{ErrorCode, ErrorData};
 use strum::VariantNames;
 
@@ -1248,25 +1248,37 @@ impl CliSession {
                                 let _ = progress_bars.hide();
 
                                 match elicitation::collect_elicitation_input(&elicitation_message, &schema) {
-                                    Ok(Some(user_data)) => {
-                                        let user_data_value = serde_json::to_value(user_data)
+                                    Ok(input) => {
+                                        match &input.action {
+                                            ElicitationAction::Decline => {
+                                                output::render_text("Information request declined.", Some(Color::Yellow), true);
+                                            }
+                                            ElicitationAction::Cancel => {
+                                                output::render_text("Information request cancelled.", Some(Color::Yellow), true);
+                                            }
+                                            ElicitationAction::Accept => {}
+                                        }
+
+                                        let should_cancel = input.action == ElicitationAction::Cancel;
+                                        let action = input.action;
+                                        let user_data_value = serde_json::to_value(input.user_data)
                                             .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
                                         let response_message = Message::user()
                                             .with_content(MessageContent::action_required_elicitation_response(
                                                 elicitation_id,
                                                 user_data_value,
+                                                action,
                                             ))
                                             .with_visibility(false, true);
                                         self.messages.push(response_message.clone());
                                         // Elicitation responses return an empty stream - the response
                                         // unblocks the waiting tool call via ActionRequiredManager
                                         let _ = self.agent.reply(response_message, session_config.clone(), Some(cancel_token.clone())).await?;
-                                    }
-                                    Ok(None) => {
-                                        output::render_text("Information request cancelled.", Some(Color::Yellow), true);
-                                        cancel_token_clone.cancel();
-                                        drop(stream);
-                                        break;
+                                        if should_cancel {
+                                            cancel_token_clone.cancel();
+                                            drop(stream);
+                                            break;
+                                        }
                                     }
                                     Err(e) => {
                                         output::render_error(&format!("Failed to collect input: {}", e));

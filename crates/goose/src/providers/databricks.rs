@@ -18,7 +18,7 @@ use super::base::{
 };
 use super::databricks_auth::{DatabricksAuth, DatabricksAuthProvider};
 use super::embedding::EmbeddingCapable;
-use super::formats::databricks::create_request;
+use super::formats::databricks::{create_request_for_provider, DATABRICKS_PROVIDER_NAME};
 use super::formats::openai_responses::create_responses_request;
 use super::openai_compatible::{
     handle_response_openai_compat, handle_status, map_http_error_to_provider_error, sanitize_url,
@@ -58,7 +58,6 @@ struct CachedDatabricksEndpointInfo {
     fetched_at: Instant,
 }
 
-const DATABRICKS_PROVIDER_NAME: &str = "databricks";
 const DATABRICKS_ENDPOINT_METADATA_TTL_SECS: u64 = 60;
 static DATABRICKS_ENDPOINT_INFO_CACHE: LazyLock<
     Mutex<std::collections::HashMap<String, CachedDatabricksEndpointInfo>>,
@@ -670,7 +669,8 @@ impl Provider for DatabricksProvider {
                 model_config
             };
 
-            let mut payload = create_request(
+            let mut payload = create_request_for_provider(
+                DATABRICKS_PROVIDER_NAME,
                 request_model_config,
                 system,
                 messages,

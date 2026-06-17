@@ -8,7 +8,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.37.0"
+version = "1.38.0"
 rust-version = "1.91.1"
 authors = ["AAIF <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
@@ -34,7 +34,7 @@ candle-core = { version = "0.10", default-features = false }
 candle-nn = { version = "0.10", default-features = false }
 chrono = { version = "0.4.44", default-features = false, features = ["serde", "std"] }
 clap = { version = "4.1.14", default-features = false, features = ["derive", "std", "help", "suggestions", "usage", "color", "error-context"] }
-dirs = { version = "5", default-features = false }
+dirs = { version = "6", default-features = false }
 dotenvy = { version = "0.15.7", default-features = false }
 env-lock = { version = "1", default-features = false }
 etcetera = { version = "0.11", default-features = false }
@@ -45,7 +45,7 @@ ignore = { version = "0.4.12", default-features = false }
 include_dir = { version = "0.7", default-features = false }
 indoc = { version = "2", default-features = false }
 keyring = { version = "3.6.3", default-features = false, features = ["vendored"] }
-lru = { version = "0.16", default-features = false }
+lru = { version = "0.18", default-features = false }
 once_cell = { version = "1.21.3", default-features = false, features = ["std"] }
 rand = { version = "0.8.5", default-features = false, features = ["std"] }
 regex = { version = "1.12.3", default-features = false, features = ["std"] }
@@ -58,7 +58,7 @@ serde_yaml = { version = "0.9.32", default-features = false }
 shellexpand = { version = "3", default-features = false, features = ["base-0", "tilde"] }
 strum = { version = "0.28.0", default-features = false, features = ["derive", "std"] }
 tempfile = { version = "3.10.1", default-features = false }
-thiserror = { version = "1.0.49", default-features = false }
+thiserror = { version = "2.0.18", default-features = false }
 tokio = { version = "1.48", default-features = false }
 tokio-stream = { version = "0.1.16", default-features = false }
 tokio-util = { version = "0.7.12", default-features = false }
@@ -83,7 +83,7 @@ url = { version = "2.5.4", default-features = false, features = ["std"] }
 opentelemetry = { version = "0.32", default-features = false }
 opentelemetry_sdk = { version = "0.32", default-features = false, features = ["metrics"] }
 opentelemetry-http = { version = "0.32", default-features = false, features = ["internal-logs", "reqwest"] }
-opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "internal-logs", "logs", "metrics", "reqwest-client", "trace"] }
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "internal-logs", "logs", "metrics", "reqwest-blocking-client", "trace"] }
 opentelemetry-appender-tracing = { version = "0.32", default-features = false, features = ["experimental_span_attributes"] }
 opentelemetry-stdout = { version = "0.32", default-features = false, features = ["trace", "metrics", "logs"] }
 tracing-opentelemetry = { version = "0.33", default-features = false, features = ["metrics"] }

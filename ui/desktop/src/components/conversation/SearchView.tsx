@@ -20,6 +20,13 @@ interface SearchViewProps {
   } | null;
   /** Placeholder text for the search input */
   placeholder?: string;
+  /** Show the case-sensitivity toggle (default: true). */
+  showCaseSensitive?: boolean;
+  /** Show the previous/next match navigation arrows (default: true). */
+  showNavigation?: boolean;
+  /** Highlight matches in the content via the find-in-page highlighter (default: true).
+   * Set false when the search acts as a list filter, so the term only drives onSearch. */
+  highlightMatches?: boolean;
 }
 
 interface SearchContainerElement extends HTMLDivElement {
@@ -38,6 +45,9 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
   onNavigate,
   searchResults,
   placeholder,
+  showCaseSensitive = true,
+  showNavigation = true,
+  highlightMatches = true,
 }) => {
   const [isSearchVisible, setIsSearchVisible] = useState(false);
   const [initialSearchTerm, setInitialSearchTerm] = useState('');
@@ -112,6 +122,12 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
       // Call the onSearch callback if provided
       onSearch?.(term, caseSensitive);
 
+      // When highlighting is disabled (search acts as a list filter), the term only drives
+      // onSearch — skip all find-in-page highlighter machinery.
+      if (!highlightMatches) {
+        return;
+      }
+
       // If empty, clear everything and return
       if (!term) {
         setInternalSearchResults(null);
@@ -155,7 +171,7 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
 
       debouncedHighlight(term, caseSensitive, highlighterRef.current);
     },
-    [debouncedHighlight, onSearch]
+    [debouncedHighlight, onSearch, highlightMatches]
   );
 
   /**
@@ -379,6 +395,8 @@ export const SearchView: React.FC<PropsWithChildren<SearchViewProps>> = ({
           inputRef={searchInputRef}
           initialSearchTerm={initialSearchTerm}
           placeholder={placeholder}
+          showCaseSensitive={showCaseSensitive}
+          showNavigation={showNavigation}
         />
       )}
       {children}

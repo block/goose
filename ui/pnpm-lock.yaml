@@ -226,6 +226,9 @@ importers:
       '@formatjs/cli':
         specifier: ^6.14.0
         version: 6.14.0
+      '@formatjs/icu-messageformat-parser':
+        specifier: 3.5.3
+        version: 3.5.3
       '@hey-api/openapi-ts':
         specifier: ^0.93.0
         version: 0.93.1(magicast@0.5.2)(typescript@5.9.3)
@@ -404,8 +407,8 @@ importers:
   text:
     dependencies:
       '@aaif/goose-sdk':
-        specifier: workspace:*
-        version: link:../sdk
+        specifier: 0.20.2
+        version: 0.20.2(@agentclientprotocol/sdk@0.19.0(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@agentclientprotocol/sdk':
         specifier: ^0.19.0
         version: 0.19.0(zod@4.3.6)
@@ -451,6 +454,41 @@ importers:
         version: 5.9.3
 
 packages:
+
+  '@aaif/goose-binary-darwin-arm64@0.20.2':
+    resolution: {integrity: sha512-0wv6UcYxg/dZXRuIUBTL+64Hz0D50PfUA2mJiUEBhWkBmiBCgS/Iymore0gYuayxVV7MzQhKrHqdDPBoo0lqIg==}
+    cpu: [arm64]
+    os: [darwin]
+    hasBin: true
+
+  '@aaif/goose-binary-darwin-x64@0.20.2':
+    resolution: {integrity: sha512-dZG6H1QF/lv/kVc1YmHVKRGJCZtoe9o0N2q4vgvDK0Lz+ZJp/ehKcIxUSqE/zebXDqLb4yWByDGelq5Ud2rnCw==}
+    cpu: [x64]
+    os: [darwin]
+    hasBin: true
+
+  '@aaif/goose-binary-linux-arm64@0.20.2':
+    resolution: {integrity: sha512-DLbm8r21v4c39dGbLepjXDmXNLsdWw0PFFpRbQtBd2m5Q+xIBgYOx1jNm3EygDQT9yGV9R3WS6SW3LvMJLA3xw==}
+    cpu: [arm64]
+    os: [linux]
+    hasBin: true
+
+  '@aaif/goose-binary-linux-x64@0.20.2':
+    resolution: {integrity: sha512-+TgB2+MKj18kbw5PBnDMAWvuy8ZijNxXQL4qRBeMebcx07W3dIf6zoy9xD5mSyce61ugG9vsLt9a+3Pm8qZaRw==}
+    cpu: [x64]
+    os: [linux]
+    hasBin: true
+
+  '@aaif/goose-binary-win32-x64@0.20.2':
+    resolution: {integrity: sha512-P0GrtagS0U/98XW4VuzQ77Fy02bw4wFhzyRWWbR9LDVwY+lLG+AkE5m0Ml/KGKgDWS6gd8BtkAqRxdFw3PM9RQ==}
+    cpu: [x64]
+    os: [win32]
+    hasBin: true
+
+  '@aaif/goose-sdk@0.20.2':
+    resolution: {integrity: sha512-HhsspN1OycRqgKgnUBWC/5xOpJ8zuKWmABax0Br0ZfND94AKKZbsBlya8e+pSM+CvztWLXHRz2KxPQuXYoGyBQ==}
+    peerDependencies:
+      '@agentclientprotocol/sdk': ^0.19.0
 
   '@acemir/cssom@0.9.31':
     resolution: {integrity: sha512-ZnR3GSaH+/vJ0YlHau21FjfLYjMpYVIzTD8M8vIEQvIGxeOXyXdzCI140rrCY862p/C/BbzWsjc1dgnM9mkoTA==}
@@ -7274,6 +7312,39 @@ packages:
     resolution: {integrity: sha512-bXE4cR/kVZhKZX/RjPEflHaKVhUVl85noU3v6b8apfQEc1x4A+zBxjZ4lN8LqGd6WZ3dl98pY4o717VFmoPp+A==}
 
 snapshots:
+
+  '@aaif/goose-binary-darwin-arm64@0.20.2':
+    optional: true
+
+  '@aaif/goose-binary-darwin-x64@0.20.2':
+    optional: true
+
+  '@aaif/goose-binary-linux-arm64@0.20.2':
+    optional: true
+
+  '@aaif/goose-binary-linux-x64@0.20.2':
+    optional: true
+
+  '@aaif/goose-binary-win32-x64@0.20.2':
+    optional: true
+
+  '@aaif/goose-sdk@0.20.2(@agentclientprotocol/sdk@0.19.0(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+    dependencies:
+      '@agentclientprotocol/sdk': 0.19.0(zod@4.3.6)
+      '@modelcontextprotocol/ext-apps': 0.3.1(@modelcontextprotocol/sdk@1.27.1(zod@3.25.76))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@3.25.76)
+      '@modelcontextprotocol/sdk': 1.27.1(zod@3.25.76)
+      zod: 3.25.76
+    optionalDependencies:
+      '@aaif/goose-binary-darwin-arm64': 0.20.2
+      '@aaif/goose-binary-darwin-x64': 0.20.2
+      '@aaif/goose-binary-linux-arm64': 0.20.2
+      '@aaif/goose-binary-linux-x64': 0.20.2
+      '@aaif/goose-binary-win32-x64': 0.20.2
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - react
+      - react-dom
+      - supports-color
 
   '@acemir/cssom@0.9.31': {}
 
