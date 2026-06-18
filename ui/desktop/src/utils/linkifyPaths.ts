@@ -131,12 +131,28 @@ function readSpacedContinuation(
   return spaceIndex;
 }
 
+function isFilenamePunctuation(char: string): boolean {
+  return char === ',';
+}
+
 function readSegment(text: string, start: number, separator: Separator): { end: number } | null {
   let i = start;
   if (i >= text.length || !isPathChar(text[i])) return null;
 
-  while (i < text.length && isPathChar(text[i])) {
-    i++;
+  while (i < text.length) {
+    if (isPathChar(text[i])) {
+      i++;
+      continue;
+    }
+    if (
+      isFilenamePunctuation(text[i]) &&
+      i + 1 < text.length &&
+      isPathChar(text[i + 1])
+    ) {
+      i++;
+      continue;
+    }
+    break;
   }
 
   while (i < text.length && text[i] === ' ') {

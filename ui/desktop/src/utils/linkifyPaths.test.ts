@@ -141,6 +141,18 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/Users/me/Downloads/report (1).pdf');
     });
 
+    it('detects paths with commas in filenames', () => {
+      const matches = findPaths('Saved /tmp/report,final.txt');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/tmp/report,final.txt');
+    });
+
+    it('does not extend paths across comma-separated prose', () => {
+      const matches = findPaths('Created /tmp/report, then continued');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/tmp/report');
+    });
+
     it('detects paths with numeric suffixes in segment names', () => {
       const matches = findPaths('Saved /Users/me/Project 2026.');
       expect(matches).toHaveLength(1);
