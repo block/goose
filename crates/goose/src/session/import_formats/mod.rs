@@ -162,7 +162,13 @@ fn upgrade_legacy_token_fields(content: &str) -> String {
     let Ok(Value::Object(mut obj)) = serde_json::from_str::<Value>(content) else {
         return content.to_string();
     };
+    nest_legacy_token_fields(&mut obj);
+    Value::Object(obj).to_string()
+}
 
+/// Fold pre-`usage` flat token counts into nested `usage`/`accumulated_usage`
+/// objects. Shared by the export-import path and the first-run JSONL migration.
+pub(crate) fn nest_legacy_token_fields(obj: &mut Map<String, Value>) {
     let nest = |obj: &Map<String, Value>, keys: [(&str, &str); 5]| -> Value {
         Value::Object(
             keys.iter()
@@ -178,7 +184,7 @@ fn upgrade_legacy_token_fields(content: &str) -> String {
 
     if !obj.contains_key("usage") {
         let usage = nest(
-            &obj,
+            obj,
             [
                 ("input_tokens", "input_tokens"),
                 ("output_tokens", "output_tokens"),
@@ -191,7 +197,7 @@ fn upgrade_legacy_token_fields(content: &str) -> String {
     }
     if !obj.contains_key("accumulated_usage") {
         let accumulated = nest(
-            &obj,
+            obj,
             [
                 ("accumulated_input_tokens", "input_tokens"),
                 ("accumulated_output_tokens", "output_tokens"),
@@ -202,8 +208,6 @@ fn upgrade_legacy_token_fields(content: &str) -> String {
         );
         obj.insert("accumulated_usage".into(), accumulated);
     }
-
-    Value::Object(obj).to_string()
 }
 
 /// Squeeze a string down to a short session-name candidate: take the first
