@@ -354,10 +354,6 @@ pub trait Provider: Send + Sync {
         ))
     }
 
-    fn supports_embeddings(&self) -> bool {
-        false
-    }
-
     /// Whether the provider manages its own conversation context (e.g. CLI
     /// wrappers like Claude Code or Gemini CLI). When true, goose-side
     /// context management such as tool-pair summarization is skipped because
@@ -368,17 +364,6 @@ pub trait Provider: Send + Sync {
 
     async fn supports_cache_control(&self) -> bool {
         false
-    }
-
-    /// Create embeddings if supported. Default implementation returns an error.
-    async fn create_embeddings(
-        &self,
-        _session_id: &str,
-        _texts: Vec<String>,
-    ) -> Result<Vec<Vec<f32>>, ProviderError> {
-        Err(ProviderError::ExecutionError(
-            "This provider does not support embeddings".to_string(),
-        ))
     }
 
     /// Configure OAuth authentication for this provider

@@ -17,12 +17,11 @@ use super::base::{
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 use super::databricks_auth::{DatabricksAuth, DatabricksAuthProvider};
-use super::embedding::EmbeddingCapable;
 use super::formats::databricks::{create_request_for_provider, DATABRICKS_PROVIDER_NAME};
 use super::formats::openai_responses::create_responses_request;
 use super::openai_compatible::{
-    handle_response_openai_compat, handle_status, map_http_error_to_provider_error, sanitize_url,
-    stream_openai_compat, stream_responses_compat,
+    handle_status, map_http_error_to_provider_error, sanitize_url, stream_openai_compat,
+    stream_responses_compat,
 };
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
@@ -86,8 +85,6 @@ pub struct DatabricksProvider {
     #[serde(skip)]
     retry_config: RetryConfig,
     #[serde(skip)]
-    fast_retry_config: RetryConfig,
-    #[serde(skip)]
     name: String,
     #[serde(skip)]
     token_cache: Arc<Mutex<Option<String>>>,
@@ -117,7 +114,6 @@ impl DatabricksProvider {
 
         let host = host?;
         let retry_config = Self::load_retry_config(config);
-        let fast_retry_config = Self::load_fast_retry_config(config);
 
         let auth = if let Ok(api_key) = config.get_secret("DATABRICKS_TOKEN") {
             DatabricksAuth::token(api_key)
@@ -148,7 +144,6 @@ impl DatabricksProvider {
             model: model.clone(),
             image_format: ImageFormat::OpenAi,
             retry_config,
-            fast_retry_config,
             name: DATABRICKS_PROVIDER_NAME.to_string(),
             token_cache,
             instance_id: Self::resolve_instance_id(),
@@ -194,11 +189,6 @@ impl DatabricksProvider {
         )
     }
 
-    fn load_fast_retry_config(_config: &crate::config::Config) -> RetryConfig {
-        // Fast models are hardcoded to 0 retries for quick failure on Databricks
-        RetryConfig::new(0, 0, 1.0, 0)
-    }
-
     pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
         let token_cache = Arc::new(Mutex::new(Some(api_key.clone())));
         let auth = DatabricksAuth::token(api_key);
@@ -220,7 +210,6 @@ impl DatabricksProvider {
             model,
             image_format: ImageFormat::OpenAi,
             retry_config: RetryConfig::default(),
-            fast_retry_config: RetryConfig::new(0, 0, 1.0, 0),
             name: DATABRICKS_PROVIDER_NAME.to_string(),
             token_cache,
             instance_id: Self::resolve_instance_id(),
@@ -540,15 +529,8 @@ impl DatabricksProvider {
         }
     }
 
-    fn get_endpoint_path(
-        &self,
-        model_name: &str,
-        is_embedding: bool,
-        is_responses_model: bool,
-    ) -> String {
-        if is_embedding {
-            "serving-endpoints/text-embedding-3-small/invocations".to_string()
-        } else if is_responses_model {
+    fn get_endpoint_path(&self, model_name: &str, is_responses_model: bool) -> String {
+        if is_responses_model {
             "serving-endpoints/responses".to_string()
         } else {
             let (clean_name, _) = extract_reasoning_effort(model_name);
@@ -563,32 +545,6 @@ impl DatabricksProvider {
             })
             .to_string()
         })
-    }
-
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        mut payload: Value,
-        model_name: Option<&str>,
-    ) -> Result<Value, ProviderError> {
-        let is_embedding = payload.get("input").is_some() && payload.get("messages").is_none();
-        let model_to_use = model_name.unwrap_or(&self.model.model_name);
-        let (endpoint_name, _) = extract_reasoning_effort(model_to_use);
-        let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await.ok();
-        let is_responses_model = Self::uses_responses_api(endpoint_info.as_ref(), &[model_to_use]);
-        let path = self.get_endpoint_path(model_to_use, is_embedding, is_responses_model);
-
-        if let Some(session_id) = session_id {
-            if let Some(client_request_id) = self.build_client_request_id(session_id) {
-                payload["client_request_id"] = Value::String(client_request_id);
-            }
-        }
-
-        let response = self
-            .api_client
-            .response_post(session_id, &path, &payload)
-            .await?;
-        handle_response_openai_compat(response).await
     }
 }
 
@@ -660,7 +616,7 @@ impl Provider for DatabricksProvider {
         let path = if is_responses_model {
             "serving-endpoints/responses".to_string()
         } else {
-            self.get_endpoint_path(&model_config.model_name, false, is_responses_model)
+            self.get_endpoint_path(&model_config.model_name, is_responses_model)
         };
         let client_request_id = self.build_client_request_id(session_id);
 
@@ -818,20 +774,6 @@ impl Provider for DatabricksProvider {
         }
     }
 
-    fn supports_embeddings(&self) -> bool {
-        true
-    }
-
-    async fn create_embeddings(
-        &self,
-        session_id: &str,
-        texts: Vec<String>,
-    ) -> Result<Vec<Vec<f32>>, ProviderError> {
-        EmbeddingCapable::create_embeddings(self, session_id, texts)
-            .await
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         Ok(self
             .fetch_supported_model_info()
@@ -892,47 +834,6 @@ impl Provider for DatabricksProvider {
 
     async fn fetch_recommended_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
         self.fetch_supported_model_info().await
-    }
-}
-
-#[async_trait]
-impl EmbeddingCapable for DatabricksProvider {
-    async fn create_embeddings(
-        &self,
-        session_id: &str,
-        texts: Vec<String>,
-    ) -> Result<Vec<Vec<f32>>> {
-        if texts.is_empty() {
-            return Ok(vec![]);
-        }
-
-        let request = json!({
-            "input": texts,
-        });
-
-        let response = self
-            .with_retry_config(
-                || self.post(Some(session_id), request.clone(), None),
-                self.fast_retry_config.clone(),
-            )
-            .await?;
-
-        let embeddings = response["data"]
-            .as_array()
-            .ok_or_else(|| anyhow::anyhow!("Invalid response format: missing data array"))?
-            .iter()
-            .map(|item| {
-                item["embedding"]
-                    .as_array()
-                    .ok_or_else(|| anyhow::anyhow!("Invalid embedding format"))?
-                    .iter()
-                    .map(|v| v.as_f64().map(|f| f as f32))
-                    .collect::<Option<Vec<f32>>>()
-                    .ok_or_else(|| anyhow::anyhow!("Invalid embedding values"))
-            })
-            .collect::<Result<Vec<Vec<f32>>>>()?;
-
-        Ok(embeddings)
     }
 }
 

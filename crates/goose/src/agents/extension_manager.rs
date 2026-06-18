@@ -1949,51 +1949,7 @@ impl ExtensionManager {
             .map(|ext| ext.get_client())
     }
 
-    pub async fn collect_moim(
-        &self,
-        session_id: &str,
-        working_dir: &std::path::Path,
-    ) -> Option<String> {
-        // Skip MOIM for models with small context windows to avoid consuming limited context
-        const MIN_CONTEXT_FOR_MOIM: usize = 32_000;
-        if let Ok(provider_guard) = self.provider.try_lock() {
-            if let Some(provider) = provider_guard.as_ref() {
-                if provider.get_model_config().context_limit() < MIN_CONTEXT_FOR_MOIM {
-                    return None;
-                }
-            }
-        }
-
-        // Use minute-level granularity to prevent conversation changes every second
-        let timestamp = chrono::Local::now().format("%Y-%m-%d %H:%M:00").to_string();
-        let mut content = format!(
-            "<info-msg>\nIt is currently {}\nWorking directory: {}\n",
-            timestamp,
-            working_dir.display()
-        );
-
-        if let Ok(session) = self
-            .context
-            .session_manager
-            .get_session(session_id, false)
-            .await
-        {
-            if let (Some(total), Some(config)) =
-                (session.total_tokens, session.model_config.as_ref())
-            {
-                let limit = config.context_limit();
-                if total > 0 && limit > 0 {
-                    let pct = (total as f64 / limit as f64 * 100.0).round() as u32;
-                    content.push_str(&format!(
-                        "Context: ~{}k/{}k tokens used ({}%)\n",
-                        total / 1000,
-                        limit / 1000,
-                        pct
-                    ));
-                }
-            }
-        }
-
+    pub async fn collect_moim_parts(&self, session_id: &str) -> Vec<String> {
         let platform_clients: Vec<(String, McpClientBox)> = {
             let extensions = self.extensions.lock().await;
             extensions
@@ -2015,17 +1971,14 @@ impl ExtensionManager {
                 .collect()
         };
 
+        let mut parts = Vec::new();
         for (name, client) in platform_clients {
             if let Some(moim_content) = client.get_moim(session_id).await {
                 tracing::debug!("MOIM content from {}: {} chars", name, moim_content.len());
-                content.push('\n');
-                content.push_str(&moim_content);
+                parts.push(moim_content);
             }
         }
-
-        content.push_str("\n</info-msg>");
-
-        Some(content)
+        parts
     }
 }
 
@@ -2415,21 +2368,6 @@ mod tests {
 
         let result = substitute_env_vars("$TOKEN", &env_map);
         assert_eq!(result, "abc$KEY");
-    }
-
-    #[tokio::test]
-    async fn test_collect_moim_uses_minute_granularity() {
-        let temp_dir = tempfile::tempdir().unwrap();
-        let em = ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
-        let working_dir = std::path::Path::new("/tmp");
-
-        if let Some(moim) = em.collect_moim("test-session-id", working_dir).await {
-            // Timestamp should end with :00 (seconds fixed to 00)
-            assert!(
-                moim.contains(":00\n"),
-                "Timestamp should use minute granularity"
-            );
-        }
     }
 
     #[tokio::test]
