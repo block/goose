@@ -4100,6 +4100,9 @@
   "settings.language.japanese": {
     "defaultMessage": "Japonca"
   },
+  "settings.language.korean": {
+    "defaultMessage": "Korece"
+  },
   "settings.language.russian": {
     "defaultMessage": "Rusça"
   },

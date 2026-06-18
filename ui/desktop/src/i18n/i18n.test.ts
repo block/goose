@@ -73,6 +73,23 @@ describe('getLocale', () => {
     expect(getLocale()).toEqual({ locale: 'tr', messageLocale: 'tr' });
   });
 
+  it('supports Korean from navigator.languages', () => {
+    vi.stubGlobal('navigator', { languages: ['ko-KR'] });
+    expect(getLocale()).toEqual({ locale: 'ko-KR', messageLocale: 'ko' });
+  });
+
+  it('supports explicit Korean locale', () => {
+    mockAppConfig({ GOOSE_LOCALE: 'ko' });
+    vi.stubGlobal('navigator', { languages: ['xx-XX'] });
+    expect(getLocale()).toEqual({ locale: 'ko', messageLocale: 'ko' });
+  });
+
+  it('supports POSIX-style Korean locale from GOOSE_LOCALE', () => {
+    mockAppConfig({ GOOSE_LOCALE: 'ko_KR' });
+    vi.stubGlobal('navigator', { languages: ['xx-XX'] });
+    expect(getLocale()).toEqual({ locale: 'ko-KR', messageLocale: 'ko' });
+  });
+
   it('supports Japanese from navigator.languages', () => {
     vi.stubGlobal('navigator', { languages: ['ja-JP'] });
     expect(getLocale()).toEqual({ locale: 'ja-JP', messageLocale: 'ja' });

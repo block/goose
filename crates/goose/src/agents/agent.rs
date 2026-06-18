@@ -1516,6 +1516,8 @@ impl Agent {
             .execute_command(&message_text, &session_config.id)
             .await;
 
+        let mut command_preamble: Vec<AgentEvent> = Vec::new();
+
         match command_result {
             Err(e) => {
                 let error_message = Message::assistant()
@@ -1524,6 +1526,44 @@ impl Agent {
                 return Ok(Box::pin(stream::once(async move {
                     Ok(AgentEvent::Message(error_message))
                 })));
+            }
+            Ok(Some(response))
+                if response.role == rmcp::model::Role::Assistant
+                    && crate::agents::execute_commands::command_starts_turn(&message_text) =>
+            {
+                // Setting a goal/grind should immediately start a turn so the
+                // agent begins pursuing it, rather than waiting for the next
+                // user prompt. Record the command and its confirmation as
+                // user-visible only, then inject an agent-visible kickoff and
+                // fall through into the reply loop.
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &user_message.clone().with_visibility(true, false),
+                    )
+                    .await?;
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &response.clone().with_visibility(true, false),
+                    )
+                    .await?;
+                let goal_text = crate::agents::execute_commands::parse_slash_command(&message_text)
+                    .map(|parsed| parsed.params_str.to_string())
+                    .unwrap_or_default();
+                let kickoff = Message::user()
+                    .with_text(format!(
+                        "Start working toward this goal now:\n\n**Goal:** {goal_text}"
+                    ))
+                    .with_visibility(false, true);
+                session_manager
+                    .add_message(&session_config.id, &kickoff)
+                    .await?;
+
+                command_preamble = vec![
+                    AgentEvent::Message(user_message.clone()),
+                    AgentEvent::Message(response.clone()),
+                ];
             }
             Ok(Some(response)) if response.role == rmcp::model::Role::Assistant => {
                 session_manager
@@ -1599,6 +1639,10 @@ impl Agent {
         let conversation_to_compact = conversation.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
+            for event in command_preamble {
+                yield event;
+            }
+
             let final_conversation = if !needs_auto_compact {
                 conversation
             } else {
