@@ -34,6 +34,7 @@ interface StreamState {
   chatState: ChatState;
   sessionLoadError: string | undefined;
   tokenState: TokenState;
+  notifications: NotificationEvent[];
 }
 
 type StreamAction =
@@ -63,6 +64,7 @@ const initialState: StreamState = {
   chatState: ChatState.Idle,
   sessionLoadError: undefined,
   tokenState: initialTokenState,
+  notifications: [],
 };
 
 function streamReducer(state: StreamState, action: StreamAction): StreamState {
@@ -88,6 +90,7 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         session: action.payload.session,
         messages: action.payload.messages,
         tokenState: action.payload.tokenState,
+        notifications: action.payload.notifications,
         chatState: action.payload.chatState,
         sessionLoadError: action.payload.sessionLoadError,
       };
@@ -98,6 +101,7 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
         messages: [],
         session: undefined,
         sessionLoadError: undefined,
+        notifications: [],
         chatState: ChatState.LoadingConversation,
       };
 
@@ -105,6 +109,7 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
       return {
         ...state,
         chatState: ChatState.Streaming,
+        notifications: [],
       };
 
     case 'STREAM_ERROR':
@@ -566,7 +571,16 @@ export function useAcpChatSession({
   const maybe_cached_messages = state.session ? state.messages : cached?.messages || [];
   const maybe_cached_session = state.session ?? cached?.session;
 
-  const notificationsMap = useMemo(() => new Map<string, NotificationEvent[]>(), []);
+  const notificationsMap = useMemo(() => {
+    return state.notifications.reduce((map, notification) => {
+      const key = notification.request_id;
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+      map.get(key)!.push(notification);
+      return map;
+    }, new Map<string, NotificationEvent[]>());
+  }, [state.notifications]);
 
   return {
     sessionLoadError: state.sessionLoadError,

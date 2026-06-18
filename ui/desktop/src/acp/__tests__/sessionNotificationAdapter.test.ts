@@ -2,6 +2,7 @@ import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
 import type { Message, MessageContent } from '../../api';
+import type { NotificationEvent } from '../../types/message';
 import {
   createAcpSessionNotificationAdapter,
   type AcpChatStateChange,
@@ -64,6 +65,21 @@ function expectOnlyMessagesChange(chatStateChanges: AcpChatStateChange[]): Messa
   }
 
   return chatStateChange.messages;
+}
+
+function expectOnlyNotificationChange(
+  chatStateChanges: AcpChatStateChange[]
+): NotificationEvent {
+  expect(chatStateChanges).toHaveLength(1);
+
+  const [chatStateChange] = chatStateChanges;
+  expect(chatStateChange.type).toBe('notification');
+
+  if (chatStateChange.type !== 'notification') {
+    throw new Error('expected notification state change');
+  }
+
+  return chatStateChange.notification;
 }
 
 function firstContent(message: Message): MessageContent {
@@ -283,6 +299,84 @@ describe('createAcpSessionNotificationAdapter', () => {
           toolResult: {
             status: 'error',
             error: 'file not found',
+          },
+        });
+      });
+
+      it('maps in-progress tool message notifications', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        const notificationStateChanges = adapter.apply(
+          acpUpdate({
+            sessionUpdate: 'tool_call_update',
+            toolCallId: 'tool-1',
+            status: 'in_progress',
+            _meta: {
+              toolNotification: {
+                type: 'message',
+                params: {
+                  level: 'info',
+                  logger: 'subagent:session-1',
+                  data: {
+                    text: 'Running search...',
+                  },
+                },
+              },
+            },
+          })
+        );
+        const notification = expectOnlyNotificationChange(notificationStateChanges);
+
+        expect(notification).toMatchObject({
+          type: 'Notification',
+          request_id: 'tool-1',
+          message: {
+            method: 'notifications/message',
+            params: {
+              level: 'info',
+              logger: 'subagent:session-1',
+              data: {
+                text: 'Running search...',
+              },
+            },
+          },
+        });
+      });
+
+      it('maps in-progress tool progress notifications', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        const notificationStateChanges = adapter.apply(
+          acpUpdate({
+            sessionUpdate: 'tool_call_update',
+            toolCallId: 'tool-1',
+            status: 'in_progress',
+            _meta: {
+              toolNotification: {
+                type: 'progress',
+                params: {
+                  progressToken: 'scan-repo',
+                  progress: 3,
+                  total: 10,
+                  message: 'Scanned 3 of 10 directories',
+                },
+              },
+            },
+          })
+        );
+        const notification = expectOnlyNotificationChange(notificationStateChanges);
+
+        expect(notification).toMatchObject({
+          type: 'Notification',
+          request_id: 'tool-1',
+          message: {
+            method: 'notifications/progress',
+            params: {
+              progressToken: 'scan-repo',
+              progress: 3,
+              total: 10,
+              message: 'Scanned 3 of 10 directories',
+            },
           },
         });
       });

@@ -2,6 +2,7 @@ import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import type { Message, Session, TokenState } from '../api';
 import { ChatState } from '../types/chatState';
+import type { NotificationEvent } from '../types/message';
 import {
   createAcpSessionNotificationAdapter,
   type AcpChatStateChange,
@@ -15,6 +16,7 @@ export interface AcpChatSessionSnapshot {
   session: Session | undefined;
   messages: Message[];
   tokenState: TokenState;
+  notifications: NotificationEvent[];
   chatState: ChatState;
   sessionLoadError: string | undefined;
   activePromptAttemptId: string | null;
@@ -116,6 +118,7 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
       session: undefined,
       messages: [],
       tokenState: { ...initialTokenState },
+      notifications: [],
       chatState: ChatState.Idle,
       sessionLoadError: undefined,
       activePromptAttemptId: null,
@@ -193,6 +196,7 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     entry.activePromptAttemptId = promptAttemptId;
     entry.chatState = ChatState.Streaming;
     entry.sessionLoadError = undefined;
+    entry.notifications = [];
     return notify(sessionId, entry);
   };
 
@@ -333,6 +337,9 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
           entry.session = { ...entry.session, name: change.name };
         }
         break;
+      case 'notification':
+        entry.notifications = [...entry.notifications, change.notification];
+        break;
     }
   }
 }
@@ -342,6 +349,7 @@ function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
     session: entry.session,
     messages: cloneMessages(entry.messages),
     tokenState: { ...entry.tokenState },
+    notifications: [...entry.notifications],
     chatState: entry.chatState,
     sessionLoadError: entry.sessionLoadError,
     activePromptAttemptId: entry.activePromptAttemptId,

@@ -94,6 +94,7 @@ mod onboarding;
 mod providers;
 mod resources;
 mod sources;
+mod tool_notifications;
 mod tools;
 
 pub type AcpProviderFactory = Arc<
@@ -2537,6 +2538,16 @@ impl GooseAcpAgent {
                     }
                     if stream_error.is_some() {
                         break;
+                    }
+                }
+                Ok(crate::agents::AgentEvent::McpNotification((request_id, notification))) => {
+                    if let Some(update) =
+                        tool_notifications::tool_notification_update(request_id, notification)
+                    {
+                        cx.send_notification(SessionNotification::new(
+                            args.session_id.clone(),
+                            update,
+                        ))?;
                     }
                 }
                 Ok(_) => {}

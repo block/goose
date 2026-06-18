@@ -1,4 +1,8 @@
-import type { CreateElicitationRequest, RequestPermissionRequest } from '@agentclientprotocol/sdk';
+import type {
+  CreateElicitationRequest,
+  RequestPermissionRequest,
+  SessionNotification,
+} from '@agentclientprotocol/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Message, Session } from '../../api';
 import { ChatState } from '../../types/chatState';
@@ -79,6 +83,26 @@ function elicitationRequest(sessionId: string): {
         properties: {
           project: {
             type: 'string',
+          },
+        },
+      },
+    },
+  };
+}
+
+function toolProgressNotification(sessionId: string): SessionNotification {
+  return {
+    sessionId,
+    update: {
+      sessionUpdate: 'tool_call_update',
+      toolCallId: 'tool-1',
+      status: 'in_progress',
+      _meta: {
+        toolNotification: {
+          type: 'progress',
+          params: {
+            progressToken: 'scan-repo',
+            progress: 3,
           },
         },
       },
@@ -180,6 +204,27 @@ describe('acpChatSessionStore', () => {
 
     expect(snapshot.activePromptAttemptId).toBe('attempt-1');
     expect(snapshot.chatState).toBe(ChatState.Streaming);
+  });
+
+  it('stores ACP tool notifications and clears them for a new prompt attempt', () => {
+    const snapshot = store.applyAcpSessionNotification(toolProgressNotification('session-1'));
+
+    expect(snapshot.notifications).toHaveLength(1);
+    expect(snapshot.notifications[0]).toMatchObject({
+      type: 'Notification',
+      request_id: 'tool-1',
+      message: {
+        method: 'notifications/progress',
+        params: {
+          progressToken: 'scan-repo',
+          progress: 3,
+        },
+      },
+    });
+
+    const nextSnapshot = store.startPromptAttempt('session-1', 'attempt-1');
+
+    expect(nextSnapshot.notifications).toEqual([]);
   });
 
   it('applies permission requests as waiting action-required messages', () => {
