@@ -371,7 +371,7 @@ export default function SessionActionsHeader({
 
     setIsDuplicating(true);
     try {
-      await acpForkSession(session.id, session.working_dir);
+      await acpForkSession(session.id);
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
       toast.success(intl.formatMessage(i18n.duplicated));
     } catch (error) {
