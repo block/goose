@@ -520,22 +520,6 @@ pub fn get_tool_disclosure() -> ToolDisclosure {
     serde_json::from_value(serde_json::json!(tool_disclosure_str)).unwrap_or_default()
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn catalog_moim_mentions_inspection_tools_without_function_names() {
-        let moim = catalog_disclosure_moim(3);
-
-        assert!(moim.contains("3 callback functions"));
-        assert!(moim.contains("list_functions"));
-        assert!(moim.contains("get_function_details"));
-        assert!(!moim.contains("extract_relations"));
-        assert!(!moim.contains("ask_heimdall"));
-    }
-}
-
 struct CodeModeState {
     code_mode: CodeMode,
     hash: u64,
@@ -565,5 +549,21 @@ impl CodeModeState {
             s.hash(&mut hasher);
         }
         hasher.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn catalog_moim_mentions_inspection_tools_without_function_names() {
+        let moim = catalog_disclosure_moim(3);
+
+        assert!(moim.contains("3 callback functions"));
+        assert!(moim.contains("list_functions"));
+        assert!(moim.contains("get_function_details"));
+        assert!(!moim.contains("extract_relations"));
+        assert!(!moim.contains("ask_heimdall"));
     }
 }
