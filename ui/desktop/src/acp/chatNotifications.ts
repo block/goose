@@ -6,14 +6,19 @@ import { acpChatSessionStore } from './chatSessionStore';
 
 export function handleAcpSessionNotification(notification: SessionNotification): Promise<void> {
   if (USE_ACP_CHAT) {
-    const previousName = acpChatSessionStore.getSnapshot(notification.sessionId)?.session?.name;
-    const snapshot = acpChatSessionStore.applyAcpSessionNotification(notification);
-    const newName = snapshot.session?.name;
+    const sessionNameBeforeNotification = acpChatSessionStore.getSnapshot(
+      notification.sessionId
+    )?.session?.name;
+    const updatedName =
+      notification.update.sessionUpdate === 'session_info_update'
+        ? notification.update.title
+        : undefined;
+    acpChatSessionStore.applyAcpSessionNotification(notification);
 
-    if (newName && newName !== previousName) {
+    if (updatedName && updatedName !== sessionNameBeforeNotification) {
       window.dispatchEvent(
         new CustomEvent(AppEvents.SESSION_RENAMED, {
-          detail: { sessionId: notification.sessionId, newName },
+          detail: { sessionId: notification.sessionId, newName: updatedName },
         })
       );
     }

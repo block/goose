@@ -61,6 +61,24 @@ function snapshotWithName(name: string): AcpChatSessionSnapshot {
   };
 }
 
+function snapshotWithoutSession(): AcpChatSessionSnapshot {
+  return {
+    session: undefined,
+    messages: [],
+    tokenState: {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      accumulatedInputTokens: 0,
+      accumulatedOutputTokens: 0,
+      accumulatedTotalTokens: 0,
+    },
+    chatState: ChatState.Idle,
+    sessionLoadError: undefined,
+    activePromptAttemptId: null,
+  };
+}
+
 describe('handleAcpSessionNotification', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -93,5 +111,22 @@ describe('handleAcpSessionNotification', () => {
     await handleAcpSessionNotification(sessionInfoUpdate('Same name'));
 
     expect(dispatchEvent).not.toHaveBeenCalled();
+  });
+
+  it('dispatches SESSION_RENAMED from the notification title when the session is not loaded', async () => {
+    const dispatchEvent = vi.spyOn(window, 'dispatchEvent');
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValueOnce(snapshotWithoutSession());
+    vi.mocked(acpChatSessionStore.applyAcpSessionNotification).mockReturnValueOnce(
+      snapshotWithoutSession()
+    );
+
+    await handleAcpSessionNotification(sessionInfoUpdate('Generated name'));
+
+    expect(dispatchEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: AppEvents.SESSION_RENAMED,
+        detail: { sessionId: SESSION_ID, newName: 'Generated name' },
+      })
+    );
   });
 });
