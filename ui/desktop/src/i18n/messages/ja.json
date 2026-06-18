@@ -3747,70 +3747,70 @@
     "defaultMessage": "コマンドインジェクション検出は、WARPに接続していると最も効果的です（分類サービスに到達するために必要です）。"
   },
   "sessionActionsHeader.actionsLabel": {
-    "defaultMessage": "Session actions"
+    "defaultMessage": "セッションの操作"
   },
   "sessionActionsHeader.cancel": {
-    "defaultMessage": "Cancel"
+    "defaultMessage": "キャンセル"
   },
   "sessionActionsHeader.close": {
-    "defaultMessage": "Close"
+    "defaultMessage": "閉じる"
   },
   "sessionActionsHeader.copiedJson": {
-    "defaultMessage": "Session JSON copied"
+    "defaultMessage": "セッションJSONをコピーしました"
   },
   "sessionActionsHeader.copiedText": {
-    "defaultMessage": "Text copied"
+    "defaultMessage": "テキストをコピーしました"
   },
   "sessionActionsHeader.copyJson": {
-    "defaultMessage": "Copy JSON"
+    "defaultMessage": "JSONをコピー"
   },
   "sessionActionsHeader.copyText": {
-    "defaultMessage": "Copy text"
+    "defaultMessage": "テキストをコピー"
   },
   "sessionActionsHeader.duplicateFailed": {
-    "defaultMessage": "Failed to duplicate session: {error}"
+    "defaultMessage": "セッションを複製できませんでした: {error}"
   },
   "sessionActionsHeader.duplicateSession": {
-    "defaultMessage": "Duplicate session"
+    "defaultMessage": "セッションを複製"
   },
   "sessionActionsHeader.duplicated": {
-    "defaultMessage": "Session duplicated"
+    "defaultMessage": "セッションを複製しました"
   },
   "sessionActionsHeader.fullTextTitle": {
-    "defaultMessage": "Text value"
+    "defaultMessage": "テキスト値"
   },
   "sessionActionsHeader.jsonFailed": {
-    "defaultMessage": "Failed to load session JSON: {error}"
+    "defaultMessage": "セッションJSONを読み込めませんでした: {error}"
   },
   "sessionActionsHeader.jsonTitle": {
-    "defaultMessage": "Session JSON"
+    "defaultMessage": "セッションJSON"
   },
   "sessionActionsHeader.loadingJson": {
-    "defaultMessage": "Loading JSON..."
+    "defaultMessage": "JSONを読み込み中..."
   },
   "sessionActionsHeader.renameFailed": {
-    "defaultMessage": "Failed to rename session: {error}"
+    "defaultMessage": "セッションの名前を変更できませんでした: {error}"
   },
   "sessionActionsHeader.renamePlaceholder": {
-    "defaultMessage": "Enter session name"
+    "defaultMessage": "セッション名を入力"
   },
   "sessionActionsHeader.renameSession": {
-    "defaultMessage": "Rename session"
+    "defaultMessage": "セッションの名前を変更"
   },
   "sessionActionsHeader.renameTitle": {
-    "defaultMessage": "Rename Session"
+    "defaultMessage": "セッションの名前を変更"
   },
   "sessionActionsHeader.renamed": {
-    "defaultMessage": "Session renamed"
+    "defaultMessage": "セッションの名前を変更しました"
   },
   "sessionActionsHeader.save": {
-    "defaultMessage": "Save"
+    "defaultMessage": "保存"
   },
   "sessionActionsHeader.saving": {
-    "defaultMessage": "Saving..."
+    "defaultMessage": "保存中..."
   },
   "sessionActionsHeader.viewJson": {
-    "defaultMessage": "View session JSON"
+    "defaultMessage": "セッションJSONを表示"
   },
   "sessionHistory.cancel": {
     "defaultMessage": "キャンセル"
