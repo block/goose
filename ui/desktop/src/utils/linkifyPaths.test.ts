@@ -135,6 +135,12 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/usr/local/bin/node');
     });
 
+    it('detects paths with parenthesized download suffixes', () => {
+      const matches = findPaths('Saved /Users/me/Downloads/report (1).pdf');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/Users/me/Downloads/report (1).pdf');
+    });
+
     it('detects paths with numeric suffixes in segment names', () => {
       const matches = findPaths('Saved /Users/me/Project 2026.');
       expect(matches).toHaveLength(1);
@@ -197,5 +203,45 @@ describe('remarkLinkifyPaths', () => {
 
     expect(linkRef.children).toHaveLength(1);
     expect(linkRef.children[0]).toEqual({ type: 'text', value: 'log /tmp/out' });
+  });
+
+  it('does not linkify paths inside formatted link labels', () => {
+    const tree: Root = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'link',
+              url: 'https://example.com',
+              children: [
+                {
+                  type: 'strong',
+                  children: [{ type: 'text', value: '/tmp/out' }],
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const transform = (remarkLinkifyPaths as unknown as () => (tree: Root) => void)();
+    transform(tree);
+
+    const paragraph = tree.children[0];
+    expect(paragraph.type).toBe('paragraph');
+    if (paragraph.type !== 'paragraph') return;
+
+    const link = paragraph.children[0];
+    expect(link.type).toBe('link');
+    if (link.type !== 'link') return;
+
+    expect(link.url).toBe('https://example.com');
+    expect(link.children).toHaveLength(1);
+    expect(link.children[0].type).toBe('strong');
+    if (link.children[0].type !== 'strong') return;
+    expect(link.children[0].children[0]).toEqual({ type: 'text', value: '/tmp/out' });
   });
 });

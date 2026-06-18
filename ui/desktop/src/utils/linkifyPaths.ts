@@ -71,6 +71,30 @@ function isLinkLikeParent(parent: Parent | undefined): boolean {
   return parent?.type === 'link' || parent?.type === 'linkReference';
 }
 
+function readParenthesizedSuffix(text: string, spaceIndex: number): number {
+  if (text[spaceIndex] !== ' ') return spaceIndex;
+
+  let i = spaceIndex + 1;
+  if (text[i] !== '(') return spaceIndex;
+
+  i++;
+  const contentStart = i;
+  while (i < text.length && text[i] !== ')') {
+    if (text[i] === '(') return spaceIndex;
+    i++;
+  }
+  if (i >= text.length) return spaceIndex;
+
+  const content = text.slice(contentStart, i);
+  if (!/^\d+$/.test(content)) return spaceIndex;
+
+  i++;
+  while (i < text.length && isPathChar(text[i])) {
+    i++;
+  }
+  return i;
+}
+
 function readSpacedContinuation(
   text: string,
   spaceIndex: number,
@@ -116,6 +140,11 @@ function readSegment(text: string, start: number, separator: Separator): { end: 
   }
 
   while (i < text.length && text[i] === ' ') {
+    const parenEnd = readParenthesizedSuffix(text, i);
+    if (parenEnd > i) {
+      i = parenEnd;
+      continue;
+    }
     const continuationEnd = readSpacedContinuation(text, i, start, separator);
     if (continuationEnd === i) break;
     i = continuationEnd;
@@ -248,12 +277,8 @@ function linkifyNode(node: Text | InlineCode, index: number, parent: Parent): vo
 export const remarkLinkifyPaths: Plugin<[], Root> = function () {
   return (tree: Root) => {
     visit(tree, (node, index, parent) => {
-      if (node.type === 'link') {
-        const url = 'url' in node ? node.url : undefined;
-        if (url?.startsWith(OPEN_FILE_PROTOCOL)) {
-          return SKIP;
-        }
-        return undefined;
+      if (node.type === 'link' || node.type === 'linkReference') {
+        return SKIP;
       }
 
       if (node.type !== 'text' && node.type !== 'inlineCode') {
