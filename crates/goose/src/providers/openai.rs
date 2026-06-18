@@ -2,7 +2,6 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
     ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::formats::openai_responses::{
     create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
 };
@@ -35,7 +34,6 @@ pub(crate) const OPEN_AI_DEFAULT_BASE_PATH: &str = "v1/chat/completions";
 const OPEN_AI_VERSIONLESS_BASE_PATH: &str = "chat/completions";
 const OPEN_AI_DEFAULT_RESPONSES_PATH: &str = "v1/responses";
 const OPEN_AI_DEFAULT_MODELS_PATH: &str = "v1/models";
-const OPEN_AI_DEFAULT_EMBEDDINGS_PATH: &str = "v1/embeddings";
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
@@ -813,20 +811,6 @@ impl Provider for OpenAiProvider {
         self.fetch_models_from_api().await
     }
 
-    fn supports_embeddings(&self) -> bool {
-        true
-    }
-
-    async fn create_embeddings(
-        &self,
-        session_id: &str,
-        texts: Vec<String>,
-    ) -> Result<Vec<Vec<f32>>, ProviderError> {
-        EmbeddingCapable::create_embeddings(self, session_id, texts)
-            .await
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -951,68 +935,6 @@ fn parse_custom_headers(s: String) -> HashMap<String, String> {
             Some((key, value))
         })
         .collect()
-}
-
-#[async_trait]
-impl EmbeddingCapable for OpenAiProvider {
-    async fn create_embeddings(
-        &self,
-        session_id: &str,
-        texts: Vec<String>,
-    ) -> Result<Vec<Vec<f32>>> {
-        if texts.is_empty() {
-            return Ok(vec![]);
-        }
-
-        let embedding_model = std::env::var("GOOSE_EMBEDDING_MODEL")
-            .unwrap_or_else(|_| "text-embedding-3-small".to_string());
-
-        let request = EmbeddingRequest {
-            input: texts,
-            model: embedding_model,
-        };
-
-        let response = self
-            .with_retry(|| async {
-                let request_clone = EmbeddingRequest {
-                    input: request.input.clone(),
-                    model: request.model.clone(),
-                };
-                let request_value = serde_json::to_value(request_clone)
-                    .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-                let embeddings_path = Self::map_base_path(
-                    &self.base_path,
-                    "embeddings",
-                    OPEN_AI_DEFAULT_EMBEDDINGS_PATH,
-                );
-                self.api_client
-                    .api_post(Some(session_id), &embeddings_path, &request_value)
-                    .await
-                    .map_err(|e| ProviderError::ExecutionError(e.to_string()))
-            })
-            .await?;
-
-        if response.status != StatusCode::OK {
-            let error_text = response
-                .payload
-                .as_ref()
-                .and_then(|p| p.as_str())
-                .unwrap_or("Unknown error");
-            return Err(anyhow::anyhow!("Embedding API error: {}", error_text));
-        }
-
-        let embedding_response: EmbeddingResponse = serde_json::from_value(
-            response
-                .payload
-                .ok_or_else(|| anyhow::anyhow!("Empty response body"))?,
-        )?;
-
-        Ok(embedding_response
-            .data
-            .into_iter()
-            .map(|d| d.embedding)
-            .collect())
-    }
 }
 
 #[cfg(test)]

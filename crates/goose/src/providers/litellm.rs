@@ -12,7 +12,6 @@ use super::base::{
     ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::embedding::EmbeddingCapable;
 use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, RequestLog};
@@ -259,10 +258,6 @@ impl Provider for LiteLLMProvider {
         ))
     }
 
-    fn supports_embeddings(&self) -> bool {
-        true
-    }
-
     async fn supports_cache_control(&self) -> bool {
         if let Ok(models) = self.get_or_fetch_models().await {
             if let Some(model_info) = models.iter().find(|m| m.name == self.model.model_name) {
@@ -276,48 +271,6 @@ impl Provider for LiteLLMProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let models = self.get_or_fetch_models().await?;
         Ok(models.iter().map(|m| m.name.clone()).collect())
-    }
-}
-
-#[async_trait]
-impl EmbeddingCapable for LiteLLMProvider {
-    async fn create_embeddings(
-        &self,
-        session_id: &str,
-        texts: Vec<String>,
-    ) -> Result<Vec<Vec<f32>>, anyhow::Error> {
-        let embedding_model = std::env::var("GOOSE_EMBEDDING_MODEL")
-            .unwrap_or_else(|_| "text-embedding-3-small".to_string());
-
-        let payload = json!({
-            "input": texts,
-            "model": embedding_model,
-            "encoding_format": "float"
-        });
-
-        let response = self
-            .api_client
-            .response_post(Some(session_id), "v1/embeddings", &payload)
-            .await?;
-        let response_text = response.text().await?;
-        let response_json: Value = serde_json::from_str(&response_text)?;
-
-        let data = response_json["data"]
-            .as_array()
-            .ok_or_else(|| anyhow::anyhow!("Missing data field"))?;
-
-        let mut embeddings = Vec::new();
-        for item in data {
-            let embedding: Vec<f32> = item["embedding"]
-                .as_array()
-                .ok_or_else(|| anyhow::anyhow!("Missing embedding field"))?
-                .iter()
-                .map(|v| v.as_f64().unwrap_or(0.0) as f32)
-                .collect();
-            embeddings.push(embedding);
-        }
-
-        Ok(embeddings)
     }
 }
 
