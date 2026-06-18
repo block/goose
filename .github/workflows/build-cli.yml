@@ -20,11 +20,16 @@ on:
         type: string
         required: false
         default: ""
+      platform_scope:
+        type: string
+        required: false
+        default: "all"
 
 name: "Reusable workflow to build CLI"
 
 jobs:
   build-cli:
+    if: ${{ inputs.platform_scope != 'macos-only' || matrix.platform == 'macos' }}
     name: Build CLI
     runs-on: ${{ matrix.build-on }}
     container: ${{ matrix.container }}
