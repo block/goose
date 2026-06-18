@@ -93,6 +93,12 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/tmp/a');
     });
 
+    it('does not extend short basenames with following prose', () => {
+      const matches = findPaths('See /tmp/my for details');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/tmp/my');
+    });
+
     it('includes spaced folder names before sentence punctuation', () => {
       const matches = findPaths('Saved to /home/user/my documents.');
       expect(matches).toHaveLength(1);
