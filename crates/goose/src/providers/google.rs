@@ -66,7 +66,10 @@ pub struct GoogleProvider {
 }
 
 impl GoogleProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let model = crate::model_config::with_configured_fast_model(
             model,
             GOOGLE_PROVIDER_NAME,
@@ -84,8 +87,8 @@ impl GoogleProvider {
             key: api_key,
         };
 
-        let api_client =
-            ApiClient::new(host, auth)?.with_header("Content-Type", "application/json")?;
+        let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
+            .with_header("Content-Type", "application/json")?;
 
         Ok(Self {
             api_client,
@@ -136,8 +139,9 @@ impl ProviderDef for GoogleProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 

@@ -130,7 +130,10 @@ pub(crate) fn ollama_host_configured(config: &crate::config::Config) -> bool {
 }
 
 impl OllamaProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
         let host: String = config
             .get_param("OLLAMA_HOST")
@@ -158,8 +161,12 @@ impl OllamaProvider {
                 .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
         }
 
-        let api_client =
-            ApiClient::with_timeout(base_url.to_string(), AuthMethod::NoAuth, timeout)?;
+        let api_client = ApiClient::with_timeout_and_tls(
+            base_url.to_string(),
+            AuthMethod::NoAuth,
+            timeout,
+            tls_config,
+        )?;
 
         Ok(Self {
             api_client,
@@ -173,6 +180,7 @@ impl OllamaProvider {
     pub fn from_custom_config(
         model: ModelConfig,
         config: DeclarativeProviderConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
 
@@ -196,8 +204,12 @@ impl OllamaProvider {
                 .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
         }
 
-        let mut api_client =
-            ApiClient::with_timeout(base_url.to_string(), AuthMethod::NoAuth, timeout)?;
+        let mut api_client = ApiClient::with_timeout_and_tls(
+            base_url.to_string(),
+            AuthMethod::NoAuth,
+            timeout,
+            tls_config,
+        )?;
 
         if let Some(headers) = &config.headers {
             let mut header_map = reqwest::header::HeaderMap::new();
@@ -261,8 +273,9 @@ impl ProviderDef for OllamaProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 

@@ -585,10 +585,10 @@ pub fn register_declarative_provider(
                         &config,
                         provider_type,
                         config.dynamic_models.unwrap_or(false),
-                        move |model| {
+                        move |model, tls_config| {
                             let mut cfg = captured.clone();
                             resolve_config(&mut cfg)?;
-                            HuggingFaceProvider::from_custom_config(model, cfg)
+                            HuggingFaceProvider::from_custom_config(model, cfg, tls_config)
                         },
                         move || {
                             let mut cfg = identity_config.clone();
@@ -608,10 +608,10 @@ pub fn register_declarative_provider(
                     &config,
                     provider_type,
                     config.dynamic_models.unwrap_or(false),
-                    move |model| {
+                    move |model, tls_config| {
                         let mut cfg = captured.clone();
                         resolve_config(&mut cfg)?;
-                        OpenAiProvider::from_custom_config(model, cfg)
+                        OpenAiProvider::from_custom_config(model, cfg, tls_config)
                     },
                     move || {
                         let mut cfg = identity_config.clone();
@@ -628,10 +628,10 @@ pub fn register_declarative_provider(
                 &config,
                 provider_type,
                 config.dynamic_models.unwrap_or(false),
-                move |model| {
+                move |model, tls_config| {
                     let mut cfg = captured.clone();
                     resolve_config(&mut cfg)?;
-                    OllamaProvider::from_custom_config(model, cfg)
+                    OllamaProvider::from_custom_config(model, cfg, tls_config)
                 },
                 move || {
                     let mut cfg = identity_config.clone();
@@ -647,10 +647,10 @@ pub fn register_declarative_provider(
                 &config,
                 provider_type,
                 config.dynamic_models.unwrap_or(false),
-                move |model| {
+                move |model, tls_config| {
                     let mut cfg = captured.clone();
                     resolve_config(&mut cfg)?;
-                    AnthropicProvider::from_custom_config(model, cfg)
+                    AnthropicProvider::from_custom_config(model, cfg, tls_config)
                 },
                 move || {
                     let mut cfg = identity_config.clone();

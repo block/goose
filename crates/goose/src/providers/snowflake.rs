@@ -58,7 +58,10 @@ pub struct SnowflakeProvider {
 }
 
 impl SnowflakeProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
         let mut host: Result<String, ConfigError> = config.get_param("SNOWFLAKE_HOST");
         if host.is_err() {
@@ -102,7 +105,8 @@ impl SnowflakeProvider {
         };
 
         let auth = AuthMethod::BearerToken(token?);
-        let api_client = ApiClient::new(base_url, auth)?.with_header("User-Agent", "goose")?;
+        let api_client = ApiClient::new_with_tls(base_url, auth, tls_config)?
+            .with_header("User-Agent", "goose")?;
 
         Ok(Self {
             api_client,
@@ -319,8 +323,9 @@ impl ProviderDef for SnowflakeProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 

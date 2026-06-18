@@ -30,16 +30,24 @@ pub struct NanoGptProvider {
 }
 
 impl NanoGptProvider {
-    fn build_client(host: &str, api_key: &str) -> Result<ApiClient> {
-        ApiClient::new(
+    fn build_client(
+        host: &str,
+        api_key: &str,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<ApiClient> {
+        ApiClient::new_with_tls(
             host.to_string(),
             AuthMethod::BearerToken(api_key.to_string()),
+            tls_config,
         )?
         .with_header("x-client", "goose")
     }
 
-    async fn check_subscription(api_key: &str) -> bool {
-        let client = match Self::build_client(NANOGPT_SUBSCRIPTION_HOST, api_key) {
+    async fn check_subscription(
+        api_key: &str,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> bool {
+        let client = match Self::build_client(NANOGPT_SUBSCRIPTION_HOST, api_key, tls_config) {
             Ok(c) => c,
             Err(_) => return false,
         };
@@ -55,11 +63,14 @@ impl NanoGptProvider {
         }
     }
 
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret(NANOGPT_API_KEY)?;
 
-        let is_subscription = Self::check_subscription(&api_key).await;
+        let is_subscription = Self::check_subscription(&api_key, tls_config.clone()).await;
         let host = if is_subscription {
             tracing::debug!("NanoGPT subscription active, using subscription endpoint");
             NANOGPT_SUBSCRIPTION_HOST.to_string()
@@ -68,7 +79,7 @@ impl NanoGptProvider {
             NANOGPT_API_HOST.to_string()
         };
 
-        let api_client = Self::build_client(&host, &api_key)?;
+        let api_client = Self::build_client(&host, &api_key, tls_config)?;
 
         Ok(Self {
             api_client,
@@ -96,8 +107,9 @@ impl ProviderDef for NanoGptProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 

@@ -157,7 +157,10 @@ pub struct OpenAiProvider {
 }
 
 impl OpenAiProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
 
         // Resolve host and base_path.
@@ -271,10 +274,11 @@ impl OpenAiProvider {
             Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
             _ => AuthMethod::NoAuth,
         };
-        let mut api_client = ApiClient::with_timeout(
+        let mut api_client = ApiClient::with_timeout_and_tls(
             parsed.host,
             auth,
             std::time::Duration::from_secs(timeout_secs),
+            tls_config,
         )?;
 
         if !parsed.query_params.is_empty() {
@@ -406,6 +410,7 @@ impl OpenAiProvider {
     pub fn from_custom_config(
         model: ModelConfig,
         config: DeclarativeProviderConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let custom_models = if !config.models.is_empty() {
             Some(
@@ -458,8 +463,12 @@ impl OpenAiProvider {
             Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
             _ => AuthMethod::NoAuth,
         };
-        let mut api_client =
-            ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
+        let mut api_client = ApiClient::with_timeout_and_tls(
+            host,
+            auth,
+            std::time::Duration::from_secs(timeout_secs),
+            tls_config,
+        )?;
 
         // Add custom headers if present
         if let Some(headers) = &config.headers {
@@ -772,8 +781,9 @@ impl ProviderDef for OpenAiProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 

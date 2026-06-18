@@ -10,6 +10,7 @@ pub mod search_path;
 pub mod signup_nanogpt;
 pub mod signup_openrouter;
 pub mod signup_tetrate;
+pub mod tls;
 
 pub use crate::agents::ExtensionConfig;
 pub use base::{merge_config_values, Config, ConfigError};

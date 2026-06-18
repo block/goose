@@ -100,7 +100,10 @@ impl DatabricksProvider {
         super::oauth::cleanup_oauth_cache()
     }
 
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
 
         let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
@@ -135,10 +138,11 @@ impl DatabricksProvider {
             token_cache: token_cache.clone(),
         }));
 
-        let api_client = ApiClient::with_timeout(
+        let api_client = ApiClient::with_timeout_and_tls(
             host.clone(),
             auth_method,
             Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+            tls_config.clone(),
         )?;
 
         let mut provider = Self {
@@ -613,8 +617,9 @@ impl ProviderDef for DatabricksProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 

@@ -47,7 +47,10 @@ pub struct OpenRouterProvider {
 }
 
 impl OpenRouterProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let model = crate::model_config::with_configured_fast_model(
             model,
             OPENROUTER_PROVIDER_NAME,
@@ -61,7 +64,7 @@ impl OpenRouterProvider {
             .unwrap_or_else(|_| "https://openrouter.ai".to_string());
 
         let auth = AuthMethod::BearerToken(api_key);
-        let api_client = ApiClient::new(host, auth)?
+        let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
             .with_header("HTTP-Referer", "https://goose-docs.ai")?
             .with_header("X-Title", "goose")?;
 
@@ -183,8 +186,9 @@ impl ProviderDef for OpenRouterProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 

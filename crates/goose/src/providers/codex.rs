@@ -636,6 +636,7 @@ impl ProviderDef for CodexProvider {
     fn from_env(
         model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = Config::global();

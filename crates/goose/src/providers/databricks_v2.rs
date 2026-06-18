@@ -67,7 +67,10 @@ impl DatabricksV2Provider {
         super::oauth::cleanup_oauth_cache()
     }
 
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
 
         let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
@@ -91,7 +94,7 @@ impl DatabricksV2Provider {
             DatabricksAuth::oauth(host.clone())
         };
 
-        Self::new(host, auth, model, retry_config)
+        Self::new(host, auth, model, retry_config, tls_config)
     }
 
     pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
@@ -100,6 +103,7 @@ impl DatabricksV2Provider {
             DatabricksAuth::token(api_key),
             model,
             RetryConfig::default(),
+            None,
         )
     }
 
@@ -108,6 +112,7 @@ impl DatabricksV2Provider {
         auth: DatabricksAuth,
         model: ModelConfig,
         retry_config: RetryConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let token_cache = Arc::new(Mutex::new(match &auth {
             DatabricksAuth::Token(t) => Some(t.clone()),
@@ -119,10 +124,11 @@ impl DatabricksV2Provider {
             token_cache: token_cache.clone(),
         }));
 
-        let api_client = ApiClient::with_timeout(
+        let api_client = ApiClient::with_timeout_and_tls(
             host,
             auth_method,
             Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+            tls_config,
         )?;
 
         Ok(Self {
@@ -358,8 +364,9 @@ impl ProviderDef for DatabricksV2Provider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 

@@ -74,6 +74,7 @@ impl HuggingFaceProvider {
     pub fn from_custom_config(
         model: ModelConfig,
         config: DeclarativeProviderConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let custom_models = static_model_names(&config);
         if config.dynamic_models == Some(false) && custom_models.is_none() {
@@ -91,10 +92,11 @@ impl HuggingFaceProvider {
         let timeout_secs = config
             .timeout_seconds
             .unwrap_or(DEFAULT_PROVIDER_TIMEOUT_SECS);
-        let mut api_client = ApiClient::with_timeout(
+        let mut api_client = ApiClient::with_timeout_and_tls(
             host,
             auth_method,
             std::time::Duration::from_secs(timeout_secs),
+            tls_config,
         )?
         .with_query(query_params);
 
@@ -206,6 +208,7 @@ impl ProviderDef for HuggingFaceProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = Config::global();
@@ -214,7 +217,7 @@ impl ProviderDef for HuggingFaceProvider {
             let host: String = config
                 .get_param("HF_HOST")
                 .unwrap_or_else(|_| HUGGINGFACE_API_HOST.to_string());
-            let api_client = ApiClient::new(host, auth_method)?;
+            let api_client = ApiClient::new_with_tls(host, auth_method, tls_config)?;
 
             Ok(Self {
                 inner: OpenAiCompatibleProvider::new(

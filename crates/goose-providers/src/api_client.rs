@@ -53,48 +53,6 @@ impl TlsConfig {
         }
     }
 
-    pub fn from_config() -> Result<Option<Self>> {
-        let config = crate::config::Config::global();
-        let mut tls_config = TlsConfig::new();
-        let mut has_tls_config = false;
-
-        let client_cert_path = config.get_param::<String>("GOOSE_CLIENT_CERT_PATH").ok();
-        let client_key_path = config.get_param::<String>("GOOSE_CLIENT_KEY_PATH").ok();
-
-        // Validate that both cert and key are provided if either is provided
-        match (client_cert_path, client_key_path) {
-            (Some(cert_path), Some(key_path)) => {
-                tls_config = tls_config.with_client_cert_and_key(
-                    std::path::PathBuf::from(cert_path),
-                    std::path::PathBuf::from(key_path),
-                );
-                has_tls_config = true;
-            }
-            (Some(_), None) => {
-                return Err(anyhow::anyhow!(
-                    "Client certificate provided (GOOSE_CLIENT_CERT_PATH) but no private key (GOOSE_CLIENT_KEY_PATH)"
-                ));
-            }
-            (None, Some(_)) => {
-                return Err(anyhow::anyhow!(
-                    "Client private key provided (GOOSE_CLIENT_KEY_PATH) but no certificate (GOOSE_CLIENT_CERT_PATH)"
-                ));
-            }
-            (None, None) => {}
-        }
-
-        if let Ok(ca_cert_path) = config.get_param::<String>("GOOSE_CA_CERT_PATH") {
-            tls_config = tls_config.with_ca_cert(std::path::PathBuf::from(ca_cert_path));
-            has_tls_config = true;
-        }
-
-        if has_tls_config {
-            Ok(Some(tls_config))
-        } else {
-            Ok(None)
-        }
-    }
-
     pub fn with_client_cert_and_key(mut self, cert_path: PathBuf, key_path: PathBuf) -> Self {
         self.client_identity = Some(TlsCertKeyPair {
             cert_path,
@@ -272,18 +230,34 @@ pub struct ApiRequestBuilder<'a> {
 
 impl ApiClient {
     pub fn new(host: String, auth: AuthMethod) -> Result<Self> {
-        Self::with_timeout(
+        Self::new_with_tls(host, auth, None)
+    }
+
+    pub fn new_with_tls(
+        host: String,
+        auth: AuthMethod,
+        tls_config: Option<TlsConfig>,
+    ) -> Result<Self> {
+        Self::with_timeout_and_tls(
             host,
             auth,
             Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+            tls_config,
         )
     }
 
     pub fn with_timeout(host: String, auth: AuthMethod, timeout: Duration) -> Result<Self> {
+        Self::with_timeout_and_tls(host, auth, timeout, None)
+    }
+
+    pub fn with_timeout_and_tls(
+        host: String,
+        auth: AuthMethod,
+        timeout: Duration,
+        tls_config: Option<TlsConfig>,
+    ) -> Result<Self> {
         let mut client_builder = Client::builder().timeout(timeout);
 
-        // Configure TLS if needed
-        let tls_config = TlsConfig::from_config()?;
         if let Some(ref config) = tls_config {
             client_builder = Self::configure_tls(client_builder, config)?;
         }
@@ -297,7 +271,7 @@ impl ApiClient {
             default_headers: HeaderMap::new(),
             default_query: Vec::new(),
             timeout,
-            tls_config: None,
+            tls_config,
         })
     }
 
