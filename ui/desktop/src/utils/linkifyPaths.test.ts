@@ -171,6 +171,12 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/Users/me/Downloads/report (1)');
     });
 
+    it('does not append prose after parenthesized filename suffixes', () => {
+      const matches = findPaths('Saved /tmp/report (1) successfully.');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/tmp/report (1)');
+    });
+
     it('detects paths with commas in filenames', () => {
       const matches = findPaths('Saved /tmp/report,final.txt');
       expect(matches).toHaveLength(1);

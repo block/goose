@@ -57,7 +57,12 @@ function getLastToken(text: string, segmentStart: number, beforeIndex: number): 
   return lastSpace === -1 ? segment : segment.slice(lastSpace + 1);
 }
 
+function isParenthesizedSuffix(token: string): boolean {
+  return /^\([^)]+\)$/.test(token);
+}
+
 function isPathLikeSpacedWord(word: string, prevToken: string): boolean {
+  if (isParenthesizedSuffix(prevToken)) return false;
   if (/^\d+$/.test(word)) return true;
   if (!/^[a-z0-9]+$/.test(word)) return true;
   return (
