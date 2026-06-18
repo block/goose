@@ -311,12 +311,12 @@ export const acpChatSessionStore = createAcpChatSessionStore();
 
 export function tokenStateFromSession(session: Session | undefined): TokenState {
   return {
-    inputTokens: session?.input_tokens ?? 0,
-    outputTokens: session?.output_tokens ?? 0,
-    totalTokens: session?.total_tokens ?? 0,
-    accumulatedInputTokens: session?.accumulated_input_tokens ?? 0,
-    accumulatedOutputTokens: session?.accumulated_output_tokens ?? 0,
-    accumulatedTotalTokens: session?.accumulated_total_tokens ?? 0,
+    inputTokens: session?.usage?.input_tokens ?? 0,
+    outputTokens: session?.usage?.output_tokens ?? 0,
+    totalTokens: session?.usage?.total_tokens ?? 0,
+    accumulatedInputTokens: session?.accumulated_usage?.input_tokens ?? 0,
+    accumulatedOutputTokens: session?.accumulated_usage?.output_tokens ?? 0,
+    accumulatedTotalTokens: session?.accumulated_usage?.total_tokens ?? 0,
     ...(session?.accumulated_cost !== undefined
       ? { accumulatedCost: session.accumulated_cost }
       : {}),
