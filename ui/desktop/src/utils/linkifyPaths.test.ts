@@ -80,6 +80,18 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/tmp/result.txt');
     });
 
+    it('does not include trailing prose before sentence punctuation', () => {
+      const matches = findPaths('Created /tmp/result successfully.');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/tmp/result');
+    });
+
+    it('includes spaced folder names before sentence punctuation', () => {
+      const matches = findPaths('Saved to /home/user/my documents.');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/home/user/my documents');
+    });
+
     it('does not match URLs', () => {
       const matches = findPaths('Visit https://example.com/page for info');
       expect(matches).toHaveLength(0);

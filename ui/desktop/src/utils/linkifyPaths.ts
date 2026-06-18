@@ -31,30 +31,50 @@ function isValidPathStart(text: string, index: number): boolean {
   return /\/\*.*?\*\/$/.test(before);
 }
 
-function readSpacedContinuation(text: string, spaceIndex: number, separator: Separator): number {
+function getLastToken(text: string, segmentStart: number, beforeIndex: number): string {
+  const segment = text.slice(segmentStart, beforeIndex);
+  const lastSpace = segment.lastIndexOf(' ');
+  return lastSpace === -1 ? segment : segment.slice(lastSpace + 1);
+}
+
+function isPathLikeSpacedWord(word: string, prevToken: string): boolean {
+  if (/[A-Z0-9._+-]/.test(word)) return true;
+  return (
+    /^[a-z][a-z0-9]*$/.test(word) && prevToken.length <= 3 && !prevToken.includes('.')
+  );
+}
+
+function readSpacedContinuation(
+  text: string,
+  spaceIndex: number,
+  segmentStart: number,
+  separator: Separator
+): number {
   if (text[spaceIndex] !== ' ') return spaceIndex;
 
   let j = spaceIndex + 1;
   while (j < text.length && isPathChar(text[j])) {
     j++;
   }
+  while (j > spaceIndex + 1 && /[.,;:!?)'\]"]/.test(text[j - 1] ?? '')) {
+    j--;
+  }
   if (j === spaceIndex + 1) return spaceIndex;
 
+  const word = text.slice(spaceIndex + 1, j);
+  const prevToken = getLastToken(text, segmentStart, spaceIndex);
   const after = text[j];
+
   if (after === separator) return j;
-  if (after === undefined || /[.,;:!?)'\]"]/.test(after)) return j;
+
+  if (after === undefined || /[.,;:!?)'\]"]/.test(after)) {
+    return isPathLikeSpacedWord(word, prevToken) ? j : spaceIndex;
+  }
 
   if (after === ' ') {
     const rest = text.slice(j).trimStart();
     if (rest.startsWith(separator)) return spaceIndex;
-
-    const word = text.slice(spaceIndex + 1, j);
-    if (/[A-Z0-9._+-]/.test(word)) return j;
-
-    if (/^[a-z][a-z0-9]*$/.test(word) && (rest === '' || /^[.,;:!?)'\]"]/.test(rest))) {
-      return j;
-    }
-    return spaceIndex;
+    return isPathLikeSpacedWord(word, prevToken) ? j : spaceIndex;
   }
 
   return spaceIndex;
@@ -69,7 +89,7 @@ function readSegment(text: string, start: number, separator: Separator): { end: 
   }
 
   while (i < text.length && text[i] === ' ') {
-    const continuationEnd = readSpacedContinuation(text, i, separator);
+    const continuationEnd = readSpacedContinuation(text, i, start, separator);
     if (continuationEnd === i) break;
     i = continuationEnd;
   }
