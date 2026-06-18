@@ -5,7 +5,10 @@ import {
 } from '@aaif/goose-sdk';
 import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk';
 import packageJson from '../../package.json';
-import { routeAcpGooseSessionNotification, routeAcpSessionNotification } from './chatNotifications';
+import {
+  handleAcpGooseSessionNotification,
+  handleAcpSessionNotification,
+} from './chatNotifications';
 import { createWebSocketStream } from './createWebSocketStream';
 import { requestAcpPermission } from './permissionRequests';
 
@@ -15,8 +18,8 @@ let resolvedClient: GooseClient | null = null;
 function createClientCallbacks(): () => GooseClientCallbacks {
   return () => ({
     requestPermission: requestAcpPermission,
-    sessionUpdate: routeAcpSessionNotification,
-    unstable_sessionUpdate: routeAcpGooseSessionNotification,
+    sessionUpdate: handleAcpSessionNotification,
+    unstable_sessionUpdate: handleAcpGooseSessionNotification,
   });
 }
 

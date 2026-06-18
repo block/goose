@@ -1,16 +1,14 @@
 import type { RequestPermissionRequest, RequestPermissionResponse } from '@agentclientprotocol/sdk';
 import type { Permission } from '../api';
-import { createSessionScopedNotificationRouter } from './sessionScopedNotificationRouter';
+import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
+import { acpChatSessionStore } from './chatSessionStore';
 
 interface PendingPermissionRequest {
   request: RequestPermissionRequest;
   resolve: (response: RequestPermissionResponse) => void;
 }
 
-const permissionRequestRouter = createSessionScopedNotificationRouter<RequestPermissionRequest>();
 const pendingRequests = new Map<string, PendingPermissionRequest>();
-
-export const subscribeToAcpPermissionRequests = permissionRequestRouter.subscribe;
 
 export async function requestAcpPermission(
   request: RequestPermissionRequest
@@ -21,28 +19,13 @@ export async function requestAcpPermission(
     previous.resolve(cancelledPermissionResponse());
   }
 
+  if (!USE_ACP_CHAT) {
+    return cancelledPermissionResponse();
+  }
+
   return new Promise<RequestPermissionResponse>((resolve) => {
     pendingRequests.set(key, { request, resolve });
-
-    permissionRequestRouter
-      .route(request)
-      .then((routed) => {
-        if (!routed) {
-          const pending = pendingRequests.get(key);
-          if (pending?.resolve === resolve) {
-            pendingRequests.delete(key);
-            resolve(cancelledPermissionResponse());
-          }
-        }
-      })
-      .catch((error) => {
-        console.warn('Failed to route ACP permission request:', error);
-        const pending = pendingRequests.get(key);
-        if (pending?.resolve === resolve) {
-          pendingRequests.delete(key);
-          resolve(cancelledPermissionResponse());
-        }
-      });
+    acpChatSessionStore.applyPermissionRequest(request);
   });
 }
 

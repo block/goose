@@ -30,20 +30,14 @@ import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
 import { useSessionEvents, type SessionEvent } from './useSessionEvents';
 import type { UseChatSessionParams, UseChatSessionResult } from './useChatSessionTypes';
-import { subscribeToAcpGooseSession, subscribeToAcpSession } from '../acp/chatNotifications';
-import {
-  cancelAcpPermissionRequestsForSession,
-  subscribeToAcpPermissionRequests,
-} from '../acp/permissionRequests';
+import { cancelAcpPermissionRequestsForSession } from '../acp/permissionRequests';
 import { parseAcpCreditsExhaustedError, type AcpCreditsExhaustedError } from '../acp/errors';
 import { acpCancelPrompt, acpPromptSession } from '../acp/prompt';
 import {
-  createAcpSessionNotificationAdapter,
-  type AcpChatStateChange,
-  type AcpSessionNotificationAdapter,
-} from '../acp/sessionNotificationAdapter';
-
-const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
+  acpChatSessionStore,
+  tokenStateFromSession,
+  type AcpChatSessionSnapshot,
+} from '../acp/chatSessionStore';
 
 interface StreamState {
   messages: Message[];
@@ -61,16 +55,7 @@ type StreamAction =
   | { type: 'SET_SESSION_LOAD_ERROR'; payload: string | undefined }
   | { type: 'SET_TOKEN_STATE'; payload: TokenState }
   | { type: 'ADD_NOTIFICATION'; payload: NotificationEvent }
-  | { type: 'CLEAR_NOTIFICATIONS' }
-  | { type: 'APPLY_ACP_CHAT_STATE_CHANGE'; payload: AcpChatStateChange }
-  | {
-      type: 'SESSION_LOADED';
-      payload: {
-        session: Session;
-        messages: Message[];
-        tokenState: TokenState;
-      };
-    }
+  | { type: 'SYNC_FROM_ACP_STORE'; payload: AcpChatSessionSnapshot }
   | { type: 'RESET_FOR_NEW_SESSION' }
   | { type: 'START_STREAMING' }
   | { type: 'STREAM_ERROR'; payload: string }
@@ -114,35 +99,14 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
     case 'ADD_NOTIFICATION':
       return { ...state, notifications: [...state.notifications, action.payload] };
 
-    case 'CLEAR_NOTIFICATIONS':
-      return { ...state, notifications: [] };
-
-    case 'APPLY_ACP_CHAT_STATE_CHANGE': {
-      const update = action.payload;
-      switch (update.type) {
-        case 'messages':
-          return { ...state, messages: update.messages };
-        case 'tokenState':
-          return { ...state, tokenState: { ...state.tokenState, ...update.tokenState } };
-        case 'sessionInfo':
-          return update.name
-            ? {
-                ...state,
-                session: state.session ? { ...state.session, name: update.name } : undefined,
-              }
-            : state;
-      }
-      return state;
-    }
-
-    case 'SESSION_LOADED':
+    case 'SYNC_FROM_ACP_STORE':
       return {
         ...state,
         session: action.payload.session,
         messages: action.payload.messages,
         tokenState: action.payload.tokenState,
-        chatState: ChatState.Idle,
-        sessionLoadError: undefined,
+        chatState: action.payload.chatState,
+        sessionLoadError: action.payload.sessionLoadError,
       };
 
     case 'RESET_FOR_NEW_SESSION':
@@ -457,44 +421,21 @@ export function useAcpChatSession({
   const stateRef = useRef(state);
   stateRef.current = state;
   const doReattachRef = useRef<((requestId: string, messages: Message[]) => void) | null>(null);
-  const acpAdapterRef = useRef<AcpSessionNotificationAdapter>(
-    createAcpSessionNotificationAdapter()
-  );
-
-  const dispatchAcpChatStateChanges = useCallback((chatStateChanges: AcpChatStateChange[]) => {
-    for (const chatStateChange of chatStateChanges) {
-      dispatch({ type: 'APPLY_ACP_CHAT_STATE_CHANGE', payload: chatStateChange });
-    }
-  }, []);
-
-  useEffect(() => {
-    const messages = state.session?.id === sessionId ? state.messages : [];
-    acpAdapterRef.current = createAcpSessionNotificationAdapter(messages);
-  }, [sessionId, state.messages, state.session?.id]);
 
   useEffect(() => {
     if (!sessionId) {
       return;
     }
 
-    const unsubscribeAcp = subscribeToAcpSession(sessionId, (notification) => {
-      dispatchAcpChatStateChanges(acpAdapterRef.current.apply(notification));
-    });
-    const unsubscribeGoose = subscribeToAcpGooseSession(sessionId, (notification) => {
-      dispatchAcpChatStateChanges(acpAdapterRef.current.applyGoose(notification));
-    });
-    const unsubscribePermissionRequests = subscribeToAcpPermissionRequests(sessionId, (request) => {
-      dispatchAcpChatStateChanges(acpAdapterRef.current.applyPermissionRequest(request));
-      dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.WaitingForUserInput });
-    });
+    const snapshot = acpChatSessionStore.getSnapshot(sessionId);
+    if (snapshot) {
+      dispatch({ type: 'SYNC_FROM_ACP_STORE', payload: snapshot });
+    }
 
-    return () => {
-      unsubscribeAcp();
-      unsubscribeGoose();
-      unsubscribePermissionRequests();
-      cancelAcpPermissionRequestsForSession(sessionId);
-    };
-  }, [dispatchAcpChatStateChanges, sessionId]);
+    return acpChatSessionStore.subscribe(sessionId, (nextSnapshot) => {
+      dispatch({ type: 'SYNC_FROM_ACP_STORE', payload: nextSnapshot });
+    });
+  }, [sessionId]);
 
   useEffect(() => {
     return () => {
@@ -504,12 +445,6 @@ export function useAcpChatSession({
       }
     };
   }, [sessionId]);
-
-  useEffect(() => {
-    if (state.session) {
-      resultsCache.set(sessionId, { session: state.session, messages: state.messages });
-    }
-  }, [sessionId, state.session, state.messages]);
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {
@@ -522,6 +457,8 @@ export function useAcpChatSession({
         namePollingRef.current = null;
       }
 
+      acpChatSessionStore.setSessionLoadError(sessionId, error);
+      acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
       dispatch({ type: 'STREAM_FINISH', payload: error });
 
       if (!error) {
@@ -558,12 +495,11 @@ export function useAcpChatSession({
               throwOnError: true,
             });
             if (response.data?.name) {
-              dispatch({
-                type: 'SET_SESSION',
-                payload: currentState.session
-                  ? { ...currentState.session, name: response.data.name }
-                  : undefined,
-              });
+              const updatedSession = currentState.session
+                ? { ...currentState.session, name: response.data.name }
+                : undefined;
+              acpChatSessionStore.setSessionMetadata(sessionId, updatedSession);
+              dispatch({ type: 'SET_SESSION', payload: updatedSession });
               window.dispatchEvent(
                 new CustomEvent(AppEvents.SESSION_RENAMED, {
                   detail: { sessionId, newName: response.data.name },
@@ -591,6 +527,7 @@ export function useAcpChatSession({
       .then((response) => {
         const session = response.data as Session;
         if (session?.conversation) {
+          acpChatSessionStore.setMessages(sessionId, session.conversation);
           dispatch({ type: 'SET_MESSAGES', payload: session.conversation });
         }
       })
@@ -607,6 +544,8 @@ export function useAcpChatSession({
       activeRequestSessionIdRef.current = sessionId;
       pendingReattachRequestIdRef.current = null;
 
+      acpChatSessionStore.setChatState(sessionId, ChatState.Streaming);
+      acpChatSessionStore.setSessionLoadError(sessionId, undefined);
       dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
       dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
 
@@ -688,6 +627,8 @@ export function useAcpChatSession({
         pendingReattachBufferRef.current = [];
         activeRequestIdRef.current = requestId;
         activeRequestSessionIdRef.current = sessionId;
+        acpChatSessionStore.setChatState(sessionId, ChatState.Streaming);
+        acpChatSessionStore.setSessionLoadError(sessionId, undefined);
         dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
         dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
 
@@ -777,6 +718,7 @@ export function useAcpChatSession({
         }
         const msg = errorMessage(error);
         if (msg.includes('already has an active request')) {
+          acpChatSessionStore.setChatState(targetSessionId, ChatState.Idle);
           dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
         } else {
           onFinish('Submit error: ' + msg);
@@ -788,28 +730,51 @@ export function useAcpChatSession({
 
   const submitToAcpSession = useCallback(
     async (targetSessionId: string, userMessage: Message) => {
+      const promptAttemptId = uuidv7();
       activeRequestSessionIdRef.current = targetSessionId;
+      acpChatSessionStore.startPromptAttempt(targetSessionId, promptAttemptId);
 
       try {
         await acpPromptSession(targetSessionId, userMessage);
-        onFinish();
+        if (acpChatSessionStore.finishPromptAttemptIfCurrent(targetSessionId, promptAttemptId)) {
+          onFinish();
+        }
       } catch (error) {
         const creditsExhaustedError = parseAcpCreditsExhaustedError(error);
         if (creditsExhaustedError) {
+          if (!acpChatSessionStore.isCurrentPromptAttempt(targetSessionId, promptAttemptId)) {
+            return;
+          }
+
+          const messages = [
+            ...stateRef.current.messages,
+            createAcpCreditsExhaustedMessage(creditsExhaustedError),
+          ];
+          acpChatSessionStore.setMessages(targetSessionId, messages);
           dispatch({
             type: 'SET_MESSAGES',
-            payload: [
-              ...stateRef.current.messages,
-              createAcpCreditsExhaustedMessage(creditsExhaustedError),
-            ],
+            payload: messages,
           });
-          onFinish();
+          if (acpChatSessionStore.finishPromptAttemptIfCurrent(targetSessionId, promptAttemptId)) {
+            onFinish();
+          }
           return;
         }
 
-        onFinish('Submit error: ' + errorMessage(error));
+        const submitError = 'Submit error: ' + errorMessage(error);
+        if (
+          acpChatSessionStore.finishPromptAttemptIfCurrent(
+            targetSessionId,
+            promptAttemptId,
+            submitError
+          )
+        ) {
+          onFinish(submitError);
+        }
       } finally {
-        if (activeRequestSessionIdRef.current === targetSessionId) {
+        const currentPromptAttempt =
+          acpChatSessionStore.getSnapshot(targetSessionId)?.activePromptAttemptId;
+        if (activeRequestSessionIdRef.current === targetSessionId && !currentPromptAttempt) {
           activeRequestSessionIdRef.current = null;
         }
       }
@@ -821,23 +786,9 @@ export function useAcpChatSession({
   useEffect(() => {
     if (!sessionId) return;
 
-    const cached = resultsCache.get(sessionId);
-    if (cached) {
-      dispatch({
-        type: 'SESSION_LOADED',
-        payload: {
-          session: cached.session,
-          messages: cached.messages,
-          tokenState: {
-            inputTokens: cached.session?.input_tokens ?? 0,
-            outputTokens: cached.session?.output_tokens ?? 0,
-            totalTokens: cached.session?.total_tokens ?? 0,
-            accumulatedInputTokens: cached.session?.accumulated_input_tokens ?? 0,
-            accumulatedOutputTokens: cached.session?.accumulated_output_tokens ?? 0,
-            accumulatedTotalTokens: cached.session?.accumulated_total_tokens ?? 0,
-          },
-        },
-      });
+    const cached = acpChatSessionStore.getSnapshot(sessionId);
+    if (cached?.session) {
+      dispatch({ type: 'SYNC_FROM_ACP_STORE', payload: cached });
       window.dispatchEvent(
         new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
       );
@@ -879,55 +830,27 @@ export function useAcpChatSession({
           // Cold-mount reattach: ActiveRequests arrived before resumeAgent
           // returned. Load session state first, then complete the reattach
           // with the full conversation so the event processor has context.
-          dispatch({
-            type: 'SESSION_LOADED',
-            payload: {
-              session: loadedSession!,
-              messages: loadedSession?.conversation || [],
-              tokenState: {
-                inputTokens: loadedSession?.input_tokens ?? 0,
-                outputTokens: loadedSession?.output_tokens ?? 0,
-                totalTokens: loadedSession?.total_tokens ?? 0,
-                accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-                accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-                accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
-              },
-            },
-          });
+          if (loadedSession) {
+            const snapshot = acpChatSessionStore.setLoadedSession(sessionId, loadedSession);
+            dispatch({ type: 'SYNC_FROM_ACP_STORE', payload: snapshot });
+          }
           // Now complete the deferred reattach with the loaded messages
           doReattachRef.current?.(pendingRequestId, loadedSession?.conversation || []);
         } else if (reattachedToActiveRequest) {
           // ActiveRequests already wired up an event processor with existing
           // messages — only load session metadata, don't overwrite messages
           // with the stale DB snapshot.
-          dispatch({ type: 'SET_SESSION', payload: loadedSession });
-          dispatch({
-            type: 'SET_TOKEN_STATE',
-            payload: {
-              inputTokens: loadedSession?.input_tokens ?? 0,
-              outputTokens: loadedSession?.output_tokens ?? 0,
-              totalTokens: loadedSession?.total_tokens ?? 0,
-              accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-              accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-              accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
-            },
-          });
+          acpChatSessionStore.setSessionMetadata(sessionId, loadedSession);
+          const snapshot = acpChatSessionStore.setTokenState(
+            sessionId,
+            tokenStateFromSession(loadedSession)
+          );
+          dispatch({ type: 'SYNC_FROM_ACP_STORE', payload: snapshot });
         } else {
-          dispatch({
-            type: 'SESSION_LOADED',
-            payload: {
-              session: loadedSession!,
-              messages: loadedSession?.conversation || [],
-              tokenState: {
-                inputTokens: loadedSession?.input_tokens ?? 0,
-                outputTokens: loadedSession?.output_tokens ?? 0,
-                totalTokens: loadedSession?.total_tokens ?? 0,
-                accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-                accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-                accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
-              },
-            },
-          });
+          if (loadedSession) {
+            const snapshot = acpChatSessionStore.setLoadedSession(sessionId, loadedSession);
+            dispatch({ type: 'SYNC_FROM_ACP_STORE', payload: snapshot });
+          }
         }
 
         listApps({
@@ -941,7 +864,10 @@ export function useAcpChatSession({
       } catch (error) {
         if (cancelled) return;
 
-        dispatch({ type: 'STREAM_ERROR', payload: errorMessage(error) });
+        const loadError = errorMessage(error);
+        acpChatSessionStore.setSessionLoadError(sessionId, loadError);
+        acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
+        dispatch({ type: 'STREAM_ERROR', payload: loadError });
       }
     })();
 
@@ -989,12 +915,11 @@ export function useAcpChatSession({
             const newName = response.data?.name;
 
             if (newName && newName !== currentName) {
-              dispatch({
-                type: 'SET_SESSION',
-                payload: currentState.session
-                  ? { ...currentState.session, name: newName }
-                  : undefined,
-              });
+              const updatedSession = currentState.session
+                ? { ...currentState.session, name: newName }
+                : undefined;
+              acpChatSessionStore.setSessionMetadata(sessionId, updatedSession);
+              dispatch({ type: 'SET_SESSION', payload: updatedSession });
               window.dispatchEvent(
                 new CustomEvent(AppEvents.SESSION_RENAMED, {
                   detail: { sessionId, newName },
@@ -1027,9 +952,11 @@ export function useAcpChatSession({
         : [...currentState.messages];
 
       if (hasNewMessage) {
+        acpChatSessionStore.setMessages(sessionId, currentMessages);
         dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
       }
 
+      acpChatSessionStore.setChatState(sessionId, ChatState.Streaming);
       dispatch({ type: 'START_STREAMING' });
 
       await submitToAcpSession(sessionId, newMessage);
@@ -1049,6 +976,7 @@ export function useAcpChatSession({
       // request's SSE stream — don't start a new stream or flip chat state.
       const responseMessage = createElicitationResponseMessage(elicitationId, userData);
       const nextMessages = [...currentState.messages, responseMessage];
+      acpChatSessionStore.setMessages(sessionId, nextMessages);
       dispatch({ type: 'SET_MESSAGES', payload: nextMessages });
 
       try {
@@ -1081,14 +1009,17 @@ export function useAcpChatSession({
           },
           throwOnError: true,
         });
-        dispatch({
-          type: 'SET_SESSION',
-          payload: {
-            ...currentState.session,
-            user_recipe_values,
-          },
-        });
+        const updatedSession = {
+          ...currentState.session,
+          user_recipe_values,
+        };
+        acpChatSessionStore.setSessionMetadata(sessionId, updatedSession);
+        dispatch({ type: 'SET_SESSION', payload: updatedSession });
       } else {
+        acpChatSessionStore.setSessionLoadError(
+          sessionId,
+          "can't call setRecipeParams without a session"
+        );
         dispatch({
           type: 'SET_SESSION_LOAD_ERROR',
           payload: "can't call setRecipeParams without a session",
@@ -1110,8 +1041,16 @@ export function useAcpChatSession({
   }, [state.session]);
 
   const stopStreaming = useCallback(() => {
-    const requestId = activeRequestIdRef.current;
-    const requestSessionId = activeRequestSessionIdRef.current;
+    const restRequestId = activeRequestIdRef.current;
+    const activeSessionIdFromRef = activeRequestSessionIdRef.current;
+    const storedPromptAttemptId = acpChatSessionStore.getSnapshot(sessionId)?.activePromptAttemptId;
+    const hasStoredAcpPrompt =
+      storedPromptAttemptId !== null && storedPromptAttemptId !== undefined;
+    const storedAcpPromptSessionId = hasStoredAcpPrompt ? sessionId : null;
+    const acpPromptSessionId = restRequestId
+      ? storedAcpPromptSessionId
+      : (activeSessionIdFromRef ?? storedAcpPromptSessionId);
+    const sessionIdToMarkIdle = activeSessionIdFromRef ?? storedAcpPromptSessionId ?? sessionId;
 
     // Abort the in-flight POST so the reply never starts if cancel wins the race
     if (activeAbortRef.current) {
@@ -1119,18 +1058,19 @@ export function useAcpChatSession({
       activeAbortRef.current = null;
     }
 
-    if (requestId && requestSessionId) {
+    if (restRequestId && activeSessionIdFromRef) {
       // Cancel against the session that originally started the request,
       // not the current sessionId (which may have changed if user navigated).
       sessionCancel({
-        path: { id: requestSessionId },
-        body: { request_id: requestId },
+        path: { id: activeSessionIdFromRef },
+        body: { request_id: restRequestId },
       }).catch((e) => {
         console.warn('Failed to cancel request:', e);
       });
-    } else if (requestSessionId) {
-      cancelAcpPermissionRequestsForSession(requestSessionId);
-      acpCancelPrompt(requestSessionId).catch((e) => {
+    } else if (acpPromptSessionId) {
+      acpChatSessionStore.clearActivePromptAttempt(acpPromptSessionId);
+      cancelAcpPermissionRequestsForSession(acpPromptSessionId);
+      acpCancelPrompt(acpPromptSessionId).catch((e) => {
         console.warn('Failed to cancel ACP prompt:', e);
       });
     }
@@ -1143,13 +1083,15 @@ export function useAcpChatSession({
     activeRequestIdRef.current = null;
     activeRequestSessionIdRef.current = null;
 
+    acpChatSessionStore.setChatState(sessionIdToMarkIdle, ChatState.Idle);
     dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
-  }, []);
+  }, [sessionId]);
 
   const onMessageUpdate = useCallback(
     async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
       const currentState = stateRef.current;
 
+      acpChatSessionStore.setChatState(sessionId, ChatState.Thinking);
       dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Thinking });
 
       try {
@@ -1178,6 +1120,7 @@ export function useAcpChatSession({
         }
 
         if (editType === 'fork') {
+          acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
           dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
           const event = new CustomEvent(AppEvents.SESSION_FORKED, {
             detail: {
@@ -1206,6 +1149,8 @@ export function useAcpChatSession({
             }
 
             const messagesForUI = [...truncatedMessages, updatedUserMessage];
+            acpChatSessionStore.setMessages(targetSessionId, messagesForUI);
+            acpChatSessionStore.setChatState(targetSessionId, ChatState.Streaming);
             dispatch({ type: 'SET_MESSAGES', payload: messagesForUI });
             dispatch({ type: 'START_STREAMING' });
 
@@ -1215,6 +1160,7 @@ export function useAcpChatSession({
           }
         }
       } catch (error) {
+        acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
         dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
         const errorMsg = errorMessage(error);
         console.error('Failed to edit message:', error);
@@ -1228,11 +1174,15 @@ export function useAcpChatSession({
     [sessionId, handleSubmit, submitToSession]
   );
 
-  const setChatState = useCallback((newState: ChatState) => {
-    dispatch({ type: 'SET_CHAT_STATE', payload: newState });
-  }, []);
+  const setChatState = useCallback(
+    (newState: ChatState) => {
+      acpChatSessionStore.setChatState(sessionId, newState);
+      dispatch({ type: 'SET_CHAT_STATE', payload: newState });
+    },
+    [sessionId]
+  );
 
-  const cached = resultsCache.get(sessionId);
+  const cached = acpChatSessionStore.getSnapshot(sessionId);
   const maybe_cached_messages = state.session ? state.messages : cached?.messages || [];
   const maybe_cached_session = state.session ?? cached?.session;
 

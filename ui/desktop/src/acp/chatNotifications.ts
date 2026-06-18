@@ -1,21 +1,20 @@
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { SessionNotification } from '@agentclientprotocol/sdk';
-import { createSessionScopedNotificationRouter } from './sessionScopedNotificationRouter';
+import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
+import { acpChatSessionStore } from './chatSessionStore';
 
-const acpSessionRouter = createSessionScopedNotificationRouter<SessionNotification>();
-const gooseSessionRouter =
-  createSessionScopedNotificationRouter<GooseSessionNotification_unstable>();
+export function handleAcpSessionNotification(notification: SessionNotification): Promise<void> {
+  if (USE_ACP_CHAT) {
+    acpChatSessionStore.applyAcpSessionNotification(notification);
+  }
+  return Promise.resolve();
+}
 
-export const subscribeToAcpSession = acpSessionRouter.subscribe;
-export const routeAcpSessionNotification = async (
-  notification: SessionNotification
-): Promise<void> => {
-  await acpSessionRouter.route(notification);
-};
-
-export const subscribeToAcpGooseSession = gooseSessionRouter.subscribe;
-export const routeAcpGooseSessionNotification = async (
+export function handleAcpGooseSessionNotification(
   notification: GooseSessionNotification_unstable
-): Promise<void> => {
-  await gooseSessionRouter.route(notification);
-};
+): Promise<void> {
+  if (USE_ACP_CHAT) {
+    acpChatSessionStore.applyAcpGooseSessionNotification(notification);
+  }
+  return Promise.resolve();
+}
