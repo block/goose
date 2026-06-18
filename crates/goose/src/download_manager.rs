@@ -106,6 +106,50 @@ impl DownloadManager {
         self.downloads.lock().ok()?.get(model_id).cloned()
     }
 
+    pub fn is_downloading(&self, model_id: &str) -> bool {
+        self.get_progress(model_id)
+            .is_some_and(|progress| progress.status == DownloadStatus::Downloading)
+    }
+
+    pub fn list_progress(&self) -> Vec<DownloadProgress> {
+        self.downloads
+            .lock()
+            .map(|downloads| downloads.values().cloned().collect())
+            .unwrap_or_default()
+    }
+
+    pub fn set_progress(&self, progress: DownloadProgress) {
+        if let Ok(mut downloads) = self.downloads.lock() {
+            downloads.insert(progress.model_id.clone(), progress);
+        }
+    }
+
+    pub fn reserve_download(&self, progress: DownloadProgress) -> Result<bool> {
+        let mut downloads = self
+            .downloads
+            .lock()
+            .map_err(|_| anyhow::anyhow!("Failed to acquire lock"))?;
+
+        if let Some(existing) = downloads.get(&progress.model_id) {
+            if existing.status == DownloadStatus::Downloading
+                || (existing.status == DownloadStatus::Cancelled && !existing.task_exited)
+            {
+                return Ok(false);
+            }
+        }
+
+        downloads.insert(progress.model_id.clone(), progress);
+        Ok(true)
+    }
+
+    pub fn update_progress(&self, model_id: &str, update: impl FnOnce(&mut DownloadProgress)) {
+        if let Ok(mut downloads) = self.downloads.lock() {
+            if let Some(progress) = downloads.get_mut(model_id) {
+                update(progress);
+            }
+        }
+    }
+
     pub fn cancel_download(&self, model_id: &str) -> Result<()> {
         let mut downloads = self
             .downloads
@@ -131,11 +175,47 @@ impl DownloadManager {
             .await
     }
 
+    pub async fn download_model_with_bearer_token(
+        &self,
+        model_id: String,
+        url: String,
+        destination: PathBuf,
+        bearer_token: Option<String>,
+        on_complete: Option<Box<dyn FnOnce() + Send + 'static>>,
+    ) -> Result<()> {
+        self.download_model_sharded_with_bearer_token(
+            model_id,
+            vec![(url, destination)],
+            0,
+            bearer_token,
+            on_complete,
+        )
+        .await
+    }
+
     pub async fn download_model_sharded(
         &self,
         model_id: String,
         files: Vec<(String, PathBuf)>,
         total_size_hint: u64,
+        on_complete: Option<Box<dyn FnOnce() + Send + 'static>>,
+    ) -> Result<()> {
+        self.download_model_sharded_with_bearer_token(
+            model_id,
+            files,
+            total_size_hint,
+            None,
+            on_complete,
+        )
+        .await
+    }
+
+    pub async fn download_model_sharded_with_bearer_token(
+        &self,
+        model_id: String,
+        files: Vec<(String, PathBuf)>,
+        total_size_hint: u64,
+        bearer_token: Option<String>,
         on_complete: Option<Box<dyn FnOnce() + Send + 'static>>,
     ) -> Result<()> {
         info!(model_id = %model_id, file_count = files.len(), "Starting model download");
@@ -186,8 +266,13 @@ impl DownloadManager {
         let files_for_cleanup: Vec<PathBuf> = files.iter().map(|(_, d)| d.clone()).collect();
 
         tokio::spawn(async move {
-            let result =
-                Self::download_files_sequentially(&files, &downloads, &model_id_clone).await;
+            let result = Self::download_files_sequentially(
+                &files,
+                &downloads,
+                &model_id_clone,
+                bearer_token.as_deref(),
+            )
+            .await;
 
             match result {
                 Ok(_) => {
@@ -262,6 +347,7 @@ impl DownloadManager {
         files: &[(String, PathBuf)],
         downloads: &DownloadMap,
         model_id: &str,
+        bearer_token: Option<&str>,
     ) -> Result<(), anyhow::Error> {
         let client = reqwest::Client::builder()
             .connect_timeout(std::time::Duration::from_secs(30))
@@ -273,8 +359,7 @@ impl DownloadManager {
         let mut total: u64 = 0;
         let mut all_resolved = true;
         for (url, _) in files {
-            let size = client
-                .head(url)
+            let size = Self::apply_bearer_token(client.head(url), bearer_token)
                 .send()
                 .await
                 .ok()
@@ -329,6 +414,7 @@ impl DownloadManager {
                 &mut cumulative_bytes,
                 start_time,
                 bytes_at_start,
+                bearer_token,
             )
             .await?;
         }
@@ -346,6 +432,7 @@ impl DownloadManager {
         cumulative_bytes: &mut u64,
         start_time: std::time::Instant,
         bytes_at_start: u64,
+        bearer_token: Option<&str>,
     ) -> Result<(), anyhow::Error> {
         let partial_path = partial_path_for(destination);
         let mut retries = 0u32;
@@ -357,8 +444,7 @@ impl DownloadManager {
         };
 
         // Get this file's total size
-        let mut file_total: u64 = client
-            .head(url)
+        let mut file_total: u64 = Self::apply_bearer_token(client.head(url), bearer_token)
             .send()
             .await
             .ok()
@@ -386,7 +472,7 @@ impl DownloadManager {
                 anyhow::bail!("Download cancelled");
             }
 
-            let mut request = client.get(url);
+            let mut request = Self::apply_bearer_token(client.get(url), bearer_token);
             if file_bytes > 0 {
                 request = request.header("Range", format!("bytes={}-", file_bytes));
             }
@@ -582,6 +668,17 @@ impl DownloadManager {
                     downloads.remove(model_id);
                 }
             }
+        }
+    }
+
+    fn apply_bearer_token(
+        request: reqwest::RequestBuilder,
+        bearer_token: Option<&str>,
+    ) -> reqwest::RequestBuilder {
+        if let Some(token) = bearer_token.filter(|token| !token.is_empty()) {
+            request.header("Authorization", format!("Bearer {}", token))
+        } else {
+            request
         }
     }
 }

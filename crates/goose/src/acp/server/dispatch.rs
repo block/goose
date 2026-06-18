@@ -1,4 +1,5 @@
 use super::*;
+use crate::providers::inventory::ensure_refresh_identity_current;
 
 impl HandleDispatchFrom<Client> for GooseAcpHandler {
     fn describe_chain(&self) -> impl std::fmt::Debug {
@@ -16,6 +17,12 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
         // The MatchDispatchFrom chain produces an ~85KB async state machine.
         // Box::pin moves it to the heap so it doesn't overflow the tokio worker stack.
         Box::pin(async move {
+            // Capture the connection handle so handlers can lazily activate
+            // sessions that exist on disk but were never activated via
+            // new_session/load_session on this connection. Set-once per
+            // connection; the result is ignored on later requests.
+            let _ = agent.client_cx.set(cx.clone());
+
             // InitializeRequest runs inline: it sets connection-scoped state
             // (client fs/terminal capabilities) that later handlers read with
             // defaults, so a pipelined NewSessionRequest must not race ahead of it.
@@ -123,6 +130,12 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                         Err(e) => { responder.respond_with_error(e)?; return Ok(()); }
                                     }
                                 }
+                                "thinking_effort" => {
+                                    match agent.on_set_thinking_effort(&session_id.0, &value_id.0).await {
+                                        Ok(_) => {}
+                                        Err(e) => { responder.respond_with_error(e)?; return Ok(()); }
+                                    }
+                                }
                                 other => {
                                     responder.respond_with_error(
                                         agent_client_protocol::Error::invalid_params().data(format!("Unsupported config option: {}", other))
@@ -162,7 +175,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                     let provider_result: Result<Arc<dyn Provider>> =
                                         AssertUnwindSafe(async {
                                             let session_agent =
-                                                agent_bg.get_session_agent(&session_id_bg.0, None).await?;
+                                                agent_bg.get_session_agent(&session_id_bg.0).await?;
                                             let provider = session_agent
                                                 .provider()
                                                 .await

@@ -126,6 +126,11 @@ type ElectronAPI = {
   startMesh: (args: string[]) => Promise<{ started: boolean; error?: string; pid?: number }>;
   stopMesh: () => Promise<{ stopped: boolean }>;
   selectFileOrDirectory: (defaultPath?: string) => Promise<string | null>;
+  selectImportSessionFile: () => Promise<{
+    filePath: string;
+    contents: string;
+    error?: string;
+  } | null>;
   getBinaryPath: (binaryName: string) => Promise<string>;
   readFile: (directory: string) => Promise<FileResponse>;
   writeFile: (directory: string, content: string) => Promise<boolean>;
@@ -223,6 +228,7 @@ const electronAPI: ElectronAPI = {
 
   selectFileOrDirectory: (defaultPath?: string) =>
     ipcRenderer.invoke('select-file-or-directory', defaultPath),
+  selectImportSessionFile: () => ipcRenderer.invoke('select-import-session-file'),
   getBinaryPath: (binaryName: string) => ipcRenderer.invoke('get-binary-path', binaryName),
   readFile: (filePath: string) => ipcRenderer.invoke('read-file', filePath),
   writeFile: (filePath: string, content: string) =>
@@ -346,9 +352,17 @@ const electronAPI: ElectronAPI = {
   listGitWorktreeDirs: (dir: string) => ipcRenderer.invoke('list-git-worktree-dirs', dir),
 };
 
+function getAppLocale(): unknown {
+  try {
+    return ipcRenderer.sendSync('get-app-locale') ?? config.GOOSE_LOCALE;
+  } catch {
+    return config.GOOSE_LOCALE;
+  }
+}
+
 const appConfigAPI: AppConfigAPI = {
-  get: (key: string) => config[key],
-  getAll: () => config,
+  get: (key: string) => (key === 'GOOSE_LOCALE' ? getAppLocale() : config[key]),
+  getAll: () => ({ ...config, GOOSE_LOCALE: getAppLocale() }),
 };
 
 // Expose the APIs

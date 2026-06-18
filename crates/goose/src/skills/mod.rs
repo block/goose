@@ -14,7 +14,7 @@ use crate::sources::parse_frontmatter;
 use agent_client_protocol::Error;
 use anyhow::Result;
 use arguments::apply_skill_arguments;
-use goose_sdk::custom_requests::{SourceEntry, SourceType};
+use goose_sdk_types::custom_requests::{SourceEntry, SourceType};
 use serde::Deserialize;
 use serde_json::Value;
 use std::collections::{HashMap, HashSet};
@@ -109,15 +109,20 @@ fn loaded_skill_context(skill: &SourceEntry, content: &str) -> String {
     if !skill.supporting_files.is_empty() {
         let skill_dir = Path::new(&skill.path);
         output.push_str(&format!(
-            "\n## Supporting Files\n\nSkill directory: {}\n\n",
+            "\n## Supporting Files\n\nSkill directory: {}\n\n\
+             Relative paths in this skill resolve from the skill directory. \
+             The shell tool runs in the session working directory, so use the \
+             resolved path below or `cd` into the skill directory before running \
+             supporting scripts.\n\n",
             skill.path
         ));
         for file in &skill.supporting_files {
             if let Ok(relative) = Path::new(file).strip_prefix(skill_dir) {
                 let rel_str = relative.to_string_lossy().replace('\\', "/");
+                let resolved_path = Path::new(file).to_string_lossy().replace('\\', "/");
                 output.push_str(&format!(
-                    "- {} → load_skill(name: \"{}/{}\")\n",
-                    rel_str, skill.name, rel_str
+                    "- {} → {} (load_skill(name: \"{}/{}\"))\n",
+                    rel_str, resolved_path, skill.name, rel_str
                 ));
             }
         }
@@ -530,5 +535,22 @@ mod tests {
 
         assert!(rendered.contains("# Loaded Skill: test-skill (skill)"));
         assert!(rendered.contains("## Content\n\nReview the code carefully."));
+    }
+
+    #[test]
+    fn loaded_skill_context_shows_resolved_paths_for_supporting_files() {
+        let skill_dir = std::env::temp_dir().join("goose-test-skill");
+        let script_path = skill_dir.join("scripts").join("my-tool.exe");
+        let mut skill = skill_with_content("Run scripts/my-tool.exe.");
+        skill.path = skill_dir.to_string_lossy().into_owned();
+        skill.supporting_files = vec![script_path.to_string_lossy().into_owned()];
+
+        let rendered = loaded_skill_context_with_args(&skill, None).unwrap();
+        let resolved_path = script_path.to_string_lossy().replace('\\', "/");
+
+        assert!(rendered.contains("Relative paths in this skill resolve from the skill directory"));
+        assert!(rendered.contains("scripts/my-tool.exe"));
+        assert!(rendered.contains(&resolved_path));
+        assert!(rendered.contains("load_skill(name: \"test-skill/scripts/my-tool.exe\")"));
     }
 }

@@ -1,5 +1,5 @@
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
-use super::inventory::InventoryIdentityInput;
+use super::inventory::{InventoryIdentityInput, InventoryRegistration, InventoryResolvers};
 use crate::config::{DeclarativeProviderConfig, ExtensionConfig};
 use crate::model::ModelConfig;
 use anyhow::Result;
@@ -20,17 +20,12 @@ pub type ProviderConstructor = Arc<
 
 pub type ProviderCleanup = Arc<dyn Fn() -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
-pub type ProviderInventoryIdentityResolver =
-    Arc<dyn Fn() -> Result<InventoryIdentityInput> + Send + Sync>;
-
-pub type ProviderInventoryConfiguredResolver = Arc<dyn Fn() -> bool + Send + Sync>;
-
 #[derive(Clone)]
 pub struct ProviderEntry {
     metadata: ProviderMetadata,
     pub(crate) constructor: ProviderConstructor,
-    pub(crate) inventory_identity: ProviderInventoryIdentityResolver,
-    pub(crate) inventory_configured: ProviderInventoryConfiguredResolver,
+    pub(crate) inventory_identity: super::inventory::InventoryIdentityResolver,
+    pub(crate) inventory_configured: super::inventory::InventoryConfiguredResolver,
     pub(crate) cleanup: Option<ProviderCleanup>,
     provider_type: ProviderType,
     supports_inventory_refresh: bool,
@@ -119,8 +114,20 @@ impl ProviderRegistry {
     where
         F: ProviderDef + 'static,
     {
+        self.register_with_inventory::<F>(preferred, None);
+    }
+
+    pub fn register_with_inventory<F>(
+        &mut self,
+        preferred: bool,
+        inventory_registration: Option<InventoryRegistration>,
+    ) where
+        F: ProviderDef + 'static,
+    {
         let metadata = F::metadata();
         let name = metadata.name.clone();
+
+        let inventory = InventoryResolvers::for_metadata(&metadata, inventory_registration);
 
         self.entries.insert(
             name,
@@ -137,15 +144,15 @@ impl ProviderRegistry {
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
-                inventory_identity: Arc::new(F::inventory_identity),
-                inventory_configured: Arc::new(F::inventory_configured),
+                inventory_identity: inventory.identity,
+                inventory_configured: inventory.configured,
                 cleanup: None,
                 provider_type: if preferred {
                     ProviderType::Preferred
                 } else {
                     ProviderType::Builtin
                 },
-                supports_inventory_refresh: F::supports_inventory_refresh(),
+                supports_inventory_refresh: inventory.supports_refresh,
             },
         );
     }
@@ -157,6 +164,53 @@ impl ProviderRegistry {
         supports_inventory_refresh: bool,
         constructor: F,
         inventory_identity: G,
+    ) where
+        P: ProviderDef + 'static,
+        F: Fn(ModelConfig) -> Result<P::Provider> + Send + Sync + 'static,
+        G: Fn() -> Result<InventoryIdentityInput> + Send + Sync + 'static,
+    {
+        self.register_with_name_impl::<P, F, G>(
+            config,
+            provider_type,
+            supports_inventory_refresh,
+            constructor,
+            inventory_identity,
+            None,
+        );
+    }
+
+    pub fn register_with_name_and_inventory_configured<P, F, G, H>(
+        &mut self,
+        config: &DeclarativeProviderConfig,
+        provider_type: ProviderType,
+        supports_inventory_refresh: bool,
+        constructor: F,
+        inventory_identity: G,
+        inventory_configured: H,
+    ) where
+        P: ProviderDef + 'static,
+        F: Fn(ModelConfig) -> Result<P::Provider> + Send + Sync + 'static,
+        G: Fn() -> Result<InventoryIdentityInput> + Send + Sync + 'static,
+        H: Fn() -> bool + Send + Sync + 'static,
+    {
+        self.register_with_name_impl::<P, F, G>(
+            config,
+            provider_type,
+            supports_inventory_refresh,
+            constructor,
+            inventory_identity,
+            Some(Arc::new(inventory_configured)),
+        );
+    }
+
+    fn register_with_name_impl<P, F, G>(
+        &mut self,
+        config: &DeclarativeProviderConfig,
+        provider_type: ProviderType,
+        supports_inventory_refresh: bool,
+        constructor: F,
+        inventory_identity: G,
+        inventory_configured: Option<super::inventory::InventoryConfiguredResolver>,
     ) where
         P: ProviderDef + 'static,
         F: Fn(ModelConfig) -> Result<P::Provider> + Send + Sync + 'static,
@@ -243,6 +297,12 @@ impl ProviderRegistry {
             model_selection_hint: None,
         };
         let inventory_config_keys = custom_metadata.config_keys.clone();
+        let default_inventory_configured = Arc::new(move || {
+            super::inventory::default_inventory_configured(
+                &inventory_config_keys,
+                crate::config::Config::global(),
+            )
+        });
 
         self.entries.insert(
             config.name.clone(),
@@ -256,12 +316,7 @@ impl ProviderRegistry {
                     })
                 }),
                 inventory_identity: Arc::new(inventory_identity),
-                inventory_configured: Arc::new(move || {
-                    super::inventory::default_inventory_configured(
-                        &inventory_config_keys,
-                        crate::config::Config::global(),
-                    )
-                }),
+                inventory_configured: inventory_configured.unwrap_or(default_inventory_configured),
                 cleanup: None,
                 provider_type,
                 supports_inventory_refresh,
@@ -306,5 +361,54 @@ impl ProviderRegistry {
 
     pub fn remove_custom_providers(&mut self) {
         self.entries.retain(|name, _| !name.starts_with("custom_"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::config::declarative_providers::ProviderEngine;
+    use crate::providers::openai::OpenAiProvider;
+
+    fn test_config() -> DeclarativeProviderConfig {
+        DeclarativeProviderConfig {
+            name: "custom_hf".to_string(),
+            engine: ProviderEngine::OpenAI,
+            display_name: "Custom HF".to_string(),
+            description: None,
+            api_key_env: String::new(),
+            base_url: "https://router.huggingface.co/v1".to_string(),
+            models: vec![ModelInfo::new("test-model", 128_000)],
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming: Some(true),
+            requires_auth: true,
+            catalog_provider_id: Some("huggingface".to_string()),
+            base_path: None,
+            env_vars: None,
+            dynamic_models: None,
+            skip_canonical_filtering: false,
+            model_doc_link: None,
+            setup_steps: vec![],
+            fast_model: None,
+            preserves_thinking: false,
+        }
+    }
+
+    #[test]
+    fn register_with_name_can_override_inventory_configured() {
+        let mut registry = ProviderRegistry::new();
+        registry.register_with_name_and_inventory_configured::<OpenAiProvider, _, _, _>(
+            &test_config(),
+            ProviderType::Declarative,
+            false,
+            |_| unreachable!("constructor is not used by this test"),
+            || Ok(InventoryIdentityInput::new("custom_hf", "huggingface")),
+            || false,
+        );
+
+        let entry = registry.entries.get("custom_hf").unwrap();
+
+        assert!(!entry.inventory_configured());
     }
 }

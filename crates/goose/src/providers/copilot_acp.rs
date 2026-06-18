@@ -9,13 +9,11 @@ use crate::acp::{
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::model::ModelConfig;
-use crate::providers::acp_tooling::{acp_adapter_installed, acp_inventory_identity};
 use crate::providers::base::{current_working_dir, ProviderDef, ProviderMetadata};
-use crate::providers::inventory::InventoryIdentityInput;
 
-const COPILOT_ACP_PROVIDER_NAME: &str = "copilot-acp";
+pub(crate) const COPILOT_ACP_PROVIDER_NAME: &str = "copilot-acp";
 const COPILOT_ACP_DOC_URL: &str = "https://github.com/github/copilot-cli";
-const COPILOT_ACP_BINARY: &str = "copilot";
+pub(crate) const COPILOT_ACP_BINARY: &str = "copilot";
 
 const MODE_AGENT: &str = "https://agentclientprotocol.com/protocol/session-modes#agent";
 const MODE_PLAN: &str = "https://agentclientprotocol.com/protocol/session-modes#plan";
@@ -93,17 +91,5 @@ impl ProviderDef for CopilotAcpProvider {
             let metadata = Self::metadata();
             AcpProvider::connect(metadata.name, model, goose_mode, provider_config).await
         })
-    }
-
-    fn supports_inventory_refresh() -> bool {
-        true
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        acp_inventory_identity(COPILOT_ACP_PROVIDER_NAME, COPILOT_ACP_BINARY)
-    }
-
-    fn inventory_configured() -> bool {
-        acp_adapter_installed(COPILOT_ACP_BINARY)
     }
 }

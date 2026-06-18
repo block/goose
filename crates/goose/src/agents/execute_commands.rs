@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use anyhow::{anyhow, Result};
 
 use crate::context_mgmt::compact_messages;
-use crate::conversation::message::{Message, SystemNotificationType};
+use crate::conversation::message::Message;
 use crate::slash_commands::{recipe_slash_command, skill_slash_command};
 
 use super::Agent;
@@ -84,6 +84,22 @@ pub fn list_commands() -> &'static [CommandDef] {
     COMMANDS
 }
 
+fn is_clear_goal_param(params_str: &str) -> bool {
+    matches!(params_str, "off" | "clear" | "none")
+}
+
+/// Whether a slash command should kick off an agent turn instead of just
+/// returning a confirmation. Setting a `/goal` or `/grind` (with a description,
+/// not the query or `off` forms) makes the agent start pursuing it immediately.
+pub fn command_starts_turn(message_text: &str) -> bool {
+    let Some(parsed) = parse_slash_command(message_text) else {
+        return false;
+    };
+    matches!(parsed.command, "goal" | "grind")
+        && !parsed.params_str.is_empty()
+        && !is_clear_goal_param(parsed.params_str)
+}
+
 impl Agent {
     pub async fn execute_command(
         &self,
@@ -150,10 +166,7 @@ impl Agent {
         self.update_session_metrics(session_id, session.schedule_id, &usage, true)
             .await?;
 
-        Ok(Some(Message::assistant().with_system_notification(
-            SystemNotificationType::InlineMessage,
-            "Compaction complete",
-        )))
+        Ok(Some(user_only_assistant_text("Compaction complete")))
     }
 
     async fn handle_clear_command(&self, session_id: &str) -> Result<Option<Message>> {
@@ -172,10 +185,7 @@ impl Agent {
             .apply()
             .await?;
 
-        Ok(Some(Message::assistant().with_system_notification(
-            SystemNotificationType::InlineMessage,
-            "Conversation cleared",
-        )))
+        Ok(Some(user_only_assistant_text("Conversation cleared")))
     }
 
     async fn handle_skills_command(&self, session_id: &str) -> Result<Option<Message>> {
@@ -386,7 +396,7 @@ impl Agent {
             return Ok(Some(Message::assistant().with_text(text)));
         }
 
-        if params_str == "off" || params_str == "clear" || params_str == "none" {
+        if is_clear_goal_param(params_str) {
             self.set_goal(None).await;
             return Ok(Some(
                 Message::assistant().with_text("Goal cleared. The agent will finish normally."),
@@ -410,7 +420,7 @@ impl Agent {
             return Ok(Some(Message::assistant().with_text(text)));
         }
 
-        if params_str == "off" || params_str == "clear" {
+        if is_clear_goal_param(params_str) {
             self.set_grind(None).await;
             return Ok(Some(
                 Message::assistant().with_text("Grind cleared. The agent will finish normally."),
@@ -425,9 +435,14 @@ impl Agent {
     }
 }
 
+fn user_only_assistant_text(text: impl Into<String>) -> Message {
+    Message::assistant().with_text(text).user_only()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::conversation::message::MessageContent;
 
     #[test]
     fn parse_slash_command_splits_on_literal_space() {
@@ -446,5 +461,36 @@ mod tests {
         let parsed = parse_slash_command("/speckit.plan\nhello").unwrap();
         assert_eq!(parsed.command, "speckit.plan\nhello");
         assert_eq!(parsed.params_str, "");
+    }
+
+    #[test]
+    fn command_starts_turn_only_for_goal_and_grind_with_description() {
+        assert!(command_starts_turn("/goal make all tests pass"));
+        assert!(command_starts_turn("/grind keep refactoring"));
+
+        // Query and clear forms must not start a turn.
+        assert!(!command_starts_turn("/goal"));
+        assert!(!command_starts_turn("/goal off"));
+        assert!(!command_starts_turn("/goal clear"));
+        assert!(!command_starts_turn("/goal none"));
+        assert!(!command_starts_turn("/grind"));
+        assert!(!command_starts_turn("/grind off"));
+
+        // Other commands and plain prompts never start a turn here.
+        assert!(!command_starts_turn("/compact"));
+        assert!(!command_starts_turn("just a normal message"));
+    }
+
+    #[test]
+    fn user_only_assistant_text_is_durable_text_not_system_notification() {
+        let message = user_only_assistant_text("Conversation cleared");
+
+        assert!(message.metadata.user_visible);
+        assert!(!message.metadata.agent_visible);
+        assert_eq!(message.role, rmcp::model::Role::Assistant);
+        assert!(matches!(
+            message.content.as_slice(),
+            [MessageContent::Text(text)] if text.text == "Conversation cleared"
+        ));
     }
 }

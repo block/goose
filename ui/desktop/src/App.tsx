@@ -25,6 +25,7 @@ import { UserInput } from './types/message';
 interface PairRouteState {
   resumeSessionId?: string;
   initialMessage?: UserInput;
+  noAutoSubmit?: boolean;
 }
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
@@ -84,8 +85,11 @@ const PairRouteWrapper = ({
   activeSessions: Array<{
     sessionId: string;
     initialMessage?: UserInput;
+    noAutoSubmit?: boolean;
   }>;
-  setActiveSessions: (sessions: Array<{ sessionId: string; initialMessage?: UserInput }>) => void;
+  setActiveSessions: (
+    sessions: Array<{ sessionId: string; initialMessage?: UserInput; noAutoSubmit?: boolean }>
+  ) => void;
 }) => {
   const { extensionsList } = useConfig();
   const location = useLocation();
@@ -98,6 +102,7 @@ const PairRouteWrapper = ({
   const recipeDeeplinkFromConfig = window.appConfig?.get('recipeDeeplink') as string | undefined;
   const recipeIdFromConfig = window.appConfig?.get('recipeId') as string | undefined;
   const initialMessage = routeState.initialMessage;
+  const noAutoSubmit = routeState.noAutoSubmit;
 
   // Create session if we have an initialMessage, recipeDeeplink, or recipeId but no sessionId
   useEffect(() => {
@@ -122,6 +127,7 @@ const PairRouteWrapper = ({
               detail: {
                 sessionId: newSession.id,
                 initialMessage: sessionInitialMessage,
+                noAutoSubmit,
               },
             })
           );
@@ -162,11 +168,12 @@ const PairRouteWrapper = ({
           detail: {
             sessionId: resumeSessionId,
             initialMessage: initialMessage,
+            noAutoSubmit,
           },
         })
       );
     }
-  }, [resumeSessionId, activeSessions, initialMessage]);
+  }, [resumeSessionId, activeSessions, initialMessage, noAutoSubmit]);
 
   return null;
 };
@@ -358,15 +365,16 @@ export function AppInner() {
   const MAX_ACTIVE_SESSIONS = 10;
 
   const [activeSessions, setActiveSessions] = useState<
-    Array<{ sessionId: string; initialMessage?: UserInput }>
+    Array<{ sessionId: string; initialMessage?: UserInput; noAutoSubmit?: boolean }>
   >([]);
 
   useEffect(() => {
     const handleAddActiveSession = (event: Event) => {
-      const { sessionId, initialMessage } = (
+      const { sessionId, initialMessage, noAutoSubmit } = (
         event as CustomEvent<{
           sessionId: string;
           initialMessage?: UserInput;
+          noAutoSubmit?: boolean;
         }>
       ).detail;
 
@@ -380,7 +388,7 @@ export function AppInner() {
         }
 
         // New session - add to end with LRU eviction if needed
-        const newSession = { sessionId, initialMessage };
+        const newSession = { sessionId, initialMessage, noAutoSubmit };
         const updated = [...prev, newSession];
         if (updated.length > MAX_ACTIVE_SESSIONS) {
           return updated.slice(updated.length - MAX_ACTIVE_SESSIONS);
@@ -402,11 +410,21 @@ export function AppInner() {
       });
     };
 
+    const handleSessionDeleted = (event: Event) => {
+      const { sessionId } = (event as CustomEvent<{ sessionId: string }>).detail;
+
+      setActiveSessions((prev) => {
+        return prev.filter((session) => session.sessionId !== sessionId);
+      });
+    };
+
     window.addEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
     window.addEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
+    window.addEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
     return () => {
       window.removeEventListener(AppEvents.ADD_ACTIVE_SESSION, handleAddActiveSession);
       window.removeEventListener(AppEvents.CLEAR_INITIAL_MESSAGE, handleClearInitialMessage);
+      window.removeEventListener(AppEvents.SESSION_DELETED, handleSessionDeleted);
     };
   }, []);
 
@@ -486,13 +504,18 @@ export function AppInner() {
   // Show a toast if mesh is the configured provider but isn't running.
   useEffect(() => {
     const handler = () => {
-      toast.warn('Inference Mesh is set as your provider but isn\'t running. Open Settings → Mesh to start it. Keep goose running to stay connected.', {
-        autoClose: false,
-        toastId: 'mesh-not-running',
-      });
+      toast.warn(
+        "Inference Mesh is set as your provider but isn't running. Open Settings → Mesh to start it. Keep goose running to stay connected.",
+        {
+          autoClose: false,
+          toastId: 'mesh-not-running',
+        }
+      );
     };
     window.electron.on('mesh-not-running', handler);
-    return () => { window.electron.off('mesh-not-running', handler); };
+    return () => {
+      window.electron.off('mesh-not-running', handler);
+    };
   }, []);
 
   // Prevent default drag and drop behavior globally to avoid opening files in new windows
@@ -570,12 +593,12 @@ export function AppInner() {
 
   useEffect(() => {
     const handleNewChat = (_event: IpcRendererEvent, ..._args: unknown[]) => {
-      window.dispatchEvent(new CustomEvent(AppEvents.TRIGGER_NEW_CHAT));
+      navigate('/');
     };
 
     window.electron.on('new-chat', handleNewChat);
     return () => window.electron.off('new-chat', handleNewChat);
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     const handleFocusInput = (_event: IpcRendererEvent, ..._args: unknown[]) => {
@@ -596,12 +619,14 @@ export function AppInner() {
   useEffect(() => {
     const handleSetInitialMessage = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const initialMessage = args[0] as string;
+      const options = (args[1] as { noAutoSubmit?: boolean } | undefined) || {};
 
       if (initialMessage && !isProcessingRef.current) {
         isProcessingRef.current = true;
         navigate('/pair', {
           state: {
             initialMessage: { msg: initialMessage, images: [] },
+            noAutoSubmit: options.noAutoSubmit,
           },
         });
         setTimeout(() => {

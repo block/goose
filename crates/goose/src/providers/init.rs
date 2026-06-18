@@ -27,6 +27,7 @@ use super::{
     gemini_oauth::GeminiOAuthProvider,
     githubcopilot::GithubCopilotProvider,
     google::GoogleProvider,
+    huggingface::HuggingFaceProvider,
     kimicode::KimiCodeProvider,
     litellm::LiteLLMProvider,
     nanogpt::NanoGptProvider,
@@ -38,6 +39,7 @@ use super::{
     snowflake::SnowflakeProvider,
     tetrate::TetrateProvider,
     xai::XaiProvider,
+    xai_oauth::XaiOAuthProvider,
 };
 use crate::config::ExtensionConfig;
 use crate::model::ModelConfig;
@@ -53,40 +55,86 @@ static REGISTRY: OnceCell<RwLock<ProviderRegistry>> = OnceCell::const_new();
 
 async fn init_registry() -> RwLock<ProviderRegistry> {
     let mut registry = ProviderRegistry::new().with_providers(|registry| {
-        registry.register::<AmpAcpProvider>(false);
-        registry.register::<AnthropicProvider>(true);
+        use super::inventory::registrations;
+
+        registry.register_with_inventory::<AmpAcpProvider>(
+            false,
+            Some(registrations::amp_acp_inventory()),
+        );
+        registry.register_with_inventory::<AnthropicProvider>(
+            true,
+            Some(registrations::anthropic_inventory()),
+        );
         registry.register::<AvianProvider>(false);
         registry.register::<AzureProvider>(false);
         #[cfg(feature = "aws-providers")]
         registry.register::<BedrockProvider>(false);
         #[cfg(feature = "local-inference")]
         registry.register::<LocalInferenceProvider>(false);
-        registry.register::<ChatGptCodexProvider>(true);
-        registry.register::<ClaudeAcpProvider>(false);
+        registry.register_with_inventory::<ChatGptCodexProvider>(
+            true,
+            Some(registrations::chatgpt_codex_inventory()),
+        );
+        registry.register_with_inventory::<ClaudeAcpProvider>(
+            false,
+            Some(registrations::claude_acp_inventory()),
+        );
         registry.register::<ClaudeCodeProvider>(true);
-        registry.register::<CodexAcpProvider>(false);
-        registry.register::<CopilotAcpProvider>(false);
+        registry.register_with_inventory::<CodexAcpProvider>(
+            false,
+            Some(registrations::codex_acp_inventory()),
+        );
+        registry.register_with_inventory::<CopilotAcpProvider>(
+            false,
+            Some(registrations::copilot_acp_inventory()),
+        );
         registry.register::<CodexProvider>(true);
         registry.register::<CursorAgentProvider>(false);
-        registry.register::<DatabricksProvider>(true);
-        registry.register::<DatabricksV2Provider>(false);
+        registry.register_with_inventory::<DatabricksProvider>(
+            true,
+            Some(registrations::refresh_only()),
+        );
+        registry.register_with_inventory::<DatabricksV2Provider>(
+            false,
+            Some(registrations::refresh_only()),
+        );
         registry.register::<GcpVertexAIProvider>(false);
         registry.register::<GeminiCliProvider>(false);
         registry.register::<GeminiOAuthProvider>(true);
         registry.register::<GithubCopilotProvider>(false);
-        registry.register::<GoogleProvider>(true);
+        registry.register_with_inventory::<GoogleProvider>(
+            true,
+            Some(registrations::google_inventory()),
+        );
+        registry.register_with_inventory::<HuggingFaceProvider>(
+            true,
+            Some(registrations::huggingface_inventory()),
+        );
         registry.register::<KimiCodeProvider>(true);
         registry.register::<LiteLLMProvider>(false);
         registry.register::<NanoGptProvider>(true);
-        registry.register::<OllamaProvider>(true);
-        registry.register::<OpenAiProvider>(true);
+        registry.register_with_inventory::<OllamaProvider>(
+            true,
+            Some(registrations::ollama_inventory()),
+        );
+        registry.register_with_inventory::<OpenAiProvider>(
+            true,
+            Some(registrations::openai_inventory()),
+        );
         registry.register::<OpenRouterProvider>(true);
-        registry.register::<PiAcpProvider>(false);
+        registry.register_with_inventory::<PiAcpProvider>(
+            false,
+            Some(registrations::pi_acp_inventory()),
+        );
         #[cfg(feature = "aws-providers")]
         registry.register::<SageMakerTgiProvider>(false);
         registry.register::<SnowflakeProvider>(false);
         registry.register::<TetrateProvider>(true);
         registry.register::<XaiProvider>(false);
+        registry.register_with_inventory::<XaiOAuthProvider>(
+            true,
+            Some(registrations::xai_oauth_inventory()),
+        );
     });
     // Register cleanup functions for providers with cached state
     registry.set_cleanup(
@@ -108,6 +156,18 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
     registry.set_cleanup(
         "chatgpt_codex",
         Arc::new(|| Box::pin(ChatGptCodexProvider::cleanup())),
+    );
+    registry.set_cleanup(
+        "gemini_oauth",
+        Arc::new(|| Box::pin(GeminiOAuthProvider::cleanup())),
+    );
+    registry.set_cleanup(
+        "xai_oauth",
+        Arc::new(|| Box::pin(XaiOAuthProvider::cleanup())),
+    );
+    registry.set_cleanup(
+        "huggingface",
+        Arc::new(|| Box::pin(HuggingFaceProvider::cleanup())),
     );
 
     if let Err(e) = load_custom_providers_into_registry(&mut registry) {
@@ -253,6 +313,22 @@ mod tests {
             .expect("TANZU_AI_ENDPOINT config key should exist");
         assert!(endpoint.required, "Endpoint should be required");
         assert!(!endpoint.secret, "Endpoint should not be secret");
+    }
+
+    #[tokio::test]
+    async fn test_huggingface_provider_registry_wiring() {
+        let huggingface = get_from_registry("huggingface")
+            .await
+            .expect("huggingface provider should be registered");
+        let meta = huggingface.metadata();
+
+        assert_eq!(huggingface.provider_type(), ProviderType::Preferred);
+        assert_eq!(meta.display_name, "Hugging Face");
+        assert_eq!(meta.default_model, "Qwen/Qwen3-Coder-480B-A35B-Instruct");
+        assert!(meta
+            .config_keys
+            .iter()
+            .any(|key| key.name == "HF_TOKEN" && key.secret));
     }
 
     #[tokio::test]

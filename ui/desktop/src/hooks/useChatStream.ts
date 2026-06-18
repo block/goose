@@ -29,35 +29,12 @@ import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import { maybeHandlePlatformEvent } from '../utils/platform_events';
 import { useSessionEvents, type SessionEvent } from './useSessionEvents';
+import type { UseChatSessionParams, UseChatSessionResult } from './useChatSessionTypes';
 
 const resultsCache = new Map<string, { messages: Message[]; session: Session }>();
 
-interface UseChatStreamProps {
-  sessionId: string;
-  onStreamFinish: () => void;
-  onSessionLoaded?: () => void;
-}
-
-interface UseChatStreamReturn {
-  session?: Session;
-  messages: Message[];
-  chatState: ChatState;
-  setChatState: (state: ChatState) => void;
-  handleSubmit: (input: UserInput) => Promise<void>;
-  submitElicitationResponse: (
-    elicitationId: string,
-    userData: Record<string, unknown>
-  ) => Promise<void>;
-  setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
-  stopStreaming: () => void;
-  sessionLoadError?: string;
-  tokenState: TokenState;
-  notifications: Map<string, NotificationEvent[]>;
-  onMessageUpdate: (
-    messageId: string,
-    newContent: string,
-    editType?: 'fork' | 'edit'
-  ) => Promise<void>;
+export function clearSessionCache(sessionId: string): void {
+  resultsCache.delete(sessionId);
 }
 
 interface StreamState {
@@ -413,7 +390,7 @@ export function useChatStream({
   sessionId,
   onStreamFinish,
   onSessionLoaded,
-}: UseChatStreamProps): UseChatStreamReturn {
+}: UseChatSessionParams): UseChatSessionResult {
   const intl = useIntl();
   const [state, dispatch] = useReducer(streamReducer, initialState);
 
@@ -748,7 +725,9 @@ export function useChatStream({
           },
         },
       });
-      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
+      );
       onSessionLoaded?.();
       return;
     }
@@ -776,7 +755,9 @@ export function useChatStream({
         const extensionResults = resumeData?.extension_results;
 
         showExtensionLoadResults(extensionResults);
-        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED));
+        window.dispatchEvent(
+          new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
+        );
 
         const pendingRequestId = pendingReattachRequestIdRef.current;
         const reattachedToActiveRequest = activeRequestIdRef.current !== null;
@@ -948,7 +929,7 @@ export function useChatStream({
       const currentState = stateRef.current;
 
       if (!currentState.session || currentState.chatState === ChatState.LoadingConversation) {
-        return;
+        return true;
       }
 
       // An elicitation response unblocks an in-flight tool call on the original
@@ -966,8 +947,10 @@ export function useChatStream({
           },
           throwOnError: true,
         });
+        return true;
       } catch (error) {
         onFinish('Submit error: ' + errorMessage(error));
+        return true;
       }
     },
     [sessionId, onFinish]
@@ -1160,6 +1143,7 @@ export function useChatStream({
     setRecipeUserParams,
     tokenState: state.tokenState,
     notifications: notificationsMap,
+    pauseQueueOnStop: false,
     onMessageUpdate,
   };
 }

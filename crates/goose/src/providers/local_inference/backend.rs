@@ -2,9 +2,9 @@ use rmcp::model::Tool;
 use std::any::Any;
 
 use crate::conversation::message::Message;
-use crate::providers::errors::ProviderError;
 use crate::providers::local_inference::local_model_registry::ModelSettings;
 use crate::providers::utils::RequestLog;
+use goose_providers::errors::ProviderError;
 
 use super::{ResolvedModelPaths, StreamSender};
 
@@ -12,14 +12,18 @@ pub(super) trait BackendLoadedModel: Send {
     fn as_any_mut(&mut self) -> &mut dyn Any;
 }
 
+#[cfg_attr(not(feature = "mlx"), allow(dead_code))]
 pub(super) struct LocalGenerationRequest<'a> {
     pub model_name: String,
     pub system: &'a str,
     pub messages: &'a [Message],
     pub tools: &'a [Tool],
     pub settings: &'a ModelSettings,
+    pub temperature: Option<f32>,
+    pub max_tokens: Option<i32>,
     pub context_limit: usize,
     pub resolved_model: &'a ResolvedModelPaths,
+    pub draft_model_path: Option<std::path::PathBuf>,
     pub message_id: &'a str,
     pub tx: &'a StreamSender,
     pub log: &'a mut RequestLog,

@@ -168,13 +168,23 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
   }
 }
 
+function isWindowsPlatform(): boolean {
+  return typeof window !== 'undefined' && window.electron?.platform === 'win32';
+}
+
 export function splitCmdAndArgs(str: string): { cmd: string; args: string[] } {
   const trimmed = str.trim();
   if (!trimmed) {
     return { cmd: '', args: [] };
   }
 
-  const parsed = parseShellQuote(trimmed);
+  // shell-quote treats `\` as a POSIX escape character, so a Windows path like
+  // `C:\Users\name\ext.js` would lose its backslashes and become `C:Usersnameext.js`.
+  // Doubling backslashes on Windows lets them survive parsing (shell-quote unescapes
+  // `\\` back to `\`), while still honoring quotes for paths containing spaces.
+  const toParse = isWindowsPlatform() ? trimmed.replace(/\\/g, '\\\\') : trimmed;
+
+  const parsed = parseShellQuote(toParse);
   const words = parsed.filter((item): item is string => typeof item === 'string').map(String);
 
   const cmd = words[0] || '';

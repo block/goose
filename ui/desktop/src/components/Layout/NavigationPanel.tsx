@@ -4,7 +4,7 @@ import { ChevronDown, ChevronRight, PanelLeft } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useNavigationContext } from './NavigationContext';
 import { useConfig } from '../ConfigContext';
-import { useNavigationSessions, getSessionDisplayName } from '../../hooks/useNavigationSessions';
+import { useNavigationSessions } from '../../hooks/useNavigationSessions';
 import {
   NAV_ITEMS,
   SETTINGS_NAV_ITEM,
@@ -15,7 +15,7 @@ import { AppEvents } from '../../constants/events';
 import { Goose } from '../icons/Goose';
 import { InlineEditText } from '../common/InlineEditText';
 import { SessionIndicators } from '../SessionIndicators';
-import { updateSessionName, type Session } from '../../api';
+import { acpRenameSession, type SessionListItem } from '../../acp/sessions';
 import { cn } from '../../utils';
 import { defineMessages, useIntl } from '../../i18n';
 
@@ -75,7 +75,7 @@ const NavRow: React.FC<NavRowProps> = ({ item, active, onClick }) => {
 };
 
 interface SessionRowProps {
-  session: Session;
+  session: SessionListItem;
   active: boolean;
   status: SessionStatus | undefined;
   onClick: () => void;
@@ -99,12 +99,14 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, active, status, onClic
       )}
     >
       <InlineEditText
-        value={getSessionDisplayName(session)}
+        value={session.name}
         onSave={async (newName) => {
-          await updateSessionName({
-            path: { session_id: session.id },
-            body: { name: newName },
-          });
+          await acpRenameSession(session.id, newName);
+          window.dispatchEvent(
+            new CustomEvent(AppEvents.SESSION_RENAMED, {
+              detail: { sessionId: session.id, newName, userInitiated: true },
+            })
+          );
           onRenamed();
         }}
         placeholder={intl.formatMessage(i18n.untitledSession)}
@@ -137,13 +139,8 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
 
   const isActive = useCallback((path: string) => location.pathname === path, [location.pathname]);
 
-  const {
-    recentSessions,
-    activeSessionId,
-    fetchSessions,
-    handleNavClick,
-    handleSessionClick,
-  } = useNavigationSessions();
+  const { recentSessions, activeSessionId, fetchSessions, handleNavClick, handleSessionClick } =
+    useNavigationSessions();
 
   const [sessionStatuses, setSessionStatuses] = useState<Map<string, SessionStatus>>(new Map());
 
@@ -199,10 +196,7 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
       transition={{ duration: 0.15 }}
-      className={cn(
-        'bg-background-primary outline-none flex flex-col h-full',
-        className
-      )}
+      className={cn('bg-background-primary outline-none flex flex-col h-full', className)}
     >
       {/* Header: logo + collapse button. Top padding clears the macOS traffic lights. */}
       <div className="flex items-center justify-between px-4 pt-[34px] pb-2 no-drag">

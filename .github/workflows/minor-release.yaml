@@ -6,12 +6,61 @@ permissions:
 
 on:
   schedule:
-    - cron: '0 0 * * 2'
+    - cron: "0 0 * * 2"
   workflow_dispatch:
+  push:
+    branches:
+      - main
 
 jobs:
+  check-version-bump-pr:
+    if: github.repository == 'aaif-goose/goose' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      should_run: ${{ steps.check.outputs.should_run }}
+    steps:
+      - name: Check for conflicted version bump PR
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          for attempt in 1 2 3 4 5 6; do
+            CONFLICTING_PR_URLS=$(gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --state open \
+              --search 'head:version-bump/' \
+              --json mergeStateStatus,url \
+              --jq '.[] | select(.mergeStateStatus == "DIRTY") | .url')
+
+            UNKNOWN_COUNT=$(gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --base main \
+              --state open \
+              --search 'head:version-bump/' \
+              --json mergeStateStatus \
+              --jq '[.[] | select(.mergeStateStatus == "UNKNOWN")] | length')
+
+            if [ -n "$CONFLICTING_PR_URLS" ] || [ "$UNKNOWN_COUNT" = "0" ]; then
+              break
+            fi
+
+            echo "Waiting for GitHub to compute PR mergeability (attempt $attempt)..."
+            sleep 10
+          done
+
+          if [ -n "$CONFLICTING_PR_URLS" ]; then
+            echo "Found conflicted version bump PR(s):"
+            echo "$CONFLICTING_PR_URLS"
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No conflicted version bump PR found."
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+          fi
+
   release:
-    if: github.repository == 'aaif-goose/goose'
+    needs: check-version-bump-pr
+    if: always() && github.repository == 'aaif-goose/goose' && (github.event_name != 'push' || needs.check-version-bump-pr.outputs.should_run == 'true')
     uses: ./.github/workflows/create-version-bump-pr.yaml
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

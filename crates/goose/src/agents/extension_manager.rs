@@ -387,11 +387,11 @@ async fn child_process_client(
 }
 
 /// Retry with OAuth for typed auth challenges and wrapped bare HTTP 401 responses.
-fn should_attempt_oauth_fallback(res: &Result<McpClient, ClientInitializeError>) -> bool {
-    let Err(ClientInitializeError::TransportError {
+fn is_oauth_auth_failure(err: &ClientInitializeError) -> bool {
+    let ClientInitializeError::TransportError {
         error: DynamicTransportError { error, .. },
         ..
-    }) = res
+    } = err
     else {
         return false;
     };
@@ -419,6 +419,32 @@ fn should_attempt_oauth_fallback(res: &Result<McpClient, ClientInitializeError>)
     error
         .to_string()
         .contains("unexpected server response: HTTP 401")
+}
+
+fn should_attempt_oauth_fallback(res: &Result<McpClient, ClientInitializeError>) -> bool {
+    res.as_ref().err().is_some_and(is_oauth_auth_failure)
+}
+
+async fn clear_credentials_on_post_refresh_auth_failure(
+    credential_store: &dyn CredentialStore,
+    name: &str,
+    error: &ExtensionError,
+) -> bool {
+    let ExtensionError::InitializeError(err) = error else {
+        return false;
+    };
+
+    if !is_oauth_auth_failure(err) {
+        return false;
+    }
+
+    if let Err(e) = credential_store.clear().await {
+        warn!(
+            "[OAuth:{}] error clearing rejected credentials: {}",
+            name, e
+        );
+    }
+    true
 }
 
 /// Merge environment variables from direct envs and keychain-stored env_keys
@@ -510,6 +536,7 @@ async fn connect_with_auth(
     auth_manager: rmcp::transport::AuthorizationManager,
     uri: &str,
     timeout: Duration,
+    headers: &HashMap<String, String>,
     provider: SharedProvider,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
@@ -517,6 +544,15 @@ async fn connect_with_auth(
 ) -> ExtensionResult<Box<dyn McpClientTrait>> {
     let mut auth_headers = HeaderMap::new();
     auth_headers.insert(reqwest::header::USER_AGENT, GOOSE_USER_AGENT);
+    for (key, value) in headers {
+        auth_headers.insert(
+            HeaderName::try_from(key)
+                .map_err(|_| ExtensionError::ConfigError(format!("invalid header: {}", key)))?,
+            value.parse().map_err(|_| {
+                ExtensionError::ConfigError(format!("invalid header value: {}", key))
+            })?,
+        );
+    }
     #[allow(unused_mut)]
     let mut auth_client_builder = reqwest::Client::builder().default_headers(auth_headers);
     #[cfg(target_os = "linux")]
@@ -551,6 +587,7 @@ async fn create_streamable_http_client(
     headers: &HashMap<String, String>,
     name: &str,
     socket: Option<&str>,
+    credential_store: Box<dyn CredentialStore>,
     provider: SharedProvider,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
@@ -611,20 +648,39 @@ async fn create_streamable_http_client(
 
     // If we have stored OAuth credentials, try refreshing and connecting directly.
     // This avoids the unnecessary 401 → browser re-auth cycle on every new session.
-    let credential_store = GooseCredentialStore::new(name.to_string());
     if credential_store.load().await.is_ok_and(|c| c.is_some()) {
         match oauth_flow(&uri.to_string(), &name.to_string()).await {
             Ok(auth_manager) => {
-                return connect_with_auth(
+                let auth_result = connect_with_auth(
                     auth_manager,
                     uri,
                     timeout_duration,
-                    provider,
-                    client_name,
-                    capabilities,
+                    headers,
+                    provider.clone(),
+                    client_name.clone(),
+                    capabilities.clone(),
                     roots_dir,
                 )
                 .await;
+
+                if let Err(error) = &auth_result {
+                    if clear_credentials_on_post_refresh_auth_failure(
+                        credential_store.as_ref(),
+                        name,
+                        error,
+                    )
+                    .await
+                    {
+                        warn!(
+                            "[OAuth:{}] Refreshed token was rejected, falling back to browser auth",
+                            name
+                        );
+                    } else {
+                        return auth_result;
+                    }
+                } else {
+                    return auth_result;
+                }
             }
             Err(e) => {
                 warn!(
@@ -652,6 +708,7 @@ async fn create_streamable_http_client(
                     auth_manager,
                     uri,
                     timeout_duration,
+                    headers,
                     provider,
                     client_name,
                     capabilities,
@@ -854,6 +911,7 @@ impl ExtensionManager {
                     &resolved_headers,
                     name,
                     resolved_socket.as_deref(),
+                    Box::new(GooseCredentialStore::new(name.to_string())),
                     self.provider.clone(),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
@@ -943,11 +1001,16 @@ impl ExtensionManager {
                 envs,
                 env_keys,
                 timeout,
+                cwd,
                 ..
             } => {
                 let config = Config::global();
                 let mut all_envs =
                     merge_environments(envs, env_keys, &sanitized_name, config).await?;
+                let process_working_dir = cwd
+                    .as_deref()
+                    .map(PathBuf::from)
+                    .unwrap_or_else(|| effective_working_dir.clone());
 
                 if let Some(sid) = session_id {
                     all_envs.insert("AGENT_SESSION_ID".to_string(), sid.to_string());
@@ -983,7 +1046,7 @@ impl ExtensionManager {
                     command,
                     timeout,
                     self.provider.clone(),
-                    &effective_working_dir,
+                    &process_working_dir,
                     container.map(|c| c.id().to_string()),
                     self.client_name.clone(),
                     self.mcp_client_capabilities(),
@@ -2710,5 +2773,245 @@ mod tests {
             ),
         );
         assert!(should_attempt_oauth_fallback(&Err(err)));
+    }
+
+    #[tokio::test]
+    async fn test_post_refresh_auth_failure_clears_credentials() {
+        use rmcp::transport::auth::{
+            InMemoryCredentialStore, OAuthTokenResponse, StoredCredentials,
+        };
+
+        let token_response: OAuthTokenResponse = serde_json::from_value(serde_json::json!({
+            "access_token": "rejected-token",
+            "token_type": "bearer",
+        }))
+        .expect("valid fake token JSON");
+        let store = InMemoryCredentialStore::new();
+        store
+            .save(StoredCredentials::new(
+                "test-client".to_string(),
+                Some(token_response),
+                vec![],
+                None,
+            ))
+            .await
+            .unwrap();
+
+        let err = streamable_err(
+            rmcp::transport::streamable_http_client::StreamableHttpError::AuthRequired(
+                rmcp::transport::streamable_http_client::AuthRequiredError::new(
+                    "Bearer error=\"invalid_token\"".to_string(),
+                ),
+            ),
+        );
+        let error = ExtensionError::InitializeError(err);
+
+        assert!(clear_credentials_on_post_refresh_auth_failure(&store, "test-ext", &error).await);
+        assert!(store.load().await.unwrap().is_none());
+    }
+
+    #[tokio::test]
+    async fn test_invalid_header_name_returns_config_error() {
+        let mut headers = HashMap::new();
+        headers.insert("bad header name".to_string(), "value".to_string());
+
+        let temp_dir = tempdir().unwrap();
+        let provider: SharedProvider = Arc::new(Mutex::new(None));
+        let capabilities = GooseMcpClientCapabilities {
+            mcpui: false,
+            host_info: None,
+        };
+
+        let result = create_streamable_http_client(
+            "http://localhost:1",
+            None,
+            &headers,
+            "test-ext",
+            None,
+            Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
+            provider,
+            "goose-test".to_string(),
+            capabilities,
+            temp_dir.path(),
+        )
+        .await;
+
+        let Err(ExtensionError::ConfigError(msg)) = result else {
+            panic!("expected ConfigError, got a different result");
+        };
+        assert!(
+            msg.contains("invalid header"),
+            "unexpected error message: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_invalid_header_value_returns_config_error() {
+        let mut headers = HashMap::new();
+        headers.insert("x-valid-name".to_string(), "bad\r\nvalue".to_string());
+
+        let temp_dir = tempdir().unwrap();
+        let provider: SharedProvider = Arc::new(Mutex::new(None));
+        let capabilities = GooseMcpClientCapabilities {
+            mcpui: false,
+            host_info: None,
+        };
+
+        let result = create_streamable_http_client(
+            "http://localhost:1",
+            None,
+            &headers,
+            "test-ext",
+            None,
+            Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
+            provider,
+            "goose-test".to_string(),
+            capabilities,
+            temp_dir.path(),
+        )
+        .await;
+
+        let Err(ExtensionError::ConfigError(msg)) = result else {
+            panic!("expected ConfigError, got a different result");
+        };
+        assert!(
+            msg.contains("invalid header value"),
+            "unexpected error message: {msg}"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_custom_headers_forwarded_to_http_extension() {
+        use wiremock::matchers::any;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let mut headers = HashMap::new();
+        headers.insert("x-api-key".to_string(), "test-secret-123".to_string());
+
+        let temp_dir = tempdir().unwrap();
+        let provider: SharedProvider = Arc::new(Mutex::new(None));
+        let capabilities = GooseMcpClientCapabilities {
+            mcpui: false,
+            host_info: None,
+        };
+
+        // The MCP handshake will fail against the stub server. We only care that
+        // the outgoing HTTP request carried the custom header.
+        let _ = create_streamable_http_client(
+            &mock_server.uri(),
+            None,
+            &headers,
+            "test-ext",
+            None,
+            Box::new(rmcp::transport::auth::InMemoryCredentialStore::new()),
+            provider,
+            "goose-test".to_string(),
+            capabilities,
+            temp_dir.path(),
+        )
+        .await;
+
+        let received = mock_server.received_requests().await.unwrap();
+        assert!(
+            !received.is_empty(),
+            "expected at least one HTTP request to reach the mock server"
+        );
+        let header_found = received.iter().any(|req| {
+            req.headers
+                .get("x-api-key")
+                .map(|v| v == "test-secret-123")
+                .unwrap_or(false)
+        });
+        assert!(
+            header_found,
+            "custom header x-api-key was not forwarded to the extension server"
+        );
+    }
+
+    /// Directly exercises `connect_with_auth`, which is the code path fixed by
+    /// the PR (custom headers were dropped when the OAuth connection path was
+    /// taken).  Uses a pre-seeded `InMemoryCredentialStore` with a fake,
+    /// non-expiring token so `get_access_token()` returns immediately without
+    /// touching any OAuth endpoints or the system keychain.
+    #[tokio::test]
+    async fn test_custom_headers_forwarded_oauth_path() {
+        use rmcp::transport::auth::{
+            InMemoryCredentialStore, OAuthTokenResponse, StoredCredentials,
+        };
+        use wiremock::matchers::any;
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let mock_server = MockServer::start().await;
+        Mock::given(any())
+            .respond_with(ResponseTemplate::new(200))
+            .mount(&mock_server)
+            .await;
+
+        let mut headers = HashMap::new();
+        headers.insert("x-api-key".to_string(), "test-secret-oauth".to_string());
+
+        // Build a fake, non-expiring token. token_received_at=None skips the
+        // expiry check, so get_access_token() returns without any network call.
+        let token_response: OAuthTokenResponse = serde_json::from_value(serde_json::json!({
+            "access_token": "fake-test-token",
+            "token_type": "bearer",
+        }))
+        .expect("valid fake token JSON");
+        let creds = StoredCredentials::new(
+            "test-client".to_string(),
+            Some(token_response),
+            vec![],
+            None,
+        );
+        let store = InMemoryCredentialStore::new();
+        store.save(creds).await.unwrap();
+
+        let mut auth_manager = rmcp::transport::AuthorizationManager::new(mock_server.uri())
+            .await
+            .expect("AuthorizationManager::new should not make network calls");
+        auth_manager.set_credential_store(store);
+
+        let temp_dir = tempdir().unwrap();
+        let provider: SharedProvider = Arc::new(Mutex::new(None));
+        let capabilities = GooseMcpClientCapabilities {
+            mcpui: false,
+            host_info: None,
+        };
+
+        // connect_with_auth will fail (mock server isn't an MCP server) but we
+        // only care that the outgoing request carried the custom header.
+        let _ = connect_with_auth(
+            auth_manager,
+            &mock_server.uri(),
+            Duration::from_secs(5),
+            &headers,
+            provider,
+            "goose-test".to_string(),
+            capabilities,
+            temp_dir.path(),
+        )
+        .await;
+
+        let received = mock_server.received_requests().await.unwrap();
+        assert!(
+            !received.is_empty(),
+            "expected at least one HTTP request to reach the mock server"
+        );
+        let header_found = received.iter().any(|req| {
+            req.headers
+                .get("x-api-key")
+                .map(|v| v == "test-secret-oauth")
+                .unwrap_or(false)
+        });
+        assert!(
+            header_found,
+            "custom header x-api-key was not forwarded through the OAuth connection path"
+        );
     }
 }

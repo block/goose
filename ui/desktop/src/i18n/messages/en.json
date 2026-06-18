@@ -44,6 +44,66 @@
   "appsView.title": {
     "defaultMessage": "Apps"
   },
+  "authSettings.activeProviderWarning": {
+    "defaultMessage": "This is the active provider. New requests may fail until you configure another credential."
+  },
+  "authSettings.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "authSettings.delete": {
+    "defaultMessage": "Delete"
+  },
+  "authSettings.deleteCredential": {
+    "defaultMessage": "Delete credential"
+  },
+  "authSettings.deleteMessage": {
+    "defaultMessage": "Delete the {name} credential for {provider}?"
+  },
+  "authSettings.deleteTitle": {
+    "defaultMessage": "Delete credential"
+  },
+  "authSettings.deleted": {
+    "defaultMessage": "Credential deleted"
+  },
+  "authSettings.description": {
+    "defaultMessage": "Manage provider credentials stored locally by goose."
+  },
+  "authSettings.empty": {
+    "defaultMessage": "No locally stored provider credentials were found."
+  },
+  "authSettings.expiresAt": {
+    "defaultMessage": "Expires {date}"
+  },
+  "authSettings.failedToConfigure": {
+    "defaultMessage": "Failed to configure credential: {error}"
+  },
+  "authSettings.failedToDelete": {
+    "defaultMessage": "Failed to delete credential: {error}"
+  },
+  "authSettings.failedToLoad": {
+    "defaultMessage": "Failed to load provider credentials"
+  },
+  "authSettings.loading": {
+    "defaultMessage": "Loading credentials..."
+  },
+  "authSettings.reauthorize": {
+    "defaultMessage": "Reauthorize"
+  },
+  "authSettings.signIn": {
+    "defaultMessage": "Sign in"
+  },
+  "authSettings.signedIn": {
+    "defaultMessage": "Credential configured"
+  },
+  "authSettings.storageProviderCache": {
+    "defaultMessage": "Provider cache"
+  },
+  "authSettings.storageSecretStore": {
+    "defaultMessage": "Secret store"
+  },
+  "authSettings.title": {
+    "defaultMessage": "Provider Credentials"
+  },
   "backButton.back": {
     "defaultMessage": "Back"
   },
@@ -94,15 +154,6 @@
   },
   "bottomMenuExtensionSelection.searchExtensions": {
     "defaultMessage": "search extensions..."
-  },
-  "bottomMenuModeSelection.autoFallback": {
-    "defaultMessage": "auto"
-  },
-  "bottomMenuModeSelection.automaticModeDescription": {
-    "defaultMessage": "Automatic mode selection"
-  },
-  "bottomMenuModeSelection.currentModeTitle": {
-    "defaultMessage": "Current mode: {label} - {description}"
   },
   "cardButtons.configure": {
     "defaultMessage": "Configure"
@@ -941,6 +992,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "Submit"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "Information submitted"
   },
@@ -1443,7 +1497,7 @@
     "defaultMessage": "Loading variants..."
   },
   "huggingFaceModelSearch.noGgufModels": {
-    "defaultMessage": "No GGUF models found for this query."
+    "defaultMessage": "No compatible local models found for this query."
   },
   "huggingFaceModelSearch.recommended": {
     "defaultMessage": "Recommended"
@@ -1461,10 +1515,25 @@
     "defaultMessage": "Search returned no data."
   },
   "huggingFaceModelSearch.searchPlaceholder": {
-    "defaultMessage": "Search for GGUF models..."
+    "defaultMessage": "Search for local models..."
   },
   "huggingFaceModelSearch.tooLarge": {
     "defaultMessage": "May not fit in memory ({size} model, {available} available)"
+  },
+  "huggingFaceSignInPrompt.failedToConfigure": {
+    "defaultMessage": "Failed to sign in to Hugging Face: {error}"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "Sign in"
+  },
+  "huggingFaceSignInPrompt.signedIn": {
+    "defaultMessage": "Hugging Face signed in"
+  },
+  "huggingFaceSignInPrompt.signingIn": {
+    "defaultMessage": "Signing in..."
+  },
+  "huggingFaceSignInPrompt.title": {
+    "defaultMessage": "Hugging Face"
   },
   "imagePreview.altText": {
     "defaultMessage": "goose image"
@@ -1785,10 +1854,16 @@
     "defaultMessage": "Delete this model? You can re-download it later."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "Download and manage local LLM models for inference without API keys. Search HuggingFace for any GGUF model or use the featured picks below."
+    "defaultMessage": "Download and manage local LLM models for inference without API keys. Search HuggingFace for GGUF or MLX models, or use the featured picks below."
+  },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "Dismiss"
   },
   "localInferenceSettings.download": {
     "defaultMessage": "Download"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "Download cancelled"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "Download failed"
@@ -1805,6 +1880,9 @@
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Featured Models"
   },
+  "localInferenceSettings.huggingFaceSignInNote": {
+    "defaultMessage": "Sign in to increase rate limits when searching and downloading models, and to access private or gated Hugging Face repositories."
+  },
   "localInferenceSettings.modelSettings": {
     "defaultMessage": "Model Settings"
   },
@@ -1819,6 +1897,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "{time} remaining"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "Retry"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "Show all featured ({count} more)"
@@ -2801,6 +2882,9 @@
   "providerConfigurationModal.goBack": {
     "defaultMessage": "Go Back"
   },
+  "providerConfigurationModal.huggingFaceOAuthDescription": {
+    "defaultMessage": "Sign in to use Hugging Face Inference Providers without manually entering an API token."
+  },
   "providerConfigurationModal.oauthLoginFailed": {
     "defaultMessage": "OAuth login failed: {error}"
   },
@@ -3659,6 +3743,9 @@
   "securityToggle.mlTokenDescription": {
     "defaultMessage": "Authentication token for the ML service (e.g., HuggingFace token)"
   },
+  "securityToggle.overrideNotice": {
+    "defaultMessage": "This setting is managed by your organization and cannot be changed."
+  },
   "securityToggle.promptInjectionDescription": {
     "defaultMessage": "Detect and prevent potential prompt injection attacks"
   },
@@ -3667,6 +3754,39 @@
   },
   "securityToggle.thresholdDescription": {
     "defaultMessage": "Higher values are more strict (0.01 = very lenient, 1.0 = maximum strict)"
+  },
+  "securityToggle.warpNotice": {
+    "defaultMessage": "Command injection detection works best when connected to WARP (required to reach the classification service)."
+  },
+  "sessionActionsHeader.close": {
+    "defaultMessage": "Close"
+  },
+  "sessionActionsHeader.copiedJson": {
+    "defaultMessage": "Session JSON copied"
+  },
+  "sessionActionsHeader.copiedText": {
+    "defaultMessage": "Text copied"
+  },
+  "sessionActionsHeader.copyJson": {
+    "defaultMessage": "Copy JSON"
+  },
+  "sessionActionsHeader.copyText": {
+    "defaultMessage": "Copy text"
+  },
+  "sessionActionsHeader.fullTextTitle": {
+    "defaultMessage": "Text value"
+  },
+  "sessionActionsHeader.jsonFailed": {
+    "defaultMessage": "Failed to load session JSON: {error}"
+  },
+  "sessionActionsHeader.jsonTitle": {
+    "defaultMessage": "Session JSON"
+  },
+  "sessionActionsHeader.loadingJson": {
+    "defaultMessage": "Loading JSON..."
+  },
+  "sessionActionsHeader.viewJson": {
+    "defaultMessage": "View session JSON"
   },
   "sessionHistory.cancel": {
     "defaultMessage": "Cancel"
@@ -3727,9 +3847,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
-  },
-  "sessionItem.messageCount": {
-    "defaultMessage": "{count} messages"
   },
   "sessionSharingSection.alreadyConfigured": {
     "defaultMessage": "Session sharing has already been configured"
@@ -3854,9 +3971,6 @@
   "sessions.error.tryAgain": {
     "defaultMessage": "Try Again"
   },
-  "sessions.extensions": {
-    "defaultMessage": "Extensions:"
-  },
   "sessions.import": {
     "defaultMessage": "Import Session"
   },
@@ -3974,6 +4088,39 @@
   "settings.help.title": {
     "defaultMessage": "Help & feedback"
   },
+  "settings.language.description": {
+    "defaultMessage": "Choose the display language for goose"
+  },
+  "settings.language.english": {
+    "defaultMessage": "English"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "Hindi"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "Japanese"
+  },
+  "settings.language.korean": {
+    "defaultMessage": "Korean"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "Russian"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "Spanish"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "System Default"
+  },
+  "settings.language.title": {
+    "defaultMessage": "Language"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "Turkish"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "Chinese (Simplified)"
+  },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Show goose in the menu bar"
   },
@@ -4054,6 +4201,9 @@
   },
   "settingsView.tabApp": {
     "defaultMessage": "App"
+  },
+  "settingsView.tabAuth": {
+    "defaultMessage": "Auth"
   },
   "settingsView.tabChat": {
     "defaultMessage": "Chat"

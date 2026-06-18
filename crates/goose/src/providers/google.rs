@@ -1,15 +1,14 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::MessageStream;
-use super::errors::ProviderError;
 use super::openai_compatible::{handle_status, map_http_error_to_provider_error, sanitize_url};
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
 use crate::conversation::message::Message;
+use goose_providers::errors::ProviderError;
 
 use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::formats::google::{create_request, response_to_streaming_message};
-use crate::providers::inventory::{config_secret_value, InventoryIdentityInput};
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -23,7 +22,7 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
-const GOOGLE_PROVIDER_NAME: &str = "google";
+pub(crate) const GOOGLE_PROVIDER_NAME: &str = "google";
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-pro";
 pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash";
@@ -136,27 +135,6 @@ impl ProviderDef for GoogleProvider {
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
-
-    fn supports_inventory_refresh() -> bool {
-        true
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        let config = crate::config::Config::global();
-        let mut identity = InventoryIdentityInput::new(GOOGLE_PROVIDER_NAME, GOOGLE_PROVIDER_NAME)
-            .with_public(
-                "host",
-                config
-                    .get_param::<String>("GOOGLE_HOST")
-                    .unwrap_or_else(|_| GOOGLE_API_HOST.to_string()),
-            );
-
-        if let Some(api_key) = config_secret_value(config, "GOOGLE_API_KEY") {
-            identity = identity.with_secret("api_key", api_key);
-        }
-
-        Ok(identity)
-    }
 }
 
 #[async_trait]
@@ -232,9 +210,10 @@ impl Provider for GoogleProvider {
             let message_stream = response_to_streaming_message(framed);
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e|
-                    ProviderError::RequestFailed(format!("Stream decode error: {}", e))
-                )?;
+                let (message, usage) = message.map_err(|e| {
+                    e.downcast::<ProviderError>()
+                        .unwrap_or_else(ProviderError::stream_decode_error)
+                })?;
                 if message.is_some() || usage.is_some() {
                     log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
                 }

@@ -8,7 +8,7 @@ use opentelemetry_sdk::resource::{EnvResourceDetector, TelemetryResourceDetector
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
 use std::env;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use tracing::{Level, Metadata};
 use tracing_opentelemetry::{MetricsLayer, OpenTelemetryLayer};
 use tracing_subscriber::filter::FilterFn;
@@ -24,6 +24,154 @@ static TRACER_PROVIDER: Mutex<Option<SdkTracerProvider>> = Mutex::new(None);
 static METER_PROVIDER: Mutex<Option<SdkMeterProvider>> = Mutex::new(None);
 static LOGGER_PROVIDER: Mutex<Option<SdkLoggerProvider>> = Mutex::new(None);
 
+static GRPC_PROTOCOL_WARNING_EMITTED: std::sync::Once = std::sync::Once::new();
+
+/// One-shot stderr warning when `OTEL_EXPORTER_OTLP_PROTOCOL=grpc` is set
+/// in an environment where goose was built without the `grpc-tonic`
+/// transport feature. Using `tracing::warn!` here would race the OTel
+/// subscriber that is being initialized; eprintln keeps it visible
+/// regardless of subscriber state.
+fn warn_grpc_protocol_skipped_once() {
+    GRPC_PROTOCOL_WARNING_EMITTED.call_once(|| {
+        eprintln!(
+            "goose otel: OTEL_EXPORTER_OTLP_PROTOCOL is set to a gRPC \
+             variant, but this goose build only includes the HTTP \
+             transport (http-proto). OTLP signals are disabled to \
+             avoid background-thread panics. Set \
+             OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf and point \
+             OTEL_EXPORTER_OTLP_ENDPOINT at an http://…:4318 collector \
+             to re-enable export."
+        );
+    });
+}
+
+/// Dedicated single-thread Tokio runtime for OTLP HTTP export.
+///
+/// `BatchSpanProcessor`, `BatchLogProcessor`, and `PeriodicReader` all
+/// spawn raw `std::thread`s with no Tokio reactor. The async reqwest HTTP
+/// client calls `tokio::time::sleep` during export, which panics without a
+/// reactor. We drive every OTLP export call through this runtime so the
+/// reqwest futures always have a live Tokio handle.
+static OTEL_RT: Mutex<Option<Arc<tokio::runtime::Runtime>>> = Mutex::new(None);
+
+fn get_or_create_otel_rt() -> OtlpResult<Arc<tokio::runtime::Runtime>> {
+    let mut guard = OTEL_RT.lock().unwrap_or_else(|e| e.into_inner());
+    if let Some(rt) = guard.as_ref() {
+        return Ok(Arc::clone(rt));
+    }
+    let rt = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()?;
+    let rt = Arc::new(rt);
+    *guard = Some(Arc::clone(&rt));
+    Ok(rt)
+}
+
+/// Wraps an OTLP `SpanExporter` so that each `export` call is driven inside
+/// a dedicated Tokio runtime. Required because `BatchSpanProcessor` runs in
+/// a raw `std::thread` with no Tokio reactor.
+#[derive(Debug)]
+struct TokioSpanExporter {
+    inner: opentelemetry_otlp::SpanExporter,
+    rt: Arc<tokio::runtime::Runtime>,
+}
+
+impl opentelemetry_sdk::trace::SpanExporter for TokioSpanExporter {
+    async fn export(
+        &self,
+        batch: Vec<opentelemetry_sdk::trace::SpanData>,
+    ) -> opentelemetry_sdk::error::OTelSdkResult {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            self.inner.export(batch).await
+        } else {
+            self.rt.block_on(self.inner.export(batch))
+        }
+    }
+
+    fn shutdown_with_timeout(
+        &self,
+        timeout: std::time::Duration,
+    ) -> opentelemetry_sdk::error::OTelSdkResult {
+        self.inner.shutdown_with_timeout(timeout)
+    }
+
+    fn force_flush(&self) -> opentelemetry_sdk::error::OTelSdkResult {
+        self.inner.force_flush()
+    }
+
+    fn set_resource(&mut self, resource: &Resource) {
+        self.inner.set_resource(resource);
+    }
+}
+
+/// Wraps an OTLP `LogExporter` so that each export runs inside a dedicated
+/// Tokio runtime for the same reason as `TokioSpanExporter`.
+#[derive(Debug)]
+struct TokioLogExporter {
+    inner: opentelemetry_otlp::LogExporter,
+    rt: Arc<tokio::runtime::Runtime>,
+}
+
+impl opentelemetry_sdk::logs::LogExporter for TokioLogExporter {
+    async fn export(
+        &self,
+        batch: opentelemetry_sdk::logs::LogBatch<'_>,
+    ) -> opentelemetry_sdk::error::OTelSdkResult {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            self.inner.export(batch).await
+        } else {
+            self.rt.block_on(self.inner.export(batch))
+        }
+    }
+
+    fn shutdown_with_timeout(
+        &self,
+        timeout: std::time::Duration,
+    ) -> opentelemetry_sdk::error::OTelSdkResult {
+        self.inner.shutdown_with_timeout(timeout)
+    }
+
+    fn set_resource(&mut self, resource: &Resource) {
+        self.inner.set_resource(resource);
+    }
+}
+
+/// Wraps an OTLP `MetricExporter` so that periodic export runs inside a
+/// dedicated Tokio runtime for the same reason as `TokioSpanExporter`.
+#[derive(Debug)]
+struct TokioMetricExporter {
+    inner: opentelemetry_otlp::MetricExporter,
+    rt: Arc<tokio::runtime::Runtime>,
+}
+
+impl opentelemetry_sdk::metrics::exporter::PushMetricExporter for TokioMetricExporter {
+    async fn export(
+        &self,
+        metrics: &opentelemetry_sdk::metrics::data::ResourceMetrics,
+    ) -> opentelemetry_sdk::error::OTelSdkResult {
+        if tokio::runtime::Handle::try_current().is_ok() {
+            self.inner.export(metrics).await
+        } else {
+            self.rt.block_on(self.inner.export(metrics))
+        }
+    }
+
+    fn force_flush(&self) -> opentelemetry_sdk::error::OTelSdkResult {
+        self.inner.force_flush()
+    }
+
+    fn shutdown_with_timeout(
+        &self,
+        timeout: std::time::Duration,
+    ) -> opentelemetry_sdk::error::OTelSdkResult {
+        self.inner.shutdown_with_timeout(timeout)
+    }
+
+    fn temporality(&self) -> Temporality {
+        self.inner.temporality()
+    }
+}
+
 #[derive(Debug, Clone, PartialEq)]
 pub enum ExporterType {
     Otlp,
@@ -38,6 +186,35 @@ impl ExporterType {
             "console" | "stdout" => ExporterType::Console,
             _ => ExporterType::None,
         }
+    }
+}
+
+/// Resolved transport protocol for an OTLP signal, per OTel spec:
+/// signal-specific `OTEL_EXPORTER_OTLP_{SIGNAL}_PROTOCOL` overrides the
+/// shared `OTEL_EXPORTER_OTLP_PROTOCOL`, and the default is `http/protobuf`
+/// (matching what `.with_http()` produces in this build).
+///
+/// goose's `opentelemetry-otlp` build only enables the `http-proto` /
+/// `reqwest-blocking-client` transport features — not `grpc-tonic`. If the caller's
+/// environment sets `…_PROTOCOL=grpc`, the `.with_http()` exporter still
+/// builds successfully but its background batch / metric reader threads
+/// panic on the first export with
+/// `internal error: entered unreachable code: HTTP client should not
+/// receive Grpc protocol`. We honour the env var by skipping the signal
+/// rather than crashing detached threads.
+fn signal_protocol_is_http(signal: &str) -> bool {
+    let signal_var = format!("OTEL_EXPORTER_OTLP_{}_PROTOCOL", signal.to_uppercase());
+    let raw = env::var(&signal_var)
+        .ok()
+        .filter(|v| !v.is_empty())
+        .or_else(|| env::var("OTEL_EXPORTER_OTLP_PROTOCOL").ok())
+        .unwrap_or_default();
+    match raw.trim().to_lowercase().as_str() {
+        // Default per spec when unset — matches `.with_http()`.
+        "" | "http/protobuf" | "http/json" => true,
+        // gRPC variants require the `grpc-tonic` feature, which goose
+        // does not enable.
+        _ => false,
     }
 }
 
@@ -95,11 +272,15 @@ pub fn promote_config_to_env(config: &crate::config::Config) {
 }
 
 fn create_resource() -> Resource {
+    use crate::session_context::{session_host, session_user};
+
     let mut builder = Resource::builder_empty()
         .with_attributes([
             KeyValue::new("service.name", "goose"),
             KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
             KeyValue::new("service.namespace", "goose"),
+            KeyValue::new("host.name", session_host()),
+            KeyValue::new("user.name", session_user()),
         ])
         .with_detector(Box::new(EnvResourceDetector::new()))
         .with_detector(Box::new(TelemetryResourceDetector));
@@ -148,9 +329,17 @@ fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
 
     let tracer_provider = match exporter {
         ExporterType::Otlp => {
-            let exporter = opentelemetry_otlp::SpanExporter::builder()
-                .with_http()
-                .build()?;
+            if !signal_protocol_is_http("traces") {
+                warn_grpc_protocol_skipped_once();
+                return Err("OTLP traces protocol is grpc but goose was built without grpc-tonic; skipping traces exporter".into());
+            }
+            let rt = get_or_create_otel_rt()?;
+            let exporter = TokioSpanExporter {
+                inner: opentelemetry_otlp::SpanExporter::builder()
+                    .with_http()
+                    .build()?,
+                rt,
+            };
             SdkTracerProvider::builder()
                 .with_batch_exporter(exporter)
                 .with_resource(resource)
@@ -192,10 +381,18 @@ fn create_otlp_metrics_layer() -> OtlpResult<OtlpMetricsLayer> {
 
     let meter_provider = match exporter {
         ExporterType::Otlp => {
-            let exporter = opentelemetry_otlp::MetricExporter::builder()
-                .with_http()
-                .with_temporality(temporality_preference())
-                .build()?;
+            if !signal_protocol_is_http("metrics") {
+                warn_grpc_protocol_skipped_once();
+                return Err("OTLP metrics protocol is grpc but goose was built without grpc-tonic; skipping metrics exporter".into());
+            }
+            let rt = get_or_create_otel_rt()?;
+            let exporter = TokioMetricExporter {
+                inner: opentelemetry_otlp::MetricExporter::builder()
+                    .with_http()
+                    .with_temporality(temporality_preference())
+                    .build()?,
+                rt,
+            };
             SdkMeterProvider::builder()
                 .with_resource(resource)
                 .with_periodic_exporter(exporter)
@@ -223,9 +420,17 @@ fn create_otlp_logs_layer() -> OtlpResult<OtlpLogsLayer> {
 
     let logger_provider = match exporter {
         ExporterType::Otlp => {
-            let exporter = opentelemetry_otlp::LogExporter::builder()
-                .with_http()
-                .build()?;
+            if !signal_protocol_is_http("logs") {
+                warn_grpc_protocol_skipped_once();
+                return Err("OTLP logs protocol is grpc but goose was built without grpc-tonic; skipping logs exporter".into());
+            }
+            let rt = get_or_create_otel_rt()?;
+            let exporter = TokioLogExporter {
+                inner: opentelemetry_otlp::LogExporter::builder()
+                    .with_http()
+                    .build()?,
+                rt,
+            };
             SdkLoggerProvider::builder()
                 .with_batch_exporter(exporter)
                 .with_resource(resource)
@@ -242,7 +447,12 @@ fn create_otlp_logs_layer() -> OtlpResult<OtlpLogsLayer> {
     };
 
     let bridge = OpenTelemetryTracingBridge::builder(&logger_provider)
-        .with_tracing_span_attributes(TracingSpanAttributes::allowlist(["session.id"]))
+        .with_tracing_span_attributes(TracingSpanAttributes::allowlist([
+            "session.id",
+            "session.user",
+            "session.host",
+            "session.agent_type",
+        ]))
         .build();
     *LOGGER_PROVIDER.lock().unwrap_or_else(|e| e.into_inner()) = Some(logger_provider);
 
@@ -393,11 +603,26 @@ pub fn shutdown_otlp() {
             tracing::warn!("OTLP logger provider shutdown error: {e}");
         }
     }
+
+    if let Some(rt) = OTEL_RT.lock().unwrap_or_else(|e| e.into_inner()).take() {
+        // Dropping a `Runtime` inside an async context panics with "Cannot drop
+        // a runtime in a context where blocking is not allowed". Move the drop
+        // off-runtime via `shutdown_background` (which takes ownership of
+        // `Runtime` and shuts down without blocking the caller).  If we still
+        // have other `Arc` clones alive, fall back to dropping on a plain thread.
+        match Arc::try_unwrap(rt) {
+            Ok(runtime) => runtime.shutdown_background(),
+            Err(arc) => {
+                std::thread::spawn(move || drop(arc));
+            }
+        }
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::session_context::{session_host, session_user};
     use goose_test_support::otel::clear_otel_env;
     use opentelemetry_sdk::metrics::Temporality;
     use test_case::test_case;
@@ -458,6 +683,67 @@ mod tests {
         assert_eq!(signal_exporter(signal), expected);
     }
 
+    #[test_case(&[], true; "default unset is http")]
+    #[test_case(&[("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf")], true; "http/protobuf shared")]
+    #[test_case(&[("OTEL_EXPORTER_OTLP_PROTOCOL", "http/json")], true; "http/json shared")]
+    #[test_case(&[("OTEL_EXPORTER_OTLP_PROTOCOL", "HTTP/PROTOBUF")], true; "case insensitive")]
+    #[test_case(&[("OTEL_EXPORTER_OTLP_PROTOCOL", "  http/protobuf  ")], true; "trimmed")]
+    #[test_case(&[("OTEL_EXPORTER_OTLP_PROTOCOL", "")], true; "empty falls through to default")]
+    #[test_case(&[("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc")], false; "shared grpc is not http")]
+    #[test_case(&[("OTEL_EXPORTER_OTLP_PROTOCOL", "GRPC")], false; "grpc case insensitive")]
+    fn signal_protocol_is_http_shared(env: &[(&'static str, &'static str)], expected: bool) {
+        let _guard = clear_otel_env(env);
+        assert_eq!(signal_protocol_is_http("traces"), expected);
+        assert_eq!(signal_protocol_is_http("metrics"), expected);
+        assert_eq!(signal_protocol_is_http("logs"), expected);
+    }
+
+    #[test_case(
+        &[("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc"), ("OTEL_EXPORTER_OTLP_TRACES_PROTOCOL", "http/protobuf")],
+        true, false, false;
+        "signal override beats shared grpc for traces only"
+    )]
+    #[test_case(
+        &[("OTEL_EXPORTER_OTLP_PROTOCOL", "http/protobuf"), ("OTEL_EXPORTER_OTLP_METRICS_PROTOCOL", "grpc")],
+        true, false, true;
+        "signal override flips metrics to grpc"
+    )]
+    #[test_case(
+        &[("OTEL_EXPORTER_OTLP_LOGS_PROTOCOL", "")],
+        true, true, true;
+        "empty signal override falls through to default http"
+    )]
+    fn signal_protocol_is_http_per_signal(
+        env: &[(&'static str, &'static str)],
+        traces: bool,
+        metrics: bool,
+        logs: bool,
+    ) {
+        let _guard = clear_otel_env(env);
+        assert_eq!(signal_protocol_is_http("traces"), traces);
+        assert_eq!(signal_protocol_is_http("metrics"), metrics);
+        assert_eq!(signal_protocol_is_http("logs"), logs);
+    }
+
+    /// When `OTEL_EXPORTER_OTLP_PROTOCOL=grpc` is set (matching the
+    /// Blox + Datadog Agent environment that produced the
+    /// "HTTP client should not receive Grpc protocol" panic), each
+    /// signal layer must short-circuit with an error instead of
+    /// building a panic-prone exporter.
+    #[test]
+    fn grpc_protocol_skips_layers() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        let _guard = rt.enter();
+        let _env = clear_otel_env(&[
+            ("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4317"),
+            ("OTEL_EXPORTER_OTLP_PROTOCOL", "grpc"),
+        ]);
+        assert!(create_otlp_tracing_layer().is_err());
+        assert!(create_otlp_metrics_layer().is_err());
+        assert!(create_otlp_logs_layer().is_err());
+        shutdown_otlp();
+    }
+
     #[test_case("console"; "console")]
     #[test_case("otlp"; "otlp")]
     fn test_all_layers_ok(exporter: &'static str) {
@@ -475,10 +761,104 @@ mod tests {
         shutdown_otlp();
     }
 
+    #[test]
+    fn test_create_resource_defaults() {
+        let _guard = clear_otel_env(&[]);
+        let resource = create_resource();
+        let attrs: Vec<_> = resource.iter().collect();
+        let get = |key: &str| {
+            attrs
+                .iter()
+                .find(|(k, _)| k.as_str() == key)
+                .map(|(_, v)| v.to_string())
+        };
+
+        assert_eq!(get("service.name").as_deref(), Some("goose"));
+        assert_eq!(
+            get("service.version").as_deref(),
+            Some(env!("CARGO_PKG_VERSION"))
+        );
+        assert_eq!(get("service.namespace").as_deref(), Some("goose"));
+        assert!(get("host.name").is_some(), "host.name should be set");
+        assert!(get("user.name").is_some(), "user.name should be set");
+    }
+
+    #[test]
+    fn test_create_resource_otel_service_name_overrides() {
+        let _guard = clear_otel_env(&[("OTEL_SERVICE_NAME", "custom")]);
+        let resource = create_resource();
+        let attrs: Vec<_> = resource.iter().collect();
+        let get = |key: &str| {
+            attrs
+                .iter()
+                .find(|(k, _)| k.as_str() == key)
+                .map(|(_, v)| v.to_string())
+        };
+
+        assert_eq!(get("service.name").as_deref(), Some("custom"));
+        assert_eq!(get("service.namespace").as_deref(), Some("goose"));
+    }
+
+    #[test]
+    fn test_create_resource_otel_resource_attributes() {
+        let _guard = clear_otel_env(&[("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=prod")]);
+        let resource = create_resource();
+        let attrs: Vec<_> = resource.iter().collect();
+        let get = |key: &str| {
+            attrs
+                .iter()
+                .find(|(k, _)| k.as_str() == key)
+                .map(|(_, v)| v.to_string())
+        };
+
+        assert_eq!(get("service.name").as_deref(), Some("goose"));
+        assert_eq!(get("deployment.environment").as_deref(), Some("prod"));
+    }
+
+    #[test]
+    fn test_create_resource_combined() {
+        let _guard = clear_otel_env(&[
+            ("OTEL_SERVICE_NAME", "custom"),
+            ("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=prod"),
+        ]);
+        let resource = create_resource();
+        let attrs: Vec<_> = resource.iter().collect();
+        let get = |key: &str| {
+            attrs
+                .iter()
+                .find(|(k, _)| k.as_str() == key)
+                .map(|(_, v)| v.to_string())
+        };
+
+        assert_eq!(get("service.name").as_deref(), Some("custom"));
+        assert_eq!(get("deployment.environment").as_deref(), Some("prod"));
+        assert!(get("host.name").is_some());
+        assert!(get("user.name").is_some());
+    }
+
+    /// Verify that OTLP layers initialize without panicking even when no
+    /// Tokio runtime is active on the calling thread. This is the scenario
+    /// that triggered the "no reactor running" panic: `BatchSpanProcessor`
+    /// spawns a raw `std::thread`, and the async reqwest client inside the
+    /// exporter calls `tokio::time::sleep`, which requires a reactor.
+    #[test]
+    fn test_otlp_layers_ok_without_tokio_context() {
+        let _env = clear_otel_env(&[
+            ("OTEL_TRACES_EXPORTER", "otlp"),
+            ("OTEL_METRICS_EXPORTER", "otlp"),
+            ("OTEL_LOGS_EXPORTER", "otlp"),
+            ("OTEL_EXPORTER_OTLP_ENDPOINT", "http://localhost:4318"),
+        ]);
+        assert!(create_otlp_tracing_layer().is_ok());
+        assert!(create_otlp_metrics_layer().is_ok());
+        assert!(create_otlp_logs_layer().is_ok());
+        shutdown_otlp();
+    }
+
     #[test_case(
         &[],
         Resource::builder_empty()
-            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
+            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose"), KeyValue::new("host.name", session_host()), KeyValue::new("user.name", session_user())])
             .with_detector(Box::new(TelemetryResourceDetector))
             .build();
         "no env vars uses goose defaults"
@@ -486,7 +866,7 @@ mod tests {
     #[test_case(
         &[("OTEL_SERVICE_NAME", "custom")],
         Resource::builder_empty()
-            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
+            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose"), KeyValue::new("host.name", session_host()), KeyValue::new("user.name", session_user())])
             .with_detector(Box::new(TelemetryResourceDetector))
             .with_service_name("custom")
             .build();
@@ -495,7 +875,7 @@ mod tests {
     #[test_case(
         &[("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=prod")],
         Resource::builder_empty()
-            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
+            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose"), KeyValue::new("host.name", session_host()), KeyValue::new("user.name", session_user())])
             .with_detector(Box::new(TelemetryResourceDetector))
             .with_attribute(KeyValue::new("deployment.environment", "prod"))
             .build();
@@ -504,7 +884,7 @@ mod tests {
     #[test_case(
         &[("OTEL_SERVICE_NAME", "custom"), ("OTEL_RESOURCE_ATTRIBUTES", "deployment.environment=prod")],
         Resource::builder_empty()
-            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose")])
+            .with_attributes([KeyValue::new("service.name", "goose"), KeyValue::new("service.version", env!("CARGO_PKG_VERSION")), KeyValue::new("service.namespace", "goose"), KeyValue::new("host.name", session_host()), KeyValue::new("user.name", session_user())])
             .with_detector(Box::new(TelemetryResourceDetector))
             .with_service_name("custom")
             .with_attribute(KeyValue::new("deployment.environment", "prod"))

@@ -3,11 +3,9 @@ use super::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::errors::ProviderError;
-use super::inventory::InventoryIdentityInput;
 use super::openai_compatible::handle_status;
 use super::retry::{ProviderRetry, RetryConfig};
-use super::utils::{ImageFormat, RequestLog};
+use super::utils::RequestLog;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -17,6 +15,9 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
+use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::ModelConfigParams;
+use goose_providers::images::ImageFormat;
 use reqwest::Response;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
@@ -27,7 +28,7 @@ use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 use url::Url;
 
-const OLLAMA_PROVIDER_NAME: &str = "ollama";
+pub(crate) const OLLAMA_PROVIDER_NAME: &str = "ollama";
 pub const OLLAMA_HOST: &str = "localhost";
 pub const OLLAMA_TIMEOUT: u64 = DEFAULT_PROVIDER_TIMEOUT_SECS;
 pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
@@ -125,7 +126,7 @@ fn apply_ollama_options(payload: &mut Value, model_config: &ModelConfig) {
     }
 }
 
-fn ollama_host_configured(config: &crate::config::Config) -> bool {
+pub(crate) fn ollama_host_configured(config: &crate::config::Config) -> bool {
     config.get_param::<String>("OLLAMA_HOST").is_ok()
 }
 
@@ -264,26 +265,6 @@ impl ProviderDef for OllamaProvider {
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
-
-    fn supports_inventory_refresh() -> bool {
-        true
-    }
-
-    fn inventory_configured() -> bool {
-        ollama_host_configured(crate::config::Config::global())
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        let config = crate::config::Config::global();
-        Ok(
-            InventoryIdentityInput::new(OLLAMA_PROVIDER_NAME, OLLAMA_PROVIDER_NAME).with_public(
-                "host",
-                config
-                    .get_param::<String>("OLLAMA_HOST")
-                    .unwrap_or_else(|_| OLLAMA_HOST.to_string()),
-            ),
-        )
-    }
 }
 
 #[async_trait]
@@ -319,7 +300,13 @@ impl Provider for OllamaProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let mut payload = create_request(
-            model_config,
+            ModelConfigParams {
+                model_name: model_config.model_name.as_str(),
+                thinking_effort: model_config.thinking_effort(),
+                temperature: model_config.temperature,
+                max_tokens: model_config.max_tokens,
+                request_params: model_config.request_params.as_ref(),
+            },
             system,
             messages,
             tools,
@@ -465,9 +452,7 @@ fn stream_ollama(response: Response, mut log: RequestLog) -> Result<MessageStrea
         pin!(message_stream);
 
         while let Some(message) = message_stream.next().await {
-            let (message, usage) = message.map_err(|e|
-                ProviderError::RequestFailed(format!("Stream decode error: {}", e))
-            )?;
+            let (message, usage) = message.map_err(ProviderError::from_stream_error)?;
             log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
             yield (message, usage);
         }
@@ -558,7 +543,6 @@ mod tests {
     #[test]
     fn test_raw_create_request_contains_unsupported_ollama_fields() {
         use crate::providers::formats::ollama::create_request;
-        use crate::providers::utils::ImageFormat;
 
         let model_config = ModelConfig::new("llama3.1")
             .unwrap()
@@ -566,7 +550,13 @@ mod tests {
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let payload = create_request(
-            &model_config,
+            ModelConfigParams {
+                model_name: model_config.model_name.as_str(),
+                thinking_effort: model_config.thinking_effort(),
+                temperature: model_config.temperature,
+                max_tokens: model_config.max_tokens,
+                request_params: model_config.request_params.as_ref(),
+            },
             "You are a helpful assistant.",
             &messages,
             &[],
@@ -588,7 +578,6 @@ mod tests {
     #[test]
     fn test_apply_ollama_options_preserves_stream_options_by_default() {
         use crate::providers::formats::ollama::create_request;
-        use crate::providers::utils::ImageFormat;
 
         let _guard = env_lock::lock_env([
             ("GOOSE_INPUT_LIMIT", None::<&str>),
@@ -600,7 +589,13 @@ mod tests {
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let mut payload = create_request(
-            &model_config,
+            ModelConfigParams {
+                model_name: model_config.model_name.as_str(),
+                thinking_effort: model_config.thinking_effort(),
+                temperature: model_config.temperature,
+                max_tokens: model_config.max_tokens,
+                request_params: model_config.request_params.as_ref(),
+            },
             "You are a helpful assistant.",
             &messages,
             &[],
@@ -633,7 +628,6 @@ mod tests {
     #[test]
     fn test_apply_ollama_options_strips_stream_options_when_disabled() {
         use crate::providers::formats::ollama::create_request;
-        use crate::providers::utils::ImageFormat;
 
         let _guard = env_lock::lock_env([
             ("GOOSE_INPUT_LIMIT", None::<&str>),
@@ -645,7 +639,13 @@ mod tests {
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let mut payload = create_request(
-            &model_config,
+            ModelConfigParams {
+                model_name: model_config.model_name.as_str(),
+                thinking_effort: model_config.thinking_effort(),
+                temperature: model_config.temperature,
+                max_tokens: model_config.max_tokens,
+                request_params: model_config.request_params.as_ref(),
+            },
             "You are a helpful assistant.",
             &messages,
             &[],
@@ -740,8 +740,8 @@ mod tests {
 
         assert!(config.transient_only);
 
-        use super::super::errors::ProviderError;
         use super::super::retry::should_retry;
+        use goose_providers::errors::ProviderError;
 
         assert!(!should_retry(
             &ProviderError::RequestFailed("Resource not found (404)".into()),

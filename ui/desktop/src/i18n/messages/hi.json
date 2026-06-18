@@ -1,0 +1,4835 @@
+{
+  "alertBox.autoCompactAt": {
+    "defaultMessage": "ऑटो कॉम्पैक्ट पर"
+  },
+  "alertBox.compactNow": {
+    "defaultMessage": "अब संक्षिप्त करें"
+  },
+  "alertBox.failedToSaveThreshold": {
+    "defaultMessage": "सीमा सहेजने में विफल: {error}"
+  },
+  "announcementModal.gotIt": {
+    "defaultMessage": "समझ गया!"
+  },
+  "appLayout.openNavigation": {
+    "defaultMessage": "नेविगेशन खोलें"
+  },
+  "appsView.customApp": {
+    "defaultMessage": "कस्टम ऐप"
+  },
+  "appsView.description": {
+    "defaultMessage": "आपके MCP सर्वर से एप्लिकेशन और goose द्वारा निर्मित ऐप्स। आप इसे चैट इंटरफ़ेस के माध्यम से नए ऐप्स बनाने के लिए कह सकते हैं और वे यहां दिखाई देंगे।"
+  },
+  "appsView.errorLoading": {
+    "defaultMessage": "ऐप्स लोड करने में त्रुटि: {error}"
+  },
+  "appsView.importApp": {
+    "defaultMessage": "ऐप आयात करें"
+  },
+  "appsView.launch": {
+    "defaultMessage": "लॉन्च करें"
+  },
+  "appsView.loading": {
+    "defaultMessage": "ऐप्स लोड हो रहे हैं..."
+  },
+  "appsView.noAppsDescription": {
+    "defaultMessage": "चैट खोलें और goose से उस ऐप के बारे में पूछें जो आप चाहते हैं। यह आपके लिए एक निर्माण कर सकता है और वह यहां दिखाई देगा। या यदि किसी ने कोई ऐप साझा किया है, तो आप ऊपर दिए गए बटन का उपयोग करके इसे आयात कर सकते हैं।"
+  },
+  "appsView.noAppsTitle": {
+    "defaultMessage": "कोई ऐप्स उपलब्ध नहीं"
+  },
+  "appsView.retry": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
+  "appsView.title": {
+    "defaultMessage": "ऐप्स"
+  },
+  "authSettings.activeProviderWarning": {
+    "defaultMessage": "यह सक्रिय प्रदाता है. जब तक आप कोई अन्य क्रेडेंशियल कॉन्फ़िगर नहीं करते तब तक नए अनुरोध विफल हो सकते हैं।"
+  },
+  "authSettings.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "authSettings.delete": {
+    "defaultMessage": "हटाएँ"
+  },
+  "authSettings.deleteCredential": {
+    "defaultMessage": "क्रेडेंशियल हटाएँ"
+  },
+  "authSettings.deleteMessage": {
+    "defaultMessage": "{provider} के लिए {name} क्रेडेंशियल हटाएं?"
+  },
+  "authSettings.deleteTitle": {
+    "defaultMessage": "क्रेडेंशियल हटाएँ"
+  },
+  "authSettings.deleted": {
+    "defaultMessage": "क्रेडेंशियल हटा दिया गया"
+  },
+  "authSettings.description": {
+    "defaultMessage": "goose द्वारा स्थानीय रूप से संग्रहीत प्रदाता क्रेडेंशियल प्रबंधित करें।"
+  },
+  "authSettings.empty": {
+    "defaultMessage": "कोई स्थानीय रूप से संग्रहीत प्रदाता क्रेडेंशियल नहीं मिला।"
+  },
+  "authSettings.expiresAt": {
+    "defaultMessage": "समाप्त हो रहा है {date}"
+  },
+  "authSettings.failedToConfigure": {
+    "defaultMessage": "क्रेडेंशियल कॉन्फ़िगर करने में विफल: {error}"
+  },
+  "authSettings.failedToDelete": {
+    "defaultMessage": "क्रेडेंशियल हटाने में विफल: {error}"
+  },
+  "authSettings.failedToLoad": {
+    "defaultMessage": "प्रदाता क्रेडेंशियल लोड करने में विफल"
+  },
+  "authSettings.loading": {
+    "defaultMessage": "क्रेडेंशियल लोड हो रहा है..."
+  },
+  "authSettings.reauthorize": {
+    "defaultMessage": "पुन: प्राधिकृत करें"
+  },
+  "authSettings.signIn": {
+    "defaultMessage": "साइन इन करें"
+  },
+  "authSettings.signedIn": {
+    "defaultMessage": "क्रेडेंशियल कॉन्फ़िगर किया गया"
+  },
+  "authSettings.storageProviderCache": {
+    "defaultMessage": "प्रदाता कैश"
+  },
+  "authSettings.storageSecretStore": {
+    "defaultMessage": "गुप्त भंडार"
+  },
+  "authSettings.title": {
+    "defaultMessage": "प्रदाता क्रेडेंशियल"
+  },
+  "backButton.back": {
+    "defaultMessage": "वापस"
+  },
+  "baseChat.failedToLoadSession": {
+    "defaultMessage": "सत्र लोड करने में विफल"
+  },
+  "baseChat.goHome": {
+    "defaultMessage": "घर जाओ"
+  },
+  "baseChat.noSession": {
+    "defaultMessage": "कोई सत्र नहीं"
+  },
+  "baseChat.recipeCreatedMessage": {
+    "defaultMessage": "\"{title}\" सहेजा गया है और उपयोग के लिए तैयार है।"
+  },
+  "baseChat.recipeCreatedTitle": {
+    "defaultMessage": "रेसिपी सफलतापूर्वक बनाई गई!"
+  },
+  "bottomMenuExtensionSelection.extensionToggleError": {
+    "defaultMessage": "एक्सटेंशन टॉगल त्रुटि"
+  },
+  "bottomMenuExtensionSelection.extensionUpdated": {
+    "defaultMessage": "एक्सटेंशन अपडेट किया गया"
+  },
+  "bottomMenuExtensionSelection.extensionWillBeDisabled": {
+    "defaultMessage": "नई चैट में {name} अक्षम कर दिया जाएगा"
+  },
+  "bottomMenuExtensionSelection.extensionWillBeEnabled": {
+    "defaultMessage": "नई चैट में {name} सक्षम किया जाएगा"
+  },
+  "bottomMenuExtensionSelection.extensionsForNewChats": {
+    "defaultMessage": "नई चैट के लिए एक्सटेंशन"
+  },
+  "bottomMenuExtensionSelection.extensionsForThisSession": {
+    "defaultMessage": "इस चैट सत्र के लिए एक्सटेंशन"
+  },
+  "bottomMenuExtensionSelection.manageExtensions": {
+    "defaultMessage": "एक्सटेंशन प्रबंधित करें"
+  },
+  "bottomMenuExtensionSelection.noActiveSession": {
+    "defaultMessage": "कोई सक्रिय सत्र नहीं मिला. कृपया पहले एक चैट सत्र प्रारंभ करें."
+  },
+  "bottomMenuExtensionSelection.noExtensionsAvailable": {
+    "defaultMessage": "कोई एक्सटेंशन उपलब्ध नहीं है"
+  },
+  "bottomMenuExtensionSelection.noExtensionsFound": {
+    "defaultMessage": "कोई एक्सटेंशन नहीं मिला"
+  },
+  "bottomMenuExtensionSelection.searchExtensions": {
+    "defaultMessage": "एक्सटेंशन खोजें..."
+  },
+  "cardButtons.configure": {
+    "defaultMessage": "कॉन्फ़िगर करें"
+  },
+  "cardButtons.launch": {
+    "defaultMessage": "लॉन्च करें"
+  },
+  "chat.notification.taskComplete.body": {
+    "defaultMessage": "Goose को फोकस में वापस लाने के लिए यहां क्लिक करें।"
+  },
+  "chat.notification.taskComplete.title": {
+    "defaultMessage": "Goose ने कार्य पूरा किया।"
+  },
+  "chatInput.contextWindow": {
+    "defaultMessage": "प्रसंग विंडो"
+  },
+  "chatInput.createRecipeFromSession": {
+    "defaultMessage": "सत्र से रेसिपी बनाएं"
+  },
+  "chatInput.dictationError": {
+    "defaultMessage": "श्रुतलेख त्रुटि"
+  },
+  "chatInput.failedToReadImage": {
+    "defaultMessage": "छवि फ़ाइल पढ़ने में विफल"
+  },
+  "chatInput.navigationShortcut": {
+    "defaultMessage": "संदेशों को नेविगेट करने के लिए {prefix}↑/{prefix}↓"
+  },
+  "chatInput.processingDroppedFiles": {
+    "defaultMessage": "छोड़ी गई फ़ाइलें संसाधित हो रही हैं..."
+  },
+  "chatInput.recording": {
+    "defaultMessage": "रिकॉर्डिंग..."
+  },
+  "chatInput.removeFile": {
+    "defaultMessage": "फ़ाइल हटाएँ"
+  },
+  "chatInput.removeImage": {
+    "defaultMessage": "छवि हटाएँ"
+  },
+  "chatInput.restartingSession": {
+    "defaultMessage": "सत्र पुनः प्रारंभ हो रहा है..."
+  },
+  "chatInput.send": {
+    "defaultMessage": "भेजें"
+  },
+  "chatInput.tooManyTools": {
+    "defaultMessage": "बहुत सारे उपकरण प्रदर्शन को ख़राब कर सकते हैं. उपकरण संख्या: {toolCount} (अनुशंसा: {recommended})"
+  },
+  "chatInput.transcribing": {
+    "defaultMessage": "प्रतिलेखन..."
+  },
+  "chatInput.typeMessage": {
+    "defaultMessage": "भेजने के लिए एक संदेश टाइप करें"
+  },
+  "chatInput.unknownType": {
+    "defaultMessage": "अज्ञात प्रकार"
+  },
+  "chatInput.viewEditRecipe": {
+    "defaultMessage": "रेसिपी देखें/संपादित करें"
+  },
+  "chatInput.viewExtensions": {
+    "defaultMessage": "एक्सटेंशन देखें"
+  },
+  "chatInput.waitingForImages": {
+    "defaultMessage": "छवियों को सहेजने की प्रतीक्षा की जा रही है..."
+  },
+  "chatSettings.modeDescription": {
+    "defaultMessage": "कॉन्फ़िगर करें कि Goose टूल और एक्सटेंशन के साथ कैसे इंटरैक्ट करता है"
+  },
+  "chatSettings.modeTitle": {
+    "defaultMessage": "मोड"
+  },
+  "chatSettings.responseStylesDescription": {
+    "defaultMessage": "चुनें कि Goose को अपनी प्रतिक्रियाओं को कैसे प्रारूपित और शैलीबद्ध करना चाहिए"
+  },
+  "chatSettings.responseStylesTitle": {
+    "defaultMessage": "प्रतिक्रिया शैलियाँ"
+  },
+  "configSettings.configReset": {
+    "defaultMessage": "कॉन्फ़िगरेशन रीसेट"
+  },
+  "configSettings.configResetMsg": {
+    "defaultMessage": "सभी परिवर्तन पूर्ववत कर दिए गए हैं"
+  },
+  "configSettings.configUpdated": {
+    "defaultMessage": "कॉन्फ़िगरेशन अद्यतन किया गया"
+  },
+  "configSettings.configUpdatedMsg": {
+    "defaultMessage": "\"{name}\" सफलतापूर्वक सहेजा गया"
+  },
+  "configSettings.configurationEditor": {
+    "defaultMessage": "कॉन्फ़िगरेशन संपादक"
+  },
+  "configSettings.description": {
+    "defaultMessage": "अपनी goose कॉन्फ़िगरेशन सेटिंग संपादित करें"
+  },
+  "configSettings.descriptionWithProvider": {
+    "defaultMessage": "अपनी goose कॉन्फ़िगरेशन सेटिंग्स संपादित करें ({provider} के लिए वर्तमान सेटिंग्स)"
+  },
+  "configSettings.done": {
+    "defaultMessage": "हो गया"
+  },
+  "configSettings.editConfiguration": {
+    "defaultMessage": "कॉन्फ़िगरेशन संपादित करें"
+  },
+  "configSettings.enterValue": {
+    "defaultMessage": "{name} दर्ज करें"
+  },
+  "configSettings.noSettings": {
+    "defaultMessage": "कोई कॉन्फ़िगरेशन सेटिंग नहीं मिली."
+  },
+  "configSettings.resetChanges": {
+    "defaultMessage": "परिवर्तन रीसेट करें"
+  },
+  "configSettings.saveFailed": {
+    "defaultMessage": "सहेजें विफल"
+  },
+  "configSettings.saveFailedMsg": {
+    "defaultMessage": "\"{name}\" को सहेजने में विफल"
+  },
+  "configSettings.saving": {
+    "defaultMessage": "सहेजा जा रहा है..."
+  },
+  "configSettings.title": {
+    "defaultMessage": "विन्यास"
+  },
+  "configureApproveMode.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "configureApproveMode.description": {
+    "defaultMessage": "स्वीकृत अनुरोध या तो सभी टूल अनुरोधों को दिए जा सकते हैं या यह निर्धारित कर सकते हैं कि किन कार्यों के लिए एकीकरण की आवश्यकता हो सकती है"
+  },
+  "configureApproveMode.manualApproval": {
+    "defaultMessage": "मैन्युअल अनुमोदन"
+  },
+  "configureApproveMode.manualApprovalDescription": {
+    "defaultMessage": "सभी टूल, एक्सटेंशन और फ़ाइल संशोधनों के लिए मानव अनुमोदन की आवश्यकता होगी"
+  },
+  "configureApproveMode.save": {
+    "defaultMessage": "सहेजें"
+  },
+  "configureApproveMode.saving": {
+    "defaultMessage": "सहेजा जा रहा है..."
+  },
+  "configureApproveMode.smartApproval": {
+    "defaultMessage": "स्मार्ट अनुमोदन"
+  },
+  "configureApproveMode.smartApprovalDescription": {
+    "defaultMessage": "जोखिम स्तर के आधार पर समझदारी से निर्धारित करें कि किन कार्यों को अनुमोदन की आवश्यकता है"
+  },
+  "configureApproveMode.title": {
+    "defaultMessage": "अनुमोदन मोड कॉन्फ़िगर करें"
+  },
+  "confirmationModal.defaultCancel": {
+    "defaultMessage": "नहीं"
+  },
+  "confirmationModal.defaultConfirm": {
+    "defaultMessage": "हाँ"
+  },
+  "confirmationModal.processing": {
+    "defaultMessage": "प्रसंस्करण..."
+  },
+  "conversationLimitsDropdown.conversationLimits": {
+    "defaultMessage": "बातचीत की सीमाएँ"
+  },
+  "conversationLimitsDropdown.maxTurns": {
+    "defaultMessage": "अधिकतम मोड़"
+  },
+  "conversationLimitsDropdown.maxTurnsDescription": {
+    "defaultMessage": "Goose द्वारा उपयोगकर्ता इनपुट मांगने से पहले अधिकतम एजेंट मुड़ता है"
+  },
+  "costTracker.costUnavailable": {
+    "defaultMessage": "{model} ({inputTokens} इनपुट, {outputTokens} आउटपुट टोकन) के लिए लागत डेटा उपलब्ध नहीं है"
+  },
+  "costTracker.inputOutputTooltip": {
+    "defaultMessage": "इनपुट: {inputTokens} टोकन ({inputCost}) | आउटपुट: {outputTokens} टोकन ({outputCost})"
+  },
+  "costTracker.pricingUnavailable": {
+    "defaultMessage": "{model} के लिए मूल्य निर्धारण डेटा उपलब्ध नहीं है"
+  },
+  "costTracker.totalSessionCost": {
+    "defaultMessage": "कुल सत्र लागत: {cost}"
+  },
+  "createEditRecipe.clickToGenerateDeeplink": {
+    "defaultMessage": "डीपलिंक जनरेट करने के लिए क्लिक करें"
+  },
+  "createEditRecipe.close": {
+    "defaultMessage": "बंद करें"
+  },
+  "createEditRecipe.copied": {
+    "defaultMessage": "नकल की गई!"
+  },
+  "createEditRecipe.copy": {
+    "defaultMessage": "प्रतिलिपि"
+  },
+  "createEditRecipe.copyLinkDescription": {
+    "defaultMessage": "दोस्तों के साथ साझा करने के लिए इस लिंक को कॉपी करें या खोलने के लिए सीधे क्रोम में पेस्ट करें"
+  },
+  "createEditRecipe.createRecipeTitle": {
+    "defaultMessage": "रेसिपी बनाएं"
+  },
+  "createEditRecipe.createSubtitle": {
+    "defaultMessage": "दोबारा इस्तेमाल होने वाले चैट सत्रों के लिए एजेंट का व्यवहार और क्षमताएं तय करने वाली नई रेसिपी बनाएं।"
+  },
+  "createEditRecipe.editSubtitle": {
+    "defaultMessage": "नए सत्र में एजेंट का व्यवहार बदलने के लिए नीचे दी गई रेसिपी संपादित करें।"
+  },
+  "createEditRecipe.generatingDeeplink": {
+    "defaultMessage": "डीपलिंक जनरेट किया जा रहा है..."
+  },
+  "createEditRecipe.learnMore": {
+    "defaultMessage": "और जानें"
+  },
+  "createEditRecipe.recipeSavedAndLaunchedMsg": {
+    "defaultMessage": "रेसिपी सहेजी गई और सफलतापूर्वक लॉन्च की गई"
+  },
+  "createEditRecipe.recipeSavedMsg": {
+    "defaultMessage": "रेसिपी सफलतापूर्वक सहेजी गई"
+  },
+  "createEditRecipe.saveAndRunFailed": {
+    "defaultMessage": "सहेजें और चलाएँ विफल"
+  },
+  "createEditRecipe.saveAndRunFailedMsg": {
+    "defaultMessage": "रेसिपी सहेजकर चलाने में विफल: {error}"
+  },
+  "createEditRecipe.saveAndRunRecipe": {
+    "defaultMessage": "रेसिपी सहेजें और चलाएं"
+  },
+  "createEditRecipe.saveFailed": {
+    "defaultMessage": "सहेजें विफल"
+  },
+  "createEditRecipe.saveFailedMsg": {
+    "defaultMessage": "रेसिपी सहेजने में विफल: {error}"
+  },
+  "createEditRecipe.saveRecipe": {
+    "defaultMessage": "रेसिपी सहेजें"
+  },
+  "createEditRecipe.saving": {
+    "defaultMessage": "सहेजा जा रहा है..."
+  },
+  "createEditRecipe.validationFailed": {
+    "defaultMessage": "सत्यापन विफल"
+  },
+  "createEditRecipe.validationMsg": {
+    "defaultMessage": "कृपया सभी आवश्यक फ़ील्ड भरें और सुनिश्चित करें कि JSON स्कीम मान्य है।"
+  },
+  "createEditRecipe.viewEditRecipeTitle": {
+    "defaultMessage": "रेसिपी देखें/संपादित करें"
+  },
+  "createRecipeFromSession.analyzingTitle": {
+    "defaultMessage": "आपकी बातचीत का विश्लेषण"
+  },
+  "createRecipeFromSession.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "createRecipeFromSession.createAndRunRecipe": {
+    "defaultMessage": "रेसिपी बनाएं और चलाएं"
+  },
+  "createRecipeFromSession.createRecipe": {
+    "defaultMessage": "रेसिपी बनाएं"
+  },
+  "createRecipeFromSession.creating": {
+    "defaultMessage": "बनाया जा रहा है..."
+  },
+  "createRecipeFromSession.extractingInsights": {
+    "defaultMessage": "आपकी चैट से अंतर्दृष्टि निकालना"
+  },
+  "createRecipeFromSession.failedToCreateDefaultMsg": {
+    "defaultMessage": "रेसिपी बनाते समय एक अप्रत्याशित त्रुटि उत्पन्न हुई. कृपया पुन: प्रयास करें।"
+  },
+  "createRecipeFromSession.failedToCreateTitle": {
+    "defaultMessage": "रेसिपी बनाने में विफल"
+  },
+  "createRecipeFromSession.stageComplete": {
+    "defaultMessage": "पूरा!"
+  },
+  "createRecipeFromSession.stageExtracting": {
+    "defaultMessage": "मुख्य विषय निकाले जा रहे हैं..."
+  },
+  "createRecipeFromSession.stageFinalizing": {
+    "defaultMessage": "विवरण को अंतिम रूप दिया जा रहा है..."
+  },
+  "createRecipeFromSession.stageGenerating": {
+    "defaultMessage": "रेसिपी संरचना तैयार की जा रही है..."
+  },
+  "createRecipeFromSession.stageIdentifying": {
+    "defaultMessage": "प्रमुख पैटर्न की पहचान..."
+  },
+  "createRecipeFromSession.stageReading": {
+    "defaultMessage": "आपकी बातचीत पढ़ रहा हूँ..."
+  },
+  "createRecipeFromSession.subtitle": {
+    "defaultMessage": "अपनी मौजूदा बातचीत के आधार पर दोबारा इस्तेमाल होने वाली रेसिपी बनाएं।"
+  },
+  "createRecipeFromSession.title": {
+    "defaultMessage": "सत्र से रेसिपी बनाएं"
+  },
+  "createSubRecipeInline.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "createSubRecipeInline.closeModal": {
+    "defaultMessage": "सबरेसिपी मोडल बनाएं बंद करें"
+  },
+  "createSubRecipeInline.createAndAdd": {
+    "defaultMessage": "सबरेसिपी बनाएं और जोड़ें"
+  },
+  "createSubRecipeInline.createdSuccess": {
+    "defaultMessage": "सबरेसिपी सफलतापूर्वक बनाई गई"
+  },
+  "createSubRecipeInline.creating": {
+    "defaultMessage": "बनाया जा रहा है..."
+  },
+  "createSubRecipeInline.duplicateName": {
+    "defaultMessage": "डुप्लिकेट नाम"
+  },
+  "createSubRecipeInline.duplicateNameMsg": {
+    "defaultMessage": "\"{name}\" नाम की सबरेसिपी पहले से मौजूद है। कृपया कोई अलग नाम इस्तेमाल करें।"
+  },
+  "createSubRecipeInline.instructionsLabel": {
+    "defaultMessage": "अनुदेश"
+  },
+  "createSubRecipeInline.instructionsPlaceholder": {
+    "defaultMessage": "इस उपरेसिपी को कॉल करने पर एआई के लिए निर्देश..."
+  },
+  "createSubRecipeInline.nameHint": {
+    "defaultMessage": "टूल नाम उत्पन्न करने के लिए अद्वितीय पहचानकर्ता का उपयोग किया जाता है"
+  },
+  "createSubRecipeInline.nameLabel": {
+    "defaultMessage": "नाम"
+  },
+  "createSubRecipeInline.namePlaceholder": {
+    "defaultMessage": "उदाहरण के लिए, सुरक्षा_स्कैन"
+  },
+  "createSubRecipeInline.preconfiguredValues": {
+    "defaultMessage": "पूर्व-कॉन्फ़िगर मान"
+  },
+  "createSubRecipeInline.preconfiguredValuesHint": {
+    "defaultMessage": "वैकल्पिक पैरामीटर मान जो हमेशा सबरेसिपी को भेजे जाते हैं"
+  },
+  "createSubRecipeInline.recipeDescriptionLabel": {
+    "defaultMessage": "रेसिपी विवरण"
+  },
+  "createSubRecipeInline.recipeDescriptionPlaceholder": {
+    "defaultMessage": "चलने पर यह रेसिपी क्या करती है"
+  },
+  "createSubRecipeInline.recipeTitleLabel": {
+    "defaultMessage": "रेसिपी शीर्षक"
+  },
+  "createSubRecipeInline.recipeTitlePlaceholder": {
+    "defaultMessage": "उदाहरण के लिए, सुरक्षा विश्लेषण उपकरण"
+  },
+  "createSubRecipeInline.saveFailed": {
+    "defaultMessage": "सहेजें विफल"
+  },
+  "createSubRecipeInline.saveFailedMsg": {
+    "defaultMessage": "सबरेसिपी सहेजने में विफल: {error}"
+  },
+  "createSubRecipeInline.sequentialHint": {
+    "defaultMessage": "(एकाधिक उदाहरणों के क्रमिक निष्पादन को बाध्य करता है)"
+  },
+  "createSubRecipeInline.sequentialLabel": {
+    "defaultMessage": "दोहराए जाने पर अनुक्रमिक"
+  },
+  "createSubRecipeInline.subtitle": {
+    "defaultMessage": "अपनी मुख्य रेसिपी में कॉल करने योग्य टूल के रूप में उपयोग करने के लिए एक सरल रेसिपी बनाएं"
+  },
+  "createSubRecipeInline.title": {
+    "defaultMessage": "नई सबरेसिपी बनाएं"
+  },
+  "createSubRecipeInline.toolDescriptionLabel": {
+    "defaultMessage": "उपकरण विवरण"
+  },
+  "createSubRecipeInline.toolDescriptionPlaceholder": {
+    "defaultMessage": "जब इसे एक उपकरण कहा जाता है तो वैकल्पिक विवरण दिखाया जाता है"
+  },
+  "createSubRecipeInline.validationFailed": {
+    "defaultMessage": "सत्यापन विफल"
+  },
+  "createSubRecipeInline.validationMsg": {
+    "defaultMessage": "नाम, शीर्षक, रेसिपी विवरण और निर्देश आवश्यक हैं।"
+  },
+  "creditsExhaustedNotification.addCredits": {
+    "defaultMessage": "क्रेडिट जोड़ें"
+  },
+  "creditsExhaustedNotification.insufficientCredits": {
+    "defaultMessage": "अपर्याप्त क्रेडिट"
+  },
+  "cronPicker.april": {
+    "defaultMessage": "अप्रैल"
+  },
+  "cronPicker.at": {
+    "defaultMessage": "पर"
+  },
+  "cronPicker.atMinute": {
+    "defaultMessage": "मिनट पर"
+  },
+  "cronPicker.atSecond": {
+    "defaultMessage": "दूसरे पर"
+  },
+  "cronPicker.august": {
+    "defaultMessage": "अगस्त"
+  },
+  "cronPicker.cronExpression": {
+    "defaultMessage": "क्रोन अभिव्यक्ति"
+  },
+  "cronPicker.custom": {
+    "defaultMessage": "कस्टम क्रॉन"
+  },
+  "cronPicker.day": {
+    "defaultMessage": "दिन"
+  },
+  "cronPicker.december": {
+    "defaultMessage": "दिसंबर"
+  },
+  "cronPicker.emptyCronError": {
+    "defaultMessage": "क्रोन अभिव्यक्ति खाली नहीं हो सकती"
+  },
+  "cronPicker.every": {
+    "defaultMessage": "हर"
+  },
+  "cronPicker.february": {
+    "defaultMessage": "फ़रवरी"
+  },
+  "cronPicker.friday": {
+    "defaultMessage": "शुक्रवार"
+  },
+  "cronPicker.hour": {
+    "defaultMessage": "घंटा"
+  },
+  "cronPicker.inMonth": {
+    "defaultMessage": "में"
+  },
+  "cronPicker.invalidDayOfMonth": {
+    "defaultMessage": "दिन 1 और {max} के बीच होना चाहिए"
+  },
+  "cronPicker.january": {
+    "defaultMessage": "जनवरी"
+  },
+  "cronPicker.july": {
+    "defaultMessage": "जुलाई"
+  },
+  "cronPicker.june": {
+    "defaultMessage": "जून"
+  },
+  "cronPicker.march": {
+    "defaultMessage": "मार्च"
+  },
+  "cronPicker.may": {
+    "defaultMessage": "मई"
+  },
+  "cronPicker.minute": {
+    "defaultMessage": "मिनट"
+  },
+  "cronPicker.mode": {
+    "defaultMessage": "मोड"
+  },
+  "cronPicker.monday": {
+    "defaultMessage": "सोमवार"
+  },
+  "cronPicker.month": {
+    "defaultMessage": "महीना"
+  },
+  "cronPicker.november": {
+    "defaultMessage": "नवंबर"
+  },
+  "cronPicker.october": {
+    "defaultMessage": "अक्टूबर"
+  },
+  "cronPicker.on": {
+    "defaultMessage": "पर"
+  },
+  "cronPicker.onDay": {
+    "defaultMessage": "दिन पर"
+  },
+  "cronPicker.quarter": {
+    "defaultMessage": "चौथाई"
+  },
+  "cronPicker.saturday": {
+    "defaultMessage": "शनिवार"
+  },
+  "cronPicker.september": {
+    "defaultMessage": "सितम्बर"
+  },
+  "cronPicker.startingMonth": {
+    "defaultMessage": "शुरुआती महीना"
+  },
+  "cronPicker.sunday": {
+    "defaultMessage": "रविवार"
+  },
+  "cronPicker.thursday": {
+    "defaultMessage": "गुरुवार"
+  },
+  "cronPicker.tuesday": {
+    "defaultMessage": "मंगलवार"
+  },
+  "cronPicker.wednesday": {
+    "defaultMessage": "बुधवार"
+  },
+  "cronPicker.week": {
+    "defaultMessage": "सप्ताह"
+  },
+  "cronPicker.year": {
+    "defaultMessage": "वर्ष"
+  },
+  "customProviderForm.add": {
+    "defaultMessage": "जोड़ें"
+  },
+  "customProviderForm.anthropicCompatible": {
+    "defaultMessage": "Anthropic संगत"
+  },
+  "customProviderForm.apiBasePath": {
+    "defaultMessage": "API बेस पथ (वैकल्पिक)"
+  },
+  "customProviderForm.apiBasePathHint": {
+    "defaultMessage": "डिफ़ॉल्ट API पथ को ओवरराइड करें। प्रदाता के डिफ़ॉल्ट पथ का उपयोग करने के लिए खाली छोड़ दें।"
+  },
+  "customProviderForm.apiBasePathPlaceholder": {
+    "defaultMessage": "उदाहरण के लिए, v1/चैट/समापन या project_id/v1"
+  },
+  "customProviderForm.apiKey": {
+    "defaultMessage": "API कुंजी"
+  },
+  "customProviderForm.apiKeyPlaceholderExisting": {
+    "defaultMessage": "मौजूदा कुंजी रखने के लिए खाली छोड़ दें"
+  },
+  "customProviderForm.apiKeyPlaceholderNew": {
+    "defaultMessage": "आपकी API कुंजी"
+  },
+  "customProviderForm.apiKeyRequired": {
+    "defaultMessage": "API कुंजी आवश्यक है"
+  },
+  "customProviderForm.apiUrl": {
+    "defaultMessage": "API URL"
+  },
+  "customProviderForm.apiUrlPlaceholder": {
+    "defaultMessage": "https://api.example.com"
+  },
+  "customProviderForm.apiUrlRequired": {
+    "defaultMessage": "API URL आवश्यक है"
+  },
+  "customProviderForm.attachments": {
+    "defaultMessage": "अनुलग्नक"
+  },
+  "customProviderForm.authHint": {
+    "defaultMessage": "Ollama जैसे स्थानीय एलएलएम को आमतौर पर API कुंजी की आवश्यकता नहीं होती है।"
+  },
+  "customProviderForm.authentication": {
+    "defaultMessage": "प्रमाणीकरण"
+  },
+  "customProviderForm.availableModels": {
+    "defaultMessage": "उपलब्ध मॉडल (अल्पविराम से अलग)"
+  },
+  "customProviderForm.back": {
+    "defaultMessage": "← वापस"
+  },
+  "customProviderForm.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "customProviderForm.cannotDeleteActive": {
+    "defaultMessage": "आप इस प्रदाता को तब तक नहीं हटा सकते जब तक यह वर्तमान में उपयोग में है। कृपया पहले किसी भिन्न मॉडल पर स्विच करें."
+  },
+  "customProviderForm.chooseSetup": {
+    "defaultMessage": "चुनें कि आप अपने प्रदाता को कैसे स्थापित करना चाहेंगे।"
+  },
+  "customProviderForm.clear": {
+    "defaultMessage": "स्पष्ट"
+  },
+  "customProviderForm.configureManually": {
+    "defaultMessage": "मैन्युअल रूप से कॉन्फ़िगर करें"
+  },
+  "customProviderForm.configureManuallyDesc": {
+    "defaultMessage": "सभी प्रदाता विवरण स्वयं दर्ज करें"
+  },
+  "customProviderForm.confirmDelete": {
+    "defaultMessage": "हटाने की पुष्टि करें"
+  },
+  "customProviderForm.createProvider": {
+    "defaultMessage": "प्रदाता बनाएँ"
+  },
+  "customProviderForm.customHeaders": {
+    "defaultMessage": "कस्टम हेडर"
+  },
+  "customProviderForm.customHeadersHint": {
+    "defaultMessage": "प्रदाता के अनुरोधों में शामिल करने के लिए कस्टम HTTP हेडर जोड़ें। दोनों फ़ील्ड भरने के बाद जोड़ने के लिए \"+\" बटन पर क्लिक करें।"
+  },
+  "customProviderForm.deleteConfirmation": {
+    "defaultMessage": "क्या आप वाकई इस कस्टम प्रदाता को हटाना चाहते हैं? इससे प्रदाता और उसकी संग्रहीत API कुंजी स्थायी रूप से हट जाएगी। इस कार्रवाई को वापस नहीं किया जा सकता।"
+  },
+  "customProviderForm.deleteProvider": {
+    "defaultMessage": "प्रदाता हटाएँ"
+  },
+  "customProviderForm.displayName": {
+    "defaultMessage": "प्रदर्शन नाम"
+  },
+  "customProviderForm.displayNamePlaceholder": {
+    "defaultMessage": "आपके प्रदाता का नाम"
+  },
+  "customProviderForm.displayNameRequired": {
+    "defaultMessage": "प्रदर्शन नाम आवश्यक है"
+  },
+  "customProviderForm.docs": {
+    "defaultMessage": "दस्तावेज़"
+  },
+  "customProviderForm.headerBothRequired": {
+    "defaultMessage": "हेडर नाम और मान दोनों दर्ज किए जाने चाहिए"
+  },
+  "customProviderForm.headerDuplicate": {
+    "defaultMessage": "इस नाम का एक हेडर पहले से मौजूद है"
+  },
+  "customProviderForm.headerNamePlaceholder": {
+    "defaultMessage": "शीर्षलेख नाम"
+  },
+  "customProviderForm.headerNoSpaces": {
+    "defaultMessage": "हेडर नाम में रिक्त स्थान नहीं हो सकते"
+  },
+  "customProviderForm.modelsPlaceholder": {
+    "defaultMessage": "मॉडल-ए, मॉडल-बी, मॉडल-सी"
+  },
+  "customProviderForm.modelsRequired": {
+    "defaultMessage": "कम से कम एक मॉडल आवश्यक है"
+  },
+  "customProviderForm.ollamaCompatible": {
+    "defaultMessage": "Ollama संगत"
+  },
+  "customProviderForm.openaiCompatible": {
+    "defaultMessage": "OpenAI संगत"
+  },
+  "customProviderForm.providerType": {
+    "defaultMessage": "प्रदाता प्रकार"
+  },
+  "customProviderForm.reasoning": {
+    "defaultMessage": "तर्क"
+  },
+  "customProviderForm.requiresApiKey": {
+    "defaultMessage": "इस प्रदाता को API कुंजी की आवश्यकता है"
+  },
+  "customProviderForm.startFromTemplate": {
+    "defaultMessage": "प्रदाता टेम्पलेट से प्रारंभ करें"
+  },
+  "customProviderForm.startFromTemplateDesc": {
+    "defaultMessage": "एक ज्ञात प्रदाता चुनें और हम कॉन्फ़िगरेशन को स्वतः भर देंगे"
+  },
+  "customProviderForm.submitError": {
+    "defaultMessage": "प्रदाता को सहेजने में विफल. कृपया अपना कॉन्फ़िगरेशन जांचें और पुनः प्रयास करें।"
+  },
+  "customProviderForm.supportsStreaming": {
+    "defaultMessage": "प्रदाता स्ट्रीमिंग प्रतिक्रियाओं का समर्थन करता है"
+  },
+  "customProviderForm.toolCalling": {
+    "defaultMessage": "टूल कॉलिंग"
+  },
+  "customProviderForm.updateProvider": {
+    "defaultMessage": "अद्यतन प्रदाता"
+  },
+  "customProviderForm.usingTemplate": {
+    "defaultMessage": "टेम्पलेट का उपयोग करना: {name}"
+  },
+  "customProviderForm.valuePlaceholder": {
+    "defaultMessage": "मूल्य"
+  },
+  "defaultCardButtons.configureSettings": {
+    "defaultMessage": "{name} सेटिंग्स कॉन्फ़िगर करें"
+  },
+  "defaultCardButtons.deleteSettings": {
+    "defaultMessage": "{name} सेटिंग्स हटाएँ"
+  },
+  "defaultCardButtons.editSettings": {
+    "defaultMessage": "{name} सेटिंग्स संपादित करें"
+  },
+  "defaultCardButtons.getStarted": {
+    "defaultMessage": "goose से आरंभ करें!"
+  },
+  "defaultProviderSetupForm.apiHostLabel": {
+    "defaultMessage": "API होस्ट"
+  },
+  "defaultProviderSetupForm.apiHostPlaceholder": {
+    "defaultMessage": "https://api.example.com"
+  },
+  "defaultProviderSetupForm.apiKeyLabel": {
+    "defaultMessage": "API कुंजी"
+  },
+  "defaultProviderSetupForm.apiKeyPlaceholder": {
+    "defaultMessage": "आपकी API कुंजी"
+  },
+  "defaultProviderSetupForm.hideOptions": {
+    "defaultMessage": "{count} विकल्प छिपाएँ"
+  },
+  "defaultProviderSetupForm.loadingConfig": {
+    "defaultMessage": "कॉन्फ़िगरेशन मान लोड हो रहा है..."
+  },
+  "defaultProviderSetupForm.modelsLabel": {
+    "defaultMessage": "मॉडल"
+  },
+  "defaultProviderSetupForm.modelsPlaceholder": {
+    "defaultMessage": "मॉडल-ए, मॉडल-बी"
+  },
+  "defaultProviderSetupForm.noConfigParameters": {
+    "defaultMessage": "इस प्रदाता के लिए कोई कॉन्फ़िगरेशन पैरामीटर नहीं."
+  },
+  "defaultProviderSetupForm.showOptions": {
+    "defaultMessage": "{count} विकल्प दिखाएँ"
+  },
+  "diagnosticsModal.attachHint": {
+    "defaultMessage": "यदि आप कोई बग दर्ज करते हैं, तो उसके साथ निदान रिपोर्ट संलग्न करने पर विचार करें।"
+  },
+  "diagnosticsModal.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "diagnosticsModal.configSettings": {
+    "defaultMessage": "कॉन्फ़िगरेशन सेटिंग्स"
+  },
+  "diagnosticsModal.description": {
+    "defaultMessage": "आप टीम के साथ साझा करने के लिए डायग्नोस्टिक्स ज़िप फ़ाइल डाउनलोड कर सकते हैं, या अपने सिस्टम विवरण पहले से भरे हुए सीधे GitHub पर बग दर्ज कर सकते हैं। डायग्नोस्टिक्स रिपोर्ट में निम्नलिखित शामिल हैं:"
+  },
+  "diagnosticsModal.diagnosticsErrorMsg": {
+    "defaultMessage": "निदान डाउनलोड करने में विफल"
+  },
+  "diagnosticsModal.diagnosticsErrorTitle": {
+    "defaultMessage": "निदान त्रुटि"
+  },
+  "diagnosticsModal.download": {
+    "defaultMessage": "डाउनलोड करें"
+  },
+  "diagnosticsModal.downloading": {
+    "defaultMessage": "डाउनलोड हो रहा है..."
+  },
+  "diagnosticsModal.fileBug": {
+    "defaultMessage": "GitHub पर बग फ़ाइल करें"
+  },
+  "diagnosticsModal.logFiles": {
+    "defaultMessage": "हाल की लॉग फ़ाइलें"
+  },
+  "diagnosticsModal.opening": {
+    "defaultMessage": "खुल रहा है..."
+  },
+  "diagnosticsModal.reportProblem": {
+    "defaultMessage": "किसी समस्या की रिपोर्ट करें"
+  },
+  "diagnosticsModal.sensitiveWarning": {
+    "defaultMessage": "यदि आपके सत्र में संवेदनशील जानकारी है, तो डायग्नोस्टिक्स फ़ाइल को सार्वजनिक रूप से साझा न करें।"
+  },
+  "diagnosticsModal.sessionMessages": {
+    "defaultMessage": "आपके वर्तमान सत्र संदेश"
+  },
+  "diagnosticsModal.systemInfo": {
+    "defaultMessage": "बुनियादी सिस्टम जानकारी"
+  },
+  "diagnosticsModal.systemInfoErrorMsg": {
+    "defaultMessage": "सिस्टम जानकारी प्राप्त करने में विफल"
+  },
+  "diagnosticsModal.systemInfoErrorTitle": {
+    "defaultMessage": "त्रुटि"
+  },
+  "dialog.close": {
+    "defaultMessage": "बंद करें"
+  },
+  "dictationSettings.addApiKey": {
+    "defaultMessage": "API कुंजी जोड़ें"
+  },
+  "dictationSettings.apiKey": {
+    "defaultMessage": "API कुंजी"
+  },
+  "dictationSettings.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "dictationSettings.chooseVoiceConversion": {
+    "defaultMessage": "चुनें कि आवाज़ को टेक्स्ट में कैसे परिवर्तित किया जाए"
+  },
+  "dictationSettings.configureApiKey": {
+    "defaultMessage": "<b>{settingsPath}</b> में API कुंजी कॉन्फ़िगर करें"
+  },
+  "dictationSettings.configured": {
+    "defaultMessage": "(कॉन्फ़िगर)"
+  },
+  "dictationSettings.configuredIn": {
+    "defaultMessage": "✓ {settingsPath} में कॉन्फ़िगर किया गया"
+  },
+  "dictationSettings.disabled": {
+    "defaultMessage": "विकलांग"
+  },
+  "dictationSettings.enterApiKey": {
+    "defaultMessage": "अपनी API कुंजी दर्ज करें"
+  },
+  "dictationSettings.notConfigured": {
+    "defaultMessage": "(कॉन्फ़िगर नहीं)"
+  },
+  "dictationSettings.removeApiKey": {
+    "defaultMessage": "API कुंजी हटाएँ"
+  },
+  "dictationSettings.requiredForTranscription": {
+    "defaultMessage": "प्रतिलेखन के लिए आवश्यक है"
+  },
+  "dictationSettings.save": {
+    "defaultMessage": "सहेजें"
+  },
+  "dictationSettings.updateApiKey": {
+    "defaultMessage": "अद्यतन करें API कुंजी"
+  },
+  "dictationSettings.voiceDictationProvider": {
+    "defaultMessage": "वॉयस डिक्टेशन प्रदाता"
+  },
+  "dirSwitcher.chooseDirectory": {
+    "defaultMessage": "निर्देशिका चुनें..."
+  },
+  "dirSwitcher.currentDirectory": {
+    "defaultMessage": "वर्तमान निर्देशिका"
+  },
+  "dirSwitcher.failedToUpdateWorkingDir": {
+    "defaultMessage": "कार्यशील निर्देशिका अद्यतन करने में विफल"
+  },
+  "dirSwitcher.gitWorktrees": {
+    "defaultMessage": "गिट वर्कट्रीज़"
+  },
+  "dirSwitcher.noWorktreesFound": {
+    "defaultMessage": "कोई कार्यवृक्ष नहीं मिला"
+  },
+  "dirSwitcher.openInFinder": {
+    "defaultMessage": "फ़ाइल प्रबंधक में खोलें"
+  },
+  "dirSwitcher.recentDirectories": {
+    "defaultMessage": "हाल की निर्देशिकाएँ"
+  },
+  "elicitationRequest.accept": {
+    "defaultMessage": "स्वीकार करो"
+  },
+  "elicitationRequest.cancelled": {
+    "defaultMessage": "सूचना अनुरोध रद्द कर दिया गया."
+  },
+  "elicitationRequest.defaultMessage": {
+    "defaultMessage": "Goose को आपसे कुछ जानकारी चाहिए।"
+  },
+  "elicitationRequest.expired": {
+    "defaultMessage": "यह अनुरोध समाप्त हो गया है. एक्सटेंशन को फिर से पूछना होगा."
+  },
+  "elicitationRequest.submit": {
+    "defaultMessage": "सबमिट करें"
+  },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
+  "elicitationRequest.submitted": {
+    "defaultMessage": "जानकारी प्रस्तुत की गई"
+  },
+  "elicitationRequest.waitingForResponse": {
+    "defaultMessage": "आपकी प्रतिक्रिया की प्रतीक्षा में ({timeRemaining} शेष)"
+  },
+  "envVarsSection.add": {
+    "defaultMessage": "जोड़ें"
+  },
+  "envVarsSection.bothRequired": {
+    "defaultMessage": "वेरिएबल नाम और मान दोनों दर्ज किए जाने चाहिए"
+  },
+  "envVarsSection.envVarsDescription": {
+    "defaultMessage": "पर्यावरण चर के लिए कुंजी-मान जोड़े जोड़ें। दोनों फ़ील्ड भरने के बाद जोड़ने के लिए \"+\" बटन पर क्लिक करें। मौजूदा गुप्त मानों को संशोधित करने के लिए संपादन बटन पर क्लिक करें।"
+  },
+  "envVarsSection.environmentVariables": {
+    "defaultMessage": "पर्यावरण चर"
+  },
+  "envVarsSection.noSpaces": {
+    "defaultMessage": "वेरिएबल नाम में रिक्त स्थान नहीं हो सकते"
+  },
+  "envVarsSection.value": {
+    "defaultMessage": "मूल्य"
+  },
+  "envVarsSection.variableName": {
+    "defaultMessage": "परिवर्तनीय नाम"
+  },
+  "environmentBadge.dev": {
+    "defaultMessage": "देव"
+  },
+  "errorBoundary.errorGeneric": {
+    "defaultMessage": "एक त्रुटि पाई गई।"
+  },
+  "errorBoundary.errorWithVersion": {
+    "defaultMessage": "Goose v{version} में एक त्रुटि उत्पन्न हुई।"
+  },
+  "errorBoundary.heading": {
+    "defaultMessage": "हार्न!"
+  },
+  "errorBoundary.reload": {
+    "defaultMessage": "पुनः लोड करें"
+  },
+  "extensionConfigFields.commandLabel": {
+    "defaultMessage": "आदेश"
+  },
+  "extensionConfigFields.commandPlaceholder": {
+    "defaultMessage": "जैसे npx -y @modelcontextprotocol/my-extension [फ़ाइलपथ]"
+  },
+  "extensionConfigFields.commandRequired": {
+    "defaultMessage": "आदेश आवश्यक है"
+  },
+  "extensionConfigFields.endpointLabel": {
+    "defaultMessage": "समापन बिंदु"
+  },
+  "extensionConfigFields.endpointPlaceholder": {
+    "defaultMessage": "एंडपॉइंट URL दर्ज करें..."
+  },
+  "extensionConfigFields.endpointRequired": {
+    "defaultMessage": "समापन बिंदु URL आवश्यक है"
+  },
+  "extensionInfoFields.descriptionLabel": {
+    "defaultMessage": "विवरण"
+  },
+  "extensionInfoFields.descriptionPlaceholder": {
+    "defaultMessage": "वैकल्पिक विवरण..."
+  },
+  "extensionInfoFields.extensionName": {
+    "defaultMessage": "एक्सटेंशन नाम"
+  },
+  "extensionInfoFields.extensionNamePlaceholder": {
+    "defaultMessage": "एक्सटेंशन नाम दर्ज करें..."
+  },
+  "extensionInfoFields.nameRequired": {
+    "defaultMessage": "नाम आवश्यक है"
+  },
+  "extensionInfoFields.typeHttp": {
+    "defaultMessage": "HTTP"
+  },
+  "extensionInfoFields.typeLabel": {
+    "defaultMessage": "प्रकार"
+  },
+  "extensionInfoFields.typeSseUnsupported": {
+    "defaultMessage": "SSE (असमर्थित)"
+  },
+  "extensionInfoFields.typeStandardIo": {
+    "defaultMessage": "मानक आईओ (एसटीडीआईओ)"
+  },
+  "extensionInfoFields.typeStdio": {
+    "defaultMessage": "एसटीडीआईओ"
+  },
+  "extensionInfoFields.typeStreamableHttp": {
+    "defaultMessage": "स्ट्रीम करने योग्य HTTP"
+  },
+  "extensionInstallModal.alreadyInstalledMessage": {
+    "defaultMessage": "''{name}'' एक्सटेंशन पहले ही सफलतापूर्वक इंस्टॉल हो चुका है। इसका उपयोग करने के लिए एक नया चैट सत्र प्रारंभ करें।"
+  },
+  "extensionInstallModal.alreadyInstalledTitle": {
+    "defaultMessage": "एक्सटेंशन ''{name}'' पहले से इंस्टॉल है"
+  },
+  "extensionInstallModal.blockedMessage": {
+    "defaultMessage": "यह एक्सटेंशन कमांड अनुमत सूची में नहीं है और इसकी स्थापना अवरुद्ध है। एक्सटेंशन: {name} कमांड: {command} इस एक्सटेंशन के अनुमोदन का अनुरोध करने के लिए अपने व्यवस्थापक से संपर्क करें।"
+  },
+  "extensionInstallModal.blockedTitle": {
+    "defaultMessage": "एक्सटेंशन इंस्टालेशन अवरुद्ध"
+  },
+  "extensionInstallModal.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "extensionInstallModal.installAnyway": {
+    "defaultMessage": "फिर भी इंस्टॉल करें"
+  },
+  "extensionInstallModal.installing": {
+    "defaultMessage": "स्थापित किया जा रहा है..."
+  },
+  "extensionInstallModal.no": {
+    "defaultMessage": "नहीं"
+  },
+  "extensionInstallModal.ok": {
+    "defaultMessage": "ठीक है"
+  },
+  "extensionInstallModal.trustedMessage": {
+    "defaultMessage": "क्या आप वाकई {name} एक्सटेंशन इंस्टॉल करना चाहते हैं? आदेश: {command}"
+  },
+  "extensionInstallModal.trustedTitle": {
+    "defaultMessage": "एक्सटेंशन इंस्टालेशन की पुष्टि करें"
+  },
+  "extensionInstallModal.unknownCommand": {
+    "defaultMessage": "अज्ञात आदेश"
+  },
+  "extensionInstallModal.untrustedMessageWithCommand": {
+    "defaultMessage": "{securityMessage} एक्सटेंशन: {name} कमांड: {command} यदि आप इसके बारे में अनिश्चित हैं तो अपने व्यवस्थापक से संपर्क करें।"
+  },
+  "extensionInstallModal.untrustedMessageWithUrl": {
+    "defaultMessage": "{securityMessage} एक्सटेंशन: {name} URL: {url} यदि आप इसके बारे में अनिश्चित हैं तो अपने व्यवस्थापक से संपर्क करें।"
+  },
+  "extensionInstallModal.untrustedSecurityMessage": {
+    "defaultMessage": "यह एक्सटेंशन कमांड अनुमत सूची में नहीं है और यह आपकी बातचीत तक पहुंचने और अतिरिक्त कार्यक्षमता प्रदान करने में सक्षम होगा। अविश्वसनीय स्रोतों से एक्सटेंशन इंस्टॉल करने से सुरक्षा जोखिम पैदा हो सकता है।"
+  },
+  "extensionInstallModal.untrustedTitle": {
+    "defaultMessage": "अविश्वसनीय एक्सटेंशन स्थापित करें?"
+  },
+  "extensionInstallModal.yes": {
+    "defaultMessage": "हाँ"
+  },
+  "extensionItem.configureExtension": {
+    "defaultMessage": "{name} एक्सटेंशन कॉन्फ़िगर करें"
+  },
+  "extensionItem.toggleExtension": {
+    "defaultMessage": "{name} एक्सटेंशन को चालू या बंद टॉगल करें"
+  },
+  "extensionList.availableExtensions": {
+    "defaultMessage": "उपलब्ध एक्सटेंशन ({count})"
+  },
+  "extensionList.builtInExtension": {
+    "defaultMessage": "अंतर्निहित विस्तार"
+  },
+  "extensionList.defaultExtensions": {
+    "defaultMessage": "डिफ़ॉल्ट एक्सटेंशन ({count})"
+  },
+  "extensionList.noExtensions": {
+    "defaultMessage": "कोई एक्सटेंशन उपलब्ध नहीं है"
+  },
+  "extensionModal.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "extensionModal.closeWithoutSaving": {
+    "defaultMessage": "बिना सहेजे बंद करें"
+  },
+  "extensionModal.confirmRemoval": {
+    "defaultMessage": "हटाने की पुष्टि करें"
+  },
+  "extensionModal.deleteDescription": {
+    "defaultMessage": "इससे यह एक्सटेंशन और इसकी सभी सेटिंग्स स्थायी रूप से हट जाएंगी।"
+  },
+  "extensionModal.deleteExtensionTitle": {
+    "defaultMessage": "एक्सटेंशन \"{name}\" हटाएं"
+  },
+  "extensionModal.installationNotes": {
+    "defaultMessage": "स्थापना नोट्स"
+  },
+  "extensionModal.removeExtension": {
+    "defaultMessage": "एक्सटेंशन हटाएँ"
+  },
+  "extensionModal.unsavedChangesMessage": {
+    "defaultMessage": "आपके पास एक्सटेंशन कॉन्फ़िगरेशन में सहेजे नहीं गए परिवर्तन हैं. क्या आप वाकई बिना सहेजे बंद करना चाहते हैं?"
+  },
+  "extensionModal.unsavedChangesTitle": {
+    "defaultMessage": "सहेजे न गए परिवर्तन"
+  },
+  "extensionTimeoutField.timeoutLabel": {
+    "defaultMessage": "समयबाह्य"
+  },
+  "extensionsSection.addCustomExtension": {
+    "defaultMessage": "कस्टम एक्सटेंशन जोड़ें"
+  },
+  "extensionsSection.addExtension": {
+    "defaultMessage": "एक्सटेंशन जोड़ें"
+  },
+  "extensionsSection.browseExtensions": {
+    "defaultMessage": "एक्सटेंशन ब्राउज़ करें"
+  },
+  "extensionsSection.saveChanges": {
+    "defaultMessage": "परिवर्तन सहेजें"
+  },
+  "extensionsSection.updateExtension": {
+    "defaultMessage": "एक्सटेंशन अपडेट करें"
+  },
+  "extensionsView.addCustomExtension": {
+    "defaultMessage": "कस्टम एक्सटेंशन जोड़ें"
+  },
+  "extensionsView.addExtension": {
+    "defaultMessage": "एक्सटेंशन जोड़ें"
+  },
+  "extensionsView.browseExtensions": {
+    "defaultMessage": "एक्सटेंशन ब्राउज़ करें"
+  },
+  "extensionsView.defaultNote": {
+    "defaultMessage": "यहां सक्षम एक्सटेंशन नई चैट के लिए डिफ़ॉल्ट के रूप में उपयोग किए जाते हैं। आप चैट के दौरान सक्रिय एक्सटेंशन भी टॉगल कर सकते हैं।"
+  },
+  "extensionsView.description": {
+    "defaultMessage": "ये एक्सटेंशन मॉडल कॉन्टेक्स्ट प्रोटोकॉल (MCP) का उपयोग करते हैं। वे तीन मुख्य घटकों का उपयोग करके Goose की क्षमताओं का विस्तार कर सकते हैं: संकेत, संसाधन और उपकरण। {searchShortcut} खोजने के लिए."
+  },
+  "extensionsView.heading": {
+    "defaultMessage": "एक्सटेंशन"
+  },
+  "extensionsView.searchPlaceholder": {
+    "defaultMessage": "एक्सटेंशन खोजें..."
+  },
+  "externalBackendSection.certFingerprint": {
+    "defaultMessage": "प्रमाणपत्र फ़िंगरप्रिंट (वैकल्पिक)"
+  },
+  "externalBackendSection.certFingerprintHelp": {
+    "defaultMessage": "एक विशिष्ट टीएलएस प्रमाणपत्र फ़िंगरप्रिंट पिन करें। यदि छोड़ा गया है, तो प्रमाणपत्र पहले उपयोग पर विश्वसनीय है (TOFU)।"
+  },
+  "externalBackendSection.certFingerprintPlaceholder": {
+    "defaultMessage": "AA:BB:CC:... या sha256/base64"
+  },
+  "externalBackendSection.description": {
+    "defaultMessage": "डिफ़ॉल्ट रूप से goose आपके लिए एक सर्वर लॉन्च करता है, बाहरी goose सर्वर से कनेक्ट करने के लिए इसका उपयोग करें"
+  },
+  "externalBackendSection.restartNote": {
+    "defaultMessage": "परिवर्तनों को प्रभावी होने के लिए Goose को पुनः आरंभ करने की आवश्यकता है। नई चैट विंडो बाहरी सर्वर से कनेक्ट होंगी."
+  },
+  "externalBackendSection.secretKey": {
+    "defaultMessage": "गुप्त कुंजी"
+  },
+  "externalBackendSection.secretKeyHelp": {
+    "defaultMessage": "गुप्त सर्वर पर कॉन्फ़िगर की गई गुप्त कुंजी (GOOSE_SERVER__SECRET_KEY)"
+  },
+  "externalBackendSection.secretKeyPlaceholder": {
+    "defaultMessage": "सर्वर की गुप्त कुंजी दर्ज करें"
+  },
+  "externalBackendSection.serverUrl": {
+    "defaultMessage": "सर्वर URL"
+  },
+  "externalBackendSection.title": {
+    "defaultMessage": "Goose सर्वर"
+  },
+  "externalBackendSection.urlFormatError": {
+    "defaultMessage": "अमान्य URL प्रारूप"
+  },
+  "externalBackendSection.urlProtocolError": {
+    "defaultMessage": "URL को http या https प्रोटोकॉल का उपयोग करना चाहिए"
+  },
+  "externalBackendSection.useExternalServer": {
+    "defaultMessage": "बाहरी सर्वर का प्रयोग करें"
+  },
+  "externalBackendSection.useExternalServerDescription": {
+    "defaultMessage": "कहीं और चल रहे goose सर्वर से कनेक्ट करें (ऐप पुनरारंभ की आवश्यकता है)"
+  },
+  "freeOptionCards.chooseOption": {
+    "defaultMessage": "आरंभ करने के लिए एक विकल्प चुनें."
+  },
+  "freeOptionCards.freeAndPrivate": {
+    "defaultMessage": "मुफ़्त और निजी"
+  },
+  "freeOptionCards.localModelDescription": {
+    "defaultMessage": "एक मॉडल डाउनलोड करें और पूरी तरह से अपनी मशीन पर चलाएं। कोई API कुंजी नहीं, कोई खाता नहीं।"
+  },
+  "freeOptionCards.localModelTitle": {
+    "defaultMessage": "स्थानीय मॉडल का प्रयोग करें"
+  },
+  "freeOptionCards.nanogptDescription": {
+    "defaultMessage": "7 दिनों के लिए 60 मिलियन निःशुल्क टोकन प्राप्त करने के लिए साइन अप करें।"
+  },
+  "freeOptionCards.nanogptTitle": {
+    "defaultMessage": "नैनोजीपीटी"
+  },
+  "freeOptionCards.retry": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
+  "freeOptionCards.tetrateDescription": {
+    "defaultMessage": "स्वचालित सेटअप के साथ एकाधिक AI मॉडल तक पहुंचें। $10 क्रेडिट प्राप्त करने के लिए साइन अप करें।"
+  },
+  "freeOptionCards.tetrateTitle": {
+    "defaultMessage": "टेट्रेट द्वारा एजेंट राउटर"
+  },
+  "freeOptionCards.unexpectedError": {
+    "defaultMessage": "सेटअप के दौरान एक अप्रत्याशित त्रुटि उत्पन्न हुई."
+  },
+  "gatewaySettings.botFatherInstructions": {
+    "defaultMessage": "अपने फ़ोन पर @BotFather खोलें, /newbot भेजें, और अपने बॉट को नाम देने के लिए संकेतों का पालन करें। BotFather एक API टोकन के साथ उत्तर देगा - इसे नीचे चिपकाएँ।"
+  },
+  "gatewaySettings.close": {
+    "defaultMessage": "बंद करें"
+  },
+  "gatewaySettings.expiresIn": {
+    "defaultMessage": "{time} में समाप्त होता है"
+  },
+  "gatewaySettings.failedToGeneratePairingCode": {
+    "defaultMessage": "युग्मन कोड जनरेट करने में विफल"
+  },
+  "gatewaySettings.failedToRemove": {
+    "defaultMessage": "हटाने में विफल"
+  },
+  "gatewaySettings.failedToStart": {
+    "defaultMessage": "प्रारंभ करने में विफल"
+  },
+  "gatewaySettings.failedToStop": {
+    "defaultMessage": "रोकने में विफल"
+  },
+  "gatewaySettings.failedToUnpairUser": {
+    "defaultMessage": "उपयोगकर्ता को अयुग्मित करने में विफल"
+  },
+  "gatewaySettings.loading": {
+    "defaultMessage": "लोड हो रहा है..."
+  },
+  "gatewaySettings.pairDevice": {
+    "defaultMessage": "जोड़ी डिवाइस"
+  },
+  "gatewaySettings.pairedUsers": {
+    "defaultMessage": "युग्मित उपयोगकर्ता"
+  },
+  "gatewaySettings.pairingCode": {
+    "defaultMessage": "युग्मन कोड"
+  },
+  "gatewaySettings.pasteBotToken": {
+    "defaultMessage": "यहां बॉट टोकन चिपकाएं"
+  },
+  "gatewaySettings.remove": {
+    "defaultMessage": "हटाओ"
+  },
+  "gatewaySettings.running": {
+    "defaultMessage": "चल रहा है"
+  },
+  "gatewaySettings.sendCodeToPair": {
+    "defaultMessage": "जोड़ी बनाने के लिए इस कोड को अपने {gatewayType} बॉट पर भेजें।"
+  },
+  "gatewaySettings.start": {
+    "defaultMessage": "प्रारंभ करें"
+  },
+  "gatewaySettings.stop": {
+    "defaultMessage": "रुकें"
+  },
+  "gatewaySettings.stopped": {
+    "defaultMessage": "रुक गया"
+  },
+  "gatewaySettings.telegram": {
+    "defaultMessage": "टेलीग्राम"
+  },
+  "goosehintsModal.close": {
+    "defaultMessage": "बंद करें"
+  },
+  "goosehintsModal.developer": {
+    "defaultMessage": "डेवलपर"
+  },
+  "goosehintsModal.dialogDescription": {
+    "defaultMessage": "Goose के साथ संचार को बेहतर बनाने के लिए अपने प्रोजेक्ट के बारे में अतिरिक्त संदर्भ प्रदान करें"
+  },
+  "goosehintsModal.dialogTitle": {
+    "defaultMessage": "प्रोजेक्ट संकेत कॉन्फ़िगर करें (.goosehints)"
+  },
+  "goosehintsModal.errorReading": {
+    "defaultMessage": ".goosehints फ़ाइल पढ़ने में त्रुटि: {error}"
+  },
+  "goosehintsModal.failedToAccess": {
+    "defaultMessage": ".goosehints फ़ाइल तक पहुँचने में विफल"
+  },
+  "goosehintsModal.failedToSave": {
+    "defaultMessage": ".goosehints फ़ाइल सहेजने में विफल"
+  },
+  "goosehintsModal.fileCreating": {
+    "defaultMessage": "नई .goosehints फ़ाइल यहां बनाई जा रही है: {filePath}"
+  },
+  "goosehintsModal.fileFound": {
+    "defaultMessage": ".goosehints फ़ाइल यहां मिली: {filePath}"
+  },
+  "goosehintsModal.helpText1": {
+    "defaultMessage": ".goosehints एक टेक्स्ट फ़ाइल है जिसका उपयोग आपके प्रोजेक्ट के बारे में अतिरिक्त संदर्भ प्रदान करने और Goose के साथ संचार को बेहतर बनाने के लिए किया जाता है।"
+  },
+  "goosehintsModal.helpText2": {
+    "defaultMessage": "कृपया सुनिश्चित करें कि एक्सटेंशन पृष्ठ में {bold} एक्सटेंशन सक्षम है। .goosehints का उपयोग करने के लिए यह एक्सटेंशन आवश्यक है। .goosehints अपडेट को प्रभावी बनाने के लिए आपको अपना सत्र पुनः आरंभ करना होगा।"
+  },
+  "goosehintsModal.helpText3": {
+    "defaultMessage": "अधिक जानकारी के लिए {link} देखें।"
+  },
+  "goosehintsModal.helpTextLink": {
+    "defaultMessage": ".goosehints का उपयोग करना"
+  },
+  "goosehintsModal.placeholder": {
+    "defaultMessage": "प्रोजेक्ट संकेत यहां दर्ज करें..."
+  },
+  "goosehintsModal.save": {
+    "defaultMessage": "सहेजें"
+  },
+  "goosehintsModal.savedSuccessfully": {
+    "defaultMessage": "सफलतापूर्वक सहेजा गया"
+  },
+  "goosehintsModal.saving": {
+    "defaultMessage": "सहेजा जा रहा है..."
+  },
+  "goosehintsSection.configure": {
+    "defaultMessage": "कॉन्फ़िगर करें"
+  },
+  "goosehintsSection.description": {
+    "defaultMessage": "Goose को अतिरिक्त संदर्भ प्रदान करने के लिए अपने प्रोजेक्ट की .goosehints फ़ाइल को कॉन्फ़िगर करें"
+  },
+  "goosehintsSection.title": {
+    "defaultMessage": "प्रोजेक्ट संकेत (.goosehints)"
+  },
+  "groupedExtensionLoadingToast.askGoose": {
+    "defaultMessage": "पूछें goose"
+  },
+  "groupedExtensionLoadingToast.collapseDetails": {
+    "defaultMessage": "विवरण संक्षिप्त करें"
+  },
+  "groupedExtensionLoadingToast.copied": {
+    "defaultMessage": "नकल की गई!"
+  },
+  "groupedExtensionLoadingToast.copyError": {
+    "defaultMessage": "प्रतिलिपि त्रुटि"
+  },
+  "groupedExtensionLoadingToast.expandDetails": {
+    "defaultMessage": "विवरण विस्तृत करें"
+  },
+  "groupedExtensionLoadingToast.failedToAddExtension": {
+    "defaultMessage": "एक्सटेंशन जोड़ने में विफल"
+  },
+  "groupedExtensionLoadingToast.failedToLoad": {
+    "defaultMessage": "{count,plural,one{# एक्सटेंशन लोड होने में विफल रहा} other{# एक्सटेंशन लोड होने में विफल रहे}}"
+  },
+  "groupedExtensionLoadingToast.loadingExtensions": {
+    "defaultMessage": "{count,plural,one{# एक्सटेंशन लोड हो रहा है...} other{# एक्सटेंशन लोड हो रहा है...}}"
+  },
+  "groupedExtensionLoadingToast.partiallyLoaded": {
+    "defaultMessage": "{totalCount,plural,one{{successCount}/# एक्सटेंशन लोड किया गया} other{{successCount}/# एक्सटेंशन लोड किए गए}}"
+  },
+  "groupedExtensionLoadingToast.showDetails": {
+    "defaultMessage": "विवरण दिखाएँ"
+  },
+  "groupedExtensionLoadingToast.showLess": {
+    "defaultMessage": "कम दिखाओ"
+  },
+  "groupedExtensionLoadingToast.successfullyLoaded": {
+    "defaultMessage": "{count,plural,one{# एक्सटेंशन सफलतापूर्वक लोड हो गया} other{# एक्सटेंशन सफलतापूर्वक लोड हो गए}}"
+  },
+  "headersSection.add": {
+    "defaultMessage": "जोड़ें"
+  },
+  "headersSection.bothRequired": {
+    "defaultMessage": "हेडर नाम और मान दोनों दर्ज किए जाने चाहिए"
+  },
+  "headersSection.duplicateHeader": {
+    "defaultMessage": "इस नाम का एक हेडर पहले से मौजूद है"
+  },
+  "headersSection.headerName": {
+    "defaultMessage": "शीर्षलेख नाम"
+  },
+  "headersSection.headersDescription": {
+    "defaultMessage": "MCP सर्वर के अनुरोधों में शामिल करने के लिए कस्टम HTTP हेडर जोड़ें। दोनों फ़ील्ड भरने के बाद जोड़ने के लिए \"+\" बटन पर क्लिक करें।"
+  },
+  "headersSection.noSpaces": {
+    "defaultMessage": "हेडर नाम में रिक्त स्थान नहीं हो सकते"
+  },
+  "headersSection.requestHeaders": {
+    "defaultMessage": "शीर्षलेखों का अनुरोध करें"
+  },
+  "headersSection.value": {
+    "defaultMessage": "मूल्य"
+  },
+  "hub.goodAfternoon": {
+    "defaultMessage": "शुभ दोपहर"
+  },
+  "hub.goodEvening": {
+    "defaultMessage": "शुभ संध्या"
+  },
+  "hub.goodMorning": {
+    "defaultMessage": "सुप्रभात"
+  },
+  "huggingFaceModelSearch.download": {
+    "defaultMessage": "डाउनलोड करें"
+  },
+  "huggingFaceModelSearch.downloaded": {
+    "defaultMessage": "डाउनलोड"
+  },
+  "huggingFaceModelSearch.downloading": {
+    "defaultMessage": "डाउनलोड हो रहा है..."
+  },
+  "huggingFaceModelSearch.loadingVariants": {
+    "defaultMessage": "वेरिएंट लोड हो रहा है..."
+  },
+  "huggingFaceModelSearch.noGgufModels": {
+    "defaultMessage": "इस क्वेरी के लिए कोई GGUF मॉडल नहीं मिला."
+  },
+  "huggingFaceModelSearch.recommended": {
+    "defaultMessage": "अनुशंसित"
+  },
+  "huggingFaceModelSearch.searchError": {
+    "defaultMessage": "खोज त्रुटि: {details}"
+  },
+  "huggingFaceModelSearch.searchFailed": {
+    "defaultMessage": "खोज विफल रही. कृपया पुन: प्रयास करें।"
+  },
+  "huggingFaceModelSearch.searchHuggingFace": {
+    "defaultMessage": "हगिंगफेस खोजें"
+  },
+  "huggingFaceModelSearch.searchNoData": {
+    "defaultMessage": "खोज से कोई डेटा नहीं मिला."
+  },
+  "huggingFaceModelSearch.searchPlaceholder": {
+    "defaultMessage": "जीजीयूएफ मॉडल खोजें..."
+  },
+  "huggingFaceModelSearch.tooLarge": {
+    "defaultMessage": "मेमोरी में फ़िट नहीं हो सकता ({size} मॉडल, {available} उपलब्ध)"
+  },
+  "huggingFaceSignInPrompt.failedToConfigure": {
+    "defaultMessage": "हगिंग फेस में साइन इन करने में विफल: {error}"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "साइन इन करें"
+  },
+  "huggingFaceSignInPrompt.signedIn": {
+    "defaultMessage": "हगिंग फेस ने साइन इन किया"
+  },
+  "huggingFaceSignInPrompt.signingIn": {
+    "defaultMessage": "साइन इन किया जा रहा है..."
+  },
+  "huggingFaceSignInPrompt.title": {
+    "defaultMessage": "आलिंगन करता हुआ चेहरा"
+  },
+  "imagePreview.altText": {
+    "defaultMessage": "goose छवि"
+  },
+  "imagePreview.clickToCollapse": {
+    "defaultMessage": "संक्षिप्त करने के लिए क्लिक करें"
+  },
+  "imagePreview.clickToExpand": {
+    "defaultMessage": "विस्तार करने के लिए क्लिक करें"
+  },
+  "imagePreview.unableToLoad": {
+    "defaultMessage": "छवि लोड करने में असमर्थ"
+  },
+  "importRecipeForm.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "importRecipeForm.deeplinkHint": {
+    "defaultMessage": "\"goose://recipe?config=\" से शुरू होने वाली रेसिपी डीपलिंक चिपकाएँ"
+  },
+  "importRecipeForm.deeplinkPlaceholder": {
+    "defaultMessage": "अपना goose://recipe?config=... डीपलिंक यहां पेस्ट करें"
+  },
+  "importRecipeForm.example": {
+    "defaultMessage": "उदाहरण"
+  },
+  "importRecipeForm.expectedRecipeStructure": {
+    "defaultMessage": "अपेक्षित रेसिपी संरचना"
+  },
+  "importRecipeForm.importRecipeButton": {
+    "defaultMessage": "रेसिपी आयात करें"
+  },
+  "importRecipeForm.importRecipeTitle": {
+    "defaultMessage": "रेसिपी आयात करें"
+  },
+  "importRecipeForm.importing": {
+    "defaultMessage": "आयात किया जा रहा है..."
+  },
+  "importRecipeForm.or": {
+    "defaultMessage": "या"
+  },
+  "importRecipeForm.recipeDeeplinkLabel": {
+    "defaultMessage": "रेसिपी डीपलिंक"
+  },
+  "importRecipeForm.recipeFileHint": {
+    "defaultMessage": "रेसिपी संरचना वाली YAML या JSON फ़ाइल अपलोड करें"
+  },
+  "importRecipeForm.recipeFileLabel": {
+    "defaultMessage": "रेसिपी फ़ाइल"
+  },
+  "importRecipeForm.reviewWarning": {
+    "defaultMessage": "सुनिश्चित करें कि आप रेसिपी फ़ाइलों को अपने goose इंटरफ़ेस में जोड़ने से पहले उनकी सामग्री की समीक्षा कर लें।"
+  },
+  "importRecipeForm.schemaDescription": {
+    "defaultMessage": "आपकी YAML या JSON फ़ाइल को इस संरचना का पालन करना चाहिए। आवश्यक फ़ील्ड हैं: शीर्षक, विवरण, और या तो निर्देश या संकेत।"
+  },
+  "inlineEditText.clickToEdit": {
+    "defaultMessage": "संपादित करने के लिए क्लिक करें"
+  },
+  "inlineEditText.doubleClickToEdit": {
+    "defaultMessage": "संपादित करने के लिए डबल-क्लिक करें"
+  },
+  "inlineEditText.enterText": {
+    "defaultMessage": "टेक्स्ट दर्ज करें"
+  },
+  "inlineEditText.failedToSave": {
+    "defaultMessage": "सहेजने में विफल"
+  },
+  "instructionsEditor.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "instructionsEditor.insertExample": {
+    "defaultMessage": "उदाहरण सम्मिलित करें"
+  },
+  "instructionsEditor.label": {
+    "defaultMessage": "अनुदेश"
+  },
+  "instructionsEditor.placeholder": {
+    "defaultMessage": "एआई के लिए विस्तृत निर्देश, उपयोगकर्ता से छिपाए गए"
+  },
+  "instructionsEditor.save": {
+    "defaultMessage": "अनुदेश सहेजें"
+  },
+  "instructionsEditor.syntaxHelp": {
+    "defaultMessage": "उन मापदंडों को परिभाषित करने के लिए {code} सिंटैक्स का उपयोग करें जिन्हें उपयोगकर्ता भर सकते हैं"
+  },
+  "instructionsEditor.title": {
+    "defaultMessage": "अनुदेश संपादक"
+  },
+  "jsonSchemaEditor.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "jsonSchemaEditor.description": {
+    "defaultMessage": "JSON स्कीमा प्रारूप का उपयोग करके AI की प्रतिक्रिया की अपेक्षित संरचना को परिभाषित करें"
+  },
+  "jsonSchemaEditor.insertExample": {
+    "defaultMessage": "उदाहरण सम्मिलित करें"
+  },
+  "jsonSchemaEditor.invalidJson": {
+    "defaultMessage": "अमान्य JSON प्रारूप"
+  },
+  "jsonSchemaEditor.label": {
+    "defaultMessage": "प्रतिक्रिया JSON स्कीमा"
+  },
+  "jsonSchemaEditor.save": {
+    "defaultMessage": "स्कीमा सहेजें"
+  },
+  "jsonSchemaEditor.title": {
+    "defaultMessage": "JSON स्कीमा संपादक"
+  },
+  "jsonSchemaForm.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "jsonSchemaForm.fieldRequired": {
+    "defaultMessage": "यह फ़ील्ड आवश्यक है"
+  },
+  "jsonSchemaForm.maxLength": {
+    "defaultMessage": "अधिकतम लंबाई {maxLength} है"
+  },
+  "jsonSchemaForm.maxValue": {
+    "defaultMessage": "अधिकतम मान {maximum} है"
+  },
+  "jsonSchemaForm.minLength": {
+    "defaultMessage": "न्यूनतम लंबाई {minLength} है"
+  },
+  "jsonSchemaForm.minValue": {
+    "defaultMessage": "न्यूनतम मान {minimum} है"
+  },
+  "jsonSchemaForm.noFields": {
+    "defaultMessage": "प्रदर्शित करने के लिए कोई फ़ील्ड नहीं"
+  },
+  "jsonSchemaForm.selectPlaceholder": {
+    "defaultMessage": "चुनना..."
+  },
+  "jsonSchemaForm.submit": {
+    "defaultMessage": "सबमिट करें"
+  },
+  "keyValueEditor.addValue": {
+    "defaultMessage": "पूर्व-कॉन्फ़िगर मान जोड़ें"
+  },
+  "keyValueEditor.defaultKeyPlaceholder": {
+    "defaultMessage": "पैरामीटर नाम..."
+  },
+  "keyValueEditor.defaultValuePlaceholder": {
+    "defaultMessage": "पैरामीटर मान..."
+  },
+  "keyValueEditor.removeValue": {
+    "defaultMessage": "पूर्व-कॉन्फ़िगर मान {key} हटाएं"
+  },
+  "keyboardShortcuts.alwaysOnTopDescription": {
+    "defaultMessage": "विंडो को हमेशा शीर्ष पर टॉगल करें"
+  },
+  "keyboardShortcuts.alwaysOnTopLabel": {
+    "defaultMessage": "हमेशा शीर्ष पर"
+  },
+  "keyboardShortcuts.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "keyboardShortcuts.categoryApplication": {
+    "defaultMessage": "एप्लिकेशन शॉर्टकट"
+  },
+  "keyboardShortcuts.categoryApplicationDescription": {
+    "defaultMessage": "ये शॉर्टकट तब काम करते हैं जब Goose सक्रिय एप्लिकेशन होता है"
+  },
+  "keyboardShortcuts.categoryGlobal": {
+    "defaultMessage": "वैश्विक शॉर्टकट"
+  },
+  "keyboardShortcuts.categoryGlobalDescription": {
+    "defaultMessage": "ये शॉर्टकट पूरे सिस्टम में काम करते हैं, तब भी जब Goose फोकस न हो"
+  },
+  "keyboardShortcuts.categorySearch": {
+    "defaultMessage": "शॉर्टकट खोजें"
+  },
+  "keyboardShortcuts.categorySearchDescription": {
+    "defaultMessage": "बातचीत में खोज करते समय ये शॉर्टकट काम करते हैं"
+  },
+  "keyboardShortcuts.categoryWindow": {
+    "defaultMessage": "विंडो शॉर्टकट"
+  },
+  "keyboardShortcuts.categoryWindowDescription": {
+    "defaultMessage": "ये शॉर्टकट विंडो व्यवहार को नियंत्रित करते हैं"
+  },
+  "keyboardShortcuts.change": {
+    "defaultMessage": "परिवर्तन"
+  },
+  "keyboardShortcuts.disabled": {
+    "defaultMessage": "विकलांग"
+  },
+  "keyboardShortcuts.dismiss": {
+    "defaultMessage": "ख़ारिज करें"
+  },
+  "keyboardShortcuts.findDescription": {
+    "defaultMessage": "बातचीत में खोज खोलें"
+  },
+  "keyboardShortcuts.findLabel": {
+    "defaultMessage": "खोजें"
+  },
+  "keyboardShortcuts.findNextDescription": {
+    "defaultMessage": "अगले खोज परिणाम पर जाएँ"
+  },
+  "keyboardShortcuts.findNextLabel": {
+    "defaultMessage": "अगला खोजें"
+  },
+  "keyboardShortcuts.findPreviousDescription": {
+    "defaultMessage": "पिछले खोज परिणाम पर जाएँ"
+  },
+  "keyboardShortcuts.findPreviousLabel": {
+    "defaultMessage": "पिछला खोजें"
+  },
+  "keyboardShortcuts.focusWindowDescription": {
+    "defaultMessage": "कहीं से भी Goose विंडो को सामने लाएँ"
+  },
+  "keyboardShortcuts.focusWindowLabel": {
+    "defaultMessage": "फोकस Goose विंडो"
+  },
+  "keyboardShortcuts.loading": {
+    "defaultMessage": "लोड हो रहा है..."
+  },
+  "keyboardShortcuts.newChatDescription": {
+    "defaultMessage": "वर्तमान विंडो में एक नई चैट बनाएं"
+  },
+  "keyboardShortcuts.newChatLabel": {
+    "defaultMessage": "नई चैट"
+  },
+  "keyboardShortcuts.newChatWindowDescription": {
+    "defaultMessage": "एक नई Goose विंडो खोलें"
+  },
+  "keyboardShortcuts.newChatWindowLabel": {
+    "defaultMessage": "नई चैट विंडो"
+  },
+  "keyboardShortcuts.openDirectoryDescription": {
+    "defaultMessage": "निर्देशिका चयन संवाद खोलें"
+  },
+  "keyboardShortcuts.openDirectoryLabel": {
+    "defaultMessage": "निर्देशिका खोलें"
+  },
+  "keyboardShortcuts.quickLauncherDescription": {
+    "defaultMessage": "त्वरित लॉन्चर ओवरले खोलें"
+  },
+  "keyboardShortcuts.quickLauncherLabel": {
+    "defaultMessage": "त्वरित लॉन्चर"
+  },
+  "keyboardShortcuts.reassignShortcut": {
+    "defaultMessage": "शॉर्टकट पुन: असाइन करें"
+  },
+  "keyboardShortcuts.resetAllShortcuts": {
+    "defaultMessage": "सभी शॉर्टकट रीसेट करें"
+  },
+  "keyboardShortcuts.resetShortcutsDetail": {
+    "defaultMessage": "यह सभी शॉर्टकट्स को उनके मूल कॉन्फ़िगरेशन में पुनर्स्थापित कर देगा।"
+  },
+  "keyboardShortcuts.resetShortcutsMessage": {
+    "defaultMessage": "सभी कीबोर्ड शॉर्टकट को उनके डिफ़ॉल्ट मान पर रीसेट करें?"
+  },
+  "keyboardShortcuts.resetShortcutsTitle": {
+    "defaultMessage": "कीबोर्ड शॉर्टकट रीसेट करें"
+  },
+  "keyboardShortcuts.resetToDefaultsDescription": {
+    "defaultMessage": "सभी कीबोर्ड शॉर्टकट को उनके मूल कॉन्फ़िगरेशन में पुनर्स्थापित करें"
+  },
+  "keyboardShortcuts.resetToDefaultsHeading": {
+    "defaultMessage": "डिफ़ॉल्ट पर रीसेट करें"
+  },
+  "keyboardShortcuts.restartDescription": {
+    "defaultMessage": "एप्लिकेशन शॉर्टकट में परिवर्तन (जैसे नई चैट, Settings, आदि) को प्रभावी होने के लिए Goose को पुनरारंभ करने की आवश्यकता होती है। वैश्विक शॉर्टकट (फोकस विंडो, क्विक लॉन्चर) तुरंत काम करते हैं।"
+  },
+  "keyboardShortcuts.restartRequired": {
+    "defaultMessage": "पुनरारंभ आवश्यक"
+  },
+  "keyboardShortcuts.settingsDescription": {
+    "defaultMessage": "सेटिंग पैनल खोलें"
+  },
+  "keyboardShortcuts.settingsLabel": {
+    "defaultMessage": "Settings"
+  },
+  "keyboardShortcuts.shortcutConflictSaveDetail": {
+    "defaultMessage": "इसे सहेजने से शॉर्टकट \"{conflictLabel}\" से हट जाएगा और इसे \"{targetLabel}\" को सौंप दिया जाएगा। क्या आप जारी रखना चाहते हैं?"
+  },
+  "keyboardShortcuts.shortcutConflictTitle": {
+    "defaultMessage": "शॉर्टकट संघर्ष"
+  },
+  "keyboardShortcuts.shortcutConflictToggleDetail": {
+    "defaultMessage": "इसे सक्षम करने से शॉर्टकट \"{conflictLabel}\" से हट जाएगा और इसे \"{targetLabel}\" को सौंप दिया जाएगा। क्या आप जारी रखना चाहते हैं?"
+  },
+  "keyboardShortcuts.shortcutConflictToggleMessage": {
+    "defaultMessage": "शॉर्टकट {shortcut} पहले से ही \"{conflictLabel}\" को सौंपा गया है।"
+  },
+  "keyboardShortcuts.toggleNavigationDescription": {
+    "defaultMessage": "नेविगेशन मेनू दिखाएँ या छिपाएँ"
+  },
+  "keyboardShortcuts.toggleNavigationLabel": {
+    "defaultMessage": "नेविगेशन टॉगल करें"
+  },
+  "launcher.placeholder": {
+    "defaultMessage": "goose से कुछ भी पूछें..."
+  },
+  "loadingGoose.compacting": {
+    "defaultMessage": "goose बातचीत को संक्षिप्त कर रहा है..."
+  },
+  "loadingGoose.idle": {
+    "defaultMessage": "goose इस पर काम कर रहा है..."
+  },
+  "loadingGoose.loadingConversation": {
+    "defaultMessage": "बातचीत लोड हो रही है..."
+  },
+  "loadingGoose.restartingAgent": {
+    "defaultMessage": "सत्र पुनः प्रारंभ हो रहा है..."
+  },
+  "loadingGoose.streaming": {
+    "defaultMessage": "goose इस पर काम कर रहा है..."
+  },
+  "loadingGoose.thinking": {
+    "defaultMessage": "goose सोच रहा है..."
+  },
+  "loadingGoose.waiting": {
+    "defaultMessage": "goose इंतज़ार कर रहा है..."
+  },
+  "localInferenceSettings.deleteConfirm": {
+    "defaultMessage": "यह मॉडल हटाएं? आप इसे बाद में पुनः डाउनलोड कर सकते हैं."
+  },
+  "localInferenceSettings.description": {
+    "defaultMessage": "API कुंजियों के बिना अनुमान के लिए स्थानीय एलएलएम मॉडल डाउनलोड और प्रबंधित करें। किसी भी जीजीयूएफ मॉडल के लिए हगिंगफेस खोजें या नीचे दिए गए चुनिंदा विकल्पों का उपयोग करें।"
+  },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "खारिज करें"
+  },
+  "localInferenceSettings.download": {
+    "defaultMessage": "डाउनलोड करें"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "डाउनलोड रद्द किया गया"
+  },
+  "localInferenceSettings.downloadFailed": {
+    "defaultMessage": "डाउनलोड विफल रहा"
+  },
+  "localInferenceSettings.downloadProgress": {
+    "defaultMessage": "{downloaded} / {total} ({percent}%)"
+  },
+  "localInferenceSettings.downloadedModels": {
+    "defaultMessage": "डाउनलोड किए गए मॉडल"
+  },
+  "localInferenceSettings.downloading": {
+    "defaultMessage": "डाउनलोड हो रहा है"
+  },
+  "localInferenceSettings.featuredModels": {
+    "defaultMessage": "विशेष रुप से प्रदर्शित मॉडल"
+  },
+  "localInferenceSettings.huggingFaceSignInNote": {
+    "defaultMessage": "मॉडल खोजते और डाउनलोड करते समय दर सीमा बढ़ाने के लिए और निजी या गेटेड हगिंग फेस रिपॉजिटरी तक पहुंचने के लिए साइन इन करें।"
+  },
+  "localInferenceSettings.modelSettings": {
+    "defaultMessage": "मॉडल Settings"
+  },
+  "localInferenceSettings.modelSettingsTitle": {
+    "defaultMessage": "मॉडल सेटिंग्स"
+  },
+  "localInferenceSettings.noModels": {
+    "defaultMessage": "कोई मॉडल उपलब्ध नहीं"
+  },
+  "localInferenceSettings.recommended": {
+    "defaultMessage": "अनुशंसित"
+  },
+  "localInferenceSettings.remaining": {
+    "defaultMessage": "{time} शेष"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
+  "localInferenceSettings.showAllFeatured": {
+    "defaultMessage": "सभी विशेष रुप से प्रदर्शित दिखाएँ ({count} अधिक)"
+  },
+  "localInferenceSettings.showRecommendedOnly": {
+    "defaultMessage": "केवल अनुशंसित दिखाएं"
+  },
+  "localInferenceSettings.title": {
+    "defaultMessage": "स्थानीय अनुमान मॉडल"
+  },
+  "localInferenceSettings.vision": {
+    "defaultMessage": "दृष्टि"
+  },
+  "localInferenceSettings.visionEncoderDownloading": {
+    "defaultMessage": "विज़न एनकोडर डाउनलोड हो रहा है..."
+  },
+  "localInferenceSettings.visionEncoderNotDownloaded": {
+    "defaultMessage": "विज़न एनकोडर डाउनलोड नहीं हुआ"
+  },
+  "localModelManager.active": {
+    "defaultMessage": "सक्रिय"
+  },
+  "localModelManager.deleteConfirm": {
+    "defaultMessage": "यह मॉडल हटाएं? आप इसे बाद में पुनः डाउनलोड कर सकते हैं."
+  },
+  "localModelManager.download": {
+    "defaultMessage": "डाउनलोड करें"
+  },
+  "localModelManager.downloaded": {
+    "defaultMessage": "डाउनलोड"
+  },
+  "localModelManager.gpuAcceleration": {
+    "defaultMessage": "GPU त्वरण का समर्थन करता है (NVIDIA के लिए CUDA, Apple सिलिकॉन के लिए मेटल)। हार्डवेयर त्वरण के लिए निर्माण समय पर GPU सुविधाओं को सक्षम किया जाना चाहिए।"
+  },
+  "localModelManager.noModels": {
+    "defaultMessage": "कोई मॉडल उपलब्ध नहीं"
+  },
+  "localModelManager.recommended": {
+    "defaultMessage": "अनुशंसित"
+  },
+  "localModelManager.recommendedForHardware": {
+    "defaultMessage": "आपके हार्डवेयर के लिए अनुशंसित"
+  },
+  "localModelManager.showAllModels": {
+    "defaultMessage": "सभी मॉडल दिखाएं ({count} अधिक)"
+  },
+  "localModelManager.showRecommendedOnly": {
+    "defaultMessage": "केवल अनुशंसित दिखाएं"
+  },
+  "localModelPicker.back": {
+    "defaultMessage": "वापस"
+  },
+  "localModelPicker.bestForMachine": {
+    "defaultMessage": "आपकी मशीन के लिए सर्वोत्तम"
+  },
+  "localModelPicker.cancelDownload": {
+    "defaultMessage": "डाउनलोड रद्द करें"
+  },
+  "localModelPicker.checkingModels": {
+    "defaultMessage": "उपलब्ध मॉडलों की जाँच की जा रही है..."
+  },
+  "localModelPicker.downloadModel": {
+    "defaultMessage": "डाउनलोड करें {modelId} ({size})"
+  },
+  "localModelPicker.downloading": {
+    "defaultMessage": "डाउनलोड हो रहा है {modelId}"
+  },
+  "localModelPicker.failedToLoad": {
+    "defaultMessage": "उपलब्ध मॉडल लोड करने में विफल. कृपया पुन: प्रयास करें।"
+  },
+  "localModelPicker.failedToStartDownload": {
+    "defaultMessage": "डाउनलोड प्रारंभ करने में विफल. कृपया पुन: प्रयास करें।"
+  },
+  "localModelPicker.hideOtherSizes": {
+    "defaultMessage": "अन्य आकार छिपाएँ"
+  },
+  "localModelPicker.localModelsNote": {
+    "defaultMessage": "स्थानीय मॉडल पूरी गोपनीयता के लिए आपकी मशीन पर सब कुछ रखते हैं। आपके हार्डवेयर और मॉडल आकार के आधार पर क्लाउड प्रदाताओं की तुलना में प्रदर्शन और संदर्भ विंडो का आकार भिन्न हो सकता है।"
+  },
+  "localModelPicker.lostConnection": {
+    "defaultMessage": "डाउनलोड करने के लिए कनेक्शन खो गया. कृपया पुन: प्रयास करें।"
+  },
+  "localModelPicker.modelNotFound": {
+    "defaultMessage": "मॉडल नहीं मिला"
+  },
+  "localModelPicker.ready": {
+    "defaultMessage": "तैयार"
+  },
+  "localModelPicker.selectModel": {
+    "defaultMessage": "एक मॉडल चुनें"
+  },
+  "localModelPicker.showOtherSizes": {
+    "defaultMessage": "{count} अन्य आकार दिखाएँ"
+  },
+  "localModelPicker.startingDownload": {
+    "defaultMessage": "डाउनलोड प्रारंभ हो रहा है..."
+  },
+  "localModelPicker.tryAgain": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
+  "localModelPicker.useModel": {
+    "defaultMessage": "{modelId} का प्रयोग करें"
+  },
+  "markdownContent.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "markdownContent.copyCode": {
+    "defaultMessage": "कोड कॉपी करें"
+  },
+  "markdownContent.failedToOpenLink": {
+    "defaultMessage": "लिंक खोलने में विफल"
+  },
+  "markdownContent.noApplicationFound": {
+    "defaultMessage": "इस लिंक को खोलने के लिए कोई एप्लिकेशन नहीं मिला."
+  },
+  "markdownContent.open": {
+    "defaultMessage": "खुला"
+  },
+  "markdownContent.openExternalLink": {
+    "defaultMessage": "बाहरी लिंक खोलें"
+  },
+  "markdownContent.openProtocolLink": {
+    "defaultMessage": "{protocol} लिंक खोलें?"
+  },
+  "markdownContent.thisWillOpen": {
+    "defaultMessage": "यह खुलेगा: {href}"
+  },
+  "mcpAppRenderer.appFallbackTitle": {
+    "defaultMessage": "ऐप"
+  },
+  "mcpAppRenderer.cancelButton": {
+    "defaultMessage": "रद्द करें"
+  },
+  "mcpAppRenderer.close": {
+    "defaultMessage": "बंद करें"
+  },
+  "mcpAppRenderer.exitFullscreen": {
+    "defaultMessage": "फ़ुलस्क्रीन से बाहर निकलें"
+  },
+  "mcpAppRenderer.exitFullscreenTitle": {
+    "defaultMessage": "फ़ुलस्क्रीन से बाहर निकलें (Esc)"
+  },
+  "mcpAppRenderer.failedToInitSandbox": {
+    "defaultMessage": "सैंडबॉक्स प्रॉक्सी आरंभ करने में विफल"
+  },
+  "mcpAppRenderer.failedToLoadResource": {
+    "defaultMessage": "संसाधन लोड करने में विफल"
+  },
+  "mcpAppRenderer.fullscreen": {
+    "defaultMessage": "फ़ुलस्क्रीन"
+  },
+  "mcpAppRenderer.invalidUrl": {
+    "defaultMessage": "अमान्य URL"
+  },
+  "mcpAppRenderer.movePipWindow": {
+    "defaultMessage": "पिक्चर-इन-पिक्चर विंडो को स्थानांतरित करें (तीर कुंजियों का उपयोग करें)"
+  },
+  "mcpAppRenderer.openButton": {
+    "defaultMessage": "खुला"
+  },
+  "mcpAppRenderer.openExternalLinkTitle": {
+    "defaultMessage": "बाहरी लिंक खोलें"
+  },
+  "mcpAppRenderer.openLinkDetail": {
+    "defaultMessage": "यह खुलेगा: {url}"
+  },
+  "mcpAppRenderer.openProtocolLink": {
+    "defaultMessage": "{protocol} लिंक खोलें?"
+  },
+  "mcpAppRenderer.pictureInPicture": {
+    "defaultMessage": "चित्र-में-चित्र"
+  },
+  "mcpAppRenderer.playingInPip": {
+    "defaultMessage": "पिक्चर-इन-पिक्चर में बजाना"
+  },
+  "mcpUIResourceRenderer.cancelButton": {
+    "defaultMessage": "रद्द करें"
+  },
+  "mcpUIResourceRenderer.openButton": {
+    "defaultMessage": "खुला"
+  },
+  "mcpUIResourceRenderer.openExternalLinkTitle": {
+    "defaultMessage": "बाहरी लिंक खोलें"
+  },
+  "mcpUIResourceRenderer.openLinkDetail": {
+    "defaultMessage": "यह खुलेगा: {url}"
+  },
+  "mcpUIResourceRenderer.openProtocolLink": {
+    "defaultMessage": "{protocol} लिंक खोलें?"
+  },
+  "mcpUIResourceRenderer.toastMessageReceived": {
+    "defaultMessage": "{message} के लिए संदेश प्राप्त हुआ।"
+  },
+  "mcpUIResourceRenderer.toastTitle": {
+    "defaultMessage": "एमसीपी-यूआई {messageType} संदेश"
+  },
+  "mcpUIResourceRenderer.toastUnsupported": {
+    "defaultMessage": "{message} के लिए संदेश प्राप्त हुआ। {messageType} संदेश अभी तक समर्थित नहीं हैं, अधिक विवरण के लिए कंसोल देखें।"
+  },
+  "mentionPopover.itemsFound": {
+    "defaultMessage": "{count,plural,one{# आइटम मिला} other{# आइटम मिले}}"
+  },
+  "mentionPopover.loadingCommands": {
+    "defaultMessage": "आदेश लोड हो रहे हैं..."
+  },
+  "mentionPopover.noCommandsFound": {
+    "defaultMessage": "\"{query}\" से मेल खाता कोई आदेश नहीं मिला"
+  },
+  "mentionPopover.noItemsFound": {
+    "defaultMessage": "\"{query}\" से मेल खाता कोई आइटम नहीं मिला"
+  },
+  "mentionPopover.scanningFiles": {
+    "defaultMessage": "फ़ाइलें स्कैन की जा रही हैं..."
+  },
+  "messageCopyLink.copied": {
+    "defaultMessage": "नकल की गई!"
+  },
+  "messageCopyLink.copy": {
+    "defaultMessage": "प्रतिलिपि"
+  },
+  "messageQueue.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "messageQueue.cannotSendWhileEditing": {
+    "defaultMessage": "संपादन करते समय नहीं भेजा जा सकता"
+  },
+  "messageQueue.clearAll": {
+    "defaultMessage": "सभी साफ़ करें"
+  },
+  "messageQueue.clickToEdit": {
+    "defaultMessage": "{content} (संपादित करने के लिए क्लिक करें)"
+  },
+  "messageQueue.collapseQueue": {
+    "defaultMessage": "कतार संक्षिप्त करें"
+  },
+  "messageQueue.dragToReorder": {
+    "defaultMessage": "प्राथमिकता को पुन: व्यवस्थित करने के लिए संदेशों को खींचें"
+  },
+  "messageQueue.expandQueue": {
+    "defaultMessage": "कतार का विस्तार करें"
+  },
+  "messageQueue.messageCount": {
+    "defaultMessage": "{count,plural,one{# संदेश {status}} other{# संदेश {status}}}"
+  },
+  "messageQueue.messageQueue": {
+    "defaultMessage": "संदेश कतार"
+  },
+  "messageQueue.next": {
+    "defaultMessage": "अगला"
+  },
+  "messageQueue.paused": {
+    "defaultMessage": "रुका हुआ"
+  },
+  "messageQueue.queuePaused": {
+    "defaultMessage": "कतार रोक दी गई"
+  },
+  "messageQueue.queuePausedCompact": {
+    "defaultMessage": "कतार रुकी हुई - \"भेजें\" पर क्लिक करें या फिर से शुरू करने के लिए नया संदेश जोड़ें"
+  },
+  "messageQueue.queuePausedExpanded": {
+    "defaultMessage": "रुकावट के कारण कतार रुकी. \"अभी भेजें\" का उपयोग करें या फिर से शुरू करने के लिए एक नया संदेश जोड़ें।"
+  },
+  "messageQueue.queued": {
+    "defaultMessage": "पंक्तिबद्ध"
+  },
+  "messageQueue.removeFromQueue": {
+    "defaultMessage": "इस संदेश को कतार से हटाएँ"
+  },
+  "messageQueue.save": {
+    "defaultMessage": "सहेजें"
+  },
+  "messageQueue.sendNow": {
+    "defaultMessage": "यह संदेश अभी भेजें"
+  },
+  "messageQueue.stopAndSend": {
+    "defaultMessage": "वर्तमान प्रोसेसिंग बंद करें और यह संदेश अभी भेजें"
+  },
+  "messageQueue.waiting": {
+    "defaultMessage": "इंतज़ार कर रहा हूँ"
+  },
+  "microphoneSelector.chooseDescription": {
+    "defaultMessage": "श्रुतलेख के लिए कौन सा माइक्रोफ़ोन उपयोग करना है चुनें"
+  },
+  "microphoneSelector.grantAccess": {
+    "defaultMessage": "पहुंच प्रदान करें"
+  },
+  "microphoneSelector.grantAccessDescription": {
+    "defaultMessage": "उपलब्ध माइक्रोफ़ोन देखने की पहुंच प्रदान करें"
+  },
+  "microphoneSelector.microphone": {
+    "defaultMessage": "माइक्रोफ़ोन"
+  },
+  "microphoneSelector.microphoneLabel": {
+    "defaultMessage": "माइक्रोफ़ोन {index}"
+  },
+  "microphoneSelector.selectedMicrophone": {
+    "defaultMessage": "चयनित माइक्रोफ़ोन"
+  },
+  "microphoneSelector.speakToTest": {
+    "defaultMessage": "अपने माइक्रोफ़ोन का परीक्षण करने के लिए बोलें ({seconds}s)"
+  },
+  "microphoneSelector.stop": {
+    "defaultMessage": "रुकें"
+  },
+  "microphoneSelector.systemDefault": {
+    "defaultMessage": "सिस्टम डिफ़ॉल्ट"
+  },
+  "microphoneSelector.test": {
+    "defaultMessage": "परीक्षण"
+  },
+  "modeSelectionItem.autonomousDescription": {
+    "defaultMessage": "पूर्ण फ़ाइल संशोधन क्षमताएं, फ़ाइलों को स्वतंत्र रूप से संपादित करें, बनाएं और हटाएं।"
+  },
+  "modeSelectionItem.autonomousLabel": {
+    "defaultMessage": "स्वायत्त"
+  },
+  "modeSelectionItem.chatOnlyDescription": {
+    "defaultMessage": "टूल या एक्सटेंशन का उपयोग किए बिना चयनित प्रदाता से बातचीत करें।"
+  },
+  "modeSelectionItem.chatOnlyLabel": {
+    "defaultMessage": "केवल चैट करें"
+  },
+  "modeSelectionItem.manualDescription": {
+    "defaultMessage": "सभी टूल, एक्सटेंशन और फ़ाइल संशोधनों के लिए मानव अनुमोदन की आवश्यकता होगी"
+  },
+  "modeSelectionItem.manualLabel": {
+    "defaultMessage": "मैनुअल"
+  },
+  "modeSelectionItem.smartDescription": {
+    "defaultMessage": "जोखिम स्तर के आधार पर समझदारी से निर्धारित करें कि किन कार्यों को अनुमोदन की आवश्यकता है"
+  },
+  "modeSelectionItem.smartLabel": {
+    "defaultMessage": "होशियार"
+  },
+  "modelAndProviderContext.modelChangeFailed": {
+    "defaultMessage": "{provider}/{model} विफल"
+  },
+  "modelAndProviderContext.modelChangedTitle": {
+    "defaultMessage": "मॉडल बदल गया"
+  },
+  "modelAndProviderContext.selectModel": {
+    "defaultMessage": "मॉडल का चयन करें"
+  },
+  "modelAndProviderContext.switchModelSuccess": {
+    "defaultMessage": "मॉडल सफलतापूर्वक बदला गया -- {provider} से {model} इस्तेमाल किया जा रहा है"
+  },
+  "modelAndProviderContext.unknownProviderMsg": {
+    "defaultMessage": "कॉन्फ़िग में अज्ञात प्रदाता -- कृपया अपनी config.yaml जांचें"
+  },
+  "modelAndProviderContext.unknownProviderTitle": {
+    "defaultMessage": "प्रदाता का नाम लुकअप"
+  },
+  "modelSettingsButtons.configureProviders": {
+    "defaultMessage": "प्रदाताओं को कॉन्फ़िगर करें"
+  },
+  "modelSettingsButtons.switchModels": {
+    "defaultMessage": "मॉडल स्विच करें"
+  },
+  "modelSettingsPanel.batchSize": {
+    "defaultMessage": "बैच का आकार"
+  },
+  "modelSettingsPanel.batchSizeDescription": {
+    "defaultMessage": "शीघ्र प्रसंस्करण बैच"
+  },
+  "modelSettingsPanel.builtinChatTemplate": {
+    "defaultMessage": "अंतर्निर्मित टेम्पलेट"
+  },
+  "modelSettingsPanel.builtinChatTemplateDescription": {
+    "defaultMessage": "एक llama.cpp अंतर्निहित टेम्पलेट नाम चुनें"
+  },
+  "modelSettingsPanel.chatTemplate": {
+    "defaultMessage": "चैट टेम्पलेट"
+  },
+  "modelSettingsPanel.chatTemplateBuiltin": {
+    "defaultMessage": "अंतर्निर्मित"
+  },
+  "modelSettingsPanel.chatTemplateCustomInline": {
+    "defaultMessage": "कस्टम इनलाइन"
+  },
+  "modelSettingsPanel.chatTemplateDescription": {
+    "defaultMessage": "एम्बेडेड GGUF मेटाडेटा, llama.cpp का बिल्ट-इन टेम्पलेट, या इनलाइन Jinja इस्तेमाल करें"
+  },
+  "modelSettingsPanel.chatTemplateEmbedded": {
+    "defaultMessage": "एंबेडेड"
+  },
+  "modelSettingsPanel.contextAndGeneration": {
+    "defaultMessage": "प्रसंग एवं पीढ़ी"
+  },
+  "modelSettingsPanel.contextSize": {
+    "defaultMessage": "प्रसंग का आकार"
+  },
+  "modelSettingsPanel.contextSizeDescription": {
+    "defaultMessage": "अधिकतम संदर्भ विंडो (0 = मॉडल डिफ़ॉल्ट)"
+  },
+  "modelSettingsPanel.customChatTemplate": {
+    "defaultMessage": "कस्टम चैट टेम्पलेट"
+  },
+  "modelSettingsPanel.customChatTemplateDescription": {
+    "defaultMessage": "संपूर्ण जिंजा चैट टेम्पलेट स्रोत चिपकाएँ"
+  },
+  "modelSettingsPanel.etaLearningRate": {
+    "defaultMessage": "एटा (सीखने की दर)"
+  },
+  "modelSettingsPanel.flashAttention": {
+    "defaultMessage": "फ़्लैश ध्यान"
+  },
+  "modelSettingsPanel.flashAttentionDescription": {
+    "defaultMessage": "फ़्लैश ध्यान अनुकूलन सक्षम करें"
+  },
+  "modelSettingsPanel.frequencyPenalty": {
+    "defaultMessage": "बारंबारता दंड"
+  },
+  "modelSettingsPanel.frequencyPenaltyDescription": {
+    "defaultMessage": "0.0 = बंद"
+  },
+  "modelSettingsPanel.gpuLayers": {
+    "defaultMessage": "जीपीयू परतें"
+  },
+  "modelSettingsPanel.gpuLayersDescription": {
+    "defaultMessage": "जीपीयू पर अपलोड करने के लिए परतें"
+  },
+  "modelSettingsPanel.loadingSettings": {
+    "defaultMessage": "सेटिंग लोड हो रही है..."
+  },
+  "modelSettingsPanel.lockModelInRam": {
+    "defaultMessage": "मॉडल को RAM में लॉक करें (mlock)"
+  },
+  "modelSettingsPanel.lockModelInRamDescription": {
+    "defaultMessage": "मॉडल को डिस्क पर स्वैप होने से रोकें"
+  },
+  "modelSettingsPanel.maxOutputTokens": {
+    "defaultMessage": "अधिकतम आउटपुट टोकन"
+  },
+  "modelSettingsPanel.maxOutputTokensDescription": {
+    "defaultMessage": "जेनरेट किए गए टोकन पर सीमा"
+  },
+  "modelSettingsPanel.minP": {
+    "defaultMessage": "मिन पी"
+  },
+  "modelSettingsPanel.performance": {
+    "defaultMessage": "प्रदर्शन"
+  },
+  "modelSettingsPanel.presencePenalty": {
+    "defaultMessage": "उपस्थिति दंड"
+  },
+  "modelSettingsPanel.presencePenaltyDescription": {
+    "defaultMessage": "0.0 = बंद"
+  },
+  "modelSettingsPanel.repeatPenalty": {
+    "defaultMessage": "बार-बार जुर्माना"
+  },
+  "modelSettingsPanel.repeatPenaltyDescription": {
+    "defaultMessage": "1.0 = बंद"
+  },
+  "modelSettingsPanel.repeatWindow": {
+    "defaultMessage": "विंडो दोहराएँ"
+  },
+  "modelSettingsPanel.repeatWindowDescription": {
+    "defaultMessage": "पीछे देखने के लिए टोकन"
+  },
+  "modelSettingsPanel.repetitionPenalty": {
+    "defaultMessage": "पुनरावृत्ति दंड"
+  },
+  "modelSettingsPanel.reset": {
+    "defaultMessage": "रीसेट करें"
+  },
+  "modelSettingsPanel.resetToDefaults": {
+    "defaultMessage": "डिफ़ॉल्ट पर रीसेट करें"
+  },
+  "modelSettingsPanel.samplingStrategy": {
+    "defaultMessage": "नमूनाकरण रणनीति"
+  },
+  "modelSettingsPanel.saving": {
+    "defaultMessage": "सहेजा जा रहा है..."
+  },
+  "modelSettingsPanel.seed": {
+    "defaultMessage": "बीज"
+  },
+  "modelSettingsPanel.tauTargetEntropy": {
+    "defaultMessage": "ताऊ (लक्ष्य एन्ट्रापी)"
+  },
+  "modelSettingsPanel.temperature": {
+    "defaultMessage": "तापमान"
+  },
+  "modelSettingsPanel.threads": {
+    "defaultMessage": "धागे"
+  },
+  "modelSettingsPanel.threadsDescription": {
+    "defaultMessage": "पीढ़ी के लिए सीपीयू धागे"
+  },
+  "modelSettingsPanel.toolCalling": {
+    "defaultMessage": "टूल कॉलिंग"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "ऑटो"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "चुनें कि स्थानीय मॉडल देशी या अनुकरणीय टूल कॉलिंग का चयन कैसे करते हैं"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "बल का अनुकरण किया गया"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "बल मूलनिवासी"
+  },
+  "modelSettingsPanel.topK": {
+    "defaultMessage": "शीर्ष के"
+  },
+  "modelSettingsPanel.topP": {
+    "defaultMessage": "शीर्ष पी"
+  },
+  "modelsBottomBar.changeModel": {
+    "defaultMessage": "मॉडल बदलें"
+  },
+  "modelsBottomBar.currentModel": {
+    "defaultMessage": "वर्तमान मॉडल"
+  },
+  "modelsBottomBar.loadingModel": {
+    "defaultMessage": "मॉडल लोड हो रहा है..."
+  },
+  "modelsBottomBar.localModelSettings": {
+    "defaultMessage": "स्थानीय मॉडल Settings"
+  },
+  "modelsBottomBar.localModelSettingsTitle": {
+    "defaultMessage": "स्थानीय मॉडल Settings — {modelName}"
+  },
+  "modelsBottomBar.resolvedModel": {
+    "defaultMessage": "हल किया गया मॉडल"
+  },
+  "modelsBottomBar.selectModel": {
+    "defaultMessage": "मॉडल का चयन करें"
+  },
+  "modelsSection.resetDescription": {
+    "defaultMessage": "नए सिरे से शुरुआत करने के लिए अपने चयनित मॉडल और प्रदाता सेटिंग्स को साफ़ करें"
+  },
+  "modelsSection.resetTitle": {
+    "defaultMessage": "प्रदाता और मॉडल रीसेट करें"
+  },
+  "navigation.itemApps": {
+    "defaultMessage": "ऐप्स"
+  },
+  "navigation.itemExtensions": {
+    "defaultMessage": "एक्सटेंशन"
+  },
+  "navigation.itemHome": {
+    "defaultMessage": "नई चैट"
+  },
+  "navigation.itemRecipes": {
+    "defaultMessage": "व्यंजन विधि"
+  },
+  "navigation.itemScheduler": {
+    "defaultMessage": "अनुसूचक"
+  },
+  "navigation.itemSessions": {
+    "defaultMessage": "सत्र इतिहास"
+  },
+  "navigation.itemSettings": {
+    "defaultMessage": "Settings"
+  },
+  "navigation.itemSkills": {
+    "defaultMessage": "कौशल"
+  },
+  "navigationPanel.chats": {
+    "defaultMessage": "चैट"
+  },
+  "navigationPanel.collapseSidebar": {
+    "defaultMessage": "साइडबार को संक्षिप्त करें"
+  },
+  "navigationPanel.noChats": {
+    "defaultMessage": "कोई हालिया चैट नहीं"
+  },
+  "navigationPanel.untitledSession": {
+    "defaultMessage": "शीर्षकहीन सत्र"
+  },
+  "onboardingGuard.checkProviderErrorDescription": {
+    "defaultMessage": "सर्वर चालू हो सकता है या अस्थायी रूप से अनुपलब्ध हो सकता है।"
+  },
+  "onboardingGuard.checkProviderErrorTitle": {
+    "defaultMessage": "Goose सर्वर से कनेक्ट करने में असमर्थ"
+  },
+  "onboardingGuard.retry": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
+  "onboardingGuard.welcomeDescription": {
+    "defaultMessage": "आपका स्थानीय एआई एजेंट। आरंभ करने के लिए किसी AI मॉडल प्रदाता से कनेक्ट करें।"
+  },
+  "onboardingGuard.welcomeTitle": {
+    "defaultMessage": "goose में आपका स्वागत है"
+  },
+  "onboardingSuccess.allSet": {
+    "defaultMessage": "आप goose का उपयोग शुरू करने के लिए पूरी तरह तैयार हैं।"
+  },
+  "onboardingSuccess.connectedTo": {
+    "defaultMessage": "{providerName} से कनेक्टेड"
+  },
+  "onboardingSuccess.getStarted": {
+    "defaultMessage": "आरंभ करें"
+  },
+  "onboardingSuccess.learnMore": {
+    "defaultMessage": "और जानें"
+  },
+  "onboardingSuccess.localModelReady": {
+    "defaultMessage": "स्थानीय मॉडल तैयार"
+  },
+  "onboardingSuccess.privacyDescription": {
+    "defaultMessage": "अनाम उपयोग डेटा goose को बेहतर बनाने में मदद करता है। हम कभी भी आपकी बातचीत, कोड या व्यक्तिगत डेटा एकत्र नहीं करते हैं।"
+  },
+  "onboardingSuccess.privacyTitle": {
+    "defaultMessage": "गोपनीयता"
+  },
+  "onboardingSuccess.shareUsageData": {
+    "defaultMessage": "अनाम उपयोग डेटा साझा करें"
+  },
+  "parameterInput.defaultValue": {
+    "defaultMessage": "डिफ़ॉल्ट मान"
+  },
+  "parameterInput.defaultValuePlaceholder": {
+    "defaultMessage": "डिफ़ॉल्ट मान दर्ज करें"
+  },
+  "parameterInput.deleteParameter": {
+    "defaultMessage": "पैरामीटर हटाएं: {key}"
+  },
+  "parameterInput.description": {
+    "defaultMessage": "विवरण"
+  },
+  "parameterInput.descriptionHelp": {
+    "defaultMessage": "यह वह संदेश है जिसे अंतिम उपयोगकर्ता देखेगा."
+  },
+  "parameterInput.descriptionPlaceholder": {
+    "defaultMessage": "उदा., \"नए कंपोनेंट का नाम दर्ज करें\""
+  },
+  "parameterInput.inputType": {
+    "defaultMessage": "इनपुट प्रकार"
+  },
+  "parameterInput.optional": {
+    "defaultMessage": "वैकल्पिक"
+  },
+  "parameterInput.optionsHelp": {
+    "defaultMessage": "हर विकल्प को नई लाइन पर दर्ज करें। ये ड्रॉपडाउन विकल्पों के रूप में दिखेंगे।"
+  },
+  "parameterInput.optionsLabel": {
+    "defaultMessage": "विकल्प (प्रति पंक्ति एक)"
+  },
+  "parameterInput.optionsPlaceholder": {
+    "defaultMessage": "विकल्प 1 विकल्प 2 विकल्प 3"
+  },
+  "parameterInput.required": {
+    "defaultMessage": "आवश्यक"
+  },
+  "parameterInput.requirement": {
+    "defaultMessage": "मांग"
+  },
+  "parameterInput.typeBoolean": {
+    "defaultMessage": "बूलियन"
+  },
+  "parameterInput.typeNumber": {
+    "defaultMessage": "संख्या"
+  },
+  "parameterInput.typeSelect": {
+    "defaultMessage": "चयन करें"
+  },
+  "parameterInput.typeString": {
+    "defaultMessage": "स्ट्रिंग"
+  },
+  "parameterInput.unused": {
+    "defaultMessage": "अप्रयुक्त"
+  },
+  "parameterInput.unusedWarningTitle": {
+    "defaultMessage": "इस पैरामीटर का उपयोग निर्देशों या प्रॉम्प्ट में नहीं किया जाता है. यह मैन्युअल इनपुट के लिए उपलब्ध होगा लेकिन इसकी आवश्यकता नहीं होगी।"
+  },
+  "parameterInputModal.backToForm": {
+    "defaultMessage": "पैरामीटर फॉर्म पर वापस जाएँ"
+  },
+  "parameterInputModal.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "parameterInputModal.cancelRecipeSetup": {
+    "defaultMessage": "रेसिपी सेटअप रद्द करें"
+  },
+  "parameterInputModal.enterValue": {
+    "defaultMessage": "{key} के लिए मान दर्ज करें..."
+  },
+  "parameterInputModal.false": {
+    "defaultMessage": "मिथ्या"
+  },
+  "parameterInputModal.recipeParameters": {
+    "defaultMessage": "पकाने की विधि पैरामीटर"
+  },
+  "parameterInputModal.select": {
+    "defaultMessage": "चुनना..."
+  },
+  "parameterInputModal.selectOption": {
+    "defaultMessage": "एक विकल्प चुनें..."
+  },
+  "parameterInputModal.startNewChat": {
+    "defaultMessage": "नई चैट शुरू करें (कोई रेसिपी नहीं)"
+  },
+  "parameterInputModal.startRecipe": {
+    "defaultMessage": "रेसिपी शुरू करें"
+  },
+  "parameterInputModal.true": {
+    "defaultMessage": "सच है"
+  },
+  "parameterInputModal.whatToDo": {
+    "defaultMessage": "आप क्या करना चाहेंगे?"
+  },
+  "permissionModal.alwaysAllow": {
+    "defaultMessage": "हमेशा अनुमति दें"
+  },
+  "permissionModal.askBefore": {
+    "defaultMessage": "पहले पूछो"
+  },
+  "permissionModal.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "permissionModal.close": {
+    "defaultMessage": "बंद करें"
+  },
+  "permissionModal.failedToLoadTools": {
+    "defaultMessage": "उपकरण लोड करने में विफल"
+  },
+  "permissionModal.failedToLoadToolsDescription": {
+    "defaultMessage": "इस एक्सटेंशन के लिए उपकरण लोड नहीं किए जा सके. मौजूदा सत्र में एक्सटेंशन लोड नहीं किया जा सकता है."
+  },
+  "permissionModal.neverAllow": {
+    "defaultMessage": "कभी अनुमति न दें"
+  },
+  "permissionModal.noActiveSession": {
+    "defaultMessage": "कोई सक्रिय सत्र नहीं"
+  },
+  "permissionModal.noActiveSessionDescription": {
+    "defaultMessage": "इस एक्सटेंशन के लिए टूल अनुमतियों को कॉन्फ़िगर करने के लिए पहले एक चैट सत्र प्रारंभ करें। टूल अनुमतियाँ सक्रिय सत्र के एक्सटेंशन से लोड की जाती हैं।"
+  },
+  "permissionModal.noToolsAvailable": {
+    "defaultMessage": "इस एक्सटेंशन के लिए कोई उपकरण उपलब्ध नहीं है."
+  },
+  "permissionModal.saveChanges": {
+    "defaultMessage": "परिवर्तन सहेजें"
+  },
+  "permissionRulesModal.description": {
+    "defaultMessage": "एक्सटेंशन के लिए टूल अनुमतियाँ कॉन्फ़िगर करें ताकि यह नियंत्रित किया जा सके कि वे आपके सिस्टम के साथ कैसे इंटरैक्ट करते हैं।"
+  },
+  "permissionRulesModal.extensionRules": {
+    "defaultMessage": "विस्तार नियम"
+  },
+  "permissionRulesModal.title": {
+    "defaultMessage": "अनुमति नियम"
+  },
+  "permissionSetting.extensionRules": {
+    "defaultMessage": "विस्तार नियम"
+  },
+  "permissionSetting.permissionRules": {
+    "defaultMessage": "अनुमति नियम"
+  },
+  "permissionSetting.permissionRulesDescription": {
+    "defaultMessage": "छिपे हुए निर्देश जो आपकी प्रतिक्रियाओं को निर्देशित करने और संदर्भ जोड़ने में सहायता के लिए प्रदाता को भेजे जाएंगे।"
+  },
+  "privacyInfoModal.collectErrors": {
+    "defaultMessage": "त्रुटि प्रकार (उदाहरण के लिए, \"रेट_लिमिट\", \"ऑथ\" - कोई विवरण नहीं)"
+  },
+  "privacyInfoModal.collectExtensions": {
+    "defaultMessage": "एक्सटेंशन और टूल उपयोग की संख्या (केवल नाम)"
+  },
+  "privacyInfoModal.collectOs": {
+    "defaultMessage": "ऑपरेटिंग सिस्टम, संस्करण और आर्किटेक्चर"
+  },
+  "privacyInfoModal.collectProvider": {
+    "defaultMessage": "प्रदाता और मॉडल का उपयोग किया गया"
+  },
+  "privacyInfoModal.collectSession": {
+    "defaultMessage": "सत्र मेट्रिक्स (अवधि, इंटरैक्शन गिनती, टोकन उपयोग)"
+  },
+  "privacyInfoModal.collectVersion": {
+    "defaultMessage": "goose संस्करण और इंस्टाल विधि"
+  },
+  "privacyInfoModal.description": {
+    "defaultMessage": "अनाम उपयोग डेटा हमें यह समझने में मदद करता है कि goose का उपयोग कैसे किया जाता है और सुधार के क्षेत्रों की पहचान की जाती है।"
+  },
+  "privacyInfoModal.neverCollect": {
+    "defaultMessage": "हम कभी भी आपकी बातचीत, कोड, टूल तर्क, त्रुटि संदेश या कोई व्यक्तिगत डेटा एकत्र नहीं करते हैं। आप इस सेटिंग को सेटिंग्स में कभी भी बदल सकते हैं।"
+  },
+  "privacyInfoModal.title": {
+    "defaultMessage": "गोपनीयता विवरण"
+  },
+  "privacyInfoModal.whatWeCollect": {
+    "defaultMessage": "हम क्या एकत्र करते हैं:"
+  },
+  "progressiveMessageList.loadingMessages": {
+    "defaultMessage": "संदेश लोड हो रहे हैं... ({renderedCount}/{totalCount})"
+  },
+  "progressiveMessageList.modelChanged": {
+    "defaultMessage": "मॉडल बदला गया: {previousModel} → {currentModel}"
+  },
+  "progressiveMessageList.searchHint": {
+    "defaultMessage": "खोज के लिए सभी संदेशों को तुरंत लोड करने के लिए Cmd/Ctrl+F दबाएँ"
+  },
+  "promptsSettings.allPromptsReset": {
+    "defaultMessage": "सभी संकेत डिफ़ॉल्ट पर रीसेट हो गए"
+  },
+  "promptsSettings.backToList": {
+    "defaultMessage": "सूची पर वापस जाएँ"
+  },
+  "promptsSettings.confirmReplaceWithDefault": {
+    "defaultMessage": "वर्तमान सामग्री को डिफ़ॉल्ट से बदलें? आपके परिवर्तन खो जायेंगे."
+  },
+  "promptsSettings.confirmResetAll": {
+    "defaultMessage": "क्या आप वाकई सभी संकेतों को उनके डिफ़ॉल्ट पर रीसेट करना चाहते हैं? इसे असंपादित नहीं किया जा सकता है।"
+  },
+  "promptsSettings.confirmResetOne": {
+    "defaultMessage": "क्या आप वाकई इस प्रॉम्प्ट को उसके डिफ़ॉल्ट पर रीसेट करना चाहते हैं? इसे असंपादित नहीं किया जा सकता है।"
+  },
+  "promptsSettings.confirmUnsavedBack": {
+    "defaultMessage": "आपके पास सहेजे नहीं गए परिवर्तन हैं. क्या आप वाकई वापस जाना चाहते हैं?"
+  },
+  "promptsSettings.customized": {
+    "defaultMessage": "अनुकूलित"
+  },
+  "promptsSettings.edit": {
+    "defaultMessage": "संपादित करें"
+  },
+  "promptsSettings.editPromptTitle": {
+    "defaultMessage": "संपादित करें: {name}"
+  },
+  "promptsSettings.editingLabel": {
+    "defaultMessage": "संपादन: {name}"
+  },
+  "promptsSettings.enterPromptContent": {
+    "defaultMessage": "प्रॉम्प्ट सामग्री दर्ज करें..."
+  },
+  "promptsSettings.failedToLoadPrompt": {
+    "defaultMessage": "शीघ्र लोड करने में विफल"
+  },
+  "promptsSettings.failedToLoadPrompts": {
+    "defaultMessage": "संकेत लोड करने में विफल"
+  },
+  "promptsSettings.failedToResetPrompt": {
+    "defaultMessage": "प्रॉम्प्ट रीसेट करने में विफल"
+  },
+  "promptsSettings.failedToResetPrompts": {
+    "defaultMessage": "संकेत रीसेट करने में विफल"
+  },
+  "promptsSettings.failedToSavePrompt": {
+    "defaultMessage": "संकेत सहेजने में विफल"
+  },
+  "promptsSettings.promptEditingDescription": {
+    "defaultMessage": "विभिन्न संदर्भों में goose के व्यवहार को परिभाषित करने वाले संकेतों को अनुकूलित करें। ये संकेत Jinja2 टेम्प्लेटिंग सिंटैक्स का उपयोग करते हैं। टेम्प्लेट वेरिएबल्स को संशोधित करते समय सावधान रहें, क्योंकि गलत परिवर्तन कार्यक्षमता को तोड़ सकते हैं। कृपया कोई भी सुधार समुदाय के साथ साझा करें।"
+  },
+  "promptsSettings.promptEditingTitle": {
+    "defaultMessage": "शीघ्र संपादन"
+  },
+  "promptsSettings.promptResetToDefault": {
+    "defaultMessage": "शीघ्र डिफ़ॉल्ट पर रीसेट करें"
+  },
+  "promptsSettings.promptSaved": {
+    "defaultMessage": "शीघ्र सहेजा गया"
+  },
+  "promptsSettings.resetAll": {
+    "defaultMessage": "सभी रीसेट करें"
+  },
+  "promptsSettings.resetToDefault": {
+    "defaultMessage": "डिफ़ॉल्ट पर रीसेट करें"
+  },
+  "promptsSettings.restoreDefault": {
+    "defaultMessage": "डिफ़ॉल्ट पुनर्स्थापित करें"
+  },
+  "promptsSettings.save": {
+    "defaultMessage": "सहेजें"
+  },
+  "promptsSettings.templateTip": {
+    "defaultMessage": "{extensionsExample} या {forExample} जैसे टेम्प्लेट वैरिएबल को रनटाइम पर वास्तविक मानों से बदल दिया जाता है। सावधान रहें कि आवश्यक चर न हटाएँ।"
+  },
+  "promptsSettings.unsavedChanges": {
+    "defaultMessage": "आपके पास सहेजे नहीं गए परिवर्तन हैं"
+  },
+  "providerCard.noMetadata": {
+    "defaultMessage": "प्रदाता कार्ड त्रुटि: कोई मेटाडेटा प्रदान नहीं किया गया"
+  },
+  "providerCard.unknownProvider": {
+    "defaultMessage": "अज्ञात प्रदाता"
+  },
+  "providerCatalogPicker.anthropicCompatible": {
+    "defaultMessage": "Anthropic संगत"
+  },
+  "providerCatalogPicker.apiFormat": {
+    "defaultMessage": "API प्रारूप"
+  },
+  "providerCatalogPicker.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "providerCatalogPicker.chooseProvider": {
+    "defaultMessage": "प्रदाता चुनें"
+  },
+  "providerCatalogPicker.errorPrefix": {
+    "defaultMessage": "त्रुटि: {error}"
+  },
+  "providerCatalogPicker.loadingProviders": {
+    "defaultMessage": "प्रदाता लोड हो रहे हैं..."
+  },
+  "providerCatalogPicker.modelsAvailable": {
+    "defaultMessage": "{count} मॉडल उपलब्ध हैं"
+  },
+  "providerCatalogPicker.noProvidersAvailable": {
+    "defaultMessage": "कोई प्रदाता उपलब्ध नहीं है"
+  },
+  "providerCatalogPicker.noProvidersFound": {
+    "defaultMessage": "\"{query}\" के लिए कोई प्रदाता नहीं मिला"
+  },
+  "providerCatalogPicker.openaiCompatible": {
+    "defaultMessage": "OpenAI संगत"
+  },
+  "providerCatalogPicker.requiresEnvVar": {
+    "defaultMessage": "• {envVar} की आवश्यकता है"
+  },
+  "providerCatalogPicker.searchProviders": {
+    "defaultMessage": "प्रदाता खोजें..."
+  },
+  "providerCatalogPicker.selectFormatDescription": {
+    "defaultMessage": "एक API प्रारूप और प्रदाता चुनें। हम आपके लिए कॉन्फ़िगरेशन स्वतः भर देंगे."
+  },
+  "providerConfigForm.browserWindowOpen": {
+    "defaultMessage": "लॉगिन पूरा करने के लिए आपके लिए एक ब्राउज़र विंडो खुलेगी।"
+  },
+  "providerConfigForm.configuring": {
+    "defaultMessage": "कॉन्फ़िगर किया जा रहा है..."
+  },
+  "providerConfigForm.continue": {
+    "defaultMessage": "जारी रखें"
+  },
+  "providerConfigForm.deviceCodeFlowHint": {
+    "defaultMessage": "एक ब्राउज़र विंडो खुलेगी और सत्यापन कोड आपके क्लिपबोर्ड पर कॉपी हो जाएगा। साइन-इन पूरा करने के लिए इसे ब्राउज़र में पेस्ट करें।"
+  },
+  "providerConfigForm.noApiKey": {
+    "defaultMessage": "क्या आपके पास API कुंजी नहीं है?"
+  },
+  "providerConfigForm.signInWith": {
+    "defaultMessage": "{providerName} के साथ साइन इन करें"
+  },
+  "providerConfigForm.signingIn": {
+    "defaultMessage": "साइन इन किया जा रहा है..."
+  },
+  "providerConfigurationModal.addApiKeyDescription": {
+    "defaultMessage": "इस प्रदाता को goose में एकीकृत करने के लिए अपनी API कुंजी जोड़ें"
+  },
+  "providerConfigurationModal.browserWindowHint": {
+    "defaultMessage": "लॉगिन पूरा करने के लिए आपके लिए एक ब्राउज़र विंडो खुलेगी।"
+  },
+  "providerConfigurationModal.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "providerConfigurationModal.cannotDeleteActive": {
+    "defaultMessage": "आप इस प्रदाता को तब तक नहीं हटा सकते जब तक यह वर्तमान में उपयोग में है। कृपया पहले किसी भिन्न मॉडल पर स्विच करें."
+  },
+  "providerConfigurationModal.checkConfigAgain": {
+    "defaultMessage": "इस प्रदाता का उपयोग करने के लिए अपनी कॉन्फ़िगरेशन दोबारा जांचें।"
+  },
+  "providerConfigurationModal.close": {
+    "defaultMessage": "बंद करें"
+  },
+  "providerConfigurationModal.configureHeader": {
+    "defaultMessage": "कॉन्फ़िगर करें {providerName}"
+  },
+  "providerConfigurationModal.deleteConfigHeader": {
+    "defaultMessage": "{providerName} के लिए कॉन्फ़िगरेशन हटाएं"
+  },
+  "providerConfigurationModal.deleteConfirmation": {
+    "defaultMessage": "यह वर्तमान प्रदाता कॉन्फ़िगरेशन को स्थायी रूप से हटा देगा।"
+  },
+  "providerConfigurationModal.deviceCodeFlowHint": {
+    "defaultMessage": "एक ब्राउज़र विंडो खुलेगी और सत्यापन कोड आपके क्लिपबोर्ड पर कॉपी हो जाएगा। साइन-इन पूरा करने के लिए इसे ब्राउज़र में पेस्ट करें।"
+  },
+  "providerConfigurationModal.errorCheckingConfig": {
+    "defaultMessage": "इस प्रदाता कॉन्फ़िगरेशन की जाँच करने में त्रुटि हुई।"
+  },
+  "providerConfigurationModal.errorTitle": {
+    "defaultMessage": "त्रुटि"
+  },
+  "providerConfigurationModal.externalSetupIntro": {
+    "defaultMessage": "यह प्रदाता goose के बाहर कॉन्फ़िगर किया गया है। इन चरणों का पालन करें:"
+  },
+  "providerConfigurationModal.goBack": {
+    "defaultMessage": "वापस जाओ"
+  },
+  "providerConfigurationModal.huggingFaceOAuthDescription": {
+    "defaultMessage": "मैन्युअल रूप से API टोकन दर्ज किए बिना हगिंग फेस इंफ़रेंस प्रोवाइडर्स का उपयोग करने के लिए साइन इन करें।"
+  },
+  "providerConfigurationModal.oauthLoginFailed": {
+    "defaultMessage": "OAuth लॉगिन विफल: {error}"
+  },
+  "providerConfigurationModal.oauthSignInDescription": {
+    "defaultMessage": "इस प्रदाता का उपयोग करने के लिए अपने {providerName} खाते से साइन इन करें"
+  },
+  "providerConfigurationModal.parameterRequired": {
+    "defaultMessage": "{paramName} आवश्यक है"
+  },
+  "providerConfigurationModal.removeConfiguration": {
+    "defaultMessage": "कॉन्फ़िगरेशन हटाएँ"
+  },
+  "providerConfigurationModal.seeDocumentation": {
+    "defaultMessage": "अधिक विवरण के लिए <link>दस्तावेज़ीकरण</link> देखें।"
+  },
+  "providerConfigurationModal.signInWith": {
+    "defaultMessage": "{providerName} के साथ साइन इन करें"
+  },
+  "providerConfigurationModal.signingIn": {
+    "defaultMessage": "साइन इन किया जा रहा है..."
+  },
+  "providerGrid.addProvider": {
+    "defaultMessage": "प्रदाता जोड़ें"
+  },
+  "providerGrid.addProviderTitle": {
+    "defaultMessage": "प्रदाता जोड़ें"
+  },
+  "providerGrid.chooseModel": {
+    "defaultMessage": "मॉडल चुनें"
+  },
+  "providerGrid.configureProvider": {
+    "defaultMessage": "प्रदाता को कॉन्फ़िगर करें"
+  },
+  "providerGrid.editProvider": {
+    "defaultMessage": "प्रदाता संपादित करें"
+  },
+  "providerGrid.fromTemplateOrManual": {
+    "defaultMessage": "टेम्प्लेट या मैन्युअल सेटअप से"
+  },
+  "providerLogo.alt": {
+    "defaultMessage": "{providerName} लोगो"
+  },
+  "providerSelector.addCustomProvider": {
+    "defaultMessage": "एक कस्टम प्रदाता जोड़ें"
+  },
+  "providerSelector.addCustomProviderTitle": {
+    "defaultMessage": "कस्टम प्रदाता जोड़ें"
+  },
+  "providerSelector.connectProvider": {
+    "defaultMessage": "किसी प्रदाता से कनेक्ट करें"
+  },
+  "providerSelector.connectProviderDescription": {
+    "defaultMessage": "OpenAI, Anthropic, Google, आदि से कनेक्ट करें"
+  },
+  "providerSelector.freeLocalDescription": {
+    "defaultMessage": "स्थानीय मॉडल या मुफ़्त क्रेडिट वाले प्रदाता का उपयोग करें"
+  },
+  "providerSelector.selectProvider": {
+    "defaultMessage": "एक प्रदाता चुनें"
+  },
+  "providerSelector.useFreeLocal": {
+    "defaultMessage": "निःशुल्क/स्थानीय प्रदाताओं का उपयोग करें"
+  },
+  "providerSettings.configurationSettings": {
+    "defaultMessage": "प्रदाता कॉन्फ़िगरेशन Settings"
+  },
+  "providerSettings.loadingProviders": {
+    "defaultMessage": "प्रदाता लोड हो रहे हैं..."
+  },
+  "providerSettings.onboardingDescription": {
+    "defaultMessage": "goose के साथ आरंभ करने के लिए एक एआई मॉडल प्रदाता का चयन करें। आपको प्रत्येक प्रदाता द्वारा उत्पन्न API कुंजियों का उपयोग करने की आवश्यकता होगी जिन्हें एन्क्रिप्ट किया जाएगा और स्थानीय रूप से संग्रहीत किया जाएगा। आप सेटिंग्स में किसी भी समय अपना प्रदाता बदल सकते हैं।"
+  },
+  "providerSettings.otherProviders": {
+    "defaultMessage": "अन्य प्रदाता"
+  },
+  "providerSetupActions.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "providerSetupActions.cannotDeleteActive": {
+    "defaultMessage": "जब तक यह वर्तमान में उपयोग में है तब तक आप {providerName} को हटा नहीं सकते। कृपया इस प्रदाता को हटाने से पहले किसी भिन्न मॉडल पर स्विच करें।"
+  },
+  "providerSetupActions.confirmDelete": {
+    "defaultMessage": "हटाने की पुष्टि करें"
+  },
+  "providerSetupActions.confirmDeleteMessage": {
+    "defaultMessage": "क्या आप वाकई {providerName} के लिए कॉन्फ़िगरेशन पैरामीटर हटाना चाहते हैं? इस कार्रवाई को वापस नहीं किया जा सकता।"
+  },
+  "providerSetupActions.deleteProvider": {
+    "defaultMessage": "प्रदाता हटाएँ"
+  },
+  "providerSetupActions.enableProvider": {
+    "defaultMessage": "प्रदाता सक्षम करें"
+  },
+  "providerSetupActions.ok": {
+    "defaultMessage": "ठीक है"
+  },
+  "providerSetupActions.submit": {
+    "defaultMessage": "सबमिट करें"
+  },
+  "recipeActivityEditor.activitiesDescription": {
+    "defaultMessage": "शीर्ष-पंक्ति संकेत और गतिविधि बटन जो रेसिपी चैट विंडो में प्रदर्शित होंगे।"
+  },
+  "recipeActivityEditor.activitiesLabel": {
+    "defaultMessage": "गतिविधियाँ"
+  },
+  "recipeActivityEditor.activityButtonsDescription": {
+    "defaultMessage": "क्लिक करने योग्य बटन जो उपयोगकर्ताओं को आपकी रेसिपी के साथ इंटरैक्ट करने में मदद करने के लिए संदेश के नीचे दिखाई देंगे।"
+  },
+  "recipeActivityEditor.activityButtonsLabel": {
+    "defaultMessage": "गतिविधि बटन"
+  },
+  "recipeActivityEditor.addActivity": {
+    "defaultMessage": "गतिविधि जोड़ें"
+  },
+  "recipeActivityEditor.addNewActivityPlaceholder": {
+    "defaultMessage": "नई गतिविधि जोड़ें..."
+  },
+  "recipeActivityEditor.messageDescription": {
+    "defaultMessage": "एक स्वरूपित संदेश जो रेसिपी के शीर्ष पर दिखाई देगा। मार्कडाउन फ़ॉर्मेटिंग का समर्थन करता है."
+  },
+  "recipeActivityEditor.messageLabel": {
+    "defaultMessage": "संदेश"
+  },
+  "recipeActivityEditor.messagePlaceholder": {
+    "defaultMessage": "अपनी रेसिपी के लिए उपयोगकर्ता को दिखने वाला परिचय संदेश दर्ज करें (**bold**, *italic*, `code`, आदि समर्थित हैं)"
+  },
+  "recipeExtensionSelector.description": {
+    "defaultMessage": "चुनें कि इस रेसिपी को चलाते समय कौन से एक्सटेंशन उपलब्ध होने चाहिए। डिफ़ॉल्ट एक्सटेंशन का उपयोग करने के लिए इसे खाली छोड़ दें."
+  },
+  "recipeExtensionSelector.extensionsSelected": {
+    "defaultMessage": "{count,plural,one{# एक्सटेंशन चयनित} other{# एक्सटेंशन चयनित}}"
+  },
+  "recipeExtensionSelector.label": {
+    "defaultMessage": "एक्सटेंशन (वैकल्पिक)"
+  },
+  "recipeExtensionSelector.noExtensionsAvailable": {
+    "defaultMessage": "कोई एक्सटेंशन उपलब्ध नहीं है"
+  },
+  "recipeExtensionSelector.noExtensionsFound": {
+    "defaultMessage": "कोई एक्सटेंशन नहीं मिला"
+  },
+  "recipeExtensionSelector.searchPlaceholder": {
+    "defaultMessage": "एक्सटेंशन खोजें..."
+  },
+  "recipeFormFields.addParameter": {
+    "defaultMessage": "पैरामीटर जोड़ें"
+  },
+  "recipeFormFields.advancedOptions": {
+    "defaultMessage": "उन्नत विकल्प"
+  },
+  "recipeFormFields.advancedOptionsHint": {
+    "defaultMessage": "गतिविधियां, पैरामीटर, मॉडल, एक्सटेंशन, प्रतिक्रिया स्कीमा, सबरेसिपी"
+  },
+  "recipeFormFields.descriptionLabel": {
+    "defaultMessage": "विवरण"
+  },
+  "recipeFormFields.descriptionPlaceholder": {
+    "defaultMessage": "यह रेसिपी क्या करती है इसका संक्षिप्त विवरण"
+  },
+  "recipeFormFields.enterValueFor": {
+    "defaultMessage": "{key} के लिए मान दर्ज करें"
+  },
+  "recipeFormFields.initialPrompt": {
+    "defaultMessage": "प्रारंभिक संकेत"
+  },
+  "recipeFormFields.instructionsLabel": {
+    "defaultMessage": "अनुदेश"
+  },
+  "recipeFormFields.instructionsPlaceholder": {
+    "defaultMessage": "एआई के लिए विस्तृत निर्देश, उपयोगकर्ता से छिपाए गए"
+  },
+  "recipeFormFields.openEditor": {
+    "defaultMessage": "संपादक खोलें"
+  },
+  "recipeFormFields.parameterNamePlaceholder": {
+    "defaultMessage": "पैरामीटर नाम दर्ज करें..."
+  },
+  "recipeFormFields.parametersDescription": {
+    "defaultMessage": "निर्देश/संकेत/गतिविधियों में '{{parameter_name}}' सिंटैक्स से पैरामीटर स्वचालित रूप से पहचाने जाएंगे या आप उन्हें नीचे मैन्युअल रूप से जोड़ सकते हैं।"
+  },
+  "recipeFormFields.parametersLabel": {
+    "defaultMessage": "पैरामीटर्स"
+  },
+  "recipeFormFields.promptOptionalHint": {
+    "defaultMessage": "(वैकल्पिक - निर्देश या संकेत आवश्यक हैं)"
+  },
+  "recipeFormFields.promptPlaceholder": {
+    "defaultMessage": "रेसिपी शुरू होने पर पहले से भरा हुआ प्रॉम्प्ट"
+  },
+  "recipeFormFields.responseJsonSchema": {
+    "defaultMessage": "प्रतिक्रिया JSON स्कीमा"
+  },
+  "recipeFormFields.responseJsonSchemaDescription": {
+    "defaultMessage": "JSON स्कीमा प्रारूप का उपयोग करके AI की प्रतिक्रिया की अपेक्षित संरचना को परिभाषित करें"
+  },
+  "recipeFormFields.templateVarHint": {
+    "defaultMessage": "उन मापदंडों को परिभाषित करने के लिए '{{parameter_name}}' का उपयोग करें जिन्हें रेसिपी चलाते समय भरा जा सकता है।"
+  },
+  "recipeFormFields.titleLabel": {
+    "defaultMessage": "शीर्षक"
+  },
+  "recipeFormFields.titlePlaceholder": {
+    "defaultMessage": "रेसिपी का शीर्षक"
+  },
+  "recipeHeader.recipeLabel": {
+    "defaultMessage": "रेसिपी"
+  },
+  "recipeModelSelector.backToModelList": {
+    "defaultMessage": "मॉडल सूची पर वापस जाएँ"
+  },
+  "recipeModelSelector.enterCustomModel": {
+    "defaultMessage": "कस्टम मॉडल नाम दर्ज करें"
+  },
+  "recipeModelSelector.enterModelNotListed": {
+    "defaultMessage": "ऐसा मॉडल दर्ज करें जो सूची में नहीं है..."
+  },
+  "recipeModelSelector.fetchError": {
+    "defaultMessage": "मॉडल लाने में विफल. कृपया बाद में पुन: प्रयास करें।"
+  },
+  "recipeModelSelector.loadingModels": {
+    "defaultMessage": "मॉडल लोड हो रहे हैं…"
+  },
+  "recipeModelSelector.modelHint": {
+    "defaultMessage": "चयनित प्रदाता के लिए डिफ़ॉल्ट मॉडल का उपयोग करने के लिए खाली छोड़ दें"
+  },
+  "recipeModelSelector.modelLabel": {
+    "defaultMessage": "मॉडल (वैकल्पिक)"
+  },
+  "recipeModelSelector.providerHint": {
+    "defaultMessage": "सेटिंग्स में कॉन्फ़िगर किए गए डिफ़ॉल्ट प्रदाता का उपयोग करने के लिए खाली छोड़ दें"
+  },
+  "recipeModelSelector.providerLabel": {
+    "defaultMessage": "प्रदाता (वैकल्पिक)"
+  },
+  "recipeModelSelector.selectModel": {
+    "defaultMessage": "एक मॉडल चुनें"
+  },
+  "recipeModelSelector.selectProvider": {
+    "defaultMessage": "प्रदाता का चयन करें"
+  },
+  "recipeModelSelector.useDefaultProvider": {
+    "defaultMessage": "डिफ़ॉल्ट प्रदाता का उपयोग करें"
+  },
+  "recipeNameField.defaultLabel": {
+    "defaultMessage": "रेसिपी का नाम"
+  },
+  "recipeNameField.formatHint": {
+    "defaultMessage": "स्वचालित रूप से स्वरूपित किया जाएगा (लोअरकेस, रिक्त स्थान के लिए डैश)"
+  },
+  "recipeWarningModal.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "recipeWarningModal.descriptionLabel": {
+    "defaultMessage": "विवरण:"
+  },
+  "recipeWarningModal.firstTimeDescription": {
+    "defaultMessage": "आप एक ऐसी रेसिपी को क्रियान्वित करने वाले हैं जिसे आपने पहले नहीं चलाया है।"
+  },
+  "recipeWarningModal.hiddenCharsWarning": {
+    "defaultMessage": "इस रेसिपी में छिपे हुए पात्र हैं जिन्हें आपकी सुरक्षा के लिए अनदेखा कर दिया जाएगा, क्योंकि उनका उपयोग दुर्भावनापूर्ण उद्देश्यों के लिए किया जा सकता है।"
+  },
+  "recipeWarningModal.instructionsLabel": {
+    "defaultMessage": "निर्देश:"
+  },
+  "recipeWarningModal.newRecipeWarningTitle": {
+    "defaultMessage": "⚠️ नई रेसिपी चेतावनी"
+  },
+  "recipeWarningModal.recipePreview": {
+    "defaultMessage": "पकाने की विधि पूर्वावलोकन:"
+  },
+  "recipeWarningModal.securityWarningTitle": {
+    "defaultMessage": "⚠️ सुरक्षा चेतावनी"
+  },
+  "recipeWarningModal.titleLabel": {
+    "defaultMessage": "शीर्षक:"
+  },
+  "recipeWarningModal.trustAndExecute": {
+    "defaultMessage": "भरोसा करें और अमल करें"
+  },
+  "recipeWarningModal.trustSource": {
+    "defaultMessage": "केवल तभी आगे बढ़ें जब आप इस रेसिपी के स्रोत पर भरोसा करते हों।"
+  },
+  "recipesView.addSchedule": {
+    "defaultMessage": "शेड्यूल जोड़ें"
+  },
+  "recipesView.addSlashCommand": {
+    "defaultMessage": "स्लैश कमांड जोड़ें"
+  },
+  "recipesView.adjustSearchTerms": {
+    "defaultMessage": "अपने खोज शब्दों को समायोजित करने का प्रयास करें"
+  },
+  "recipesView.allFiles": {
+    "defaultMessage": "सभी फाइलें"
+  },
+  "recipesView.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "recipesView.copyDeeplink": {
+    "defaultMessage": "डीपलिंक कॉपी करें"
+  },
+  "recipesView.copyDeeplinkFailedMsg": {
+    "defaultMessage": "डीपलिंक को क्लिपबोर्ड पर कॉपी करने में विफल"
+  },
+  "recipesView.copyFailedTitle": {
+    "defaultMessage": "प्रतिलिपि विफल"
+  },
+  "recipesView.copyYaml": {
+    "defaultMessage": "प्रतिलिपि YAML"
+  },
+  "recipesView.copyYamlFailedMsg": {
+    "defaultMessage": "रेसिपी YAML को क्लिपबोर्ड पर कॉपी करने में विफल"
+  },
+  "recipesView.createRecipe": {
+    "defaultMessage": "रेसिपी बनाएं"
+  },
+  "recipesView.deeplinkCopiedMsg": {
+    "defaultMessage": "रेसिपी डीपलिंक को क्लिपबोर्ड पर कॉपी कर दिया गया है"
+  },
+  "recipesView.deeplinkCopiedTitle": {
+    "defaultMessage": "डीपलिंक कॉपी किया गया"
+  },
+  "recipesView.deleteRecipe": {
+    "defaultMessage": "रेसिपी हटाएं"
+  },
+  "recipesView.deleteRecipeConfirm": {
+    "defaultMessage": "क्या आप वाकई \"{title}\" को हटाना चाहते हैं?"
+  },
+  "recipesView.deleteRecipeDetail": {
+    "defaultMessage": "रेसिपी फ़ाइल हटा दी जाएगी."
+  },
+  "recipesView.deleteRecipeTitle": {
+    "defaultMessage": "रेसिपी हटाएं"
+  },
+  "recipesView.editRecipe": {
+    "defaultMessage": "रेसिपी संपादित करें"
+  },
+  "recipesView.editSchedule": {
+    "defaultMessage": "शेड्यूल संपादित करें"
+  },
+  "recipesView.editSlashCommand": {
+    "defaultMessage": "स्लैश कमांड संपादित करें"
+  },
+  "recipesView.errorLoadingRecipes": {
+    "defaultMessage": "रेसिपी लोड करने में त्रुटि"
+  },
+  "recipesView.exportFailedMsg": {
+    "defaultMessage": "रेसिपी को फ़ाइल में निर्यात करने में विफल"
+  },
+  "recipesView.exportFailedTitle": {
+    "defaultMessage": "निर्यात विफल"
+  },
+  "recipesView.exportRecipeDialogTitle": {
+    "defaultMessage": "रेसिपी निर्यात करें"
+  },
+  "recipesView.exportToFile": {
+    "defaultMessage": "फ़ाइल में निर्यात करें"
+  },
+  "recipesView.noMatchingRecipes": {
+    "defaultMessage": "कोई मेल खाती रेसिपी नहीं मिली"
+  },
+  "recipesView.noSavedRecipes": {
+    "defaultMessage": "कोई सहेजी गई रेसिपी नहीं"
+  },
+  "recipesView.noSavedRecipesDescription": {
+    "defaultMessage": "चैट से सहेजी गई रेसिपी यहां दिखाई देगी."
+  },
+  "recipesView.openInNewWindow": {
+    "defaultMessage": "नई विंडो में खोलें"
+  },
+  "recipesView.recipeDeletedSuccess": {
+    "defaultMessage": "रेसिपी सफलतापूर्वक हटा दी गई"
+  },
+  "recipesView.recipeExportedMsg": {
+    "defaultMessage": "रेसिपी {filePath} में सहेजी गई"
+  },
+  "recipesView.recipeExportedTitle": {
+    "defaultMessage": "रेसिपी निर्यात की गई"
+  },
+  "recipesView.recipesDescription": {
+    "defaultMessage": "पूर्वनिर्धारित कॉन्फ़िगरेशन के साथ नए सत्र तुरंत शुरू करने के लिए अपनी सहेजी गई रेसिपी देखें और प्रबंधित करें। {shortcut} खोजने के लिए."
+  },
+  "recipesView.recipesTitle": {
+    "defaultMessage": "व्यंजन विधि"
+  },
+  "recipesView.remove": {
+    "defaultMessage": "हटाओ"
+  },
+  "recipesView.removeSchedule": {
+    "defaultMessage": "शेड्यूल हटाएँ"
+  },
+  "recipesView.runs": {
+    "defaultMessage": "चलता है {schedule}"
+  },
+  "recipesView.save": {
+    "defaultMessage": "सहेजें"
+  },
+  "recipesView.scheduleDialogTitle": {
+    "defaultMessage": "{action} अनुसूची"
+  },
+  "recipesView.scheduleRemovedMsg": {
+    "defaultMessage": "रेसिपी अब स्वचालित रूप से नहीं चलेगी"
+  },
+  "recipesView.scheduleRemovedTitle": {
+    "defaultMessage": "शेड्यूल हटा दिया गया"
+  },
+  "recipesView.scheduleSavedMsg": {
+    "defaultMessage": "रेसिपी {schedule} चलेगी"
+  },
+  "recipesView.scheduleSavedTitle": {
+    "defaultMessage": "शेड्यूल सहेजा गया"
+  },
+  "recipesView.searchRecipesPlaceholder": {
+    "defaultMessage": "रेसिपी खोजें..."
+  },
+  "recipesView.shareRecipe": {
+    "defaultMessage": "रेसिपी साझा करें"
+  },
+  "recipesView.slashCommandDescription": {
+    "defaultMessage": "किसी भी चैट से इस रेसिपी को तुरंत चलाने के लिए स्लैश कमांड सेट करें"
+  },
+  "recipesView.slashCommandPlaceholder": {
+    "defaultMessage": "आदेश-नाम"
+  },
+  "recipesView.slashCommandRemovedMsg": {
+    "defaultMessage": "रेसिपी स्लैश कमांड हटा दिया गया है"
+  },
+  "recipesView.slashCommandRemovedTitle": {
+    "defaultMessage": "स्लैश कमांड हटा दिया गया"
+  },
+  "recipesView.slashCommandSavedMsg": {
+    "defaultMessage": "इस रेसिपी को चलाने के लिए /{command} का उपयोग करें"
+  },
+  "recipesView.slashCommandSavedTitle": {
+    "defaultMessage": "स्लैश कमांड सहेजा गया"
+  },
+  "recipesView.slashCommandTitle": {
+    "defaultMessage": "स्लैश कमांड"
+  },
+  "recipesView.slashCommandUsageHint": {
+    "defaultMessage": "इस रेसिपी को चलाने के लिए किसी भी चैट में /{command} का उपयोग करें"
+  },
+  "recipesView.tryAgain": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
+  "recipesView.useRecipe": {
+    "defaultMessage": "रेसिपी इस्तेमाल करें"
+  },
+  "recipesView.yamlCopiedMsg": {
+    "defaultMessage": "रेसिपी YAML को क्लिपबोर्ड पर कॉपी कर दिया गया है"
+  },
+  "recipesView.yamlCopiedTitle": {
+    "defaultMessage": "YAML कॉपी किया गया"
+  },
+  "recipesView.yamlFiles": {
+    "defaultMessage": "YAML फ़ाइलें"
+  },
+  "resetProviderSection.resetButton": {
+    "defaultMessage": "प्रदाता और मॉडल रीसेट करें"
+  },
+  "resetProviderSection.resetDescription": {
+    "defaultMessage": "यह आपके चयनित मॉडल और प्रदाता सेटिंग्स को साफ़ कर देगा। यदि कोई डिफ़ॉल्ट उपलब्ध नहीं है, तो आपको उन्हें फिर से सेट करने के लिए स्वागत स्क्रीन पर ले जाया जाएगा।"
+  },
+  "responseStyle.conciseDescription": {
+    "defaultMessage": "टूल कॉल डिफ़ॉल्ट रूप से बंद हैं और केवल उपयोग किए गए टूल को दिखाते हैं"
+  },
+  "responseStyle.conciseLabel": {
+    "defaultMessage": "संक्षिप्त"
+  },
+  "responseStyle.detailedDescription": {
+    "defaultMessage": "विवरण उजागर करने के लिए टूल कॉल डिफ़ॉल्ट रूप से खुले दिखाए जाते हैं"
+  },
+  "responseStyle.detailedLabel": {
+    "defaultMessage": "विस्तृत"
+  },
+  "scheduleDetailView.actions": {
+    "defaultMessage": "क्रियाएँ"
+  },
+  "scheduleDetailView.cannotModifyRunning": {
+    "defaultMessage": "जब कोई शेड्यूल पहले से चल रहा हो तो उसे ट्रिगर या संशोधित नहीं किया जा सकता।"
+  },
+  "scheduleDetailView.created": {
+    "defaultMessage": "बनाया गया: {date}"
+  },
+  "scheduleDetailView.cronExpression": {
+    "defaultMessage": "क्रोन अभिव्यक्ति:"
+  },
+  "scheduleDetailView.currentSession": {
+    "defaultMessage": "वर्तमान सत्र:"
+  },
+  "scheduleDetailView.currentlyRunning": {
+    "defaultMessage": "वर्तमान में चल रहा है"
+  },
+  "scheduleDetailView.dir": {
+    "defaultMessage": "निदेशक: {path}"
+  },
+  "scheduleDetailView.editSchedule": {
+    "defaultMessage": "शेड्यूल संपादित करें"
+  },
+  "scheduleDetailView.errorPrefix": {
+    "defaultMessage": "त्रुटि: {error}"
+  },
+  "scheduleDetailView.failedToLoadSession": {
+    "defaultMessage": "सत्र लोड करने में विफल"
+  },
+  "scheduleDetailView.idLabel": {
+    "defaultMessage": "आईडी:"
+  },
+  "scheduleDetailView.inspectJobError": {
+    "defaultMessage": "कार्य त्रुटि का निरीक्षण करें"
+  },
+  "scheduleDetailView.inspectNoInfo": {
+    "defaultMessage": "कोई विस्तृत जानकारी उपलब्ध नहीं है"
+  },
+  "scheduleDetailView.inspectRunningJob": {
+    "defaultMessage": "चल रहे कार्य का निरीक्षण करें"
+  },
+  "scheduleDetailView.jobCancelled": {
+    "defaultMessage": "नौकरी रद्द"
+  },
+  "scheduleDetailView.jobCancelledMsg": {
+    "defaultMessage": "कार्य प्रारंभ करते समय रद्द कर दिया गया था."
+  },
+  "scheduleDetailView.jobInspection": {
+    "defaultMessage": "कार्य निरीक्षण"
+  },
+  "scheduleDetailView.jobKilled": {
+    "defaultMessage": "अय्यूब मारा गया"
+  },
+  "scheduleDetailView.killJobError": {
+    "defaultMessage": "कार्य त्रुटि को समाप्त करें"
+  },
+  "scheduleDetailView.killRunningJob": {
+    "defaultMessage": "रनिंग जॉब को मार डालो"
+  },
+  "scheduleDetailView.lastRun": {
+    "defaultMessage": "अंतिम रन:"
+  },
+  "scheduleDetailView.loadingSchedule": {
+    "defaultMessage": "शेड्यूल लोड हो रहा है..."
+  },
+  "scheduleDetailView.loadingSessions": {
+    "defaultMessage": "सत्र लोड हो रहे हैं..."
+  },
+  "scheduleDetailView.messages": {
+    "defaultMessage": "संदेश: {count}"
+  },
+  "scheduleDetailView.newSession": {
+    "defaultMessage": "नया सत्र: {sessionId}"
+  },
+  "scheduleDetailView.noScheduleId": {
+    "defaultMessage": "कोई शेड्यूल आईडी प्रदान नहीं की गई. शेड्यूल सूची पर लौटें."
+  },
+  "scheduleDetailView.noSessions": {
+    "defaultMessage": "इस शेड्यूल के लिए कोई सत्र नहीं मिला."
+  },
+  "scheduleDetailView.pauseSchedule": {
+    "defaultMessage": "शेड्यूल रोकें"
+  },
+  "scheduleDetailView.pauseUnpauseError": {
+    "defaultMessage": "रोकें/रोकें त्रुटि"
+  },
+  "scheduleDetailView.paused": {
+    "defaultMessage": "रुका हुआ"
+  },
+  "scheduleDetailView.pausedMsg": {
+    "defaultMessage": "रोका गया \"{id}\""
+  },
+  "scheduleDetailView.pausedWarning": {
+    "defaultMessage": "यह शेड्यूल रुका हुआ है और स्वचालित रूप से नहीं चलेगा. इसे मैन्युअल रूप से ट्रिगर करने के लिए \"रन शेड्यूल नाउ\" का उपयोग करें या स्वचालित निष्पादन को फिर से शुरू करने के लिए अनपॉज़ करें।"
+  },
+  "scheduleDetailView.processStarted": {
+    "defaultMessage": "प्रक्रिया प्रारंभ:"
+  },
+  "scheduleDetailView.recentSessions": {
+    "defaultMessage": "हाल के सत्र"
+  },
+  "scheduleDetailView.recipeSource": {
+    "defaultMessage": "रेसिपी स्रोत:"
+  },
+  "scheduleDetailView.runScheduleError": {
+    "defaultMessage": "शेड्यूल त्रुटि चलाएँ"
+  },
+  "scheduleDetailView.runScheduleNow": {
+    "defaultMessage": "अभी शेड्यूल चलाएँ"
+  },
+  "scheduleDetailView.scheduleDetails": {
+    "defaultMessage": "अनुसूची विवरण"
+  },
+  "scheduleDetailView.scheduleInformation": {
+    "defaultMessage": "अनुसूची सूचना"
+  },
+  "scheduleDetailView.scheduleLabel": {
+    "defaultMessage": "अनुसूची:"
+  },
+  "scheduleDetailView.scheduleNotFound": {
+    "defaultMessage": "शेड्यूल नहीं मिला"
+  },
+  "scheduleDetailView.scheduleNotFoundError": {
+    "defaultMessage": "शेड्यूल नहीं मिला"
+  },
+  "scheduleDetailView.schedulePaused": {
+    "defaultMessage": "शेड्यूल रोका गया"
+  },
+  "scheduleDetailView.scheduleTriggered": {
+    "defaultMessage": "शेड्यूल ट्रिगर हुआ"
+  },
+  "scheduleDetailView.scheduleUnpaused": {
+    "defaultMessage": "शेड्यूल अनरोका"
+  },
+  "scheduleDetailView.scheduleUpdated": {
+    "defaultMessage": "शेड्यूल अपडेट किया गया"
+  },
+  "scheduleDetailView.sessionId": {
+    "defaultMessage": "सत्र आईडी: {id}"
+  },
+  "scheduleDetailView.tokens": {
+    "defaultMessage": "टोकन: {count}"
+  },
+  "scheduleDetailView.unpauseSchedule": {
+    "defaultMessage": "शेड्यूल को फिर से रोकें"
+  },
+  "scheduleDetailView.unpausedMsg": {
+    "defaultMessage": "रोका गया \"{id}\""
+  },
+  "scheduleDetailView.updateScheduleError": {
+    "defaultMessage": "अद्यतन शेड्यूल त्रुटि"
+  },
+  "scheduleDetailView.updatedMsg": {
+    "defaultMessage": "अपडेट किया गया \"{id}\""
+  },
+  "scheduleDetailView.viewingScheduleId": {
+    "defaultMessage": "शेड्यूल आईडी देखना: {id}"
+  },
+  "scheduleModal.browseYaml": {
+    "defaultMessage": "YAML फ़ाइल ब्राउज़ करें..."
+  },
+  "scheduleModal.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "scheduleModal.createNewSchedule": {
+    "defaultMessage": "नया शेड्यूल बनाएं"
+  },
+  "scheduleModal.createSchedule": {
+    "defaultMessage": "शेड्यूल बनाएं"
+  },
+  "scheduleModal.creating": {
+    "defaultMessage": "बनाया जा रहा है..."
+  },
+  "scheduleModal.deepLink": {
+    "defaultMessage": "डीप लिंक"
+  },
+  "scheduleModal.deepLinkPlaceholder": {
+    "defaultMessage": "goose://recipe लिंक यहां चिपकाएं..."
+  },
+  "scheduleModal.editSchedule": {
+    "defaultMessage": "शेड्यूल संपादित करें"
+  },
+  "scheduleModal.failedParseRecipe": {
+    "defaultMessage": "फ़ाइल से रेसिपी पार्स करने में विफल।"
+  },
+  "scheduleModal.failedReadFile": {
+    "defaultMessage": "चयनित फ़ाइल को पढ़ने में विफल."
+  },
+  "scheduleModal.invalidDeepLink": {
+    "defaultMessage": "अमान्य डीप लिंक। कृपया goose://recipe लिंक का उपयोग करें।"
+  },
+  "scheduleModal.invalidFileType": {
+    "defaultMessage": "अमान्य फ़ाइल प्रकार: कृपया YAML file (.yaml या .yml) चुनें"
+  },
+  "scheduleModal.nameLabel": {
+    "defaultMessage": "नाम:"
+  },
+  "scheduleModal.namePlaceholder": {
+    "defaultMessage": "उदाहरण के लिए, दैनिक-सारांश-कार्य"
+  },
+  "scheduleModal.provideValidRecipe": {
+    "defaultMessage": "कृपया एक मान्य रेसिपी स्रोत दें।"
+  },
+  "scheduleModal.recipeDescription": {
+    "defaultMessage": "विवरण: {description}"
+  },
+  "scheduleModal.recipeParsed": {
+    "defaultMessage": "रेसिपी सफलतापूर्वक पार्स की गई"
+  },
+  "scheduleModal.recipeTitle": {
+    "defaultMessage": "शीर्षक: {title}"
+  },
+  "scheduleModal.scheduleIdRequired": {
+    "defaultMessage": "शेड्यूल आईडी आवश्यक है."
+  },
+  "scheduleModal.scheduleLabel": {
+    "defaultMessage": "अनुसूची:"
+  },
+  "scheduleModal.selected": {
+    "defaultMessage": "चयनित: {path}"
+  },
+  "scheduleModal.sourceLabel": {
+    "defaultMessage": "स्रोत:"
+  },
+  "scheduleModal.updateSchedule": {
+    "defaultMessage": "अद्यतन अनुसूची"
+  },
+  "scheduleModal.updating": {
+    "defaultMessage": "अद्यतन किया जा रहा है..."
+  },
+  "scheduleModal.yaml": {
+    "defaultMessage": "YAML"
+  },
+  "schedulesView.confirmDelete": {
+    "defaultMessage": "शेड्यूल \"{id}\" हटाएं? रेसिपी रखा जाएगा."
+  },
+  "schedulesView.createSchedule": {
+    "defaultMessage": "शेड्यूल बनाएं"
+  },
+  "schedulesView.description": {
+    "defaultMessage": "निर्दिष्ट समय पर व्यंजनों को स्वचालित रूप से चलाने के लिए निर्धारित कार्य बनाएं और प्रबंधित करें।"
+  },
+  "schedulesView.edit": {
+    "defaultMessage": "संपादित करें"
+  },
+  "schedulesView.errorPrefix": {
+    "defaultMessage": "त्रुटि: {error}"
+  },
+  "schedulesView.inspect": {
+    "defaultMessage": "निरीक्षण करें"
+  },
+  "schedulesView.inspectError": {
+    "defaultMessage": "कार्य त्रुटि का निरीक्षण करें"
+  },
+  "schedulesView.inspectNoInfo": {
+    "defaultMessage": "इस नौकरी के लिए कोई विस्तृत जानकारी उपलब्ध नहीं है"
+  },
+  "schedulesView.jobInspection": {
+    "defaultMessage": "कार्य निरीक्षण"
+  },
+  "schedulesView.jobKilled": {
+    "defaultMessage": "अय्यूब मारा गया"
+  },
+  "schedulesView.kill": {
+    "defaultMessage": "मार डालो"
+  },
+  "schedulesView.killError": {
+    "defaultMessage": "कार्य त्रुटि को समाप्त करें"
+  },
+  "schedulesView.lastRun": {
+    "defaultMessage": "अंतिम रन: {date}"
+  },
+  "schedulesView.noSchedules": {
+    "defaultMessage": "अभी तक कोई शेड्यूल नहीं है"
+  },
+  "schedulesView.pause": {
+    "defaultMessage": "विराम"
+  },
+  "schedulesView.pauseError": {
+    "defaultMessage": "शेड्यूल त्रुटि रोकें"
+  },
+  "schedulesView.paused": {
+    "defaultMessage": "रुका हुआ"
+  },
+  "schedulesView.refresh": {
+    "defaultMessage": "ताज़ा करें"
+  },
+  "schedulesView.refreshing": {
+    "defaultMessage": "ताज़ा..."
+  },
+  "schedulesView.resume": {
+    "defaultMessage": "बायोडाटा"
+  },
+  "schedulesView.running": {
+    "defaultMessage": "चल रहा है"
+  },
+  "schedulesView.schedulePaused": {
+    "defaultMessage": "शेड्यूल रोका गया"
+  },
+  "schedulesView.schedulePausedMsg": {
+    "defaultMessage": "सफलतापूर्वक रोका गया शेड्यूल \"{id}\""
+  },
+  "schedulesView.scheduleUnpaused": {
+    "defaultMessage": "शेड्यूल अनरोका"
+  },
+  "schedulesView.scheduleUnpausedMsg": {
+    "defaultMessage": "सफलतापूर्वक रोका गया शेड्यूल \"{id}\""
+  },
+  "schedulesView.scheduleUpdated": {
+    "defaultMessage": "शेड्यूल अपडेट किया गया"
+  },
+  "schedulesView.scheduleUpdatedMsg": {
+    "defaultMessage": "सफलतापूर्वक अद्यतन शेड्यूल \"{id}\""
+  },
+  "schedulesView.scheduler": {
+    "defaultMessage": "अनुसूचक"
+  },
+  "schedulesView.unpauseError": {
+    "defaultMessage": "शेड्यूल त्रुटि को रोकें"
+  },
+  "searchBar.caseSensitive": {
+    "defaultMessage": "केस संवेदनशील"
+  },
+  "searchBar.close": {
+    "defaultMessage": "बंद करें ({shortcut})"
+  },
+  "searchBar.next": {
+    "defaultMessage": "अगला ({shortcut})"
+  },
+  "searchBar.placeholder": {
+    "defaultMessage": "वार्तालाप खोजें..."
+  },
+  "searchBar.previous": {
+    "defaultMessage": "पिछला ({shortcut})"
+  },
+  "secureStorageNotice.defaultMessage": {
+    "defaultMessage": "चाभियाँ किचेन में सुरक्षित रूप से संग्रहीत होती हैं"
+  },
+  "securityToggle.apiTokenDescription": {
+    "defaultMessage": "वर्गीकरण सेवा के लिए प्रमाणीकरण टोकन"
+  },
+  "securityToggle.apiTokenOptional": {
+    "defaultMessage": "API टोकन (वैकल्पिक)"
+  },
+  "securityToggle.classificationEndpoint": {
+    "defaultMessage": "वर्गीकरण समापन बिंदु"
+  },
+  "securityToggle.classificationEndpointDescription": {
+    "defaultMessage": "अपनी वर्गीकरण सेवा का पूरा URL दर्ज करें"
+  },
+  "securityToggle.commandClassifierActive": {
+    "defaultMessage": "कमांड क्लासिफायर सक्रिय (पर्यावरण से स्वतः कॉन्फ़िगर किया गया)"
+  },
+  "securityToggle.commandEndpointDescription": {
+    "defaultMessage": "अपनी कमांड इंजेक्शन वर्गीकरण सेवा का पूरा URL दर्ज करें"
+  },
+  "securityToggle.commandInjectionDescription": {
+    "defaultMessage": "दुर्भावनापूर्ण शेल कमांड का पता लगाने के लिए एमएल मॉडल का उपयोग करें"
+  },
+  "securityToggle.detectionModel": {
+    "defaultMessage": "डिटेक्शन मॉडल"
+  },
+  "securityToggle.detectionModelDescription": {
+    "defaultMessage": "शीघ्र इंजेक्शन का पता लगाने के लिए किस एमएल मॉडल का उपयोग करना है उसका चयन करें"
+  },
+  "securityToggle.detectionThreshold": {
+    "defaultMessage": "डिटेक्शन थ्रेशोल्ड"
+  },
+  "securityToggle.enableCommandInjection": {
+    "defaultMessage": "कमांड इंजेक्शन एमएल डिटेक्शन सक्षम करें"
+  },
+  "securityToggle.enablePromptInjection": {
+    "defaultMessage": "शीघ्र इंजेक्शन जांच सक्षम करें"
+  },
+  "securityToggle.enablePromptInjectionMl": {
+    "defaultMessage": "शीघ्र इंजेक्शन एमएल जांच सक्षम करें"
+  },
+  "securityToggle.mlEndpointDescription": {
+    "defaultMessage": "अपनी ML वर्गीकरण सेवा का पूरा URL दर्ज करें (मॉडल पहचानकर्ता सहित)"
+  },
+  "securityToggle.mlTokenDescription": {
+    "defaultMessage": "एमएल सेवा के लिए प्रमाणीकरण टोकन (उदाहरण के लिए, हगिंगफेस टोकन)"
+  },
+  "securityToggle.overrideNotice": {
+    "defaultMessage": "यह सेटिंग आपके संगठन द्वारा प्रबंधित की जाती है और इसे बदला नहीं जा सकता."
+  },
+  "securityToggle.promptInjectionDescription": {
+    "defaultMessage": "संभावित त्वरित इंजेक्शन हमलों का पता लगाएं और उन्हें रोकें"
+  },
+  "securityToggle.promptInjectionMlDescription": {
+    "defaultMessage": "अपनी चैट में संभावित शीघ्र इंजेक्शन का पता लगाने के लिए एमएल मॉडल का उपयोग करें"
+  },
+  "securityToggle.thresholdDescription": {
+    "defaultMessage": "उच्च मान अधिक सख्त होते हैं (0.01 = बहुत उदार, 1.0 = अधिकतम सख्त)"
+  },
+  "securityToggle.warpNotice": {
+    "defaultMessage": "WARP से कनेक्ट होने पर कमांड इंजेक्शन डिटेक्शन सबसे अच्छा काम करता है (वर्गीकरण सेवा तक पहुंचने के लिए आवश्यक)।"
+  },
+  "sessionActionsHeader.close": {
+    "defaultMessage": "Close"
+  },
+  "sessionActionsHeader.copiedJson": {
+    "defaultMessage": "Session JSON copied"
+  },
+  "sessionActionsHeader.copiedText": {
+    "defaultMessage": "Text copied"
+  },
+  "sessionActionsHeader.copyJson": {
+    "defaultMessage": "Copy JSON"
+  },
+  "sessionActionsHeader.copyText": {
+    "defaultMessage": "Copy text"
+  },
+  "sessionActionsHeader.fullTextTitle": {
+    "defaultMessage": "Text value"
+  },
+  "sessionActionsHeader.jsonFailed": {
+    "defaultMessage": "Failed to load session JSON: {error}"
+  },
+  "sessionActionsHeader.jsonTitle": {
+    "defaultMessage": "Session JSON"
+  },
+  "sessionActionsHeader.loadingJson": {
+    "defaultMessage": "Loading JSON..."
+  },
+  "sessionActionsHeader.viewJson": {
+    "defaultMessage": "View session JSON"
+  },
+  "sessionHistory.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "sessionHistory.copy": {
+    "defaultMessage": "प्रतिलिपि"
+  },
+  "sessionHistory.empty.description": {
+    "defaultMessage": "इस सत्र में कोई संदेश नहीं है"
+  },
+  "sessionHistory.empty.title": {
+    "defaultMessage": "कोई संदेश नहीं मिला"
+  },
+  "sessionHistory.error.loading": {
+    "defaultMessage": "सत्र विवरण लोड करने में त्रुटि"
+  },
+  "sessionHistory.error.tryAgain": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
+  "sessionHistory.loading": {
+    "defaultMessage": "सत्र विवरण लोड हो रहा है..."
+  },
+  "sessionHistory.resume": {
+    "defaultMessage": "बायोडाटा"
+  },
+  "sessionHistory.searchPlaceholder": {
+    "defaultMessage": "खोज इतिहास..."
+  },
+  "sessionHistory.share": {
+    "defaultMessage": "साझा करें"
+  },
+  "sessionHistory.shareModal.description": {
+    "defaultMessage": "दूसरों को अपनी goose चैट का केवल पढ़ने योग्य दृश्य देने के लिए इस सत्र लिंक को साझा करें।"
+  },
+  "sessionHistory.shareModal.title": {
+    "defaultMessage": "शेयर सत्र (बीटा)"
+  },
+  "sessionHistory.shareTooltip": {
+    "defaultMessage": "सत्र साझाकरण सक्षम करने के लिए, <b>Settings</b> > <b>सत्र</b> > <b>सत्र साझाकरण</b> पर जाएं।"
+  },
+  "sessionHistory.sharing": {
+    "defaultMessage": "साझा कर रहा हूँ..."
+  },
+  "sessionHistory.toast.copyFailed": {
+    "defaultMessage": "क्लिपबोर्ड पर लिंक कॉपी करने में विफल"
+  },
+  "sessionHistory.toast.launchFailed": {
+    "defaultMessage": "सत्र लॉन्च नहीं किया जा सका: {error}"
+  },
+  "sessionHistory.toast.shareFailed": {
+    "defaultMessage": "सत्र साझा करने में विफल: {error}"
+  },
+  "sessionIndicators.error": {
+    "defaultMessage": "सत्र में एक त्रुटि आई"
+  },
+  "sessionIndicators.newActivity": {
+    "defaultMessage": "नई गतिविधि है"
+  },
+  "sessionIndicators.streaming": {
+    "defaultMessage": "स्ट्रीमिंग"
+  },
+  "sessionSharingSection.alreadyConfigured": {
+    "defaultMessage": "सत्र साझाकरण पहले ही कॉन्फ़िगर किया जा चुका है"
+  },
+  "sessionSharingSection.baseUrl": {
+    "defaultMessage": "आधार URL"
+  },
+  "sessionSharingSection.connectionFailed": {
+    "defaultMessage": "कनेक्शन विफल।"
+  },
+  "sessionSharingSection.connectionSuccess": {
+    "defaultMessage": "कनेक्शन सफल!"
+  },
+  "sessionSharingSection.connectionTimedOut": {
+    "defaultMessage": "कनेक्शन का समय समाप्त। सर्वर धीमा या पहुंच योग्य नहीं हो सकता है."
+  },
+  "sessionSharingSection.descriptionConfigured": {
+    "defaultMessage": "सत्र साझाकरण कॉन्फ़िगर किया गया है लेकिन पूरी तरह से ऑप्ट-इन है - आपके सत्र केवल तभी साझा किए जाते हैं जब आप स्पष्ट रूप से शेयर बटन पर क्लिक करते हैं।"
+  },
+  "sessionSharingSection.descriptionDefault": {
+    "defaultMessage": "आप अपने सत्रों को दूसरों के साथ साझा करने के लिए सत्र साझाकरण सक्षम कर सकते हैं।"
+  },
+  "sessionSharingSection.enableSharing": {
+    "defaultMessage": "सत्र साझाकरण सक्षम करें"
+  },
+  "sessionSharingSection.invalidUrl": {
+    "defaultMessage": "अमान्य URL प्रारूप. कृपया वैध URL दर्ज करें (उदा. https://example.com/api)."
+  },
+  "sessionSharingSection.serverError": {
+    "defaultMessage": "सर्वर त्रुटि: HTTP {status}। हो सकता है कि सर्वर ठीक से कॉन्फ़िगर न किया गया हो."
+  },
+  "sessionSharingSection.testConnection": {
+    "defaultMessage": "परीक्षण कनेक्शन"
+  },
+  "sessionSharingSection.testing": {
+    "defaultMessage": "परीक्षण..."
+  },
+  "sessionSharingSection.testingConnection": {
+    "defaultMessage": "कनेक्शन का परीक्षण किया जा रहा है..."
+  },
+  "sessionSharingSection.title": {
+    "defaultMessage": "सत्र साझाकरण"
+  },
+  "sessionSharingSection.unknownError": {
+    "defaultMessage": "अज्ञात त्रुटि उत्पन्न हुई."
+  },
+  "sessionSharingSection.unreachableServer": {
+    "defaultMessage": "सर्वर तक पहुंचने में असमर्थ. कृपया URL और अपने नेटवर्क कनेक्शन की जाँच करें।"
+  },
+  "sessionSharingSection.urlPlaceholder": {
+    "defaultMessage": "https://example.com/api"
+  },
+  "sessionViewComponents.empty.description": {
+    "defaultMessage": "इस सत्र में कोई संदेश नहीं है"
+  },
+  "sessionViewComponents.empty.title": {
+    "defaultMessage": "कोई संदेश नहीं मिला"
+  },
+  "sessionViewComponents.error.loading": {
+    "defaultMessage": "सत्र विवरण लोड करने में त्रुटि"
+  },
+  "sessionViewComponents.error.tryAgain": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
+  "sessionViewComponents.role.assistant": {
+    "defaultMessage": "Goose"
+  },
+  "sessionViewComponents.role.user": {
+    "defaultMessage": "आप"
+  },
+  "sessions.action.delete": {
+    "defaultMessage": "सत्र हटाएँ"
+  },
+  "sessions.action.duplicate": {
+    "defaultMessage": "डुप्लिकेट सत्र"
+  },
+  "sessions.action.editName": {
+    "defaultMessage": "सत्र का नाम संपादित करें"
+  },
+  "sessions.action.export": {
+    "defaultMessage": "निर्यात सत्र"
+  },
+  "sessions.action.openNewWindow": {
+    "defaultMessage": "नई विंडो में खोलें"
+  },
+  "sessions.action.shareNostr": {
+    "defaultMessage": "एन्क्रिप्टेड नोस्ट्र लिंक साझा करें"
+  },
+  "sessions.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "sessions.chatHistory": {
+    "defaultMessage": "चैट इतिहास"
+  },
+  "sessions.chatHistoryDesc": {
+    "defaultMessage": "Goose के साथ अपनी पिछली बातचीत देखें और खोजें। {shortcut} खोजने के लिए."
+  },
+  "sessions.close": {
+    "defaultMessage": "बंद करें"
+  },
+  "sessions.delete.message": {
+    "defaultMessage": "क्या आप वाकई सत्र \"{name}\" हटाना चाहते हैं? इस कार्रवाई को वापस नहीं किया जा सकता।"
+  },
+  "sessions.delete.title": {
+    "defaultMessage": "सत्र हटाएँ"
+  },
+  "sessions.edit.placeholder": {
+    "defaultMessage": "सत्र विवरण दर्ज करें"
+  },
+  "sessions.edit.title": {
+    "defaultMessage": "सत्र विवरण संपादित करें"
+  },
+  "sessions.empty.description": {
+    "defaultMessage": "आपकी चैट हिस्ट्री यहां दिखाई देगी"
+  },
+  "sessions.empty.title": {
+    "defaultMessage": "कोई चैट सत्र नहीं मिला"
+  },
+  "sessions.error.loading": {
+    "defaultMessage": "सत्र लोड करने में त्रुटि"
+  },
+  "sessions.error.tryAgain": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
+  "sessions.import": {
+    "defaultMessage": "आयात सत्र"
+  },
+  "sessions.importNostr": {
+    "defaultMessage": "लिंक आयात करें"
+  },
+  "sessions.importNostr.description": {
+    "defaultMessage": "सत्र लाने, डिक्रिप्ट करने और आयात करने के लिए Goose नॉस्ट्र शेयर लिंक चिपकाएँ।"
+  },
+  "sessions.importNostr.placeholder": {
+    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
+  },
+  "sessions.importNostr.title": {
+    "defaultMessage": "नोस्ट्र सत्र आयात करें"
+  },
+  "sessions.importing": {
+    "defaultMessage": "आयात किया जा रहा है..."
+  },
+  "sessions.loadingMore": {
+    "defaultMessage": "अधिक सत्र लोड हो रहे हैं..."
+  },
+  "sessions.save": {
+    "defaultMessage": "सहेजें"
+  },
+  "sessions.saving": {
+    "defaultMessage": "सहेजा जा रहा है..."
+  },
+  "sessions.search.noResults": {
+    "defaultMessage": "कोई मिलान सत्र नहीं मिला"
+  },
+  "sessions.search.noResultsDesc": {
+    "defaultMessage": "अपने खोज शब्दों को समायोजित करने का प्रयास करें"
+  },
+  "sessions.searchPlaceholder": {
+    "defaultMessage": "खोज इतिहास..."
+  },
+  "sessions.shareNostr.description": {
+    "defaultMessage": "इस लिंक वाला कोई भी व्यक्ति सत्र को ला सकता है और डिक्रिप्ट कर सकता है। इसे एक रहस्य की तरह समझो."
+  },
+  "sessions.shareNostr.title": {
+    "defaultMessage": "एन्क्रिप्टेड नोस्ट्र शेयर लिंक"
+  },
+  "sessions.toast.copied": {
+    "defaultMessage": "क्लिपबोर्ड पर कॉपी किया गया"
+  },
+  "sessions.toast.deleteFailed": {
+    "defaultMessage": "सत्र \"{name}\" हटाने में विफल: {error}"
+  },
+  "sessions.toast.deleted": {
+    "defaultMessage": "सत्र सफलतापूर्वक हटा दिया गया"
+  },
+  "sessions.toast.duplicateFailed": {
+    "defaultMessage": "सत्र की नकल करने में विफल: {error}"
+  },
+  "sessions.toast.duplicated": {
+    "defaultMessage": "सत्र \"{name}\" सफलतापूर्वक दोहराया गया"
+  },
+  "sessions.toast.exported": {
+    "defaultMessage": "सत्र सफलतापूर्वक निर्यात किया गया"
+  },
+  "sessions.toast.importFailed": {
+    "defaultMessage": "सत्र आयात करने में विफल: {error}"
+  },
+  "sessions.toast.imported": {
+    "defaultMessage": "सत्र सफलतापूर्वक आयात किया गया"
+  },
+  "sessions.toast.shareNostr": {
+    "defaultMessage": "एन्क्रिप्टेड नोस्ट्र शेयर लिंक बनाया गया"
+  },
+  "sessions.toast.shareNostrFailed": {
+    "defaultMessage": "Nostr शेयर लिंक बनाने में विफल: {error}"
+  },
+  "sessions.toast.updateFailed": {
+    "defaultMessage": "सत्र विवरण अद्यतन करने में विफल: {error}"
+  },
+  "sessions.toast.updated": {
+    "defaultMessage": "सत्र विवरण सफलतापूर्वक अपडेट किया गया"
+  },
+  "sessionsView.error.failedToLoad": {
+    "defaultMessage": "सत्र विवरण लोड करने में विफल. कृपया बाद में पुन: प्रयास करें।"
+  },
+  "sessionsView.loading": {
+    "defaultMessage": "लोड हो रहा है..."
+  },
+  "settings.appearance.description": {
+    "defaultMessage": "कॉन्फ़िगर करें कि goose आपके सिस्टम पर कैसे दिखाई देता है"
+  },
+  "settings.appearance.title": {
+    "defaultMessage": "दिखावट"
+  },
+  "settings.close": {
+    "defaultMessage": "बंद करें"
+  },
+  "settings.costTracking.description": {
+    "defaultMessage": "मॉडल मूल्य निर्धारण और उपयोग लागत दिखाएं"
+  },
+  "settings.costTracking.title": {
+    "defaultMessage": "लागत ट्रैकिंग"
+  },
+  "settings.dockIcon.description": {
+    "defaultMessage": "गोदी में goose दिखाएँ"
+  },
+  "settings.dockIcon.title": {
+    "defaultMessage": "डॉक आइकन"
+  },
+  "settings.help.description": {
+    "defaultMessage": "समस्याओं की रिपोर्ट करके या नई सुविधाओं का अनुरोध करके goose को बेहतर बनाने में हमारी सहायता करें"
+  },
+  "settings.help.reportBug": {
+    "defaultMessage": "बग की रिपोर्ट करें"
+  },
+  "settings.help.requestFeature": {
+    "defaultMessage": "एक सुविधा का अनुरोध करें"
+  },
+  "settings.help.title": {
+    "defaultMessage": "सहायता एवं प्रतिक्रिया"
+  },
+  "settings.language.description": {
+    "defaultMessage": "goose के लिए प्रदर्शन भाषा चुनें"
+  },
+  "settings.language.english": {
+    "defaultMessage": "अंग्रेज़ी"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "हिन्दी"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "जापानी"
+  },
+  "settings.language.korean": {
+    "defaultMessage": "कोरियाई"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "रूसी"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "स्पेनिश"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "सिस्टम डिफ़ॉल्ट"
+  },
+  "settings.language.title": {
+    "defaultMessage": "भाषा"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "तुर्की"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "चीनी (सरलीकृत)"
+  },
+  "settings.menuBarIcon.description": {
+    "defaultMessage": "मेनू बार में goose दिखाएँ"
+  },
+  "settings.menuBarIcon.title": {
+    "defaultMessage": "मेनू बार आइकन"
+  },
+  "settings.notifications.configGuide": {
+    "defaultMessage": "कॉन्फ़िगरेशन मार्गदर्शिका"
+  },
+  "settings.notifications.description": {
+    "defaultMessage": "सूचनाएं आपके OS द्वारा प्रबंधित की जाती हैं - {link}"
+  },
+  "settings.notifications.modal.macInstructions": {
+    "defaultMessage": "macOS पर सूचनाएं सक्षम करने के लिए:"
+  },
+  "settings.notifications.modal.macStep1": {
+    "defaultMessage": "सिस्टम प्राथमिकताएँ खोलें"
+  },
+  "settings.notifications.modal.macStep2": {
+    "defaultMessage": "नोटिफिकेशन पर क्लिक करें"
+  },
+  "settings.notifications.modal.macStep3": {
+    "defaultMessage": "एप्लिकेशन सूची में goose ढूंढें और चुनें"
+  },
+  "settings.notifications.modal.macStep4": {
+    "defaultMessage": "सूचनाएं सक्षम करें और सेटिंग्स को इच्छानुसार समायोजित करें"
+  },
+  "settings.notifications.modal.title": {
+    "defaultMessage": "सूचनाएं कैसे सक्षम करें"
+  },
+  "settings.notifications.modal.winInstructions": {
+    "defaultMessage": "Windows पर सूचनाएं सक्षम करने के लिए:"
+  },
+  "settings.notifications.modal.winStep1": {
+    "defaultMessage": "Settings खोलें"
+  },
+  "settings.notifications.modal.winStep2": {
+    "defaultMessage": "सिस्टम > सूचनाएँ पर जाएँ"
+  },
+  "settings.notifications.modal.winStep3": {
+    "defaultMessage": "एप्लिकेशन सूची में goose ढूंढें और चुनें"
+  },
+  "settings.notifications.modal.winStep4": {
+    "defaultMessage": "सूचनाओं को चालू करें और सेटिंग्स को इच्छानुसार समायोजित करें"
+  },
+  "settings.notifications.openSettings": {
+    "defaultMessage": "Settings खोलें"
+  },
+  "settings.notifications.task.description": {
+    "defaultMessage": "जब विंडो पृष्ठभूमि में हो तो Goose कोई कार्य पूरा कर ले तो सूचित करें"
+  },
+  "settings.notifications.task.title": {
+    "defaultMessage": "कार्य पूर्ण होने की सूचनाएं"
+  },
+  "settings.notifications.title": {
+    "defaultMessage": "सूचनाएं"
+  },
+  "settings.preventSleep.description": {
+    "defaultMessage": "जब goose कोई कार्य चला रहा हो तो अपने कंप्यूटर को चालू रखें (स्क्रीन अभी भी लॉक हो सकती है)"
+  },
+  "settings.preventSleep.title": {
+    "defaultMessage": "नींद रोकें"
+  },
+  "settings.theme.description": {
+    "defaultMessage": "goose के रूप और अनुभव को अनुकूलित करें"
+  },
+  "settings.theme.title": {
+    "defaultMessage": "थीम"
+  },
+  "settings.updates.description": {
+    "defaultMessage": "goose को सर्वोत्तम रूप से चालू रखने के लिए अपडेट की जाँच करें और इंस्टॉल करें"
+  },
+  "settings.updates.title": {
+    "defaultMessage": "अद्यतन"
+  },
+  "settings.version.title": {
+    "defaultMessage": "संस्करण"
+  },
+  "settingsView.tabApp": {
+    "defaultMessage": "ऐप"
+  },
+  "settingsView.tabAuth": {
+    "defaultMessage": "प्रामाणिक"
+  },
+  "settingsView.tabChat": {
+    "defaultMessage": "बातचीत"
+  },
+  "settingsView.tabKeyboard": {
+    "defaultMessage": "कीबोर्ड"
+  },
+  "settingsView.tabLocalInference": {
+    "defaultMessage": "स्थानीय अनुमान"
+  },
+  "settingsView.tabModels": {
+    "defaultMessage": "मॉडल"
+  },
+  "settingsView.tabPrompts": {
+    "defaultMessage": "संकेत"
+  },
+  "settingsView.tabSession": {
+    "defaultMessage": "सत्र"
+  },
+  "settingsView.title": {
+    "defaultMessage": "Settings"
+  },
+  "sharedSession.loading": {
+    "defaultMessage": "सत्र विवरण लोड हो रहा है..."
+  },
+  "sharedSession.title": {
+    "defaultMessage": "साझा सत्र"
+  },
+  "sheet.close": {
+    "defaultMessage": "बंद करें"
+  },
+  "shortcutRecorder.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "shortcutRecorder.clickToRecord": {
+    "defaultMessage": "रिकॉर्ड करने के लिए क्लिक करें..."
+  },
+  "shortcutRecorder.conflictWarning": {
+    "defaultMessage": "यह शॉर्टकट पहले से ही {label} द्वारा उपयोग किया जाता है। सहेजने से यह इस क्रिया के लिए पुनः असाइन हो जाएगा।"
+  },
+  "shortcutRecorder.pressShortcut": {
+    "defaultMessage": "शॉर्टकट दबाएँ..."
+  },
+  "shortcutRecorder.save": {
+    "defaultMessage": "सहेजें"
+  },
+  "skillsView.addSkill": {
+    "defaultMessage": "कौशल जोड़ें"
+  },
+  "skillsView.adjustSearchTerms": {
+    "defaultMessage": "अपने खोज शब्दों को समायोजित करने का प्रयास करें"
+  },
+  "skillsView.comingSoon": {
+    "defaultMessage": "जल्द आ रहा है"
+  },
+  "skillsView.errorLoadingSkills": {
+    "defaultMessage": "कौशल लोड करने में त्रुटि"
+  },
+  "skillsView.noMatchingSkills": {
+    "defaultMessage": "कोई मिलान कौशल नहीं मिला"
+  },
+  "skillsView.noSkillsDescription": {
+    "defaultMessage": "कौशल SKILL.md फ़ाइलों से ~/.config/agents/skills/, .goose/skills/, या अन्य समर्थित निर्देशिकाओं में लोड किए जाते हैं।"
+  },
+  "skillsView.noSkillsInstalled": {
+    "defaultMessage": "कोई कौशल स्थापित नहीं"
+  },
+  "skillsView.searchSkillsPlaceholder": {
+    "defaultMessage": "खोज कौशल..."
+  },
+  "skillsView.skillsDescription": {
+    "defaultMessage": "स्थापित कौशल देखें जो Goose क्षमताओं का विस्तार करते हैं। {shortcut} खोजने के लिए."
+  },
+  "skillsView.skillsTitle": {
+    "defaultMessage": "कौशल"
+  },
+  "skillsView.tryAgain": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
+  "spellcheckToggle.description": {
+    "defaultMessage": "चैट इनपुट में वर्तनी जांचें. प्रभावी होने के लिए पुनरारंभ की आवश्यकता है।"
+  },
+  "spellcheckToggle.title": {
+    "defaultMessage": "वर्तनी जांच सक्षम करें"
+  },
+  "standaloneAppView.failedToLoad": {
+    "defaultMessage": "ऐप लोड करने में विफल"
+  },
+  "standaloneAppView.initializing": {
+    "defaultMessage": "ऐप प्रारंभ किया जा रहा है..."
+  },
+  "standaloneAppView.missingParams": {
+    "defaultMessage": "आवश्यक पैरामीटर गुम हैं"
+  },
+  "stringUtils.configuredProvider": {
+    "defaultMessage": "{name} प्रदाता कॉन्फ़िगर किया गया है"
+  },
+  "stringUtils.ollamaApp": {
+    "defaultMessage": "Ollama ऐप"
+  },
+  "stringUtils.ollamaNotConfiguredPrefix": {
+    "defaultMessage": "उपयोग करने के लिए, या तो"
+  },
+  "stringUtils.ollamaNotConfiguredSuffix": {
+    "defaultMessage": "आपकी मशीन पर स्थापित और खुला होना चाहिए, या आपको OLLAMA_HOST के लिए एक मान दर्ज करना होगा।"
+  },
+  "subRecipeEditor.addExisting": {
+    "defaultMessage": "मौजूदा जोड़ें"
+  },
+  "subRecipeEditor.createNew": {
+    "defaultMessage": "नई सबरेसिपी बनाएं"
+  },
+  "subRecipeEditor.deleteSubrecipe": {
+    "defaultMessage": "सबरेसिपी {name} हटाएं"
+  },
+  "subRecipeEditor.description": {
+    "defaultMessage": "सबरेसिपी ऐसी रेसिपी हैं जिन्हें निष्पादन के दौरान टूल की तरह कॉल किया जा सकता है। ये मल्टी-स्टेप वर्कफ़्लो और दोबारा इस्तेमाल होने वाले कंपोनेंट सक्षम करती हैं।"
+  },
+  "subRecipeEditor.duplicateName": {
+    "defaultMessage": "डुप्लिकेट नाम"
+  },
+  "subRecipeEditor.duplicateNameMsg": {
+    "defaultMessage": "\"{name}\" नाम की सबरेसिपी पहले से मौजूद है। कृपया कोई अलग नाम इस्तेमाल करें।"
+  },
+  "subRecipeEditor.editSubrecipe": {
+    "defaultMessage": "सबरेसिपी {name} संपादित करें"
+  },
+  "subRecipeEditor.label": {
+    "defaultMessage": "सबरेसिपी"
+  },
+  "subRecipeEditor.preconfiguredValues": {
+    "defaultMessage": "पूर्व-कॉन्फ़िगर मान:"
+  },
+  "subRecipeEditor.sequential": {
+    "defaultMessage": "अनुक्रमिक"
+  },
+  "subRecipeModal.addTitle": {
+    "defaultMessage": "सबरेसिपी जोड़ें"
+  },
+  "subRecipeModal.apply": {
+    "defaultMessage": "आवेदन करें"
+  },
+  "subRecipeModal.browse": {
+    "defaultMessage": "ब्राउज़ करें"
+  },
+  "subRecipeModal.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "subRecipeModal.closeModal": {
+    "defaultMessage": "सबरेसिपी मोडल बंद करें"
+  },
+  "subRecipeModal.configureTitle": {
+    "defaultMessage": "सबरेसिपी कॉन्फ़िगर करें"
+  },
+  "subRecipeModal.descriptionLabel": {
+    "defaultMessage": "विवरण"
+  },
+  "subRecipeModal.descriptionPlaceholder": {
+    "defaultMessage": "यह सबरेसिपी क्या करती है इसका वैकल्पिक विवरण..."
+  },
+  "subRecipeModal.invalidFile": {
+    "defaultMessage": "अमान्य फ़ाइल"
+  },
+  "subRecipeModal.invalidFileMsg": {
+    "defaultMessage": "कृपया YAML file (.yaml या .yml) चुनें।"
+  },
+  "subRecipeModal.nameHint": {
+    "defaultMessage": "टूल नाम उत्पन्न करने के लिए अद्वितीय पहचानकर्ता का उपयोग किया जाता है"
+  },
+  "subRecipeModal.nameLabel": {
+    "defaultMessage": "नाम"
+  },
+  "subRecipeModal.namePlaceholder": {
+    "defaultMessage": "उदाहरण के लिए, सुरक्षा_स्कैन"
+  },
+  "subRecipeModal.pathHint": {
+    "defaultMessage": "मौजूदा रेसिपी फ़ाइल ब्राउज़ करें या मैन्युअल रूप से पथ दर्ज करें"
+  },
+  "subRecipeModal.pathLabel": {
+    "defaultMessage": "पथ"
+  },
+  "subRecipeModal.pathPlaceholder": {
+    "defaultMessage": "उदाहरण के लिए, ./subrecipes/security-analyse.yaml"
+  },
+  "subRecipeModal.preconfiguredValues": {
+    "defaultMessage": "पूर्व-कॉन्फ़िगर मान"
+  },
+  "subRecipeModal.preconfiguredValuesHint": {
+    "defaultMessage": "वैकल्पिक पैरामीटर मान जो हमेशा सबरेसिपी को भेजे जाते हैं"
+  },
+  "subRecipeModal.sequentialHint": {
+    "defaultMessage": "(कई सबरेसिपी इंस्टेंस को क्रम से चलाने के लिए बाध्य करता है)"
+  },
+  "subRecipeModal.sequentialLabel": {
+    "defaultMessage": "दोहराए जाने पर अनुक्रमिक"
+  },
+  "subRecipeModal.subtitle": {
+    "defaultMessage": "ऐसी सबरेसिपी कॉन्फ़िगर करें जिसे रेसिपी निष्पादन के दौरान टूल की तरह कॉल किया जा सके"
+  },
+  "switchModelModal.backToModelList": {
+    "defaultMessage": "मॉडल सूची पर वापस जाएँ"
+  },
+  "switchModelModal.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "switchModelModal.checkProviderConfig": {
+    "defaultMessage": "Settings → प्रदाताओं में अपने प्रदाता कॉन्फ़िगरेशन की जाँच करें"
+  },
+  "switchModelModal.chooseModel": {
+    "defaultMessage": "एक मॉडल चुनें:"
+  },
+  "switchModelModal.claudeAdaptive": {
+    "defaultMessage": "अनुकूली - क्लॉड तय करता है कि कब और कितना सोचना है"
+  },
+  "switchModelModal.claudeDisabled": {
+    "defaultMessage": "विकलांग - कोई विस्तारित सोच नहीं"
+  },
+  "switchModelModal.claudeEffortHigh": {
+    "defaultMessage": "उच्च - गहन तर्क (डिफ़ॉल्ट)"
+  },
+  "switchModelModal.claudeEffortLow": {
+    "defaultMessage": "निम्न - न्यूनतम सोच, सबसे तेज़ प्रतिक्रियाएँ"
+  },
+  "switchModelModal.claudeEffortMax": {
+    "defaultMessage": "मैक्स - गहराई से सोचने पर कोई रोक नहीं"
+  },
+  "switchModelModal.claudeEffortMedium": {
+    "defaultMessage": "मध्यम - मध्यम सोच"
+  },
+  "switchModelModal.claudeEnabled": {
+    "defaultMessage": "सक्षम - सोचने के लिए निश्चित टोकन बजट"
+  },
+  "switchModelModal.couldNotContactProvider": {
+    "defaultMessage": "प्रदाता से संपर्क नहीं हो सका"
+  },
+  "switchModelModal.customModelName": {
+    "defaultMessage": "कस्टम मॉडल का नाम"
+  },
+  "switchModelModal.description": {
+    "defaultMessage": "अपनी बातचीत के लिए उपयोग करने के लिए एक प्रदाता और मॉडल चुनें।"
+  },
+  "switchModelModal.enterModelNotListed": {
+    "defaultMessage": "ऐसा मॉडल दर्ज करें जो सूची में नहीं है..."
+  },
+  "switchModelModal.extendedThinking": {
+    "defaultMessage": "विस्तारित सोच"
+  },
+  "switchModelModal.geminiOnly": {
+    "defaultMessage": "(Gemini केवल 3 मॉडल)"
+  },
+  "switchModelModal.goToSettings": {
+    "defaultMessage": "Settings पर जाएँ"
+  },
+  "switchModelModal.loadingModels": {
+    "defaultMessage": "मॉडल लोड हो रहे हैं…"
+  },
+  "switchModelModal.localModelsDescription": {
+    "defaultMessage": "स्थानीय अनुमान का उपयोग करने के लिए, आपको पहले अपने कंप्यूटर पर एक मॉडल डाउनलोड करना होगा। स्थानीय मॉडल प्रबंधित करने के लिए Settings → मॉडल पर जाएं।"
+  },
+  "switchModelModal.localModelsTitle": {
+    "defaultMessage": "स्थानीय मॉडल को पहले डाउनलोड करना होगा"
+  },
+  "switchModelModal.providerPlaceholder": {
+    "defaultMessage": "प्रदाता, खोजने के लिए टाइप करें"
+  },
+  "switchModelModal.quickStartGuide": {
+    "defaultMessage": "त्वरित आरंभ मार्गदर्शिका"
+  },
+  "switchModelModal.recommended": {
+    "defaultMessage": "अनुशंसित"
+  },
+  "switchModelModal.selectEffortLevel": {
+    "defaultMessage": "प्रयास स्तर का चयन करें"
+  },
+  "switchModelModal.selectModel": {
+    "defaultMessage": "कृपया एक मॉडल चुनें"
+  },
+  "switchModelModal.selectModelButton": {
+    "defaultMessage": "मॉडल चुनें"
+  },
+  "switchModelModal.selectModelPlaceholder": {
+    "defaultMessage": "एक मॉडल चुनें, खोजने के लिए टाइप करें"
+  },
+  "switchModelModal.selectOrEnterModel": {
+    "defaultMessage": "कृपया एक मॉडल चुनें या दर्ज करें"
+  },
+  "switchModelModal.selectProvider": {
+    "defaultMessage": "कृपया एक प्रदाता चुनें"
+  },
+  "switchModelModal.selectThinkingLevel": {
+    "defaultMessage": "सोच स्तर का चयन करें"
+  },
+  "switchModelModal.selectThinkingMode": {
+    "defaultMessage": "सोच मोड का चयन करें"
+  },
+  "switchModelModal.thinkingBudget": {
+    "defaultMessage": "सोच बजट (टोकन)"
+  },
+  "switchModelModal.thinkingEffort": {
+    "defaultMessage": "चिंतन प्रयास"
+  },
+  "switchModelModal.thinkingEffortOff": {
+    "defaultMessage": "बंद - कोई विस्तारित सोच नहीं"
+  },
+  "switchModelModal.thinkingLevel": {
+    "defaultMessage": "सोच का स्तर"
+  },
+  "switchModelModal.thinkingLevelHigh": {
+    "defaultMessage": "उच्च - गहरा तर्क, उच्च विलंबता"
+  },
+  "switchModelModal.thinkingLevelLow": {
+    "defaultMessage": "कम - बेहतर विलंबता, हल्का तर्क"
+  },
+  "switchModelModal.title": {
+    "defaultMessage": "मॉडल स्विच करें"
+  },
+  "switchModelModal.typeModelName": {
+    "defaultMessage": "यहां मॉडल का नाम टाइप करें"
+  },
+  "switchModelModal.useOtherProvider": {
+    "defaultMessage": "अन्य प्रदाता का उपयोग करें"
+  },
+  "telemetryConsentPrompt.description": {
+    "defaultMessage": "क्या आप goose को बेहतर बनाने में सहायता के लिए अनाम उपयोग डेटा साझा करना चाहेंगे? हम कभी भी आपकी बातचीत, कोड या व्यक्तिगत डेटा एकत्र नहीं करते हैं।"
+  },
+  "telemetryConsentPrompt.heading": {
+    "defaultMessage": "goose को बेहतर बनाने में सहायता करें"
+  },
+  "telemetryConsentPrompt.learnMore": {
+    "defaultMessage": "और जानें"
+  },
+  "telemetryConsentPrompt.optIn": {
+    "defaultMessage": "हाँ, अनाम उपयोग डेटा साझा करें"
+  },
+  "telemetryConsentPrompt.optOut": {
+    "defaultMessage": "नहीं धन्यवाद"
+  },
+  "telemetrySettings.configErrorTitle": {
+    "defaultMessage": "कॉन्फ़िगरेशन त्रुटि"
+  },
+  "telemetrySettings.description": {
+    "defaultMessage": "नियंत्रित करें कि आपके डेटा का उपयोग कैसे किया जाता है"
+  },
+  "telemetrySettings.learnMore": {
+    "defaultMessage": "और जानें"
+  },
+  "telemetrySettings.loadError": {
+    "defaultMessage": "टेलीमेट्री सेटिंग लोड करने में विफल."
+  },
+  "telemetrySettings.title": {
+    "defaultMessage": "गोपनीयता"
+  },
+  "telemetrySettings.toggleDescription": {
+    "defaultMessage": "अनाम उपयोग आँकड़े साझा करके goose को बेहतर बनाने में सहायता करें।"
+  },
+  "telemetrySettings.toggleLabel": {
+    "defaultMessage": "अनाम उपयोग डेटा"
+  },
+  "telemetrySettings.updateError": {
+    "defaultMessage": "टेलीमेट्री सेटिंग अपडेट करने में विफल."
+  },
+  "themeSelector.dark": {
+    "defaultMessage": "अंधेरा"
+  },
+  "themeSelector.light": {
+    "defaultMessage": "रोशनी"
+  },
+  "themeSelector.system": {
+    "defaultMessage": "सिस्टम"
+  },
+  "themeSelector.theme": {
+    "defaultMessage": "थीम"
+  },
+  "toolApprovalButtons.allowOnce": {
+    "defaultMessage": "एक बार अनुमति दें"
+  },
+  "toolApprovalButtons.allowedOnce": {
+    "defaultMessage": "एक बार अनुमति दी गई"
+  },
+  "toolApprovalButtons.alwaysAllow": {
+    "defaultMessage": "हमेशा अनुमति दें"
+  },
+  "toolApprovalButtons.alwaysAllowed": {
+    "defaultMessage": "हमेशा अनुमति है"
+  },
+  "toolApprovalButtons.cancelled": {
+    "defaultMessage": "रद्द कर दिया गया"
+  },
+  "toolApprovalButtons.denied": {
+    "defaultMessage": "इनकार किया"
+  },
+  "toolApprovalButtons.deniedOnce": {
+    "defaultMessage": "एक बार इनकार कर दिया"
+  },
+  "toolApprovalButtons.deny": {
+    "defaultMessage": "इन्कार"
+  },
+  "toolCallStatusIndicator.toolStatus": {
+    "defaultMessage": "उपकरण स्थिति: {status}"
+  },
+  "toolCallWithResponse.activityCount": {
+    "defaultMessage": "गतिविधि ({count})"
+  },
+  "toolCallWithResponse.code": {
+    "defaultMessage": "कोड"
+  },
+  "toolCallWithResponse.loadingSpinner": {
+    "defaultMessage": "स्पिनर लोड हो रहा है"
+  },
+  "toolCallWithResponse.logs": {
+    "defaultMessage": "लॉग"
+  },
+  "toolCallWithResponse.mcpUiExperimental": {
+    "defaultMessage": "MCP यूआई प्रयोगात्मक है और किसी भी समय बदल सकता है।"
+  },
+  "toolCallWithResponse.output": {
+    "defaultMessage": "आउटपुट"
+  },
+  "toolCallWithResponse.toolDetails": {
+    "defaultMessage": "उपकरण विवरण"
+  },
+  "toolCallWithResponse.toolResultAlt": {
+    "defaultMessage": "उपकरण परिणाम"
+  },
+  "toolCallWithResponse.viewSubagentSession": {
+    "defaultMessage": "सबएजेंट सत्र देखें"
+  },
+  "toolConfirmation.allowToolCallWithName": {
+    "defaultMessage": "{toolName} को अनुमति दें?"
+  },
+  "toolConfirmation.gooseWouldLikeToCallWithName": {
+    "defaultMessage": "Goose {toolName} को कॉल करना चाहेंगे। अनुमति दें?"
+  },
+  "tunnelSection.appStoreQrInstructions": {
+    "defaultMessage": "ऐप स्टोर से goose मोबाइल ऐप इंस्टॉल करने के लिए इस QR कोड को अपने iPhone कैमरे से स्कैन करें"
+  },
+  "tunnelSection.close": {
+    "defaultMessage": "बंद करें"
+  },
+  "tunnelSection.connectionDetails": {
+    "defaultMessage": "कनेक्शन विवरण"
+  },
+  "tunnelSection.downloadIosApp": {
+    "defaultMessage": "goose iOS ऐप डाउनलोड करें"
+  },
+  "tunnelSection.failedToLoadStatus": {
+    "defaultMessage": "सुरंग स्थिति लोड करने में विफल"
+  },
+  "tunnelSection.failedToStartTunnel": {
+    "defaultMessage": "सुरंग प्रारंभ करने में विफल"
+  },
+  "tunnelSection.failedToStopTunnel": {
+    "defaultMessage": "सुरंग रोकने में विफल"
+  },
+  "tunnelSection.getIosApp": {
+    "defaultMessage": "आईओएस ऐप प्राप्त करें"
+  },
+  "tunnelSection.mobileApp": {
+    "defaultMessage": "मोबाइल ऐप"
+  },
+  "tunnelSection.mobileAppConnection": {
+    "defaultMessage": "मोबाइल ऐप कनेक्शन"
+  },
+  "tunnelSection.openInAppStore": {
+    "defaultMessage": "ऐप स्टोर में खोलें"
+  },
+  "tunnelSection.or": {
+    "defaultMessage": "या"
+  },
+  "tunnelSection.previewDescription": {
+    "defaultMessage": "सुरक्षित टनलिंग का उपयोग करके मोबाइल उपकरणों से goose तक दूरस्थ पहुंच सक्षम करें।"
+  },
+  "tunnelSection.previewFeature": {
+    "defaultMessage": "पूर्वावलोकन सुविधा:"
+  },
+  "tunnelSection.qrCodeInstructions": {
+    "defaultMessage": "इस QR कोड को goose मोबाइल ऐप से स्कैन करें। इस कोड को किसी और के साथ साझा न करें क्योंकि यह आपकी व्यक्तिगत पहुंच के लिए है।"
+  },
+  "tunnelSection.retry": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
+  "tunnelSection.scanQrCode": {
+    "defaultMessage": "QR कोड स्कैन करें"
+  },
+  "tunnelSection.secretKey": {
+    "defaultMessage": "गुप्त कुंजी"
+  },
+  "tunnelSection.showQrCode": {
+    "defaultMessage": "QR कोड दिखाएँ"
+  },
+  "tunnelSection.startTunnel": {
+    "defaultMessage": "सुरंग प्रारंभ करें"
+  },
+  "tunnelSection.starting": {
+    "defaultMessage": "प्रारंभ..."
+  },
+  "tunnelSection.statusDisabled": {
+    "defaultMessage": "सुरंग अक्षम है"
+  },
+  "tunnelSection.statusError": {
+    "defaultMessage": "टनल में एक त्रुटि आई"
+  },
+  "tunnelSection.statusIdle": {
+    "defaultMessage": "सुरंग नहीं चल रही है"
+  },
+  "tunnelSection.statusRunning": {
+    "defaultMessage": "सुरंग सक्रिय है"
+  },
+  "tunnelSection.statusStarting": {
+    "defaultMessage": "सुरंग शुरू हो रही है..."
+  },
+  "tunnelSection.stopTunnel": {
+    "defaultMessage": "सुरंग बंद करो"
+  },
+  "tunnelSection.tunnelStatus": {
+    "defaultMessage": "सुरंग की स्थिति"
+  },
+  "tunnelSection.tunnelUrl": {
+    "defaultMessage": "सुरंग URL"
+  },
+  "tunnelSection.url": {
+    "defaultMessage": "URL:"
+  },
+  "updateSection.autoDownload": {
+    "defaultMessage": "अपडेट बैकग्राउंड में अपने आप डाउनलोड हो जाएगा."
+  },
+  "updateSection.autoInstallNote": {
+    "defaultMessage": "जब आप ऐप छोड़ देंगे तो अपडेट अपने आप इंस्टॉल हो जाएगा।"
+  },
+  "updateSection.checkForUpdates": {
+    "defaultMessage": "अद्यतनों के लिए जाँच करें"
+  },
+  "updateSection.checking": {
+    "defaultMessage": "अपडेट की जांच की जा रही है..."
+  },
+  "updateSection.currentVersion": {
+    "defaultMessage": "वर्तमान संस्करण"
+  },
+  "updateSection.downloadReady": {
+    "defaultMessage": "अपडेट डाउनलोड हो गया है और इंस्टॉल करने के लिए तैयार है!"
+  },
+  "updateSection.downloadingProgress": {
+    "defaultMessage": "अपडेट डाउनलोड हो रहा है... {percent}%"
+  },
+  "updateSection.downloadingUpdate": {
+    "defaultMessage": "अपडेट डाउनलोड हो रहा है..."
+  },
+  "updateSection.installAndRestart": {
+    "defaultMessage": "स्थापित करें और पुनः प्रारंभ करें"
+  },
+  "updateSection.installNowHint": {
+    "defaultMessage": "या अभी अपडेट करने के लिए \"इंस्टॉल करें और पुनरारंभ करें\" पर क्लिक करें।"
+  },
+  "updateSection.latestVersion": {
+    "defaultMessage": "आप नवीनतम संस्करण चला रहे हैं!"
+  },
+  "updateSection.loading": {
+    "defaultMessage": "लोड हो रहा है..."
+  },
+  "updateSection.manualInstallNote": {
+    "defaultMessage": "डाउनलोड करने के बाद, आपको अपडेट को मैन्युअल रूप से इंस्टॉल करना होगा।"
+  },
+  "updateSection.manualInstallRequired": {
+    "defaultMessage": "इस अद्यतन विधि के लिए मैन्युअल स्थापना आवश्यक है."
+  },
+  "updateSection.readyInstallAuto": {
+    "defaultMessage": "✓ अपडेट तैयार है! जब आप Goose छोड़ देंगे तो यह इंस्टॉल हो जाएगा।"
+  },
+  "updateSection.readyInstallManual": {
+    "defaultMessage": "✓ अपडेट तैयार है! इंस्टॉलेशन निर्देशों के लिए \"इंस्टॉल करें और पुनरारंभ करें\" पर क्लिक करें।"
+  },
+  "updateSection.upToDate": {
+    "defaultMessage": "(अप टू डेट)"
+  },
+  "updateSection.updateAvailable": {
+    "defaultMessage": "उपलब्ध अद्यतन!"
+  },
+  "updateSection.versionAvailable": {
+    "defaultMessage": "→ {version} उपलब्ध"
+  },
+  "updateSection.versionIsAvailable": {
+    "defaultMessage": "संस्करण {version} उपलब्ध है"
+  },
+  "userMessage.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "userMessage.cancelAriaLabel": {
+    "defaultMessage": "संपादन रद्द करें"
+  },
+  "userMessage.editAriaLabel": {
+    "defaultMessage": "संदेश सामग्री संपादित करें"
+  },
+  "userMessage.editButton": {
+    "defaultMessage": "संपादित करें"
+  },
+  "userMessage.editInPlace": {
+    "defaultMessage": "यथास्थान संपादित करें"
+  },
+  "userMessage.editInPlaceAriaLabel": {
+    "defaultMessage": "संदेश को यथास्थान संपादित करें"
+  },
+  "userMessage.editInPlaceDescription": {
+    "defaultMessage": "<b>स्थान में संपादित करें</b> इस सत्र को अपडेट करता है • <b>फोर्क सत्र</b> एक नया सत्र बनाता है"
+  },
+  "userMessage.editInPlaceTitle": {
+    "defaultMessage": "इस सत्र में संदेश अद्यतन करें"
+  },
+  "userMessage.editMessageAriaLabel": {
+    "defaultMessage": "संदेश संपादित करें: {preview}"
+  },
+  "userMessage.editMessageTitle": {
+    "defaultMessage": "संदेश संपादित करें"
+  },
+  "userMessage.editPlaceholder": {
+    "defaultMessage": "अपना संदेश संपादित करें..."
+  },
+  "userMessage.emptyError": {
+    "defaultMessage": "संदेश खाली नहीं हो सकता"
+  },
+  "userMessage.forkSession": {
+    "defaultMessage": "कांटा सत्र"
+  },
+  "userMessage.forkSessionAriaLabel": {
+    "defaultMessage": "संपादित संदेश के साथ फोर्क सत्र"
+  },
+  "userMessage.forkSessionTitle": {
+    "defaultMessage": "संपादित संदेश के साथ एक नया सत्र बनाएं"
+  }
+}
