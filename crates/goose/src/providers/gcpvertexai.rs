@@ -287,6 +287,7 @@ impl GcpVertexAIProvider {
         let mut overloaded_attempts = 0;
         let mut last_error = None;
         let max_retries = self.retry_config.max_retries;
+        let mut retried_auth = false;
 
         loop {
             if rate_limit_attempts > max_retries && overloaded_attempts > max_retries {
@@ -298,10 +299,21 @@ impl GcpVertexAIProvider {
                 );
             }
 
-            let auth_header = self
-                .get_auth_header()
-                .await
-                .map_err(|e| ProviderError::Authentication(e.to_string()))?;
+            let auth_header = match self.get_auth_header().await {
+                Ok(header) => header,
+                Err(e) => {
+                    if !retried_auth {
+                        retried_auth = true;
+                        if self.auth.refresh_credentials().await.is_ok() {
+                            tracing::info!(
+                                "gcloud token exchange failed ({e}); reloaded credentials and retrying"
+                            );
+                            continue;
+                        }
+                    }
+                    return Err(ProviderError::Authentication(e.to_string()));
+                }
+            };
 
             let mut request = self
                 .client
@@ -358,6 +370,17 @@ impl GcpVertexAIProvider {
             } else if status == StatusCode::OK {
                 return Ok(response);
             } else if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+                if !retried_auth {
+                    retried_auth = true;
+                    if let Err(e) = self.auth.refresh_credentials().await {
+                        tracing::warn!("Failed to reload gcloud credentials after {status}: {e}");
+                    } else {
+                        tracing::info!(
+                            "Vertex AI returned {status}; reloaded gcloud credentials and retrying"
+                        );
+                        continue;
+                    }
+                }
                 return Err(ProviderError::Authentication(format!(
                     "Authentication failed with status: {status}"
                 )));

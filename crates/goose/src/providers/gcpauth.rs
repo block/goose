@@ -324,7 +324,7 @@ struct TokenResponse {
 #[derive(Debug)]
 pub struct GcpAuth {
     /// The loaded credentials (service account or authorized user)
-    credentials: AdcCredentials,
+    credentials: RwLock<AdcCredentials>,
     /// HTTP client for making token exchange requests
     client: reqwest::Client,
     /// Thread-safe cache for the current token
@@ -348,10 +348,17 @@ impl GcpAuth {
     /// * `Result<Self, AuthError>` - A new GcpAuth instance or an error if initialization fails
     pub async fn new() -> Result<Self, AuthError> {
         Ok(Self {
-            credentials: AdcCredentials::load().await?,
+            credentials: RwLock::new(AdcCredentials::load().await?),
             client: reqwest::Client::new(),
             cached_token: Arc::new(RwLock::new(None)),
         })
+    }
+
+    pub async fn refresh_credentials(&self) -> Result<(), AuthError> {
+        let reloaded = AdcCredentials::load().await?;
+        *self.credentials.write().await = reloaded;
+        *self.cached_token.write().await = None;
+        Ok(())
     }
 
     /// Retrieves a valid authentication token.
@@ -386,7 +393,7 @@ impl GcpAuth {
         }
 
         // Get new token
-        let token_response = match &self.credentials {
+        let token_response = match &*self.credentials.read().await {
             AdcCredentials::ServiceAccount(creds) => self.get_service_account_token(creds).await?,
             AdcCredentials::AuthorizedUser(creds) => self.get_authorized_user_token(creds).await?,
             AdcCredentials::DefaultAccount(creds) => self.get_default_access_token(creds).await?,
@@ -687,7 +694,7 @@ iXVBc2YmAuU8hiOFUPxtyQfNzG5fQ0rhJSewdtyWxIadJSLj6fsK+AEsNQ==
     // Helper function to create a test GcpAuth instance with credentials
     async fn create_test_auth_with_creds(creds: AdcCredentials) -> GcpAuth {
         GcpAuth {
-            credentials: creds,
+            credentials: RwLock::new(creds),
             client: reqwest::Client::new(),
             cached_token: Arc::new(RwLock::new(None)),
         }
@@ -696,7 +703,7 @@ iXVBc2YmAuU8hiOFUPxtyQfNzG5fQ0rhJSewdtyWxIadJSLj6fsK+AEsNQ==
     #[tokio::test]
     async fn test_token_caching() {
         let auth = GcpAuth {
-            credentials: AdcCredentials::ServiceAccount(mock_service_account()),
+            credentials: RwLock::new(AdcCredentials::ServiceAccount(mock_service_account())),
             client: reqwest::Client::new(),
             cached_token: Arc::new(RwLock::new(Some(CachedToken {
                 token: AuthToken {
@@ -719,7 +726,7 @@ iXVBc2YmAuU8hiOFUPxtyQfNzG5fQ0rhJSewdtyWxIadJSLj6fsK+AEsNQ==
     #[tokio::test]
     async fn test_token_expiration() {
         let auth = GcpAuth {
-            credentials: AdcCredentials::ServiceAccount(mock_service_account()),
+            credentials: RwLock::new(AdcCredentials::ServiceAccount(mock_service_account())),
             client: reqwest::Client::new(),
             cached_token: Arc::new(RwLock::new(Some(CachedToken {
                 token: AuthToken {
@@ -757,7 +764,7 @@ iXVBc2YmAuU8hiOFUPxtyQfNzG5fQ0rhJSewdtyWxIadJSLj6fsK+AEsNQ==
     #[tokio::test]
     async fn test_concurrent_token_access() {
         let auth = Arc::new(GcpAuth {
-            credentials: AdcCredentials::ServiceAccount(mock_service_account()),
+            credentials: RwLock::new(AdcCredentials::ServiceAccount(mock_service_account())),
             client: reqwest::Client::new(),
             cached_token: Arc::new(RwLock::new(Some(CachedToken {
                 token: AuthToken {
@@ -788,7 +795,7 @@ iXVBc2YmAuU8hiOFUPxtyQfNzG5fQ0rhJSewdtyWxIadJSLj6fsK+AEsNQ==
     #[tokio::test]
     async fn test_token_refresh_race_condition() {
         let auth = Arc::new(GcpAuth {
-            credentials: AdcCredentials::ServiceAccount(mock_service_account()),
+            credentials: RwLock::new(AdcCredentials::ServiceAccount(mock_service_account())),
             client: reqwest::Client::new(),
             cached_token: Arc::new(RwLock::new(Some(CachedToken {
                 token: AuthToken {
@@ -841,7 +848,7 @@ iXVBc2YmAuU8hiOFUPxtyQfNzG5fQ0rhJSewdtyWxIadJSLj6fsK+AEsNQ==
     #[tokio::test]
     async fn test_authorized_user_token() {
         let auth = GcpAuth {
-            credentials: AdcCredentials::AuthorizedUser(mock_authorized_user()),
+            credentials: RwLock::new(AdcCredentials::AuthorizedUser(mock_authorized_user())),
             client: reqwest::Client::new(),
             cached_token: Arc::new(RwLock::new(None)),
         };
@@ -858,7 +865,7 @@ iXVBc2YmAuU8hiOFUPxtyQfNzG5fQ0rhJSewdtyWxIadJSLj6fsK+AEsNQ==
     #[tokio::test]
     async fn test_service_account_jwt_creation() {
         let auth = GcpAuth {
-            credentials: AdcCredentials::ServiceAccount(mock_service_account()),
+            credentials: RwLock::new(AdcCredentials::ServiceAccount(mock_service_account())),
             client: reqwest::Client::new(),
             cached_token: Arc::new(RwLock::new(None)),
         };
@@ -1124,4 +1131,9 @@ iXVBc2YmAuU8hiOFUPxtyQfNzG5fQ0rhJSewdtyWxIadJSLj6fsK+AEsNQ==
         .await;
         assert!(matches!(result, Err(AuthError::Credentials(_))));
     }
+
+    // Note: there is intentionally no test that exercises refresh_credentials() end to end.
+    // Doing so would require pointing GOOGLE_APPLICATION_CREDENTIALS at a temp file via
+    // std::env::set_var, which is unsafe in the 2024 edition and races with any other thread
+    // reading the environment. We don't mutate process-global env state in tests for that.
 }

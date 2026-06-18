@@ -3,7 +3,6 @@ title: "goose 2.0 beta - new architecture and clients"
 description: "We're shipping a new TUI, rewriting the desktop app in Tauri, and unifying everything under ACP."
 authors:
     - alexhancock
-featured: true
 image: /img/blog/goose-2-blog-cover.jpg
 ---
 
