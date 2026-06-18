@@ -882,12 +882,12 @@
   },
   {
     "id": "agentage-memory",
-    "name": "agentage Memory",
+    "name": "Agentage Memory",
     "description": "One memory. Every AI. Owned by you. A shared markdown memory layer that Claude, Cursor, and ChatGPT all read and write through MCP, mirrored locally as plain .md you own.",
     "type": "streamable-http",
     "url": "https://memory.agentage.io/mcp",
     "link": "https://memory.agentage.io",
-    "installation_notes": "Streamable HTTP extension with OAuth 2.1 browser authentication (PKCE + Dynamic Client Registration) to your agentage Memory account. No API key or environment variables required.",
+    "installation_notes": "Streamable HTTP extension with OAuth 2.1 browser authentication (PKCE + Dynamic Client Registration) to your Agentage Memory account. No API key or environment variables required.",
     "is_builtin": false,
     "endorsed": false,
     "environmentVariables": []
