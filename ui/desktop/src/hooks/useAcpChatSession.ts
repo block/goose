@@ -9,36 +9,25 @@ import {
   Message,
   resumeAgent,
   Session,
-  sessionCancel,
-  sessionReply,
   TokenState,
   updateFromSession,
   updateSessionUserRecipeValues,
   listApps,
 } from '../api';
 
-import {
-  createUserMessage,
-  createElicitationResponseMessage,
-  getCompactingMessage,
-  getThinkingMessage,
-  NotificationEvent,
-  UserInput,
-} from '../types/message';
+import { createUserMessage, NotificationEvent, UserInput } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
-import { maybeHandlePlatformEvent } from '../utils/platform_events';
-import { useSessionEvents, type SessionEvent } from './useSessionEvents';
 import type { UseChatSessionParams, UseChatSessionResult } from './useChatSessionTypes';
 import { cancelAcpPermissionRequestsForSession } from '../acp/permissionRequests';
+import {
+  cancelAcpElicitationRequestsForSession,
+  resolveAcpElicitationRequest,
+} from '../acp/elicitationRequests';
 import { parseAcpCreditsExhaustedError, type AcpCreditsExhaustedError } from '../acp/errors';
 import { acpCancelPrompt, acpPromptSession } from '../acp/prompt';
 import { acpTruncateSessionConversation } from '../acp/sessions';
-import {
-  acpChatSessionStore,
-  tokenStateFromSession,
-  type AcpChatSessionSnapshot,
-} from '../acp/chatSessionStore';
+import { acpChatSessionStore, type AcpChatSessionSnapshot } from '../acp/chatSessionStore';
 
 interface StreamState {
   messages: Message[];
@@ -46,7 +35,6 @@ interface StreamState {
   chatState: ChatState;
   sessionLoadError: string | undefined;
   tokenState: TokenState;
-  notifications: NotificationEvent[];
 }
 
 type StreamAction =
@@ -55,7 +43,6 @@ type StreamAction =
   | { type: 'SET_CHAT_STATE'; payload: ChatState }
   | { type: 'SET_SESSION_LOAD_ERROR'; payload: string | undefined }
   | { type: 'SET_TOKEN_STATE'; payload: TokenState }
-  | { type: 'ADD_NOTIFICATION'; payload: NotificationEvent }
   | { type: 'SYNC_FROM_ACP_STORE'; payload: AcpChatSessionSnapshot }
   | { type: 'RESET_FOR_NEW_SESSION' }
   | { type: 'START_STREAMING' }
@@ -77,7 +64,6 @@ const initialState: StreamState = {
   chatState: ChatState.Idle,
   sessionLoadError: undefined,
   tokenState: initialTokenState,
-  notifications: [],
 };
 
 function streamReducer(state: StreamState, action: StreamAction): StreamState {
@@ -96,9 +82,6 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
 
     case 'SET_TOKEN_STATE':
       return { ...state, tokenState: action.payload };
-
-    case 'ADD_NOTIFICATION':
-      return { ...state, notifications: [...state.notifications, action.payload] };
 
     case 'SYNC_FROM_ACP_STORE':
       return {
@@ -123,7 +106,6 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
       return {
         ...state,
         chatState: ChatState.Streaming,
-        notifications: [],
       };
 
     case 'STREAM_ERROR':
@@ -145,54 +127,6 @@ function streamReducer(state: StreamState, action: StreamAction): StreamState {
   }
 }
 
-function pushMessage(currentMessages: Message[], incomingMsg: Message): Message[] {
-  const lastMsg = currentMessages[currentMessages.length - 1];
-
-  if (lastMsg?.id && lastMsg.id === incomingMsg.id) {
-    const lastContent = lastMsg.content[lastMsg.content.length - 1];
-    const newContent = incomingMsg.content[incomingMsg.content.length - 1];
-
-    if (incomingMsg.metadata?.inference) {
-      lastMsg.metadata = {
-        ...lastMsg.metadata,
-        inference: incomingMsg.metadata.inference,
-      };
-    }
-
-    if (
-      lastContent?.type === 'text' &&
-      newContent?.type === 'text' &&
-      incomingMsg.content.length === 1
-    ) {
-      lastContent.text += newContent.text;
-    } else if (
-      lastContent?.type === 'thinking' &&
-      newContent?.type === 'thinking' &&
-      incomingMsg.content.length === 1 &&
-      'thinking' in lastContent &&
-      'thinking' in newContent
-    ) {
-      // For thinking blocks: if the new block has a signature, it's the complete
-      // block from content_block_stop — replace entirely. Otherwise append the delta.
-      if ('signature' in newContent && newContent.signature) {
-        lastContent.thinking = newContent.thinking;
-        lastContent.signature = newContent.signature;
-      } else {
-        lastContent.thinking += newContent.thinking;
-      }
-    } else {
-      lastMsg.content.push(...incomingMsg.content);
-    }
-    return [...currentMessages];
-  } else {
-    return [...currentMessages, incomingMsg];
-  }
-}
-
-function prefersReducedMotion(): boolean {
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-}
-
 function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Message {
   return {
     id: uuidv7(),
@@ -208,180 +142,6 @@ function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Mess
     ],
     metadata: { userVisible: true, agentVisible: false },
   };
-}
-
-const REDUCED_MOTION_BATCH_INTERVAL = 1000;
-
-/**
- * Creates an event processor that handles individual SSE events for a request.
- * Returns an unsubscribe function and a handler to process events.
- */
-function createEventProcessor(
-  initialMessages: Message[],
-  dispatch: React.Dispatch<StreamAction>,
-  onFinish: (error?: string) => void,
-  sessionId: string,
-  onReloadNeeded?: () => void
-) {
-  let currentMessages = initialMessages;
-  const reduceMotion = prefersReducedMotion();
-  let latestTokenState: TokenState | null = null;
-  let latestChatState: ChatState = ChatState.Streaming;
-  let lastBatchUpdate = Date.now();
-  let hasPendingUpdate = false;
-  let pendingInference: Message['metadata']['inference'] | undefined;
-
-  const flushBatchedUpdates = () => {
-    if (reduceMotion && hasPendingUpdate) {
-      if (latestTokenState) {
-        dispatch({ type: 'SET_TOKEN_STATE', payload: latestTokenState });
-      }
-      dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
-      dispatch({ type: 'SET_CHAT_STATE', payload: latestChatState });
-      hasPendingUpdate = false;
-      lastBatchUpdate = Date.now();
-    }
-  };
-
-  const maybeUpdateUI = (tokenState: TokenState, chatState: ChatState, forceImmediate = false) => {
-    if (!reduceMotion) {
-      dispatch({ type: 'SET_TOKEN_STATE', payload: tokenState });
-      dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
-      dispatch({ type: 'SET_CHAT_STATE', payload: chatState });
-    } else if (forceImmediate) {
-      dispatch({ type: 'SET_TOKEN_STATE', payload: tokenState });
-      dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
-      dispatch({ type: 'SET_CHAT_STATE', payload: chatState });
-      hasPendingUpdate = false;
-      lastBatchUpdate = Date.now();
-    } else {
-      latestTokenState = tokenState;
-      latestChatState = chatState;
-      hasPendingUpdate = true;
-      const now = Date.now();
-      if (now - lastBatchUpdate >= REDUCED_MOTION_BATCH_INTERVAL) {
-        flushBatchedUpdates();
-      }
-    }
-  };
-
-  const flushPendingInference = () => {
-    if (!pendingInference) {
-      return;
-    }
-
-    for (let i = currentMessages.length - 1; i >= 0; i--) {
-      const message = currentMessages[i];
-      if (message.role === 'assistant' && message.metadata.userVisible) {
-        currentMessages = [
-          ...currentMessages.slice(0, i),
-          {
-            ...message,
-            metadata: {
-              ...message.metadata,
-              inference: message.metadata.inference ?? pendingInference,
-            },
-          },
-          ...currentMessages.slice(i + 1),
-        ];
-        break;
-      }
-    }
-    pendingInference = undefined;
-  };
-
-  // Returns true if the event is terminal (Finish or Error)
-  const processEvent = (event: SessionEvent): boolean => {
-    switch (event.type) {
-      case 'Message': {
-        let msg = (event as Record<string, unknown>).message as Message;
-        const tokenState = (event as Record<string, unknown>).token_state as TokenState;
-
-        if (msg.content.length === 0 && msg.metadata?.inference) {
-          pendingInference = msg.metadata.inference;
-          return false;
-        }
-
-        if (pendingInference && msg.role === 'assistant' && msg.metadata.userVisible) {
-          msg = {
-            ...msg,
-            metadata: {
-              ...msg.metadata,
-              inference: msg.metadata.inference ?? pendingInference,
-            },
-          };
-          pendingInference = undefined;
-        }
-
-        currentMessages = pushMessage(currentMessages, msg);
-
-        const hasToolConfirmation = msg.content.some(
-          (content) =>
-            content.type === 'actionRequired' && content.data.actionType === 'toolConfirmation'
-        );
-
-        const hasElicitation = msg.content.some(
-          (content) =>
-            content.type === 'actionRequired' && content.data.actionType === 'elicitation'
-        );
-
-        if (hasToolConfirmation || hasElicitation) {
-          maybeUpdateUI(tokenState, ChatState.WaitingForUserInput, true);
-        } else if (getCompactingMessage(msg)) {
-          maybeUpdateUI(tokenState, ChatState.Compacting);
-        } else if (getThinkingMessage(msg)) {
-          maybeUpdateUI(tokenState, ChatState.Thinking);
-        } else {
-          maybeUpdateUI(tokenState, ChatState.Streaming);
-        }
-        return false;
-      }
-      case 'Error': {
-        flushPendingInference();
-        flushBatchedUpdates();
-        dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
-        const errorMsg = String((event as Record<string, unknown>).error ?? '');
-        if (errorMsg.includes('too far behind') && onReloadNeeded) {
-          // Server indicated we missed events — end streaming without setting
-          // an error (which would show a blocking error screen), then reload
-          // the full conversation so the UI reflects the actual state.
-          onFinish();
-          onReloadNeeded();
-        } else {
-          onFinish('Stream error: ' + errorMsg);
-        }
-        return true;
-      }
-      case 'Finish': {
-        flushPendingInference();
-        flushBatchedUpdates();
-        dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
-        onFinish();
-        return true;
-      }
-      case 'UpdateConversation': {
-        const conversation = (event as Record<string, unknown>).conversation as Message[];
-        currentMessages = conversation;
-        if (!reduceMotion) {
-          dispatch({ type: 'SET_MESSAGES', payload: conversation });
-        } else {
-          hasPendingUpdate = true;
-        }
-        return false;
-      }
-      case 'Notification': {
-        dispatch({ type: 'ADD_NOTIFICATION', payload: event as unknown as NotificationEvent });
-        maybeHandlePlatformEvent((event as Record<string, unknown>).message, sessionId);
-        return false;
-      }
-      case 'Ping':
-        return false;
-      default:
-        return false;
-    }
-  };
-
-  return processEvent;
 }
 
 const i18n = defineMessages({
@@ -403,25 +163,11 @@ export function useAcpChatSession({
   const intl = useIntl();
   const [state, dispatch] = useReducer(streamReducer, initialState);
 
-  // Long-lived SSE connection for this session
-  const { addListener, setActiveRequestsHandler } = useSessionEvents(sessionId);
-
-  // Track the active request for cancellation (includes the session that started it)
-  const activeRequestIdRef = useRef<string | null>(null);
-  const activeRequestSessionIdRef = useRef<string | null>(null);
-  const activeAbortRef = useRef<AbortController | null>(null);
-  const activeUnsubscribeRef = useRef<(() => void) | null>(null);
-  // When ActiveRequests fires before resumeAgent populates messages (cold mount),
-  // defer the reattach until the session is loaded so the event processor has
-  // the full conversation history. Events are buffered in the meantime.
-  const pendingReattachRequestIdRef = useRef<string | null>(null);
-  const pendingReattachBufferRef = useRef<SessionEvent[]>([]);
   const namePollingRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Ref to access latest state in callbacks (avoids stale closures)
   const stateRef = useRef(state);
   stateRef.current = state;
-  const doReattachRef = useRef<((requestId: string, messages: Message[]) => void) | null>(null);
 
   useEffect(() => {
     if (!sessionId) {
@@ -449,10 +195,6 @@ export function useAcpChatSession({
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {
-      // Note: SSE listener/ref cleanup is handled by the terminal-event
-      // handler in each listener closure (which guards on requestId) so
-      // that overlapping requests don't clobber each other's state.
-
       if (namePollingRef.current) {
         clearTimeout(namePollingRef.current);
         namePollingRef.current = null;
@@ -518,140 +260,9 @@ export function useAcpChatSession({
     [intl, onStreamFinish, sessionId]
   );
 
-  // Reload the full conversation from the server, e.g. after the SSE
-  // stream indicates the client fell too far behind the replay buffer.
-  const reloadConversation = useCallback(() => {
-    getSession({
-      path: { session_id: sessionId },
-      throwOnError: true,
-    })
-      .then((response) => {
-        const session = response.data as Session;
-        if (session?.conversation) {
-          acpChatSessionStore.setMessages(sessionId, session.conversation);
-          dispatch({ type: 'SET_MESSAGES', payload: session.conversation });
-        }
-      })
-      .catch((e) => {
-        console.warn('Failed to reload conversation after buffer overflow:', e);
-      });
-  }, [sessionId]);
-
-  // Perform the actual reattach: wire up an event processor and listener
-  // for a request that is already in-flight on the server.
-  const doReattach = useCallback(
-    (requestId: string, messages: Message[]) => {
-      activeRequestIdRef.current = requestId;
-      activeRequestSessionIdRef.current = sessionId;
-      pendingReattachRequestIdRef.current = null;
-
-      acpChatSessionStore.setChatState(sessionId, ChatState.Streaming);
-      acpChatSessionStore.setSessionLoadError(sessionId, undefined);
-      dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
-      dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
-
-      const processEvent = createEventProcessor(
-        messages,
-        dispatch,
-        onFinish,
-        sessionId,
-        reloadConversation
-      );
-
-      // Replay any events that were buffered during cold-mount wait
-      const buffered = pendingReattachBufferRef.current;
-      pendingReattachBufferRef.current = [];
-      let finished = false;
-      for (const event of buffered) {
-        if (processEvent(event)) {
-          finished = true;
-          break;
-        }
-      }
-
-      if (finished) {
-        // The reply already completed while we were waiting for session load.
-        // Clean up — the buffering listener will be replaced below but the
-        // old one captured into activeUnsubscribeRef should be removed.
-        if (activeUnsubscribeRef.current) {
-          activeUnsubscribeRef.current();
-          activeUnsubscribeRef.current = null;
-        }
-        activeRequestIdRef.current = null;
-        activeRequestSessionIdRef.current = null;
-        return;
-      }
-
-      // Replace the buffering listener with a real processing listener
-      if (activeUnsubscribeRef.current) {
-        activeUnsubscribeRef.current();
-      }
-      const unsubscribe = addListener(requestId, (event) => {
-        const isTerminal = processEvent(event);
-        if (isTerminal) {
-          unsubscribe();
-          if (activeRequestIdRef.current === requestId) {
-            activeUnsubscribeRef.current = null;
-            activeRequestIdRef.current = null;
-            activeRequestSessionIdRef.current = null;
-          }
-        }
-      });
-      activeUnsubscribeRef.current = unsubscribe;
-    },
-    [sessionId, addListener, onFinish, reloadConversation]
-  );
-  doReattachRef.current = doReattach;
-
-  // Reattach to in-flight replies discovered via the SSE ActiveRequests event.
-  // This handles the case where the chat view remounts while a reply is still
-  // running on the server — the new hook instance picks up the existing request
-  // and starts processing its events.
-  useEffect(() => {
-    setActiveRequestsHandler((requestIds: string[]) => {
-      // Only reattach if we don't already have an active request
-      if (activeRequestIdRef.current) return;
-      if (requestIds.length === 0) return;
-
-      // Reattach to the first (most recent) active request.
-      // Multiple concurrent requests per session aren't supported in the UI.
-      const requestId = requestIds[0];
-      const currentMessages = stateRef.current.messages;
-
-      if (currentMessages.length === 0) {
-        // Cold mount: resumeAgent hasn't populated messages yet.
-        // Defer event processing until session load completes so the
-        // processor starts with the full conversation history.
-        // Register a buffering listener NOW so replayed events aren't
-        // lost while we wait.
-        pendingReattachRequestIdRef.current = requestId;
-        pendingReattachBufferRef.current = [];
-        activeRequestIdRef.current = requestId;
-        activeRequestSessionIdRef.current = sessionId;
-        acpChatSessionStore.setChatState(sessionId, ChatState.Streaming);
-        acpChatSessionStore.setSessionLoadError(sessionId, undefined);
-        dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Streaming });
-        dispatch({ type: 'SET_SESSION_LOAD_ERROR', payload: undefined });
-
-        const unsubscribe = addListener(requestId, (event) => {
-          pendingReattachBufferRef.current.push(event);
-        });
-        activeUnsubscribeRef.current = unsubscribe;
-        return;
-      }
-
-      doReattach(requestId, currentMessages);
-    });
-
-    return () => {
-      setActiveRequestsHandler(null);
-    };
-  }, [sessionId, addListener, onFinish, reloadConversation, setActiveRequestsHandler, doReattach]);
-
   const submitToAcpSession = useCallback(
     async (targetSessionId: string, userMessage: Message) => {
       const promptAttemptId = uuidv7();
-      activeRequestSessionIdRef.current = targetSessionId;
       acpChatSessionStore.startPromptAttempt(targetSessionId, promptAttemptId);
 
       try {
@@ -690,12 +301,6 @@ export function useAcpChatSession({
           )
         ) {
           onFinish(submitError);
-        }
-      } finally {
-        const currentPromptAttempt =
-          acpChatSessionStore.getSnapshot(targetSessionId)?.activePromptAttemptId;
-        if (activeRequestSessionIdRef.current === targetSessionId && !currentPromptAttempt) {
-          activeRequestSessionIdRef.current = null;
         }
       }
     },
@@ -743,34 +348,9 @@ export function useAcpChatSession({
           new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
         );
 
-        const pendingRequestId = pendingReattachRequestIdRef.current;
-        const reattachedToActiveRequest = activeRequestIdRef.current !== null;
-
-        if (pendingRequestId) {
-          // Cold-mount reattach: ActiveRequests arrived before resumeAgent
-          // returned. Load session state first, then complete the reattach
-          // with the full conversation so the event processor has context.
-          if (loadedSession) {
-            const snapshot = acpChatSessionStore.setLoadedSession(sessionId, loadedSession);
-            dispatch({ type: 'SYNC_FROM_ACP_STORE', payload: snapshot });
-          }
-          // Now complete the deferred reattach with the loaded messages
-          doReattachRef.current?.(pendingRequestId, loadedSession?.conversation || []);
-        } else if (reattachedToActiveRequest) {
-          // ActiveRequests already wired up an event processor with existing
-          // messages — only load session metadata, don't overwrite messages
-          // with the stale DB snapshot.
-          acpChatSessionStore.setSessionMetadata(sessionId, loadedSession);
-          const snapshot = acpChatSessionStore.setTokenState(
-            sessionId,
-            tokenStateFromSession(loadedSession)
-          );
+        if (loadedSession) {
+          const snapshot = acpChatSessionStore.setLoadedSession(sessionId, loadedSession);
           dispatch({ type: 'SYNC_FROM_ACP_STORE', payload: snapshot });
-        } else {
-          if (loadedSession) {
-            const snapshot = acpChatSessionStore.setLoadedSession(sessionId, loadedSession);
-            dispatch({ type: 'SYNC_FROM_ACP_STORE', payload: snapshot });
-          }
         }
 
         listApps({
@@ -892,27 +472,11 @@ export function useAcpChatSession({
         return;
       }
 
-      // An elicitation response unblocks an in-flight tool call on the original
-      // request's SSE stream — don't start a new stream or flip chat state.
-      const responseMessage = createElicitationResponseMessage(elicitationId, userData);
-      const nextMessages = [...currentState.messages, responseMessage];
-      acpChatSessionStore.setMessages(sessionId, nextMessages);
-      dispatch({ type: 'SET_MESSAGES', payload: nextMessages });
-
-      try {
-        await sessionReply({
-          path: { id: sessionId },
-          body: {
-            request_id: uuidv7(),
-            user_message: responseMessage,
-          },
-          throwOnError: true,
-        });
-      } catch (error) {
-        onFinish('Submit error: ' + errorMessage(error));
+      if (!resolveAcpElicitationRequest(sessionId, elicitationId, userData)) {
+        console.error('No pending ACP elicitation request found', { sessionId, elicitationId });
       }
     },
-    [sessionId, onFinish]
+    [sessionId]
   );
 
   const setRecipeUserParams = useCallback(
@@ -961,49 +525,20 @@ export function useAcpChatSession({
   }, [state.session]);
 
   const stopStreaming = useCallback(() => {
-    const restRequestId = activeRequestIdRef.current;
-    const activeSessionIdFromRef = activeRequestSessionIdRef.current;
     const storedPromptAttemptId = acpChatSessionStore.getSnapshot(sessionId)?.activePromptAttemptId;
     const hasStoredAcpPrompt =
       storedPromptAttemptId !== null && storedPromptAttemptId !== undefined;
-    const storedAcpPromptSessionId = hasStoredAcpPrompt ? sessionId : null;
-    const acpPromptSessionId = restRequestId
-      ? storedAcpPromptSessionId
-      : (activeSessionIdFromRef ?? storedAcpPromptSessionId);
-    const sessionIdToMarkIdle = activeSessionIdFromRef ?? storedAcpPromptSessionId ?? sessionId;
 
-    // Abort the in-flight POST so the reply never starts if cancel wins the race
-    if (activeAbortRef.current) {
-      activeAbortRef.current.abort();
-      activeAbortRef.current = null;
-    }
-
-    if (restRequestId && activeSessionIdFromRef) {
-      // Cancel against the session that originally started the request,
-      // not the current sessionId (which may have changed if user navigated).
-      sessionCancel({
-        path: { id: activeSessionIdFromRef },
-        body: { request_id: restRequestId },
-      }).catch((e) => {
-        console.warn('Failed to cancel request:', e);
-      });
-    } else if (acpPromptSessionId) {
-      acpChatSessionStore.clearActivePromptAttempt(acpPromptSessionId);
-      cancelAcpPermissionRequestsForSession(acpPromptSessionId);
-      acpCancelPrompt(acpPromptSessionId).catch((e) => {
+    if (hasStoredAcpPrompt) {
+      acpChatSessionStore.clearActivePromptAttempt(sessionId);
+      cancelAcpPermissionRequestsForSession(sessionId);
+      cancelAcpElicitationRequestsForSession(sessionId);
+      acpCancelPrompt(sessionId).catch((e) => {
         console.warn('Failed to cancel ACP prompt:', e);
       });
     }
 
-    // Clean up listener
-    if (activeUnsubscribeRef.current) {
-      activeUnsubscribeRef.current();
-      activeUnsubscribeRef.current = null;
-    }
-    activeRequestIdRef.current = null;
-    activeRequestSessionIdRef.current = null;
-
-    acpChatSessionStore.setChatState(sessionIdToMarkIdle, ChatState.Idle);
+    acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
     dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
   }, [sessionId]);
 
@@ -1100,16 +635,7 @@ export function useAcpChatSession({
   const maybe_cached_messages = state.session ? state.messages : cached?.messages || [];
   const maybe_cached_session = state.session ?? cached?.session;
 
-  const notificationsMap = useMemo(() => {
-    return state.notifications.reduce((map, notification) => {
-      const key = notification.request_id;
-      if (!map.has(key)) {
-        map.set(key, []);
-      }
-      map.get(key)!.push(notification);
-      return map;
-    }, new Map<string, NotificationEvent[]>());
-  }, [state.notifications]);
+  const notificationsMap = useMemo(() => new Map<string, NotificationEvent[]>(), []);
 
   return {
     sessionLoadError: state.sessionLoadError,

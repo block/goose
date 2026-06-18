@@ -8,6 +8,7 @@ import {
   type AcpSessionNotificationAdapter,
 } from './sessionNotificationAdapter';
 import { cloneMessage } from './adapter/shared';
+import type { AcpElicitationRequest } from './elicitationRequests';
 
 export interface AcpChatSessionSnapshot {
   session: Session | undefined;
@@ -58,6 +59,7 @@ export interface AcpChatSessionStore {
     notification: GooseSessionNotification_unstable
   ): AcpChatSessionSnapshot;
   applyPermissionRequest(request: RequestPermissionRequest): AcpChatSessionSnapshot;
+  applyElicitationRequest(request: AcpElicitationRequest): AcpChatSessionSnapshot;
 }
 
 export function createAcpChatSessionStore(): AcpChatSessionStore {
@@ -241,6 +243,14 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     return notify(request.sessionId, entry);
   };
 
+  const applyElicitationRequest: AcpChatSessionStore['applyElicitationRequest'] = (request) => {
+    const entry = getOrCreateEntry(request.sessionId);
+    const changes = entry.adapter.applyElicitationRequest(request);
+    applyChatStateChanges(entry, changes);
+    entry.chatState = ChatState.WaitingForUserInput;
+    return notify(request.sessionId, entry);
+  };
+
   return {
     getSnapshot,
     subscribe,
@@ -257,6 +267,7 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     applyAcpSessionNotification,
     applyAcpGooseSessionNotification,
     applyPermissionRequest,
+    applyElicitationRequest,
   };
 }
 

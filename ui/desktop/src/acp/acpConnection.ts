@@ -10,6 +10,7 @@ import {
   handleAcpSessionNotification,
 } from './chatNotifications';
 import { createWebSocketStream } from './createWebSocketStream';
+import { requestAcpElicitation } from './elicitationRequests';
 import { requestAcpPermission } from './permissionRequests';
 
 let clientPromise: Promise<GooseClient> | null = null;
@@ -18,6 +19,7 @@ let resolvedClient: GooseClient | null = null;
 function createClientCallbacks(): () => GooseClientCallbacks {
   return () => ({
     requestPermission: requestAcpPermission,
+    unstable_createElicitation: requestAcpElicitation,
     sessionUpdate: handleAcpSessionNotification,
     unstable_sessionUpdate: handleAcpGooseSessionNotification,
   });
@@ -47,6 +49,7 @@ async function initializeConnection(): Promise<GooseClient> {
   await client.initialize({
     protocolVersion: PROTOCOL_VERSION,
     clientCapabilities: {
+      elicitation: { form: {} },
       _meta: {
         goose: {
           mcpHostCapabilities: DEFAULT_GOOSE_MCP_HOST_CAPABILITIES,

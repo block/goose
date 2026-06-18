@@ -1,4 +1,4 @@
-import type { RequestPermissionRequest } from '@agentclientprotocol/sdk';
+import type { CreateElicitationRequest, RequestPermissionRequest } from '@agentclientprotocol/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Message, Session } from '../../api';
 import { ChatState } from '../../types/chatState';
@@ -52,6 +52,33 @@ function permissionRequest(sessionId: string, toolCallId = 'tool-1'): RequestPer
         goose: {
           toolCall: {
             toolName: 'edit_file',
+          },
+        },
+      },
+    },
+  };
+}
+
+function elicitationRequest(sessionId: string): {
+  id: string;
+  sessionId: string;
+  request: CreateElicitationRequest & {
+    mode: 'form';
+    sessionId: string;
+  };
+} {
+  return {
+    id: 'acp_elicitation_1',
+    sessionId,
+    request: {
+      mode: 'form',
+      sessionId,
+      message: 'Choose a project',
+      requestedSchema: {
+        type: 'object',
+        properties: {
+          project: {
+            type: 'string',
           },
         },
       },
@@ -158,6 +185,22 @@ describe('acpChatSessionStore', () => {
       data: {
         actionType: 'toolConfirmation',
         id: 'tool-1',
+      },
+    });
+  });
+
+  it('applies elicitation requests as waiting action-required messages', () => {
+    const snapshot = store.applyElicitationRequest(elicitationRequest('session-1'));
+
+    expect(snapshot.chatState).toBe(ChatState.WaitingForUserInput);
+    expect(snapshot.messages).toHaveLength(1);
+    expect(snapshot.messages[0].role).toBe('assistant');
+    expect(snapshot.messages[0].content[0]).toMatchObject({
+      type: 'actionRequired',
+      data: {
+        actionType: 'elicitation',
+        id: 'acp_elicitation_1',
+        message: 'Choose a project',
       },
     });
   });
