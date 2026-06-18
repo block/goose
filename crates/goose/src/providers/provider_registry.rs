@@ -424,7 +424,7 @@ mod tests {
             &test_config(),
             ProviderType::Declarative,
             false,
-            |_| unreachable!("constructor is not used by this test"),
+            |_, _| unreachable!("constructor is not used by this test"),
             || Ok(InventoryIdentityInput::new("custom_hf", "huggingface")),
             || false,
         );

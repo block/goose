@@ -532,7 +532,7 @@ impl ProviderDef for LocalInferenceProvider {
     fn from_env(
         model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>>
     where
         Self: Sized,

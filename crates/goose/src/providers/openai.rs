@@ -1446,7 +1446,8 @@ mod tests {
         config.base_url = "localhost:1234".to_string();
 
         let provider =
-            OpenAiProvider::from_custom_config(ModelConfig::new_or_fail("m1"), config).unwrap();
+            OpenAiProvider::from_custom_config(ModelConfig::new_or_fail("m1"), config, None)
+                .unwrap();
 
         assert_eq!(provider.api_client.host(), "http://localhost:1234");
         assert_eq!(provider.base_path, "v1/chat/completions");
@@ -1474,11 +1475,12 @@ mod tests {
     #[test]
     fn from_custom_config_rejects_static_only_without_models() {
         let config = base_declarative_config(vec![], Some(false));
-        let err =
-            OpenAiProvider::from_custom_config(ModelConfig::new_or_fail("test-model"), config)
-                .expect_err(
-                    "expected construction error for dynamic_models: false with empty models",
-                );
+        let err = OpenAiProvider::from_custom_config(
+            ModelConfig::new_or_fail("test-model"),
+            config,
+            None,
+        )
+        .expect_err("expected construction error for dynamic_models: false with empty models");
         let msg = err.to_string();
         assert!(
             msg.contains("dynamic_models: false"),

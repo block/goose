@@ -17,7 +17,7 @@ mod tetrate_streaming_tests {
         // Create a test provider with the default model
         let model_config =
             ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
-        TetrateProvider::from_env(model_config).await
+        TetrateProvider::from_env(model_config, None).await
     }
 
     #[tokio::test]
@@ -248,7 +248,7 @@ mod tetrate_streaming_tests {
 
         let model_config =
             ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
-        let provider = TetrateProvider::from_env(model_config).await?;
+        let provider = TetrateProvider::from_env(model_config, None).await?;
 
         let messages = vec![Message::user().with_text("Hello")];
         let model_config = provider.get_model_config();

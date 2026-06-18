@@ -445,9 +445,12 @@ mod tests {
             ModelInfo::new("static-b".to_string(), 128000),
         ];
 
-        let provider =
-            HuggingFaceProvider::from_custom_config(ModelConfig::new("static-a").unwrap(), config)
-                .unwrap();
+        let provider = HuggingFaceProvider::from_custom_config(
+            ModelConfig::new("static-a").unwrap(),
+            config,
+            None,
+        )
+        .unwrap();
 
         assert_eq!(
             provider.fetch_supported_models().await.unwrap(),
@@ -464,6 +467,7 @@ mod tests {
         let error = match HuggingFaceProvider::from_custom_config(
             ModelConfig::new("model").unwrap(),
             config,
+            None,
         ) {
             Ok(_) => panic!("expected dynamic_models: false without static models to fail"),
             Err(error) => error,

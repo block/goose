@@ -61,6 +61,7 @@ impl ProviderDef for MockProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<goose::config::ExtensionConfig>,
+        _tls_config: Option<goose::providers::api_client::TlsConfig>,
     ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
         Box::pin(async move { Ok(Self::new(model)) })
     }

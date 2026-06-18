@@ -42,7 +42,7 @@ pub struct SageMakerTgiProvider {
 impl SageMakerTgiProvider {
     pub async fn from_env(
         model: ModelConfig,
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
 
