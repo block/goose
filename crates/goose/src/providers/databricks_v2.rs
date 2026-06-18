@@ -97,16 +97,6 @@ impl DatabricksV2Provider {
         Self::new(host, auth, model, retry_config, tls_config)
     }
 
-    pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
-        Self::new(
-            host,
-            DatabricksAuth::token(api_key),
-            model,
-            RetryConfig::default(),
-            None,
-        )
-    }
-
     fn new(
         host: String,
         auth: DatabricksAuth,

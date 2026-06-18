@@ -246,10 +246,6 @@ impl ApiClient {
         )
     }
 
-    pub fn with_timeout(host: String, auth: AuthMethod, timeout: Duration) -> Result<Self> {
-        Self::with_timeout_and_tls(host, auth, timeout, None)
-    }
-
     pub fn with_timeout_and_tls(
         host: String,
         auth: AuthMethod,

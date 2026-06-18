@@ -203,34 +203,6 @@ impl DatabricksProvider {
         RetryConfig::new(0, 0, 1.0, 0)
     }
 
-    pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
-        let token_cache = Arc::new(Mutex::new(Some(api_key.clone())));
-        let auth = DatabricksAuth::token(api_key);
-        let auth_method = AuthMethod::Custom(Box::new(DatabricksAuthProvider {
-            auth: auth.clone(),
-            token_cache: token_cache.clone(),
-        }));
-
-        let api_client = ApiClient::with_timeout(
-            host.clone(),
-            auth_method,
-            Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
-        )?;
-
-        Ok(Self {
-            api_client,
-            host,
-            auth,
-            model,
-            image_format: ImageFormat::OpenAi,
-            retry_config: RetryConfig::default(),
-            fast_retry_config: RetryConfig::new(0, 0, 1.0, 0),
-            name: DATABRICKS_PROVIDER_NAME.to_string(),
-            token_cache,
-            instance_id: Self::resolve_instance_id(),
-        })
-    }
-
     fn resolve_instance_id() -> Option<String> {
         let enabled = crate::config::Config::global()
             .get_param::<bool>("GOOSE_DATABRICKS_CLIENT_REQUEST_ID")
