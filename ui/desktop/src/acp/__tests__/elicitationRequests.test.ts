@@ -14,6 +14,7 @@ vi.mock('../../acpChatFeatureFlag', () => ({
 vi.mock('../chatSessionStore', () => ({
   acpChatSessionStore: {
     applyElicitationRequest: vi.fn(),
+    setElicitationStatus: vi.fn(),
   },
 }));
 
@@ -82,6 +83,11 @@ describe('ACP elicitation requests', () => {
         project: 'goose',
       })
     ).toBe(true);
+    expect(acpChatSessionStore.setElicitationStatus).toHaveBeenCalledWith(
+      'session-1',
+      appliedRequest.id,
+      'submitted'
+    );
 
     await expect(response).resolves.toEqual({
       action: 'accept',
@@ -113,6 +119,11 @@ describe('ACP elicitation requests', () => {
 
     cancelAcpElicitationRequestsForSession('session-1');
 
+    expect(acpChatSessionStore.setElicitationStatus).toHaveBeenCalledWith(
+      'session-1',
+      sessionOneRequest.id,
+      'cancelled'
+    );
     await expect(sessionOneResponse).resolves.toEqual({ action: 'cancel' });
     await expectStillPending(sessionTwoResponse);
 

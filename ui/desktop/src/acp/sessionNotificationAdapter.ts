@@ -1,7 +1,11 @@
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import type { Message } from '../api';
-import { applyElicitationRequest as applyElicitationRequestToState } from './adapter/elicitations';
+import {
+  applyElicitationRequest as applyElicitationRequestToState,
+  applyElicitationStatus as applyElicitationStatusToState,
+  type ElicitationStatus,
+} from './adapter/elicitations';
 import { applyGooseSessionNotification } from './adapter/gooseSessionNotifications';
 import { applyContentChunk, applyThoughtChunk } from './adapter/messages';
 import { applyPermissionRequest as applyPermissionRequestToState } from './adapter/permissions';
@@ -16,6 +20,7 @@ export interface AcpSessionNotificationAdapter {
   applyGoose(notification: GooseSessionNotification_unstable): AcpChatStateChange[];
   applyPermissionRequest(request: RequestPermissionRequest): AcpChatStateChange[];
   applyElicitationRequest(request: AcpElicitationRequest): AcpChatStateChange[];
+  applyElicitationStatus(elicitationId: string, status: ElicitationStatus): AcpChatStateChange[];
   getMessages(): Message[];
 }
 
@@ -38,6 +43,9 @@ export function createAcpSessionNotificationAdapter(
     },
     applyElicitationRequest(request) {
       return applyElicitationRequestToState(state, request);
+    },
+    applyElicitationStatus(elicitationId, status) {
+      return applyElicitationStatusToState(state, elicitationId, status);
     },
     getMessages() {
       return state.messages.map(cloneMessage);

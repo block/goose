@@ -7,6 +7,8 @@ import {
   messagesChange,
 } from './shared';
 
+export type ElicitationStatus = 'submitted' | 'cancelled';
+
 export function applyElicitationRequest(
   state: AdapterState,
   request: AcpElicitationRequest
@@ -34,6 +36,45 @@ export function applyElicitationRequest(
   });
 
   return messagesChange(state);
+}
+
+export function applyElicitationStatus(
+  state: AdapterState,
+  elicitationId: string,
+  status: ElicitationStatus
+): AcpChatStateChange[] {
+  const statusData = {
+    isSubmitted: status === 'submitted',
+    isCancelled: status === 'cancelled',
+  };
+  let changed = false;
+
+  state.messages = state.messages.map((message) => {
+    let messageChanged = false;
+    const content = message.content.map((content) => {
+      if (
+        content.type !== 'actionRequired' ||
+        content.data.actionType !== 'elicitation' ||
+        content.data.id !== elicitationId
+      ) {
+        return content;
+      }
+
+      messageChanged = true;
+      changed = true;
+      return {
+        ...content,
+        data: {
+          ...content.data,
+          ...statusData,
+        },
+      };
+    });
+
+    return messageChanged ? { ...message, content } : message;
+  });
+
+  return changed ? messagesChange(state) : [];
 }
 
 function hasExistingElicitation(state: AdapterState, elicitationId: string): boolean {

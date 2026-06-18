@@ -7,6 +7,7 @@ import {
   type AcpChatStateChange,
   type AcpSessionNotificationAdapter,
 } from './sessionNotificationAdapter';
+import type { ElicitationStatus } from './adapter/elicitations';
 import { cloneMessage } from './adapter/shared';
 import type { AcpElicitationRequest } from './elicitationRequests';
 
@@ -60,6 +61,11 @@ export interface AcpChatSessionStore {
   ): AcpChatSessionSnapshot;
   applyPermissionRequest(request: RequestPermissionRequest): AcpChatSessionSnapshot;
   applyElicitationRequest(request: AcpElicitationRequest): AcpChatSessionSnapshot;
+  setElicitationStatus(
+    sessionId: string,
+    elicitationId: string,
+    status: ElicitationStatus
+  ): AcpChatSessionSnapshot | undefined;
 }
 
 export function createAcpChatSessionStore(): AcpChatSessionStore {
@@ -251,6 +257,25 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     return notify(request.sessionId, entry);
   };
 
+  const setElicitationStatus: AcpChatSessionStore['setElicitationStatus'] = (
+    sessionId,
+    elicitationId,
+    status
+  ) => {
+    const entry = sessionsById.get(sessionId);
+    if (!entry) {
+      return undefined;
+    }
+
+    const changes = entry.adapter.applyElicitationStatus(elicitationId, status);
+    if (changes.length === 0) {
+      return snapshotFromEntry(entry);
+    }
+
+    applyChatStateChanges(entry, changes);
+    return notify(sessionId, entry);
+  };
+
   return {
     getSnapshot,
     subscribe,
@@ -268,6 +293,7 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     applyAcpGooseSessionNotification,
     applyPermissionRequest,
     applyElicitationRequest,
+    setElicitationStatus,
   };
 }
 

@@ -59,6 +59,7 @@ export function resolveAcpElicitationRequest(
   }
 
   pendingRequests.delete(key);
+  acpChatSessionStore.setElicitationStatus(sessionId, elicitationId, 'submitted');
   pending.resolve(acceptedElicitationResponse(userData));
   return true;
 }
@@ -67,6 +68,7 @@ export function cancelAcpElicitationRequestsForSession(sessionId: string): void 
   for (const [key, pending] of pendingRequests) {
     if (pending.request.sessionId === sessionId) {
       pendingRequests.delete(key);
+      acpChatSessionStore.setElicitationStatus(sessionId, pending.request.id, 'cancelled');
       pending.resolve(cancelledElicitationResponse());
     }
   }

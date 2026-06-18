@@ -204,4 +204,36 @@ describe('acpChatSessionStore', () => {
       },
     });
   });
+
+  it('stores submitted elicitation status', () => {
+    store.applyElicitationRequest(elicitationRequest('session-1'));
+
+    const snapshot = store.setElicitationStatus('session-1', 'acp_elicitation_1', 'submitted');
+
+    expect(snapshot?.messages[0].content[0]).toMatchObject({
+      type: 'actionRequired',
+      data: {
+        actionType: 'elicitation',
+        id: 'acp_elicitation_1',
+        isSubmitted: true,
+        isCancelled: false,
+      },
+    });
+  });
+
+  it('stores cancelled elicitation status', () => {
+    store.applyElicitationRequest(elicitationRequest('session-1'));
+
+    const snapshot = store.setElicitationStatus('session-1', 'acp_elicitation_1', 'cancelled');
+
+    expect(snapshot?.messages[0].content[0]).toMatchObject({
+      type: 'actionRequired',
+      data: {
+        actionType: 'elicitation',
+        id: 'acp_elicitation_1',
+        isSubmitted: false,
+        isCancelled: true,
+      },
+    });
+  });
 });
