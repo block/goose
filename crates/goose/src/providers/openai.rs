@@ -1032,7 +1032,12 @@ mod tests {
 
     fn make_provider(name: &str) -> OpenAiProvider {
         OpenAiProvider {
-            api_client: ApiClient::new("http://localhost".to_string(), AuthMethod::NoAuth).unwrap(),
+            api_client: ApiClient::new_with_tls(
+                "http://localhost".to_string(),
+                AuthMethod::NoAuth,
+                None,
+            )
+            .unwrap(),
             base_path: "v1/chat/completions".to_string(),
             organization: None,
             project: None,
@@ -1364,7 +1369,8 @@ mod tests {
         dynamic_models: Option<bool>,
     ) -> OpenAiProvider {
         OpenAiProvider {
-            api_client: ApiClient::new(server_uri.to_string(), AuthMethod::NoAuth).unwrap(),
+            api_client: ApiClient::new_with_tls(server_uri.to_string(), AuthMethod::NoAuth, None)
+                .unwrap(),
             base_path: "v1/chat/completions".to_string(),
             organization: None,
             project: None,

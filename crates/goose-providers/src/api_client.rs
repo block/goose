@@ -229,10 +229,6 @@ pub struct ApiRequestBuilder<'a> {
 }
 
 impl ApiClient {
-    pub fn new(host: String, auth: AuthMethod) -> Result<Self> {
-        Self::new_with_tls(host, auth, None)
-    }
-
     pub fn new_with_tls(
         host: String,
         auth: AuthMethod,
@@ -624,9 +620,10 @@ mod tests {
     ) {
         let runtime = tokio::runtime::Runtime::new().unwrap();
         runtime.block_on(async {
-            let client = ApiClient::new(
+            let client = ApiClient::new_with_tls(
                 "http://localhost:8080".to_string(),
                 AuthMethod::BearerToken("test-token".to_string()),
+                None,
             )
             .unwrap();
 

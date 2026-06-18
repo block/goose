@@ -383,7 +383,7 @@ mod tests {
             header_name: "x-api-key".to_string(),
             key: "test-key".to_string(),
         };
-        let api_client = ApiClient::new(server_uri.to_string(), auth)
+        let api_client = ApiClient::new_with_tls(server_uri.to_string(), auth, None)
             .unwrap()
             .with_header("anthropic-version", ANTHROPIC_API_VERSION)
             .unwrap();

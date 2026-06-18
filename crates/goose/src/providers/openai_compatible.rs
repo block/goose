@@ -306,9 +306,10 @@ mod tests {
     fn build_request_respects_non_streaming_mode() {
         let provider = OpenAiCompatibleProvider::new(
             "test".to_string(),
-            ApiClient::new(
+            ApiClient::new_with_tls(
                 "http://localhost".to_string(),
                 super::super::api_client::AuthMethod::NoAuth,
+                None,
             )
             .unwrap(),
             ModelConfig::new_or_fail("test-model"),
