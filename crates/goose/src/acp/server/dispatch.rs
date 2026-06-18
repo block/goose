@@ -175,7 +175,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                     let provider_result: Result<Arc<dyn Provider>> =
                                         AssertUnwindSafe(async {
                                             let session_agent =
-                                                agent_bg.get_session_agent(&session_id_bg.0, None).await?;
+                                                agent_bg.get_session_agent(&session_id_bg.0).await?;
                                             let provider = session_agent
                                                 .provider()
                                                 .await

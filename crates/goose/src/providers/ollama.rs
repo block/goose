@@ -3,7 +3,6 @@ use super::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::inventory::InventoryIdentityInput;
 use super::openai_compatible::handle_status;
 use super::retry::{ProviderRetry, RetryConfig};
 use super::utils::RequestLog;
@@ -29,7 +28,7 @@ use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 use url::Url;
 
-const OLLAMA_PROVIDER_NAME: &str = "ollama";
+pub(crate) const OLLAMA_PROVIDER_NAME: &str = "ollama";
 pub const OLLAMA_HOST: &str = "localhost";
 pub const OLLAMA_TIMEOUT: u64 = DEFAULT_PROVIDER_TIMEOUT_SECS;
 pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
@@ -127,7 +126,7 @@ fn apply_ollama_options(payload: &mut Value, model_config: &ModelConfig) {
     }
 }
 
-fn ollama_host_configured(config: &crate::config::Config) -> bool {
+pub(crate) fn ollama_host_configured(config: &crate::config::Config) -> bool {
     config.get_param::<String>("OLLAMA_HOST").is_ok()
 }
 
@@ -265,26 +264,6 @@ impl ProviderDef for OllamaProvider {
         _extensions: Vec<crate::config::ExtensionConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
-    }
-
-    fn supports_inventory_refresh() -> bool {
-        true
-    }
-
-    fn inventory_configured() -> bool {
-        ollama_host_configured(crate::config::Config::global())
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        let config = crate::config::Config::global();
-        Ok(
-            InventoryIdentityInput::new(OLLAMA_PROVIDER_NAME, OLLAMA_PROVIDER_NAME).with_public(
-                "host",
-                config
-                    .get_param::<String>("OLLAMA_HOST")
-                    .unwrap_or_else(|_| OLLAMA_HOST.to_string()),
-            ),
-        )
     }
 }
 

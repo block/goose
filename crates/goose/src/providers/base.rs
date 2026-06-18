@@ -2,7 +2,9 @@ use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::Stream;
-use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+pub use goose_providers::conversation::token_usage::{
+    DraftStats, ProviderStats, ProviderUsage, Usage,
+};
 use goose_providers::errors::ProviderError;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -13,10 +15,9 @@ use serde::{Deserialize, Serialize};
 pub const DEFAULT_PROVIDER_TIMEOUT_SECS: u64 = 600;
 
 use super::canonical::{map_to_canonical_model, CanonicalModelRegistry};
-use super::inventory::{default_inventory_identity, InventoryIdentityInput};
 use super::retry::RetryConfig;
 use crate::config::base::ConfigValue;
-use crate::config::{Config, ExtensionConfig, GooseMode};
+use crate::config::{ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
 use crate::model::ModelConfig;
@@ -418,34 +419,6 @@ pub trait ProviderDef: Send + Sync {
         // ACP subprocess providers must override this so session cwd is preserved.
         // Non-subprocess providers can rely on the default because cwd is irrelevant.
         Self::from_env(model, extensions)
-    }
-
-    fn supports_inventory_refresh() -> bool
-    where
-        Self: Sized,
-    {
-        false
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput>
-    where
-        Self: Sized,
-    {
-        let metadata = Self::metadata();
-        Ok(default_inventory_identity(
-            &metadata.name,
-            &metadata.name,
-            &metadata.config_keys,
-            Config::global(),
-        ))
-    }
-
-    fn inventory_configured() -> bool
-    where
-        Self: Sized,
-    {
-        let metadata = Self::metadata();
-        super::inventory::default_inventory_configured(&metadata.config_keys, Config::global())
     }
 }
 

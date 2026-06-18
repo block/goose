@@ -992,6 +992,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "Gönder"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "Bilgiler gönderildi"
   },
@@ -1853,8 +1856,14 @@
   "localInferenceSettings.description": {
     "defaultMessage": "API anahtarları olmadan çıkarım yapmak için yerel LLM modellerini indirin ve yönetin. Herhangi bir GGUF modeli için HuggingFace'yi arayın veya aşağıdaki öne çıkan seçimleri kullanın."
   },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "Kapat"
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "İndir"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "İndirme iptal edildi"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "İndirme başarısız oldu"
@@ -1888,6 +1897,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "{time} kaldı"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "Yeniden dene"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "Tüm öne çıkanları göster ({count} daha fazlası)"
@@ -4090,6 +4102,9 @@
   },
   "settings.language.russian": {
     "defaultMessage": "Rusça"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "İspanyolca"
   },
   "settings.language.systemDefault": {
     "defaultMessage": "Sistem varsayılanı"

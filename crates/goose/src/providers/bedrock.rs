@@ -23,12 +23,12 @@ use serde_json::Value;
 use smithy_transport_reqwest::ReqwestHttpClient;
 
 use super::formats::bedrock::{
-    from_bedrock_message, from_bedrock_usage, to_bedrock_message_with_caching,
-    to_bedrock_tool_config,
+    bedrock_anthropic_thinking_fields, from_bedrock_message, from_bedrock_usage,
+    to_bedrock_message_with_caching, to_bedrock_tool_config,
 };
 use crate::session_context::SESSION_ID_HEADER;
 
-const BEDROCK_PROVIDER_NAME: &str = "aws_bedrock";
+pub(crate) const BEDROCK_PROVIDER_NAME: &str = "aws_bedrock";
 pub const BEDROCK_DOC_LINK: &str =
     "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html";
 
@@ -62,6 +62,7 @@ struct ConverseRequestParts {
     system_blocks: Vec<bedrock::SystemContentBlock>,
     messages: Vec<bedrock::Message>,
     tool_config: Option<bedrock::ToolConfiguration>,
+    thinking_fields: Option<aws_smithy_types::Document>,
 }
 
 impl BedrockProvider {
@@ -263,6 +264,7 @@ impl BedrockProvider {
             system_blocks,
             messages: bedrock_messages,
             tool_config,
+            thinking_fields: bedrock_anthropic_thinking_fields(&self.model),
         })
     }
 
@@ -283,6 +285,10 @@ impl BedrockProvider {
             .set_system(Some(parts.system_blocks))
             .model_id(model_name.to_string())
             .set_messages(Some(parts.messages));
+
+        if let Some(fields) = parts.thinking_fields {
+            request = request.additional_model_request_fields(fields);
+        }
 
         if let Some(tool_config) = parts.tool_config {
             request = request.tool_config(tool_config);
@@ -375,6 +381,10 @@ impl BedrockProvider {
             .set_system(Some(parts.system_blocks))
             .model_id(model_name.to_string())
             .set_messages(Some(parts.messages));
+
+        if let Some(fields) = parts.thinking_fields {
+            request = request.additional_model_request_fields(fields);
+        }
 
         if let Some(tool_config) = parts.tool_config {
             request = request.tool_config(tool_config);

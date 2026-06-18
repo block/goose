@@ -116,6 +116,8 @@ pub struct SessionBuilderConfig {
     pub output_format: String,
     /// Docker container to run stdio extensions inside
     pub container: Option<Container>,
+    /// Print generation statistics after headless runs.
+    pub stats: bool,
 }
 
 /// Manual implementation of Default to ensure proper initialization of output_format
@@ -143,6 +145,7 @@ impl Default for SessionBuilderConfig {
             quiet: false,
             output_format: "text".to_string(),
             container: None,
+            stats: false,
         }
     }
 }
@@ -408,6 +411,7 @@ async fn collect_extension_configs(
     recipe: Option<&Recipe>,
     session_id: &str,
 ) -> Result<Vec<ExtensionConfig>, ExtensionError> {
+    let recipe_extensions = recipe.and_then(|r| r.extensions.as_deref());
     let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
         EnabledExtensionsState::for_session(
             &agent.config.session_manager,
@@ -418,7 +422,7 @@ async fn collect_extension_configs(
     } else if session_config.no_profile {
         Vec::new()
     } else {
-        resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
+        resolve_extensions_for_new_session(recipe_extensions, None)
     };
 
     let cli_flag_extensions = parse_cli_flag_extensions(
@@ -428,6 +432,12 @@ async fn collect_extension_configs(
     );
 
     let mut all: Vec<ExtensionConfig> = configured_extensions;
+    if !session_config.no_profile && !session_config.resume && recipe_extensions.is_none() {
+        let project_root = std::env::current_dir().ok();
+        all.extend(goose::plugins::mcp_servers::enabled_plugin_mcp_servers(
+            project_root.as_deref(),
+        ));
+    }
     all.extend(cli_flag_extensions.into_iter().map(|(_, cfg)| cfg));
 
     Ok(all)
@@ -657,6 +667,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         edit_mode,
         recipe.and_then(|r| r.retry.clone()),
         session_config.output_format.clone(),
+        session_config.stats,
     )
     .await;
 
@@ -710,6 +721,7 @@ mod tests {
             quiet: false,
             output_format: "text".to_string(),
             container: None,
+            stats: false,
         };
 
         assert_eq!(config.extensions.len(), 1);

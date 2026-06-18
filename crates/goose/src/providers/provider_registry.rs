@@ -1,5 +1,5 @@
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
-use super::inventory::InventoryIdentityInput;
+use super::inventory::{InventoryIdentityInput, InventoryRegistration, InventoryResolvers};
 use crate::config::{DeclarativeProviderConfig, ExtensionConfig};
 use crate::model::ModelConfig;
 use anyhow::Result;
@@ -20,17 +20,12 @@ pub type ProviderConstructor = Arc<
 
 pub type ProviderCleanup = Arc<dyn Fn() -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
-pub type ProviderInventoryIdentityResolver =
-    Arc<dyn Fn() -> Result<InventoryIdentityInput> + Send + Sync>;
-
-pub type ProviderInventoryConfiguredResolver = Arc<dyn Fn() -> bool + Send + Sync>;
-
 #[derive(Clone)]
 pub struct ProviderEntry {
     metadata: ProviderMetadata,
     pub(crate) constructor: ProviderConstructor,
-    pub(crate) inventory_identity: ProviderInventoryIdentityResolver,
-    pub(crate) inventory_configured: ProviderInventoryConfiguredResolver,
+    pub(crate) inventory_identity: super::inventory::InventoryIdentityResolver,
+    pub(crate) inventory_configured: super::inventory::InventoryConfiguredResolver,
     pub(crate) cleanup: Option<ProviderCleanup>,
     provider_type: ProviderType,
     supports_inventory_refresh: bool,
@@ -119,8 +114,20 @@ impl ProviderRegistry {
     where
         F: ProviderDef + 'static,
     {
+        self.register_with_inventory::<F>(preferred, None);
+    }
+
+    pub fn register_with_inventory<F>(
+        &mut self,
+        preferred: bool,
+        inventory_registration: Option<InventoryRegistration>,
+    ) where
+        F: ProviderDef + 'static,
+    {
         let metadata = F::metadata();
         let name = metadata.name.clone();
+
+        let inventory = InventoryResolvers::for_metadata(&metadata, inventory_registration);
 
         self.entries.insert(
             name,
@@ -137,15 +144,15 @@ impl ProviderRegistry {
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
-                inventory_identity: Arc::new(F::inventory_identity),
-                inventory_configured: Arc::new(F::inventory_configured),
+                inventory_identity: inventory.identity,
+                inventory_configured: inventory.configured,
                 cleanup: None,
                 provider_type: if preferred {
                     ProviderType::Preferred
                 } else {
                     ProviderType::Builtin
                 },
-                supports_inventory_refresh: F::supports_inventory_refresh(),
+                supports_inventory_refresh: inventory.supports_refresh,
             },
         );
     }
@@ -203,7 +210,7 @@ impl ProviderRegistry {
         supports_inventory_refresh: bool,
         constructor: F,
         inventory_identity: G,
-        inventory_configured: Option<ProviderInventoryConfiguredResolver>,
+        inventory_configured: Option<super::inventory::InventoryConfiguredResolver>,
     ) where
         P: ProviderDef + 'static,
         F: Fn(ModelConfig) -> Result<P::Provider> + Send + Sync + 'static,

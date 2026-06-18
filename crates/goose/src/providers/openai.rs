@@ -6,7 +6,6 @@ use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::formats::openai_responses::{
     create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
 };
-use super::inventory::{config_secret_value, InventoryIdentityInput};
 use super::openai_compatible::{
     handle_response_openai_compat, handle_status, stream_openai_compat, stream_responses_compat,
 };
@@ -31,8 +30,8 @@ use crate::providers::base::MessageStream;
 use crate::providers::utils::RequestLog;
 use rmcp::model::Tool;
 
-const OPEN_AI_PROVIDER_NAME: &str = "openai";
-const OPEN_AI_DEFAULT_BASE_PATH: &str = "v1/chat/completions";
+pub(crate) const OPEN_AI_PROVIDER_NAME: &str = "openai";
+pub(crate) const OPEN_AI_DEFAULT_BASE_PATH: &str = "v1/chat/completions";
 const OPEN_AI_VERSIONLESS_BASE_PATH: &str = "chat/completions";
 const OPEN_AI_DEFAULT_RESPONSES_PATH: &str = "v1/responses";
 const OPEN_AI_DEFAULT_MODELS_PATH: &str = "v1/models";
@@ -85,7 +84,37 @@ struct ParsedBaseUrl {
     from_base_url: bool,
 }
 
+/// Ensure a base URL has an explicit scheme.
+///
+/// Users frequently enter hosts like `localhost:1234` without a scheme. The
+/// `url` crate parses such input as `scheme="localhost"`, `path="1234"`,
+/// silently dropping both the host and the port. When no `://` is present we
+/// prepend a sensible scheme (`http://` for local hosts, `https://`
+/// otherwise) so the host and port survive parsing.
+pub(crate) fn ensure_url_scheme(raw_url: &str) -> String {
+    let trimmed = raw_url.trim();
+    if trimmed.contains("://") {
+        return trimmed.to_string();
+    }
+
+    let host_part = trimmed.split(['/', '?']).next().unwrap_or(trimmed);
+    let bare_host = if let Some(rest) = host_part.strip_prefix('[') {
+        rest.split(']').next().unwrap_or(rest)
+    } else {
+        host_part.split(':').next().unwrap_or(host_part)
+    };
+    let is_local = bare_host == "localhost"
+        || bare_host == "127.0.0.1"
+        || bare_host == "0.0.0.0"
+        || bare_host == "::1";
+
+    let scheme = if is_local { "http" } else { "https" };
+    format!("{}://{}", scheme, trimmed)
+}
+
 pub(crate) fn parse_openai_base_url(raw_url: &str) -> Result<OpenAiBaseUrlParts> {
+    let raw_url = ensure_url_scheme(raw_url);
+    let raw_url = raw_url.as_str();
     let parsed = url::Url::parse(raw_url)
         .map_err(|e| anyhow::anyhow!("Invalid OPENAI_BASE_URL '{}': {}", raw_url, e))?;
 
@@ -397,7 +426,8 @@ impl OpenAiProvider {
         let global_config = crate::config::Config::global();
         let api_key = Self::resolve_api_key(&config, &|key| global_config.get_secret(key))?;
 
-        let url = url::Url::parse(&config.base_url)
+        let normalized_base_url = ensure_url_scheme(&config.base_url);
+        let url = url::Url::parse(&normalized_base_url)
             .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
 
         let host = if let Some(port) = url.port() {
@@ -740,58 +770,6 @@ impl ProviderDef for OpenAiProvider {
         _extensions: Vec<crate::config::ExtensionConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
-    }
-
-    fn supports_inventory_refresh() -> bool {
-        true
-    }
-
-    fn inventory_configured() -> bool {
-        let config = crate::config::Config::global();
-        // If the host is explicitly set to something non-default, trust the user's
-        // custom setup (e.g. a local server that doesn't require an API key).
-        if let Ok(host) = config.get_param::<String>("OPENAI_HOST") {
-            if host != "https://api.openai.com" {
-                return true;
-            }
-        }
-        // Standard OpenAI endpoint requires an API key.
-        config
-            .get_secret::<serde_json::Value>("OPENAI_API_KEY")
-            .is_ok()
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        let config = crate::config::Config::global();
-        let mut identity =
-            InventoryIdentityInput::new(OPEN_AI_PROVIDER_NAME, OPEN_AI_PROVIDER_NAME)
-                .with_public(
-                    "host",
-                    config
-                        .get_param::<String>("OPENAI_HOST")
-                        .unwrap_or_else(|_| "https://api.openai.com".to_string()),
-                )
-                .with_public(
-                    "base_path",
-                    config
-                        .get_param::<String>("OPENAI_BASE_PATH")
-                        .unwrap_or_else(|_| OPEN_AI_DEFAULT_BASE_PATH.to_string()),
-                );
-
-        if let Ok(organization) = config.get_param::<String>("OPENAI_ORGANIZATION") {
-            identity = identity.with_public("organization", organization);
-        }
-        if let Ok(project) = config.get_param::<String>("OPENAI_PROJECT") {
-            identity = identity.with_public("project", project);
-        }
-        if let Some(api_key) = config_secret_value(config, "OPENAI_API_KEY") {
-            identity = identity.with_secret("api_key", api_key);
-        }
-        if let Some(custom_headers) = config_secret_value(config, "OPENAI_CUSTOM_HEADERS") {
-            identity = identity.with_secret("custom_headers", custom_headers);
-        }
-
-        Ok(identity)
     }
 }
 
@@ -1419,6 +1397,51 @@ mod tests {
             fast_model: None,
             preserves_thinking: false,
         }
+    }
+
+    #[test]
+    fn ensure_url_scheme_adds_http_for_local_hosts() {
+        assert_eq!(ensure_url_scheme("localhost:1234"), "http://localhost:1234");
+        assert_eq!(
+            ensure_url_scheme("127.0.0.1:8080/v1"),
+            "http://127.0.0.1:8080/v1"
+        );
+        assert_eq!(ensure_url_scheme("0.0.0.0:3000"), "http://0.0.0.0:3000");
+        assert_eq!(ensure_url_scheme("[::1]:1234"), "http://[::1]:1234");
+    }
+
+    #[test]
+    fn ensure_url_scheme_adds_https_for_remote_hosts() {
+        assert_eq!(
+            ensure_url_scheme("api.example.com:8443/v1"),
+            "https://api.example.com:8443/v1"
+        );
+        assert_eq!(ensure_url_scheme("example.com"), "https://example.com");
+    }
+
+    #[test]
+    fn ensure_url_scheme_preserves_existing_scheme() {
+        assert_eq!(
+            ensure_url_scheme("http://localhost:1234"),
+            "http://localhost:1234"
+        );
+        assert_eq!(
+            ensure_url_scheme("https://api.openai.com/v1"),
+            "https://api.openai.com/v1"
+        );
+    }
+
+    #[test]
+    fn from_custom_config_preserves_port_without_scheme() {
+        let mut config =
+            base_declarative_config(vec![ModelInfo::new("m1".to_string(), 128000)], None);
+        config.base_url = "localhost:1234".to_string();
+
+        let provider =
+            OpenAiProvider::from_custom_config(ModelConfig::new_or_fail("m1"), config).unwrap();
+
+        assert_eq!(provider.api_client.host(), "http://localhost:1234");
+        assert_eq!(provider.base_path, "v1/chat/completions");
     }
 
     #[tokio::test]

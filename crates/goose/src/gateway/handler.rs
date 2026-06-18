@@ -174,7 +174,10 @@ impl GatewayHandler {
         }
 
         // Store default extensions so load_extensions_from_session works.
-        let extensions = get_enabled_extensions();
+        let mut extensions = get_enabled_extensions();
+        extensions.extend(crate::plugins::mcp_servers::enabled_plugin_mcp_servers(
+            Some(&session.working_dir),
+        ));
         let extensions_state = EnabledExtensionsState::new(extensions);
         let mut extension_data = session.extension_data.clone();
         if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
@@ -220,7 +223,10 @@ impl GatewayHandler {
         // --- current global config ---
         let current_provider = config.get_goose_provider().ok();
         let current_model_name = config.get_goose_model().ok();
-        let current_extensions = get_enabled_extensions();
+        let mut current_extensions = get_enabled_extensions();
+        current_extensions.extend(crate::plugins::mcp_servers::enabled_plugin_mcp_servers(
+            Some(&session.working_dir),
+        ));
         let current_mode = config.get_goose_mode().unwrap_or_default();
 
         // --- what the session has ---
@@ -466,6 +472,7 @@ impl GatewayHandler {
                         }
                     }
                 }
+                Ok(AgentEvent::Usage(_)) => {}
                 Ok(AgentEvent::McpNotification(_)) => {
                     tracing::debug!(
                         session_id,

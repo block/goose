@@ -9,13 +9,11 @@ use crate::acp::{
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
 use crate::model::ModelConfig;
-use crate::providers::acp_tooling::{acp_adapter_installed, acp_inventory_identity};
 use crate::providers::base::{current_working_dir, ProviderDef, ProviderMetadata};
-use crate::providers::inventory::InventoryIdentityInput;
 
-const CLAUDE_ACP_PROVIDER_NAME: &str = "claude-acp";
+pub(crate) const CLAUDE_ACP_PROVIDER_NAME: &str = "claude-acp";
 const CLAUDE_ACP_DOC_URL: &str = "https://github.com/agentclientprotocol/claude-agent-acp";
-const CLAUDE_ACP_BINARY: &str = "claude-agent-acp";
+pub(crate) const CLAUDE_ACP_BINARY: &str = "claude-agent-acp";
 
 pub struct ClaudeAcpProvider;
 
@@ -87,17 +85,5 @@ impl ProviderDef for ClaudeAcpProvider {
             let metadata = Self::metadata();
             AcpProvider::connect(metadata.name, model, goose_mode, provider_config).await
         })
-    }
-
-    fn supports_inventory_refresh() -> bool {
-        true
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        acp_inventory_identity(CLAUDE_ACP_PROVIDER_NAME, CLAUDE_ACP_BINARY)
-    }
-
-    fn inventory_configured() -> bool {
-        acp_adapter_installed(CLAUDE_ACP_BINARY)
     }
 }

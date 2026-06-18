@@ -992,6 +992,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "Отправить"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "Информация отправлена"
   },
@@ -1853,8 +1856,14 @@
   "localInferenceSettings.description": {
     "defaultMessage": "Скачивайте и управляйте локальными LLM-моделями для инференса без API-ключей. Ищите любые GGUF-модели на HuggingFace или используйте подборку ниже."
   },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "Скрыть"
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "Скачать"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "Скачивание отменено"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "Скачивание не удалось"
@@ -1888,6 +1897,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "осталось {time}"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "Повторить"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "Показать все рекомендуемые (ещё {count})"
@@ -4090,6 +4102,9 @@
   },
   "settings.language.russian": {
     "defaultMessage": "Русский"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "Испанский"
   },
   "settings.language.systemDefault": {
     "defaultMessage": "Системный язык"

@@ -1080,6 +1080,7 @@ fn configure_stdio_extension() -> anyhow::Result<()> {
             env_keys,
             description,
             timeout: Some(timeout),
+            cwd: None,
             bundled: None,
             available_tools: Vec::new(),
         },

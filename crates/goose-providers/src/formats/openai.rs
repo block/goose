@@ -753,10 +753,7 @@ fn extract_usage_with_output_tokens(
                 .model
                 .as_deref()
                 .or(fallback_model)
-                .map(|model| ProviderUsage {
-                    usage: get_usage(u),
-                    model: model.to_string(),
-                })
+                .map(|model| ProviderUsage::new(model.to_string(), get_usage(u)))
         })
         .filter(|u| u.usage.output_tokens.is_some())
 }

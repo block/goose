@@ -261,6 +261,7 @@ pub struct Agent {
 #[derive(Clone, Debug)]
 pub enum AgentEvent {
     Message(Message),
+    Usage(crate::providers::base::ProviderUsage),
     McpNotification((String, ServerNotification)),
     HistoryReplaced(Conversation),
 }
@@ -1906,6 +1907,7 @@ impl Agent {
 
                             if let Some(ref usage) = usage {
                                 self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
+                                yield AgentEvent::Usage(usage.clone());
                             }
 
                             if let Some(response) = response {
@@ -3484,7 +3486,9 @@ exit 0
         while let Some(event) = reply_stream.next().await {
             match event? {
                 AgentEvent::Message(message) => messages.push(message),
-                AgentEvent::McpNotification(_) | AgentEvent::HistoryReplaced(_) => {}
+                AgentEvent::McpNotification(_)
+                | AgentEvent::HistoryReplaced(_)
+                | AgentEvent::Usage(_) => {}
             }
         }
         Ok(messages)

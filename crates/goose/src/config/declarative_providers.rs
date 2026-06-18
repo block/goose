@@ -1,8 +1,9 @@
 use crate::config::paths::Paths;
 use crate::config::Config;
 use crate::providers::anthropic::AnthropicProvider;
-use crate::providers::base::{ModelInfo, ProviderDef, ProviderType};
+use crate::providers::base::{ModelInfo, ProviderType};
 use crate::providers::huggingface::HuggingFaceProvider;
+use crate::providers::huggingface_auth;
 use crate::providers::inventory::declarative_inventory_identity;
 use crate::providers::ollama::OllamaProvider;
 use crate::providers::openai::OpenAiProvider;
@@ -665,7 +666,7 @@ fn huggingface_declarative_inventory_configured(config: &DeclarativeProviderConf
     huggingface_declarative_inventory_configured_from_sources(
         config,
         |key| Config::global().get_secret::<String>(key).is_ok(),
-        HuggingFaceProvider::inventory_configured,
+        || huggingface_auth::has_configured_token().unwrap_or(false),
     )
 }
 

@@ -45,6 +45,9 @@ import {
   acpRenameSession,
   type SessionListItem,
 } from '../../acp/sessions';
+import { acpChatSessionStore } from '../../acp/chatSessionStore';
+import { cancelAcpPermissionRequestsForSession } from '../../acp/permissionRequests';
+import { cancelAcpElicitationRequestsForSession } from '../../acp/elicitationRequests';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { clearSessionCache } from '../../hooks/useChatStream';
 
@@ -482,7 +485,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const handleDuplicateSession = useCallback(
       async (session: SessionListItem) => {
         try {
-          await acpForkSession(session.id, session.workingDir);
+          await acpForkSession(session.id);
           toast.success(intl.formatMessage(i18n.duplicateSuccess, { name: session.name }));
           window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
           await loadSessions();
@@ -509,6 +512,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
         clearSessionCache(sessionToDeleteId);
+        cancelAcpPermissionRequestsForSession(sessionToDeleteId);
+        cancelAcpElicitationRequestsForSession(sessionToDeleteId);
+        acpChatSessionStore.deleteSnapshot(sessionToDeleteId);
       } catch (error) {
         console.error('Error deleting session:', error);
         toast.error(intl.formatMessage(i18n.deleteFailed, { name: sessionName, error: errorMessage(error, 'Unknown error') }));

@@ -992,6 +992,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "सबमिट करें"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "जानकारी प्रस्तुत की गई"
   },
@@ -1853,8 +1856,14 @@
   "localInferenceSettings.description": {
     "defaultMessage": "API कुंजियों के बिना अनुमान के लिए स्थानीय एलएलएम मॉडल डाउनलोड और प्रबंधित करें। किसी भी जीजीयूएफ मॉडल के लिए हगिंगफेस खोजें या नीचे दिए गए चुनिंदा विकल्पों का उपयोग करें।"
   },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "खारिज करें"
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "डाउनलोड करें"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "डाउनलोड रद्द किया गया"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "डाउनलोड विफल रहा"
@@ -1888,6 +1897,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "{time} शेष"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "पुनः प्रयास करें"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "सभी विशेष रुप से प्रदर्शित दिखाएँ ({count} अधिक)"
@@ -4090,6 +4102,9 @@
   },
   "settings.language.russian": {
     "defaultMessage": "रूसी"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "स्पेनिश"
   },
   "settings.language.systemDefault": {
     "defaultMessage": "सिस्टम डिफ़ॉल्ट"

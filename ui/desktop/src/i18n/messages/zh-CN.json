@@ -992,6 +992,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "提交"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "信息已提交"
   },
@@ -1853,8 +1856,14 @@
   "localInferenceSettings.description": {
     "defaultMessage": "下载和管理用于本地推理的大模型，无需 API 密钥。在 HuggingFace 搜索任意 GGUF 模型，或使用下方推荐。"
   },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "关闭"
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "下载"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "下载已取消"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "下载失败"
@@ -1888,6 +1897,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "剩余 {time}"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "重试"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "显示全部推荐（还有 {count} 个）"
@@ -4090,6 +4102,9 @@
   },
   "settings.language.russian": {
     "defaultMessage": "俄语"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "西班牙语"
   },
   "settings.language.systemDefault": {
     "defaultMessage": "系统默认"

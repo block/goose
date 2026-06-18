@@ -15,7 +15,71 @@ use rmcp::model::{
 use serde_json::Value;
 
 use crate::conversation::message::{Message, MessageContent};
+use crate::model::ModelConfig;
+use crate::providers::formats::anthropic::{
+    adaptive_output_effort, thinking_budget_tokens, thinking_type_for_provider, ThinkingType,
+    ANTHROPIC_PROVIDER_NAME,
+};
 use goose_providers::conversation::token_usage::Usage;
+use once_cell::sync::Lazy;
+use regex::Regex;
+
+static BEDROCK_VERSION_SUFFIX_RE: Lazy<Regex> = Lazy::new(|| Regex::new(r"-v\d+(:\d+)?$").unwrap());
+
+pub fn bedrock_anthropic_thinking_fields(model_config: &ModelConfig) -> Option<Document> {
+    let thinking_type = bedrock_anthropic_thinking_type(model_config);
+    let thinking = match thinking_type {
+        ThinkingType::Adaptive => Document::Object(HashMap::from([(
+            "type".to_string(),
+            Document::String("adaptive".to_string()),
+        )])),
+        ThinkingType::Enabled => Document::Object(HashMap::from([
+            ("type".to_string(), Document::String("enabled".to_string())),
+            (
+                "budget_tokens".to_string(),
+                Document::Number(Number::PosInt(thinking_budget_tokens(model_config) as u64)),
+            ),
+        ])),
+        ThinkingType::Disabled => return None,
+    };
+
+    let mut fields = HashMap::from([("thinking".to_string(), thinking)]);
+
+    if thinking_type == ThinkingType::Adaptive {
+        fields.insert(
+            "output_config".to_string(),
+            Document::Object(HashMap::from([(
+                "effort".to_string(),
+                Document::String(adaptive_output_effort(model_config).to_string()),
+            )])),
+        );
+    }
+
+    Some(Document::Object(fields))
+}
+
+fn bedrock_anthropic_thinking_type(model_config: &ModelConfig) -> ThinkingType {
+    let Some((_, anthropic_model)) = model_config.model_name.rsplit_once("anthropic.") else {
+        return ThinkingType::Disabled;
+    };
+
+    let anthropic_config = ModelConfig {
+        model_name: strip_bedrock_version_suffix(anthropic_model),
+        ..model_config.clone()
+    };
+
+    thinking_type_for_provider(ANTHROPIC_PROVIDER_NAME, &anthropic_config)
+}
+
+/// Bedrock model ids carry a `-v1:0` style suffix (e.g.
+/// `claude-opus-4-1-20250805-v1:0`) that the canonical Anthropic registry does
+/// not recognise. Dropping it lets the date stamp become the terminal segment
+/// the registry already knows how to normalise.
+fn strip_bedrock_version_suffix(model_name: &str) -> String {
+    BEDROCK_VERSION_SUFFIX_RE
+        .replace(model_name, "")
+        .into_owned()
+}
 
 pub fn to_bedrock_message_with_caching(
     message: &Message,
@@ -463,6 +527,108 @@ mod tests {
     use anyhow::Result;
     use goose_test_support::TEST_IMAGE_B64;
     use rmcp::model::{AnnotateAble, RawImageContent};
+    use serde_json::json;
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_enabled() {
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("low"));
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        config.request_params = Some(params);
+        config.reasoning = Some(true);
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 4000
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_disabled() {
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("off"),
+        )]));
+
+        assert!(bedrock_anthropic_thinking_fields(&config).is_none());
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_always_on_adaptive() {
+        let mut config = ModelConfig::new_or_fail("global.anthropic.claude-fable-5");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("off"),
+        )]));
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {"type": "adaptive"},
+                "output_config": {"effort": "high"}
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_adaptive_with_effort() {
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-opus-4.7");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("low"),
+        )]));
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {"type": "adaptive"},
+                "output_config": {"effort": "low"}
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_adaptive_with_version_suffix() {
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-opus-4-7-20251101-v1:0");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("low"),
+        )]));
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {"type": "adaptive"},
+                "output_config": {"effort": "low"}
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_thinking_fields_skipped_for_non_anthropic() {
+        let mut config = ModelConfig::new_or_fail("us.deepseek.r1-v1:0");
+        config.reasoning = Some(true);
+        config.request_params = Some(HashMap::from([(
+            "thinking_effort".to_string(),
+            json!("low"),
+        )]));
+
+        assert!(bedrock_anthropic_thinking_fields(&config).is_none());
+    }
 
     #[test]
     fn test_to_bedrock_image_supported_formats() -> Result<()> {

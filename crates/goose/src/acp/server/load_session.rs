@@ -246,6 +246,7 @@ impl GooseAcpAgent {
             ms = t_start.elapsed().as_millis() as u64,
             "perf: load_session_refactor done"
         );
+        self.closed_session_ids.lock().await.remove(&session_id_str);
         Ok(response)
     }
 }
