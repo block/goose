@@ -113,6 +113,7 @@ export default function BaseChat({
     setRecipeUserParams,
     tokenState,
     notifications: toolCallNotifications,
+    pauseQueueOnStop,
     onMessageUpdate,
   } = useChatSession({
     sessionId,
@@ -510,6 +511,7 @@ export default function BaseChat({
             chatState={chatState}
             setChatState={setChatState}
             onStop={stopStreaming}
+            pauseQueueOnStop={pauseQueueOnStop}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}

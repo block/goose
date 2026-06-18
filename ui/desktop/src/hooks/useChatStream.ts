@@ -1141,6 +1141,7 @@ export function useChatStream({
     setRecipeUserParams,
     tokenState: state.tokenState,
     notifications: notificationsMap,
+    pauseQueueOnStop: false,
     onMessageUpdate,
   };
 }

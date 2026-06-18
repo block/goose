@@ -23,6 +23,7 @@ export interface UseChatSessionResult {
   sessionLoadError?: string;
   tokenState: TokenState;
   notifications: Map<string, NotificationEvent[]>;
+  pauseQueueOnStop: boolean;
   onMessageUpdate: (
     messageId: string,
     newContent: string,

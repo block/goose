@@ -26,7 +26,7 @@ import {
 } from '../acp/elicitationRequests';
 import { parseAcpCreditsExhaustedError, type AcpCreditsExhaustedError } from '../acp/errors';
 import { acpCancelPrompt, acpPromptSession } from '../acp/prompt';
-import { acpTruncateSessionConversation } from '../acp/sessions';
+import { acpForkSession, acpTruncateSessionConversation } from '../acp/sessions';
 import { acpChatSessionStore, type AcpChatSessionSnapshot } from '../acp/chatSessionStore';
 
 interface StreamState {
@@ -557,23 +557,7 @@ export function useAcpChatSession({
         }
 
         if (editType === 'fork') {
-          const { forkSession } = await import('../api');
-          const response = await forkSession({
-            path: {
-              session_id: sessionId,
-            },
-            body: {
-              timestamp: message.created,
-              truncate: true,
-              copy: true,
-            },
-            throwOnError: true,
-          });
-
-          const targetSessionId = response.data?.sessionId;
-          if (!targetSessionId) {
-            throw new Error('No session ID returned from fork');
-          }
+          const targetSessionId = await acpForkSession(sessionId, message.created);
 
           acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
           dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
@@ -649,6 +633,7 @@ export function useAcpChatSession({
     setRecipeUserParams,
     tokenState: state.tokenState,
     notifications: notificationsMap,
+    pauseQueueOnStop: true,
     onMessageUpdate,
   };
 }

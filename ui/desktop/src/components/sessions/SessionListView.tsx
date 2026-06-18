@@ -482,7 +482,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const handleDuplicateSession = useCallback(
       async (session: SessionListItem) => {
         try {
-          await acpForkSession(session.id, session.workingDir);
+          await acpForkSession(session.id);
           toast.success(intl.formatMessage(i18n.duplicateSuccess, { name: session.name }));
           window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
           await loadSessions();
