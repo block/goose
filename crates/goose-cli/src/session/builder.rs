@@ -116,6 +116,8 @@ pub struct SessionBuilderConfig {
     pub output_format: String,
     /// Docker container to run stdio extensions inside
     pub container: Option<Container>,
+    /// Print generation statistics after headless runs.
+    pub stats: bool,
 }
 
 /// Manual implementation of Default to ensure proper initialization of output_format
@@ -143,6 +145,7 @@ impl Default for SessionBuilderConfig {
             quiet: false,
             output_format: "text".to_string(),
             container: None,
+            stats: false,
         }
     }
 }
@@ -408,6 +411,7 @@ async fn collect_extension_configs(
     recipe: Option<&Recipe>,
     session_id: &str,
 ) -> Result<Vec<ExtensionConfig>, ExtensionError> {
+    let recipe_extensions = recipe.and_then(|r| r.extensions.as_deref());
     let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
         EnabledExtensionsState::for_session(
             &agent.config.session_manager,
@@ -418,7 +422,7 @@ async fn collect_extension_configs(
     } else if session_config.no_profile {
         Vec::new()
     } else {
-        resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
+        resolve_extensions_for_new_session(recipe_extensions, None)
     };
 
     let cli_flag_extensions = parse_cli_flag_extensions(
@@ -428,6 +432,12 @@ async fn collect_extension_configs(
     );
 
     let mut all: Vec<ExtensionConfig> = configured_extensions;
+    if !session_config.no_profile && !session_config.resume && recipe_extensions.is_none() {
+        let project_root = std::env::current_dir().ok();
+        all.extend(goose::plugins::mcp_servers::enabled_plugin_mcp_servers(
+            project_root.as_deref(),
+        ));
+    }
     all.extend(cli_flag_extensions.into_iter().map(|(_, cfg)| cfg));
 
     Ok(all)
@@ -531,14 +541,66 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             }
         };
 
-    let new_provider = match create(
+    let (new_provider, effective_provider_name, effective_model_name) = match create(
         &resolved.provider_name,
-        resolved.model_config,
+        resolved.model_config.clone(),
         extensions_for_provider.clone(),
     )
     .await
     {
-        Ok(provider) => provider,
+        Ok(provider) => (
+            provider,
+            resolved.provider_name.clone(),
+            resolved.model_name.clone(),
+        ),
+        Err(e)
+            if session_config.resume
+                && session_config.provider.is_none()
+                && is_provider_unavailable_error(&e) =>
+        {
+            let fallback_provider = config.get_goose_provider().unwrap_or_else(|_| {
+                output::render_error("No provider configured. Run 'goose configure' first.");
+                process::exit(1);
+            });
+            let fallback_model = config.get_goose_model().unwrap_or_else(|_| {
+                output::render_error("No model configured. Run 'goose configure' first.");
+                process::exit(1);
+            });
+            eprintln!(
+                "{}",
+                style(format!(
+                    "Warning: Could not create the session's original provider '{}' ({}). \
+                    Falling back to the default provider '{}'.",
+                    resolved.provider_name, e, fallback_provider
+                ))
+                .yellow()
+            );
+            let fallback_model_config = goose::model::ModelConfig::new(&fallback_model)
+                .unwrap_or_else(|e| {
+                    output::render_error(&format!("Failed to create model configuration: {}", e));
+                    process::exit(1);
+                })
+                .with_canonical_limits(&fallback_provider);
+            match create(
+                &fallback_provider,
+                fallback_model_config,
+                extensions_for_provider.clone(),
+            )
+            .await
+            {
+                Ok(provider) => (provider, fallback_provider, fallback_model),
+                Err(e2) => {
+                    output::render_error(&format!(
+                        "Error {}.\n\
+                        Please check your system keychain and run 'goose configure' again.\n\
+                        If your system is unable to use the keyring, please try setting secret key(s) via environment variables.\n\
+                        For more info, see: https://goose-docs.ai/docs/troubleshooting/#keychainkeyring-errors",
+                        e2
+                    ));
+                    process::exit(1);
+                }
+            }
+        }
         Err(e) => {
             output::render_error(&format!(
                 "Error {}.\n\
@@ -550,7 +612,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             process::exit(1);
         }
     };
-    tracing::info!("🤖 Using model: {}", resolved.model_name);
+    tracing::info!("🤖 Using model: {}", effective_model_name);
 
     agent
         .update_provider(new_provider, &session_id)
@@ -605,6 +667,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
         edit_mode,
         recipe.and_then(|r| r.retry.clone()),
         session_config.output_format.clone(),
+        session_config.stats,
     )
     .await;
 
@@ -613,12 +676,19 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     if !session_config.quiet {
         output::display_session_info(
             session_config.resume,
-            &resolved.provider_name,
-            &resolved.model_name,
+            &effective_provider_name,
+            &effective_model_name,
             &Some(session_id),
         );
     }
     session
+}
+
+fn is_provider_unavailable_error(e: &anyhow::Error) -> bool {
+    let msg = e.to_string();
+    msg.contains("is not set")
+        || msg.contains("not configured")
+        || msg.contains("Configuration value not found")
 }
 
 #[cfg(test)]
@@ -651,6 +721,7 @@ mod tests {
             quiet: false,
             output_format: "text".to_string(),
             container: None,
+            stats: false,
         };
 
         assert_eq!(config.extensions.len(), 1);

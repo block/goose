@@ -15,7 +15,6 @@ use super::formats::anthropic::{
     create_request_with_options_for_provider, response_to_streaming_message, thinking_type,
     AnthropicFormatOptions, ThinkingType, ANTHROPIC_PROVIDER_NAME,
 };
-use super::inventory::{config_secret_value, serialize_string_map, InventoryIdentityInput};
 use super::openai_compatible::handle_status;
 use super::openai_compatible::map_http_error_to_provider_error;
 use super::retry::ProviderRetry;
@@ -266,33 +265,6 @@ impl ProviderDef for AnthropicProvider {
         _extensions: Vec<crate::config::ExtensionConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
-    }
-
-    fn supports_inventory_refresh() -> bool {
-        true
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        let config = crate::config::Config::global();
-        let mut identity =
-            InventoryIdentityInput::new(ANTHROPIC_PROVIDER_NAME, ANTHROPIC_PROVIDER_NAME)
-                .with_public(
-                    "host",
-                    config
-                        .get_param::<String>("ANTHROPIC_HOST")
-                        .unwrap_or_else(|_| "https://api.anthropic.com".to_string()),
-                );
-
-        if let Some(api_key) = config_secret_value(config, "ANTHROPIC_API_KEY") {
-            identity = identity.with_secret("api_key", api_key);
-        }
-        if let Ok(headers) = config
-            .get_secret::<std::collections::HashMap<String, String>>("ANTHROPIC_CUSTOM_HEADERS")
-        {
-            identity = identity.with_secret("headers", serialize_string_map(&headers)?);
-        }
-
-        Ok(identity)
     }
 }
 

@@ -73,7 +73,6 @@ describe('getLocale', () => {
     expect(getLocale()).toEqual({ locale: 'tr', messageLocale: 'tr' });
   });
 
-
   it('supports Japanese from navigator.languages', () => {
     vi.stubGlobal('navigator', { languages: ['ja-JP'] });
     expect(getLocale()).toEqual({ locale: 'ja-JP', messageLocale: 'ja' });
@@ -94,6 +93,17 @@ describe('getLocale', () => {
     mockAppConfig({ GOOSE_LOCALE: 'hi' });
     vi.stubGlobal('navigator', { languages: ['xx-XX'] });
     expect(getLocale()).toEqual({ locale: 'hi', messageLocale: 'hi' });
+  });
+
+  it('supports Spanish from navigator.languages', () => {
+    vi.stubGlobal('navigator', { languages: ['es-ES'] });
+    expect(getLocale()).toEqual({ locale: 'es-ES', messageLocale: 'es' });
+  });
+
+  it('supports explicit Spanish locale', () => {
+    mockAppConfig({ GOOSE_LOCALE: 'es' });
+    vi.stubGlobal('navigator', { languages: ['xx-XX'] });
+    expect(getLocale()).toEqual({ locale: 'es', messageLocale: 'es' });
   });
 
   it('falls back to base language when locale tag is invalid BCP 47', () => {

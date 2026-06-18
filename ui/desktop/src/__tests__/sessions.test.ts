@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { shouldShowNewChatTitle } from '../sessions';
-import { getSessionDisplayName, prependUnique } from '../hooks/useNavigationSessions';
+import { getSessionDisplayName } from '../sessions';
+import { prependUnique } from '../hooks/useNavigationSessions';
 import type { Session } from '../api';
 import type { SessionListItem } from '../acp/sessions';
 
@@ -30,51 +30,19 @@ function makeListItem(overrides: Partial<SessionListItem> = {}): SessionListItem
   };
 }
 
-describe('shouldShowNewChatTitle', () => {
-  it('returns true for an empty session without a user-set name', () => {
-    const session = makeSession({ message_count: 0, user_set_name: false });
-    expect(shouldShowNewChatTitle(session)).toBe(true);
-  });
-
-  it('returns false when the session has messages', () => {
-    const session = makeSession({ message_count: 3, user_set_name: false });
-    expect(shouldShowNewChatTitle(session)).toBe(false);
-  });
-
-  it('returns false when the user has set a custom name', () => {
-    const session = makeSession({ message_count: 0, user_set_name: true });
-    expect(shouldShowNewChatTitle(session)).toBe(false);
-  });
-
-  it('returns false when the session has a recipe', () => {
+describe('getSessionDisplayName', () => {
+  it('returns the session name', () => {
     const session = makeSession({
-      message_count: 0,
-      user_set_name: false,
-      recipe: { title: 'Recipe', steps: [] } as unknown as Session['recipe'],
+      name: 'My Chat',
     });
-    expect(shouldShowNewChatTitle(session)).toBe(false);
-  });
-});
-
-describe('getSessionDisplayName (fix for #8865)', () => {
-  it('returns the user-set name for a recipe session that has been renamed', () => {
-    const session = makeSession({
-      name: 'My Renamed Chat',
-      user_set_name: true,
-      message_count: 2,
-      recipe: { title: 'Some Recipe' } as unknown as Session['recipe'],
-    });
-    expect(getSessionDisplayName(session)).toBe('My Renamed Chat');
+    expect(getSessionDisplayName(session)).toBe('My Chat');
   });
 
-  it('falls back to the recipe title when the user has not renamed', () => {
+  it('falls back to the default title when the session name is empty', () => {
     const session = makeSession({
-      name: 'auto-generated',
-      user_set_name: false,
-      message_count: 2,
-      recipe: { title: 'Some Recipe' } as unknown as Session['recipe'],
+      name: '',
     });
-    expect(getSessionDisplayName(session)).toBe('Some Recipe');
+    expect(getSessionDisplayName(session)).toBe('New Chat');
   });
 });
 

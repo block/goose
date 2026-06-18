@@ -27,6 +27,7 @@ use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::Permission;
 use goose::permission::PermissionConfirmation;
 use goose::providers::base::Provider;
+use goose::providers::base::ProviderUsage;
 use goose::utils::safe_truncate;
 
 use anyhow::{Context, Result};
@@ -37,8 +38,8 @@ use goose::agents::{Agent, SessionConfig, COMPACT_TRIGGERS};
 use goose::config::extensions::name_to_key;
 use goose::config::{Config, GooseMode};
 use input::InputResult;
-use rmcp::model::PromptMessage;
 use rmcp::model::ServerNotification;
+use rmcp::model::{ElicitationAction, PromptMessage};
 use rmcp::model::{ErrorCode, ErrorData};
 use strum::VariantNames;
 
@@ -172,6 +173,7 @@ pub struct CliSession {
     edit_mode: Option<EditMode>,
     retry_config: Option<RetryConfig>,
     output_format: String,
+    stats: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -250,6 +252,7 @@ impl CliSession {
         edit_mode: Option<EditMode>,
         retry_config: Option<RetryConfig>,
         output_format: String,
+        stats: bool,
     ) -> Self {
         let messages = agent
             .config
@@ -271,6 +274,7 @@ impl CliSession {
             edit_mode,
             retry_config,
             output_format,
+            stats,
         }
     }
 
@@ -312,6 +316,7 @@ impl CliSession {
             env_keys: Vec::new(),
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            cwd: None,
             bundled: None,
             available_tools: Vec::new(),
         })
@@ -1176,6 +1181,9 @@ impl CliSession {
         let mut markdown_buffer = streaming_buffer::MarkdownBuffer::new();
         let mut prompted_credits_urls: HashSet<String> = HashSet::new();
         let mut thinking_header_shown = false;
+        let run_started = Instant::now();
+        let mut first_token_at: Option<Instant> = None;
+        let mut last_usage: Option<ProviderUsage> = None;
 
         use futures::StreamExt;
         loop {
@@ -1183,6 +1191,9 @@ impl CliSession {
                 result = stream.next() => {
                     match result {
                         Some(Ok(AgentEvent::Message(message))) => {
+                            if first_token_at.is_none() && message_has_text(&message) {
+                                first_token_at = Some(Instant::now());
+                            }
                             if let Some((id, security_prompt)) = find_tool_confirmation(&message) {
                                 let permission = if interactive {
                                     prompt_tool_confirmation(&security_prompt)?
@@ -1248,25 +1259,37 @@ impl CliSession {
                                 let _ = progress_bars.hide();
 
                                 match elicitation::collect_elicitation_input(&elicitation_message, &schema) {
-                                    Ok(Some(user_data)) => {
-                                        let user_data_value = serde_json::to_value(user_data)
+                                    Ok(input) => {
+                                        match &input.action {
+                                            ElicitationAction::Decline => {
+                                                output::render_text("Information request declined.", Some(Color::Yellow), true);
+                                            }
+                                            ElicitationAction::Cancel => {
+                                                output::render_text("Information request cancelled.", Some(Color::Yellow), true);
+                                            }
+                                            ElicitationAction::Accept => {}
+                                        }
+
+                                        let should_cancel = input.action == ElicitationAction::Cancel;
+                                        let action = input.action;
+                                        let user_data_value = serde_json::to_value(input.user_data)
                                             .unwrap_or(serde_json::Value::Object(serde_json::Map::new()));
                                         let response_message = Message::user()
                                             .with_content(MessageContent::action_required_elicitation_response(
                                                 elicitation_id,
                                                 user_data_value,
+                                                action,
                                             ))
                                             .with_visibility(false, true);
                                         self.messages.push(response_message.clone());
                                         // Elicitation responses return an empty stream - the response
                                         // unblocks the waiting tool call via ActionRequiredManager
                                         let _ = self.agent.reply(response_message, session_config.clone(), Some(cancel_token.clone())).await?;
-                                    }
-                                    Ok(None) => {
-                                        output::render_text("Information request cancelled.", Some(Color::Yellow), true);
-                                        cancel_token_clone.cancel();
-                                        drop(stream);
-                                        break;
+                                        if should_cancel {
+                                            cancel_token_clone.cancel();
+                                            drop(stream);
+                                            break;
+                                        }
                                     }
                                     Err(e) => {
                                         output::render_error(&format!("Failed to collect input: {}", e));
@@ -1293,6 +1316,9 @@ impl CliSession {
                                     );
                                 }
                             }
+                        }
+                        Some(Ok(AgentEvent::Usage(usage))) => {
+                            last_usage = Some(usage);
                         }
                         Some(Ok(AgentEvent::McpNotification((extension_id, notification)))) => {
                             handle_mcp_notification(
@@ -1390,6 +1416,9 @@ impl CliSession {
             });
         } else {
             println!();
+            if self.stats {
+                print_run_stats(run_started, first_token_at, last_usage.as_ref());
+            }
         }
 
         Ok(())
@@ -1706,6 +1735,61 @@ impl CliSession {
 
     fn push_message(&mut self, message: Message) {
         self.messages.push(message);
+    }
+}
+
+fn message_has_text(message: &Message) -> bool {
+    message.content.iter().any(
+        |content| matches!(content, MessageContent::Text(text) if !text.text.trim().is_empty()),
+    )
+}
+
+fn print_run_stats(
+    run_started: Instant,
+    first_token_at: Option<Instant>,
+    usage: Option<&ProviderUsage>,
+) {
+    let elapsed = run_started.elapsed();
+    let output_tokens = usage
+        .and_then(|usage| usage.usage.output_tokens)
+        .and_then(|tokens| usize::try_from(tokens).ok())
+        .or_else(|| usage.and_then(|usage| usage.stats.as_ref()?.output_tokens));
+    let tokens_per_second = output_tokens.map(|tokens| {
+        if elapsed.as_secs_f64() > 0.0 {
+            tokens as f64 / elapsed.as_secs_f64()
+        } else {
+            0.0
+        }
+    });
+
+    eprintln!("\nStats:");
+    match first_token_at {
+        Some(first) => eprintln!(
+            "  Time to first token: {:.2}s",
+            first.duration_since(run_started).as_secs_f64()
+        ),
+        None => eprintln!("  Time to first token: unavailable"),
+    }
+    match tokens_per_second {
+        Some(rate) => eprintln!("  Tokens/sec: {:.2}", rate),
+        None => eprintln!("  Tokens/sec: unavailable"),
+    }
+    if let Some(tokens) = output_tokens {
+        eprintln!("  Output tokens: {tokens}");
+    }
+
+    if let Some(draft) = usage
+        .and_then(|usage| usage.stats.as_ref())
+        .and_then(|stats| stats.draft.as_ref())
+    {
+        eprintln!("  Draft accept rate: {:.1}%", draft.accept_rate * 100.0);
+        eprintln!(
+            "  Draft tokens: {} accepted: {} target verified: {} rounds: {}",
+            draft.draft_tokens, draft.accepted_tokens, draft.target_tokens, draft.rounds
+        );
+        if let Some(model) = &draft.model {
+            eprintln!("  Draft model: {model}");
+        }
     }
 }
 
@@ -2263,6 +2347,7 @@ mod tests {
             env_keys: vec![],
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -2278,6 +2363,7 @@ mod tests {
             env_keys: vec![],
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -2293,6 +2379,7 @@ mod tests {
             env_keys: vec![],
             description: goose::config::DEFAULT_EXTENSION_DESCRIPTION.to_string(),
             timeout: Some(goose::config::DEFAULT_EXTENSION_TIMEOUT),
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }

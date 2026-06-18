@@ -491,6 +491,18 @@ pub struct GetSessionInfoResponse {
     pub session: SessionInfo,
 }
 
+/// Truncate a session conversation from the given message timestamp onward.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/session/conversation/truncate",
+    response = EmptyResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct TruncateSessionConversationRequest {
+    pub session_id: String,
+    pub truncate_from: i64,
+}
+
 /// Update the project association for a session.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/session/project/update", response = EmptyResponse)]
@@ -554,17 +566,6 @@ pub struct ImportSessionResponse {
     pub title: Option<String>,
     pub updated_at: Option<String>,
     pub message_count: u64,
-}
-
-/// Submit a response for a pending MCP elicitation in an active session.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
-#[request(method = "_goose/unstable/elicitation/respond", response = EmptyResponse)]
-#[serde(rename_all = "camelCase")]
-pub struct ElicitationRespondRequest {
-    pub session_id: String,
-    pub elicitation_id: String,
-    #[serde(default)]
-    pub user_data: serde_json::Value,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]

@@ -992,6 +992,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "送信"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "情報を送信しました"
   },
@@ -1853,8 +1856,14 @@
   "localInferenceSettings.description": {
     "defaultMessage": "APIキーなしで推論できるローカルLLMモデルをダウンロード・管理します。Hugging Faceで任意のGGUFモデルを検索するか、以下の注目モデルを使用できます。"
   },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "閉じる"
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "ダウンロード"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "ダウンロードがキャンセルされました"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "ダウンロードに失敗しました"
@@ -1888,6 +1897,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "残り{time}"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "再試行"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "注目モデルをすべて表示（あと{count}件）"
@@ -3746,6 +3758,36 @@
   "securityToggle.warpNotice": {
     "defaultMessage": "コマンドインジェクション検出は、WARPに接続していると最も効果的です（分類サービスに到達するために必要です）。"
   },
+  "sessionActionsHeader.close": {
+    "defaultMessage": "Close"
+  },
+  "sessionActionsHeader.copiedJson": {
+    "defaultMessage": "Session JSON copied"
+  },
+  "sessionActionsHeader.copiedText": {
+    "defaultMessage": "Text copied"
+  },
+  "sessionActionsHeader.copyJson": {
+    "defaultMessage": "Copy JSON"
+  },
+  "sessionActionsHeader.copyText": {
+    "defaultMessage": "Copy text"
+  },
+  "sessionActionsHeader.fullTextTitle": {
+    "defaultMessage": "Text value"
+  },
+  "sessionActionsHeader.jsonFailed": {
+    "defaultMessage": "Failed to load session JSON: {error}"
+  },
+  "sessionActionsHeader.jsonTitle": {
+    "defaultMessage": "Session JSON"
+  },
+  "sessionActionsHeader.loadingJson": {
+    "defaultMessage": "Loading JSON..."
+  },
+  "sessionActionsHeader.viewJson": {
+    "defaultMessage": "View session JSON"
+  },
   "sessionHistory.cancel": {
     "defaultMessage": "キャンセル"
   },
@@ -4045,6 +4087,36 @@
   },
   "settings.help.title": {
     "defaultMessage": "ヘルプとフィードバック"
+  },
+  "settings.language.description": {
+    "defaultMessage": "goose の表示言語を選択"
+  },
+  "settings.language.english": {
+    "defaultMessage": "英語"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "ヒンディー語"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "日本語"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "ロシア語"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "スペイン語"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "システムデフォルト"
+  },
+  "settings.language.title": {
+    "defaultMessage": "言語"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "トルコ語"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "中国語（簡体字）"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "メニューバーにgooseを表示します"

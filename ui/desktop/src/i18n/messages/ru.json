@@ -992,6 +992,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "Отправить"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "Информация отправлена"
   },
@@ -1853,8 +1856,14 @@
   "localInferenceSettings.description": {
     "defaultMessage": "Скачивайте и управляйте локальными LLM-моделями для инференса без API-ключей. Ищите любые GGUF-модели на HuggingFace или используйте подборку ниже."
   },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "Скрыть"
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "Скачать"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "Скачивание отменено"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "Скачивание не удалось"
@@ -1888,6 +1897,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "осталось {time}"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "Повторить"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "Показать все рекомендуемые (ещё {count})"
@@ -3746,6 +3758,36 @@
   "securityToggle.warpNotice": {
     "defaultMessage": "Обнаружение внедрения команд работает лучше всего при подключении к WARP (требуется для доступа к сервису классификации)."
   },
+  "sessionActionsHeader.close": {
+    "defaultMessage": "Close"
+  },
+  "sessionActionsHeader.copiedJson": {
+    "defaultMessage": "Session JSON copied"
+  },
+  "sessionActionsHeader.copiedText": {
+    "defaultMessage": "Text copied"
+  },
+  "sessionActionsHeader.copyJson": {
+    "defaultMessage": "Copy JSON"
+  },
+  "sessionActionsHeader.copyText": {
+    "defaultMessage": "Copy text"
+  },
+  "sessionActionsHeader.fullTextTitle": {
+    "defaultMessage": "Text value"
+  },
+  "sessionActionsHeader.jsonFailed": {
+    "defaultMessage": "Failed to load session JSON: {error}"
+  },
+  "sessionActionsHeader.jsonTitle": {
+    "defaultMessage": "Session JSON"
+  },
+  "sessionActionsHeader.loadingJson": {
+    "defaultMessage": "Loading JSON..."
+  },
+  "sessionActionsHeader.viewJson": {
+    "defaultMessage": "View session JSON"
+  },
   "sessionHistory.cancel": {
     "defaultMessage": "Отмена"
   },
@@ -4045,6 +4087,36 @@
   },
   "settings.help.title": {
     "defaultMessage": "Помощь и отзывы"
+  },
+  "settings.language.description": {
+    "defaultMessage": "Выберите язык интерфейса goose"
+  },
+  "settings.language.english": {
+    "defaultMessage": "Английский"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "Хинди"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "Японский"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "Русский"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "Испанский"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "Системный язык"
+  },
+  "settings.language.title": {
+    "defaultMessage": "Язык"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "Турецкий"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "Китайский (упрощенный)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Показывать goose в строке меню"

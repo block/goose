@@ -992,6 +992,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "提交"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "信息已提交"
   },
@@ -1853,8 +1856,14 @@
   "localInferenceSettings.description": {
     "defaultMessage": "下载和管理用于本地推理的大模型，无需 API 密钥。在 HuggingFace 搜索任意 GGUF 模型，或使用下方推荐。"
   },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "关闭"
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "下载"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "下载已取消"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "下载失败"
@@ -1888,6 +1897,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "剩余 {time}"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "重试"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "显示全部推荐（还有 {count} 个）"
@@ -3746,6 +3758,36 @@
   "securityToggle.warpNotice": {
     "defaultMessage": "连接到 WARP 时，命令注入检测效果最佳（访问分类服务需要 WARP）。"
   },
+  "sessionActionsHeader.close": {
+    "defaultMessage": "Close"
+  },
+  "sessionActionsHeader.copiedJson": {
+    "defaultMessage": "Session JSON copied"
+  },
+  "sessionActionsHeader.copiedText": {
+    "defaultMessage": "Text copied"
+  },
+  "sessionActionsHeader.copyJson": {
+    "defaultMessage": "Copy JSON"
+  },
+  "sessionActionsHeader.copyText": {
+    "defaultMessage": "Copy text"
+  },
+  "sessionActionsHeader.fullTextTitle": {
+    "defaultMessage": "Text value"
+  },
+  "sessionActionsHeader.jsonFailed": {
+    "defaultMessage": "Failed to load session JSON: {error}"
+  },
+  "sessionActionsHeader.jsonTitle": {
+    "defaultMessage": "Session JSON"
+  },
+  "sessionActionsHeader.loadingJson": {
+    "defaultMessage": "Loading JSON..."
+  },
+  "sessionActionsHeader.viewJson": {
+    "defaultMessage": "View session JSON"
+  },
   "sessionHistory.cancel": {
     "defaultMessage": "取消"
   },
@@ -4045,6 +4087,36 @@
   },
   "settings.help.title": {
     "defaultMessage": "帮助与反馈"
+  },
+  "settings.language.description": {
+    "defaultMessage": "选择 goose 的显示语言"
+  },
+  "settings.language.english": {
+    "defaultMessage": "英语"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "印地语"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "日语"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "俄语"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "西班牙语"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "系统默认"
+  },
+  "settings.language.title": {
+    "defaultMessage": "语言"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "土耳其语"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "简体中文"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "在菜单栏显示 goose"

@@ -27,10 +27,11 @@ goose is compatible with a wide range of LLM providers, allowing you to choose a
 | [Anthropic](https://www.anthropic.com/)                                     | Offers Claude, an advanced AI model for natural language tasks.                                                                                                                                                           | `ANTHROPIC_API_KEY`, `ANTHROPIC_HOST` (optional)                                                                                                                                                                 |
 | [Atomic Chat](https://github.com/AtomicBot-ai/Atomic-Chat)                | Run local models with Atomic Chat's OpenAI-compatible server. **Because this provider runs locally, you must first [download a model](#local-llms).** | None required. Connects to local server at `localhost:1337` by default. |
 | [Avian](https://avian.io/)                                                   | Cost-effective inference API with DeepSeek, Kimi, GLM, and MiniMax models. OpenAI-compatible with streaming and function calling support.                                                                                  | `AVIAN_API_KEY`, `AVIAN_HOST` (optional)                                                                                                                                            |
-| [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports both API key and Azure credential chain authentication.                                                                                          | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_KEY` (optional)                                                                                           |
+| [Azure OpenAI](https://learn.microsoft.com/en-us/azure/ai-services/openai/) | Access Azure-hosted OpenAI models, including GPT-4 and GPT-3.5. Supports API key, Entra ID bearer token, and Azure credential chain authentication.                                                                                          | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT_NAME`, `AZURE_OPENAI_API_KEY` (optional), `AZURE_OPENAI_AD_TOKEN` (optional)                                                                                           |
 | [ChatGPT Codex](https://chatgpt.com/codex) | Access GPT-5 Codex models optimized for code generation and understanding. **Requires a ChatGPT Plus/Pro subscription.** | No manual key. Uses browser-based OAuth authentication for both CLI and Desktop. |
 | [Databricks](https://www.databricks.com/)                                   | Unified data analytics and AI platform for building and deploying models.                                                                                                                                                 | `DATABRICKS_HOST`, `DATABRICKS_TOKEN` |
 | [Docker Model Runner](https://docs.docker.com/ai/model-runner/)                             | Local models running in Docker Desktop or Docker CE with OpenAI-compatible API endpoints. **Because this provider runs locally, you must first [download a model](#local-llms).**                     | `OPENAI_HOST`, `OPENAI_BASE_PATH`   |
+| [EmpirioLabs](https://empiriolabs.ai/)                                      | Frontier open and proprietary chat models (Qwen, DeepSeek, GLM, Kimi, MiniMax) through one OpenAI-compatible API with streaming. Catalog available at `https://api.empiriolabs.ai/v1/models`.        | `EMPIRIOLABS_API_KEY`                                                                                                                                                              |
 | [FuturMix](https://futurmix.ai/)                                            | Unified AI gateway providing access to models from Anthropic, Google, OpenAI, and DeepSeek through an OpenAI-compatible API.                                                                          | `FUTURMIX_API_KEY`                                                                                                                                                                  |
 | [Gemini](https://ai.google.dev/gemini-api/docs)                             | Advanced LLMs by Google with multimodal capabilities (text, images). Gemini 3 models support configurable [thinking levels](#gemini-3-thinking-levels).                                                                                                | `GOOGLE_API_KEY`, `GEMINI3_THINKING_LEVEL` (optional)                                                                                                                              |
 | [GCP Vertex AI](https://cloud.google.com/vertex-ai)                         | Google Cloud's Vertex AI platform, supporting Gemini and Claude models. **Credentials must be [configured in advance](https://cloud.google.com/vertex-ai/docs/authentication).** Filters for allowed models by organization policy (if configured). | `GCP_PROJECT_ID`, `GCP_LOCATION` and optionally `GCP_MAX_RATE_LIMIT_RETRIES` (5), `GCP_MAX_OVERLOADED_RETRIES` (5), `GCP_INITIAL_RETRY_INTERVAL_MS` (5000), `GCP_BACKOFF_MULTIPLIER` (2.0), `GCP_MAX_RETRY_INTERVAL_MS` (320_000). |
@@ -701,6 +702,47 @@ To set up Groq with goose, follow these steps:
   </TabItem>
 </Tabs>
 
+### EmpirioLabs
+[EmpirioLabs](https://empiriolabs.ai/) provides access to frontier open and proprietary chat models through a single OpenAI-compatible API with streaming. To use EmpirioLabs with goose, you need an API key from [EmpirioLabs](https://platform.empiriolabs.ai/dashboard/api-keys).
+
+EmpirioLabs offers models that support tool calling, including:
+- **qwen3-7-plus** - Qwen3.7 Plus with a 1M context window
+- **qwen3-7-max** - Qwen3.7 Max with a 1M context window
+- **deepseek-v4-pro** - DeepSeek V4 Pro with a 1M context window
+- **deepseek-v4-flash** - DeepSeek V4 Flash with a 1M context window
+- **glm-5-1** - GLM-5.1 with a 202K context window
+- **kimi-k2-7-code** - Kimi K2.7 Code with a 256K context window
+- **minimax-m3** - MiniMax M3 with a 524K context window
+
+The full live catalog is available at `https://api.empiriolabs.ai/v1/models`. For the complete list of EmpirioLabs models configured in goose, see [empiriolabs.json](https://github.com/aaif-goose/goose/blob/main/crates/goose/src/providers/declarative/empiriolabs.json). For more details, see the [EmpirioLabs documentation](https://docs.empiriolabs.ai).
+
+To set up EmpirioLabs with goose, follow these steps:
+
+<Tabs groupId="interface">
+  <TabItem value="ui" label="goose Desktop" default>
+  **To update your LLM provider and API key:** 
+
+    1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar.
+    2. Click the `Settings` button on the sidebar.
+    3. Click the `Models` tab.
+    4. Click `Configure Providers`
+    5. Choose `EmpirioLabs` as provider from the list.
+    6. Click `Configure`, enter your API key, and click `Submit`.
+    7. Select the EmpirioLabs model of your choice.
+
+  </TabItem>
+  <TabItem value="cli" label="goose CLI">
+    1. Run: 
+    ```sh
+    goose configure
+    ```
+    2. Select `Configure Providers` from the menu.
+    3. Follow the prompts to choose `EmpirioLabs` as the provider.
+    4. Enter your API key when prompted.
+    5. Select the EmpirioLabs model of your choice.
+  </TabItem>
+</Tabs>
+
 ### FuturMix
 [FuturMix](https://futurmix.ai/) is a unified AI gateway providing access to models from Anthropic, Google, OpenAI, and DeepSeek through an OpenAI-compatible API. To use FuturMix with goose, you need an API key from [FuturMix](https://futurmix.ai/).
 
@@ -1363,12 +1405,15 @@ GitHub Copilot uses a device flow for authentication, so no API keys are require
 4. Paste the code to authorize the application
 5. When you return to goose, GitHub Copilot will be available as a provider in both CLI and Desktop.
 
-## Azure OpenAI Credential Chain
+## Azure OpenAI Authentication
 
-goose supports two authentication methods for Azure OpenAI:
+goose supports three authentication methods for Azure OpenAI:
 
-1. **API Key Authentication** - Uses the `AZURE_OPENAI_API_KEY` for direct authentication
-2. **Azure Credential Chain** - Uses Azure CLI credentials automatically without requiring an API key
+1. **Entra ID Bearer Token** - Uses a pre-acquired Microsoft Entra access token from `AZURE_OPENAI_AD_TOKEN`, sent as `Authorization: Bearer <token>`. goose skips Azure CLI and token acquisition entirely, which suits enterprise deployments where only short-lived tokens are exposed to the runtime (e.g. obtained via `az account get-access-token --resource https://cognitiveservices.azure.com --query accessToken --output tsv`)
+2. **API Key Authentication** - Uses the `AZURE_OPENAI_API_KEY` for direct authentication
+3. **Azure Credential Chain** - Uses Azure CLI credentials automatically without requiring an API key
+
+When more than one is configured, `AZURE_OPENAI_AD_TOKEN` takes precedence over `AZURE_OPENAI_API_KEY`, which takes precedence over the credential chain.
 
 To use the Azure Credential Chain:
 - Ensure you're logged in with `az login`
