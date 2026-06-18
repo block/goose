@@ -7,6 +7,7 @@ mod legacy;
 #[cfg(feature = "nostr")]
 pub mod nostr_share;
 pub mod session_manager;
+mod session_naming;
 
 pub use diagnostics::{
     config_path, generate_diagnostics, get_system_info, latest_llm_log_path,
