@@ -45,6 +45,7 @@ import {
   acpRenameSession,
   type SessionListItem,
 } from '../../acp/sessions';
+import { acpChatSessionStore } from '../../acp/chatSessionStore';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { clearSessionCache } from '../../hooks/useChatStream';
 
@@ -509,6 +510,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
         clearSessionCache(sessionToDeleteId);
+        acpChatSessionStore.deleteSnapshot(sessionToDeleteId);
       } catch (error) {
         console.error('Error deleting session:', error);
         toast.error(intl.formatMessage(i18n.deleteFailed, { name: sessionName, error: errorMessage(error, 'Unknown error') }));

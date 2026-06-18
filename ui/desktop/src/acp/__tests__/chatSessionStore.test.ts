@@ -120,6 +120,14 @@ describe('acpChatSessionStore', () => {
     expect(store.getSnapshot('session-2')?.messages[0].id).toBe('message-2');
   });
 
+  it('deletes session snapshots', () => {
+    store.setMessages('session-1', [message('message-1', 'One')]);
+
+    store.deleteSnapshot('session-1');
+
+    expect(store.getSnapshot('session-1')).toBeUndefined();
+  });
+
   it('notifies only listeners for the updated session', () => {
     const sessionOneListener = vi.fn();
     const sessionTwoListener = vi.fn();

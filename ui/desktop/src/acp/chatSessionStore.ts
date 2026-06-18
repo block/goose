@@ -38,6 +38,7 @@ const initialTokenState: TokenState = {
 export interface AcpChatSessionStore {
   getSnapshot(sessionId: string): AcpChatSessionSnapshot | undefined;
   subscribe(sessionId: string, listener: (snapshot: AcpChatSessionSnapshot) => void): () => void;
+  deleteSnapshot(sessionId: string): void;
   setLoadedSession(
     sessionId: string,
     session: Session,
@@ -99,6 +100,10 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
         listenersBySessionId.delete(sessionId);
       }
     };
+  };
+
+  const deleteSnapshot: AcpChatSessionStore['deleteSnapshot'] = (sessionId) => {
+    sessionsById.delete(sessionId);
   };
 
   const getOrCreateEntry = (sessionId: string): StoreEntry => {
@@ -279,6 +284,7 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
   return {
     getSnapshot,
     subscribe,
+    deleteSnapshot,
     setLoadedSession,
     setSessionMetadata,
     setMessages,
