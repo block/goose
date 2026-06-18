@@ -29,7 +29,7 @@ const customOneDarkTheme = {
 import { Check, Copy } from './icons';
 import { wrapHTMLInCodeBlock } from '../utils/htmlSecurity';
 import { isProtocolSafe, getProtocol, BLOCKED_PROTOCOLS } from '../utils/urlSecurity';
-import { remarkLinkifyPaths, OPEN_FILE_PROTOCOL } from '../utils/linkifyPaths';
+import { remarkLinkifyPaths, OPEN_FILE_PROTOCOL, isTrustedGeneratedFileLink, decodeFileLinkHref } from '../utils/linkifyPaths';
 import { ConfirmationModal } from './ui/ConfirmationModal';
 import { defineMessages, useIntl } from '../i18n';
 
@@ -198,6 +198,19 @@ const customUrlTransform = (url: string): string => {
   return url;
 };
 
+function getAnchorText(children: React.ReactNode): string {
+  if (typeof children === 'string' || typeof children === 'number') {
+    return String(children);
+  }
+  if (Array.isArray(children)) {
+    return children.map(getAnchorText).join('');
+  }
+  if (React.isValidElement<{ children?: React.ReactNode }>(children)) {
+    return getAnchorText(children.props.children);
+  }
+  return '';
+};
+
 const MarkdownContent = memo(function MarkdownContent({
   content,
   className = '',
@@ -274,13 +287,9 @@ const MarkdownContent = memo(function MarkdownContent({
             a: (props) => {
               const href = props.href;
               if (href && href.startsWith(OPEN_FILE_PROTOCOL)) {
-                let filePath: string | undefined;
-                try {
-                  filePath = decodeURIComponent(href.slice(OPEN_FILE_PROTOCOL.length));
-                } catch {
-                  filePath = undefined;
-                }
-                if (filePath) {
+                const filePath = decodeFileLinkHref(href);
+                const label = getAnchorText(props.children);
+                if (filePath && isTrustedGeneratedFileLink(href, label)) {
                   return (
                     <a
                       {...props}

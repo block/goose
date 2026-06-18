@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { Root } from 'mdast';
-import { findPaths, OPEN_FILE_PROTOCOL, remarkLinkifyPaths } from './linkifyPaths';
+import { findPaths, OPEN_FILE_PROTOCOL, remarkLinkifyPaths, isTrustedGeneratedFileLink } from './linkifyPaths';
 
 describe('path linkification', () => {
   describe('Unix absolute paths', () => {
@@ -171,6 +171,15 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/Users/me/Project 2026');
     });
 
+    it('detects paths with @ and percent-encoded characters in filenames', () => {
+      expect(findPaths('File /tmp/foo@bar.txt')[0][1]).toBe('/tmp/foo@bar.txt');
+      expect(findPaths('File /tmp/foo%20bar.txt')[0][1]).toBe('/tmp/foo%20bar.txt');
+    });
+
+    it('does not linkify partial paths before unsupported characters', () => {
+      expect(findPaths('See /tmp/foo#bar.txt')).toHaveLength(0);
+    });
+
     it('detects paths with Unicode segment names', () => {
       const matches = findPaths('Saved /Users/me/デスクトップ/out.txt');
       expect(matches).toHaveLength(1);
@@ -267,5 +276,18 @@ describe('remarkLinkifyPaths', () => {
     expect(link.children[0].type).toBe('strong');
     if (link.children[0].type !== 'strong') return;
     expect(link.children[0].children[0]).toEqual({ type: 'text', value: '/tmp/out' });
+  });
+});
+
+describe('file link trust', () => {
+  it('trusts links whose label matches the decoded path', () => {
+    const path = '/Users/me/My Project/file.txt';
+    const href = OPEN_FILE_PROTOCOL + encodeURI(path);
+    expect(isTrustedGeneratedFileLink(href, path)).toBe(true);
+  });
+
+  it('rejects authored links with mismatched labels', () => {
+    const href = OPEN_FILE_PROTOCOL + encodeURI('/Users/me/Secrets');
+    expect(isTrustedGeneratedFileLink(href, 'release notes')).toBe(false);
   });
 });

@@ -10,7 +10,7 @@ type PathMatch = [index: number, path: string];
 type Separator = '/' | '\\';
 
 function isPathChar(char: string): boolean {
-  if (/[a-zA-Z0-9._+-]/.test(char)) return true;
+  if (/[a-zA-Z0-9._+@%-]/.test(char)) return true;
   return /\p{L}|\p{N}/u.test(char);
 }
 
@@ -169,6 +169,10 @@ function readSegment(text: string, start: number, separator: Separator): { end: 
   return i > start ? { end: i } : null;
 }
 
+function isPathTerminator(char: string): boolean {
+  return /[.,;:!?'"`]/.test(char);
+}
+
 function parsePathAt(text: string, index: number): PathMatch | null {
   let i = index;
   let separator: Separator = '/';
@@ -197,7 +201,7 @@ function parsePathAt(text: string, index: number): PathMatch | null {
     if (!segment) {
       if (segmentCount >= minSegments && i < text.length) {
         const next = text[i];
-        if (next !== separator && next !== ' ' && !/[.,;:!?)'\]"]/.test(next)) {
+        if (next !== separator && next !== ' ' && !isPathTerminator(next)) {
           return null;
         }
       }
@@ -208,6 +212,9 @@ function parsePathAt(text: string, index: number): PathMatch | null {
     if (i < text.length && text[i] === separator) {
       i++;
       continue;
+    }
+    if (i < text.length && text[i] !== ' ' && !isPathTerminator(text[i])) {
+      return null;
     }
     break;
   }
@@ -310,3 +317,17 @@ export const remarkLinkifyPaths: Plugin<[], Root> = function () {
 };
 
 export { OPEN_FILE_PROTOCOL };
+
+export function decodeFileLinkHref(href: string): string | undefined {
+  if (!href.startsWith(OPEN_FILE_PROTOCOL)) return undefined;
+  try {
+    return decodeURIComponent(href.slice(OPEN_FILE_PROTOCOL.length));
+  } catch {
+    return undefined;
+  }
+}
+
+export function isTrustedGeneratedFileLink(href: string, label: string): boolean {
+  const filePath = decodeFileLinkHref(href);
+  return filePath !== undefined && label === filePath;
+}
