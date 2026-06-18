@@ -105,6 +105,10 @@ pub fn apply_reasoning_config(payload: &mut Value, model_config: &ModelConfig) {
     };
 
     if let Some(obj) = payload.as_object_mut() {
+        if obj.contains_key("reasoning") {
+            return;
+        }
+
         let clamped_effort = obj
             .remove("reasoning_effort")
             .and_then(|value| value.as_str().map(str::to_owned));
@@ -199,6 +203,23 @@ mod tests {
 
         assert_eq!(payload["reasoning"], json!({ "effort": "high" }));
         assert!(payload.get("reasoning_effort").is_none());
+    }
+
+    #[test]
+    fn test_apply_reasoning_config_preserves_user_reasoning() {
+        let mut payload = json!({
+            "model": "openai/gpt-5",
+            "messages": [],
+            "reasoning": { "max_tokens": 2000 }
+        });
+        let mut model_config = ModelConfig::new_or_fail("openai/gpt-5");
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("high"));
+        model_config.request_params = Some(params);
+
+        apply_reasoning_config(&mut payload, &model_config);
+
+        assert_eq!(payload["reasoning"], json!({ "max_tokens": 2000 }));
     }
 
     #[test]
