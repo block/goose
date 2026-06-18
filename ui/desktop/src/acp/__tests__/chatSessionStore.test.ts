@@ -29,12 +29,8 @@ function session(id: string, conversation: Message[] = []): Session {
     extension_data: {},
     source: 'test',
     conversation,
-    input_tokens: 1,
-    output_tokens: 2,
-    total_tokens: 3,
-    accumulated_input_tokens: 4,
-    accumulated_output_tokens: 5,
-    accumulated_total_tokens: 9,
+    usage: { input_tokens: 1, output_tokens: 2, total_tokens: 3 },
+    accumulated_usage: { input_tokens: 4, output_tokens: 5, total_tokens: 9 },
   } as Session;
 }
 
