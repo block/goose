@@ -12,7 +12,7 @@ impl GooseAcpAgent {
         let config: ExtensionConfig = serde_json::from_value(req.config).map_err(|e| {
             agent_client_protocol::Error::invalid_params().data(format!("bad config: {e}"))
         })?;
-        let agent = self.get_session_agent(&req.session_id, None).await?;
+        let agent = self.get_session_agent(&req.session_id).await?;
         agent
             .add_extension(config, session_id)
             .await
@@ -25,7 +25,7 @@ impl GooseAcpAgent {
         req: RemoveExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         let session_id = &req.session_id;
-        let agent = self.get_session_agent(&req.session_id, None).await?;
+        let agent = self.get_session_agent(&req.session_id).await?;
         agent
             .remove_extension(&req.name, session_id)
             .await
@@ -279,6 +279,7 @@ fn goose_extension_to_config(
                     envs: Envs::default(),
                     env_keys,
                     timeout,
+                    cwd: None,
                     bundled,
                     available_tools: Vec::new(),
                 }
@@ -421,6 +422,7 @@ mod tests {
             )])),
             env_keys: vec!["SECRET_TOKEN".to_string()],
             timeout: Some(42),
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         };
@@ -596,6 +598,7 @@ mod tests {
             timeout,
             bundled,
             available_tools,
+            ..
         } = conversion.config
         else {
             panic!("expected stdio config");

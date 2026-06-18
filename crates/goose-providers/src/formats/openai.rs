@@ -753,10 +753,7 @@ fn extract_usage_with_output_tokens(
                 .model
                 .as_deref()
                 .or(fallback_model)
-                .map(|model| ProviderUsage {
-                    usage: get_usage(u),
-                    model: model.to_string(),
-                })
+                .map(|model| ProviderUsage::new(model.to_string(), get_usage(u)))
         })
         .filter(|u| u.usage.output_tokens.is_some())
 }
@@ -872,7 +869,9 @@ fn strip_data_prefix(line: &str) -> Option<&str> {
 
 fn parse_streaming_chunk(line: &str) -> Result<StreamingChunk, ProviderError> {
     let value: Value = serde_json::from_str(line).map_err(|e| {
-        ProviderError::RequestFailed(format!("Failed to parse streaming chunk: {e}: {line:?}"))
+        ProviderError::stream_decode_error(format!(
+            "Failed to parse streaming chunk: {e}: {line:?}"
+        ))
     })?;
 
     if let Some(error) = value.get("error") {
@@ -892,7 +891,9 @@ fn parse_streaming_chunk(line: &str) -> Result<StreamingChunk, ProviderError> {
     }
 
     serde_json::from_value(value).map_err(|e| {
-        ProviderError::RequestFailed(format!("Failed to parse streaming chunk: {e}: {line:?}"))
+        ProviderError::stream_decode_error(format!(
+            "Failed to parse streaming chunk: {e}: {line:?}"
+        ))
     })
 }
 
@@ -2515,14 +2516,17 @@ mod tests {
     }
 
     #[test]
-    fn test_get_usage_reads_nested_usage_object() {
+    fn test_get_usage_reads_nested_usage_with_cache_fields() {
         let usage = get_usage(&json!({
             "id": "chatcmpl_test",
+            "object": "chat.completion",
             "usage": {
                 "prompt_tokens": 84,
                 "completion_tokens": 21,
                 "total_tokens": 105,
-                "cache_read_input_tokens": 60,
+                "prompt_tokens_details": {
+                    "cached_tokens": 60
+                },
                 "cache_creation_input_tokens": 10
             }
         }));

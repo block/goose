@@ -1,3 +1,11 @@
+pub mod registrations;
+mod resolver;
+
+pub use resolver::{
+    default_inventory_identity_resolver, InventoryConfiguredResolver, InventoryIdentityResolver,
+    InventoryRegistration, InventoryResolvers,
+};
+
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderType};
 use super::canonical::{map_provider_name, map_to_canonical_model, CanonicalModelRegistry};
 use super::catalog::ProviderSetupCategory;

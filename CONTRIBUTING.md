@@ -173,6 +173,17 @@ The app opens a window and displays first-time setup. After completing setup, go
 
 Make GUI changes in `ui/desktop`.
 
+#### Troubleshooting: blank screen on `just run-ui`
+
+If the app opens to a blank window (logs show `Cannot read properties of null (reading 'useRef')`), your `node_modules` is out of date and is loading two copies of React. Delete it and reinstall:
+
+```
+rm -rf ui/desktop/node_modules
+cd ui && pnpm install
+```
+
+See #8757.
+
 ### Regenerating the OpenAPI schema
 
 The file `ui/desktop/openapi.json` is automatically generated during the build.

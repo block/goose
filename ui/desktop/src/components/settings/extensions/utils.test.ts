@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   nameToKey,
   getDefaultFormData,
@@ -345,6 +345,36 @@ describe('Extension Utils', () => {
       ['', { cmd: '', args: [] }],
     ])('splits %j correctly', (input, expected) => {
       expect(splitCmdAndArgs(input)).toEqual(expected);
+    });
+
+    describe('on Windows', () => {
+      beforeEach(() => {
+        vi.stubGlobal('window', { electron: { platform: 'win32' } });
+      });
+      afterEach(() => {
+        vi.unstubAllGlobals();
+      });
+
+      it('preserves backslashes in a Windows path', () => {
+        expect(splitCmdAndArgs('C:\\Users\\name\\path\\to\\extension.js')).toEqual({
+          cmd: 'C:\\Users\\name\\path\\to\\extension.js',
+          args: [],
+        });
+      });
+
+      it('preserves backslashes in cmd and args', () => {
+        expect(splitCmdAndArgs('node C:\\Users\\name\\ext.js')).toEqual({
+          cmd: 'node',
+          args: ['C:\\Users\\name\\ext.js'],
+        });
+      });
+
+      it('handles a quoted Windows path containing spaces', () => {
+        expect(splitCmdAndArgs('"C:\\Program Files\\app\\ext.js"')).toEqual({
+          cmd: 'C:\\Program Files\\app\\ext.js',
+          args: [],
+        });
+      });
     });
   });
 

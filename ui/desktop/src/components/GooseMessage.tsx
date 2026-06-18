@@ -34,7 +34,7 @@ interface GooseMessageProps {
   submitElicitationResponse?: (
     elicitationId: string,
     userData: Record<string, unknown>
-  ) => Promise<void>;
+  ) => Promise<boolean>;
 }
 
 export default function GooseMessage({
@@ -75,6 +75,13 @@ export default function GooseMessage({
   );
   const hasToolConfirmation = toolConfirmationContent !== undefined;
   const hasElicitation = elicitationContent !== undefined;
+  const elicitationData =
+    elicitationContent?.data.actionType === 'elicitation'
+      ? (elicitationContent.data as typeof elicitationContent.data & {
+          isSubmitted?: boolean;
+          isCancelled?: boolean;
+        })
+      : undefined;
 
   const toolConfirmationShownInline = useMemo(() => {
     if (!toolConfirmationContent) return false;
@@ -203,8 +210,8 @@ export default function GooseMessage({
 
         {hasElicitation && submitElicitationResponse && (
           <ElicitationRequest
-            isCancelledMessage={false}
-            isClicked={false}
+            isCancelledMessage={elicitationData?.isCancelled === true}
+            isClicked={elicitationData?.isSubmitted === true}
             actionRequiredContent={elicitationContent}
             onSubmit={submitElicitationResponse}
           />

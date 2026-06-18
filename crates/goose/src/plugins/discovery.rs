@@ -1,9 +1,19 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
+use crate::config::Config;
 use crate::plugins::plugin_install_dir;
+
+const PLUGINS_CONFIG_KEY: &str = "plugins";
+
+/// Per-plugin entry stored under the `plugins` map in `config.yaml`, keyed by
+/// the plugin's filesystem path.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct PluginConfigEntry {
+    enabled: bool,
+}
 
 /// A plugin found on disk and not disabled by any settings file.
 #[derive(Debug, Clone)]
@@ -40,6 +50,13 @@ enum SettingsScope {
 /// `project_root`, when supplied, enables project + local scope settings and
 /// project-scope `.agents/plugins/` lookups.
 pub fn discover_enabled_plugins(project_root: Option<&Path>) -> Vec<DiscoveredPlugin> {
+    discover_enabled_plugins_with_config(project_root, Config::global())
+}
+
+fn discover_enabled_plugins_with_config(
+    project_root: Option<&Path>,
+    config: &Config,
+) -> Vec<DiscoveredPlugin> {
     let scoped_settings = load_all_settings(project_root);
     let mut found: HashMap<String, DiscoveredPlugin> = HashMap::new();
 
@@ -60,10 +77,46 @@ pub fn discover_enabled_plugins(project_root: Option<&Path>) -> Vec<DiscoveredPl
         });
     }
 
-    found
+    let enabled_by_settings: Vec<DiscoveredPlugin> = found
         .into_values()
         .filter(|plugin| is_enabled(&plugin.name, &scoped_settings))
-        .collect()
+        .collect();
+
+    filter_by_config(enabled_by_settings, config)
+}
+
+/// Apply the `plugins` map in `config.yaml`. Newly discovered plugins are added
+/// to the map with `enabled: true`; plugins explicitly set to `enabled: false`
+/// are dropped.
+fn filter_by_config(plugins: Vec<DiscoveredPlugin>, config: &Config) -> Vec<DiscoveredPlugin> {
+    let mut entries: HashMap<String, PluginConfigEntry> =
+        config.get_param(PLUGINS_CONFIG_KEY).unwrap_or_default();
+
+    let mut dirty = false;
+    let mut enabled = Vec::new();
+    for plugin in plugins {
+        let key = plugin.root.to_string_lossy().to_string();
+        match entries.get(&key) {
+            Some(entry) => {
+                if entry.enabled {
+                    enabled.push(plugin);
+                }
+            }
+            None => {
+                entries.insert(key, PluginConfigEntry { enabled: true });
+                dirty = true;
+                enabled.push(plugin);
+            }
+        }
+    }
+
+    if dirty {
+        if let Err(e) = config.set_param(PLUGINS_CONFIG_KEY, entries) {
+            tracing::warn!(error = %e, "Failed to persist plugin config entries");
+        }
+    }
+
+    enabled
 }
 
 fn is_enabled(plugin_name: &str, scoped_settings: &[(SettingsScope, PluginSettings)]) -> bool {
@@ -197,13 +250,22 @@ mod tests {
         std::fs::write(dir.join("settings.local.json"), contents).unwrap();
     }
 
+    fn test_config(dir: &Path) -> Config {
+        Config::new(dir.join("config.yaml"), "goose-discovery-test").unwrap()
+    }
+
+    fn discover(project: &Path) -> Vec<DiscoveredPlugin> {
+        let cfg_dir = tempfile::tempdir().unwrap();
+        discover_enabled_plugins_with_config(Some(project), &test_config(cfg_dir.path()))
+    }
+
     #[test]
     fn finds_project_scope_plugin() {
         let tmp = tempfile::tempdir().unwrap();
         let project = tmp.path();
         write_plugin_dir(&project.join(".agents").join("plugins"), "demo");
 
-        let found = discover_enabled_plugins(Some(project));
+        let found = discover(project);
         let names: Vec<_> = found.iter().map(|p| p.name.as_str()).collect();
         assert!(names.contains(&"demo"), "got: {names:?}");
         let demo = found.iter().find(|p| p.name == "demo").unwrap();
@@ -221,7 +283,7 @@ mod tests {
             r#"{"disabledPlugins":["demo"]}"#,
         );
 
-        let found = discover_enabled_plugins(Some(project));
+        let found = discover(project);
         assert!(found.iter().all(|p| p.name != "demo"));
     }
 
@@ -237,7 +299,7 @@ mod tests {
             r#"{"enabledPlugins":["demo"]}"#,
         );
 
-        let found = discover_enabled_plugins(Some(project));
+        let found = discover(project);
         let names: Vec<_> = found.iter().map(|p| p.name.as_str()).collect();
         assert!(names.contains(&"demo"), "got: {names:?}");
         assert!(names.contains(&"other"), "got: {names:?}");
@@ -258,7 +320,7 @@ mod tests {
             r#"{"enabledPlugins":["demo"]}"#,
         );
 
-        let found = discover_enabled_plugins(Some(project));
+        let found = discover(project);
         assert!(
             found.iter().any(|p| p.name == "demo"),
             "local scope should win; got: {:?}",
@@ -285,7 +347,7 @@ mod tests {
 
         let prev = std::env::var("GOOSE_PATH_ROOT").ok();
         unsafe { std::env::set_var("GOOSE_PATH_ROOT", fake_home.path()) };
-        let found = discover_enabled_plugins(Some(project));
+        let found = discover(project);
         match prev {
             Some(v) => unsafe { std::env::set_var("GOOSE_PATH_ROOT", v) },
             None => unsafe { std::env::remove_var("GOOSE_PATH_ROOT") },
@@ -296,5 +358,81 @@ mod tests {
             "project scope should win over user; got: {:?}",
             found.iter().map(|p| &p.name).collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn newly_discovered_plugin_is_added_to_config_as_enabled() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project = tmp.path();
+        write_plugin_dir(&project.join(".agents").join("plugins"), "demo");
+
+        let cfg_dir = tempfile::tempdir().unwrap();
+        let config = test_config(cfg_dir.path());
+
+        let found = discover_enabled_plugins_with_config(Some(project), &config);
+        assert!(found.iter().any(|p| p.name == "demo"));
+
+        let entries: HashMap<String, PluginConfigEntry> =
+            config.get_param(PLUGINS_CONFIG_KEY).unwrap();
+        let key = project
+            .join(".agents")
+            .join("plugins")
+            .join("demo")
+            .to_string_lossy()
+            .to_string();
+        assert!(
+            entries.get(&key).is_some_and(|e| e.enabled),
+            "got: {entries:?}"
+        );
+    }
+
+    #[test]
+    fn disabled_in_config_drops_plugin() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project = tmp.path();
+        write_plugin_dir(&project.join(".agents").join("plugins"), "demo");
+
+        let cfg_dir = tempfile::tempdir().unwrap();
+        let config = test_config(cfg_dir.path());
+        let key = project
+            .join(".agents")
+            .join("plugins")
+            .join("demo")
+            .to_string_lossy()
+            .to_string();
+        let entries = HashMap::from([(key, PluginConfigEntry { enabled: false })]);
+        config.set_param(PLUGINS_CONFIG_KEY, entries).unwrap();
+
+        let found = discover_enabled_plugins_with_config(Some(project), &config);
+        assert!(found.iter().all(|p| p.name != "demo"));
+    }
+
+    #[test]
+    fn enabled_in_config_keeps_plugin_without_modifying_config() {
+        let tmp = tempfile::tempdir().unwrap();
+        let project = tmp.path();
+        write_plugin_dir(&project.join(".agents").join("plugins"), "demo");
+
+        let cfg_dir = tempfile::tempdir().unwrap();
+        let config = test_config(cfg_dir.path());
+        let key = project
+            .join(".agents")
+            .join("plugins")
+            .join("demo")
+            .to_string_lossy()
+            .to_string();
+        config
+            .set_param(
+                PLUGINS_CONFIG_KEY,
+                HashMap::from([(key.clone(), PluginConfigEntry { enabled: true })]),
+            )
+            .unwrap();
+
+        let found = discover_enabled_plugins_with_config(Some(project), &config);
+        assert!(found.iter().any(|p| p.name == "demo"));
+
+        let entries: HashMap<String, PluginConfigEntry> =
+            config.get_param(PLUGINS_CONFIG_KEY).unwrap();
+        assert!(entries.get(&key).is_some_and(|e| e.enabled));
     }
 }

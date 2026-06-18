@@ -1,4 +1,5 @@
 import { Session, startAgent, ExtensionConfig } from './api';
+import { DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
 import type { setViewType } from './hooks/useNavigation';
 import {
   getExtensionConfigsWithOverrides,
@@ -9,11 +10,8 @@ import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
 import { decodeRecipe, Recipe } from './recipe';
 
-export function shouldShowNewChatTitle(session: Session): boolean {
-  if (session.recipe) {
-    return false;
-  }
-  return !session.user_set_name && session.message_count === 0;
+export function getSessionDisplayName(session: Session): string {
+  return session.name || DEFAULT_CHAT_TITLE;
 }
 
 export function resumeSession(session: Session, setView: setViewType) {
