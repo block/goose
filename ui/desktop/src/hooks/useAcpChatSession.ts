@@ -33,6 +33,7 @@ import type { UseChatSessionParams, UseChatSessionResult } from './useChatSessio
 import { cancelAcpPermissionRequestsForSession } from '../acp/permissionRequests';
 import { parseAcpCreditsExhaustedError, type AcpCreditsExhaustedError } from '../acp/errors';
 import { acpCancelPrompt, acpPromptSession } from '../acp/prompt';
+import { acpTruncateSessionConversation } from '../acp/sessions';
 import {
   acpChatSessionStore,
   tokenStateFromSession,
@@ -647,87 +648,6 @@ export function useAcpChatSession({
     };
   }, [sessionId, addListener, onFinish, reloadConversation, setActiveRequestsHandler, doReattach]);
 
-  /**
-   * Submit a message via the new POST+SSE pattern.
-   * 1. Generate request_id
-   * 2. Register SSE listener BEFORE POST (no race condition)
-   * 3. POST to /sessions/{id}/reply
-   * 4. Events arrive on the long-lived SSE connection
-   */
-  const submitToSession = useCallback(
-    async (
-      targetSessionId: string,
-      userMessage: Message,
-      currentMessages: Message[],
-      overrideConversation?: Message[]
-    ) => {
-      const requestId = uuidv7();
-      const abortController = new AbortController();
-      activeRequestIdRef.current = requestId;
-      activeRequestSessionIdRef.current = targetSessionId;
-      activeAbortRef.current = abortController;
-
-      // Create event processor and register listener BEFORE the POST
-      const processEvent = createEventProcessor(
-        currentMessages,
-        dispatch,
-        onFinish,
-        targetSessionId,
-        reloadConversation
-      );
-
-      const unsubscribe = addListener(requestId, (event) => {
-        const isTerminal = processEvent(event);
-        if (isTerminal) {
-          unsubscribe();
-          // Only clear global refs if this request is still the active one.
-          // A newer request may have already replaced them.
-          if (activeRequestIdRef.current === requestId) {
-            activeUnsubscribeRef.current = null;
-            activeRequestIdRef.current = null;
-            activeRequestSessionIdRef.current = null;
-            activeAbortRef.current = null;
-          }
-        }
-      });
-      activeUnsubscribeRef.current = unsubscribe;
-
-      try {
-        await sessionReply({
-          path: { id: targetSessionId },
-          body: {
-            request_id: requestId,
-            user_message: userMessage,
-            override_conversation: overrideConversation,
-          },
-          signal: abortController.signal,
-          throwOnError: true,
-        });
-      } catch (error) {
-        // Abort is expected when stopStreaming races with the POST
-        if (abortController.signal.aborted) return;
-        // POST failed — clean up listener and report error.
-        // Only clear global refs if this request is still the active one;
-        // a newer request may have already replaced them.
-        unsubscribe();
-        if (activeRequestIdRef.current === requestId) {
-          activeUnsubscribeRef.current = null;
-          activeRequestIdRef.current = null;
-          activeRequestSessionIdRef.current = null;
-          activeAbortRef.current = null;
-        }
-        const msg = errorMessage(error);
-        if (msg.includes('already has an active request')) {
-          acpChatSessionStore.setChatState(targetSessionId, ChatState.Idle);
-          dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
-        } else {
-          onFinish('Submit error: ' + msg);
-        }
-      }
-    },
-    [addListener, onFinish, reloadConversation]
-  );
-
   const submitToAcpSession = useCallback(
     async (targetSessionId: string, userMessage: Message) => {
       const promptAttemptId = uuidv7();
@@ -1095,31 +1015,31 @@ export function useAcpChatSession({
       dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Thinking });
 
       try {
-        const { forkSession } = await import('../api');
         const message = currentState.messages.find((m) => m.id === messageId);
 
         if (!message) {
           throw new Error(`Message with id ${messageId} not found in current messages`);
         }
 
-        const response = await forkSession({
-          path: {
-            session_id: sessionId,
-          },
-          body: {
-            timestamp: message.created,
-            truncate: true,
-            copy: editType === 'fork',
-          },
-          throwOnError: true,
-        });
-
-        const targetSessionId = response.data?.sessionId;
-        if (!targetSessionId) {
-          throw new Error('No session ID returned from fork');
-        }
-
         if (editType === 'fork') {
+          const { forkSession } = await import('../api');
+          const response = await forkSession({
+            path: {
+              session_id: sessionId,
+            },
+            body: {
+              timestamp: message.created,
+              truncate: true,
+              copy: true,
+            },
+            throwOnError: true,
+          });
+
+          const targetSessionId = response.data?.sessionId;
+          if (!targetSessionId) {
+            throw new Error('No session ID returned from fork');
+          }
+
           acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
           dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
           const event = new CustomEvent(AppEvents.SESSION_FORKED, {
@@ -1132,32 +1052,26 @@ export function useAcpChatSession({
           window.dispatchEvent(event);
           window.electron.logInfo(`Dispatched session-forked event for session ${targetSessionId}`);
         } else {
-          const { getSession } = await import('../api');
-          const sessionResponse = await getSession({
-            path: { session_id: targetSessionId },
-            throwOnError: true,
-          });
+          await acpTruncateSessionConversation(sessionId, message.created);
 
-          if (sessionResponse.data?.conversation) {
-            const truncatedMessages = [...sessionResponse.data.conversation];
-            const updatedUserMessage = createUserMessage(newContent);
+          const truncatedMessages = currentState.messages.filter(
+            (m) => m.created < message.created
+          );
+          const updatedUserMessage = createUserMessage(newContent);
 
-            for (const content of message.content) {
-              if (content.type === 'image') {
-                updatedUserMessage.content.push(content);
-              }
+          for (const content of message.content) {
+            if (content.type === 'image') {
+              updatedUserMessage.content.push(content);
             }
-
-            const messagesForUI = [...truncatedMessages, updatedUserMessage];
-            acpChatSessionStore.setMessages(targetSessionId, messagesForUI);
-            acpChatSessionStore.setChatState(targetSessionId, ChatState.Streaming);
-            dispatch({ type: 'SET_MESSAGES', payload: messagesForUI });
-            dispatch({ type: 'START_STREAMING' });
-
-            await submitToSession(targetSessionId, updatedUserMessage, messagesForUI);
-          } else {
-            await handleSubmit({ msg: newContent, images: [] });
           }
+
+          const messagesForUI = [...truncatedMessages, updatedUserMessage];
+          acpChatSessionStore.setMessages(sessionId, messagesForUI);
+          acpChatSessionStore.setChatState(sessionId, ChatState.Streaming);
+          dispatch({ type: 'SET_MESSAGES', payload: messagesForUI });
+          dispatch({ type: 'START_STREAMING' });
+
+          await submitToAcpSession(sessionId, updatedUserMessage);
         }
       } catch (error) {
         acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
@@ -1171,7 +1085,7 @@ export function useAcpChatSession({
         });
       }
     },
-    [sessionId, handleSubmit, submitToSession]
+    [sessionId, submitToAcpSession]
   );
 
   const setChatState = useCallback(

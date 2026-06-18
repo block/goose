@@ -1,4 +1,8 @@
-import type { ForkSessionRequest, ListSessionsRequest, SessionInfo } from '@agentclientprotocol/sdk';
+import type {
+  ForkSessionRequest,
+  ListSessionsRequest,
+  SessionInfo,
+} from '@agentclientprotocol/sdk';
 import { getAcpClient } from './acpConnection';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
 
@@ -97,6 +101,14 @@ export async function acpDeleteSession(sessionId: string): Promise<void> {
 export async function acpRenameSession(sessionId: string, title: string): Promise<void> {
   const client = await getAcpClient();
   await client.goose.sessionRename_unstable({ sessionId, title });
+}
+
+export async function acpTruncateSessionConversation(
+  sessionId: string,
+  truncateFrom: number
+): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.sessionConversationTruncate_unstable({ sessionId, truncateFrom });
 }
 
 export async function acpForkSession(sessionId: string, cwd: string): Promise<void> {
