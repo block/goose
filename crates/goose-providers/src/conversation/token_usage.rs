@@ -60,6 +60,8 @@ impl ProviderUsage {
 /// Bedrock) must fold them into `input_tokens`.
 #[derive(Debug, Clone, Serialize, Deserialize, Default, Copy, PartialEq, Eq, ToSchema)]
 pub struct Usage {
+    /// All prompt tokens, including any served from or written to cache.
+    /// `cache_read_input_tokens` and `cache_write_input_tokens` are subsets of this.
     pub input_tokens: Option<i32>,
     pub output_tokens: Option<i32>,
     pub total_tokens: Option<i32>,
@@ -69,12 +71,12 @@ pub struct Usage {
 
 fn sum_optionals<T>(a: Option<T>, b: Option<T>) -> Option<T>
 where
-    T: Add<Output = T> + Default,
+    T: Add<Output = T>,
 {
     match (a, b) {
         (Some(x), Some(y)) => Some(x + y),
-        (Some(x), None) => Some(x + T::default()),
-        (None, Some(y)) => Some(T::default() + y),
+        (Some(x), None) => Some(x),
+        (None, Some(y)) => Some(y),
         (None, None) => None,
     }
 }

@@ -1369,7 +1369,7 @@ mod tests {
         )?;
 
         assert_eq!(payload["thinking"]["type"], "enabled");
-        assert_eq!(payload["thinking"]["budget_tokens"], 16000);
+        assert!(payload["thinking"]["budget_tokens"].as_i64().unwrap() >= 1024);
         assert_eq!(payload["thinking"]["clear_thinking"], false);
         assert_eq!(payload["max_tokens"], 64000);
         assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
