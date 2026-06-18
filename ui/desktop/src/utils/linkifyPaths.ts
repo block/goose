@@ -58,12 +58,17 @@ function getLastToken(text: string, segmentStart: number, beforeIndex: number): 
 }
 
 function isPathLikeSpacedWord(word: string, prevToken: string): boolean {
+  if (/^\d+$/.test(word)) return true;
   if (!/^[a-z0-9]+$/.test(word)) return true;
   return (
     prevToken.length >= 2 &&
     prevToken.length <= 3 &&
     !prevToken.includes('.')
   );
+}
+
+function isLinkLikeParent(parent: Parent | undefined): boolean {
+  return parent?.type === 'link' || parent?.type === 'linkReference';
 }
 
 function readSpacedContinuation(
@@ -254,7 +259,7 @@ export const remarkLinkifyPaths: Plugin<[], Root> = function () {
       if (node.type !== 'text' && node.type !== 'inlineCode') {
         return undefined;
       }
-      if (index === undefined || !parent || parent.type === 'link') {
+      if (index === undefined || !parent || isLinkLikeParent(parent)) {
         return undefined;
       }
       linkifyNode(node, index, parent);

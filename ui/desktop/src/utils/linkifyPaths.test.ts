@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { findPaths, OPEN_FILE_PROTOCOL } from './linkifyPaths';
+import type { Root } from 'mdast';
+import { findPaths, OPEN_FILE_PROTOCOL, remarkLinkifyPaths } from './linkifyPaths';
 
 describe('path linkification', () => {
   describe('Unix absolute paths', () => {
@@ -134,6 +135,12 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/usr/local/bin/node');
     });
 
+    it('detects paths with numeric suffixes in segment names', () => {
+      const matches = findPaths('Saved /Users/me/Project 2026.');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/Users/me/Project 2026');
+    });
+
     it('detects paths with Unicode segment names', () => {
       const matches = findPaths('Saved /Users/me/デスクトップ/out.txt');
       expect(matches).toHaveLength(1);
@@ -154,5 +161,41 @@ describe('path linkification', () => {
       expect(matches).toHaveLength(0);
       expect(elapsed).toBeLessThan(500);
     });
+  });
+});
+
+describe('remarkLinkifyPaths', () => {
+  it('does not linkify paths inside link references', () => {
+    const tree: Root = {
+      type: 'root',
+      children: [
+        {
+          type: 'paragraph',
+          children: [
+            {
+              type: 'linkReference',
+              identifier: 'log',
+              label: 'log',
+              referenceType: 'full',
+              children: [{ type: 'text', value: 'log /tmp/out' }],
+            },
+          ],
+        },
+      ],
+    };
+
+    const transform = (remarkLinkifyPaths as unknown as () => (tree: Root) => void)();
+    transform(tree);
+
+    const paragraph = tree.children[0];
+    expect(paragraph.type).toBe('paragraph');
+    if (paragraph.type !== 'paragraph') return;
+
+    const linkRef = paragraph.children[0];
+    expect(linkRef.type).toBe('linkReference');
+    if (linkRef.type !== 'linkReference') return;
+
+    expect(linkRef.children).toHaveLength(1);
+    expect(linkRef.children[0]).toEqual({ type: 'text', value: 'log /tmp/out' });
   });
 });
