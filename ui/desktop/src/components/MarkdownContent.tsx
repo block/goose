@@ -274,20 +274,27 @@ const MarkdownContent = memo(function MarkdownContent({
             a: (props) => {
               const href = props.href;
               if (href && href.startsWith(OPEN_FILE_PROTOCOL)) {
-                const filePath = decodeURIComponent(href.slice(OPEN_FILE_PROTOCOL.length));
-                return (
-                  <a
-                    {...props}
-                    href={undefined}
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      window.electron.openPathInExplorer(filePath);
-                    }}
-                    className="file-path-link"
-                    title={`Show in Finder: ${filePath}`}
-                  />
-                );
+                let filePath: string | undefined;
+                try {
+                  filePath = decodeURIComponent(href.slice(OPEN_FILE_PROTOCOL.length));
+                } catch {
+                  filePath = undefined;
+                }
+                if (filePath) {
+                  return (
+                    <a
+                      {...props}
+                      href={undefined}
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.electron.openPathInExplorer(filePath);
+                      }}
+                      className="file-path-link"
+                      title={`Show in Finder: ${filePath}`}
+                    />
+                  );
+                }
               }
               return (
                 <a

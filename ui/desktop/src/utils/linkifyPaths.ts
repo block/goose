@@ -59,7 +59,10 @@ function getLastToken(text: string, segmentStart: number, beforeIndex: number): 
 function isPathLikeSpacedWord(word: string, prevToken: string): boolean {
   if (/[A-Z0-9._+-]/.test(word)) return true;
   return (
-    /^[a-z][a-z0-9]*$/.test(word) && prevToken.length <= 3 && !prevToken.includes('.')
+    /^[a-z][a-z0-9]*$/.test(word) &&
+    prevToken.length >= 2 &&
+    prevToken.length <= 3 &&
+    !prevToken.includes('.')
   );
 }
 
@@ -237,12 +240,17 @@ export const remarkLinkifyPaths: Plugin<[], Root> = function () {
         if (url?.startsWith(OPEN_FILE_PROTOCOL)) {
           return SKIP;
         }
-        return;
+        return undefined;
       }
 
-      if (node.type !== 'text' && node.type !== 'inlineCode') return;
-      if (index === undefined || !parent || parent.type === 'link') return;
+      if (node.type !== 'text' && node.type !== 'inlineCode') {
+        return undefined;
+      }
+      if (index === undefined || !parent || parent.type === 'link') {
+        return undefined;
+      }
       linkifyNode(node, index, parent);
+      return undefined;
     });
   };
 };

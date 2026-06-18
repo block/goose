@@ -86,6 +86,12 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/tmp/result');
     });
 
+    it('does not extend short single-char basenames with prose', () => {
+      const matches = findPaths('Created /tmp/a successfully.');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/tmp/a');
+    });
+
     it('includes spaced folder names before sentence punctuation', () => {
       const matches = findPaths('Saved to /home/user/my documents.');
       expect(matches).toHaveLength(1);
@@ -130,9 +136,9 @@ describe('path linkification', () => {
 
     it('returns no matches for long prose without paths', () => {
       const prose = 'word '.repeat(10_000);
-      const start = performance.now();
+      const start = Date.now();
       const matches = findPaths(prose);
-      const elapsed = performance.now() - start;
+      const elapsed = Date.now() - start;
 
       expect(matches).toHaveLength(0);
       expect(elapsed).toBeLessThan(500);

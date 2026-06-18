@@ -64,7 +64,6 @@ export const SAFE_PROTOCOLS = [
   'firefox:',
   'safari:',
   'goose:',
-  'open-file:',
 ];
 
 /**
