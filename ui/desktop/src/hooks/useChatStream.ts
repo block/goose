@@ -476,10 +476,16 @@ export function useChatStream({
               throwOnError: true,
             });
             if (response.data?.name) {
+              const nextMessageCount =
+                response.data.message_count ?? currentState.session?.message_count;
               dispatch({
                 type: 'SET_SESSION',
                 payload: currentState.session
-                  ? { ...currentState.session, name: response.data.name }
+                  ? {
+                      ...currentState.session,
+                      name: response.data.name,
+                      ...(nextMessageCount !== undefined && { message_count: nextMessageCount }),
+                    }
                   : undefined,
               });
               window.dispatchEvent(
@@ -873,21 +879,32 @@ export function useChatStream({
             });
             const currentState = stateRef.current;
             const currentName = currentState.session?.name;
+            const currentMessageCount = currentState.session?.message_count;
             const newName = response.data?.name;
+            const newMessageCount = response.data?.message_count;
+            const hasNameChange = Boolean(newName && newName !== currentName);
+            const hasMessageCountChange =
+              newMessageCount !== undefined && newMessageCount !== currentMessageCount;
 
-            if (newName && newName !== currentName) {
+            if (newName && (hasNameChange || hasMessageCountChange)) {
               dispatch({
                 type: 'SET_SESSION',
                 payload: currentState.session
-                  ? { ...currentState.session, name: newName }
+                  ? {
+                      ...currentState.session,
+                      name: newName,
+                      ...(newMessageCount !== undefined && { message_count: newMessageCount }),
+                    }
                   : undefined,
               });
-              window.dispatchEvent(
-                new CustomEvent(AppEvents.SESSION_RENAMED, {
-                  detail: { sessionId, newName },
-                })
-              );
-              return;
+              if (hasNameChange) {
+                window.dispatchEvent(
+                  new CustomEvent(AppEvents.SESSION_RENAMED, {
+                    detail: { sessionId, newName },
+                  })
+                );
+                return;
+              }
             }
           } catch {
             // Silently continue polling

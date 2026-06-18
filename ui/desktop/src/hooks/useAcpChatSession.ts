@@ -192,8 +192,8 @@ export function useAcpChatSession({
 
   useEffect(() => {
     const handleSessionRenamed = (event: Event) => {
-      const { sessionId: renamedSessionId, newName } = (
-        event as CustomEvent<{ sessionId: string; newName: string }>
+      const { sessionId: renamedSessionId, newName, userInitiated } = (
+        event as CustomEvent<{ sessionId: string; newName: string; userInitiated?: boolean }>
       ).detail;
 
       if (renamedSessionId !== sessionId) {
@@ -201,11 +201,15 @@ export function useAcpChatSession({
       }
 
       const currentSession = stateRef.current.session;
-      if (!currentSession || currentSession.name === newName) {
+      if (!currentSession || (currentSession.name === newName && !userInitiated)) {
         return;
       }
 
-      const updatedSession = { ...currentSession, name: newName };
+      const updatedSession = {
+        ...currentSession,
+        name: newName,
+        ...(userInitiated && { user_set_name: true }),
+      };
       acpChatSessionStore.setSessionMetadata(sessionId, updatedSession);
       dispatch({ type: 'SET_SESSION', payload: updatedSession });
     };

@@ -350,7 +350,7 @@ export default function SessionActionsHeader({
       onSessionChange((current) => ({ ...current, name: trimmedName, user_set_name: true }));
       window.dispatchEvent(
         new CustomEvent(AppEvents.SESSION_RENAMED, {
-          detail: { sessionId: session.id, newName: trimmedName },
+          detail: { sessionId: session.id, newName: trimmedName, userInitiated: true },
         })
       );
       setIsRenameOpen(false);
