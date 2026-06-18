@@ -15,8 +15,8 @@ use crate::config::ConfigError;
 use crate::conversation::message::Message;
 use goose_providers::errors::ProviderError;
 
-use crate::model::ModelConfig;
 use futures::future::BoxFuture;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 const SNOWFLAKE_PROVIDER_NAME: &str = "snowflake";

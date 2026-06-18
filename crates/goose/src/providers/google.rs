@@ -6,7 +6,6 @@ use super::utils::RequestLog;
 use crate::conversation::message::Message;
 use goose_providers::errors::ProviderError;
 
-use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::formats::google::{create_request, response_to_streaming_message};
 use anyhow::Result;
@@ -14,6 +13,7 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use serde_json::Value;
 use std::io;
@@ -67,7 +67,11 @@ pub struct GoogleProvider {
 
 impl GoogleProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL, GOOGLE_PROVIDER_NAME)?;
+        let model = crate::model_config::with_configured_fast_model(
+            model,
+            GOOGLE_PROVIDER_NAME,
+            GOOGLE_DEFAULT_FAST_MODEL,
+        )?;
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GOOGLE_API_KEY")?;

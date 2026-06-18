@@ -42,13 +42,13 @@ use super::{
     xai_oauth::XaiOAuthProvider,
 };
 use crate::config::ExtensionConfig;
-use crate::model::ModelConfig;
 use crate::providers::base::ProviderType;
 use crate::{
     config::declarative_providers::register_declarative_providers,
     providers::provider_registry::ProviderEntry,
 };
 use anyhow::Result;
+use goose_providers::model::ModelConfig;
 use tokio::sync::OnceCell;
 
 static REGISTRY: OnceCell<RwLock<ProviderRegistry>> = OnceCell::const_new();
@@ -268,7 +268,7 @@ pub async fn create_with_named_model(
     model_name: &str,
     extensions: Vec<ExtensionConfig>,
 ) -> Result<Arc<dyn Provider>> {
-    let config = ModelConfig::new(model_name)?;
+    let config = crate::model_config::model_config_from_user_config(provider_name, model_name)?;
     create(provider_name, config, extensions).await
 }
 

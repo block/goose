@@ -28,9 +28,9 @@ use super::openai_compatible::handle_status;
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use futures::future::BoxFuture;
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 const KIMI_CODE_PROVIDER_NAME: &str = "kimi_code";
@@ -163,7 +163,11 @@ impl KimiCodeProvider {
     }
 
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(KIMI_CODE_DEFAULT_FAST_MODEL, KIMI_CODE_PROVIDER_NAME)?;
+        let model = crate::model_config::with_configured_fast_model(
+            model,
+            KIMI_CODE_PROVIDER_NAME,
+            KIMI_CODE_DEFAULT_FAST_MODEL,
+        )?;
         let client = Client::builder()
             .timeout(StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
             .build()?;

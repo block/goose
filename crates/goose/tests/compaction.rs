@@ -5,7 +5,6 @@ use goose::agents::{Agent, AgentEvent, SessionConfig};
 use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageContent};
 use goose::conversation::Conversation;
-use goose::model::ModelConfig;
 use goose::providers::base::{
     stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
 };
@@ -13,6 +12,7 @@ use goose::session::session_manager::SessionType;
 use goose::session::Session;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;

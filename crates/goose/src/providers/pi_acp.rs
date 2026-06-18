@@ -8,8 +8,8 @@ use crate::acp::{
 };
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
-use crate::model::ModelConfig;
 use crate::providers::base::{current_working_dir, ProviderDef, ProviderMetadata};
+use goose_providers::model::ModelConfig;
 
 pub(crate) const PI_ACP_PROVIDER_NAME: &str = "pi-acp";
 const PI_ACP_DOC_URL: &str = "https://github.com/anthropics/pi";

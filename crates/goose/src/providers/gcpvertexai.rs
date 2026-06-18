@@ -15,11 +15,11 @@ use tokio_util::io::StreamReader;
 use url::Url;
 
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use crate::providers::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
+use goose_providers::model::ModelConfig;
 
 use crate::providers::formats::gcpvertexai::{
     create_request, response_to_streaming_message, GcpLocation, ModelProvider, RequestContext,

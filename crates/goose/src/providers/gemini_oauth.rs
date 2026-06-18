@@ -1,6 +1,5 @@
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use crate::providers::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
@@ -8,6 +7,7 @@ use crate::providers::base::{
 use crate::providers::formats::google::{create_request, response_to_streaming_message};
 use crate::providers::google::GOOGLE_DOC_URL;
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 
 const GEMINI_OAUTH_DEFAULT_MODEL: &str = "gemini-3-flash-preview";
 const GEMINI_OAUTH_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash-lite";
@@ -838,7 +838,11 @@ pub struct GeminiOAuthProvider {
 
 impl GeminiOAuthProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(GEMINI_OAUTH_DEFAULT_FAST_MODEL, GEMINI_OAUTH_PROVIDER_NAME)?;
+        let model = crate::model_config::with_configured_fast_model(
+            model,
+            GEMINI_OAUTH_PROVIDER_NAME,
+            GEMINI_OAUTH_DEFAULT_FAST_MODEL,
+        )?;
 
         let token_provider = Arc::new(GeminiOAuthTokenProvider::new(
             GeminiOAuthAuthState::instance(),

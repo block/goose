@@ -12,7 +12,6 @@ mod tool_parsing;
 
 use crate::config::ExtensionConfig;
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::providers::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::utils::RequestLog;
 use anyhow::Result;
@@ -23,6 +22,7 @@ use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::images::ImageFormat;
+use goose_providers::model::ModelConfig;
 use llamacpp::{LlamaCppBackend, LLAMACPP_BACKEND_ID};
 use local_model_registry::ChatTemplate;
 use mlx::{MlxBackend, MLX_BACKEND_ID};
@@ -612,8 +612,13 @@ impl Provider for LocalInferenceProvider {
 
         // Allow request_params to override thinking
         let mut model_settings = model_settings;
-        if let Some(false) =
-            model_config.get_config_param::<bool>("enable_thinking", "GOOSE_LOCAL_ENABLE_THINKING")
+        if let Some(false) = model_config
+            .request_param::<bool>("enable_thinking")
+            .or_else(|| {
+                crate::config::Config::global()
+                    .get_param("GOOSE_LOCAL_ENABLE_THINKING")
+                    .ok()
+            })
         {
             model_settings.enable_thinking = false;
         }

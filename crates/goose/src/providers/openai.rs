@@ -17,17 +17,17 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::is_openai_responses_model;
 use goose_providers::formats::openai::{
     create_request_with_options, get_usage, response_to_message, OpenAiFormatOptions,
 };
-use goose_providers::formats::openai::{is_openai_responses_model, ModelConfigParams};
 use goose_providers::images::ImageFormat;
 use reqwest::StatusCode;
 use std::collections::HashMap;
 
-use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
 use crate::providers::utils::RequestLog;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub(crate) const OPEN_AI_PROVIDER_NAME: &str = "openai";
@@ -243,7 +243,11 @@ impl OpenAiProvider {
             .map(|h| h == "api.openai.com" || h.ends_with(".api.openai.com"))
             .unwrap_or(false);
         let model = if is_openai {
-            model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL, OPEN_AI_PROVIDER_NAME)?
+            crate::model_config::with_configured_fast_model(
+                model,
+                OPEN_AI_PROVIDER_NAME,
+                OPEN_AI_DEFAULT_FAST_MODEL,
+            )?
         } else {
             model
         };
@@ -469,7 +473,7 @@ impl OpenAiProvider {
         }
 
         let model = if let Some(ref fast_model_name) = config.fast_model {
-            model.with_fast(fast_model_name, &config.name)?
+            crate::model_config::with_configured_fast_model(model, &config.name, fast_model_name)?
         } else {
             model
         };
@@ -887,13 +891,7 @@ impl Provider for OpenAiProvider {
             }
         } else {
             let payload = create_request_with_options(
-                ModelConfigParams {
-                    model_name: model_config.model_name.as_str(),
-                    thinking_effort: model_config.thinking_effort(),
-                    temperature: model_config.temperature,
-                    max_tokens: model_config.max_tokens,
-                    request_params: model_config.request_params.as_ref(),
-                },
+                model_config,
                 system,
                 messages,
                 tools,

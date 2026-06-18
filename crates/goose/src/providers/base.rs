@@ -20,9 +20,9 @@ use crate::config::base::ConfigValue;
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
-use crate::model::ModelConfig;
 use crate::permission::PermissionConfirmation;
 use crate::utils::safe_truncate;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use utoipa::ToSchema;
 

@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
 use goose::agents::GoosePlatform;
-use goose::model::ModelConfig;
+use goose_providers::model::ModelConfig;
 
 use test_case::test_case;
 

@@ -17,8 +17,7 @@ use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
 use super::utils::{get_model, RequestLog};
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
-use goose_providers::formats::openai::ModelConfigParams;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 const LITELLM_PROVIDER_NAME: &str = "litellm";
@@ -229,13 +228,7 @@ impl Provider for LiteLLMProvider {
             Some(session_id)
         };
         let mut payload = goose_providers::formats::openai::create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            model_config,
             system,
             messages,
             tools,

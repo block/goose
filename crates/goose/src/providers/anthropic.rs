@@ -20,9 +20,9 @@ use super::openai_compatible::map_http_error_to_provider_error;
 use super::retry::ProviderRetry;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use crate::providers::utils::RequestLog;
 use futures::future::BoxFuture;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
@@ -64,7 +64,11 @@ pub struct AnthropicProvider {
 
 impl AnthropicProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(ANTHROPIC_DEFAULT_FAST_MODEL, ANTHROPIC_PROVIDER_NAME)?;
+        let model = crate::model_config::with_configured_fast_model(
+            model,
+            ANTHROPIC_PROVIDER_NAME,
+            ANTHROPIC_DEFAULT_FAST_MODEL,
+        )?;
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
@@ -151,7 +155,7 @@ impl AnthropicProvider {
         }
 
         let model = if let Some(ref fast_model_name) = config.fast_model {
-            model.with_fast(fast_model_name, &config.name)?
+            crate::model_config::with_configured_fast_model(model, &config.name, fast_model_name)?
         } else {
             model
         };

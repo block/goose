@@ -15,12 +15,12 @@ use rmcp::model::{
 use serde_json::Value;
 
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::providers::formats::anthropic::{
     adaptive_output_effort, thinking_budget_tokens, thinking_type_for_provider, ThinkingType,
     ANTHROPIC_PROVIDER_NAME,
 };
 use goose_providers::conversation::token_usage::Usage;
+use goose_providers::model::ModelConfig;
 use once_cell::sync::Lazy;
 use regex::Regex;
 

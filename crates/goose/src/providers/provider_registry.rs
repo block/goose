@@ -1,9 +1,9 @@
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
 use super::inventory::{InventoryIdentityInput, InventoryRegistration, InventoryResolvers};
 use crate::config::{DeclarativeProviderConfig, ExtensionConfig};
-use crate::model::ModelConfig;
 use anyhow::Result;
 use futures::future::BoxFuture;
+use goose_providers::model::ModelConfig;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -52,8 +52,8 @@ impl ProviderEntry {
         (self.inventory_configured)()
     }
 
-    fn normalize_model_config(&self, mut model: ModelConfig) -> ModelConfig {
-        model = model.with_canonical_limits(&self.metadata.name);
+    fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
+        model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
 
         if model.context_limit.is_none() {
             if let Some(info) = self
@@ -66,15 +66,18 @@ impl ProviderEntry {
             }
         }
 
-        model
+        Ok(model)
     }
 
     pub async fn create_with_default_model(
         &self,
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
-        let default_model = &self.metadata.default_model;
-        let model_config = self.normalize_model_config(ModelConfig::new(default_model.as_str())?);
+        let model_config = crate::model_config::model_config_from_user_config(
+            &self.metadata.name,
+            &self.metadata.default_model,
+        )?;
+        let model_config = self.normalize_model_config(model_config)?;
         (self.constructor)(model_config, extensions, None).await
     }
 
@@ -83,7 +86,7 @@ impl ProviderEntry {
         model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
-        let model = self.normalize_model_config(model);
+        let model = self.normalize_model_config(model)?;
         (self.constructor)(model, extensions, None).await
     }
 
@@ -93,7 +96,7 @@ impl ProviderEntry {
         extensions: Vec<ExtensionConfig>,
         working_dir: PathBuf,
     ) -> Result<Arc<dyn Provider>> {
-        let model = self.normalize_model_config(model);
+        let model = self.normalize_model_config(model)?;
         (self.constructor)(model, extensions, Some(working_dir)).await
     }
 }
