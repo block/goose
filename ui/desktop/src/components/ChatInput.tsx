@@ -164,11 +164,11 @@ const i18n = defineMessages({
   },
   viewEditRecipe: {
     id: 'chatInput.viewEditRecipe',
-    defaultMessage: 'View/Edit Recipe',
+    defaultMessage: 'View/Edit Task Template',
   },
   createRecipeFromSession: {
     id: 'chatInput.createRecipeFromSession',
-    defaultMessage: 'Create Recipe from Session',
+    defaultMessage: 'Save as Task Template',
   },
 });
 

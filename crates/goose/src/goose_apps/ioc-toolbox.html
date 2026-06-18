@@ -1,0 +1,858 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>IOC Toolbox · IOC 工具箱</title>
+  <script type="application/ld+json">
+    {
+      "@context": "https://goose.ai/schema",
+      "@type": "GooseApp",
+      "name": "ioc-toolbox",
+      "description": "离线提取、归类、规范化和去重混合 IOC 指标。",
+      "width": 980,
+      "height": 760,
+      "resizable": true
+    }
+  </script>
+  <script type="application/x-goose-prd">
+    # IOC Toolbox / IOC 工具箱
+
+    A classic security utility for working with mixed IOC input locally, with Chinese-first analyst UX.
+
+    ## Core behavior
+    - Accept mixed multiline input containing URLs, domains, IPv4/IPv6, emails, CVEs, and common hashes
+    - Normalize casing and separators
+    - Deduplicate indicators
+    - Group results by type with counts
+    - Copy grouped JSON output for downstream analyst workflows
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --bg: #f5f7fa;
+      --card: #ffffff;
+      --text: #101820;
+      --muted: #5b6673;
+      --line: #d7dde5;
+      --accent: #0f62fe;
+      --accent-soft: #edf5ff;
+      --danger: #da1e28;
+      --pill: #eef2f6;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    body {
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, #ffffff 0%, #f7f9fc 100%);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 650;
+    }
+
+    header p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(340px, 1fr) minmax(360px, 1.15fr);
+      gap: 16px;
+      padding: 16px;
+      min-height: 0;
+    }
+
+    @media (max-width: 1100px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--card);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 16px;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .panel h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 650;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 260px;
+      resize: vertical;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      padding: 12px 14px;
+      background: #fcfdff;
+      color: var(--text);
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      outline: none;
+    }
+
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(15, 98, 254, 0.12);
+    }
+
+    .actions, .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    button {
+      border: 0;
+      border-radius: 999px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    button.secondary {
+      background: var(--pill);
+      color: var(--text);
+    }
+
+    .meta {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+      gap: 10px;
+      margin-bottom: 14px;
+    }
+
+    .summary-card {
+      background: #fafbfd;
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 10px 12px;
+    }
+
+    .summary-card .label {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+
+    .summary-card strong {
+      display: block;
+      margin-top: 6px;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .groups {
+      overflow: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding-right: 4px;
+    }
+
+    .group {
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      overflow: hidden;
+      flex: 0 0 auto;
+    }
+
+    .group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 10px 12px;
+      background: #fafbfd;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .group-header-main {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .group-header strong {
+      font-size: 13px;
+    }
+
+    .group-header span {
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .group-header-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .group-header-button {
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .group-body {
+      max-height: 260px;
+      overflow: auto;
+    }
+
+    .group-list {
+      margin: 0;
+      padding: 10px 12px 12px;
+      list-style: none;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    }
+
+    .group-list li + li {
+      margin-top: 8px;
+    }
+
+    .group-list li {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+      align-items: start;
+    }
+
+    .group-item-text {
+      min-width: 0;
+      padding: 8px 10px;
+      border-radius: 10px;
+      background: #fcfdff;
+      border: 1px solid #eef2f6;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+      white-space: pre-wrap;
+      user-select: text;
+    }
+
+    .group-item-copy {
+      align-self: center;
+      padding: 8px 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .empty {
+      border: 1px dashed var(--line);
+      border-radius: 12px;
+      padding: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      background: #fbfcfe;
+    }
+
+    .status {
+      margin-top: 10px;
+      min-height: 18px;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .status.error {
+      color: var(--danger);
+    }
+
+    @media (max-width: 760px) {
+      .group-list li {
+        grid-template-columns: 1fr;
+      }
+
+      .group-item-copy {
+        justify-self: start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>IOC 工具箱</h1>
+    <p>把告警、工单、威胁情报、事件记录或大段混合粘贴内容直接丢进来。工具会优先离线提取 URL、域名、IP、邮箱、CVE 和常见 Hash，并输出适合继续研判的分组结果。</p>
+  </header>
+  <div class="layout">
+    <section class="panel">
+      <h2>混合输入</h2>
+      <textarea id="input" spellcheck="false" placeholder="示例：
+https://example.com/login
+8.8.8.8
+IOC@example.com
+CVE-2025-12345
+44d88612fea8a8f36de82e1278abb02f"></textarea>
+      <div class="actions">
+        <button class="primary" id="analyzeBtn">分析指标</button>
+        <button class="secondary" id="loadDemoBtn">载入演示样本</button>
+        <button class="secondary" id="clearBtn">清空</button>
+      </div>
+      <div class="meta">
+        支持直接粘贴多行、JSON 片段、告警备注、域名/IP/URL 混合列表以及较长调查记录。支持类型包括 URL、域名、IPv4、IPv6、邮箱、CVE、MD5、SHA1、SHA256、SHA512；未识别内容会单独保留，避免研判上下文被静默丢失。
+      </div>
+      <div class="status" id="status"></div>
+    </section>
+
+    <section class="panel">
+      <div class="toolbar">
+        <button class="secondary" id="copyJsonBtn">复制分组 JSON</button>
+        <button class="secondary" id="copyFlatBtn">复制规范化列表</button>
+      </div>
+      <div class="summary" id="summary"></div>
+      <div class="groups" id="groups">
+        <div class="empty">执行一次分析后，这里会展示分组结果、数量统计、规范化值，以及适合复制进研判记录的输出。</div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const inputEl = document.getElementById('input');
+    const statusEl = document.getElementById('status');
+    const summaryEl = document.getElementById('summary');
+    const groupsEl = document.getElementById('groups');
+
+    let lastResult = null;
+    let collapsedGroups = new Set();
+    const GROUP_ORDER = ['url', 'domain', 'ipv4', 'ipv6', 'email', 'cve', 'md5', 'sha1', 'sha256', 'sha512', 'unknown'];
+    const GROUP_LABELS = {
+      url: 'URL',
+      domain: '域名',
+      ipv4: 'IPv4',
+      ipv6: 'IPv6',
+      email: '邮箱',
+      cve: 'CVE',
+      md5: 'MD5',
+      sha1: 'SHA1',
+      sha256: 'SHA256',
+      sha512: 'SHA512',
+      unknown: '未识别内容',
+    };
+
+    const DEMO_TEXT = [
+      'https://portal.example.com/login',
+      'http://staging.example.net/reset?token=abc',
+      '8.8.8.8',
+      '2001:4860:4860::8888',
+      'alerts@example.org',
+      'CVE-2025-12345',
+      '44d88612fea8a8f36de82e1278abb02f',
+      'A94A8FE5CCB19BA61C4C0873D391E987982FBBD3',
+      '2CF24DBA5FB0A30E26E83B2AC5B9E29E1B161E5C1FA7425E73043362938B9824',
+      'portal.example.com'
+    ].join('\n');
+
+    function normalizeToken(token) {
+      return token
+        .trim()
+        .replace(/^[\s"'`([{<（【「『:：,，;；]+/, '')
+        .replace(/[\s"'`)\]}>）】」』.,;:!?，。；：、]+$/, '');
+    }
+
+    function looksLikeIPv4(value) {
+      const parts = value.split('.');
+      if (parts.length !== 4) return false;
+      return parts.every((part) => {
+        if (!/^\d+$/.test(part)) return false;
+        const num = Number(part);
+        return num >= 0 && num <= 255;
+      });
+    }
+
+    function looksLikeIPv6(value) {
+      return /^[0-9a-f:]+$/i.test(value) && value.includes(':');
+    }
+
+    function looksLikeEmail(value) {
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+    }
+
+    function looksLikeCve(value) {
+      return /^cve-\d{4}-\d{4,}$/i.test(value);
+    }
+
+    function looksLikeUrl(value) {
+      try {
+        const parsed = new URL(value);
+        return ['http:', 'https:'].includes(parsed.protocol);
+      } catch {
+        return false;
+      }
+    }
+
+    function looksLikeDomain(value) {
+      return /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)+$/i.test(value);
+    }
+
+    function hashType(value) {
+      if (!/^[a-f0-9]+$/i.test(value)) return null;
+      const length = value.length;
+      if (length === 32) return 'md5';
+      if (length === 40) return 'sha1';
+      if (length === 64) return 'sha256';
+      if (length === 128) return 'sha512';
+      return null;
+    }
+
+    function classify(token) {
+      if (!token) return ['unknown', token];
+
+      if (looksLikeUrl(token)) {
+        let normalized = token;
+        try {
+          normalized = new URL(token).toString();
+        } catch {}
+        return ['url', normalized];
+      }
+
+      if (looksLikeEmail(token)) return ['email', token.toLowerCase()];
+      if (looksLikeCve(token)) return ['cve', token.toUpperCase()];
+      if (looksLikeIPv4(token)) return ['ipv4', token];
+      if (looksLikeIPv6(token)) return ['ipv6', token.toLowerCase()];
+
+      const hash = hashType(token);
+      if (hash) return [hash, token.toLowerCase()];
+
+      if (looksLikeDomain(token)) return ['domain', token.toLowerCase()];
+      return ['unknown', token];
+    }
+
+    function collectRegexMatches(rawText, regex, type, normalize = (value) => value) {
+      const matches = [];
+
+      for (const match of rawText.matchAll(regex)) {
+        const matchedText = normalizeToken(match[0]);
+        if (!matchedText) continue;
+
+        matches.push({
+          type,
+          value: normalize(matchedText),
+          start: match.index,
+          end: match.index + match[0].length,
+        });
+      }
+
+      return matches;
+    }
+
+    function maskRanges(rawText, ranges) {
+      if (ranges.length === 0) return rawText;
+
+      const chars = Array.from(rawText);
+      for (const { start, end } of ranges) {
+        for (let index = start; index < end && index < chars.length; index += 1) {
+          chars[index] = ' ';
+        }
+      }
+      return chars.join('');
+    }
+
+    function extractUnknownLines(rawText) {
+      return rawText
+        .split(/\n+/)
+        .map((line) =>
+          line
+            .replace(/["'`{}[\],]+/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim()
+        )
+        .filter(Boolean);
+    }
+
+    function analyzeIndicators(rawText) {
+      const groups = {
+        url: new Set(),
+        domain: new Set(),
+        ipv4: new Set(),
+        ipv6: new Set(),
+        email: new Set(),
+        cve: new Set(),
+        md5: new Set(),
+        sha1: new Set(),
+        sha256: new Set(),
+        sha512: new Set(),
+        unknown: new Set()
+      };
+      const normalizedEntries = [];
+
+      const normalizedText = rawText.replace(/\r\n?/g, '\n');
+      const tokenCandidates = normalizedText
+        .replace(/[，；;｜|]+/g, '\n')
+        .match(/[^\s"'`<>{}\[\](),]+/g) || [];
+      const directMatches = [
+        ...collectRegexMatches(normalizedText, /https?:\/\/[^\s"'`<>]+/gi, 'url', (value) => {
+          try {
+            return new URL(value).toString();
+          } catch {
+            return value;
+          }
+        }),
+        ...collectRegexMatches(normalizedText, /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,63}\b/gi, 'email', (value) => value.toLowerCase()),
+      ];
+      const maskedDirectText = maskRanges(normalizedText, directMatches);
+      const extractedMatches = [
+        ...directMatches,
+        ...collectRegexMatches(maskedDirectText, /\b(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?:25[0-5]|2[0-4]\d|1?\d?\d)){3}\b/g, 'ipv4'),
+        ...collectRegexMatches(maskedDirectText, /\b(?:[0-9a-f]{0,4}:){2,}[0-9a-f:]{0,4}\b/gi, 'ipv6', (value) => value.toLowerCase()),
+        ...collectRegexMatches(maskedDirectText, /\bCVE-\d{4}-\d{4,}\b/gi, 'cve', (value) => value.toUpperCase()),
+        ...collectRegexMatches(maskedDirectText, /\b[a-f0-9]{32}\b/gi, 'md5', (value) => value.toLowerCase()),
+        ...collectRegexMatches(maskedDirectText, /\b[a-f0-9]{40}\b/gi, 'sha1', (value) => value.toLowerCase()),
+        ...collectRegexMatches(maskedDirectText, /\b[a-f0-9]{64}\b/gi, 'sha256', (value) => value.toLowerCase()),
+        ...collectRegexMatches(maskedDirectText, /\b[a-f0-9]{128}\b/gi, 'sha512', (value) => value.toLowerCase()),
+        ...collectRegexMatches(
+          maskedDirectText,
+          /\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\b/gi,
+          'domain',
+          (value) => value.toLowerCase()
+        ),
+      ];
+
+      function addIndicator(type, value) {
+        normalizedEntries.push({ type, value });
+        groups[type].add(value);
+      }
+
+      for (const { type, value } of extractedMatches) {
+        addIndicator(type, value);
+      }
+
+      for (const token of tokenCandidates.map(normalizeToken).filter(Boolean)) {
+        const [type, normalized] = classify(token);
+        if (type !== 'unknown') {
+          addIndicator(type, normalized);
+        }
+      }
+
+      const recognizedText = maskRanges(normalizedText, extractedMatches);
+      const unknownLines = extractUnknownLines(recognizedText);
+      for (const line of unknownLines) {
+        addIndicator('unknown', line);
+      }
+
+      const orderedGroups = Object.fromEntries(
+        GROUP_ORDER
+          .map((key) => [key, Array.from(groups[key]).sort()])
+          .filter(([, values]) => values.length > 0)
+      );
+      const normalizedIndicators = GROUP_ORDER.flatMap((key) =>
+        (orderedGroups[key] || []).map((value) => ({
+          type: key,
+          label: GROUP_LABELS[key] || key.toUpperCase(),
+          value,
+        }))
+      );
+      const uniqueIndicators = Object.values(orderedGroups).reduce((sum, values) => sum + values.length, 0);
+      const recognizedCategories = Object.keys(orderedGroups).filter((key) => key !== 'unknown').length;
+      const unknownContent = orderedGroups.unknown || [];
+      const totalNormalizedIndicators = normalizedEntries.length;
+      const duplicateIndicatorsRemoved = Math.max(totalNormalizedIndicators - uniqueIndicators, 0);
+
+      return {
+        totalTokens: tokenCandidates.length,
+        totalNormalizedIndicators,
+        uniqueIndicators,
+        duplicateIndicatorsRemoved,
+        recognizedCategories,
+        unknownEntries: unknownContent.length,
+        groups: orderedGroups,
+        normalizedIndicators,
+        unknownContent,
+      };
+    }
+
+    function buildSummaryExport(result) {
+      return {
+        inputFragments: result.totalTokens,
+        normalizedIndicators: result.totalNormalizedIndicators,
+        uniqueIndicators: result.uniqueIndicators,
+        duplicateIndicatorsRemoved: result.duplicateIndicatorsRemoved,
+        recognizedCategories: result.recognizedCategories,
+        unknownEntries: result.unknownEntries,
+      };
+    }
+
+    function buildGroupedExport(result) {
+      return {
+        summary: buildSummaryExport(result),
+        groupedIndicators: result.groups,
+        normalizedIndicators: result.normalizedIndicators,
+        unknownContent: result.unknownContent,
+      };
+    }
+
+    function buildNormalizedLines(result, filterType = null) {
+      return result.normalizedIndicators
+        .filter((item) => !filterType || item.type === filterType)
+        .map((item) => `${item.label}\t${item.value}`)
+        .join('\n');
+    }
+
+    function defaultCollapsedGroupKeys(result) {
+      const defaults = new Set();
+      if (result.recognizedCategories > 0 && result.unknownEntries > 0) {
+        defaults.add('unknown');
+      }
+      return defaults;
+    }
+
+    function renderSummary(result) {
+      const cards = [
+        ['原始片段', result.totalTokens],
+        ['规范化条目', result.totalNormalizedIndicators],
+        ['唯一指标', result.uniqueIndicators],
+        ['重复收敛', result.duplicateIndicatorsRemoved],
+        ['识别类别', result.recognizedCategories],
+        ['未识别', result.unknownEntries],
+      ];
+
+      summaryEl.innerHTML = cards
+        .map(([label, value]) => `
+          <div class="summary-card">
+            <span class="label">${label}</span>
+            <strong>${value}</strong>
+          </div>
+        `)
+        .join('');
+    }
+
+    function renderGroups(result) {
+      const entries = Object.entries(result.groups);
+      if (entries.length === 0) {
+        groupsEl.innerHTML = '<div class="empty">没有识别到可用指标。请检查输入内容，或直接粘贴更完整的告警、情报、工单和调查记录。</div>';
+        return;
+      }
+
+      groupsEl.innerHTML = entries
+        .map(([key, values]) => `
+          <section class="group">
+            <div class="group-header">
+              <div class="group-header-main">
+                <strong>${GROUP_LABELS[key] || key.toUpperCase()}</strong>
+                <span>${values.length} 条</span>
+              </div>
+              <div class="group-header-actions">
+                <button class="secondary group-header-button" type="button" data-copy-group="${key}">复制本类</button>
+                <button
+                  class="secondary group-header-button"
+                  type="button"
+                  data-toggle-group="${key}"
+                  aria-expanded="${collapsedGroups.has(key) ? 'false' : 'true'}"
+                >${collapsedGroups.has(key) ? '展开' : '收起'}</button>
+              </div>
+            </div>
+            <div class="group-body" data-group-body="${key}" ${collapsedGroups.has(key) ? 'hidden' : ''}>
+              <ul class="group-list">${values.map((value) => `
+                <li>
+                  <div class="group-item-text" title="${escapeAttribute(value)}">${escapeHtml(value)}</div>
+                  <button class="secondary group-item-copy" type="button" data-copy-value="${escapeAttribute(value)}">复制此项</button>
+                </li>
+              `).join('')}</ul>
+            </div>
+          </section>
+        `)
+        .join('');
+    }
+
+    function escapeHtml(value) {
+      return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    }
+
+    function escapeAttribute(value) {
+      return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    }
+
+    function setStatus(message, isError = false) {
+      statusEl.textContent = message;
+      statusEl.className = isError ? 'status error' : 'status';
+    }
+
+    function analyzeCurrentInput() {
+      const rawText = inputEl.value.trim();
+      if (!rawText) {
+        lastResult = null;
+        collapsedGroups = new Set();
+        summaryEl.innerHTML = '';
+        groupsEl.innerHTML = '<div class="empty">请先粘贴待分析内容，再执行识别。</div>';
+        setStatus('请先粘贴待分析的 IOC 或混合文本。', true);
+        return;
+      }
+
+      lastResult = analyzeIndicators(rawText);
+      collapsedGroups = defaultCollapsedGroupKeys(lastResult);
+      renderSummary(lastResult);
+      renderGroups(lastResult);
+      setStatus(
+        `已分析 ${lastResult.totalTokens} 个原始片段，沉淀 ${lastResult.uniqueIndicators} 个唯一指标，去重收敛 ${lastResult.duplicateIndicatorsRemoved} 项。`
+      );
+    }
+
+    async function copyText(text, successMessage) {
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          setStatus(successMessage);
+          return;
+        }
+      } catch {}
+
+      const fallbackTextarea = document.createElement('textarea');
+      fallbackTextarea.value = text;
+      fallbackTextarea.setAttribute('readonly', '');
+      fallbackTextarea.style.position = 'fixed';
+      fallbackTextarea.style.top = '0';
+      fallbackTextarea.style.left = '-9999px';
+      fallbackTextarea.style.opacity = '0';
+      document.body.appendChild(fallbackTextarea);
+      fallbackTextarea.focus();
+      fallbackTextarea.select();
+      fallbackTextarea.setSelectionRange(0, fallbackTextarea.value.length);
+
+      try {
+        const copied = document.execCommand('copy');
+        if (copied) {
+          setStatus(successMessage);
+          return;
+        }
+      } catch {}
+      finally {
+        document.body.removeChild(fallbackTextarea);
+      }
+
+      setStatus('当前环境无法自动复制，请手动选择内容后复制。', true);
+    }
+
+    document.getElementById('analyzeBtn').addEventListener('click', analyzeCurrentInput);
+    document.getElementById('loadDemoBtn').addEventListener('click', () => {
+      inputEl.value = DEMO_TEXT;
+      analyzeCurrentInput();
+    });
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      inputEl.value = '';
+      lastResult = null;
+      collapsedGroups = new Set();
+      summaryEl.innerHTML = '';
+      groupsEl.innerHTML = '<div class="empty">执行一次分析后，这里会展示分组结果、数量统计和规范化值。</div>';
+      setStatus('');
+    });
+
+    document.getElementById('copyJsonBtn').addEventListener('click', () => {
+      if (!lastResult) {
+        setStatus('请先完成一次分析，再复制结果。', true);
+        return;
+      }
+
+      copyText(JSON.stringify(buildGroupedExport(lastResult), null, 2), '已复制分组 JSON。');
+    });
+
+    document.getElementById('copyFlatBtn').addEventListener('click', () => {
+      if (!lastResult) {
+        setStatus('请先完成一次分析，再复制结果。', true);
+        return;
+      }
+
+      copyText(buildNormalizedLines(lastResult), '已复制规范化指标列表。');
+    });
+
+    groupsEl.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const toggleButton = target.closest('[data-toggle-group]');
+      if (toggleButton instanceof HTMLElement) {
+        const groupKey = toggleButton.dataset.toggleGroup;
+        if (!groupKey || !lastResult) {
+          return;
+        }
+
+        if (collapsedGroups.has(groupKey)) {
+          collapsedGroups.delete(groupKey);
+        } else {
+          collapsedGroups.add(groupKey);
+        }
+        renderGroups(lastResult);
+        return;
+      }
+
+      const copyGroupButton = target.closest('[data-copy-group]');
+      if (copyGroupButton instanceof HTMLElement) {
+        const groupKey = copyGroupButton.dataset.copyGroup;
+        if (!groupKey || !lastResult) {
+          return;
+        }
+
+        copyText(
+          buildNormalizedLines(lastResult, groupKey),
+          `已复制${GROUP_LABELS[groupKey] || groupKey.toUpperCase()}列表。`
+        );
+        return;
+      }
+
+      const copyItemButton = target.closest('[data-copy-value]');
+      if (!(copyItemButton instanceof HTMLElement)) {
+        return;
+      }
+
+      const value = copyItemButton.dataset.copyValue;
+      if (!value) {
+        return;
+      }
+
+      copyText(value, '已复制当前 IOC。');
+    });
+  </script>
+</body>
+</html>

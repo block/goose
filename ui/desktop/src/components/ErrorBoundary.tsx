@@ -3,6 +3,7 @@ import { Button } from './ui/button';
 import { AlertTriangle } from 'lucide-react';
 import { errorMessage, formatErrorForLogging } from '../utils/conversionUtils';
 import { trackErrorWithContext, trackEvent, getErrorType } from '../utils/analytics';
+import { getConfiguredProductName } from '../branding/productText';
 import { defineMessages, useIntl } from '../i18n';
 
 const i18n = defineMessages({
@@ -12,7 +13,7 @@ const i18n = defineMessages({
   },
   errorWithVersion: {
     id: 'errorBoundary.errorWithVersion',
-    defaultMessage: 'An error occurred in Goose v{version}.',
+    defaultMessage: 'An error occurred in {appName} v{version}.',
   },
   errorGeneric: {
     id: 'errorBoundary.errorGeneric',
@@ -55,6 +56,7 @@ window.addEventListener('error', (event) => {
 
 export function ErrorUI({ error }: { error: string }) {
   const intl = useIntl();
+  const appName = getConfiguredProductName();
   const handleReload = () => {
     trackEvent({
       name: 'app_reloaded',
@@ -72,11 +74,13 @@ export function ErrorUI({ error }: { error: string }) {
           <AlertTriangle className="w-8 h-8 text-destructive" />
         </div>
 
-        <h1 className="text-2xl font-semibold text-foreground dark:text-white">{intl.formatMessage(i18n.heading)}</h1>
+        <h1 className="text-2xl font-semibold text-foreground dark:text-white">
+          {intl.formatMessage(i18n.heading)}
+        </h1>
 
         <p className="text-base text-text-secondary dark:text-muted-foreground mb-2">
           {version !== undefined
-            ? intl.formatMessage(i18n.errorWithVersion, { version })
+            ? intl.formatMessage(i18n.errorWithVersion, { appName, version })
             : intl.formatMessage(i18n.errorGeneric)}
         </p>
 

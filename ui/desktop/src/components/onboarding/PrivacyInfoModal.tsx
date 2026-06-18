@@ -1,4 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
+import { getConfiguredProductName } from '../../branding/productText';
 import { defineMessages, useIntl } from '../../i18n';
 
 const i18n = defineMessages({
@@ -8,7 +9,8 @@ const i18n = defineMessages({
   },
   description: {
     id: 'privacyInfoModal.description',
-    defaultMessage: 'Anonymous usage data helps us understand how goose is used and identify areas for improvement.',
+    defaultMessage:
+      'Anonymous usage data helps us understand how {appName} is used and identify areas for improvement.',
   },
   whatWeCollect: {
     id: 'privacyInfoModal.whatWeCollect',
@@ -20,7 +22,7 @@ const i18n = defineMessages({
   },
   collectVersion: {
     id: 'privacyInfoModal.collectVersion',
-    defaultMessage: 'goose version and install method',
+    defaultMessage: '{appName} version and install method',
   },
   collectProvider: {
     id: 'privacyInfoModal.collectProvider',
@@ -40,7 +42,8 @@ const i18n = defineMessages({
   },
   neverCollect: {
     id: 'privacyInfoModal.neverCollect',
-    defaultMessage: 'We never collect your conversations, code, tool arguments, error messages, or any personal data. You can change this setting anytime in Settings.',
+    defaultMessage:
+      'We never collect your conversations, code, tool arguments, error messages, or any personal data. You can change this setting anytime in Settings.',
   },
 });
 
@@ -51,6 +54,7 @@ interface PrivacyInfoModalProps {
 
 export default function PrivacyInfoModal({ isOpen, onClose }: PrivacyInfoModalProps) {
   const intl = useIntl();
+  const appName = getConfiguredProductName();
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
@@ -61,20 +65,20 @@ export default function PrivacyInfoModal({ isOpen, onClose }: PrivacyInfoModalPr
 
         <div>
           <p className="text-text-muted text-sm mb-3">
-            {intl.formatMessage(i18n.description)}
+            {intl.formatMessage(i18n.description, { appName })}
           </p>
-          <p className="font-medium text-text-default text-sm mb-1.5">{intl.formatMessage(i18n.whatWeCollect)}</p>
+          <p className="font-medium text-text-default text-sm mb-1.5">
+            {intl.formatMessage(i18n.whatWeCollect)}
+          </p>
           <ul className="text-text-muted text-sm list-disc list-outside space-y-0.5 ml-5 mb-3">
             <li>{intl.formatMessage(i18n.collectOs)}</li>
-            <li>{intl.formatMessage(i18n.collectVersion)}</li>
+            <li>{intl.formatMessage(i18n.collectVersion, { appName })}</li>
             <li>{intl.formatMessage(i18n.collectProvider)}</li>
             <li>{intl.formatMessage(i18n.collectExtensions)}</li>
             <li>{intl.formatMessage(i18n.collectSession)}</li>
             <li>{intl.formatMessage(i18n.collectErrors)}</li>
           </ul>
-          <p className="text-text-muted text-sm">
-            {intl.formatMessage(i18n.neverCollect)}
-          </p>
+          <p className="text-text-muted text-sm">{intl.formatMessage(i18n.neverCollect)}</p>
         </div>
       </DialogContent>
     </Dialog>

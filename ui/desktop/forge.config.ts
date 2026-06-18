@@ -1,12 +1,20 @@
 const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 const { resolve } = require('path');
+const productMetadata = require('../../distro/security-cn/branding/product-metadata.json');
+const { resolveMacosBundleMode } = require('./scripts/lib/macosBundleMode.cjs');
 
 const isLinuxVulkanBuild = process.env.GOOSE_DESKTOP_LINUX_VARIANT === 'vulkan';
+const appDisplayName = process.env.GOOSE_BUNDLE_NAME || productMetadata.productName || 'Goose';
+const appBundleId = productMetadata.bundleId || 'com.github.aaif.goose';
+const macosBundleMode = resolveMacosBundleMode(process.env);
+const enableCookieEncryption = macosBundleMode.enableCookieEncryption;
 
 let cfg = {
   asar: true,
-  extraResource: ['src/bin', 'src/images'],
+  extraResource: ['src/bin', 'src/images', resolve(__dirname, '../../distro/security-cn')],
+  name: appDisplayName,
+  appBundleId,
   icon: 'src/images/icon',
   // Windows specific configuration
   win32: {
@@ -19,7 +27,7 @@ let cfg = {
   // Protocol registration
   protocols: [
     {
-      name: 'GooseProtocol',
+      name: `${appDisplayName.replace(/\s+/g, '')}Protocol`,
       schemes: ['goose'],
     },
   ],
@@ -35,16 +43,27 @@ let cfg = {
       },
     ],
     // Usage descriptions for macOS TCC (Transparency, Consent, and Control)
-    NSCalendarsUsageDescription:
-      'Goose needs access to your calendars to help manage and query calendar events.',
-    NSRemindersUsageDescription:
-      'Goose needs access to your reminders to help manage and query reminders.',
+    NSCalendarsUsageDescription: `${appDisplayName} needs access to your calendars to help manage and query calendar events.`,
+    NSRemindersUsageDescription: `${appDisplayName} needs access to your reminders to help manage and query reminders.`,
+    LSEnvironment: {
+      MallocNanoZone: '0',
+      ...(macosBundleMode.disableKeyringByDefault
+        ? {
+            GOOSE_DISABLE_KEYRING: '1',
+            GOOSE_LOCAL_PREVIEW_BUNDLE: '1',
+          }
+        : {}),
+    },
+    SecurityGooseSigningMode: macosBundleMode.signingMode,
+    SecurityGooseDisableKeyringByDefault: macosBundleMode.disableKeyringByDefault,
+    SecurityGooseEnableCookieEncryption: macosBundleMode.enableCookieEncryption,
   },
 };
 
-// macOS code signing and notarization via Electron Forge
-// Activated when APPLE_TEAM_ID is set (CI signing builds)
-if (process.env.APPLE_TEAM_ID) {
+// macOS code signing and notarization via Electron Forge.
+// Local preview bundles keep this off by default; CI/release paths opt in via
+// GOOSE_DESKTOP_SIGN=true plus the Apple signing secrets.
+if (macosBundleMode.signingEnabled) {
   cfg.osxSign = {
     keychain: process.env.KEYCHAIN_PATH || undefined,
     entitlements: 'entitlements.plist',
@@ -188,7 +207,7 @@ module.exports = {
     new FusesPlugin({
       version: FuseVersion.V1,
       [FuseV1Options.RunAsNode]: false,
-      [FuseV1Options.EnableCookieEncryption]: true,
+      [FuseV1Options.EnableCookieEncryption]: enableCookieEncryption,
       [FuseV1Options.EnableNodeOptionsEnvironmentVariable]: false,
       [FuseV1Options.EnableNodeCliInspectArguments]: false,
       [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: true,

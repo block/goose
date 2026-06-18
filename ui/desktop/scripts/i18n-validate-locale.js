@@ -8,6 +8,7 @@ const path = require('path');
 const { TYPE, parse } = require('@formatjs/icu-messageformat-parser');
 
 const requestedLocales = process.argv.slice(2);
+const SUPPORTED_TRANSLATED_LOCALES = ['zh-CN'];
 
 if (requestedLocales.includes('en')) {
   console.error('en is the source catalog and cannot be validated as a translated locale.');
@@ -53,11 +54,9 @@ function extractPlaceholders(message) {
 }
 
 function listLocales() {
-  return fs
-    .readdirSync(messagesDir)
-    .filter((file) => file.endsWith('.json') && file !== 'en.json')
-    .map((file) => path.basename(file, '.json'))
-    .sort();
+  return SUPPORTED_TRANSLATED_LOCALES.filter((locale) =>
+    fs.existsSync(path.join(messagesDir, locale + '.json'))
+  );
 }
 
 function validateLocale(locale, en, enKeys) {

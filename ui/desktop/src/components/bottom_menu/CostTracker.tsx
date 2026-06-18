@@ -4,6 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
 import { fetchCanonicalModelInfo } from '../../utils/canonical';
 import type { ModelInfoData } from '../../api';
 import { defineMessages, useIntl } from '../../i18n';
+import { isSecurityModelPricingHidden } from '../../pricingMode';
 
 const i18n = defineMessages({
   pricingUnavailable: {
@@ -40,6 +41,7 @@ export function CostTracker({
   provider: currentProvider,
 }: CostTrackerProps) {
   const intl = useIntl();
+  const pricingHidden = isSecurityModelPricingHidden();
   const [costInfo, setCostInfo] = useState<ModelInfoData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showPricing, setShowPricing] = useState(true);
@@ -64,6 +66,13 @@ export function CostTracker({
 
   useEffect(() => {
     const loadCostInfo = async () => {
+      if (pricingHidden) {
+        setIsLoading(false);
+        setCostInfo(null);
+        setPricingFailed(false);
+        return;
+      }
+
       if (!currentModel || !currentProvider) {
         setIsLoading(false);
         return;
@@ -88,10 +97,10 @@ export function CostTracker({
     };
 
     loadCostInfo();
-  }, [currentModel, currentProvider]);
+  }, [currentModel, currentProvider, pricingHidden]);
 
   // Return null early if pricing is disabled
-  if (!showPricing) {
+  if (pricingHidden || !showPricing) {
     return null;
   }
 

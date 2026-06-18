@@ -14,8 +14,8 @@
 // Re-export react-intl utilities that components use directly
 export { defineMessages, useIntl } from 'react-intl';
 
-/** The set of locales that have translation catalogs. */
-const SUPPORTED_LOCALES = new Set(['en', 'hi', 'ru', 'tr', 'zh-CN', 'ja']);
+/** 收到 currently supports English plus a Simplified Chinese catalog. */
+const SUPPORTED_LOCALES = new Set(['en', 'zh-CN']);
 
 /**
  * Map Simplified Chinese aliases (zh, zh-Hans*, zh-SG, zh-MY) to "zh-CN".
@@ -90,24 +90,35 @@ export const currentLocale = resolvedLocale.locale;
 /** Base language for loading message catalogs (e.g. "en"). */
 export const currentMessageLocale = resolvedLocale.messageLocale;
 
+type RawMessageCatalog = Record<string, string | { defaultMessage?: string }>;
+
+const RAW_MESSAGE_CATALOGS = import.meta.glob<RawMessageCatalog>('./messages/*.json', {
+  eager: true,
+  import: 'default',
+});
+
+function normalizeCatalog(catalog: RawMessageCatalog): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(catalog).map(([key, value]) => [
+      key,
+      typeof value === 'string' ? value : value.defaultMessage ?? '',
+    ])
+  );
+}
+
 /**
  * Load compiled messages for a given locale.
- * Returns an empty object for English (react-intl uses defaultMessage as fallback).
+ * Returns an empty object when a catalog is unavailable.
  */
 export async function loadMessages(locale: string): Promise<Record<string, string>> {
-  if (locale === 'en') {
-    // English strings live in source code as defaultMessage — no catalog needed.
-    return {};
-  }
+  const catalog = RAW_MESSAGE_CATALOGS[`./messages/${locale}.json`];
 
-  try {
-    // Dynamic import so compiled translation bundles are code-split.
-    const mod = await import(`./compiled/${locale}.json`);
-    return mod.default ?? mod;
-  } catch {
+  if (!catalog) {
     console.warn(
       `[i18n] No message catalog found for locale "${locale}", falling back to English.`
     );
     return {};
   }
+
+  return normalizeCatalog(catalog);
 }

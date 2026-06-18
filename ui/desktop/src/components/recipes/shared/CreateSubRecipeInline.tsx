@@ -13,15 +13,16 @@ import { defineMessages, useIntl } from '../../../i18n';
 const i18n = defineMessages({
   title: {
     id: 'createSubRecipeInline.title',
-    defaultMessage: 'Create New Subrecipe',
+    defaultMessage: 'Create New Subtask Template',
   },
   subtitle: {
     id: 'createSubRecipeInline.subtitle',
-    defaultMessage: 'Create a simple recipe to use as a callable tool in your main recipe',
+    defaultMessage:
+      'Create a simple task template to use as a callable tool inside your main task template',
   },
   closeModal: {
     id: 'createSubRecipeInline.closeModal',
-    defaultMessage: 'Close create subrecipe modal',
+    defaultMessage: 'Close create subtask template modal',
   },
   nameLabel: {
     id: 'createSubRecipeInline.nameLabel',
@@ -37,7 +38,7 @@ const i18n = defineMessages({
   },
   recipeTitleLabel: {
     id: 'createSubRecipeInline.recipeTitleLabel',
-    defaultMessage: 'Recipe Title',
+    defaultMessage: 'Task Template Title',
   },
   recipeTitlePlaceholder: {
     id: 'createSubRecipeInline.recipeTitlePlaceholder',
@@ -45,11 +46,11 @@ const i18n = defineMessages({
   },
   recipeDescriptionLabel: {
     id: 'createSubRecipeInline.recipeDescriptionLabel',
-    defaultMessage: 'Recipe Description',
+    defaultMessage: 'Task Template Description',
   },
   recipeDescriptionPlaceholder: {
     id: 'createSubRecipeInline.recipeDescriptionPlaceholder',
-    defaultMessage: 'What this recipe does when executed',
+    defaultMessage: 'What this task template does when started',
   },
   instructionsLabel: {
     id: 'createSubRecipeInline.instructionsLabel',
@@ -57,7 +58,7 @@ const i18n = defineMessages({
   },
   instructionsPlaceholder: {
     id: 'createSubRecipeInline.instructionsPlaceholder',
-    defaultMessage: 'Instructions for the AI when this subrecipe is called...',
+    defaultMessage: 'Instructions for the AI when this subtask template is called...',
   },
   toolDescriptionLabel: {
     id: 'createSubRecipeInline.toolDescriptionLabel',
@@ -81,7 +82,7 @@ const i18n = defineMessages({
   },
   preconfiguredValuesHint: {
     id: 'createSubRecipeInline.preconfiguredValuesHint',
-    defaultMessage: 'Optional parameter values that are always passed to the subrecipe',
+    defaultMessage: 'Optional parameter values that are always passed to the subtask template',
   },
   cancel: {
     id: 'createSubRecipeInline.cancel',
@@ -93,7 +94,7 @@ const i18n = defineMessages({
   },
   createAndAdd: {
     id: 'createSubRecipeInline.createAndAdd',
-    defaultMessage: 'Create & Add Subrecipe',
+    defaultMessage: 'Create & Add Subtask Template',
   },
   validationFailed: {
     id: 'createSubRecipeInline.validationFailed',
@@ -101,7 +102,7 @@ const i18n = defineMessages({
   },
   validationMsg: {
     id: 'createSubRecipeInline.validationMsg',
-    defaultMessage: 'Name, title, recipe description, and instructions are required.',
+    defaultMessage: 'Name, title, task template description, and instructions are required.',
   },
   duplicateName: {
     id: 'createSubRecipeInline.duplicateName',
@@ -109,11 +110,12 @@ const i18n = defineMessages({
   },
   duplicateNameMsg: {
     id: 'createSubRecipeInline.duplicateNameMsg',
-    defaultMessage: 'A subrecipe named "{name}" already exists. Please use a unique name.',
+    defaultMessage:
+      'A subtask template named "{name}" already exists. Please use a unique name.',
   },
   createdSuccess: {
     id: 'createSubRecipeInline.createdSuccess',
-    defaultMessage: 'Subrecipe created successfully',
+    defaultMessage: 'Subtask template created successfully',
   },
   saveFailed: {
     id: 'createSubRecipeInline.saveFailed',
@@ -121,7 +123,7 @@ const i18n = defineMessages({
   },
   saveFailedMsg: {
     id: 'createSubRecipeInline.saveFailedMsg',
-    defaultMessage: 'Failed to save subrecipe: {error}',
+    defaultMessage: 'Failed to save subtask template: {error}',
   },
 });
 

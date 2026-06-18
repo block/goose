@@ -8301,6 +8301,10 @@
           },
           "help": {
             "type": "string"
+          },
+          "input_hint": {
+            "type": "string",
+            "nullable": true
           }
         }
       },

@@ -325,7 +325,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
   return (
     <DropdownMenu
       open={isOpen}
-      onOpenChange={(open) => {
+      onOpenChange={(open: boolean) => {
         setIsOpen(open);
         if (!open) {
           setSearchQuery('');
@@ -351,7 +351,7 @@ export const BottomMenuExtensionSelection = ({ sessionId }: BottomMenuExtensionS
         side="top"
         align="center"
         className="w-64"
-        onCloseAutoFocus={(e) => {
+        onCloseAutoFocus={(e: Event) => {
           e.preventDefault();
         }}
       >

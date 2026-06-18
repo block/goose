@@ -4,7 +4,7 @@ use goose_mcp::MemoryServer;
 use tracing_appender::rolling::{RollingFileAppender, Rotation};
 use tracing_subscriber::{self, EnvFilter};
 
-#[tokio::main]
+#[tokio::main(flavor = "current_thread")]
 async fn main() -> Result<()> {
     // Set up file appender for logging
     let file_appender = RollingFileAppender::new(Rotation::DAILY, "logs", "goose-mcp-example.log");

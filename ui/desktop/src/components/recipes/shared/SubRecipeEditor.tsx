@@ -10,11 +10,11 @@ import { defineMessages, useIntl } from '../../../i18n';
 const i18n = defineMessages({
   label: {
     id: 'subRecipeEditor.label',
-    defaultMessage: 'Subrecipes',
+    defaultMessage: 'Subtask Templates',
   },
   createNew: {
     id: 'subRecipeEditor.createNew',
-    defaultMessage: 'Create New Subrecipe',
+    defaultMessage: 'Create New Subtask Template',
   },
   addExisting: {
     id: 'subRecipeEditor.addExisting',
@@ -22,7 +22,8 @@ const i18n = defineMessages({
   },
   description: {
     id: 'subRecipeEditor.description',
-    defaultMessage: 'Subrecipes are recipes that can be called as tools during execution. They enable multi-step workflows and reusable components.',
+    defaultMessage:
+      'Subtask templates are task templates that can be called as tools during execution. They enable multi-step workflows and reusable components.',
   },
   sequential: {
     id: 'subRecipeEditor.sequential',
@@ -34,11 +35,11 @@ const i18n = defineMessages({
   },
   editSubrecipe: {
     id: 'subRecipeEditor.editSubrecipe',
-    defaultMessage: 'Edit subrecipe {name}',
+    defaultMessage: 'Edit subtask template {name}',
   },
   deleteSubrecipe: {
     id: 'subRecipeEditor.deleteSubrecipe',
-    defaultMessage: 'Delete subrecipe {name}',
+    defaultMessage: 'Delete subtask template {name}',
   },
   duplicateName: {
     id: 'subRecipeEditor.duplicateName',
@@ -46,7 +47,8 @@ const i18n = defineMessages({
   },
   duplicateNameMsg: {
     id: 'subRecipeEditor.duplicateNameMsg',
-    defaultMessage: 'A subrecipe named "{name}" already exists. Please use a unique name.',
+    defaultMessage:
+      'A subtask template named "{name}" already exists. Please use a unique name.',
   },
 });
 

@@ -17,6 +17,7 @@ import log from './logger';
 import { githubUpdater } from './githubUpdater';
 import { loadRecentDirs } from './recentDirs';
 import { errorMessage } from './conversionUtils';
+import { type DesktopUpdateRuntime, resolveDesktopReleaseRepository } from '../updateMode';
 import {
   trackUpdateCheckStarted,
   trackUpdateCheckCompleted,
@@ -45,9 +46,25 @@ let lastReportedProgress = 0;
 
 // Track if IPC handlers have been registered
 let ipcUpdateHandlersRegistered = false;
+let desktopUpdateRuntime: DesktopUpdateRuntime = {
+  mode: 'enabled',
+  disabledReason: null,
+  canCheckForUpdates: true,
+  shouldSetupUpdater: true,
+};
+
+function getUpdatesDisabledMessage(): string {
+  if (desktopUpdateRuntime.disabledReason === 'local-preview') {
+    return 'Release update checks are disabled in local preview builds. Use the official preview launcher for local testing, or use a signed release build for app updates.';
+  }
+
+  return 'Release update checks are disabled in this desktop build.';
+}
 
 // Register IPC handlers (only once)
-export function registerUpdateIpcHandlers() {
+export function registerUpdateIpcHandlers(updateRuntime: DesktopUpdateRuntime) {
+  desktopUpdateRuntime = updateRuntime;
+
   if (ipcUpdateHandlersRegistered) {
     return;
   }
@@ -57,6 +74,15 @@ export function registerUpdateIpcHandlers() {
 
   // IPC handlers for renderer process
   ipcMain.handle('check-for-updates', async () => {
+    if (!desktopUpdateRuntime.canCheckForUpdates) {
+      const message = getUpdatesDisabledMessage();
+      log.info(`Skipping manual update check: ${message}`);
+      return {
+        updateInfo: null,
+        error: message,
+      };
+    }
+
     const currentVersion = autoUpdater.currentVersion?.version || app.getVersion();
     const checkStartTime = Date.now();
 
@@ -201,6 +227,13 @@ export function registerUpdateIpcHandlers() {
   });
 
   ipcMain.handle('download-update', async () => {
+    if (!desktopUpdateRuntime.canCheckForUpdates) {
+      return {
+        success: false,
+        error: getUpdatesDisabledMessage(),
+      };
+    }
+
     try {
       if (isUsingGitHubFallback && githubUpdateInfo.downloadUrl && githubUpdateInfo.latestVersion) {
         log.info('Using GitHub fallback for download...');
@@ -256,6 +289,10 @@ export function registerUpdateIpcHandlers() {
   });
 
   ipcMain.handle('install-update', async () => {
+    if (!desktopUpdateRuntime.canCheckForUpdates) {
+      throw new Error(getUpdatesDisabledMessage());
+    }
+
     if (isUsingGitHubFallback) {
       // For GitHub fallback, we need to handle the installation differently
       log.info('Installing update from GitHub fallback...');
@@ -263,6 +300,7 @@ export function registerUpdateIpcHandlers() {
       try {
         // Use the stored extracted path if available, otherwise download path
         const updatePath = githubUpdateInfo.extractedPath || githubUpdateInfo.downloadPath;
+        const appName = app.getName();
 
         if (!updatePath) {
           throw new Error('Update file path not found. Please download the update first.');
@@ -280,7 +318,7 @@ export function registerUpdateIpcHandlers() {
           type: 'info',
           title: 'Update Ready to Install',
           message: `Version ${githubUpdateInfo.latestVersion} is ready to install.`,
-          detail: `The update has been downloaded and extracted. To complete the installation:\n\n1. Click "Open Folder" to view the new Goose.app\n2. Quit Goose (this app will close)\n3. Drag the new Goose.app to your Applications folder\n4. Replace the existing app when prompted\n\nThe update will be available the next time you launch Goose.`,
+          detail: `The update has been downloaded and extracted. To complete the installation:\n\n1. Click "Open Folder" to view the new ${appName}.app\n2. Quit ${appName} (this app will close)\n3. Drag the new ${appName}.app to your Applications folder\n4. Replace the existing app when prompted\n\nThe update will be available the next time you launch ${appName}.`,
           buttons: ['Open Folder & Quit', 'Open Folder Only', 'Cancel'],
           defaultId: 0,
           cancelId: 2,
@@ -335,8 +373,14 @@ export function registerUpdateIpcHandlers() {
   });
 }
 
-// Configure auto-updater
-export function setupAutoUpdater(tray?: Tray) {
+export function setupAutoUpdater(updateRuntime: DesktopUpdateRuntime, tray?: Tray) {
+  desktopUpdateRuntime = updateRuntime;
+
+  if (!desktopUpdateRuntime.shouldSetupUpdater) {
+    log.info(`Skipping auto-updater setup: ${getUpdatesDisabledMessage()}`);
+    return;
+  }
+
   if (tray) {
     trayRef = tray;
   }
@@ -350,10 +394,11 @@ export function setupAutoUpdater(tray?: Tray) {
   log.info(`Resources path: ${process.resourcesPath}`);
 
   // Set the feed URL for GitHub releases
+  const releaseRepository = resolveDesktopReleaseRepository(process.env);
   const feedConfig = {
     provider: 'github' as const,
-    owner: 'block',
-    repo: 'goose',
+    owner: releaseRepository.owner,
+    repo: releaseRepository.repo,
     releaseType: 'release' as const,
   };
 
@@ -639,7 +684,7 @@ export function setupAutoUpdater(tray?: Tray) {
     // Show native notification
     const notification = new Notification({
       title: 'Update Ready',
-      body: `Version ${info.version} will be installed when you quit Goose. Click to install now.`,
+      body: `Version ${info.version} will be installed when you quit ${app.getName()}. Click to install now.`,
     });
     notification.show();
 
@@ -721,6 +766,7 @@ function updateTrayIcon(hasUpdate: boolean) {
   }
 
   const isDev = !app.isPackaged;
+  const appName = app.getName();
   let iconPath: string;
 
   if (hasUpdate) {
@@ -730,7 +776,7 @@ function updateTrayIcon(hasUpdate: boolean) {
     } else {
       iconPath = path.join(process.resourcesPath, 'images', 'iconTemplateUpdate.png');
     }
-    trayRef.setToolTip('Goose - Update Available');
+    trayRef.setToolTip(`${appName} - Update Available`);
   } else {
     // Use normal icon
     if (isDev) {
@@ -738,7 +784,7 @@ function updateTrayIcon(hasUpdate: boolean) {
     } else {
       iconPath = path.join(process.resourcesPath, 'images', 'iconTemplate.png');
     }
-    trayRef.setToolTip('Goose');
+    trayRef.setToolTip(appName);
   }
 
   const icon = nativeImage.createFromPath(iconPath);

@@ -38,7 +38,9 @@ import { toastSuccess } from '../toasts';
 import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
+import { getConfiguredProductName } from '../branding/productText';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
+import { SecurityPreviewLaunchGuard } from './security/SecurityPreviewLaunchGuard';
 
 const i18n = defineMessages({
   failedToLoadSession: {
@@ -55,7 +57,7 @@ const i18n = defineMessages({
   },
   recipeCreatedTitle: {
     id: 'baseChat.recipeCreatedTitle',
-    defaultMessage: 'Recipe created successfully!',
+    defaultMessage: 'Task template created successfully!',
   },
   recipeCreatedMessage: {
     id: 'baseChat.recipeCreatedMessage',
@@ -87,6 +89,7 @@ export default function BaseChat({
   isActiveSession,
 }: BaseChatProps) {
   const intl = useIntl();
+  const appName = getConfiguredProductName();
   const location = useLocation();
   const navigate = useNavigate();
   const scrollRef = useRef<ScrollAreaHandle>(null);
@@ -405,7 +408,7 @@ export default function BaseChat({
 
         {/* Chat container with sticky recipe header */}
         <div className="flex flex-col flex-1 min-h-0 relative">
-          {/* Goose watermark - top right */}
+          {/* Brand watermark */}
           <div className="absolute top-3 right-4 z-[60] flex flex-row items-center gap-1">
             <a
               href="https://goose-docs.ai"
@@ -415,7 +418,7 @@ export default function BaseChat({
             >
               <Goose className="size-5 goose-icon-animation" />
               <span className="text-sm leading-none text-text-secondary -translate-y-px">
-                goose
+                {appName}
               </span>
             </a>
             <EnvironmentBadge className="translate-y-px" />
@@ -482,6 +485,8 @@ export default function BaseChat({
             </div>
           )}
         </div>
+
+        <SecurityPreviewLaunchGuard className="relative z-10 mx-4 mb-2" />
 
         <ChatInputCard
           className={cn(

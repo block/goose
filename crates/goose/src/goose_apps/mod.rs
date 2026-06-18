@@ -1,5 +1,6 @@
 pub mod app;
 pub mod cache;
+pub mod default_apps;
 pub mod resource;
 
 pub use app::{fetch_mcp_apps, GooseApp, WindowProps};

@@ -220,18 +220,16 @@ impl AgentManager {
             .get_session(session_id, false)
             .await
         {
-            if session.provider_name.is_some() {
-                info!(
-                    "Restoring evicted session {} (provider: {:?})",
-                    session_id, session.provider_name
+            info!(
+                "Restoring evicted session {} (provider: {:?})",
+                session_id, session.provider_name
+            );
+            if let Err(e) = agent.restore_provider_from_session(&session).await {
+                tracing::warn!(
+                    "Failed to restore provider for session {}: {}",
+                    session_id,
+                    e
                 );
-                if let Err(e) = agent.restore_provider_from_session(&session).await {
-                    tracing::warn!(
-                        "Failed to restore provider for session {}: {}",
-                        session_id,
-                        e
-                    );
-                }
             }
             extension_results = agent.load_extensions_from_session(&session).await;
         }
@@ -374,6 +372,7 @@ mod tests {
     use std::sync::Arc;
     use tempfile::TempDir;
 
+    use serial_test::serial;
     use test_case::test_case;
 
     use crate::agents::{AgentConfig, GoosePlatform};
@@ -767,5 +766,55 @@ mod tests {
 
         assert_eq!(a1.goose_mode().await, GooseMode::Approve);
         assert_eq!(a2.goose_mode().await, GooseMode::Auto);
+    }
+
+    #[test]
+    #[serial]
+    fn test_session_without_provider_restores_from_global_config() {
+        let _env = env_lock::lock_env([
+            ("GOOSE_PROVIDER", Some("openai")),
+            ("GOOSE_MODEL", Some("gpt-4o")),
+            ("OPENAI_API_KEY", Some("test-openai-key")),
+            ("GOOSE_DISABLE_KEYRING", Some("1")),
+        ]);
+        tokio::runtime::Runtime::new().unwrap().block_on(async {
+            let temp_dir = TempDir::new().unwrap();
+            let manager = create_test_manager(&temp_dir).await;
+            let session = manager
+                .session_manager()
+                .create_session(
+                    temp_dir.path().to_path_buf(),
+                    "test".into(),
+                    crate::session::SessionType::User,
+                    GooseMode::Chat,
+                )
+                .await
+                .unwrap();
+
+            assert!(session.provider_name.is_none());
+            assert!(session.model_config.is_none());
+
+            let agent = manager
+                .get_or_create_agent(session.id.clone())
+                .await
+                .unwrap();
+            let provider = agent.provider().await.unwrap();
+            assert_eq!(provider.get_name(), "openai");
+            assert_eq!(provider.get_model_config().model_name, "gpt-4o");
+
+            let reloaded = manager
+                .session_manager()
+                .get_session(&session.id, false)
+                .await
+                .unwrap();
+            assert_eq!(reloaded.provider_name.as_deref(), Some("openai"));
+            assert_eq!(
+                reloaded
+                    .model_config
+                    .as_ref()
+                    .map(|config| config.model_name.as_str()),
+                Some("gpt-4o")
+            );
+        });
     }
 }

@@ -10,19 +10,20 @@ import { defineMessages, useIntl } from '../../../i18n';
 const i18n = defineMessages({
   configureTitle: {
     id: 'subRecipeModal.configureTitle',
-    defaultMessage: 'Configure Subrecipe',
+    defaultMessage: 'Configure Subtask Template',
   },
   addTitle: {
     id: 'subRecipeModal.addTitle',
-    defaultMessage: 'Add Subrecipe',
+    defaultMessage: 'Add Subtask Template',
   },
   subtitle: {
     id: 'subRecipeModal.subtitle',
-    defaultMessage: 'Configure a subrecipe that can be called as a tool during recipe execution',
+    defaultMessage:
+      'Configure a subtask template that can be called as a tool during task execution',
   },
   closeModal: {
     id: 'subRecipeModal.closeModal',
-    defaultMessage: 'Close subrecipe modal',
+    defaultMessage: 'Close subtask template modal',
   },
   nameLabel: {
     id: 'subRecipeModal.nameLabel',
@@ -50,7 +51,7 @@ const i18n = defineMessages({
   },
   pathHint: {
     id: 'subRecipeModal.pathHint',
-    defaultMessage: 'Browse for an existing recipe file or enter a path manually',
+    defaultMessage: 'Browse for an existing task template file or enter a path manually',
   },
   descriptionLabel: {
     id: 'subRecipeModal.descriptionLabel',
@@ -58,7 +59,7 @@ const i18n = defineMessages({
   },
   descriptionPlaceholder: {
     id: 'subRecipeModal.descriptionPlaceholder',
-    defaultMessage: 'Optional description of what this subrecipe does...',
+    defaultMessage: 'Optional description of what this subtask template does...',
   },
   sequentialLabel: {
     id: 'subRecipeModal.sequentialLabel',
@@ -66,7 +67,7 @@ const i18n = defineMessages({
   },
   sequentialHint: {
     id: 'subRecipeModal.sequentialHint',
-    defaultMessage: '(Forces sequential execution of multiple subrecipe instances)',
+    defaultMessage: '(Forces sequential execution of multiple subtask template instances)',
   },
   preconfiguredValues: {
     id: 'subRecipeModal.preconfiguredValues',
@@ -74,7 +75,7 @@ const i18n = defineMessages({
   },
   preconfiguredValuesHint: {
     id: 'subRecipeModal.preconfiguredValuesHint',
-    defaultMessage: 'Optional parameter values that are always passed to the subrecipe',
+    defaultMessage: 'Optional parameter values that are always passed to the subtask template',
   },
   cancel: {
     id: 'subRecipeModal.cancel',

@@ -33,6 +33,11 @@ vi.mock('../modelInterface', () => ({
 
 vi.mock('../predefinedModelsUtils', () => ({
   getModelDisplayName: (model: string) => `Display ${model}`,
+  getConfiguredDefaultPredefinedModel: () => ({
+    name: 'deepseek-v4-flash',
+    provider: 'openai',
+    alias: 'DeepSeek V4 Flash',
+  }),
 }));
 
 vi.mock('../../../bottom_menu/BottomMenuAlertPopover', () => ({
@@ -105,5 +110,21 @@ describe('ModelsBottomBar', () => {
 
     expect(screen.getByText('config-model')).toBeInTheDocument();
     expect(screen.queryByTestId('model-loading-state')).not.toBeInTheDocument();
+  });
+
+  it('falls back to the distro default model label before config state is hydrated', async () => {
+    mockCurrentModel = null;
+    mockCurrentProvider = null;
+
+    renderWithIntl(
+      <ModelsBottomBar
+        sessionId={null}
+        dropdownRef={createDropdownRef()}
+        setView={vi.fn()}
+        onModelChanged={mockOnModelChanged}
+      />
+    );
+
+    expect(screen.getAllByText('DeepSeek V4 Flash')).toHaveLength(2);
   });
 });

@@ -23,6 +23,24 @@ jobs:
     steps:
       - run: echo "Not a fork PR - proceeding with smoke tests"
 
+  live-provider-preflight:
+    runs-on: ubuntu-latest
+    needs: check-fork
+    outputs:
+      anthropic_ready: ${{ steps.check.outputs.anthropic_ready }}
+    steps:
+      - id: check
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+        run: |
+          if [ -n "$ANTHROPIC_API_KEY" ]; then
+            echo "anthropic_ready=true" >> "$GITHUB_OUTPUT"
+            echo "Anthropic live provider secret is available."
+          else
+            echo "anthropic_ready=false" >> "$GITHUB_OUTPUT"
+            echo "Anthropic live provider secret is missing; live provider jobs will be skipped."
+          fi
+
   changes:
     runs-on: ubuntu-latest
     needs: check-fork
@@ -86,7 +104,8 @@ jobs:
   smoke-tests:
     name: Smoke Tests
     runs-on: ubuntu-latest
-    needs: build-binary
+    needs: [build-binary, live-provider-preflight]
+    if: needs.live-provider-preflight.outputs.anthropic_ready == 'true'
     steps:
       - name: Checkout Code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -217,7 +236,8 @@ jobs:
   compaction-tests:
     name: Compaction Tests
     runs-on: ubuntu-latest
-    needs: build-binary
+    needs: [build-binary, live-provider-preflight]
+    if: needs.live-provider-preflight.outputs.anthropic_ready == 'true'
     steps:
       - name: Checkout Code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
@@ -257,7 +277,8 @@ jobs:
   goosed-integration-tests:
     name: goose server HTTP integration tests
     runs-on: ubuntu-latest
-    needs: build-binary
+    needs: [build-binary, live-provider-preflight]
+    if: needs.live-provider-preflight.outputs.anthropic_ready == 'true'
     steps:
       - name: Checkout Code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2

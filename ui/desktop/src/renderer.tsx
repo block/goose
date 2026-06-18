@@ -8,6 +8,7 @@ import { client } from './api/client.gen';
 import { setTelemetryEnabled } from './utils/analytics';
 import { readConfig } from './api';
 import { applyThemeTokens } from './theme/theme-tokens';
+import { brandMessageCatalog, getConfiguredProductName } from './branding/productText';
 import { currentLocale, currentMessageLocale, loadMessages } from './i18n';
 
 // Apply theme tokens to :root before first paint.
@@ -60,7 +61,9 @@ function handleIntlError(err: { code: string; message?: string }) {
     }
   }
 
-  const messages = await loadMessages(currentMessageLocale);
+  const appName = getConfiguredProductName();
+  document.title = appName;
+  const messages = brandMessageCatalog(await loadMessages(currentMessageLocale), appName);
 
   ReactDOM.createRoot(document.getElementById('root')!).render(
     <React.StrictMode>

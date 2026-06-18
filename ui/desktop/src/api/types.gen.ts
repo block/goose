@@ -1433,6 +1433,7 @@ export type SlashCommand = {
     command: string;
     command_type: CommandType;
     help: string;
+    input_hint?: string | null;
 };
 
 export type SlashCommandsResponse = {

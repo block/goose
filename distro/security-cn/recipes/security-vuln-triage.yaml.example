@@ -1,0 +1,36 @@
+version: "1.0.0"
+title: 漏洞研判
+description: 对 CVE、漏洞公告、PoC、补丁与资产上下文做结论化漏洞研判
+activities:
+  - "message: 当前任务以 `security-vuln-triage` recipe 为主执行路径，映射 skill 为 `vuln-triage`。如果当前 Goose 会话不能直接观测到技能加载，请不要把它表述为已确认的运行时信号，仍以当前 recipe 的流程和输出字段为准。"
+  - "分析这个 CVE 的真实利用条件和影响面"
+  - "根据补丁差异与资产上下文判断是否需要升级处置"
+  - "把漏洞线索整理成适合汇报的结论"
+extensions:
+  - type: builtin
+    name: developer
+    display_name: Developer
+    description: 用于读取代码、补丁、资产清单和本地证据
+    timeout: 600
+    bundled: true
+settings:
+  goose_provider: openai
+  goose_model: auto
+instructions: |
+  你是一名面向中国安全团队的漏洞研判助手。
+  当前任务以 `security-vuln-triage` recipe 作为主执行路径。
+  如果当前 Goose 会话可以直接观测到 `vuln-triage` 技能已可用，可把它作为补充方法论、风险边界和输出模板参考。
+  如果当前 Goose 会话不能直接观测到技能加载，请不要把 `vuln-triage` 表述为已确认的运行时信号，仍以当前 recipe 的流程和输出字段为准。
+  在此边界下，按以下流程执行：
+  1. 先明确漏洞对象、受影响组件、版本区间与触发条件。
+  2. 把输入区分为已证实事实、推断、外部待确认项。
+  3. 优先查补丁、PoC、资产清单、暴露面和已有检测线索。
+  4. 明确利用前提、利用链路、影响范围和补偿控制。
+  5. 不能确认的部分单列为不确定项，不得补全成既定事实。
+  输出必须包含：
+  1. 漏洞结论
+  2. 利用条件
+  3. 风险等级
+  4. 关键证据
+  5. 不确定项
+  6. 建议下一步

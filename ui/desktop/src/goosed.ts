@@ -3,6 +3,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { createServer } from 'net';
+import http from 'node:http';
+import https from 'node:https';
 import { Buffer } from 'node:buffer';
 import { status } from './api';
 import { Client, createClient, createConfig } from './api/client';
@@ -22,6 +24,8 @@ export const defaultLogger: Logger = {
   error: (...args) => console.error('[goosed]', ...args),
 };
 
+const INITIAL_FINGERPRINT_WAIT_TIMEOUT_MS = 1500;
+
 export const findAvailablePort = (): Promise<number> => {
   return new Promise((resolve, _reject) => {
     const server = createServer();
@@ -38,42 +42,70 @@ export const findAvailablePort = (): Promise<number> => {
 export interface FindBinaryOptions {
   isPackaged?: boolean;
   resourcesPath?: string;
+  cwd?: string;
 }
 
-export const findGoosedBinaryPath = (options: FindBinaryOptions = {}): string => {
-  const pathFromEnv = process.env.GOOSED_BINARY;
-  if (pathFromEnv) {
-    if (fs.existsSync(pathFromEnv) && fs.statSync(pathFromEnv).isFile()) {
-      return path.resolve(pathFromEnv);
-    } else {
-      throw new Error(`Invalid GOOSED_BINARY path: ${pathFromEnv} (pwd is ${process.cwd()})`);
-    }
+function fileExists(filePath: string): boolean {
+  try {
+    return fs.existsSync(filePath) && fs.statSync(filePath).isFile();
+  } catch {
+    return false;
   }
-  const { isPackaged = false, resourcesPath } = options;
-  const binaryName = process.platform === 'win32' ? 'goosed.exe' : 'goosed';
+}
 
+export const getGoosedBinaryCandidatePaths = (options: FindBinaryOptions = {}): string[] => {
+  const { isPackaged = false, resourcesPath } = options;
+  const cwd = options.cwd ?? process.cwd();
+  const binaryName = process.platform === 'win32' ? 'goosed.exe' : 'goosed';
   const possiblePaths: string[] = [];
 
-  // Packaged app paths
   if (isPackaged && resourcesPath) {
     possiblePaths.push(path.join(resourcesPath, 'bin', binaryName));
     possiblePaths.push(path.join(resourcesPath, binaryName));
   }
 
-  // Development paths
   possiblePaths.push(
-    path.join(process.cwd(), 'src', 'bin', binaryName),
-    path.join(process.cwd(), '..', '..', 'target', 'release', binaryName),
-    path.join(process.cwd(), '..', '..', 'target', 'debug', binaryName)
+    path.join(cwd, '..', '..', 'target', 'release', binaryName),
+    path.join(cwd, '..', '..', 'target', 'debug', binaryName),
+    path.join(cwd, 'src', 'bin', binaryName)
   );
 
+  return possiblePaths.map((candidate) => path.resolve(candidate));
+};
+
+export const isAllowedGoosedBinaryPath = (
+  candidatePath: string,
+  options: FindBinaryOptions = {}
+): boolean => {
+  const resolvedCandidate = path.resolve(candidatePath);
+  return getGoosedBinaryCandidatePaths(options).some(
+    (allowedPath) => path.resolve(allowedPath) === resolvedCandidate
+  );
+};
+
+export const findGoosedBinaryPath = (options: FindBinaryOptions = {}): string => {
+  const pathFromEnv = process.env.GOOSED_BINARY;
+  if (pathFromEnv) {
+    if (!fileExists(pathFromEnv)) {
+      throw new Error(
+        `Invalid GOOSED_BINARY path: ${pathFromEnv} (pwd is ${options.cwd ?? process.cwd()})`
+      );
+    }
+
+    if (!isAllowedGoosedBinaryPath(pathFromEnv, options)) {
+      throw new Error(
+        `Refusing external GOOSED_BINARY outside repo-owned development/package paths: ${path.resolve(pathFromEnv)}`
+      );
+    }
+
+    return path.resolve(pathFromEnv);
+  }
+
+  const possiblePaths = getGoosedBinaryCandidatePaths(options);
+
   for (const p of possiblePaths) {
-    try {
-      if (fs.existsSync(p) && fs.statSync(p).isFile()) {
-        return p;
-      }
-    } catch {
-      // continue
+    if (fileExists(p)) {
+      return p;
     }
   }
 
@@ -84,7 +116,43 @@ export const findGoosedBinaryPath = (options: FindBinaryOptions = {}): string =>
 
 export interface CheckServerStatusOptions {
   onEvent?: (name: string, details?: Record<string, unknown>) => void;
+  localBootstrap?: {
+    baseUrl: string;
+    secretKey: string;
+  };
 }
+
+const checkLocalBootstrapStatus = async (baseUrl: string, secretKey: string): Promise<boolean> => {
+  const url = new URL('/status', `${baseUrl.replace(/\/$/, '')}/`);
+  const transport = url.protocol === 'http:' ? http : https;
+
+  return new Promise((resolve) => {
+    const request = transport.request(
+      {
+        protocol: url.protocol,
+        hostname: url.hostname,
+        port: url.port,
+        path: url.pathname,
+        method: 'GET',
+        rejectUnauthorized: false,
+        headers: {
+          'X-Secret-Key': secretKey,
+        },
+      },
+      (response) => {
+        response.resume();
+        resolve(response.statusCode === 200);
+      }
+    );
+
+    request.setTimeout(1000, () => {
+      request.destroy();
+      resolve(false);
+    });
+    request.on('error', () => resolve(false));
+    request.end();
+  });
+};
 
 export const checkServerStatus = async (
   client: Client,
@@ -103,12 +171,25 @@ export const checkServerStatus = async (
     }
 
     try {
-      await status({ client, throwOnError: true });
-      options.onEvent?.('healthcheck_success', { attempt });
-      return true;
+      if (options.localBootstrap) {
+        const ready = await checkLocalBootstrapStatus(
+          options.localBootstrap.baseUrl,
+          options.localBootstrap.secretKey
+        );
+        if (ready) {
+          options.onEvent?.('healthcheck_success', { attempt, transport: 'node-bootstrap' });
+          return true;
+        }
+      } else {
+        await status({ client, throwOnError: true });
+        options.onEvent?.('healthcheck_success', { attempt });
+        return true;
+      }
     } catch {
       await new Promise((resolve) => setTimeout(resolve, interval));
     }
+
+    await new Promise((resolve) => setTimeout(resolve, interval));
   }
 
   options.onEvent?.('healthcheck_timeout', { timeoutMs: timeout });
@@ -118,6 +199,40 @@ export const checkServerStatus = async (
 export const isFatalError = (line: string): boolean => {
   const fatalPatterns = [/panicked at/, /RUST_BACKTRACE/, /fatal error/i];
   return fatalPatterns.some((pattern) => pattern.test(line));
+};
+
+export const waitForInitialFingerprint = async (
+  fingerprintReady: Promise<string | null>,
+  options: {
+    timeoutMs?: number;
+    logger?: Logger;
+    onTimeout?: () => void;
+  } = {}
+): Promise<string | null> => {
+  const {
+    timeoutMs = INITIAL_FINGERPRINT_WAIT_TIMEOUT_MS,
+    logger = defaultLogger,
+    onTimeout,
+  } = options;
+
+  let timeoutHandle: ReturnType<typeof setTimeout> | null = null;
+  const timeoutPromise = new Promise<null>((resolve) => {
+    timeoutHandle = setTimeout(() => {
+      onTimeout?.();
+      logger.info(
+        `Timed out waiting ${timeoutMs}ms for goosed TLS fingerprint on stdout, continuing with TOFU bootstrap`
+      );
+      resolve(null);
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([fingerprintReady, timeoutPromise]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
+  }
 };
 
 export const buildGoosedEnv = (
@@ -432,7 +547,14 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
 
   logger.info(`Goosed server successfully started on port ${port}`);
 
-  await fingerprintReady;
+  const initialFingerprint = await waitForInitialFingerprint(fingerprintReady, {
+    logger,
+    onTimeout: () => {
+      startupTrace?.record('fingerprint_wait_timed_out', {
+        timeoutMs: INITIAL_FINGERPRINT_WAIT_TIMEOUT_MS,
+      });
+    },
+  });
 
   return {
     baseUrl,
@@ -442,7 +564,7 @@ export const startGoosed = async (options: StartGoosedOptions): Promise<GoosedRe
     stopErrorLogCollection,
     cleanup,
     client: goosedClientForUrlAndSecret(baseUrl, serverSecret),
-    certFingerprint,
+    certFingerprint: initialFingerprint ?? certFingerprint,
     startupDiagnosticsPath: startupTrace?.diagnosticsPath ?? null,
     getStartupDiagnostics: () => startupTrace?.diagnostics ?? null,
     recordStartupEvent: (name, details) => startupTrace?.record(name, details),

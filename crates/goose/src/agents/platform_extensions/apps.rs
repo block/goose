@@ -4,6 +4,7 @@ use crate::agents::reply_parts::coerce_tool_arguments;
 use crate::agents::tool_execution::ToolCallContext;
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
+use crate::goose_apps::default_apps::sync_default_apps_dir;
 use crate::goose_apps::McpAppResource;
 use crate::goose_apps::{GooseApp, WindowProps};
 use crate::prompt_template::render_template;
@@ -131,18 +132,7 @@ impl AppsManagerClient {
     }
 
     fn ensure_default_apps(&self) -> Result<(), String> {
-        // TODO(Douwe): we have the same check in cache, consider unifying that
-        const CLOCK_HTML: &str = include_str!("../../goose_apps/clock.html");
-
-        // Check if clock app exists
-        let clock_path = self.apps_dir.join("clock.html");
-        if !clock_path.exists() {
-            // Parse and save the default clock app
-            let clock_app = GooseApp::from_html(CLOCK_HTML)?;
-            self.save_app(&clock_app)?;
-        }
-
-        Ok(())
+        sync_default_apps_dir(&self.apps_dir)
     }
 
     fn list_stored_apps(&self) -> Result<Vec<String>, String> {

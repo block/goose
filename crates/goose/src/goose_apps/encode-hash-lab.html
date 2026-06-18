@@ -1,0 +1,944 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <title>编码与哈希工作台 · Encode &amp; Hash Lab</title>
+  <script type="application/ld+json">
+    {
+      "@context": "https://goose.ai/schema",
+      "@type": "GooseApp",
+      "name": "encode-hash-lab",
+      "description": "中文优先的离线编码、解码、哈希与多步操作工作台。",
+      "width": 1100,
+      "height": 820,
+      "resizable": true
+    }
+  </script>
+  <script type="application/x-goose-prd">
+    # Encode & Hash Lab / 编码与哈希工作台
+
+    A Chinese-first local operation pipeline for encoding, decoding, hashing, JSON formatting, and JWT inspection.
+
+    ## Core behavior
+    - Accept large text, payload, header, and token fragments
+    - Build a small offline operation pipeline
+    - Show the result of each step and the final output
+    - Copy final output or single-step output for downstream analyst workflows
+    - Keep everything offline inside Security Goose
+  </script>
+  <style>
+    :root {
+      color-scheme: light;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      --line: #d7dde5;
+      --text: #101820;
+      --muted: #5b6673;
+      --accent: #0f62fe;
+      --pill: #eef2f6;
+      --danger: #da1e28;
+      --success: #198038;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: #ffffff;
+      color: var(--text);
+    }
+
+    body {
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      padding: 18px 20px 14px;
+      border-bottom: 1px solid var(--line);
+      background: #ffffff;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 22px;
+      font-weight: 650;
+    }
+
+    header p {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .workspace {
+      display: grid;
+      grid-template-columns: minmax(360px, 1fr) minmax(420px, 1.05fr);
+      min-height: 0;
+      background: #ffffff;
+    }
+
+    @media (max-width: 1180px) {
+      .workspace {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .pane {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      padding: 16px 18px 18px;
+    }
+
+    .pane + .pane {
+      border-left: 1px solid var(--line);
+    }
+
+    .pane h2 {
+      margin: 0 0 12px;
+      font-size: 15px;
+      font-weight: 650;
+    }
+
+    textarea, select {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px 13px;
+      background: #ffffff;
+      color: var(--text);
+      font-size: 13px;
+      outline: none;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 200px;
+      font: 13px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    textarea:focus, select:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(15, 98, 254, 0.12);
+    }
+
+    button {
+      border: 1px solid transparent;
+      border-radius: 8px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+    }
+
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    button.secondary {
+      background: var(--pill);
+      color: var(--text);
+      border-color: rgba(16, 24, 32, 0.06);
+    }
+
+    button.text {
+      background: transparent;
+      border: 1px solid var(--line);
+    }
+
+    .actions, .row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .actions {
+      margin-top: 12px;
+    }
+
+    .lead {
+      margin-top: 12px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .status {
+      margin-top: 10px;
+      min-height: 18px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .status.error {
+      color: var(--danger);
+    }
+
+    .status.success {
+      color: var(--success);
+    }
+
+    .builder {
+      display: grid;
+      gap: 12px;
+      padding: 12px 0;
+      border-top: 1px solid var(--line);
+      border-bottom: 1px solid var(--line);
+    }
+
+    .builder-summary {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .pipeline {
+      display: flex;
+      flex-direction: column;
+      overflow: auto;
+      margin-top: 14px;
+    }
+
+    .pipeline-empty {
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      padding: 16px 0;
+      background: transparent;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    .step {
+      border-bottom: 1px solid var(--line);
+      padding: 12px 0 14px;
+      background: #fafbfd;
+    }
+
+    .step-header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: start;
+      gap: 12px;
+    }
+
+    .step-title-block {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+    }
+
+    .step-title-block strong {
+      font-size: 13px;
+    }
+
+    .step-title-block span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .step-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
+    .step-button {
+      padding: 8px 10px;
+      font-size: 12px;
+    }
+
+    .step-body {
+      padding: 10px 0 0;
+      display: grid;
+      gap: 10px;
+    }
+
+    .step-result {
+      min-height: 88px;
+      max-height: 220px;
+      overflow: auto;
+      padding: 10px 12px;
+      border-radius: 8px;
+      border: 1px solid #e4e9f0;
+      background: #ffffff;
+      font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      word-break: break-word;
+    }
+
+    .step-result.error {
+      border-color: rgba(218, 30, 40, 0.25);
+      background: rgba(218, 30, 40, 0.05);
+      color: var(--danger);
+    }
+
+    .output-section {
+      margin-top: 16px;
+      display: grid;
+      gap: 10px;
+      padding-top: 14px;
+      border-top: 1px solid var(--line);
+    }
+
+    .output-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .output-header strong {
+      font-size: 13px;
+    }
+
+    .output-section textarea {
+      min-height: 220px;
+    }
+
+    @media (max-width: 760px) {
+      .pane + .pane {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+      }
+
+      .step-header {
+        grid-template-columns: 1fr;
+      }
+
+      .step-actions {
+        width: 100%;
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>编码与哈希工作台</h1>
+    <p>面向中文安全分析流程的本地离线操作链工具。适合处理 token 片段、请求头、payload、JSON、JWT、可疑文本和常见编码转换。</p>
+  </header>
+  <div class="workspace">
+    <section class="pane">
+      <h2>原始输入</h2>
+      <textarea id="plainInput" spellcheck="false" placeholder="粘贴待处理的文本、JWT、请求头、JSON、URL 参数、十六进制、Base64 片段或调查记录。"></textarea>
+      <div class="actions">
+        <button class="primary" id="runPipelineBtn">执行操作链</button>
+        <button class="secondary" id="loadDemoBtn">载入演示样例</button>
+        <button class="secondary" id="clearBtn">一键清空</button>
+      </div>
+      <div class="lead">
+        所有处理都在本地完成，适合直接粘贴原始文本、payload、请求片段和调查记录后继续分析。
+      </div>
+      <div class="output-section">
+        <div class="output-header">
+          <strong>最终输出</strong>
+          <button class="secondary" id="copyFinalBtn">复制最终结果</button>
+        </div>
+        <textarea id="finalOutput" spellcheck="false" readonly placeholder="执行操作链后，这里会显示最终输出。"></textarea>
+      </div>
+      <div class="status" id="status"></div>
+    </section>
+
+    <section class="pane">
+      <h2>操作链</h2>
+      <div class="builder">
+        <div class="row">
+          <select id="operationSelect"></select>
+          <button class="primary" id="addStepBtn">加入步骤</button>
+        </div>
+        <div class="builder-summary">支持多步串联、顺序调整、步骤删除和逐步结果查看。</div>
+      </div>
+      <div class="pipeline" id="pipelineSteps"></div>
+    </section>
+  </div>
+
+  <script>
+    const plainInput = document.getElementById('plainInput');
+    const operationSelect = document.getElementById('operationSelect');
+    const pipelineStepsEl = document.getElementById('pipelineSteps');
+    const finalOutputEl = document.getElementById('finalOutput');
+    const statusEl = document.getElementById('status');
+
+    let pipelineSteps = [];
+    let pipelineStepCounter = 0;
+
+    const CATEGORY_LABELS = {
+      encoding: '编码 / 解码',
+      hash: '哈希',
+      format: '格式整理',
+      security: '安全辅助',
+    };
+
+    const DEMO_PIPELINE = ['jwt-decode', 'json-pretty'];
+    const DEMO_INPUT =
+      'eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ1c2VyLTEiLCJyb2xlIjoiYWRtaW4iLCJyZWRpcmVjdCI6IiUyRmFkbWluIn0.';
+
+    const OPERATION_DEFS = [
+      { id: 'base64-encode', category: 'encoding', label: 'Base64 编码', run: (value) => bytesToBase64(textToBytes(value)) },
+      { id: 'base64-decode', category: 'encoding', label: 'Base64 解码', run: (value) => bytesToText(base64ToBytes(normalizeBase64(value))) },
+      { id: 'base64url-encode', category: 'encoding', label: 'Base64URL 编码', run: (value) => toBase64Url(bytesToBase64(textToBytes(value))) },
+      { id: 'base64url-decode', category: 'encoding', label: 'Base64URL 解码', run: (value) => bytesToText(base64ToBytes(normalizeBase64(fromBase64Url(value.trim())))) },
+      { id: 'hex-encode', category: 'encoding', label: 'Hex 编码', run: (value) => bytesToHex(textToBytes(value)) },
+      { id: 'hex-decode', category: 'encoding', label: 'Hex 解码', run: (value) => bytesToText(hexToBytes(value.trim())) },
+      { id: 'url-encode', category: 'encoding', label: 'URL 编码', run: (value) => encodeURIComponent(value) },
+      { id: 'url-decode', category: 'encoding', label: 'URL 解码', run: (value) => decodeURIComponent(value) },
+      { id: 'html-entity-encode', category: 'encoding', label: 'HTML Entity 编码', run: (value) => htmlEntityEncode(value) },
+      { id: 'html-entity-decode', category: 'encoding', label: 'HTML Entity 解码', run: (value) => htmlEntityDecode(value) },
+      { id: 'unicode-escape-encode', category: 'encoding', label: 'Unicode Escape 编码', run: (value) => unicodeEscapeEncode(value) },
+      { id: 'unicode-escape-decode', category: 'encoding', label: 'Unicode Escape 解码', run: (value) => unicodeEscapeDecode(value) },
+      { id: 'md5-hash', category: 'hash', label: 'MD5 哈希', run: (value) => md5(value) },
+      { id: 'sha1-hash', category: 'hash', label: 'SHA1 哈希', run: async (value) => hashText('SHA-1', value) },
+      { id: 'sha256-hash', category: 'hash', label: 'SHA256 哈希', run: async (value) => hashText('SHA-256', value) },
+      { id: 'sha512-hash', category: 'hash', label: 'SHA512 哈希', run: async (value) => hashText('SHA-512', value) },
+      { id: 'json-pretty', category: 'format', label: 'JSON 美化', run: (value) => JSON.stringify(JSON.parse(value), null, 2) },
+      { id: 'json-minify', category: 'format', label: 'JSON 压缩', run: (value) => JSON.stringify(JSON.parse(value)) },
+      { id: 'normalize-newlines', category: 'format', label: '标准化换行', run: (value) => value.replace(/\r\n?/g, '\n') },
+      { id: 'trim-whitespace', category: 'format', label: '去首尾空白', run: (value) => value.trim() },
+      { id: 'jwt-decode', category: 'security', label: 'JWT 本地解析', run: (value) => jwtDecode(value) },
+    ];
+
+    const OPERATION_MAP = Object.fromEntries(OPERATION_DEFS.map((operation) => [operation.id, operation]));
+
+    function setStatus(message, variant = 'info') {
+      statusEl.textContent = message;
+      statusEl.className =
+        variant === 'error'
+          ? 'status error'
+          : variant === 'success'
+            ? 'status success'
+            : 'status';
+    }
+
+    function renderOperationSelect() {
+      const grouped = OPERATION_DEFS.reduce((acc, operation) => {
+        if (!acc[operation.category]) {
+          acc[operation.category] = [];
+        }
+        acc[operation.category].push(operation);
+        return acc;
+      }, {});
+
+      operationSelect.innerHTML = Object.entries(grouped)
+        .map(([category, operations]) => `
+          <optgroup label="${CATEGORY_LABELS[category] || category}">
+            ${operations.map((operation) => `<option value="${operation.id}">${operation.label}</option>`).join('')}
+          </optgroup>
+        `)
+        .join('');
+    }
+
+    function renderPipeline() {
+      if (pipelineSteps.length === 0) {
+        pipelineStepsEl.innerHTML = '<div class="pipeline-empty">先从上方选择一个操作加入步骤链。当前 V2 支持多步串联、顺序调整、删除步骤和逐步结果查看。</div>';
+        return;
+      }
+
+      pipelineStepsEl.innerHTML = pipelineSteps
+        .map((step, index) => {
+          const operation = OPERATION_MAP[step.operationId];
+          const statusText = step.error ? '执行失败' : step.executed ? '已生成本步结果' : '等待执行';
+          return `
+            <section class="step">
+              <div class="step-header">
+                <div class="step-title-block">
+                  <strong data-step-title>${operation.label}</strong>
+                  <span>${CATEGORY_LABELS[operation.category] || operation.category} · ${statusText}</span>
+                </div>
+                <div class="step-actions">
+                  <button class="text step-button" type="button" data-step-move-up="${index}">上移</button>
+                  <button class="text step-button" type="button" data-step-move-down="${index}">下移</button>
+                  <button class="text step-button" type="button" data-step-remove="${index}">删除</button>
+                  <button class="secondary step-button" type="button" data-copy-step="${index}">复制本步</button>
+                </div>
+              </div>
+              <div class="step-body">
+                <div class="step-result ${step.error ? 'error' : ''}" data-step-result>${escapeHtml(step.error || step.output || '执行后将显示本步结果。')}</div>
+              </div>
+            </section>
+          `;
+        })
+        .join('');
+    }
+
+    function addStep(operationId) {
+      const operation = OPERATION_MAP[operationId];
+      if (!operation) {
+        setStatus('未识别要加入的操作。', 'error');
+        return;
+      }
+
+      pipelineSteps.push({
+        instanceId: `step-${pipelineStepCounter += 1}`,
+        operationId,
+        executed: false,
+        output: '',
+        error: '',
+      });
+      renderPipeline();
+      setStatus(`已加入步骤：${operation.label}`, 'success');
+    }
+
+    function moveStep(index, direction) {
+      const nextIndex = index + direction;
+      if (nextIndex < 0 || nextIndex >= pipelineSteps.length) {
+        return;
+      }
+
+      const [step] = pipelineSteps.splice(index, 1);
+      pipelineSteps.splice(nextIndex, 0, step);
+      renderPipeline();
+    }
+
+    function removeStep(index) {
+      if (index < 0 || index >= pipelineSteps.length) {
+        return;
+      }
+
+      const [removed] = pipelineSteps.splice(index, 1);
+      renderPipeline();
+      const operation = OPERATION_MAP[removed.operationId];
+      setStatus(`已删除步骤：${operation?.label || removed.operationId}`, 'success');
+    }
+
+    async function executePipeline() {
+      const rawInput = plainInput.value;
+      if (!rawInput.trim()) {
+        finalOutputEl.value = '';
+        setStatus('请先粘贴待处理内容。', 'error');
+        return;
+      }
+
+      if (pipelineSteps.length === 0) {
+        finalOutputEl.value = '';
+        setStatus('请至少加入一个操作步骤。', 'error');
+        return;
+      }
+
+      let currentValue = rawInput;
+      for (let index = 0; index < pipelineSteps.length; index += 1) {
+        const step = pipelineSteps[index];
+        const operation = OPERATION_MAP[step.operationId];
+
+        step.executed = false;
+        step.output = '';
+        step.error = '';
+
+        try {
+          const result = await operation.run(currentValue);
+          step.executed = true;
+          step.output = String(result);
+          currentValue = step.output;
+        } catch (error) {
+          step.executed = false;
+          step.output = '';
+          step.error = error?.message || `${operation.label} 执行失败`;
+          finalOutputEl.value = '';
+          renderPipeline();
+          setStatus(`步骤 ${index + 1} ${operation.label} 失败：${step.error}`, 'error');
+          return;
+        }
+      }
+
+      finalOutputEl.value = currentValue;
+      renderPipeline();
+      setStatus(`操作链执行完成，共处理 ${pipelineSteps.length} 步。`, 'success');
+    }
+
+    async function copyText(text, successMessage) {
+      if (!text) {
+        setStatus('当前没有可复制的结果。', 'error');
+        return;
+      }
+
+      try {
+        if (navigator.clipboard?.writeText) {
+          await navigator.clipboard.writeText(text);
+          setStatus(successMessage, 'success');
+          return;
+        }
+      } catch {}
+
+      const fallbackTextarea = document.createElement('textarea');
+      fallbackTextarea.value = text;
+      fallbackTextarea.setAttribute('readonly', '');
+      fallbackTextarea.style.position = 'fixed';
+      fallbackTextarea.style.top = '0';
+      fallbackTextarea.style.left = '-9999px';
+      fallbackTextarea.style.opacity = '0';
+      document.body.appendChild(fallbackTextarea);
+      fallbackTextarea.focus();
+      fallbackTextarea.select();
+      fallbackTextarea.setSelectionRange(0, fallbackTextarea.value.length);
+
+      try {
+        const copied = document.execCommand('copy');
+        if (copied) {
+          setStatus(successMessage, 'success');
+          return;
+        }
+      } catch {}
+      finally {
+        document.body.removeChild(fallbackTextarea);
+      }
+
+      setStatus('当前环境无法自动复制，请手动选择结果后复制。', 'error');
+    }
+
+    function bytesToHex(bytes) {
+      return Array.from(bytes, (byte) => byte.toString(16).padStart(2, '0')).join('');
+    }
+
+    function hexToBytes(value) {
+      if (!/^[a-f0-9]+$/i.test(value) || value.length % 2 !== 0) {
+        throw new Error('Hex 输入必须是偶数长度的十六进制字符。');
+      }
+      return new Uint8Array(value.match(/.{1,2}/g).map((part) => parseInt(part, 16)));
+    }
+
+    function textToBytes(value) {
+      return new TextEncoder().encode(value);
+    }
+
+    function bytesToText(bytes) {
+      return new TextDecoder().decode(bytes);
+    }
+
+    function bytesToBase64(bytes) {
+      let binary = '';
+      bytes.forEach((byte) => {
+        binary += String.fromCharCode(byte);
+      });
+      return btoa(binary);
+    }
+
+    function base64ToBytes(value) {
+      const binary = atob(value);
+      return Uint8Array.from(binary, (char) => char.charCodeAt(0));
+    }
+
+    function normalizeBase64(value) {
+      return value.replace(/\s+/g, '');
+    }
+
+    function toBase64Url(value) {
+      return value.replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/g, '');
+    }
+
+    function fromBase64Url(value) {
+      const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+      const padLength = (4 - (normalized.length % 4 || 4)) % 4;
+      return normalized + '='.repeat(padLength);
+    }
+
+    function htmlEntityEncode(value) {
+      const element = document.createElement('textarea');
+      element.textContent = value;
+      return element.innerHTML;
+    }
+
+    function htmlEntityDecode(value) {
+      const element = document.createElement('textarea');
+      element.innerHTML = value;
+      return element.value;
+    }
+
+    function unicodeEscapeEncode(value) {
+      return Array.from(value)
+        .map((char) => {
+          const codePoint = char.codePointAt(0);
+          if (codePoint <= 0xffff) {
+            return `\\u${codePoint.toString(16).padStart(4, '0')}`;
+          }
+
+          const adjusted = codePoint - 0x10000;
+          const high = 0xd800 + (adjusted >> 10);
+          const low = 0xdc00 + (adjusted & 0x3ff);
+          return `\\u${high.toString(16).padStart(4, '0')}\\u${low.toString(16).padStart(4, '0')}`;
+        })
+        .join('');
+    }
+
+    function unicodeEscapeDecode(value) {
+      return value
+        .replace(/\\u([0-9a-fA-F]{4})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)))
+        .replace(/\\x([0-9a-fA-F]{2})/g, (_, hex) => String.fromCharCode(parseInt(hex, 16)));
+    }
+
+    async function hashText(algorithm, value) {
+      const digest = await crypto.subtle.digest(algorithm, textToBytes(value));
+      return bytesToHex(new Uint8Array(digest));
+    }
+
+    function jwtDecode(value) {
+      const parts = value.trim().split('.');
+      if (parts.length < 2) {
+        throw new Error('JWT 至少需要 header.payload 两段。');
+      }
+
+      const decodeSegment = (segment) => {
+        const text = bytesToText(base64ToBytes(normalizeBase64(fromBase64Url(segment))));
+        try {
+          return JSON.parse(text);
+        } catch {
+          return text;
+        }
+      };
+
+      return JSON.stringify(
+        {
+          header: decodeSegment(parts[0]),
+          payload: decodeSegment(parts[1]),
+          signature: parts[2] || '',
+        },
+        null,
+        2
+      );
+    }
+
+    function md5(value) {
+      function add32(a, b) {
+        return (a + b) & 0xffffffff;
+      }
+
+      function cmn(q, a, b, x, s, t) {
+        a = add32(add32(a, q), add32(x, t));
+        return add32((a << s) | (a >>> (32 - s)), b);
+      }
+
+      function ff(a, b, c, d, x, s, t) {
+        return cmn((b & c) | (~b & d), a, b, x, s, t);
+      }
+
+      function gg(a, b, c, d, x, s, t) {
+        return cmn((b & d) | (c & ~d), a, b, x, s, t);
+      }
+
+      function hh(a, b, c, d, x, s, t) {
+        return cmn(b ^ c ^ d, a, b, x, s, t);
+      }
+
+      function ii(a, b, c, d, x, s, t) {
+        return cmn(c ^ (b | ~d), a, b, x, s, t);
+      }
+
+      function md5cycle(state, block) {
+        let [a, b, c, d] = state;
+
+        a = ff(a, b, c, d, block[0], 7, -680876936);
+        d = ff(d, a, b, c, block[1], 12, -389564586);
+        c = ff(c, d, a, b, block[2], 17, 606105819);
+        b = ff(b, c, d, a, block[3], 22, -1044525330);
+        a = ff(a, b, c, d, block[4], 7, -176418897);
+        d = ff(d, a, b, c, block[5], 12, 1200080426);
+        c = ff(c, d, a, b, block[6], 17, -1473231341);
+        b = ff(b, c, d, a, block[7], 22, -45705983);
+        a = ff(a, b, c, d, block[8], 7, 1770035416);
+        d = ff(d, a, b, c, block[9], 12, -1958414417);
+        c = ff(c, d, a, b, block[10], 17, -42063);
+        b = ff(b, c, d, a, block[11], 22, -1990404162);
+        a = ff(a, b, c, d, block[12], 7, 1804603682);
+        d = ff(d, a, b, c, block[13], 12, -40341101);
+        c = ff(c, d, a, b, block[14], 17, -1502002290);
+        b = ff(b, c, d, a, block[15], 22, 1236535329);
+
+        a = gg(a, b, c, d, block[1], 5, -165796510);
+        d = gg(d, a, b, c, block[6], 9, -1069501632);
+        c = gg(c, d, a, b, block[11], 14, 643717713);
+        b = gg(b, c, d, a, block[0], 20, -373897302);
+        a = gg(a, b, c, d, block[5], 5, -701558691);
+        d = gg(d, a, b, c, block[10], 9, 38016083);
+        c = gg(c, d, a, b, block[15], 14, -660478335);
+        b = gg(b, c, d, a, block[4], 20, -405537848);
+        a = gg(a, b, c, d, block[9], 5, 568446438);
+        d = gg(d, a, b, c, block[14], 9, -1019803690);
+        c = gg(c, d, a, b, block[3], 14, -187363961);
+        b = gg(b, c, d, a, block[8], 20, 1163531501);
+        a = gg(a, b, c, d, block[13], 5, -1444681467);
+        d = gg(d, a, b, c, block[2], 9, -51403784);
+        c = gg(c, d, a, b, block[7], 14, 1735328473);
+        b = gg(b, c, d, a, block[12], 20, -1926607734);
+
+        a = hh(a, b, c, d, block[5], 4, -378558);
+        d = hh(d, a, b, c, block[8], 11, -2022574463);
+        c = hh(c, d, a, b, block[11], 16, 1839030562);
+        b = hh(b, c, d, a, block[14], 23, -35309556);
+        a = hh(a, b, c, d, block[1], 4, -1530992060);
+        d = hh(d, a, b, c, block[4], 11, 1272893353);
+        c = hh(c, d, a, b, block[7], 16, -155497632);
+        b = hh(b, c, d, a, block[10], 23, -1094730640);
+        a = hh(a, b, c, d, block[13], 4, 681279174);
+        d = hh(d, a, b, c, block[0], 11, -358537222);
+        c = hh(c, d, a, b, block[3], 16, -722521979);
+        b = hh(b, c, d, a, block[6], 23, 76029189);
+        a = hh(a, b, c, d, block[9], 4, -640364487);
+        d = hh(d, a, b, c, block[12], 11, -421815835);
+        c = hh(c, d, a, b, block[15], 16, 530742520);
+        b = hh(b, c, d, a, block[2], 23, -995338651);
+
+        a = ii(a, b, c, d, block[0], 6, -198630844);
+        d = ii(d, a, b, c, block[7], 10, 1126891415);
+        c = ii(c, d, a, b, block[14], 15, -1416354905);
+        b = ii(b, c, d, a, block[5], 21, -57434055);
+        a = ii(a, b, c, d, block[12], 6, 1700485571);
+        d = ii(d, a, b, c, block[3], 10, -1894986606);
+        c = ii(c, d, a, b, block[10], 15, -1051523);
+        b = ii(b, c, d, a, block[1], 21, -2054922799);
+        a = ii(a, b, c, d, block[8], 6, 1873313359);
+        d = ii(d, a, b, c, block[15], 10, -30611744);
+        c = ii(c, d, a, b, block[6], 15, -1560198380);
+        b = ii(b, c, d, a, block[13], 21, 1309151649);
+        a = ii(a, b, c, d, block[4], 6, -145523070);
+        d = ii(d, a, b, c, block[11], 10, -1120210379);
+        c = ii(c, d, a, b, block[2], 15, 718787259);
+        b = ii(b, c, d, a, block[9], 21, -343485551);
+
+        state[0] = add32(a, state[0]);
+        state[1] = add32(b, state[1]);
+        state[2] = add32(c, state[2]);
+        state[3] = add32(d, state[3]);
+      }
+
+      function md5blk(s) {
+        const blocks = [];
+        for (let i = 0; i < 64; i += 4) {
+          blocks[i >> 2] =
+            s.charCodeAt(i) +
+            (s.charCodeAt(i + 1) << 8) +
+            (s.charCodeAt(i + 2) << 16) +
+            (s.charCodeAt(i + 3) << 24);
+        }
+        return blocks;
+      }
+
+      function md51(s) {
+        const state = [1732584193, -271733879, -1732584194, 271733878];
+        let i;
+
+        for (i = 64; i <= s.length; i += 64) {
+          md5cycle(state, md5blk(s.substring(i - 64, i)));
+        }
+
+        s = s.substring(i - 64);
+        const tail = new Array(16).fill(0);
+        for (i = 0; i < s.length; i += 1) {
+          tail[i >> 2] |= s.charCodeAt(i) << ((i % 4) << 3);
+        }
+        tail[i >> 2] |= 0x80 << ((i % 4) << 3);
+
+        if (i > 55) {
+          md5cycle(state, tail);
+          tail.fill(0);
+        }
+
+        tail[14] = s.length * 8;
+        md5cycle(state, tail);
+        return state;
+      }
+
+      function rhex(n) {
+        let output = '';
+        for (let j = 0; j < 4; j += 1) {
+          output += ((n >> (j * 8 + 4)) & 0x0f).toString(16);
+          output += ((n >> (j * 8)) & 0x0f).toString(16);
+        }
+        return output;
+      }
+
+      return md51(unescape(encodeURIComponent(value))).map(rhex).join('');
+    }
+
+    function escapeHtml(value) {
+      return value
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;');
+    }
+
+    function addDemoPipeline() {
+      pipelineSteps = DEMO_PIPELINE.map((operationId) => ({
+        instanceId: `step-${pipelineStepCounter += 1}`,
+        operationId,
+        executed: false,
+        output: '',
+        error: '',
+      }));
+    }
+
+    document.getElementById('addStepBtn').addEventListener('click', () => {
+      addStep(operationSelect.value);
+    });
+
+    document.getElementById('runPipelineBtn').addEventListener('click', () => {
+      executePipeline().catch((error) => {
+        setStatus(error?.message || '执行操作链失败。', 'error');
+      });
+    });
+
+    document.getElementById('copyFinalBtn').addEventListener('click', () => {
+      copyText(finalOutputEl.value, '已复制最终结果。');
+    });
+
+    document.getElementById('loadDemoBtn').addEventListener('click', () => {
+      plainInput.value = DEMO_INPUT;
+      addDemoPipeline();
+      finalOutputEl.value = '';
+      renderPipeline();
+      setStatus('已载入演示样例与推荐步骤链。', 'success');
+    });
+
+    document.getElementById('clearBtn').addEventListener('click', () => {
+      plainInput.value = '';
+      finalOutputEl.value = '';
+      pipelineSteps = [];
+      renderPipeline();
+      setStatus('');
+    });
+
+    pipelineStepsEl.addEventListener('click', (event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) {
+        return;
+      }
+
+      const moveUpButton = target.closest('[data-step-move-up]');
+      if (moveUpButton instanceof HTMLElement) {
+        moveStep(Number(moveUpButton.dataset.stepMoveUp), -1);
+        return;
+      }
+
+      const moveDownButton = target.closest('[data-step-move-down]');
+      if (moveDownButton instanceof HTMLElement) {
+        moveStep(Number(moveDownButton.dataset.stepMoveDown), 1);
+        return;
+      }
+
+      const removeButton = target.closest('[data-step-remove]');
+      if (removeButton instanceof HTMLElement) {
+        removeStep(Number(removeButton.dataset.stepRemove));
+        return;
+      }
+
+      const copyStepButton = target.closest('[data-copy-step]');
+      if (copyStepButton instanceof HTMLElement) {
+        const stepIndex = Number(copyStepButton.dataset.copyStep);
+        const step = pipelineSteps[stepIndex];
+        copyText(step?.output || step?.error || '', '已复制本步结果。');
+      }
+    });
+
+    renderOperationSelect();
+    renderPipeline();
+  </script>
+</body>
+</html>

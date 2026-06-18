@@ -41,17 +41,57 @@ This is an electron forge app, using vite and react.js. `goosed` runs as multi p
 ## Building for different platforms
 
 ### macOS
-`pnpm run bundle:default` will give you a goose.app/zip which is signed/notarized but only if you set up the env vars as per `forge.config.ts` (you can empty out the section on osxSign if you don't want to sign it) - this will have all defaults.
+`pnpm run bundle:default` now produces a local-preview `.app` / `.zip` by default:
 
-`pnpm run bundle:preconfigured` will make a goose.app/zip signed and notarized, but use the following:
+- `GOOSE_DESKTOP_SIGN` defaults to `false`
+- the bundle is ad-hoc re-signed locally so `codesign --verify` passes
+- `spctl` may still reject it because this path is not notarized Apple distribution
+- local preview keeps `GOOSE_DISABLE_KEYRING=1` in the app environment to avoid keychain prompts during unsigned install-state testing
 
-```python
-            f"        process.env.GOOSE_PROVIDER__TYPE = '{os.getenv("GOOSE_BUNDLE_TYPE")}';",
-            f"        process.env.GOOSE_PROVIDER__HOST = '{os.getenv("GOOSE_BUNDLE_HOST")}';",
-            f"        process.env.GOOSE_PROVIDER__MODEL = '{os.getenv("GOOSE_BUNDLE_MODEL")}';"
+For a signed/notarized release rehearsal, use the reusable GitHub workflows or set:
+
+```bash
+GOOSE_DESKTOP_SIGN=true
+APPLE_CERTIFICATE_BASE64=...
+APPLE_CERTIFICATE_PASSWORD=...
+APPLE_TEAM_ID=...
+APPLE_ID=...
+APPLE_ID_PASSWORD=...
 ```
 
-This allows you to set for example GOOSE_PROVIDER__TYPE to be "databricks" by default if you want (so when people start goose.app - they will get that out of the box). There is no way to set an api key in that bundling as that would be a terrible idea, so only use providers that can do oauth (like databricks can), otherwise stick to default goose.
+Then validate preflight with:
+
+```bash
+node ../../scripts/check-security-apple-signing-env.mjs --require-signed
+```
+
+and validate the built bundle with:
+
+```bash
+../../scripts/check-security-macos-bundle.sh --arch arm64 --expect signed --require-notarized
+```
+
+If you need a CI rehearsal before pushing a release tag, use the GitHub Actions
+workflow `Manual Desktop Bundle` with:
+
+- `signing=true`
+- `environment=signing`
+
+That path reuses the existing reusable bundle workflows and now uploads:
+
+- `Security-Goose-macos-release-evidence-arm64`
+- `Security-Goose-macos-release-evidence-x64`
+
+Each artifact contains:
+
+- `signing-preflight.txt`
+- `bundle-check.txt`
+- `summary.json`
+- `summary.md`
+
+The same `summary.md` content is also appended to the job summary. For the
+Security Goose release-specific operator steps and install acceptance checklist,
+see [../../distro/security-cn/docs/signed-release-runbook.md](../../distro/security-cn/docs/signed-release-runbook.md).
 
 ### Linux
 For Linux builds, first ensure you have the required system dependencies installed (see above), then:

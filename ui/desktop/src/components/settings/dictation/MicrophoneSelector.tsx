@@ -209,9 +209,11 @@ export const MicrophoneSelector = ({
             <DropdownMenuContent align="end" className="w-max min-w-[250px] max-w-[350px]">
               <DropdownMenuRadioGroup
                 value={selectedDeviceId ?? 'system_default'}
-                onValueChange={(v) => onDeviceChange(v === 'system_default' ? null : v)}
+                onValueChange={(v: string) => onDeviceChange(v === 'system_default' ? null : v)}
               >
-                <DropdownMenuRadioItem value="system_default">{intl.formatMessage(i18n.systemDefault)}</DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="system_default">
+                  {intl.formatMessage(i18n.systemDefault)}
+                </DropdownMenuRadioItem>
                 {devices.map((device, i) => (
                   <DropdownMenuRadioItem key={device.deviceId} value={device.deviceId}>
                     <span className="truncate">{getDeviceLabel(device, i)}</span>

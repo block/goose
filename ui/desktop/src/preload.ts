@@ -1,6 +1,14 @@
 import Electron, { contextBridge, ipcRenderer, webUtils } from 'electron';
 import { Recipe } from './recipe';
 import { GooseApp } from './api';
+import type {
+  DeleteManagedLocalSkillResult,
+  ImportManagedSkillRequest,
+  ImportManagedSkillResult,
+  ManagedSkillsInventory,
+  RestoreBundledSkillResult,
+} from './security/managedSkills';
+import type { OpenDirectoryInExplorerResult } from './utils/openDirectoryInExplorer';
 import type { Settings, SettingKey } from './utils/settings';
 import { defaultSettings } from './utils/settings';
 
@@ -185,13 +193,23 @@ type ElectronAPI = {
   closeWindow: () => void;
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
   recordRecipeHash: (recipe: Recipe) => Promise<boolean>;
-  openDirectoryInExplorer: (directoryPath: string) => Promise<boolean>;
+  openDirectoryInExplorer: (directoryPath: string) => Promise<OpenDirectoryInExplorerResult>;
   launchApp: (app: GooseApp) => Promise<void>;
   refreshApp: (app: GooseApp) => Promise<void>;
   closeApp: (appName: string) => Promise<void>;
   addRecentDir: (dir: string) => Promise<boolean>;
   listRecentDirs: () => Promise<string[]>;
   listGitWorktreeDirs: (dir: string) => Promise<string[]>;
+  listManagedSkills: (workingDir: string) => Promise<ManagedSkillsInventory>;
+  importManagedSkill: (request: ImportManagedSkillRequest) => Promise<ImportManagedSkillResult>;
+  deleteManagedLocalSkill: (
+    workingDir: string,
+    skillId: string
+  ) => Promise<DeleteManagedLocalSkillResult>;
+  restoreBundledSkill: (
+    workingDir: string,
+    skillId: string
+  ) => Promise<RestoreBundledSkillResult>;
 };
 
 type AppConfigAPI = {
@@ -350,6 +368,13 @@ const electronAPI: ElectronAPI = {
   addRecentDir: (dir: string) => ipcRenderer.invoke('add-recent-dir', dir),
   listRecentDirs: () => ipcRenderer.invoke('list-recent-dirs'),
   listGitWorktreeDirs: (dir: string) => ipcRenderer.invoke('list-git-worktree-dirs', dir),
+  listManagedSkills: (workingDir: string) => ipcRenderer.invoke('list-managed-skills', workingDir),
+  importManagedSkill: (request: ImportManagedSkillRequest) =>
+    ipcRenderer.invoke('import-managed-skill', request),
+  deleteManagedLocalSkill: (workingDir: string, skillId: string) =>
+    ipcRenderer.invoke('delete-managed-local-skill', { workingDir, skillId }),
+  restoreBundledSkill: (workingDir: string, skillId: string) =>
+    ipcRenderer.invoke('restore-bundled-skill', { workingDir, skillId }),
 };
 
 const appConfigAPI: AppConfigAPI = {

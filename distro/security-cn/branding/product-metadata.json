@@ -1,0 +1,9 @@
+{
+  "distributionId": "security-cn",
+  "productName": "收到",
+  "productNameZh": "收到",
+  "defaultLocale": "zh-CN",
+  "targetPlatform": "macos",
+  "bundleId": "com.securitygoose.preview",
+  "notes": "客户端对外品牌已收口为 收到，内部兼容标识继续保留 Goose 系技术 id。"
+}

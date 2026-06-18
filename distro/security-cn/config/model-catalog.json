@@ -1,0 +1,93 @@
+[
+  {
+    "id": 0,
+    "name": "auto",
+    "provider": "openai",
+    "alias": "Auto",
+    "subtext": "TokenPlan"
+  },
+  {
+    "id": 1,
+    "name": "deepseek-v4-flash",
+    "provider": "openai",
+    "alias": "DeepSeek V4 Flash",
+    "subtext": "低延迟"
+  },
+  {
+    "id": 2,
+    "name": "deepseek-v4-flash-202605",
+    "provider": "openai",
+    "alias": "DeepSeek V4 Flash 202605",
+    "subtext": "版本 202605"
+  },
+  {
+    "id": 3,
+    "name": "deepseek-v4-pro",
+    "provider": "openai",
+    "alias": "DeepSeek V4 Pro",
+    "subtext": "强推理"
+  },
+  {
+    "id": 4,
+    "name": "deepseek-v4-pro-202606",
+    "provider": "openai",
+    "alias": "DeepSeek V4 Pro 202606",
+    "subtext": "版本 202606"
+  },
+  {
+    "id": 5,
+    "name": "glm-5",
+    "provider": "openai",
+    "alias": "GLM 5",
+    "subtext": "通用"
+  },
+  {
+    "id": 6,
+    "name": "glm-5-turbo",
+    "provider": "openai",
+    "alias": "GLM 5 Turbo",
+    "subtext": "快速"
+  },
+  {
+    "id": 7,
+    "name": "glm-5.1",
+    "provider": "openai",
+    "alias": "GLM 5.1",
+    "subtext": "通用分析"
+  },
+  {
+    "id": 8,
+    "name": "kimi-k2.5",
+    "provider": "openai",
+    "alias": "Kimi K2.5",
+    "subtext": "长上下文"
+  },
+  {
+    "id": 9,
+    "name": "kimi-k2.6",
+    "provider": "openai",
+    "alias": "Kimi K2.6",
+    "subtext": "长上下文"
+  },
+  {
+    "id": 10,
+    "name": "minimax-m2.5",
+    "provider": "openai",
+    "alias": "MiniMax M2.5",
+    "subtext": "通用"
+  },
+  {
+    "id": 11,
+    "name": "minimax-m2.7",
+    "provider": "openai",
+    "alias": "MiniMax M2.7",
+    "subtext": "通用"
+  },
+  {
+    "id": 12,
+    "name": "minimax-m3",
+    "provider": "openai",
+    "alias": "MiniMax M3",
+    "subtext": "新版"
+  }
+]

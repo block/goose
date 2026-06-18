@@ -42,7 +42,7 @@ pub async fn run() -> Result<()> {
     // features are enabled on rustls (via different transitive deps), so rustls
     // cannot auto-detect a provider — we must pick one explicitly.
     #[cfg(feature = "rustls-tls")]
-    let _ = rustls::crypto::ring::default_provider().install_default();
+    let _ = rustls::crypto::aws_lc_rs::default_provider().install_default();
 
     boot_marker("main entered");
     crate::logging::setup_logging(Some("goosed"))?;

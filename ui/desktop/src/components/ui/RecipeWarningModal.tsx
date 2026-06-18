@@ -20,24 +20,24 @@ const i18n = defineMessages({
   },
   newRecipeWarningTitle: {
     id: 'recipeWarningModal.newRecipeWarningTitle',
-    defaultMessage: '⚠️ New Recipe Warning',
+    defaultMessage: '⚠️ New Task Template Warning',
   },
   firstTimeDescription: {
     id: 'recipeWarningModal.firstTimeDescription',
-    defaultMessage: "You are about to execute a recipe that you haven't run before. ",
+    defaultMessage: "You are about to execute a task template that you haven't run before. ",
   },
   trustSource: {
     id: 'recipeWarningModal.trustSource',
-    defaultMessage: 'Only proceed if you trust the source of this recipe.',
+    defaultMessage: 'Only proceed if you trust the source of this task template.',
   },
   hiddenCharsWarning: {
     id: 'recipeWarningModal.hiddenCharsWarning',
     defaultMessage:
-      'This recipe contains hidden characters that will be ignored for your safety, as they could be used for malicious purposes.',
+      'This task template contains hidden characters that will be ignored for your safety, as they could be used for malicious purposes.',
   },
   recipePreview: {
     id: 'recipeWarningModal.recipePreview',
-    defaultMessage: 'Recipe Preview:',
+    defaultMessage: 'Task Template Preview:',
   },
   titleLabel: {
     id: 'recipeWarningModal.titleLabel',
@@ -57,7 +57,7 @@ const i18n = defineMessages({
   },
   trustAndExecute: {
     id: 'recipeWarningModal.trustAndExecute',
-    defaultMessage: 'Trust and Execute',
+    defaultMessage: 'Trust and Run',
   },
 });
 

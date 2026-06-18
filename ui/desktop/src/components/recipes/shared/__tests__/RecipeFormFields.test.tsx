@@ -267,7 +267,7 @@ describe('RecipeFormFields', () => {
 
       // Check that activity input exists
       const messageInput = screen.getByPlaceholderText(
-        'Enter a user facing introduction message for your recipe (supports **bold**, *italic*, `code`, etc.)'
+        'Enter a user-facing introduction message for your task template (supports **bold**, *italic*, `code`, etc.)'
       );
       expect(messageInput).toBeInTheDocument();
 
@@ -1012,19 +1012,19 @@ describe('RecipeFormFields', () => {
     });
   });
 
-  describe('Subrecipes Field', () => {
-    it('renders the subrecipes section in advanced options', async () => {
+  describe('Subtask Templates Field', () => {
+    it('renders the subtask templates section in advanced options', async () => {
       const user = userEvent.setup();
       renderWithIntl(<TestWrapper />);
 
       await expandAdvancedSection(user);
 
-      expect(screen.getByText('Subrecipes')).toBeInTheDocument();
+      expect(screen.getByText('Subtask Templates')).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /add existing/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /create new subrecipe/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /create new subtask template/i })).toBeInTheDocument();
     });
 
-    it('pre-fills subrecipes from initial values', async () => {
+    it('pre-fills subtask templates from initial values', async () => {
       const user = userEvent.setup();
       const initialValues: Partial<RecipeFormData> = {
         subRecipes: [
@@ -1046,7 +1046,7 @@ describe('RecipeFormFields', () => {
       expect(screen.getByText('Fetches data from an API')).toBeInTheDocument();
     });
 
-    it('displays pre-configured values for a subrecipe', async () => {
+    it('displays pre-configured values for a subtask template', async () => {
       const user = userEvent.setup();
       const initialValues: Partial<RecipeFormData> = {
         subRecipes: [
@@ -1091,7 +1091,7 @@ describe('RecipeFormFields', () => {
       expect(screen.getByText('Sequential')).toBeInTheDocument();
     });
 
-    it('opens the add existing subrecipe modal on button click', async () => {
+    it('opens the add existing subtask template modal on button click', async () => {
       const user = userEvent.setup();
       renderWithIntl(<TestWrapper />);
 
@@ -1100,7 +1100,7 @@ describe('RecipeFormFields', () => {
       const addButton = screen.getByRole('button', { name: /add existing/i });
       await user.click(addButton);
 
-      expect(screen.getByRole('heading', { name: /add subrecipe/i })).toBeInTheDocument();
+      expect(screen.getByRole('heading', { name: /add subtask template/i })).toBeInTheDocument();
       expect(screen.getByLabelText(/^name/i)).toBeInTheDocument();
       expect(screen.getByLabelText(/^path/i)).toBeInTheDocument();
     });

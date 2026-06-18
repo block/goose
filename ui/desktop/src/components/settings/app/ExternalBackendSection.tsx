@@ -10,12 +10,12 @@ import { defineMessages, useIntl } from '../../../i18n';
 const i18n = defineMessages({
   title: {
     id: 'externalBackendSection.title',
-    defaultMessage: 'Goose Server',
+    defaultMessage: 'Backend Server',
   },
   description: {
     id: 'externalBackendSection.description',
     defaultMessage:
-      'By default goose launches a server for you, use this to connect to an external goose server',
+      'By default the app launches a local server for you. Use this to connect to an external server instead.',
   },
   useExternalServer: {
     id: 'externalBackendSection.useExternalServer',
@@ -23,7 +23,7 @@ const i18n = defineMessages({
   },
   useExternalServerDescription: {
     id: 'externalBackendSection.useExternalServerDescription',
-    defaultMessage: 'Connect to a goose server running elsewhere (requires app restart)',
+    defaultMessage: 'Connect to a server running elsewhere (requires app restart)',
   },
   serverUrl: {
     id: 'externalBackendSection.serverUrl',
@@ -51,12 +51,13 @@ const i18n = defineMessages({
   },
   certFingerprintHelp: {
     id: 'externalBackendSection.certFingerprintHelp',
-    defaultMessage: 'Pin a specific TLS certificate fingerprint. If omitted, the certificate is trusted on first use (TOFU).',
+    defaultMessage:
+      'Pin a specific TLS certificate fingerprint. If omitted, the certificate is trusted on first use (TOFU).',
   },
   restartNote: {
     id: 'externalBackendSection.restartNote',
     defaultMessage:
-      'Changes require restarting Goose to take effect. New chat windows will connect to the external server.',
+      'Changes require restarting the app to take effect. New chat windows will connect to the external server.',
   },
   urlProtocolError: {
     id: 'externalBackendSection.urlProtocolError',
@@ -137,14 +138,14 @@ export default function ExternalBackendSection() {
       <Card className="pb-2">
         <CardHeader className="pb-0">
           <CardTitle>{intl.formatMessage(i18n.title)}</CardTitle>
-          <CardDescription>
-            {intl.formatMessage(i18n.description)}
-          </CardDescription>
+          <CardDescription>{intl.formatMessage(i18n.description)}</CardDescription>
         </CardHeader>
         <CardContent className="pt-4 space-y-4 px-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-text-primary text-xs">{intl.formatMessage(i18n.useExternalServer)}</h3>
+              <h3 className="text-text-primary text-xs">
+                {intl.formatMessage(i18n.useExternalServer)}
+              </h3>
               <p className="text-xs text-text-secondary max-w-md mt-[2px]">
                 {intl.formatMessage(i18n.useExternalServerDescription)}
               </p>
@@ -152,7 +153,7 @@ export default function ExternalBackendSection() {
             <div className="flex items-center">
               <Switch
                 checked={config.enabled}
-                onCheckedChange={(checked) => saveConfig(updateField('enabled', checked))}
+                onCheckedChange={(checked: boolean) => saveConfig(updateField('enabled', checked))}
                 disabled={isSaving}
                 variant="mono"
               />

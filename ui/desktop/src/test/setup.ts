@@ -35,12 +35,25 @@ global.console = {
   error: vi.fn(),
 };
 
-// Mock window.navigator.clipboard for copy functionality tests
-Object.assign(navigator, {
-  clipboard: {
-    writeText: vi.fn(() => Promise.resolve()),
-  },
-});
+if (typeof navigator !== 'undefined') {
+  Object.assign(navigator, {
+    clipboard: {
+      writeText: vi.fn(() => Promise.resolve()),
+    },
+  });
+}
+
+if (typeof globalThis.ResizeObserver === 'undefined') {
+  class MockResizeObserver {
+    observe() {}
+    unobserve() {}
+    disconnect() {}
+  }
+
+  Object.assign(globalThis, {
+    ResizeObserver: MockResizeObserver,
+  });
+}
 
 // Mock settings store for tests
 const mockSettings: Record<string, unknown> = {
@@ -77,18 +90,30 @@ const mockSettings: Record<string, unknown> = {
 };
 
 // Mock window.electron for renderer process
-Object.defineProperty(window, 'electron', {
-  writable: true,
-  value: {
-    platform: 'darwin',
-    getSetting: vi.fn((key: string) => Promise.resolve(mockSettings[key])),
-    setSetting: vi.fn((key: string, value: unknown) => {
-      mockSettings[key] = value;
-      return Promise.resolve();
-    }),
-    showMessageBox: vi.fn(() => Promise.resolve({ response: 0 })),
-    getIsFullScreen: vi.fn(() => Promise.resolve(false)),
-    on: vi.fn(),
-    off: vi.fn(),
-  },
-});
+if (typeof window !== 'undefined') {
+  Object.defineProperty(window, 'electron', {
+    writable: true,
+    value: {
+      platform: 'darwin',
+      getSetting: vi.fn((key: string) => Promise.resolve(mockSettings[key])),
+      setSetting: vi.fn((key: string, value: unknown) => {
+        mockSettings[key] = value;
+        return Promise.resolve();
+      }),
+      showMessageBox: vi.fn(() => Promise.resolve({ response: 0 })),
+      getIsFullScreen: vi.fn(() => Promise.resolve(false)),
+      listManagedSkills: vi.fn(async () => ({
+        workingDir: '/tmp/test-workdir',
+        runtimeSkillRoot: '/tmp/test-workdir/.agents/skills',
+        bundledSkills: [],
+        localSkills: [],
+      })),
+      importManagedSkill: vi.fn(),
+      deleteManagedLocalSkill: vi.fn(),
+      restoreBundledSkill: vi.fn(),
+      selectFileOrDirectory: vi.fn(),
+      on: vi.fn(),
+      off: vi.fn(),
+    },
+  });
+}

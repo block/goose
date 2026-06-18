@@ -11,7 +11,7 @@ import {
 } from '../../../ui/dropdown-menu';
 import { useConfig } from '../../../ConfigContext';
 import { getProviderMetadata } from '../modelInterface';
-import { getModelDisplayName } from '../predefinedModelsUtils';
+import { getConfiguredDefaultPredefinedModel, getModelDisplayName } from '../predefinedModelsUtils';
 
 import { ModelSettingsPanel } from '../../localInference/ModelSettingsPanel';
 import { ScrollArea } from '../../../ui/scroll-area';
@@ -75,11 +75,16 @@ export default function ModelsBottomBar({
   const { currentModel: configModel, currentProvider: configProvider } = useModelAndProvider();
   const currentModel = sessionModel ?? configModel;
   const currentProvider = sessionProvider ?? configProvider;
+  const configuredDefaultModel = getConfiguredDefaultPredefinedModel();
 
   const intl = useIntl();
   const { getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
-  const [displayModelName, setDisplayModelName] = useState<string>(intl.formatMessage(i18n.selectModel));
+  const [displayModelName, setDisplayModelName] = useState<string>(
+    configuredDefaultModel?.alias ??
+      configuredDefaultModel?.name ??
+      intl.formatMessage(i18n.selectModel)
+  );
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const [isLocalModelSettingsOpen, setIsLocalModelSettingsOpen] = useState(false);
   const [providerDefaultModel, setProviderDefaultModel] = useState<string | null>(null);

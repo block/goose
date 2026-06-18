@@ -1,0 +1,9 @@
+{
+  "gooseFirst": true,
+  "macOSOnlyPreview": true,
+  "defaultLocale": "zh-CN",
+  "enableGateway": false,
+  "enableLiteLLM": false,
+  "enableAGS": false,
+  "enableOnlineMarketplace": false
+}

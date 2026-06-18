@@ -8,7 +8,45 @@ import { formatAppName } from '../../utils/conversionUtils';
 import { errorMessage } from '../../utils/conversionUtils';
 import { defineMessages, useIntl } from '../../i18n';
 
+const BUILTIN_SECURITY_APP_NAMES = new Set([
+  'ioc-toolbox',
+  'encode-hash-lab',
+  'secret-credential-scanner',
+  'jwt-inspector',
+]);
+const BUILTIN_SECURITY_APP_ORDER = [
+  'ioc-toolbox',
+  'encode-hash-lab',
+  'secret-credential-scanner',
+  'jwt-inspector',
+] as const;
+
 const i18n = defineMessages({
+  builtInSecurityApp: {
+    id: 'appsView.builtInSecurityApp',
+    defaultMessage: 'Built-in security tool',
+  },
+  customApp: {
+    id: 'appsView.customApp',
+    defaultMessage: 'Imported / custom app',
+  },
+  builtInSectionTitle: {
+    id: 'appsView.builtInSectionTitle',
+    defaultMessage: 'Built-in security tools',
+  },
+  builtInSectionDescription: {
+    id: 'appsView.builtInSectionDescription',
+    defaultMessage:
+      'These offline mini-tools ship with the current build and are meant for quick analyst workflows.',
+  },
+  customSectionTitle: {
+    id: 'appsView.customSectionTitle',
+    defaultMessage: 'Imported / custom apps',
+  },
+  customSectionDescription: {
+    id: 'appsView.customSectionDescription',
+    defaultMessage: 'Apps you import or generate in chat continue to appear here.',
+  },
   errorLoading: {
     id: 'appsView.errorLoading',
     defaultMessage: 'Error loading apps: {error}',
@@ -28,7 +66,7 @@ const i18n = defineMessages({
   description: {
     id: 'appsView.description',
     defaultMessage:
-      'Applications from your MCP servers and Apps built by goose itself. You can ask it to create new apps through the chat interface and they will appear here.',
+      'Built-in security tools plus apps managed by the current apps runtime appear here. This build ships a small curated set of classic analyst utilities by default.',
   },
   loading: {
     id: 'appsView.loading',
@@ -41,17 +79,97 @@ const i18n = defineMessages({
   noAppsDescription: {
     id: 'appsView.noAppsDescription',
     defaultMessage:
-      'Open a chat and ask goose for the app you want to have. It can build one for you and that will appear here. Or if somebody shared an app, you can import it using the button above.',
-  },
-  customApp: {
-    id: 'appsView.customApp',
-    defaultMessage: 'Custom app',
+      'Import an app package or ask the assistant to create one in chat. Built-in security tools should appear here automatically when the apps runtime is healthy.',
   },
   launch: {
     id: 'appsView.launch',
     defaultMessage: 'Launch',
   },
+  iocToolboxTitle: {
+    id: 'appsView.iocToolboxTitle',
+    defaultMessage: 'IOC Toolbox',
+  },
+  iocToolboxDescription: {
+    id: 'appsView.iocToolboxDescription',
+    defaultMessage:
+      'Normalize and deduplicate domains, IPs, URLs, hashes, emails, and CVEs for fast IOC triage.',
+  },
+  iocToolboxCategory: {
+    id: 'appsView.iocToolboxCategory',
+    defaultMessage: 'IOC triage',
+  },
+  encodeHashLabTitle: {
+    id: 'appsView.encodeHashLabTitle',
+    defaultMessage: 'Encode & Hash Lab',
+  },
+  encodeHashLabDescription: {
+    id: 'appsView.encodeHashLabDescription',
+    defaultMessage:
+      'Use an offline multi-step operation pipeline for suspicious strings, headers, payloads, JSON, and token fragments.',
+  },
+  encodeHashLabCategory: {
+    id: 'appsView.encodeHashLabCategory',
+    defaultMessage: 'Encoding / decoding / hashing',
+  },
+  secretCredentialScannerTitle: {
+    id: 'appsView.secretCredentialScannerTitle',
+    defaultMessage: 'Secret Scanner',
+  },
+  secretCredentialScannerDescription: {
+    id: 'appsView.secretCredentialScannerDescription',
+    defaultMessage:
+      'Scan logs, configs, and snippets locally for cloud keys, collaboration webhooks, tokens, private keys, and other secret-like material.',
+  },
+  secretCredentialScannerCategory: {
+    id: 'appsView.secretCredentialScannerCategory',
+    defaultMessage: 'Secret / credential review',
+  },
+  jwtInspectorTitle: {
+    id: 'appsView.jwtInspectorTitle',
+    defaultMessage: 'JWT Inspector',
+  },
+  jwtInspectorDescription: {
+    id: 'appsView.jwtInspectorDescription',
+    defaultMessage:
+      'Decode token headers and claims locally to flag unsigned, expired, or suspicious JWT fields before deeper auth investigation.',
+  },
+  jwtInspectorCategory: {
+    id: 'appsView.jwtInspectorCategory',
+    defaultMessage: 'Auth token review',
+  },
 });
+
+type BuiltInSecurityAppName = (typeof BUILTIN_SECURITY_APP_ORDER)[number];
+
+const BUILTIN_SECURITY_APP_META: Record<
+  BuiltInSecurityAppName,
+  {
+    title: keyof typeof i18n;
+    description: keyof typeof i18n;
+    category: keyof typeof i18n;
+  }
+> = {
+  'ioc-toolbox': {
+    title: 'iocToolboxTitle',
+    description: 'iocToolboxDescription',
+    category: 'iocToolboxCategory',
+  },
+  'encode-hash-lab': {
+    title: 'encodeHashLabTitle',
+    description: 'encodeHashLabDescription',
+    category: 'encodeHashLabCategory',
+  },
+  'secret-credential-scanner': {
+    title: 'secretCredentialScannerTitle',
+    description: 'secretCredentialScannerDescription',
+    category: 'secretCredentialScannerCategory',
+  },
+  'jwt-inspector': {
+    title: 'jwtInspectorTitle',
+    description: 'jwtInspectorDescription',
+    category: 'jwtInspectorCategory',
+  },
+};
 
 const GridLayout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -74,6 +192,17 @@ export default function AppsView() {
   const [loading, setLoading] = useState(true);
   const chatContext = useChatContext();
   const sessionId = chatContext?.chat.sessionId;
+
+  const sortBuiltInApps = useCallback((appList: GooseApp[]) => {
+    return [...appList].sort((left, right) => {
+      return BUILTIN_SECURITY_APP_ORDER.indexOf(left.name as BuiltInSecurityAppName) -
+        BUILTIN_SECURITY_APP_ORDER.indexOf(right.name as BuiltInSecurityAppName);
+    });
+  }, []);
+
+  const sortCustomApps = useCallback((appList: GooseApp[]) => {
+    return [...appList].sort((left, right) => left.name.localeCompare(right.name));
+  }, []);
 
   // Load cached apps immediately on mount
   useEffect(() => {
@@ -237,6 +366,77 @@ export default function AppsView() {
     event.target.value = '';
   };
 
+  const builtInSecurityApps = sortBuiltInApps(apps.filter((app) => BUILTIN_SECURITY_APP_NAMES.has(app.name)));
+  const customApps = sortCustomApps(apps.filter((app) => !BUILTIN_SECURITY_APP_NAMES.has(app.name)));
+
+  const renderAppCard = (app: GooseApp) => {
+    const isAppsExtensionApp = app.mcpServers?.includes('apps') ?? false;
+    const isBuiltInSecurityApp = BUILTIN_SECURITY_APP_NAMES.has(app.name);
+    const builtInAppMeta = isBuiltInSecurityApp
+      ? BUILTIN_SECURITY_APP_META[app.name as BuiltInSecurityAppName]
+      : null;
+    const title = builtInAppMeta ? intl.formatMessage(i18n[builtInAppMeta.title]) : formatAppName(app.name);
+    const description = builtInAppMeta
+      ? intl.formatMessage(i18n[builtInAppMeta.description])
+      : app.description;
+    const categoryLabel = builtInAppMeta ? intl.formatMessage(i18n[builtInAppMeta.category]) : null;
+
+    return (
+      <div
+        key={`${app.uri}-${app.mcpServers?.join(',')}`}
+        data-testid={`apps-card-${app.name}`}
+        className="flex flex-col p-4 border rounded-lg hover:border-border-primary transition-colors"
+      >
+        <div className="flex-1 mb-4">
+          <div className="flex flex-wrap items-center gap-2 mb-2">
+            <h3 className="font-medium text-text-primary">{title}</h3>
+            <span
+              data-testid={`apps-badge-${app.name}`}
+              className="inline-block px-2 py-1 text-xs bg-background-secondary text-text-secondary rounded"
+            >
+              {isBuiltInSecurityApp
+                ? intl.formatMessage(i18n.builtInSecurityApp)
+                : isAppsExtensionApp
+                  ? intl.formatMessage(i18n.customApp)
+                  : app.mcpServers?.join(', ')}
+            </span>
+            {categoryLabel ? (
+              <span
+                data-testid={`apps-category-${app.name}`}
+                className="inline-block px-2 py-1 text-xs bg-blue-50 text-blue-700 rounded"
+              >
+                {categoryLabel}
+              </span>
+            ) : null}
+          </div>
+          {description ? <p className="text-sm text-text-secondary mb-2">{description}</p> : null}
+        </div>
+        <div className="flex gap-2">
+          <Button
+            variant="default"
+            size="sm"
+            onClick={() => handleLaunchApp(app)}
+            data-testid={`apps-launch-${app.name}`}
+            className="flex items-center gap-2 flex-1"
+          >
+            <Play className="h-4 w-4" />
+            {intl.formatMessage(i18n.launch)}
+          </Button>
+          {isAppsExtensionApp ? (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => handleDownloadApp(app)}
+              className="flex items-center gap-2"
+            >
+              <Download className="h-4 w-4" />
+            </Button>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
   // Only show error-only UI if we have no apps to display
   if (error && apps.length === 0) {
     return (
@@ -297,52 +497,39 @@ export default function AppsView() {
             </div>
           ) : (
             <GridLayout>
-              {apps.map((app) => {
-                const isCustomApp = app.mcpServers?.includes('apps') ?? false;
-                return (
-                  <div
-                    key={`${app.uri}-${app.mcpServers?.join(',')}`}
-                    className="flex flex-col p-4 border rounded-lg hover:border-border-primary transition-colors"
-                  >
-                    <div className="flex-1 mb-4">
-                      <h3 className="font-medium text-text-primary mb-2">
-                        {formatAppName(app.name)}
-                      </h3>
-                      {app.description && (
-                        <p className="text-sm text-text-secondary mb-2">{app.description}</p>
-                      )}
-                      {app.mcpServers && app.mcpServers.length > 0 && (
-                        <span className="inline-block px-2 py-1 text-xs bg-background-secondary text-text-secondary rounded">
-                          {isCustomApp
-                            ? intl.formatMessage(i18n.customApp)
-                            : app.mcpServers.join(', ')}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex gap-2">
-                      <Button
-                        variant="default"
-                        size="sm"
-                        onClick={() => handleLaunchApp(app)}
-                        className="flex items-center gap-2 flex-1"
-                      >
-                        <Play className="h-4 w-4" />
-                        {intl.formatMessage(i18n.launch)}
-                      </Button>
-                      {isCustomApp && (
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => handleDownloadApp(app)}
-                          className="flex items-center gap-2"
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                      )}
-                    </div>
+              {builtInSecurityApps.length > 0 ? (
+                <section
+                  className="col-span-full space-y-4"
+                  data-testid="apps-built-in-security-section"
+                >
+                  <div className="space-y-1 px-1">
+                    <h2 className="text-xl font-medium text-text-primary">
+                      {intl.formatMessage(i18n.builtInSectionTitle)}
+                    </h2>
+                    <p className="text-sm text-text-secondary">
+                      {intl.formatMessage(i18n.builtInSectionDescription)}
+                    </p>
                   </div>
-                );
-              })}
+                  <GridLayout>{builtInSecurityApps.map(renderAppCard)}</GridLayout>
+                </section>
+              ) : null}
+
+              {customApps.length > 0 ? (
+                <section
+                  className="col-span-full space-y-4"
+                  data-testid="apps-imported-custom-section"
+                >
+                  <div className="space-y-1 px-1">
+                    <h2 className="text-xl font-medium text-text-primary">
+                      {intl.formatMessage(i18n.customSectionTitle)}
+                    </h2>
+                    <p className="text-sm text-text-secondary">
+                      {intl.formatMessage(i18n.customSectionDescription)}
+                    </p>
+                  </div>
+                  <GridLayout>{customApps.map(renderAppCard)}</GridLayout>
+                </section>
+              ) : null}
             </GridLayout>
           )}
         </div>

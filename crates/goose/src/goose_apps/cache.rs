@@ -6,9 +6,9 @@ use std::path::PathBuf;
 use tracing::warn;
 
 use super::app::GooseApp;
-
-static CLOCK_HTML: &str = include_str!("../goose_apps/clock.html");
-static CHAT_HTML: &str = include_str!("../goose_apps/chat.html");
+use super::default_apps::{
+    parse_default_apps, LEGACY_DEFAULT_APP_NAMES, RETIRED_CURATED_APP_NAMES,
+};
 const APPS_EXTENSION_NAME: &str = "apps";
 
 pub struct McpAppCache {
@@ -25,14 +25,40 @@ impl McpAppCache {
     }
 
     fn ensure_default_apps(&self) {
-        for (uri, html) in [("apps://clock", CLOCK_HTML), ("apps://chat", CHAT_HTML)] {
-            if self.get_app(APPS_EXTENSION_NAME, uri).is_none() {
-                if let Ok(mut app) = GooseApp::from_html(html) {
-                    app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
-                    let _ = self.store_app(&app);
+        if let Err(error) = self.sync_default_apps() {
+            warn!("Failed to seed default apps cache: {}", error);
+        }
+    }
+
+    fn sync_default_apps(&self) -> Result<(), std::io::Error> {
+        fs::create_dir_all(&self.cache_dir)?;
+
+        for app in self.list_apps()? {
+            if !app
+                .mcp_servers
+                .iter()
+                .any(|server| server == APPS_EXTENSION_NAME)
+            {
+                continue;
+            }
+
+            if LEGACY_DEFAULT_APP_NAMES.contains(&app.resource.name.as_str())
+                || RETIRED_CURATED_APP_NAMES.contains(&app.resource.name.as_str())
+            {
+                let cache_key = Self::cache_key(APPS_EXTENSION_NAME, &app.resource.uri);
+                let app_path = self.cache_dir.join(format!("{}.json", cache_key));
+                if app_path.exists() {
+                    fs::remove_file(app_path)?;
                 }
             }
         }
+
+        for mut app in parse_default_apps().map_err(std::io::Error::other)? {
+            app.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
+            self.store_app(&app)?;
+        }
+
+        Ok(())
     }
 
     fn cache_key(extension_name: &str, resource_uri: &str) -> String {
@@ -118,5 +144,117 @@ impl McpAppCache {
         }
 
         Ok(deleted_count)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::McpAppCache;
+    use env_lock::lock_env;
+    use std::path::PathBuf;
+    use tempfile::TempDir;
+
+    fn cache_file_path(root: &str, extension_name: &str, resource_uri: &str) -> PathBuf {
+        let cache_key = McpAppCache::cache_key(extension_name, resource_uri);
+        PathBuf::from(root)
+            .join("config")
+            .join("mcp-apps-cache")
+            .join(format!("{}.json", cache_key))
+    }
+
+    #[test]
+    fn seeds_curated_security_default_apps_instead_of_legacy_defaults() {
+        let temp_root = TempDir::new().unwrap();
+        let temp_root = temp_root.path().to_string_lossy().to_string();
+        let _guard = lock_env([("GOOSE_PATH_ROOT", Some(temp_root.as_str()))]);
+
+        let cache = McpAppCache::new().unwrap();
+        let mut app_names = cache
+            .list_apps()
+            .unwrap()
+            .into_iter()
+            .map(|app| app.resource.name)
+            .collect::<Vec<_>>();
+        app_names.sort();
+
+        assert_eq!(
+            app_names,
+            vec![
+                "encode-hash-lab".to_string(),
+                "ioc-toolbox".to_string(),
+                "jwt-inspector".to_string(),
+                "secret-credential-scanner".to_string(),
+            ]
+        );
+        assert!(!app_names
+            .iter()
+            .any(|name| name == "chat" || name == "clock"));
+    }
+
+    #[test]
+    fn refreshes_curated_security_default_apps_when_cached_copy_drifted() {
+        let temp_root = TempDir::new().unwrap();
+        let temp_root = temp_root.path().to_string_lossy().to_string();
+        let _guard = lock_env([("GOOSE_PATH_ROOT", Some(temp_root.as_str()))]);
+
+        let cache = McpAppCache::new().unwrap();
+        let mut stale_ioc = cache
+            .list_apps()
+            .unwrap()
+            .into_iter()
+            .find(|app| app.resource.name == "ioc-toolbox")
+            .unwrap();
+        stale_ioc.resource.description = Some("stale description".to_string());
+        cache.store_app(&stale_ioc).unwrap();
+
+        let refreshed_cache = McpAppCache::new().unwrap();
+        let refreshed_ioc = refreshed_cache
+            .list_apps()
+            .unwrap()
+            .into_iter()
+            .find(|app| app.resource.name == "ioc-toolbox")
+            .unwrap();
+
+        assert_ne!(
+            refreshed_ioc.resource.description.as_deref(),
+            Some("stale description")
+        );
+        assert_eq!(
+            refreshed_ioc.resource.description.as_deref(),
+            Some("离线提取、归类、规范化和去重混合 IOC 指标。")
+        );
+    }
+
+    #[test]
+    fn removes_retired_curated_security_apps_from_cache() {
+        let temp_root = TempDir::new().unwrap();
+        let temp_root = temp_root.path().to_string_lossy().to_string();
+        let _guard = lock_env([("GOOSE_PATH_ROOT", Some(temp_root.as_str()))]);
+
+        let _cache = McpAppCache::new().unwrap();
+        let retired_cache_file = cache_file_path(&temp_root, "apps", "ui://apps/header-diff-lab");
+        std::fs::write(
+            &retired_cache_file,
+            r#"{
+  "name": "header-diff-lab",
+  "uri": "ui://apps/header-diff-lab",
+  "description": "retired",
+  "mcpServers": ["apps"],
+  "mimeType": "text/html;profile=mcp-app",
+  "text": "<html></html>"
+}"#,
+        )
+        .unwrap();
+
+        let refreshed_cache = McpAppCache::new().unwrap();
+        let names = refreshed_cache
+            .list_apps()
+            .unwrap()
+            .into_iter()
+            .map(|app| app.resource.name)
+            .collect::<Vec<_>>();
+
+        assert!(!retired_cache_file.exists());
+        assert!(!names.iter().any(|name| name == "header-diff-lab"));
     }
 }

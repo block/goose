@@ -1,6 +1,5 @@
 import GooseLogo from './GooseLogo';
 import AnimatedIcons from './AnimatedIcons';
-import FlyingBird from './FlyingBird';
 import { ChatState } from '../types/chatState';
 import { defineMessages, useIntl } from '../i18n';
 
@@ -41,15 +40,15 @@ const i18n = defineMessages({
 });
 
 const STATE_ICONS: Record<ChatState, React.ReactNode> = {
-  [ChatState.LoadingConversation]: <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />,
+  [ChatState.LoadingConversation]: <GooseLogo size="small" hover={false} />,
   [ChatState.Thinking]: <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />,
-  [ChatState.Streaming]: <FlyingBird className="flex-shrink-0" cycleInterval={150} />,
+  [ChatState.Streaming]: <GooseLogo size="small" hover={false} />,
   [ChatState.WaitingForUserInput]: (
     <AnimatedIcons className="flex-shrink-0" cycleInterval={600} variant="waiting" />
   ),
   [ChatState.Compacting]: <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />,
   [ChatState.Idle]: <GooseLogo size="small" hover={false} />,
-  [ChatState.RestartingAgent]: <AnimatedIcons className="flex-shrink-0" cycleInterval={600} />,
+  [ChatState.RestartingAgent]: <GooseLogo size="small" hover={false} />,
 };
 
 const STATE_MESSAGE_KEYS: Record<ChatState, keyof typeof i18n> = {

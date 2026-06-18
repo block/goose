@@ -31,7 +31,6 @@ export default function RecipeActivities({
   if (activities && activities.length > 0) {
     return (
       <div className="flex flex-col px-6">
-        {/* Animated goose icon */}
         <div className="flex justify-start mb-6">
           <GooseLogo size="default" hover={true} />
         </div>

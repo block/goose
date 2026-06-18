@@ -1,4 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
+import path from 'node:path';
+import { afterEach, beforeEach, describe, it, expect, vi } from 'vitest';
 import { pruneDeprecatedBundledExtensions, syncBundledExtensions } from './bundled-extensions';
 import type { FixedExtensionEntry } from '../../ConfigContext';
 
@@ -25,12 +26,49 @@ vi.mock('./bundled-extensions.json', () => ({
       env_keys: [],
       timeout: 300,
     },
+    {
+      id: 'browser-assist-mcp',
+      name: 'browser-assist-mcp',
+      display_name: 'Browser Assist',
+      description: 'Security preview browser extension.',
+      enabled: false,
+      type: 'stdio',
+      cmd: 'node',
+      args: ['distro/security-cn/extensions/browser-assist-mcp/server.mjs'],
+      env_keys: [],
+      timeout: 300,
+    },
   ],
 }));
 
 vi.mock('./deprecated-bundled-extensions.json', () => ({
   default: [{ id: 'googledrive' }, { id: 'old-bundled-extension' }],
 }));
+
+const MOCK_DISTRO_DIR = path.join('/mock', 'repo', 'distro', 'security-cn');
+const MOCK_NODE_CMD = path.join('/mock', 'repo', 'ui', 'desktop', 'electron');
+
+beforeEach(() => {
+  (window as unknown as Record<string, unknown>).appConfig = {
+    get: (key: string) => {
+      if (key === 'GOOSE_DISTRO_DIR') {
+        return MOCK_DISTRO_DIR;
+      }
+      if (key === 'GOOSE_DESKTOP_STDIO_NODE_CMD') {
+        return MOCK_NODE_CMD;
+      }
+      return undefined;
+    },
+    getAll: () => ({
+      GOOSE_DISTRO_DIR: MOCK_DISTRO_DIR,
+      GOOSE_DESKTOP_STDIO_NODE_CMD: MOCK_NODE_CMD,
+    }),
+  };
+});
+
+afterEach(() => {
+  delete (window as unknown as Record<string, unknown>).appConfig;
+});
 
 describe('syncBundledExtensions', () => {
   it('skips already bundled non-deprecated extensions', async () => {
@@ -39,7 +77,8 @@ describe('syncBundledExtensions', () => {
       {
         name: 'developer',
         type: 'builtin',
-        description: 'Developer tools',
+        description: 'General development tools.',
+        display_name: 'Developer',
         enabled: true,
         bundled: true,
         timeout: 300,
@@ -53,6 +92,31 @@ describe('syncBundledExtensions', () => {
       expect.anything(),
       expect.anything()
     );
+  });
+
+  it('resolves security stdio server args to absolute repo paths before syncing', async () => {
+    const addExtensionFn = vi.fn().mockResolvedValue(undefined);
+
+    await syncBundledExtensions([], addExtensionFn);
+
+    const browserAssistCall = addExtensionFn.mock.calls.find(
+      ([name]) => name === 'browser-assist-mcp'
+    );
+
+    expect(browserAssistCall).toBeDefined();
+    expect(browserAssistCall?.[1]).toMatchObject({
+      type: 'stdio',
+      cmd: MOCK_NODE_CMD,
+      envs: {
+        ELECTRON_RUN_AS_NODE: '1',
+      },
+    });
+    const browserAssistArgs = (browserAssistCall?.[1] as { args?: string[] }).args ?? [];
+    expect(browserAssistArgs).toHaveLength(1);
+    expect(browserAssistArgs[0]).toBe(
+      path.join(MOCK_DISTRO_DIR, 'extensions', 'browser-assist-mcp', 'server.mjs')
+    );
+    expect(browserAssistCall?.[2]).toBe(false);
   });
 });
 

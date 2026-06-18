@@ -56,14 +56,14 @@
   "authSettings.deleteCredential": {
     "defaultMessage": "認証情報を削除"
   },
+  "authSettings.deleted": {
+    "defaultMessage": "認証情報を削除しました"
+  },
   "authSettings.deleteMessage": {
     "defaultMessage": "{provider} の {name} 認証情報を削除しますか？"
   },
   "authSettings.deleteTitle": {
     "defaultMessage": "認証情報を削除"
-  },
-  "authSettings.deleted": {
-    "defaultMessage": "認証情報を削除しました"
   },
   "authSettings.description": {
     "defaultMessage": "gooseがローカルに保存したプロバイダー認証情報を管理します。"
@@ -89,11 +89,11 @@
   "authSettings.reauthorize": {
     "defaultMessage": "再認証"
   },
-  "authSettings.signIn": {
-    "defaultMessage": "サインイン"
-  },
   "authSettings.signedIn": {
     "defaultMessage": "認証情報を設定しました"
+  },
+  "authSettings.signIn": {
+    "defaultMessage": "サインイン"
   },
   "authSettings.storageProviderCache": {
     "defaultMessage": "プロバイダーキャッシュ"
@@ -122,6 +122,12 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "レシピを作成しました！"
   },
+  "bottomMenuExtensionSelection.extensionsForNewChats": {
+    "defaultMessage": "新しいチャットの拡張機能"
+  },
+  "bottomMenuExtensionSelection.extensionsForThisSession": {
+    "defaultMessage": "このチャットセッションの拡張機能"
+  },
   "bottomMenuExtensionSelection.extensionToggleError": {
     "defaultMessage": "拡張機能の切り替えエラー"
   },
@@ -133,12 +139,6 @@
   },
   "bottomMenuExtensionSelection.extensionWillBeEnabled": {
     "defaultMessage": "{name} は新しいチャットで有効になります"
-  },
-  "bottomMenuExtensionSelection.extensionsForNewChats": {
-    "defaultMessage": "新しいチャットの拡張機能"
-  },
-  "bottomMenuExtensionSelection.extensionsForThisSession": {
-    "defaultMessage": "このチャットセッションの拡張機能"
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "拡張機能を管理"
@@ -162,10 +162,10 @@
     "defaultMessage": "起動"
   },
   "chat.notification.taskComplete.body": {
-    "defaultMessage": "クリックしてGooseにフォーカスを戻します。"
+    "defaultMessage": "クリックして{appName}にフォーカスを戻します。"
   },
   "chat.notification.taskComplete.title": {
-    "defaultMessage": "Gooseがタスクを完了しました。"
+    "defaultMessage": "{appName}がタスクを完了しました。"
   },
   "chatInput.contextWindow": {
     "defaultMessage": "コンテキストウィンドウ"
@@ -698,11 +698,11 @@
   "customProviderForm.attachments": {
     "defaultMessage": "添付ファイル"
   },
-  "customProviderForm.authHint": {
-    "defaultMessage": "OllamaのようなローカルLLMは通常APIキーを必要としません。"
-  },
   "customProviderForm.authentication": {
     "defaultMessage": "認証"
+  },
+  "customProviderForm.authHint": {
+    "defaultMessage": "OllamaのようなローカルLLMは通常APIキーを必要としません。"
   },
   "customProviderForm.availableModels": {
     "defaultMessage": "利用可能なモデル（カンマ区切り）"
@@ -998,17 +998,20 @@
   "elicitationRequest.waitingForResponse": {
     "defaultMessage": "あなたの応答を待っています（残り{timeRemaining}）"
   },
+  "environmentBadge.dev": {
+    "defaultMessage": "開発"
+  },
   "envVarsSection.add": {
     "defaultMessage": "追加"
   },
   "envVarsSection.bothRequired": {
     "defaultMessage": "変数名と値の両方を入力してください"
   },
-  "envVarsSection.envVarsDescription": {
-    "defaultMessage": "環境変数のキーと値のペアを追加します。両方のフィールドを入力後、「+」ボタンをクリックして追加してください。既存のシークレット値を変更するには、編集ボタンをクリックしてください。"
-  },
   "envVarsSection.environmentVariables": {
     "defaultMessage": "環境変数"
+  },
+  "envVarsSection.envVarsDescription": {
+    "defaultMessage": "環境変数のキーと値のペアを追加します。両方のフィールドを入力後、「+」ボタンをクリックして追加してください。既存のシークレット値を変更するには、編集ボタンをクリックしてください。"
   },
   "envVarsSection.noSpaces": {
     "defaultMessage": "変数名にスペースは使用できません"
@@ -1019,14 +1022,11 @@
   "envVarsSection.variableName": {
     "defaultMessage": "変数名"
   },
-  "environmentBadge.dev": {
-    "defaultMessage": "開発"
-  },
   "errorBoundary.errorGeneric": {
     "defaultMessage": "エラーが発生しました。"
   },
   "errorBoundary.errorWithVersion": {
-    "defaultMessage": "Goose v{version}でエラーが発生しました。"
+    "defaultMessage": "{appName} v{version}でエラーが発生しました。"
   },
   "errorBoundary.heading": {
     "defaultMessage": "ガァ！"
@@ -1181,9 +1181,6 @@
   "extensionModal.unsavedChangesTitle": {
     "defaultMessage": "未保存の変更"
   },
-  "extensionTimeoutField.timeoutLabel": {
-    "defaultMessage": "タイムアウト"
-  },
   "extensionsSection.addCustomExtension": {
     "defaultMessage": "カスタム拡張機能を追加"
   },
@@ -1219,6 +1216,9 @@
   },
   "extensionsView.searchPlaceholder": {
     "defaultMessage": "拡張機能を検索..."
+  },
+  "extensionTimeoutField.timeoutLabel": {
+    "defaultMessage": "タイムアウト"
   },
   "externalBackendSection.certFingerprint": {
     "defaultMessage": "証明書フィンガープリント（任意）"
@@ -1520,11 +1520,11 @@
   "huggingFaceSignInPrompt.failedToConfigure": {
     "defaultMessage": "Hugging Faceへのサインインに失敗しました: {error}"
   },
-  "huggingFaceSignInPrompt.signIn": {
-    "defaultMessage": "サインイン"
-  },
   "huggingFaceSignInPrompt.signedIn": {
     "defaultMessage": "Hugging Faceにサインイン済み"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "サインイン"
   },
   "huggingFaceSignInPrompt.signingIn": {
     "defaultMessage": "サインイン中..."
@@ -1559,14 +1559,14 @@
   "importRecipeForm.expectedRecipeStructure": {
     "defaultMessage": "想定されるレシピ構造"
   },
+  "importRecipeForm.importing": {
+    "defaultMessage": "インポート中..."
+  },
   "importRecipeForm.importRecipeButton": {
     "defaultMessage": "レシピをインポート"
   },
   "importRecipeForm.importRecipeTitle": {
     "defaultMessage": "レシピをインポート"
-  },
-  "importRecipeForm.importing": {
-    "defaultMessage": "インポート中..."
   },
   "importRecipeForm.or": {
     "defaultMessage": "または"
@@ -1666,18 +1666,6 @@
   },
   "jsonSchemaForm.submit": {
     "defaultMessage": "送信"
-  },
-  "keyValueEditor.addValue": {
-    "defaultMessage": "事前設定値を追加"
-  },
-  "keyValueEditor.defaultKeyPlaceholder": {
-    "defaultMessage": "パラメーター名..."
-  },
-  "keyValueEditor.defaultValuePlaceholder": {
-    "defaultMessage": "パラメーター値..."
-  },
-  "keyValueEditor.removeValue": {
-    "defaultMessage": "事前設定値 {key} を削除"
   },
   "keyboardShortcuts.alwaysOnTopDescription": {
     "defaultMessage": "ウィンドウの常に手前表示を切り替える"
@@ -1823,8 +1811,26 @@
   "keyboardShortcuts.toggleNavigationLabel": {
     "defaultMessage": "ナビゲーションを切り替え"
   },
+  "keyValueEditor.addValue": {
+    "defaultMessage": "事前設定値を追加"
+  },
+  "keyValueEditor.defaultKeyPlaceholder": {
+    "defaultMessage": "パラメーター名..."
+  },
+  "keyValueEditor.defaultValuePlaceholder": {
+    "defaultMessage": "パラメーター値..."
+  },
+  "keyValueEditor.removeValue": {
+    "defaultMessage": "事前設定値 {key} を削除"
+  },
   "launcher.placeholder": {
-    "defaultMessage": "gooseに何でも聞いて..."
+    "defaultMessage": "{appName}に何でも聞いて..."
+  },
+  "launcher.securityTasksDescription": {
+    "defaultMessage": "Launch a security recipe or a skill-guided preview chat."
+  },
+  "launcher.securityTasksTitle": {
+    "defaultMessage": "Security starters"
   },
   "loadingGoose.compacting": {
     "defaultMessage": "gooseが会話を圧縮しています..."
@@ -1856,17 +1862,17 @@
   "localInferenceSettings.download": {
     "defaultMessage": "ダウンロード"
   },
-  "localInferenceSettings.downloadFailed": {
-    "defaultMessage": "ダウンロードに失敗しました"
-  },
-  "localInferenceSettings.downloadProgress": {
-    "defaultMessage": "{downloaded} / {total} ({percent}%)"
-  },
   "localInferenceSettings.downloadedModels": {
     "defaultMessage": "ダウンロード済みモデル"
   },
+  "localInferenceSettings.downloadFailed": {
+    "defaultMessage": "ダウンロードに失敗しました"
+  },
   "localInferenceSettings.downloading": {
     "defaultMessage": "ダウンロード中"
+  },
+  "localInferenceSettings.downloadProgress": {
+    "defaultMessage": "{downloaded} / {total} ({percent}%)"
   },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "注目モデル"
@@ -1949,11 +1955,11 @@
   "localModelPicker.checkingModels": {
     "defaultMessage": "利用可能なモデルを確認中..."
   },
-  "localModelPicker.downloadModel": {
-    "defaultMessage": "{modelId}をダウンロード（{size}）"
-  },
   "localModelPicker.downloading": {
     "defaultMessage": "{modelId}をダウンロード中"
+  },
+  "localModelPicker.downloadModel": {
+    "defaultMessage": "{modelId}をダウンロード（{size}）"
   },
   "localModelPicker.failedToLoad": {
     "defaultMessage": "利用可能なモデルの読み込みに失敗しました。もう一度お試しください。"
@@ -2141,6 +2147,9 @@
   "messageQueue.paused": {
     "defaultMessage": "一時停止中"
   },
+  "messageQueue.queued": {
+    "defaultMessage": "キュー内"
+  },
   "messageQueue.queuePaused": {
     "defaultMessage": "キューを一時停止中"
   },
@@ -2149,9 +2158,6 @@
   },
   "messageQueue.queuePausedExpanded": {
     "defaultMessage": "キューは割り込みにより一時停止されました。「今すぐ送信」を使用するか、新しいメッセージを追加すると再開します。"
-  },
-  "messageQueue.queued": {
-    "defaultMessage": "キュー内"
   },
   "messageQueue.removeFromQueue": {
     "defaultMessage": "このメッセージをキューから削除"
@@ -2198,35 +2204,11 @@
   "microphoneSelector.test": {
     "defaultMessage": "テスト"
   },
-  "modeSelectionItem.autonomousDescription": {
-    "defaultMessage": "ファイルを自由に編集、作成、削除できる完全なファイル変更権限。"
-  },
-  "modeSelectionItem.autonomousLabel": {
-    "defaultMessage": "自律"
-  },
-  "modeSelectionItem.chatOnlyDescription": {
-    "defaultMessage": "ツールや拡張機能を使わず、選択したプロバイダーとやり取りします。"
-  },
-  "modeSelectionItem.chatOnlyLabel": {
-    "defaultMessage": "チャットのみ"
-  },
-  "modeSelectionItem.manualDescription": {
-    "defaultMessage": "すべてのツール、拡張機能、ファイル変更には人による承認が必要です"
-  },
-  "modeSelectionItem.manualLabel": {
-    "defaultMessage": "手動"
-  },
-  "modeSelectionItem.smartDescription": {
-    "defaultMessage": "リスクレベルに基づき、承認が必要な操作を自動判断します"
-  },
-  "modeSelectionItem.smartLabel": {
-    "defaultMessage": "スマート"
+  "modelAndProviderContext.modelChangedTitle": {
+    "defaultMessage": "モデルを変更しました"
   },
   "modelAndProviderContext.modelChangeFailed": {
     "defaultMessage": "{provider}/{model}に失敗しました"
-  },
-  "modelAndProviderContext.modelChangedTitle": {
-    "defaultMessage": "モデルを変更しました"
   },
   "modelAndProviderContext.selectModel": {
     "defaultMessage": "モデルを選択"
@@ -2239,6 +2221,27 @@
   },
   "modelAndProviderContext.unknownProviderTitle": {
     "defaultMessage": "プロバイダー名の確認"
+  },
+  "modelsBottomBar.changeModel": {
+    "defaultMessage": "モデルを変更"
+  },
+  "modelsBottomBar.currentModel": {
+    "defaultMessage": "現在のモデル"
+  },
+  "modelsBottomBar.loadingModel": {
+    "defaultMessage": "モデルを読み込み中..."
+  },
+  "modelsBottomBar.localModelSettings": {
+    "defaultMessage": "ローカルモデル設定"
+  },
+  "modelsBottomBar.localModelSettingsTitle": {
+    "defaultMessage": "ローカルモデル設定 — {modelName}"
+  },
+  "modelsBottomBar.resolvedModel": {
+    "defaultMessage": "解決済みモデル"
+  },
+  "modelsBottomBar.selectModel": {
+    "defaultMessage": "モデルを選択"
   },
   "modelSettingsButtons.configureProviders": {
     "defaultMessage": "プロバイダーを設定"
@@ -2399,32 +2402,35 @@
   "modelSettingsPanel.topP": {
     "defaultMessage": "Top P"
   },
-  "modelsBottomBar.changeModel": {
-    "defaultMessage": "モデルを変更"
-  },
-  "modelsBottomBar.currentModel": {
-    "defaultMessage": "現在のモデル"
-  },
-  "modelsBottomBar.loadingModel": {
-    "defaultMessage": "モデルを読み込み中..."
-  },
-  "modelsBottomBar.localModelSettings": {
-    "defaultMessage": "ローカルモデル設定"
-  },
-  "modelsBottomBar.localModelSettingsTitle": {
-    "defaultMessage": "ローカルモデル設定 — {modelName}"
-  },
-  "modelsBottomBar.resolvedModel": {
-    "defaultMessage": "解決済みモデル"
-  },
-  "modelsBottomBar.selectModel": {
-    "defaultMessage": "モデルを選択"
-  },
   "modelsSection.resetDescription": {
     "defaultMessage": "選択したモデルとプロバイダー設定をクリアして最初からやり直します"
   },
   "modelsSection.resetTitle": {
     "defaultMessage": "プロバイダーとモデルをリセット"
+  },
+  "modeSelectionItem.autonomousDescription": {
+    "defaultMessage": "ファイルを自由に編集、作成、削除できる完全なファイル変更権限。"
+  },
+  "modeSelectionItem.autonomousLabel": {
+    "defaultMessage": "自律"
+  },
+  "modeSelectionItem.chatOnlyDescription": {
+    "defaultMessage": "ツールや拡張機能を使わず、選択したプロバイダーとやり取りします。"
+  },
+  "modeSelectionItem.chatOnlyLabel": {
+    "defaultMessage": "チャットのみ"
+  },
+  "modeSelectionItem.manualDescription": {
+    "defaultMessage": "すべてのツール、拡張機能、ファイル変更には人による承認が必要です"
+  },
+  "modeSelectionItem.manualLabel": {
+    "defaultMessage": "手動"
+  },
+  "modeSelectionItem.smartDescription": {
+    "defaultMessage": "リスクレベルに基づき、承認が必要な操作を自動判断します"
+  },
+  "modeSelectionItem.smartLabel": {
+    "defaultMessage": "スマート"
   },
   "navigation.itemApps": {
     "defaultMessage": "アプリ"
@@ -2466,19 +2472,22 @@
     "defaultMessage": "サーバーの起動中、または一時的に利用できない可能性があります。"
   },
   "onboardingGuard.checkProviderErrorTitle": {
-    "defaultMessage": "gooseサーバーに接続できません"
+    "defaultMessage": "{appName}サーバーに接続できません"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "再試行"
   },
   "onboardingGuard.welcomeDescription": {
-    "defaultMessage": "ローカルAIエージェントです。始めるにはAIモデルプロバイダーに接続してください。"
+    "defaultMessage": "ローカルAIエージェントです。始めるには{appName}をAIモデルプロバイダーに接続してください。"
+  },
+  "onboardingGuard.welcomeDescriptionBuiltIn": {
+    "defaultMessage": "Your local AI agent. {appName} is ready with the built-in {providerName} backend. Start with {modelName} and switch models at any time."
   },
   "onboardingGuard.welcomeTitle": {
-    "defaultMessage": "gooseへようこそ"
+    "defaultMessage": "{appName}へようこそ"
   },
   "onboardingSuccess.allSet": {
-    "defaultMessage": "gooseを使い始める準備ができました。"
+    "defaultMessage": "{appName}を使い始める準備ができました。"
   },
   "onboardingSuccess.connectedTo": {
     "defaultMessage": "{providerName}に接続しました"
@@ -2493,7 +2502,7 @@
     "defaultMessage": "ローカルモデルの準備ができました"
   },
   "onboardingSuccess.privacyDescription": {
-    "defaultMessage": "匿名の使用データはgooseの改善に役立ちます。会話、コード、個人データは収集しません。"
+    "defaultMessage": "匿名の使用データは{appName}の改善に役立ちます。会話、コード、個人データは収集しません。"
   },
   "onboardingSuccess.privacyTitle": {
     "defaultMessage": "プライバシー"
@@ -2661,10 +2670,10 @@
     "defaultMessage": "セッション指標（時間、やり取り数、トークン使用量）"
   },
   "privacyInfoModal.collectVersion": {
-    "defaultMessage": "gooseのバージョンとインストール方法"
+    "defaultMessage": "{appName}のバージョンとインストール方法"
   },
   "privacyInfoModal.description": {
-    "defaultMessage": "匿名の使用データは、gooseの利用状況を把握し、改善点を見つけるのに役立ちます。"
+    "defaultMessage": "匿名の使用データは、{appName}の利用状況を把握し、改善点を見つけるのに役立ちます。"
   },
   "privacyInfoModal.neverCollect": {
     "defaultMessage": "会話、コード、ツール引数、エラーメッセージ、個人データは一切収集しません。この設定はいつでも設定で変更できます。"
@@ -2708,11 +2717,11 @@
   "promptsSettings.edit": {
     "defaultMessage": "編集"
   },
-  "promptsSettings.editPromptTitle": {
-    "defaultMessage": "編集: {name}"
-  },
   "promptsSettings.editingLabel": {
     "defaultMessage": "編集中: {name}"
+  },
+  "promptsSettings.editPromptTitle": {
+    "defaultMessage": "編集: {name}"
   },
   "promptsSettings.enterPromptContent": {
     "defaultMessage": "プロンプト内容を入力..."
@@ -2822,11 +2831,11 @@
   "providerConfigForm.noApiKey": {
     "defaultMessage": "APIキーをお持ちでないですか？"
   },
-  "providerConfigForm.signInWith": {
-    "defaultMessage": "{providerName}でサインイン"
-  },
   "providerConfigForm.signingIn": {
     "defaultMessage": "サインイン中..."
+  },
+  "providerConfigForm.signInWith": {
+    "defaultMessage": "{providerName}でサインイン"
   },
   "providerConfigurationModal.addApiKeyDescription": {
     "defaultMessage": "gooseと連携するには、このプロバイダーのAPIキーを追加してください"
@@ -2888,11 +2897,11 @@
   "providerConfigurationModal.seeDocumentation": {
     "defaultMessage": "詳細は<link>ドキュメント</link>をご覧ください。"
   },
-  "providerConfigurationModal.signInWith": {
-    "defaultMessage": "{providerName}でサインイン"
-  },
   "providerConfigurationModal.signingIn": {
     "defaultMessage": "サインイン中..."
+  },
+  "providerConfigurationModal.signInWith": {
+    "defaultMessage": "{providerName}でサインイン"
   },
   "providerGrid.addProvider": {
     "defaultMessage": "プロバイダーを追加"
@@ -2921,6 +2930,12 @@
   "providerSelector.addCustomProviderTitle": {
     "defaultMessage": "カスタムプロバイダーを追加"
   },
+  "providerSelector.advancedProviderSetup": {
+    "defaultMessage": "Advanced Provider Setup"
+  },
+  "providerSelector.advancedProviderSetupDescription": {
+    "defaultMessage": "Only use this if you need a different provider, a custom host, or your own API key."
+  },
   "providerSelector.connectProvider": {
     "defaultMessage": "プロバイダーに接続"
   },
@@ -2933,6 +2948,12 @@
   "providerSelector.selectProvider": {
     "defaultMessage": "プロバイダーを選択"
   },
+  "providerSelector.useBuiltInModels": {
+    "defaultMessage": "Use Built-in Models"
+  },
+  "providerSelector.useBuiltInModelsDescription": {
+    "defaultMessage": "{providerName} is already connected. Start with {modelName} and switch models later."
+  },
   "providerSelector.useFreeLocal": {
     "defaultMessage": "無料/ローカルプロバイダーを使用"
   },
@@ -2944,6 +2965,9 @@
   },
   "providerSettings.onboardingDescription": {
     "defaultMessage": "gooseを始めるにはAIモデルプロバイダーを選択してください。各プロバイダーで生成したAPIキーが必要です。APIキーは暗号化され、ローカルに保存されます。プロバイダーは設定からいつでも変更できます。"
+  },
+  "providerSettings.onboardingDescriptionBuiltIn": {
+    "defaultMessage": "{providerName} is already wired in as the built-in backend for this local version. Use this page only if you need to override it with another provider, host, or API key."
   },
   "providerSettings.otherProviders": {
     "defaultMessage": "その他のプロバイダー"
@@ -3122,39 +3146,6 @@
   "recipeNameField.formatHint": {
     "defaultMessage": "自動的に整形されます（小文字、スペースはダッシュ）"
   },
-  "recipeWarningModal.cancel": {
-    "defaultMessage": "キャンセル"
-  },
-  "recipeWarningModal.descriptionLabel": {
-    "defaultMessage": "説明:"
-  },
-  "recipeWarningModal.firstTimeDescription": {
-    "defaultMessage": "これまで実行したことのないレシピを実行しようとしています。"
-  },
-  "recipeWarningModal.hiddenCharsWarning": {
-    "defaultMessage": "このレシピには、安全のため無視される隠し文字が含まれています。悪意のある目的に使用される可能性があります。"
-  },
-  "recipeWarningModal.instructionsLabel": {
-    "defaultMessage": "指示:"
-  },
-  "recipeWarningModal.newRecipeWarningTitle": {
-    "defaultMessage": "⚠️ 新しいレシピの警告"
-  },
-  "recipeWarningModal.recipePreview": {
-    "defaultMessage": "レシピのプレビュー:"
-  },
-  "recipeWarningModal.securityWarningTitle": {
-    "defaultMessage": "⚠️ セキュリティ警告"
-  },
-  "recipeWarningModal.titleLabel": {
-    "defaultMessage": "タイトル:"
-  },
-  "recipeWarningModal.trustAndExecute": {
-    "defaultMessage": "信頼して実行"
-  },
-  "recipeWarningModal.trustSource": {
-    "defaultMessage": "このレシピの提供元を信頼できる場合のみ続行してください。"
-  },
   "recipesView.addSchedule": {
     "defaultMessage": "スケジュールを追加"
   },
@@ -3329,6 +3320,39 @@
   "recipesView.yamlFiles": {
     "defaultMessage": "YAMLファイル"
   },
+  "recipeWarningModal.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "recipeWarningModal.descriptionLabel": {
+    "defaultMessage": "説明:"
+  },
+  "recipeWarningModal.firstTimeDescription": {
+    "defaultMessage": "これまで実行したことのないレシピを実行しようとしています。"
+  },
+  "recipeWarningModal.hiddenCharsWarning": {
+    "defaultMessage": "このレシピには、安全のため無視される隠し文字が含まれています。悪意のある目的に使用される可能性があります。"
+  },
+  "recipeWarningModal.instructionsLabel": {
+    "defaultMessage": "指示:"
+  },
+  "recipeWarningModal.newRecipeWarningTitle": {
+    "defaultMessage": "⚠️ 新しいレシピの警告"
+  },
+  "recipeWarningModal.recipePreview": {
+    "defaultMessage": "レシピのプレビュー:"
+  },
+  "recipeWarningModal.securityWarningTitle": {
+    "defaultMessage": "⚠️ セキュリティ警告"
+  },
+  "recipeWarningModal.titleLabel": {
+    "defaultMessage": "タイトル:"
+  },
+  "recipeWarningModal.trustAndExecute": {
+    "defaultMessage": "信頼して実行"
+  },
+  "recipeWarningModal.trustSource": {
+    "defaultMessage": "このレシピの提供元を信頼できる場合のみ続行してください。"
+  },
   "resetProviderSection.resetButton": {
     "defaultMessage": "プロバイダーとモデルをリセット"
   },
@@ -3359,11 +3383,11 @@
   "scheduleDetailView.cronExpression": {
     "defaultMessage": "Cron式:"
   },
-  "scheduleDetailView.currentSession": {
-    "defaultMessage": "現在のセッション:"
-  },
   "scheduleDetailView.currentlyRunning": {
     "defaultMessage": "実行中"
+  },
+  "scheduleDetailView.currentSession": {
+    "defaultMessage": "現在のセッション:"
   },
   "scheduleDetailView.dir": {
     "defaultMessage": "ディレクトリ: {path}"
@@ -3428,12 +3452,6 @@
   "scheduleDetailView.noSessions": {
     "defaultMessage": "このスケジュールのセッションはありません。"
   },
-  "scheduleDetailView.pauseSchedule": {
-    "defaultMessage": "スケジュールを一時停止"
-  },
-  "scheduleDetailView.pauseUnpauseError": {
-    "defaultMessage": "一時停止/再開エラー"
-  },
   "scheduleDetailView.paused": {
     "defaultMessage": "一時停止中"
   },
@@ -3442,6 +3460,12 @@
   },
   "scheduleDetailView.pausedWarning": {
     "defaultMessage": "このスケジュールは一時停止中のため、自動実行されません。手動で実行するには「スケジュールを今すぐ実行」を使用するか、一時停止を解除して自動実行を再開してください。"
+  },
+  "scheduleDetailView.pauseSchedule": {
+    "defaultMessage": "スケジュールを一時停止"
+  },
+  "scheduleDetailView.pauseUnpauseError": {
+    "defaultMessage": "一時停止/再開エラー"
   },
   "scheduleDetailView.processStarted": {
     "defaultMessage": "プロセス開始:"
@@ -3491,17 +3515,17 @@
   "scheduleDetailView.tokens": {
     "defaultMessage": "トークン: {count}"
   },
-  "scheduleDetailView.unpauseSchedule": {
-    "defaultMessage": "スケジュールを再開"
-  },
   "scheduleDetailView.unpausedMsg": {
     "defaultMessage": "「{id}」を再開しました"
   },
-  "scheduleDetailView.updateScheduleError": {
-    "defaultMessage": "スケジュール更新エラー"
+  "scheduleDetailView.unpauseSchedule": {
+    "defaultMessage": "スケジュールを再開"
   },
   "scheduleDetailView.updatedMsg": {
     "defaultMessage": "「{id}」を更新しました"
+  },
+  "scheduleDetailView.updateScheduleError": {
+    "defaultMessage": "スケジュール更新エラー"
   },
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "表示中のスケジュールID: {id}"
@@ -3626,11 +3650,11 @@
   "schedulesView.pause": {
     "defaultMessage": "一時停止"
   },
-  "schedulesView.pauseError": {
-    "defaultMessage": "スケジュール一時停止エラー"
-  },
   "schedulesView.paused": {
     "defaultMessage": "一時停止中"
+  },
+  "schedulesView.pauseError": {
+    "defaultMessage": "スケジュール一時停止エラー"
   },
   "schedulesView.refresh": {
     "defaultMessage": "更新"
@@ -3650,6 +3674,9 @@
   "schedulesView.schedulePausedMsg": {
     "defaultMessage": "スケジュール「{id}」を一時停止しました"
   },
+  "schedulesView.scheduler": {
+    "defaultMessage": "スケジューラー"
+  },
   "schedulesView.scheduleUnpaused": {
     "defaultMessage": "スケジュールを再開しました"
   },
@@ -3661,9 +3688,6 @@
   },
   "schedulesView.scheduleUpdatedMsg": {
     "defaultMessage": "スケジュール「{id}」を更新しました"
-  },
-  "schedulesView.scheduler": {
-    "defaultMessage": "スケジューラー"
   },
   "schedulesView.unpauseError": {
     "defaultMessage": "スケジュール再開エラー"
@@ -3685,6 +3709,162 @@
   },
   "secureStorageNotice.defaultMessage": {
     "defaultMessage": "キーはキーチェーンに安全に保存されます"
+  },
+  "securityPreviewLaunchGuard.commandsLabel": {
+    "defaultMessage": "Reopen it from the repo root with one of these supported commands:"
+  },
+  "securityPreviewLaunchGuard.description": {
+    "defaultMessage": "{appName} is using fallback local state, so the visible chats, model selection, or working directory may differ from the isolated preview session."
+  },
+  "securityPreviewLaunchGuard.title": {
+    "defaultMessage": "This local preview was opened outside the supported launcher."
+  },
+  "securityRuntimeNotice.driftedRecipes": {
+    "defaultMessage": "Drifted recipes: {ids}"
+  },
+  "securityRuntimeNotice.driftedSkills": {
+    "defaultMessage": "Drifted skills: {ids}"
+  },
+  "securityRuntimeNotice.missingRecipes": {
+    "defaultMessage": "Missing recipes: {ids}"
+  },
+  "securityRuntimeNotice.missingSkills": {
+    "defaultMessage": "Missing skills: {ids}"
+  },
+  "securityRuntimeNotice.overviewDescription": {
+    "defaultMessage": "The current working directory is missing or has drifted from the bundled security skills or recipes. Some task starters may fall back to guided chat or run with older instructions."
+  },
+  "securityRuntimeNotice.overviewTitle": {
+    "defaultMessage": "Security runtime needs attention"
+  },
+  "securityRuntimeNotice.packagedReseedHint": {
+    "defaultMessage": "Packaged local preview should be reopened through the official launcher so missing assets can be seeded into the current working directory again."
+  },
+  "securityRuntimeNotice.repoResyncHint": {
+    "defaultMessage": "Repo preview can resync the mirrored runtime assets with `node scripts/sync-security-runtime-assets.mjs`."
+  },
+  "securityRuntimeNotice.skippedMissingDistro": {
+    "defaultMessage": "The bundled security distro source is unavailable, so Security Goose could not verify its local skill and recipe assets."
+  },
+  "securityRuntimeNotice.skippedMissingWorkingDir": {
+    "defaultMessage": "The working directory is unavailable, so Security Goose could not verify its local skill and recipe assets."
+  },
+  "securityRuntimeNotice.taskRecipeDrifted": {
+    "defaultMessage": "Recipe runtime file differs from the bundled source"
+  },
+  "securityRuntimeNotice.taskRecipeMissing": {
+    "defaultMessage": "Recipe runtime file missing in the current working directory"
+  },
+  "securityRuntimeNotice.taskSkillDrifted": {
+    "defaultMessage": "Skill asset differs from the bundled source"
+  },
+  "securityRuntimeNotice.taskSkillMissing": {
+    "defaultMessage": "Skill asset missing in the current working directory"
+  },
+  "securityTasks.alertInvestigation.description": {
+    "defaultMessage": "Triage a security alert for authenticity, scope, cause, and response actions."
+  },
+  "securityTasks.alertInvestigation.title": {
+    "defaultMessage": "Alert Investigation"
+  },
+  "securityTasks.badgePreview": {
+    "defaultMessage": "Preview"
+  },
+  "securityTasks.badgeReady": {
+    "defaultMessage": "Recipe"
+  },
+  "securityTasks.extensionDetailBlockedExternal": {
+    "defaultMessage": "Requires external proprietary API, account, or service agreement before it can be enabled."
+  },
+  "securityTasks.extensionDetailDisabledStub": {
+    "defaultMessage": "Catalog entry exists, but the real gateway/runtime is intentionally deferred."
+  },
+  "securityTasks.extensionDetailLocalPreview": {
+    "defaultMessage": "Can be enabled now with the current Goose-native local preview implementation."
+  },
+  "securityTasks.extensionOverviewDescription": {
+    "defaultMessage": "Enable real local preview chains from Settings → Extensions. Stub and blocked entries stay visible so task recommendations remain honest."
+  },
+  "securityTasks.extensionOverviewTitle": {
+    "defaultMessage": "Extension status"
+  },
+  "securityTasks.extensionStatusBlocked": {
+    "defaultMessage": "Blocked"
+  },
+  "securityTasks.extensionStatusDisabledStub": {
+    "defaultMessage": "Disabled stub"
+  },
+  "securityTasks.extensionStatusLocalPreview": {
+    "defaultMessage": "Local preview"
+  },
+  "securityTasks.iocAnalysis.description": {
+    "defaultMessage": "Investigate domain, IP, URL, hash, and other IOC clues in a structured way."
+  },
+  "securityTasks.iocAnalysis.title": {
+    "defaultMessage": "IOC Analysis"
+  },
+  "securityTasks.mappingRecipe": {
+    "defaultMessage": "Recipe mapping"
+  },
+  "securityTasks.mappingSkill": {
+    "defaultMessage": "Skill mapping"
+  },
+  "securityTasks.methodologyBoundary": {
+    "defaultMessage": "Current Goose UI can show an attached recipe, but it does not show explicit skill-load telemetry. Skill mappings remain guidance-first rather than confirmed runtime signals."
+  },
+  "securityTasks.openExtensions": {
+    "defaultMessage": "Open Extensions"
+  },
+  "securityTasks.primaryPathLabel": {
+    "defaultMessage": "Primary path"
+  },
+  "securityTasks.primaryPathRecipe": {
+    "defaultMessage": "Recipe runtime"
+  },
+  "securityTasks.primaryPathSkill": {
+    "defaultMessage": "Skill-guided prompt"
+  },
+  "securityTasks.recommendedExtensions": {
+    "defaultMessage": "Recommended extensions"
+  },
+  "securityTasks.reportWriting.description": {
+    "defaultMessage": "Turn findings into a structured report for operators, tickets, or leadership updates."
+  },
+  "securityTasks.reportWriting.title": {
+    "defaultMessage": "Report Writing"
+  },
+  "securityTasks.savedRecipesTitle": {
+    "defaultMessage": "Saved recipes"
+  },
+  "securityTasks.sectionDescription": {
+    "defaultMessage": "These entry points stay on top of Goose recipes and skills. Recipe-backed tasks start with the existing recipe runtime; the rest open skill-guided preview chats. Recommended extensions stay optional and keep their current real-preview, disabled-stub, or blocker state."
+  },
+  "securityTasks.sectionTitle": {
+    "defaultMessage": "Security task starters"
+  },
+  "securityTasks.startPreview": {
+    "defaultMessage": "Start guided chat"
+  },
+  "securityTasks.startRecipe": {
+    "defaultMessage": "Use recipe"
+  },
+  "securityTasks.vulnTriage.description": {
+    "defaultMessage": "Assess CVE, advisory, PoC, patch, and asset context into an actionable conclusion."
+  },
+  "securityTasks.vulnTriage.title": {
+    "defaultMessage": "Vulnerability Triage"
+  },
+  "securityTasks.webInvestigation.description": {
+    "defaultMessage": "Inspect a web page, extract suspicious indicators, and summarize follow-up leads."
+  },
+  "securityTasks.webInvestigation.title": {
+    "defaultMessage": "Web Investigation"
+  },
+  "securityTasks.wooyunLegacy.description": {
+    "defaultMessage": "Review business workflows with a WooYun-style logic investigation approach."
+  },
+  "securityTasks.wooyunLegacy.title": {
+    "defaultMessage": "WooYun-style Review"
   },
   "securityToggle.apiTokenDescription": {
     "defaultMessage": "分類サービスの認証トークン"
@@ -3806,75 +3986,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "ストリーミング中"
   },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "セッション共有は既に設定済みです"
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "ベースURL"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "接続に失敗しました。"
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "接続に成功しました！"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "接続がタイムアウトしました。サーバーが遅いか、到達できない可能性があります。"
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "セッション共有は設定済みですが、共有は完全に任意です。明示的に共有ボタンをクリックした場合にのみ、セッションが共有されます。"
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "セッション共有を有効にすると、セッションを他のユーザーと共有できます。"
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "セッション共有を有効化"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "URL形式が無効です。有効なURL（例: https://example.com/api）を入力してください。"
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "サーバーエラー: HTTP {status}。サーバーが正しく設定されていない可能性があります。"
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "接続をテスト"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "テスト中..."
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "接続をテスト中..."
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "セッション共有"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "不明なエラーが発生しました。"
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "サーバーに到達できません。URLとネットワーク接続を確認してください。"
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "このセッションにはメッセージがありません"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "メッセージが見つかりません"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "セッション詳細の読み込みエラー"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "再試行"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "あなた"
-  },
   "sessions.action.delete": {
     "defaultMessage": "セッションを削除"
   },
@@ -3932,6 +4043,9 @@
   "sessions.import": {
     "defaultMessage": "セッションをインポート"
   },
+  "sessions.importing": {
+    "defaultMessage": "インポート中..."
+  },
   "sessions.importNostr": {
     "defaultMessage": "リンクをインポート"
   },
@@ -3943,9 +4057,6 @@
   },
   "sessions.importNostr.title": {
     "defaultMessage": "Nostrセッションをインポート"
-  },
-  "sessions.importing": {
-    "defaultMessage": "インポート中..."
   },
   "sessions.loadingMore": {
     "defaultMessage": "さらにセッションを読み込み中..."
@@ -3974,26 +4085,26 @@
   "sessions.toast.copied": {
     "defaultMessage": "クリップボードにコピーしました"
   },
-  "sessions.toast.deleteFailed": {
-    "defaultMessage": "セッション「{name}」を削除できませんでした: {error}"
-  },
   "sessions.toast.deleted": {
     "defaultMessage": "セッションを削除しました"
   },
-  "sessions.toast.duplicateFailed": {
-    "defaultMessage": "セッションを複製できませんでした: {error}"
+  "sessions.toast.deleteFailed": {
+    "defaultMessage": "セッション「{name}」を削除できませんでした: {error}"
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "セッション「{name}」を複製しました"
   },
+  "sessions.toast.duplicateFailed": {
+    "defaultMessage": "セッションを複製できませんでした: {error}"
+  },
   "sessions.toast.exported": {
     "defaultMessage": "セッションをエクスポートしました"
   },
-  "sessions.toast.importFailed": {
-    "defaultMessage": "セッションをインポートできませんでした: {error}"
-  },
   "sessions.toast.imported": {
     "defaultMessage": "セッションをインポートしました"
+  },
+  "sessions.toast.importFailed": {
+    "defaultMessage": "セッションをインポートできませんでした: {error}"
   },
   "sessions.toast.shareNostr": {
     "defaultMessage": "暗号化Nostr共有リンクを作成しました"
@@ -4001,17 +4112,86 @@
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Nostr共有リンクを作成できませんでした: {error}"
   },
+  "sessions.toast.updated": {
+    "defaultMessage": "セッションの説明を更新しました"
+  },
   "sessions.toast.updateFailed": {
     "defaultMessage": "セッションの説明を更新できませんでした: {error}"
   },
-  "sessions.toast.updated": {
-    "defaultMessage": "セッションの説明を更新しました"
+  "sessionSharingSection.alreadyConfigured": {
+    "defaultMessage": "セッション共有は既に設定済みです"
+  },
+  "sessionSharingSection.baseUrl": {
+    "defaultMessage": "ベースURL"
+  },
+  "sessionSharingSection.connectionFailed": {
+    "defaultMessage": "接続に失敗しました。"
+  },
+  "sessionSharingSection.connectionSuccess": {
+    "defaultMessage": "接続に成功しました！"
+  },
+  "sessionSharingSection.connectionTimedOut": {
+    "defaultMessage": "接続がタイムアウトしました。サーバーが遅いか、到達できない可能性があります。"
+  },
+  "sessionSharingSection.descriptionConfigured": {
+    "defaultMessage": "セッション共有は設定済みですが、共有は完全に任意です。明示的に共有ボタンをクリックした場合にのみ、セッションが共有されます。"
+  },
+  "sessionSharingSection.descriptionDefault": {
+    "defaultMessage": "セッション共有を有効にすると、セッションを他のユーザーと共有できます。"
+  },
+  "sessionSharingSection.enableSharing": {
+    "defaultMessage": "セッション共有を有効化"
+  },
+  "sessionSharingSection.invalidUrl": {
+    "defaultMessage": "URL形式が無効です。有効なURL（例: https://example.com/api）を入力してください。"
+  },
+  "sessionSharingSection.serverError": {
+    "defaultMessage": "サーバーエラー: HTTP {status}。サーバーが正しく設定されていない可能性があります。"
+  },
+  "sessionSharingSection.testConnection": {
+    "defaultMessage": "接続をテスト"
+  },
+  "sessionSharingSection.testing": {
+    "defaultMessage": "テスト中..."
+  },
+  "sessionSharingSection.testingConnection": {
+    "defaultMessage": "接続をテスト中..."
+  },
+  "sessionSharingSection.title": {
+    "defaultMessage": "セッション共有"
+  },
+  "sessionSharingSection.unknownError": {
+    "defaultMessage": "不明なエラーが発生しました。"
+  },
+  "sessionSharingSection.unreachableServer": {
+    "defaultMessage": "サーバーに到達できません。URLとネットワーク接続を確認してください。"
+  },
+  "sessionSharingSection.urlPlaceholder": {
+    "defaultMessage": "https://example.com/api"
   },
   "sessionsView.error.failedToLoad": {
     "defaultMessage": "セッションの詳細を読み込めませんでした。後でもう一度お試しください。"
   },
   "sessionsView.loading": {
     "defaultMessage": "読み込み中..."
+  },
+  "sessionViewComponents.empty.description": {
+    "defaultMessage": "このセッションにはメッセージがありません"
+  },
+  "sessionViewComponents.empty.title": {
+    "defaultMessage": "メッセージが見つかりません"
+  },
+  "sessionViewComponents.error.loading": {
+    "defaultMessage": "セッション詳細の読み込みエラー"
+  },
+  "sessionViewComponents.error.tryAgain": {
+    "defaultMessage": "再試行"
+  },
+  "sessionViewComponents.role.assistant": {
+    "defaultMessage": "Goose"
+  },
+  "sessionViewComponents.role.user": {
+    "defaultMessage": "あなた"
   },
   "settings.appearance.description": {
     "defaultMessage": "システム上でのgooseの表示を設定します"
@@ -4181,14 +4361,119 @@
   "skillsView.adjustSearchTerms": {
     "defaultMessage": "検索条件を変更してみてください"
   },
-  "skillsView.comingSoon": {
-    "defaultMessage": "近日公開"
+  "skillsView.builtInDetailDescription": {
+    "defaultMessage": "This is a Goose built-in skill. Security Goose can list it, but there is no current-project skill package to inspect or restore."
+  },
+  "skillsView.bundledSkillsTitle": {
+    "defaultMessage": "Bundled Skills"
+  },
+  "skillsView.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "skillsView.currentProjectStatus": {
+    "defaultMessage": "Current project"
+  },
+  "skillsView.deleteAction": {
+    "defaultMessage": "Delete"
+  },
+  "skillsView.deleteSkill": {
+    "defaultMessage": "Delete local skill"
+  },
+  "skillsView.deleteSkillConfirmMessage": {
+    "defaultMessage": "Delete the current-project skill \"{skillName}\" from .agents/skills? This does not touch bundled sources or other directories."
+  },
+  "skillsView.deleteSkillConfirmTitle": {
+    "defaultMessage": "Delete local skill?"
+  },
+  "skillsView.deleteSkillSuccessMessage": {
+    "defaultMessage": "Removed \"{skillName}\" from the current project runtime."
+  },
+  "skillsView.deleteSkillSuccessTitle": {
+    "defaultMessage": "Local skill deleted"
+  },
+  "skillsView.deleteSkillErrorTitle": {
+    "defaultMessage": "Could not delete local skill"
+  },
+  "skillsView.deleteSkillErrorMessage": {
+    "defaultMessage": "Could not remove the selected local skill from the current project runtime."
+  },
+  "skillsView.descriptionLabel": {
+    "defaultMessage": "Description"
+  },
+  "skillsView.detailDescription": {
+    "defaultMessage": "Review the active skill package, current-project runtime state, and bundled source reference for this skill."
+  },
+  "skillsView.detailsAction": {
+    "defaultMessage": "Details"
+  },
+  "skillsView.detailTitle": {
+    "defaultMessage": "{skillName} details"
   },
   "skillsView.errorLoadingSkills": {
     "defaultMessage": "スキルの読み込みエラー"
   },
+  "skillsView.importConflictMessage": {
+    "defaultMessage": "A skill named \"{skillName}\" already exists in the current project. Overwrite it with the selected package?"
+  },
+  "skillsView.importConflictTitle": {
+    "defaultMessage": "Overwrite existing skill?"
+  },
+  "skillsView.importSkillErrorTitle": {
+    "defaultMessage": "Skill import failed"
+  },
+  "skillsView.importSkillErrorMessage": {
+    "defaultMessage": "Could not import the selected skill package."
+  },
+  "skillsView.importSkillSuccessMessage": {
+    "defaultMessage": "Installed \"{skillName}\" into the current project runtime."
+  },
+  "skillsView.importSkillSuccessTitle": {
+    "defaultMessage": "Skill imported"
+  },
+  "skillsView.invalidRecoveryInvalidFrontmatter": {
+    "defaultMessage": "Fix the YAML frontmatter syntax in SKILL.md, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryLabel": {
+    "defaultMessage": "Recovery suggestion"
+  },
+  "skillsView.invalidRecoveryMissingFrontmatter": {
+    "defaultMessage": "Add YAML frontmatter with at least a non-empty name field to SKILL.md, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryMissingName": {
+    "defaultMessage": "Add a non-empty name field to SKILL.md frontmatter, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryMissingSkillMd": {
+    "defaultMessage": "Add SKILL.md to the skill folder root, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryNameMismatch": {
+    "defaultMessage": "Rename the folder or update the frontmatter name so both match, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryUnsupported": {
+    "defaultMessage": "Repair the local package layout, then re-import it as a skill folder or zip."
+  },
+  "skillsView.invalidSkillDescription": {
+    "defaultMessage": "This current-project skill package is missing a valid SKILL.md frontmatter name or directory layout."
+  },
+  "skillsView.invalidSkillPackageStatus": {
+    "defaultMessage": "Invalid skill package"
+  },
+  "skillsView.loadingSkillFile": {
+    "defaultMessage": "Loading SKILL.md…"
+  },
+  "skillsView.localSkillsTitle": {
+    "defaultMessage": "My Skills / Local Skills"
+  },
+  "skillsView.missingRuntimeStatus": {
+    "defaultMessage": "Missing runtime"
+  },
   "skillsView.noMatchingSkills": {
     "defaultMessage": "一致するスキルが見つかりません"
+  },
+  "skillsView.noSecuritySkillsDescription": {
+    "defaultMessage": "This Security Goose build only shows Goose built-in skills and bundled Security Goose security skills. If the list is empty, sync .agents/skills and reopen the official preview entry."
+  },
+  "skillsView.noSkillFileAvailable": {
+    "defaultMessage": "No SKILL.md file is available for this skill source."
   },
   "skillsView.noSkillsDescription": {
     "defaultMessage": "スキルは ~/.config/agents/skills/、.goose/skills/、またはその他の対応ディレクトリ内の SKILL.md ファイルから読み込まれます。"
@@ -4196,8 +4481,86 @@
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "スキルがインストールされていません"
   },
+  "skillsView.noSkillsInstalledDetail": {
+    "defaultMessage": "The current project has no managed local skills yet. Import a skill folder or zip to install it into .agents/skills."
+  },
+  "skillsView.ok": {
+    "defaultMessage": "OK"
+  },
+  "skillsView.overriddenLocallyStatus": {
+    "defaultMessage": "Overridden locally"
+  },
+  "skillsView.overrideBundledWarning": {
+    "defaultMessage": "This will replace the current-project runtime copy of a bundled Security Goose skill. You can restore the bundled version later."
+  },
+  "skillsView.overwriteAction": {
+    "defaultMessage": "Overwrite"
+  },
+  "skillsView.overwriteLocalWarning": {
+    "defaultMessage": "This will replace the existing current-project skill package in .agents/skills."
+  },
+  "skillsView.restoreBundledSkill": {
+    "defaultMessage": "Restore bundled version"
+  },
+  "skillsView.restoreConfirmMessage": {
+    "defaultMessage": "Restore the bundled Security Goose skill \"{skillName}\" into the current project runtime and discard the local override?"
+  },
+  "skillsView.restoreConfirmTitle": {
+    "defaultMessage": "Restore bundled version?"
+  },
+  "skillsView.restoreShortAction": {
+    "defaultMessage": "Restore"
+  },
+  "skillsView.restoreSkillSuccessMessage": {
+    "defaultMessage": "Restored bundled skill \"{skillName}\" into the current project runtime."
+  },
+  "skillsView.restoreSkillSuccessTitle": {
+    "defaultMessage": "Bundled skill restored"
+  },
+  "skillsView.restoreSkillErrorTitle": {
+    "defaultMessage": "Could not restore bundled skill"
+  },
+  "skillsView.restoreSkillErrorMessage": {
+    "defaultMessage": "Could not restore the bundled skill into the current project runtime."
+  },
+  "skillsView.revealCurrentProjectFolder": {
+    "defaultMessage": "Reveal current-project folder"
+  },
+  "skillsView.revealCurrentProjectFolderSuccessTitle": {
+    "defaultMessage": "Skill folder opened"
+  },
+  "skillsView.revealCurrentProjectFolderSuccessMessage": {
+    "defaultMessage": "Opened \"{directoryPath}\" in Finder."
+  },
+  "skillsView.revealCurrentProjectFolderErrorTitle": {
+    "defaultMessage": "Could not open skill folder"
+  },
+  "skillsView.revealCurrentProjectFolderErrorMessage": {
+    "defaultMessage": "Could not open the selected skill folder."
+  },
+  "skillsView.runtimeDiagnosisInvalid": {
+    "defaultMessage": "Current-project skill package is invalid and may not be discoverable by Goose."
+  },
+  "skillsView.runtimeDiagnosisLabel": {
+    "defaultMessage": "Runtime diagnosis"
+  },
+  "skillsView.runtimeDiagnosisLocalOverride": {
+    "defaultMessage": "Current-project runtime copy differs from the bundled Security Goose source."
+  },
+  "skillsView.runtimeDiagnosisMissingRuntime": {
+    "defaultMessage": "Bundled Security Goose source exists, but the current project runtime copy is missing."
+  },
+  "skillsView.scopedBuiltInStatus": {
+    "defaultMessage": "Built-in"
+  },
   "skillsView.searchSkillsPlaceholder": {
     "defaultMessage": "スキルを検索..."
+  },
+  "skillsView.securitySkillsDescription": {
+    "defaultMessage": "This Security Goose build only shows Goose built-in skills and bundled Security Goose security skills. {shortcut} to search."
+  },
+  "skillsView.skillFileLabel": {
+    "defaultMessage": "SKILL.md"
   },
   "skillsView.skillsDescription": {
     "defaultMessage": "Gooseの機能を拡張するインストール済みスキルを表示します。{shortcut}で検索。"
@@ -4207,6 +4570,9 @@
   },
   "skillsView.tryAgain": {
     "defaultMessage": "再試行"
+  },
+  "skillsView.unavailableValue": {
+    "defaultMessage": "Unavailable"
   },
   "spellcheckToggle.description": {
     "defaultMessage": "チャット入力のスペルをチェックします。反映するには再起動が必要です。"
@@ -4452,10 +4818,10 @@
     "defaultMessage": "別のプロバイダーを使用"
   },
   "telemetryConsentPrompt.description": {
-    "defaultMessage": "gooseの改善のため、匿名の使用状況データを共有しますか？会話、コード、個人データは一切収集しません。"
+    "defaultMessage": "{appName}の改善のため、匿名の使用状況データを共有しますか？会話、コード、個人データは一切収集しません。"
   },
   "telemetryConsentPrompt.heading": {
-    "defaultMessage": "gooseの改善に協力"
+    "defaultMessage": "{appName}の改善に協力"
   },
   "telemetryConsentPrompt.learnMore": {
     "defaultMessage": "詳しく見る"
@@ -4502,11 +4868,11 @@
   "themeSelector.theme": {
     "defaultMessage": "テーマ"
   },
-  "toolApprovalButtons.allowOnce": {
-    "defaultMessage": "1回のみ許可"
-  },
   "toolApprovalButtons.allowedOnce": {
     "defaultMessage": "1回のみ許可済み"
+  },
+  "toolApprovalButtons.allowOnce": {
+    "defaultMessage": "1回のみ許可"
   },
   "toolApprovalButtons.alwaysAllow": {
     "defaultMessage": "常に許可"
@@ -4619,11 +4985,11 @@
   "tunnelSection.showQrCode": {
     "defaultMessage": "QRコードを表示"
   },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "トンネルを開始"
-  },
   "tunnelSection.starting": {
     "defaultMessage": "開始中..."
+  },
+  "tunnelSection.startTunnel": {
+    "defaultMessage": "トンネルを開始"
   },
   "tunnelSection.statusDisabled": {
     "defaultMessage": "トンネルは無効です"
@@ -4667,14 +5033,14 @@
   "updateSection.currentVersion": {
     "defaultMessage": "現在のバージョン"
   },
-  "updateSection.downloadReady": {
-    "defaultMessage": "アップデートのダウンロードが完了し、インストールの準備ができました！"
-  },
   "updateSection.downloadingProgress": {
     "defaultMessage": "アップデートをダウンロード中... {percent}%"
   },
   "updateSection.downloadingUpdate": {
     "defaultMessage": "アップデートをダウンロード中..."
+  },
+  "updateSection.downloadReady": {
+    "defaultMessage": "アップデートのダウンロードが完了し、インストールの準備ができました！"
   },
   "updateSection.installAndRestart": {
     "defaultMessage": "インストールして再起動"
@@ -4688,6 +5054,12 @@
   "updateSection.loading": {
     "defaultMessage": "読み込み中..."
   },
+  "updateSection.localPreviewDisabled": {
+    "defaultMessage": "Local preview builds do not check signed release updates."
+  },
+  "updateSection.localPreviewDisabledDetail": {
+    "defaultMessage": "Use the official preview launcher for local testing. Signed release packages keep the real update channel."
+  },
   "updateSection.manualInstallNote": {
     "defaultMessage": "ダウンロード後、アップデートを手動でインストールする必要があります。"
   },
@@ -4700,11 +5072,14 @@
   "updateSection.readyInstallManual": {
     "defaultMessage": "✓ アップデートの準備ができました！インストール手順を表示するには「インストールして再起動」をクリックしてください。"
   },
-  "updateSection.upToDate": {
-    "defaultMessage": "(最新)"
-  },
   "updateSection.updateAvailable": {
     "defaultMessage": "アップデートがあります！"
+  },
+  "updateSection.updatesDisabled": {
+    "defaultMessage": "Release update checks are unavailable in this build."
+  },
+  "updateSection.upToDate": {
+    "defaultMessage": "(最新)"
   },
   "updateSection.versionAvailable": {
     "defaultMessage": "→ {version} が利用可能"
@@ -4756,5 +5131,14 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "編集したメッセージで新しいセッションを作成"
+  },
+  "skillsView.skillFolderLabel": {
+    "defaultMessage": "Skill folder"
+  },
+  "skillsView.securitySkillsDiscoveryDescription": {
+    "defaultMessage": "The / menu only shows skills the current Goose runtime has discovered for this session. Newly imported local skills usually appear there after you reopen the session."
+  },
+  "skillsView.skillFileBodyLabel": {
+    "defaultMessage": "SKILL.md body"
   }
 }

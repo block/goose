@@ -1,0 +1,20 @@
+{
+  "_meta": {
+    "sourceOnly": true,
+    "targetFile": "ui/desktop/src/i18n/messages/zh-CN.json"
+  },
+  "brand": {
+    "appName": "Security Goose",
+    "defaultAssistant": "安全分析助手"
+  },
+  "tasks": {
+    "vulnTriage": "漏洞研判",
+    "alertInvestigation": "告警分析",
+    "iocAnalysis": "IOC 研判",
+    "webInvestigation": "网页调查",
+    "reportWriting": "报告生成"
+  },
+  "models": {
+    "auto": "Auto"
+  }
+}

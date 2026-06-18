@@ -111,6 +111,9 @@ run-ui-only:
     @echo "Running UI..."
     cd ui/desktop && pnpm install && pnpm run start-gui
 
+run-security-preview:
+    @./scripts/start-security-preview.sh
+
 debug-ui:
     @echo "🚀 Starting goose frontend in external backend mode"
     cd ui/desktop && \

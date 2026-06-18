@@ -56,14 +56,14 @@
   "authSettings.deleteCredential": {
     "defaultMessage": "क्रेडेंशियल हटाएँ"
   },
+  "authSettings.deleted": {
+    "defaultMessage": "क्रेडेंशियल हटा दिया गया"
+  },
   "authSettings.deleteMessage": {
     "defaultMessage": "{provider} के लिए {name} क्रेडेंशियल हटाएं?"
   },
   "authSettings.deleteTitle": {
     "defaultMessage": "क्रेडेंशियल हटाएँ"
-  },
-  "authSettings.deleted": {
-    "defaultMessage": "क्रेडेंशियल हटा दिया गया"
   },
   "authSettings.description": {
     "defaultMessage": "goose द्वारा स्थानीय रूप से संग्रहीत प्रदाता क्रेडेंशियल प्रबंधित करें।"
@@ -89,11 +89,11 @@
   "authSettings.reauthorize": {
     "defaultMessage": "पुन: प्राधिकृत करें"
   },
-  "authSettings.signIn": {
-    "defaultMessage": "साइन इन करें"
-  },
   "authSettings.signedIn": {
     "defaultMessage": "क्रेडेंशियल कॉन्फ़िगर किया गया"
+  },
+  "authSettings.signIn": {
+    "defaultMessage": "साइन इन करें"
   },
   "authSettings.storageProviderCache": {
     "defaultMessage": "प्रदाता कैश"
@@ -122,6 +122,12 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "रेसिपी सफलतापूर्वक बनाई गई!"
   },
+  "bottomMenuExtensionSelection.extensionsForNewChats": {
+    "defaultMessage": "नई चैट के लिए एक्सटेंशन"
+  },
+  "bottomMenuExtensionSelection.extensionsForThisSession": {
+    "defaultMessage": "इस चैट सत्र के लिए एक्सटेंशन"
+  },
   "bottomMenuExtensionSelection.extensionToggleError": {
     "defaultMessage": "एक्सटेंशन टॉगल त्रुटि"
   },
@@ -133,12 +139,6 @@
   },
   "bottomMenuExtensionSelection.extensionWillBeEnabled": {
     "defaultMessage": "नई चैट में {name} सक्षम किया जाएगा"
-  },
-  "bottomMenuExtensionSelection.extensionsForNewChats": {
-    "defaultMessage": "नई चैट के लिए एक्सटेंशन"
-  },
-  "bottomMenuExtensionSelection.extensionsForThisSession": {
-    "defaultMessage": "इस चैट सत्र के लिए एक्सटेंशन"
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "एक्सटेंशन प्रबंधित करें"
@@ -162,10 +162,10 @@
     "defaultMessage": "लॉन्च करें"
   },
   "chat.notification.taskComplete.body": {
-    "defaultMessage": "Goose को फोकस में वापस लाने के लिए यहां क्लिक करें।"
+    "defaultMessage": "{appName} को फोकस में वापस लाने के लिए यहां क्लिक करें।"
   },
   "chat.notification.taskComplete.title": {
-    "defaultMessage": "Goose ने कार्य पूरा किया।"
+    "defaultMessage": "{appName} ने कार्य पूरा किया।"
   },
   "chatInput.contextWindow": {
     "defaultMessage": "प्रसंग विंडो"
@@ -698,11 +698,11 @@
   "customProviderForm.attachments": {
     "defaultMessage": "अनुलग्नक"
   },
-  "customProviderForm.authHint": {
-    "defaultMessage": "Ollama जैसे स्थानीय एलएलएम को आमतौर पर API कुंजी की आवश्यकता नहीं होती है।"
-  },
   "customProviderForm.authentication": {
     "defaultMessage": "प्रमाणीकरण"
+  },
+  "customProviderForm.authHint": {
+    "defaultMessage": "Ollama जैसे स्थानीय एलएलएम को आमतौर पर API कुंजी की आवश्यकता नहीं होती है।"
   },
   "customProviderForm.availableModels": {
     "defaultMessage": "उपलब्ध मॉडल (अल्पविराम से अलग)"
@@ -998,17 +998,20 @@
   "elicitationRequest.waitingForResponse": {
     "defaultMessage": "आपकी प्रतिक्रिया की प्रतीक्षा में ({timeRemaining} शेष)"
   },
+  "environmentBadge.dev": {
+    "defaultMessage": "देव"
+  },
   "envVarsSection.add": {
     "defaultMessage": "जोड़ें"
   },
   "envVarsSection.bothRequired": {
     "defaultMessage": "वेरिएबल नाम और मान दोनों दर्ज किए जाने चाहिए"
   },
-  "envVarsSection.envVarsDescription": {
-    "defaultMessage": "पर्यावरण चर के लिए कुंजी-मान जोड़े जोड़ें। दोनों फ़ील्ड भरने के बाद जोड़ने के लिए \"+\" बटन पर क्लिक करें। मौजूदा गुप्त मानों को संशोधित करने के लिए संपादन बटन पर क्लिक करें।"
-  },
   "envVarsSection.environmentVariables": {
     "defaultMessage": "पर्यावरण चर"
+  },
+  "envVarsSection.envVarsDescription": {
+    "defaultMessage": "पर्यावरण चर के लिए कुंजी-मान जोड़े जोड़ें। दोनों फ़ील्ड भरने के बाद जोड़ने के लिए \"+\" बटन पर क्लिक करें। मौजूदा गुप्त मानों को संशोधित करने के लिए संपादन बटन पर क्लिक करें।"
   },
   "envVarsSection.noSpaces": {
     "defaultMessage": "वेरिएबल नाम में रिक्त स्थान नहीं हो सकते"
@@ -1019,14 +1022,11 @@
   "envVarsSection.variableName": {
     "defaultMessage": "परिवर्तनीय नाम"
   },
-  "environmentBadge.dev": {
-    "defaultMessage": "देव"
-  },
   "errorBoundary.errorGeneric": {
     "defaultMessage": "एक त्रुटि पाई गई।"
   },
   "errorBoundary.errorWithVersion": {
-    "defaultMessage": "Goose v{version} में एक त्रुटि उत्पन्न हुई।"
+    "defaultMessage": "{appName} v{version} में एक त्रुटि उत्पन्न हुई।"
   },
   "errorBoundary.heading": {
     "defaultMessage": "हार्न!"
@@ -1181,9 +1181,6 @@
   "extensionModal.unsavedChangesTitle": {
     "defaultMessage": "सहेजे न गए परिवर्तन"
   },
-  "extensionTimeoutField.timeoutLabel": {
-    "defaultMessage": "समयबाह्य"
-  },
   "extensionsSection.addCustomExtension": {
     "defaultMessage": "कस्टम एक्सटेंशन जोड़ें"
   },
@@ -1219,6 +1216,9 @@
   },
   "extensionsView.searchPlaceholder": {
     "defaultMessage": "एक्सटेंशन खोजें..."
+  },
+  "extensionTimeoutField.timeoutLabel": {
+    "defaultMessage": "समयबाह्य"
   },
   "externalBackendSection.certFingerprint": {
     "defaultMessage": "प्रमाणपत्र फ़िंगरप्रिंट (वैकल्पिक)"
@@ -1520,11 +1520,11 @@
   "huggingFaceSignInPrompt.failedToConfigure": {
     "defaultMessage": "हगिंग फेस में साइन इन करने में विफल: {error}"
   },
-  "huggingFaceSignInPrompt.signIn": {
-    "defaultMessage": "साइन इन करें"
-  },
   "huggingFaceSignInPrompt.signedIn": {
     "defaultMessage": "हगिंग फेस ने साइन इन किया"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "साइन इन करें"
   },
   "huggingFaceSignInPrompt.signingIn": {
     "defaultMessage": "साइन इन किया जा रहा है..."
@@ -1559,14 +1559,14 @@
   "importRecipeForm.expectedRecipeStructure": {
     "defaultMessage": "अपेक्षित रेसिपी संरचना"
   },
+  "importRecipeForm.importing": {
+    "defaultMessage": "आयात किया जा रहा है..."
+  },
   "importRecipeForm.importRecipeButton": {
     "defaultMessage": "रेसिपी आयात करें"
   },
   "importRecipeForm.importRecipeTitle": {
     "defaultMessage": "रेसिपी आयात करें"
-  },
-  "importRecipeForm.importing": {
-    "defaultMessage": "आयात किया जा रहा है..."
   },
   "importRecipeForm.or": {
     "defaultMessage": "या"
@@ -1666,18 +1666,6 @@
   },
   "jsonSchemaForm.submit": {
     "defaultMessage": "सबमिट करें"
-  },
-  "keyValueEditor.addValue": {
-    "defaultMessage": "पूर्व-कॉन्फ़िगर मान जोड़ें"
-  },
-  "keyValueEditor.defaultKeyPlaceholder": {
-    "defaultMessage": "पैरामीटर नाम..."
-  },
-  "keyValueEditor.defaultValuePlaceholder": {
-    "defaultMessage": "पैरामीटर मान..."
-  },
-  "keyValueEditor.removeValue": {
-    "defaultMessage": "पूर्व-कॉन्फ़िगर मान {key} हटाएं"
   },
   "keyboardShortcuts.alwaysOnTopDescription": {
     "defaultMessage": "विंडो को हमेशा शीर्ष पर टॉगल करें"
@@ -1823,8 +1811,26 @@
   "keyboardShortcuts.toggleNavigationLabel": {
     "defaultMessage": "नेविगेशन टॉगल करें"
   },
+  "keyValueEditor.addValue": {
+    "defaultMessage": "पूर्व-कॉन्फ़िगर मान जोड़ें"
+  },
+  "keyValueEditor.defaultKeyPlaceholder": {
+    "defaultMessage": "पैरामीटर नाम..."
+  },
+  "keyValueEditor.defaultValuePlaceholder": {
+    "defaultMessage": "पैरामीटर मान..."
+  },
+  "keyValueEditor.removeValue": {
+    "defaultMessage": "पूर्व-कॉन्फ़िगर मान {key} हटाएं"
+  },
   "launcher.placeholder": {
-    "defaultMessage": "goose से कुछ भी पूछें..."
+    "defaultMessage": "{appName} से कुछ भी पूछें..."
+  },
+  "launcher.securityTasksDescription": {
+    "defaultMessage": "Launch a security recipe or a skill-guided preview chat."
+  },
+  "launcher.securityTasksTitle": {
+    "defaultMessage": "Security starters"
   },
   "loadingGoose.compacting": {
     "defaultMessage": "goose बातचीत को संक्षिप्त कर रहा है..."
@@ -1856,17 +1862,17 @@
   "localInferenceSettings.download": {
     "defaultMessage": "डाउनलोड करें"
   },
-  "localInferenceSettings.downloadFailed": {
-    "defaultMessage": "डाउनलोड विफल रहा"
-  },
-  "localInferenceSettings.downloadProgress": {
-    "defaultMessage": "{downloaded} / {total} ({percent}%)"
-  },
   "localInferenceSettings.downloadedModels": {
     "defaultMessage": "डाउनलोड किए गए मॉडल"
   },
+  "localInferenceSettings.downloadFailed": {
+    "defaultMessage": "डाउनलोड विफल रहा"
+  },
   "localInferenceSettings.downloading": {
     "defaultMessage": "डाउनलोड हो रहा है"
+  },
+  "localInferenceSettings.downloadProgress": {
+    "defaultMessage": "{downloaded} / {total} ({percent}%)"
   },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "विशेष रुप से प्रदर्शित मॉडल"
@@ -1949,11 +1955,11 @@
   "localModelPicker.checkingModels": {
     "defaultMessage": "उपलब्ध मॉडलों की जाँच की जा रही है..."
   },
-  "localModelPicker.downloadModel": {
-    "defaultMessage": "डाउनलोड करें {modelId} ({size})"
-  },
   "localModelPicker.downloading": {
     "defaultMessage": "डाउनलोड हो रहा है {modelId}"
+  },
+  "localModelPicker.downloadModel": {
+    "defaultMessage": "डाउनलोड करें {modelId} ({size})"
   },
   "localModelPicker.failedToLoad": {
     "defaultMessage": "उपलब्ध मॉडल लोड करने में विफल. कृपया पुन: प्रयास करें।"
@@ -2141,6 +2147,9 @@
   "messageQueue.paused": {
     "defaultMessage": "रुका हुआ"
   },
+  "messageQueue.queued": {
+    "defaultMessage": "पंक्तिबद्ध"
+  },
   "messageQueue.queuePaused": {
     "defaultMessage": "कतार रोक दी गई"
   },
@@ -2149,9 +2158,6 @@
   },
   "messageQueue.queuePausedExpanded": {
     "defaultMessage": "रुकावट के कारण कतार रुकी. \"अभी भेजें\" का उपयोग करें या फिर से शुरू करने के लिए एक नया संदेश जोड़ें।"
-  },
-  "messageQueue.queued": {
-    "defaultMessage": "पंक्तिबद्ध"
   },
   "messageQueue.removeFromQueue": {
     "defaultMessage": "इस संदेश को कतार से हटाएँ"
@@ -2198,35 +2204,11 @@
   "microphoneSelector.test": {
     "defaultMessage": "परीक्षण"
   },
-  "modeSelectionItem.autonomousDescription": {
-    "defaultMessage": "पूर्ण फ़ाइल संशोधन क्षमताएं, फ़ाइलों को स्वतंत्र रूप से संपादित करें, बनाएं और हटाएं।"
-  },
-  "modeSelectionItem.autonomousLabel": {
-    "defaultMessage": "स्वायत्त"
-  },
-  "modeSelectionItem.chatOnlyDescription": {
-    "defaultMessage": "टूल या एक्सटेंशन का उपयोग किए बिना चयनित प्रदाता से बातचीत करें।"
-  },
-  "modeSelectionItem.chatOnlyLabel": {
-    "defaultMessage": "केवल चैट करें"
-  },
-  "modeSelectionItem.manualDescription": {
-    "defaultMessage": "सभी टूल, एक्सटेंशन और फ़ाइल संशोधनों के लिए मानव अनुमोदन की आवश्यकता होगी"
-  },
-  "modeSelectionItem.manualLabel": {
-    "defaultMessage": "मैनुअल"
-  },
-  "modeSelectionItem.smartDescription": {
-    "defaultMessage": "जोखिम स्तर के आधार पर समझदारी से निर्धारित करें कि किन कार्यों को अनुमोदन की आवश्यकता है"
-  },
-  "modeSelectionItem.smartLabel": {
-    "defaultMessage": "होशियार"
+  "modelAndProviderContext.modelChangedTitle": {
+    "defaultMessage": "मॉडल बदल गया"
   },
   "modelAndProviderContext.modelChangeFailed": {
     "defaultMessage": "{provider}/{model} विफल"
-  },
-  "modelAndProviderContext.modelChangedTitle": {
-    "defaultMessage": "मॉडल बदल गया"
   },
   "modelAndProviderContext.selectModel": {
     "defaultMessage": "मॉडल का चयन करें"
@@ -2239,6 +2221,27 @@
   },
   "modelAndProviderContext.unknownProviderTitle": {
     "defaultMessage": "प्रदाता का नाम लुकअप"
+  },
+  "modelsBottomBar.changeModel": {
+    "defaultMessage": "मॉडल बदलें"
+  },
+  "modelsBottomBar.currentModel": {
+    "defaultMessage": "वर्तमान मॉडल"
+  },
+  "modelsBottomBar.loadingModel": {
+    "defaultMessage": "मॉडल लोड हो रहा है..."
+  },
+  "modelsBottomBar.localModelSettings": {
+    "defaultMessage": "स्थानीय मॉडल Settings"
+  },
+  "modelsBottomBar.localModelSettingsTitle": {
+    "defaultMessage": "स्थानीय मॉडल Settings — {modelName}"
+  },
+  "modelsBottomBar.resolvedModel": {
+    "defaultMessage": "हल किया गया मॉडल"
+  },
+  "modelsBottomBar.selectModel": {
+    "defaultMessage": "मॉडल का चयन करें"
   },
   "modelSettingsButtons.configureProviders": {
     "defaultMessage": "प्रदाताओं को कॉन्फ़िगर करें"
@@ -2399,32 +2402,35 @@
   "modelSettingsPanel.topP": {
     "defaultMessage": "शीर्ष पी"
   },
-  "modelsBottomBar.changeModel": {
-    "defaultMessage": "मॉडल बदलें"
-  },
-  "modelsBottomBar.currentModel": {
-    "defaultMessage": "वर्तमान मॉडल"
-  },
-  "modelsBottomBar.loadingModel": {
-    "defaultMessage": "मॉडल लोड हो रहा है..."
-  },
-  "modelsBottomBar.localModelSettings": {
-    "defaultMessage": "स्थानीय मॉडल Settings"
-  },
-  "modelsBottomBar.localModelSettingsTitle": {
-    "defaultMessage": "स्थानीय मॉडल Settings — {modelName}"
-  },
-  "modelsBottomBar.resolvedModel": {
-    "defaultMessage": "हल किया गया मॉडल"
-  },
-  "modelsBottomBar.selectModel": {
-    "defaultMessage": "मॉडल का चयन करें"
-  },
   "modelsSection.resetDescription": {
     "defaultMessage": "नए सिरे से शुरुआत करने के लिए अपने चयनित मॉडल और प्रदाता सेटिंग्स को साफ़ करें"
   },
   "modelsSection.resetTitle": {
     "defaultMessage": "प्रदाता और मॉडल रीसेट करें"
+  },
+  "modeSelectionItem.autonomousDescription": {
+    "defaultMessage": "पूर्ण फ़ाइल संशोधन क्षमताएं, फ़ाइलों को स्वतंत्र रूप से संपादित करें, बनाएं और हटाएं।"
+  },
+  "modeSelectionItem.autonomousLabel": {
+    "defaultMessage": "स्वायत्त"
+  },
+  "modeSelectionItem.chatOnlyDescription": {
+    "defaultMessage": "टूल या एक्सटेंशन का उपयोग किए बिना चयनित प्रदाता से बातचीत करें।"
+  },
+  "modeSelectionItem.chatOnlyLabel": {
+    "defaultMessage": "केवल चैट करें"
+  },
+  "modeSelectionItem.manualDescription": {
+    "defaultMessage": "सभी टूल, एक्सटेंशन और फ़ाइल संशोधनों के लिए मानव अनुमोदन की आवश्यकता होगी"
+  },
+  "modeSelectionItem.manualLabel": {
+    "defaultMessage": "मैनुअल"
+  },
+  "modeSelectionItem.smartDescription": {
+    "defaultMessage": "जोखिम स्तर के आधार पर समझदारी से निर्धारित करें कि किन कार्यों को अनुमोदन की आवश्यकता है"
+  },
+  "modeSelectionItem.smartLabel": {
+    "defaultMessage": "होशियार"
   },
   "navigation.itemApps": {
     "defaultMessage": "ऐप्स"
@@ -2466,19 +2472,22 @@
     "defaultMessage": "सर्वर चालू हो सकता है या अस्थायी रूप से अनुपलब्ध हो सकता है।"
   },
   "onboardingGuard.checkProviderErrorTitle": {
-    "defaultMessage": "Goose सर्वर से कनेक्ट करने में असमर्थ"
+    "defaultMessage": "{appName} सर्वर से कनेक्ट करने में असमर्थ"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "पुनः प्रयास करें"
   },
   "onboardingGuard.welcomeDescription": {
-    "defaultMessage": "आपका स्थानीय एआई एजेंट। आरंभ करने के लिए किसी AI मॉडल प्रदाता से कनेक्ट करें।"
+    "defaultMessage": "आपका स्थानीय एआई एजेंट। आरंभ करने के लिए {appName} को किसी AI मॉडल प्रदाता से कनेक्ट करें।"
+  },
+  "onboardingGuard.welcomeDescriptionBuiltIn": {
+    "defaultMessage": "Your local AI agent. {appName} is ready with the built-in {providerName} backend. Start with {modelName} and switch models at any time."
   },
   "onboardingGuard.welcomeTitle": {
-    "defaultMessage": "goose में आपका स्वागत है"
+    "defaultMessage": "{appName} में आपका स्वागत है"
   },
   "onboardingSuccess.allSet": {
-    "defaultMessage": "आप goose का उपयोग शुरू करने के लिए पूरी तरह तैयार हैं।"
+    "defaultMessage": "आप {appName} का उपयोग शुरू करने के लिए पूरी तरह तैयार हैं।"
   },
   "onboardingSuccess.connectedTo": {
     "defaultMessage": "{providerName} से कनेक्टेड"
@@ -2493,7 +2502,7 @@
     "defaultMessage": "स्थानीय मॉडल तैयार"
   },
   "onboardingSuccess.privacyDescription": {
-    "defaultMessage": "अनाम उपयोग डेटा goose को बेहतर बनाने में मदद करता है। हम कभी भी आपकी बातचीत, कोड या व्यक्तिगत डेटा एकत्र नहीं करते हैं।"
+    "defaultMessage": "अनाम उपयोग डेटा {appName} को बेहतर बनाने में मदद करता है। हम कभी भी आपकी बातचीत, कोड या व्यक्तिगत डेटा एकत्र नहीं करते हैं।"
   },
   "onboardingSuccess.privacyTitle": {
     "defaultMessage": "गोपनीयता"
@@ -2661,10 +2670,10 @@
     "defaultMessage": "सत्र मेट्रिक्स (अवधि, इंटरैक्शन गिनती, टोकन उपयोग)"
   },
   "privacyInfoModal.collectVersion": {
-    "defaultMessage": "goose संस्करण और इंस्टाल विधि"
+    "defaultMessage": "{appName} संस्करण और इंस्टाल विधि"
   },
   "privacyInfoModal.description": {
-    "defaultMessage": "अनाम उपयोग डेटा हमें यह समझने में मदद करता है कि goose का उपयोग कैसे किया जाता है और सुधार के क्षेत्रों की पहचान की जाती है।"
+    "defaultMessage": "अनाम उपयोग डेटा हमें यह समझने में मदद करता है कि {appName} का उपयोग कैसे किया जाता है और सुधार के क्षेत्रों की पहचान की जाती है।"
   },
   "privacyInfoModal.neverCollect": {
     "defaultMessage": "हम कभी भी आपकी बातचीत, कोड, टूल तर्क, त्रुटि संदेश या कोई व्यक्तिगत डेटा एकत्र नहीं करते हैं। आप इस सेटिंग को सेटिंग्स में कभी भी बदल सकते हैं।"
@@ -2708,11 +2717,11 @@
   "promptsSettings.edit": {
     "defaultMessage": "संपादित करें"
   },
-  "promptsSettings.editPromptTitle": {
-    "defaultMessage": "संपादित करें: {name}"
-  },
   "promptsSettings.editingLabel": {
     "defaultMessage": "संपादन: {name}"
+  },
+  "promptsSettings.editPromptTitle": {
+    "defaultMessage": "संपादित करें: {name}"
   },
   "promptsSettings.enterPromptContent": {
     "defaultMessage": "प्रॉम्प्ट सामग्री दर्ज करें..."
@@ -2822,11 +2831,11 @@
   "providerConfigForm.noApiKey": {
     "defaultMessage": "क्या आपके पास API कुंजी नहीं है?"
   },
-  "providerConfigForm.signInWith": {
-    "defaultMessage": "{providerName} के साथ साइन इन करें"
-  },
   "providerConfigForm.signingIn": {
     "defaultMessage": "साइन इन किया जा रहा है..."
+  },
+  "providerConfigForm.signInWith": {
+    "defaultMessage": "{providerName} के साथ साइन इन करें"
   },
   "providerConfigurationModal.addApiKeyDescription": {
     "defaultMessage": "इस प्रदाता को goose में एकीकृत करने के लिए अपनी API कुंजी जोड़ें"
@@ -2888,11 +2897,11 @@
   "providerConfigurationModal.seeDocumentation": {
     "defaultMessage": "अधिक विवरण के लिए <link>दस्तावेज़ीकरण</link> देखें।"
   },
-  "providerConfigurationModal.signInWith": {
-    "defaultMessage": "{providerName} के साथ साइन इन करें"
-  },
   "providerConfigurationModal.signingIn": {
     "defaultMessage": "साइन इन किया जा रहा है..."
+  },
+  "providerConfigurationModal.signInWith": {
+    "defaultMessage": "{providerName} के साथ साइन इन करें"
   },
   "providerGrid.addProvider": {
     "defaultMessage": "प्रदाता जोड़ें"
@@ -2921,6 +2930,12 @@
   "providerSelector.addCustomProviderTitle": {
     "defaultMessage": "कस्टम प्रदाता जोड़ें"
   },
+  "providerSelector.advancedProviderSetup": {
+    "defaultMessage": "Advanced Provider Setup"
+  },
+  "providerSelector.advancedProviderSetupDescription": {
+    "defaultMessage": "Only use this if you need a different provider, a custom host, or your own API key."
+  },
   "providerSelector.connectProvider": {
     "defaultMessage": "किसी प्रदाता से कनेक्ट करें"
   },
@@ -2933,6 +2948,12 @@
   "providerSelector.selectProvider": {
     "defaultMessage": "एक प्रदाता चुनें"
   },
+  "providerSelector.useBuiltInModels": {
+    "defaultMessage": "Use Built-in Models"
+  },
+  "providerSelector.useBuiltInModelsDescription": {
+    "defaultMessage": "{providerName} is already connected. Start with {modelName} and switch models later."
+  },
   "providerSelector.useFreeLocal": {
     "defaultMessage": "निःशुल्क/स्थानीय प्रदाताओं का उपयोग करें"
   },
@@ -2944,6 +2965,9 @@
   },
   "providerSettings.onboardingDescription": {
     "defaultMessage": "goose के साथ आरंभ करने के लिए एक एआई मॉडल प्रदाता का चयन करें। आपको प्रत्येक प्रदाता द्वारा उत्पन्न API कुंजियों का उपयोग करने की आवश्यकता होगी जिन्हें एन्क्रिप्ट किया जाएगा और स्थानीय रूप से संग्रहीत किया जाएगा। आप सेटिंग्स में किसी भी समय अपना प्रदाता बदल सकते हैं।"
+  },
+  "providerSettings.onboardingDescriptionBuiltIn": {
+    "defaultMessage": "{providerName} is already wired in as the built-in backend for this local version. Use this page only if you need to override it with another provider, host, or API key."
   },
   "providerSettings.otherProviders": {
     "defaultMessage": "अन्य प्रदाता"
@@ -3122,39 +3146,6 @@
   "recipeNameField.formatHint": {
     "defaultMessage": "स्वचालित रूप से स्वरूपित किया जाएगा (लोअरकेस, रिक्त स्थान के लिए डैश)"
   },
-  "recipeWarningModal.cancel": {
-    "defaultMessage": "रद्द करें"
-  },
-  "recipeWarningModal.descriptionLabel": {
-    "defaultMessage": "विवरण:"
-  },
-  "recipeWarningModal.firstTimeDescription": {
-    "defaultMessage": "आप एक ऐसी रेसिपी को क्रियान्वित करने वाले हैं जिसे आपने पहले नहीं चलाया है।"
-  },
-  "recipeWarningModal.hiddenCharsWarning": {
-    "defaultMessage": "इस रेसिपी में छिपे हुए पात्र हैं जिन्हें आपकी सुरक्षा के लिए अनदेखा कर दिया जाएगा, क्योंकि उनका उपयोग दुर्भावनापूर्ण उद्देश्यों के लिए किया जा सकता है।"
-  },
-  "recipeWarningModal.instructionsLabel": {
-    "defaultMessage": "निर्देश:"
-  },
-  "recipeWarningModal.newRecipeWarningTitle": {
-    "defaultMessage": "⚠️ नई रेसिपी चेतावनी"
-  },
-  "recipeWarningModal.recipePreview": {
-    "defaultMessage": "पकाने की विधि पूर्वावलोकन:"
-  },
-  "recipeWarningModal.securityWarningTitle": {
-    "defaultMessage": "⚠️ सुरक्षा चेतावनी"
-  },
-  "recipeWarningModal.titleLabel": {
-    "defaultMessage": "शीर्षक:"
-  },
-  "recipeWarningModal.trustAndExecute": {
-    "defaultMessage": "भरोसा करें और अमल करें"
-  },
-  "recipeWarningModal.trustSource": {
-    "defaultMessage": "केवल तभी आगे बढ़ें जब आप इस रेसिपी के स्रोत पर भरोसा करते हों।"
-  },
   "recipesView.addSchedule": {
     "defaultMessage": "शेड्यूल जोड़ें"
   },
@@ -3329,6 +3320,39 @@
   "recipesView.yamlFiles": {
     "defaultMessage": "YAML फ़ाइलें"
   },
+  "recipeWarningModal.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "recipeWarningModal.descriptionLabel": {
+    "defaultMessage": "विवरण:"
+  },
+  "recipeWarningModal.firstTimeDescription": {
+    "defaultMessage": "आप एक ऐसी रेसिपी को क्रियान्वित करने वाले हैं जिसे आपने पहले नहीं चलाया है।"
+  },
+  "recipeWarningModal.hiddenCharsWarning": {
+    "defaultMessage": "इस रेसिपी में छिपे हुए पात्र हैं जिन्हें आपकी सुरक्षा के लिए अनदेखा कर दिया जाएगा, क्योंकि उनका उपयोग दुर्भावनापूर्ण उद्देश्यों के लिए किया जा सकता है।"
+  },
+  "recipeWarningModal.instructionsLabel": {
+    "defaultMessage": "निर्देश:"
+  },
+  "recipeWarningModal.newRecipeWarningTitle": {
+    "defaultMessage": "⚠️ नई रेसिपी चेतावनी"
+  },
+  "recipeWarningModal.recipePreview": {
+    "defaultMessage": "पकाने की विधि पूर्वावलोकन:"
+  },
+  "recipeWarningModal.securityWarningTitle": {
+    "defaultMessage": "⚠️ सुरक्षा चेतावनी"
+  },
+  "recipeWarningModal.titleLabel": {
+    "defaultMessage": "शीर्षक:"
+  },
+  "recipeWarningModal.trustAndExecute": {
+    "defaultMessage": "भरोसा करें और अमल करें"
+  },
+  "recipeWarningModal.trustSource": {
+    "defaultMessage": "केवल तभी आगे बढ़ें जब आप इस रेसिपी के स्रोत पर भरोसा करते हों।"
+  },
   "resetProviderSection.resetButton": {
     "defaultMessage": "प्रदाता और मॉडल रीसेट करें"
   },
@@ -3359,11 +3383,11 @@
   "scheduleDetailView.cronExpression": {
     "defaultMessage": "क्रोन अभिव्यक्ति:"
   },
-  "scheduleDetailView.currentSession": {
-    "defaultMessage": "वर्तमान सत्र:"
-  },
   "scheduleDetailView.currentlyRunning": {
     "defaultMessage": "वर्तमान में चल रहा है"
+  },
+  "scheduleDetailView.currentSession": {
+    "defaultMessage": "वर्तमान सत्र:"
   },
   "scheduleDetailView.dir": {
     "defaultMessage": "निदेशक: {path}"
@@ -3428,12 +3452,6 @@
   "scheduleDetailView.noSessions": {
     "defaultMessage": "इस शेड्यूल के लिए कोई सत्र नहीं मिला."
   },
-  "scheduleDetailView.pauseSchedule": {
-    "defaultMessage": "शेड्यूल रोकें"
-  },
-  "scheduleDetailView.pauseUnpauseError": {
-    "defaultMessage": "रोकें/रोकें त्रुटि"
-  },
   "scheduleDetailView.paused": {
     "defaultMessage": "रुका हुआ"
   },
@@ -3442,6 +3460,12 @@
   },
   "scheduleDetailView.pausedWarning": {
     "defaultMessage": "यह शेड्यूल रुका हुआ है और स्वचालित रूप से नहीं चलेगा. इसे मैन्युअल रूप से ट्रिगर करने के लिए \"रन शेड्यूल नाउ\" का उपयोग करें या स्वचालित निष्पादन को फिर से शुरू करने के लिए अनपॉज़ करें।"
+  },
+  "scheduleDetailView.pauseSchedule": {
+    "defaultMessage": "शेड्यूल रोकें"
+  },
+  "scheduleDetailView.pauseUnpauseError": {
+    "defaultMessage": "रोकें/रोकें त्रुटि"
   },
   "scheduleDetailView.processStarted": {
     "defaultMessage": "प्रक्रिया प्रारंभ:"
@@ -3491,17 +3515,17 @@
   "scheduleDetailView.tokens": {
     "defaultMessage": "टोकन: {count}"
   },
-  "scheduleDetailView.unpauseSchedule": {
-    "defaultMessage": "शेड्यूल को फिर से रोकें"
-  },
   "scheduleDetailView.unpausedMsg": {
     "defaultMessage": "रोका गया \"{id}\""
   },
-  "scheduleDetailView.updateScheduleError": {
-    "defaultMessage": "अद्यतन शेड्यूल त्रुटि"
+  "scheduleDetailView.unpauseSchedule": {
+    "defaultMessage": "शेड्यूल को फिर से रोकें"
   },
   "scheduleDetailView.updatedMsg": {
     "defaultMessage": "अपडेट किया गया \"{id}\""
+  },
+  "scheduleDetailView.updateScheduleError": {
+    "defaultMessage": "अद्यतन शेड्यूल त्रुटि"
   },
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "शेड्यूल आईडी देखना: {id}"
@@ -3626,11 +3650,11 @@
   "schedulesView.pause": {
     "defaultMessage": "विराम"
   },
-  "schedulesView.pauseError": {
-    "defaultMessage": "शेड्यूल त्रुटि रोकें"
-  },
   "schedulesView.paused": {
     "defaultMessage": "रुका हुआ"
+  },
+  "schedulesView.pauseError": {
+    "defaultMessage": "शेड्यूल त्रुटि रोकें"
   },
   "schedulesView.refresh": {
     "defaultMessage": "ताज़ा करें"
@@ -3650,6 +3674,9 @@
   "schedulesView.schedulePausedMsg": {
     "defaultMessage": "सफलतापूर्वक रोका गया शेड्यूल \"{id}\""
   },
+  "schedulesView.scheduler": {
+    "defaultMessage": "अनुसूचक"
+  },
   "schedulesView.scheduleUnpaused": {
     "defaultMessage": "शेड्यूल अनरोका"
   },
@@ -3661,9 +3688,6 @@
   },
   "schedulesView.scheduleUpdatedMsg": {
     "defaultMessage": "सफलतापूर्वक अद्यतन शेड्यूल \"{id}\""
-  },
-  "schedulesView.scheduler": {
-    "defaultMessage": "अनुसूचक"
   },
   "schedulesView.unpauseError": {
     "defaultMessage": "शेड्यूल त्रुटि को रोकें"
@@ -3685,6 +3709,162 @@
   },
   "secureStorageNotice.defaultMessage": {
     "defaultMessage": "चाभियाँ किचेन में सुरक्षित रूप से संग्रहीत होती हैं"
+  },
+  "securityPreviewLaunchGuard.commandsLabel": {
+    "defaultMessage": "Reopen it from the repo root with one of these supported commands:"
+  },
+  "securityPreviewLaunchGuard.description": {
+    "defaultMessage": "{appName} is using fallback local state, so the visible chats, model selection, or working directory may differ from the isolated preview session."
+  },
+  "securityPreviewLaunchGuard.title": {
+    "defaultMessage": "This local preview was opened outside the supported launcher."
+  },
+  "securityRuntimeNotice.driftedRecipes": {
+    "defaultMessage": "Drifted recipes: {ids}"
+  },
+  "securityRuntimeNotice.driftedSkills": {
+    "defaultMessage": "Drifted skills: {ids}"
+  },
+  "securityRuntimeNotice.missingRecipes": {
+    "defaultMessage": "Missing recipes: {ids}"
+  },
+  "securityRuntimeNotice.missingSkills": {
+    "defaultMessage": "Missing skills: {ids}"
+  },
+  "securityRuntimeNotice.overviewDescription": {
+    "defaultMessage": "The current working directory is missing or has drifted from the bundled security skills or recipes. Some task starters may fall back to guided chat or run with older instructions."
+  },
+  "securityRuntimeNotice.overviewTitle": {
+    "defaultMessage": "Security runtime needs attention"
+  },
+  "securityRuntimeNotice.packagedReseedHint": {
+    "defaultMessage": "Packaged local preview should be reopened through the official launcher so missing assets can be seeded into the current working directory again."
+  },
+  "securityRuntimeNotice.repoResyncHint": {
+    "defaultMessage": "Repo preview can resync the mirrored runtime assets with `node scripts/sync-security-runtime-assets.mjs`."
+  },
+  "securityRuntimeNotice.skippedMissingDistro": {
+    "defaultMessage": "The bundled security distro source is unavailable, so Security Goose could not verify its local skill and recipe assets."
+  },
+  "securityRuntimeNotice.skippedMissingWorkingDir": {
+    "defaultMessage": "The working directory is unavailable, so Security Goose could not verify its local skill and recipe assets."
+  },
+  "securityRuntimeNotice.taskRecipeDrifted": {
+    "defaultMessage": "Recipe runtime file differs from the bundled source"
+  },
+  "securityRuntimeNotice.taskRecipeMissing": {
+    "defaultMessage": "Recipe runtime file missing in the current working directory"
+  },
+  "securityRuntimeNotice.taskSkillDrifted": {
+    "defaultMessage": "Skill asset differs from the bundled source"
+  },
+  "securityRuntimeNotice.taskSkillMissing": {
+    "defaultMessage": "Skill asset missing in the current working directory"
+  },
+  "securityTasks.alertInvestigation.description": {
+    "defaultMessage": "Triage a security alert for authenticity, scope, cause, and response actions."
+  },
+  "securityTasks.alertInvestigation.title": {
+    "defaultMessage": "Alert Investigation"
+  },
+  "securityTasks.badgePreview": {
+    "defaultMessage": "Preview"
+  },
+  "securityTasks.badgeReady": {
+    "defaultMessage": "Recipe"
+  },
+  "securityTasks.extensionDetailBlockedExternal": {
+    "defaultMessage": "Requires external proprietary API, account, or service agreement before it can be enabled."
+  },
+  "securityTasks.extensionDetailDisabledStub": {
+    "defaultMessage": "Catalog entry exists, but the real gateway/runtime is intentionally deferred."
+  },
+  "securityTasks.extensionDetailLocalPreview": {
+    "defaultMessage": "Can be enabled now with the current Goose-native local preview implementation."
+  },
+  "securityTasks.extensionOverviewDescription": {
+    "defaultMessage": "Enable real local preview chains from Settings → Extensions. Stub and blocked entries stay visible so task recommendations remain honest."
+  },
+  "securityTasks.extensionOverviewTitle": {
+    "defaultMessage": "Extension status"
+  },
+  "securityTasks.extensionStatusBlocked": {
+    "defaultMessage": "Blocked"
+  },
+  "securityTasks.extensionStatusDisabledStub": {
+    "defaultMessage": "Disabled stub"
+  },
+  "securityTasks.extensionStatusLocalPreview": {
+    "defaultMessage": "Local preview"
+  },
+  "securityTasks.iocAnalysis.description": {
+    "defaultMessage": "Investigate domain, IP, URL, hash, and other IOC clues in a structured way."
+  },
+  "securityTasks.iocAnalysis.title": {
+    "defaultMessage": "IOC Analysis"
+  },
+  "securityTasks.mappingRecipe": {
+    "defaultMessage": "Recipe mapping"
+  },
+  "securityTasks.mappingSkill": {
+    "defaultMessage": "Skill mapping"
+  },
+  "securityTasks.methodologyBoundary": {
+    "defaultMessage": "Current Goose UI can show an attached recipe, but it does not show explicit skill-load telemetry. Skill mappings remain guidance-first rather than confirmed runtime signals."
+  },
+  "securityTasks.openExtensions": {
+    "defaultMessage": "Open Extensions"
+  },
+  "securityTasks.primaryPathLabel": {
+    "defaultMessage": "Primary path"
+  },
+  "securityTasks.primaryPathRecipe": {
+    "defaultMessage": "Recipe runtime"
+  },
+  "securityTasks.primaryPathSkill": {
+    "defaultMessage": "Skill-guided prompt"
+  },
+  "securityTasks.recommendedExtensions": {
+    "defaultMessage": "Recommended extensions"
+  },
+  "securityTasks.reportWriting.description": {
+    "defaultMessage": "Turn findings into a structured report for operators, tickets, or leadership updates."
+  },
+  "securityTasks.reportWriting.title": {
+    "defaultMessage": "Report Writing"
+  },
+  "securityTasks.savedRecipesTitle": {
+    "defaultMessage": "Saved recipes"
+  },
+  "securityTasks.sectionDescription": {
+    "defaultMessage": "These entry points stay on top of Goose recipes and skills. Recipe-backed tasks start with the existing recipe runtime; the rest open skill-guided preview chats. Recommended extensions stay optional and keep their current real-preview, disabled-stub, or blocker state."
+  },
+  "securityTasks.sectionTitle": {
+    "defaultMessage": "Security task starters"
+  },
+  "securityTasks.startPreview": {
+    "defaultMessage": "Start guided chat"
+  },
+  "securityTasks.startRecipe": {
+    "defaultMessage": "Use recipe"
+  },
+  "securityTasks.vulnTriage.description": {
+    "defaultMessage": "Assess CVE, advisory, PoC, patch, and asset context into an actionable conclusion."
+  },
+  "securityTasks.vulnTriage.title": {
+    "defaultMessage": "Vulnerability Triage"
+  },
+  "securityTasks.webInvestigation.description": {
+    "defaultMessage": "Inspect a web page, extract suspicious indicators, and summarize follow-up leads."
+  },
+  "securityTasks.webInvestigation.title": {
+    "defaultMessage": "Web Investigation"
+  },
+  "securityTasks.wooyunLegacy.description": {
+    "defaultMessage": "Review business workflows with a WooYun-style logic investigation approach."
+  },
+  "securityTasks.wooyunLegacy.title": {
+    "defaultMessage": "WooYun-style Review"
   },
   "securityToggle.apiTokenDescription": {
     "defaultMessage": "वर्गीकरण सेवा के लिए प्रमाणीकरण टोकन"
@@ -3806,75 +3986,6 @@
   "sessionIndicators.streaming": {
     "defaultMessage": "स्ट्रीमिंग"
   },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "सत्र साझाकरण पहले ही कॉन्फ़िगर किया जा चुका है"
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "आधार URL"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "कनेक्शन विफल।"
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "कनेक्शन सफल!"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "कनेक्शन का समय समाप्त। सर्वर धीमा या पहुंच योग्य नहीं हो सकता है."
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "सत्र साझाकरण कॉन्फ़िगर किया गया है लेकिन पूरी तरह से ऑप्ट-इन है - आपके सत्र केवल तभी साझा किए जाते हैं जब आप स्पष्ट रूप से शेयर बटन पर क्लिक करते हैं।"
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "आप अपने सत्रों को दूसरों के साथ साझा करने के लिए सत्र साझाकरण सक्षम कर सकते हैं।"
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "सत्र साझाकरण सक्षम करें"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "अमान्य URL प्रारूप. कृपया वैध URL दर्ज करें (उदा. https://example.com/api)."
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "सर्वर त्रुटि: HTTP {status}। हो सकता है कि सर्वर ठीक से कॉन्फ़िगर न किया गया हो."
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "परीक्षण कनेक्शन"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "परीक्षण..."
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "कनेक्शन का परीक्षण किया जा रहा है..."
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "सत्र साझाकरण"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "अज्ञात त्रुटि उत्पन्न हुई."
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "सर्वर तक पहुंचने में असमर्थ. कृपया URL और अपने नेटवर्क कनेक्शन की जाँच करें।"
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "इस सत्र में कोई संदेश नहीं है"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "कोई संदेश नहीं मिला"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "सत्र विवरण लोड करने में त्रुटि"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "पुनः प्रयास करें"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "आप"
-  },
   "sessions.action.delete": {
     "defaultMessage": "सत्र हटाएँ"
   },
@@ -3932,6 +4043,9 @@
   "sessions.import": {
     "defaultMessage": "आयात सत्र"
   },
+  "sessions.importing": {
+    "defaultMessage": "आयात किया जा रहा है..."
+  },
   "sessions.importNostr": {
     "defaultMessage": "लिंक आयात करें"
   },
@@ -3943,9 +4057,6 @@
   },
   "sessions.importNostr.title": {
     "defaultMessage": "नोस्ट्र सत्र आयात करें"
-  },
-  "sessions.importing": {
-    "defaultMessage": "आयात किया जा रहा है..."
   },
   "sessions.loadingMore": {
     "defaultMessage": "अधिक सत्र लोड हो रहे हैं..."
@@ -3974,26 +4085,26 @@
   "sessions.toast.copied": {
     "defaultMessage": "क्लिपबोर्ड पर कॉपी किया गया"
   },
-  "sessions.toast.deleteFailed": {
-    "defaultMessage": "सत्र \"{name}\" हटाने में विफल: {error}"
-  },
   "sessions.toast.deleted": {
     "defaultMessage": "सत्र सफलतापूर्वक हटा दिया गया"
   },
-  "sessions.toast.duplicateFailed": {
-    "defaultMessage": "सत्र की नकल करने में विफल: {error}"
+  "sessions.toast.deleteFailed": {
+    "defaultMessage": "सत्र \"{name}\" हटाने में विफल: {error}"
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "सत्र \"{name}\" सफलतापूर्वक दोहराया गया"
   },
+  "sessions.toast.duplicateFailed": {
+    "defaultMessage": "सत्र की नकल करने में विफल: {error}"
+  },
   "sessions.toast.exported": {
     "defaultMessage": "सत्र सफलतापूर्वक निर्यात किया गया"
   },
-  "sessions.toast.importFailed": {
-    "defaultMessage": "सत्र आयात करने में विफल: {error}"
-  },
   "sessions.toast.imported": {
     "defaultMessage": "सत्र सफलतापूर्वक आयात किया गया"
+  },
+  "sessions.toast.importFailed": {
+    "defaultMessage": "सत्र आयात करने में विफल: {error}"
   },
   "sessions.toast.shareNostr": {
     "defaultMessage": "एन्क्रिप्टेड नोस्ट्र शेयर लिंक बनाया गया"
@@ -4001,17 +4112,86 @@
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Nostr शेयर लिंक बनाने में विफल: {error}"
   },
+  "sessions.toast.updated": {
+    "defaultMessage": "सत्र विवरण सफलतापूर्वक अपडेट किया गया"
+  },
   "sessions.toast.updateFailed": {
     "defaultMessage": "सत्र विवरण अद्यतन करने में विफल: {error}"
   },
-  "sessions.toast.updated": {
-    "defaultMessage": "सत्र विवरण सफलतापूर्वक अपडेट किया गया"
+  "sessionSharingSection.alreadyConfigured": {
+    "defaultMessage": "सत्र साझाकरण पहले ही कॉन्फ़िगर किया जा चुका है"
+  },
+  "sessionSharingSection.baseUrl": {
+    "defaultMessage": "आधार URL"
+  },
+  "sessionSharingSection.connectionFailed": {
+    "defaultMessage": "कनेक्शन विफल।"
+  },
+  "sessionSharingSection.connectionSuccess": {
+    "defaultMessage": "कनेक्शन सफल!"
+  },
+  "sessionSharingSection.connectionTimedOut": {
+    "defaultMessage": "कनेक्शन का समय समाप्त। सर्वर धीमा या पहुंच योग्य नहीं हो सकता है."
+  },
+  "sessionSharingSection.descriptionConfigured": {
+    "defaultMessage": "सत्र साझाकरण कॉन्फ़िगर किया गया है लेकिन पूरी तरह से ऑप्ट-इन है - आपके सत्र केवल तभी साझा किए जाते हैं जब आप स्पष्ट रूप से शेयर बटन पर क्लिक करते हैं।"
+  },
+  "sessionSharingSection.descriptionDefault": {
+    "defaultMessage": "आप अपने सत्रों को दूसरों के साथ साझा करने के लिए सत्र साझाकरण सक्षम कर सकते हैं।"
+  },
+  "sessionSharingSection.enableSharing": {
+    "defaultMessage": "सत्र साझाकरण सक्षम करें"
+  },
+  "sessionSharingSection.invalidUrl": {
+    "defaultMessage": "अमान्य URL प्रारूप. कृपया वैध URL दर्ज करें (उदा. https://example.com/api)."
+  },
+  "sessionSharingSection.serverError": {
+    "defaultMessage": "सर्वर त्रुटि: HTTP {status}। हो सकता है कि सर्वर ठीक से कॉन्फ़िगर न किया गया हो."
+  },
+  "sessionSharingSection.testConnection": {
+    "defaultMessage": "परीक्षण कनेक्शन"
+  },
+  "sessionSharingSection.testing": {
+    "defaultMessage": "परीक्षण..."
+  },
+  "sessionSharingSection.testingConnection": {
+    "defaultMessage": "कनेक्शन का परीक्षण किया जा रहा है..."
+  },
+  "sessionSharingSection.title": {
+    "defaultMessage": "सत्र साझाकरण"
+  },
+  "sessionSharingSection.unknownError": {
+    "defaultMessage": "अज्ञात त्रुटि उत्पन्न हुई."
+  },
+  "sessionSharingSection.unreachableServer": {
+    "defaultMessage": "सर्वर तक पहुंचने में असमर्थ. कृपया URL और अपने नेटवर्क कनेक्शन की जाँच करें।"
+  },
+  "sessionSharingSection.urlPlaceholder": {
+    "defaultMessage": "https://example.com/api"
   },
   "sessionsView.error.failedToLoad": {
     "defaultMessage": "सत्र विवरण लोड करने में विफल. कृपया बाद में पुन: प्रयास करें।"
   },
   "sessionsView.loading": {
     "defaultMessage": "लोड हो रहा है..."
+  },
+  "sessionViewComponents.empty.description": {
+    "defaultMessage": "इस सत्र में कोई संदेश नहीं है"
+  },
+  "sessionViewComponents.empty.title": {
+    "defaultMessage": "कोई संदेश नहीं मिला"
+  },
+  "sessionViewComponents.error.loading": {
+    "defaultMessage": "सत्र विवरण लोड करने में त्रुटि"
+  },
+  "sessionViewComponents.error.tryAgain": {
+    "defaultMessage": "पुनः प्रयास करें"
+  },
+  "sessionViewComponents.role.assistant": {
+    "defaultMessage": "Goose"
+  },
+  "sessionViewComponents.role.user": {
+    "defaultMessage": "आप"
   },
   "settings.appearance.description": {
     "defaultMessage": "कॉन्फ़िगर करें कि goose आपके सिस्टम पर कैसे दिखाई देता है"
@@ -4181,14 +4361,119 @@
   "skillsView.adjustSearchTerms": {
     "defaultMessage": "अपने खोज शब्दों को समायोजित करने का प्रयास करें"
   },
-  "skillsView.comingSoon": {
-    "defaultMessage": "जल्द आ रहा है"
+  "skillsView.builtInDetailDescription": {
+    "defaultMessage": "This is a Goose built-in skill. Security Goose can list it, but there is no current-project skill package to inspect or restore."
+  },
+  "skillsView.bundledSkillsTitle": {
+    "defaultMessage": "Bundled Skills"
+  },
+  "skillsView.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "skillsView.currentProjectStatus": {
+    "defaultMessage": "Current project"
+  },
+  "skillsView.deleteAction": {
+    "defaultMessage": "Delete"
+  },
+  "skillsView.deleteSkill": {
+    "defaultMessage": "Delete local skill"
+  },
+  "skillsView.deleteSkillConfirmMessage": {
+    "defaultMessage": "Delete the current-project skill \"{skillName}\" from .agents/skills? This does not touch bundled sources or other directories."
+  },
+  "skillsView.deleteSkillConfirmTitle": {
+    "defaultMessage": "Delete local skill?"
+  },
+  "skillsView.deleteSkillSuccessMessage": {
+    "defaultMessage": "Removed \"{skillName}\" from the current project runtime."
+  },
+  "skillsView.deleteSkillSuccessTitle": {
+    "defaultMessage": "Local skill deleted"
+  },
+  "skillsView.deleteSkillErrorTitle": {
+    "defaultMessage": "Could not delete local skill"
+  },
+  "skillsView.deleteSkillErrorMessage": {
+    "defaultMessage": "Could not remove the selected local skill from the current project runtime."
+  },
+  "skillsView.descriptionLabel": {
+    "defaultMessage": "Description"
+  },
+  "skillsView.detailDescription": {
+    "defaultMessage": "Review the active skill package, current-project runtime state, and bundled source reference for this skill."
+  },
+  "skillsView.detailsAction": {
+    "defaultMessage": "Details"
+  },
+  "skillsView.detailTitle": {
+    "defaultMessage": "{skillName} details"
   },
   "skillsView.errorLoadingSkills": {
     "defaultMessage": "कौशल लोड करने में त्रुटि"
   },
+  "skillsView.importConflictMessage": {
+    "defaultMessage": "A skill named \"{skillName}\" already exists in the current project. Overwrite it with the selected package?"
+  },
+  "skillsView.importConflictTitle": {
+    "defaultMessage": "Overwrite existing skill?"
+  },
+  "skillsView.importSkillErrorTitle": {
+    "defaultMessage": "Skill import failed"
+  },
+  "skillsView.importSkillErrorMessage": {
+    "defaultMessage": "Could not import the selected skill package."
+  },
+  "skillsView.importSkillSuccessMessage": {
+    "defaultMessage": "Installed \"{skillName}\" into the current project runtime."
+  },
+  "skillsView.importSkillSuccessTitle": {
+    "defaultMessage": "Skill imported"
+  },
+  "skillsView.invalidRecoveryInvalidFrontmatter": {
+    "defaultMessage": "Fix the YAML frontmatter syntax in SKILL.md, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryLabel": {
+    "defaultMessage": "Recovery suggestion"
+  },
+  "skillsView.invalidRecoveryMissingFrontmatter": {
+    "defaultMessage": "Add YAML frontmatter with at least a non-empty name field to SKILL.md, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryMissingName": {
+    "defaultMessage": "Add a non-empty name field to SKILL.md frontmatter, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryMissingSkillMd": {
+    "defaultMessage": "Add SKILL.md to the skill folder root, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryNameMismatch": {
+    "defaultMessage": "Rename the folder or update the frontmatter name so both match, then re-import or restore the skill."
+  },
+  "skillsView.invalidRecoveryUnsupported": {
+    "defaultMessage": "Repair the local package layout, then re-import it as a skill folder or zip."
+  },
+  "skillsView.invalidSkillDescription": {
+    "defaultMessage": "This current-project skill package is missing a valid SKILL.md frontmatter name or directory layout."
+  },
+  "skillsView.invalidSkillPackageStatus": {
+    "defaultMessage": "Invalid skill package"
+  },
+  "skillsView.loadingSkillFile": {
+    "defaultMessage": "Loading SKILL.md…"
+  },
+  "skillsView.localSkillsTitle": {
+    "defaultMessage": "My Skills / Local Skills"
+  },
+  "skillsView.missingRuntimeStatus": {
+    "defaultMessage": "Missing runtime"
+  },
   "skillsView.noMatchingSkills": {
     "defaultMessage": "कोई मिलान कौशल नहीं मिला"
+  },
+  "skillsView.noSecuritySkillsDescription": {
+    "defaultMessage": "This Security Goose build only shows Goose built-in skills and bundled Security Goose security skills. If the list is empty, sync .agents/skills and reopen the official preview entry."
+  },
+  "skillsView.noSkillFileAvailable": {
+    "defaultMessage": "No SKILL.md file is available for this skill source."
   },
   "skillsView.noSkillsDescription": {
     "defaultMessage": "कौशल SKILL.md फ़ाइलों से ~/.config/agents/skills/, .goose/skills/, या अन्य समर्थित निर्देशिकाओं में लोड किए जाते हैं।"
@@ -4196,8 +4481,86 @@
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "कोई कौशल स्थापित नहीं"
   },
+  "skillsView.noSkillsInstalledDetail": {
+    "defaultMessage": "The current project has no managed local skills yet. Import a skill folder or zip to install it into .agents/skills."
+  },
+  "skillsView.ok": {
+    "defaultMessage": "OK"
+  },
+  "skillsView.overriddenLocallyStatus": {
+    "defaultMessage": "Overridden locally"
+  },
+  "skillsView.overrideBundledWarning": {
+    "defaultMessage": "This will replace the current-project runtime copy of a bundled Security Goose skill. You can restore the bundled version later."
+  },
+  "skillsView.overwriteAction": {
+    "defaultMessage": "Overwrite"
+  },
+  "skillsView.overwriteLocalWarning": {
+    "defaultMessage": "This will replace the existing current-project skill package in .agents/skills."
+  },
+  "skillsView.restoreBundledSkill": {
+    "defaultMessage": "Restore bundled version"
+  },
+  "skillsView.restoreConfirmMessage": {
+    "defaultMessage": "Restore the bundled Security Goose skill \"{skillName}\" into the current project runtime and discard the local override?"
+  },
+  "skillsView.restoreConfirmTitle": {
+    "defaultMessage": "Restore bundled version?"
+  },
+  "skillsView.restoreShortAction": {
+    "defaultMessage": "Restore"
+  },
+  "skillsView.restoreSkillSuccessMessage": {
+    "defaultMessage": "Restored bundled skill \"{skillName}\" into the current project runtime."
+  },
+  "skillsView.restoreSkillSuccessTitle": {
+    "defaultMessage": "Bundled skill restored"
+  },
+  "skillsView.restoreSkillErrorTitle": {
+    "defaultMessage": "Could not restore bundled skill"
+  },
+  "skillsView.restoreSkillErrorMessage": {
+    "defaultMessage": "Could not restore the bundled skill into the current project runtime."
+  },
+  "skillsView.revealCurrentProjectFolder": {
+    "defaultMessage": "Reveal current-project folder"
+  },
+  "skillsView.revealCurrentProjectFolderSuccessTitle": {
+    "defaultMessage": "Skill folder opened"
+  },
+  "skillsView.revealCurrentProjectFolderSuccessMessage": {
+    "defaultMessage": "Opened \"{directoryPath}\" in Finder."
+  },
+  "skillsView.revealCurrentProjectFolderErrorTitle": {
+    "defaultMessage": "Could not open skill folder"
+  },
+  "skillsView.revealCurrentProjectFolderErrorMessage": {
+    "defaultMessage": "Could not open the selected skill folder."
+  },
+  "skillsView.runtimeDiagnosisInvalid": {
+    "defaultMessage": "Current-project skill package is invalid and may not be discoverable by Goose."
+  },
+  "skillsView.runtimeDiagnosisLabel": {
+    "defaultMessage": "Runtime diagnosis"
+  },
+  "skillsView.runtimeDiagnosisLocalOverride": {
+    "defaultMessage": "Current-project runtime copy differs from the bundled Security Goose source."
+  },
+  "skillsView.runtimeDiagnosisMissingRuntime": {
+    "defaultMessage": "Bundled Security Goose source exists, but the current project runtime copy is missing."
+  },
+  "skillsView.scopedBuiltInStatus": {
+    "defaultMessage": "Built-in"
+  },
   "skillsView.searchSkillsPlaceholder": {
     "defaultMessage": "खोज कौशल..."
+  },
+  "skillsView.securitySkillsDescription": {
+    "defaultMessage": "This Security Goose build only shows Goose built-in skills and bundled Security Goose security skills. {shortcut} to search."
+  },
+  "skillsView.skillFileLabel": {
+    "defaultMessage": "SKILL.md"
   },
   "skillsView.skillsDescription": {
     "defaultMessage": "स्थापित कौशल देखें जो Goose क्षमताओं का विस्तार करते हैं। {shortcut} खोजने के लिए."
@@ -4207,6 +4570,9 @@
   },
   "skillsView.tryAgain": {
     "defaultMessage": "पुनः प्रयास करें"
+  },
+  "skillsView.unavailableValue": {
+    "defaultMessage": "Unavailable"
   },
   "spellcheckToggle.description": {
     "defaultMessage": "चैट इनपुट में वर्तनी जांचें. प्रभावी होने के लिए पुनरारंभ की आवश्यकता है।"
@@ -4452,10 +4818,10 @@
     "defaultMessage": "अन्य प्रदाता का उपयोग करें"
   },
   "telemetryConsentPrompt.description": {
-    "defaultMessage": "क्या आप goose को बेहतर बनाने में सहायता के लिए अनाम उपयोग डेटा साझा करना चाहेंगे? हम कभी भी आपकी बातचीत, कोड या व्यक्तिगत डेटा एकत्र नहीं करते हैं।"
+    "defaultMessage": "क्या आप {appName} को बेहतर बनाने में सहायता के लिए अनाम उपयोग डेटा साझा करना चाहेंगे? हम कभी भी आपकी बातचीत, कोड या व्यक्तिगत डेटा एकत्र नहीं करते हैं।"
   },
   "telemetryConsentPrompt.heading": {
-    "defaultMessage": "goose को बेहतर बनाने में सहायता करें"
+    "defaultMessage": "{appName} को बेहतर बनाने में सहायता करें"
   },
   "telemetryConsentPrompt.learnMore": {
     "defaultMessage": "और जानें"
@@ -4502,11 +4868,11 @@
   "themeSelector.theme": {
     "defaultMessage": "थीम"
   },
-  "toolApprovalButtons.allowOnce": {
-    "defaultMessage": "एक बार अनुमति दें"
-  },
   "toolApprovalButtons.allowedOnce": {
     "defaultMessage": "एक बार अनुमति दी गई"
+  },
+  "toolApprovalButtons.allowOnce": {
+    "defaultMessage": "एक बार अनुमति दें"
   },
   "toolApprovalButtons.alwaysAllow": {
     "defaultMessage": "हमेशा अनुमति दें"
@@ -4619,11 +4985,11 @@
   "tunnelSection.showQrCode": {
     "defaultMessage": "QR कोड दिखाएँ"
   },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "सुरंग प्रारंभ करें"
-  },
   "tunnelSection.starting": {
     "defaultMessage": "प्रारंभ..."
+  },
+  "tunnelSection.startTunnel": {
+    "defaultMessage": "सुरंग प्रारंभ करें"
   },
   "tunnelSection.statusDisabled": {
     "defaultMessage": "सुरंग अक्षम है"
@@ -4667,14 +5033,14 @@
   "updateSection.currentVersion": {
     "defaultMessage": "वर्तमान संस्करण"
   },
-  "updateSection.downloadReady": {
-    "defaultMessage": "अपडेट डाउनलोड हो गया है और इंस्टॉल करने के लिए तैयार है!"
-  },
   "updateSection.downloadingProgress": {
     "defaultMessage": "अपडेट डाउनलोड हो रहा है... {percent}%"
   },
   "updateSection.downloadingUpdate": {
     "defaultMessage": "अपडेट डाउनलोड हो रहा है..."
+  },
+  "updateSection.downloadReady": {
+    "defaultMessage": "अपडेट डाउनलोड हो गया है और इंस्टॉल करने के लिए तैयार है!"
   },
   "updateSection.installAndRestart": {
     "defaultMessage": "स्थापित करें और पुनः प्रारंभ करें"
@@ -4688,6 +5054,12 @@
   "updateSection.loading": {
     "defaultMessage": "लोड हो रहा है..."
   },
+  "updateSection.localPreviewDisabled": {
+    "defaultMessage": "Local preview builds do not check signed release updates."
+  },
+  "updateSection.localPreviewDisabledDetail": {
+    "defaultMessage": "Use the official preview launcher for local testing. Signed release packages keep the real update channel."
+  },
   "updateSection.manualInstallNote": {
     "defaultMessage": "डाउनलोड करने के बाद, आपको अपडेट को मैन्युअल रूप से इंस्टॉल करना होगा।"
   },
@@ -4700,11 +5072,14 @@
   "updateSection.readyInstallManual": {
     "defaultMessage": "✓ अपडेट तैयार है! इंस्टॉलेशन निर्देशों के लिए \"इंस्टॉल करें और पुनरारंभ करें\" पर क्लिक करें।"
   },
-  "updateSection.upToDate": {
-    "defaultMessage": "(अप टू डेट)"
-  },
   "updateSection.updateAvailable": {
     "defaultMessage": "उपलब्ध अद्यतन!"
+  },
+  "updateSection.updatesDisabled": {
+    "defaultMessage": "Release update checks are unavailable in this build."
+  },
+  "updateSection.upToDate": {
+    "defaultMessage": "(अप टू डेट)"
   },
   "updateSection.versionAvailable": {
     "defaultMessage": "→ {version} उपलब्ध"
@@ -4756,5 +5131,14 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "संपादित संदेश के साथ एक नया सत्र बनाएं"
+  },
+  "skillsView.skillFolderLabel": {
+    "defaultMessage": "Skill folder"
+  },
+  "skillsView.securitySkillsDiscoveryDescription": {
+    "defaultMessage": "The / menu only shows skills the current Goose runtime has discovered for this session. Newly imported local skills usually appear there after you reopen the session."
+  },
+  "skillsView.skillFileBodyLabel": {
+    "defaultMessage": "SKILL.md body"
   }
 }

@@ -1,0 +1,129 @@
+name: security-goose-v1a-checks
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/security-goose-v1a-checks.yml"
+      - ".github/workflows/bundle-desktop.yml"
+      - ".github/workflows/bundle-desktop-intel.yml"
+      - ".github/workflows/bundle-desktop-manual.yml"
+      - ".github/workflows/release.yml"
+      - ".agents/skills/**"
+      - ".goose/recipes/**"
+      - "distro/security-cn/**"
+      - "docs/v1a/**"
+      - "scripts/check-security-apple-signing-env.mjs"
+      - "scripts/check-security-macos-bundle.sh"
+      - "scripts/check-security-v1a.sh"
+      - "scripts/render-security-macos-release-evidence.mjs"
+      - "scripts/run-security-packaged-smoke.sh"
+      - "scripts/sync-security-runtime-assets.mjs"
+      - "scripts/validate-security-distro.mjs"
+      - "ui/desktop/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/security-goose-v1a-checks.yml"
+      - ".github/workflows/bundle-desktop.yml"
+      - ".github/workflows/bundle-desktop-intel.yml"
+      - ".github/workflows/bundle-desktop-manual.yml"
+      - ".github/workflows/release.yml"
+      - ".agents/skills/**"
+      - ".goose/recipes/**"
+      - "distro/security-cn/**"
+      - "docs/v1a/**"
+      - "scripts/check-security-apple-signing-env.mjs"
+      - "scripts/check-security-macos-bundle.sh"
+      - "scripts/check-security-v1a.sh"
+      - "scripts/render-security-macos-release-evidence.mjs"
+      - "scripts/run-security-packaged-smoke.sh"
+      - "scripts/sync-security-runtime-assets.mjs"
+      - "scripts/validate-security-distro.mjs"
+      - "ui/desktop/**"
+  workflow_dispatch:
+
+jobs:
+  security-goose-v1a:
+    name: Security Goose V1a Checks
+    runs-on: macos-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Install UI workspace dependencies
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          CI=1 pnpm --dir ui install --frozen-lockfile --ignore-scripts
+
+      - name: Build UI SDK
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          pnpm --dir ui --filter @aaif/goose-sdk run build
+
+      - name: Sync Security runtime assets
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          node scripts/sync-security-runtime-assets.mjs
+
+      - name: Smoke Security extension wiring
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          node scripts/smoke-security-extensions.mjs
+
+      - name: Check Apple signing boundary
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          node scripts/check-security-apple-signing-env.mjs
+
+      - name: Run desktop V1a tests
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          pnpm --dir ui/desktop exec vitest run \
+            src/branding/distro.test.ts \
+            src/branding/productText.test.ts \
+            src/macosBundleMode.test.ts \
+            src/macosSigningReadiness.test.ts \
+            src/components/settings/models/predefinedModelsUtils.test.ts \
+            src/components/settings/extensions/bundled-extensions.test.ts \
+            src/components/settings/extensions/securityBundledExtensions.test.ts \
+            src/security/taskCatalog.test.ts \
+            src/securityRuntimeBootstrap.test.ts \
+            src/components/LauncherView.test.tsx \
+            src/components/recipes/RecipesView.test.tsx
+
+      - name: Run desktop typecheck
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          pnpm --dir ui/desktop exec tsc --noEmit
+
+      - name: Run desktop lint
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          pnpm --dir ui/desktop run lint:check
+
+      - name: Validate Security distro
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          node scripts/validate-security-distro.mjs
+
+      - name: Check tracked diffs
+        shell: bash
+        run: git diff --check
+
+      - name: Run packaged bundle smoke (builds repo goosed if needed)
+        shell: bash
+        run: |
+          source bin/activate-hermit
+          ./scripts/run-security-packaged-smoke.sh

@@ -1,4 +1,4 @@
-import { Session, startAgent, ExtensionConfig } from './api';
+import { Session, startAgent, ExtensionConfig, readConfig, setConfigProvider } from './api';
 import type { setViewType } from './hooks/useNavigation';
 import {
   getExtensionConfigsWithOverrides,
@@ -8,6 +8,7 @@ import {
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
 import { decodeRecipe, Recipe } from './recipe';
+import { getConfiguredDefaultPredefinedModel } from './components/settings/models/predefinedModelsUtils';
 
 export function shouldShowNewChatTitle(session: Session): boolean {
   if (session.recipe) {
@@ -31,6 +32,62 @@ export function resumeSession(session: Session, setView: setViewType) {
   setView('pair', {
     disableAnimation: true,
     resumeSessionId: session.id,
+  });
+}
+
+function getDesktopFallbackModelAndProvider(): { provider: string; model: string } {
+  const defaultPredefinedModel = getConfiguredDefaultPredefinedModel();
+  const configuredProvider = window.appConfig?.get('GOOSE_DEFAULT_PROVIDER');
+  const configuredModel = window.appConfig?.get('GOOSE_DEFAULT_MODEL');
+
+  return {
+    provider:
+      typeof configuredProvider === 'string' && configuredProvider.trim()
+        ? configuredProvider.trim()
+        : (defaultPredefinedModel?.provider ?? ''),
+    model:
+      typeof configuredModel === 'string' && configuredModel.trim()
+        ? configuredModel.trim()
+        : (defaultPredefinedModel?.name ?? ''),
+  };
+}
+
+async function readConfigString(key: string): Promise<string> {
+  const response = await readConfig({
+    body: {
+      key,
+      is_secret: false,
+    },
+  });
+
+  return typeof response.data === 'string' ? response.data.trim() : '';
+}
+
+export async function ensureSessionProviderAndModelConfigured(): Promise<void> {
+  const [currentProvider, currentModel] = await Promise.all([
+    readConfigString('GOOSE_PROVIDER'),
+    readConfigString('GOOSE_MODEL'),
+  ]);
+
+  if (currentProvider && currentModel) {
+    return;
+  }
+
+  const fallback = getDesktopFallbackModelAndProvider();
+  const nextProvider = currentProvider || fallback.provider;
+  const nextModel =
+    currentModel || (currentProvider && currentProvider !== fallback.provider ? '' : fallback.model);
+
+  if (!nextProvider || !nextModel) {
+    return;
+  }
+
+  await setConfigProvider({
+    body: {
+      provider: nextProvider,
+      model: nextModel,
+    },
+    throwOnError: true,
   });
 }
 
@@ -69,6 +126,8 @@ export async function createSession(
       clearExtensionOverrides();
     }
   }
+
+  await ensureSessionProviderAndModelConfigured();
 
   const newAgent = await startAgent({
     body,

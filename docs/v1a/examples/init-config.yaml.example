@@ -1,0 +1,10 @@
+# Goose core / goosed first-run defaults.
+# Desktop locale and predefined model list must be injected through environment
+# variables at package time or local preview startup.
+GOOSE_PROVIDER: openai
+OPENAI_BASE_URL: https://tokenhub.tencentmaas.com/plan/v3
+OPENAI_API_KEY: ${TP_ENT_API_KEY}
+GOOSE_MODEL: deepseek-v4-flash
+GOOSE_TELEMETRY_ENABLED: true
+GOOSE_POSTHOG_API_HOST: https://us.i.posthog.com
+GOOSE_POSTHOG_PROJECT_API_KEY: phc_yS3ZTSB2WBmKf6aiBHstbfV4Nc2cxc7KxVavBxNjBBSn

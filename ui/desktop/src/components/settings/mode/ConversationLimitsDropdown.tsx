@@ -14,7 +14,7 @@ const i18n = defineMessages({
   },
   maxTurnsDescription: {
     id: 'conversationLimitsDropdown.maxTurnsDescription',
-    defaultMessage: 'Maximum agent turns before Goose asks for user input',
+    defaultMessage: 'Maximum agent turns before the assistant asks for user input',
   },
 });
 

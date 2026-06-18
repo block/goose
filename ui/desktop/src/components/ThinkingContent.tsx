@@ -22,7 +22,11 @@ export default function ThinkingContent({ content, isExpanded }: ThinkingContent
   const expanded = manualToggle !== null ? manualToggle : isExpanded;
 
   return (
-    <Collapsible open={expanded} onOpenChange={(open) => setManualToggle(open)} className="mb-2">
+    <Collapsible
+      open={expanded}
+      onOpenChange={(open: boolean) => setManualToggle(open)}
+      className="mb-2"
+    >
       <CollapsibleTrigger className="flex items-center gap-1.5 text-xs text-text-secondary hover:text-text-primary transition-colors cursor-pointer">
         <Expand size={3} isExpanded={expanded} />
         <span className="italic">Thinking</span>

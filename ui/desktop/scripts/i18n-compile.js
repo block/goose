@@ -11,10 +11,13 @@ const projectDir = path.join(__dirname, '..');
 const formatjs = require.resolve('@formatjs/cli/bin/formatjs');
 const messagesDir = path.join(projectDir, 'src', 'i18n', 'messages');
 const compiledDir = path.join(projectDir, 'src', 'i18n', 'compiled');
+const supportedLocales = new Set(['en', 'zh-CN']);
 
 fs.mkdirSync(compiledDir, { recursive: true });
 
-const files = fs.readdirSync(messagesDir).filter((f) => f.endsWith('.json'));
+const files = fs
+  .readdirSync(messagesDir)
+  .filter((f) => f.endsWith('.json') && supportedLocales.has(path.basename(f, '.json')));
 
 for (const file of files) {
   const locale = path.basename(file, '.json');

@@ -16,11 +16,11 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   title: {
     id: 'createRecipeFromSession.title',
-    defaultMessage: 'Create Recipe from Session',
+    defaultMessage: 'Save as Task Template',
   },
   subtitle: {
     id: 'createRecipeFromSession.subtitle',
-    defaultMessage: 'Create a reusable recipe based on your current conversation.',
+    defaultMessage: 'Create a reusable task template based on your current conversation.',
   },
   analyzingTitle: {
     id: 'createRecipeFromSession.analyzingTitle',
@@ -40,7 +40,7 @@ const i18n = defineMessages({
   },
   stageGenerating: {
     id: 'createRecipeFromSession.stageGenerating',
-    defaultMessage: 'Generating recipe structure...',
+    defaultMessage: 'Generating task template structure...',
   },
   stageFinalizing: {
     id: 'createRecipeFromSession.stageFinalizing',
@@ -64,19 +64,20 @@ const i18n = defineMessages({
   },
   createRecipe: {
     id: 'createRecipeFromSession.createRecipe',
-    defaultMessage: 'Create Recipe',
+    defaultMessage: 'Save Task Template',
   },
   createAndRunRecipe: {
     id: 'createRecipeFromSession.createAndRunRecipe',
-    defaultMessage: 'Create & Run Recipe',
+    defaultMessage: 'Save & Start Task',
   },
   failedToCreateTitle: {
     id: 'createRecipeFromSession.failedToCreateTitle',
-    defaultMessage: 'Failed to create recipe',
+    defaultMessage: 'Failed to create task template',
   },
   failedToCreateDefaultMsg: {
     id: 'createRecipeFromSession.failedToCreateDefaultMsg',
-    defaultMessage: 'An unexpected error occurred while creating the recipe. Please try again.',
+    defaultMessage:
+      'An unexpected error occurred while creating the task template. Please try again.',
   },
 });
 

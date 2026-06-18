@@ -12,7 +12,7 @@ use goose::config::declarative_providers::LoadedProvider;
 use goose::config::paths::Paths;
 use goose::config::ExtensionEntry;
 use goose::config::{Config, ConfigError};
-use goose::custom_requests::SourceType;
+use goose::custom_requests::{SourceEntry, SourceType};
 use goose::model::ModelConfig;
 use goose::providers::base::{ModelInfo, ProviderMetadata, ProviderType};
 use goose::providers::canonical::maybe_get_canonical_model;
@@ -196,6 +196,8 @@ pub struct SlashCommand {
     pub command: String,
     pub help: String,
     pub command_type: CommandType,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub input_hint: Option<String>,
 }
 #[derive(Serialize, ToSchema)]
 pub struct SlashCommandsResponse {
@@ -1018,6 +1020,38 @@ pub struct SlashCommandsQuery {
     pub working_dir: Option<String>,
 }
 
+const SECURITY_GOOSE_VISIBLE_SKILLS_SCOPE_ENV: &str = "GOOSE_VISIBLE_SKILLS_SCOPE";
+const SECURITY_GOOSE_VISIBLE_SKILLS_SCOPE: &str = "builtin-and-security";
+const SECURITY_GOOSE_VISIBLE_SKILL_NAMES: &[&str] = &[
+    "alert-triage",
+    "asset-risk-summary",
+    "ioc-analysis",
+    "report-writing",
+    "vuln-triage",
+    "wooyun-legacy",
+];
+
+fn security_goose_skill_visibility_scoped() -> bool {
+    std::env::var(SECURITY_GOOSE_VISIBLE_SKILLS_SCOPE_ENV)
+        .ok()
+        .as_deref()
+        == Some(SECURITY_GOOSE_VISIBLE_SKILLS_SCOPE)
+}
+
+fn filter_visible_skill_sources(sources: Vec<SourceEntry>, scoped: bool) -> Vec<SourceEntry> {
+    if !scoped {
+        return sources;
+    }
+
+    sources
+        .into_iter()
+        .filter(|source| {
+            matches!(source.source_type, SourceType::BuiltinSkill)
+                || SECURITY_GOOSE_VISIBLE_SKILL_NAMES.contains(&source.name.as_str())
+        })
+        .collect()
+}
+
 #[utoipa::path(
     get,
     path = "/config/slash_commands",
@@ -1035,6 +1069,7 @@ pub async fn get_slash_commands(
             command: command.command.clone(),
             help: command.recipe_path.clone(),
             command_type: CommandType::Recipe,
+            input_hint: None,
         })
         .collect();
 
@@ -1043,15 +1078,21 @@ pub async fn get_slash_commands(
             command: cmd_def.name.to_string(),
             help: cmd_def.description.to_string(),
             command_type: CommandType::Builtin,
+            input_hint: None,
         });
     }
 
     let working_dir = query.working_dir.map(std::path::PathBuf::from);
-    for source in goose::skills::list_installed_skills(working_dir.as_deref()) {
+    for source in filter_visible_skill_sources(
+        goose::skills::list_installed_skills(working_dir.as_deref()),
+        security_goose_skill_visibility_scoped(),
+    ) {
+        let input_hint = goose::skills::skill_argument_hint(&source);
         commands.push(SlashCommand {
             command: source.name,
             help: source.description,
             command_type: CommandType::Skill,
+            input_hint,
         });
     }
 
@@ -1070,6 +1111,7 @@ pub async fn get_slash_commands(
                 command: source.name,
                 help: source.description,
                 command_type: CommandType::Agent,
+                input_hint: None,
             });
         }
     }
@@ -1797,5 +1839,97 @@ mod tests {
         assert!(secret.configured);
         assert!(secret.has_secret);
         assert!(secret.can_delete);
+    }
+
+    #[test]
+    fn skill_visibility_filter_keeps_all_sources_when_scope_disabled() {
+        let sources = vec![
+            SourceEntry {
+                source_type: SourceType::Skill,
+                name: "claude-review".to_string(),
+                description: "External skill".to_string(),
+                content: String::new(),
+                path: "/tmp/.claude/skills/claude-review".to_string(),
+                global: true,
+                writable: true,
+                supporting_files: Vec::new(),
+                properties: HashMap::new(),
+            },
+            SourceEntry {
+                source_type: SourceType::BuiltinSkill,
+                name: "goose-doc-guide".to_string(),
+                description: "Builtin".to_string(),
+                content: String::new(),
+                path: "builtin://skills/goose-doc-guide".to_string(),
+                global: true,
+                writable: false,
+                supporting_files: Vec::new(),
+                properties: HashMap::new(),
+            },
+        ];
+
+        let filtered = filter_visible_skill_sources(sources.clone(), false);
+
+        assert_eq!(filtered.len(), sources.len());
+        assert_eq!(
+            filtered
+                .iter()
+                .map(|source| source.name.as_str())
+                .collect::<Vec<_>>(),
+            sources
+                .iter()
+                .map(|source| source.name.as_str())
+                .collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn skill_visibility_filter_limits_to_builtin_and_security_goose_skills() {
+        let filtered = filter_visible_skill_sources(
+            vec![
+                SourceEntry {
+                    source_type: SourceType::Skill,
+                    name: "claude-review".to_string(),
+                    description: "External skill".to_string(),
+                    content: String::new(),
+                    path: "/tmp/.claude/skills/claude-review".to_string(),
+                    global: true,
+                    writable: true,
+                    supporting_files: Vec::new(),
+                    properties: HashMap::new(),
+                },
+                SourceEntry {
+                    source_type: SourceType::Skill,
+                    name: "alert-triage".to_string(),
+                    description: "Security Goose skill".to_string(),
+                    content: String::new(),
+                    path: "/tmp/.agents/skills/alert-triage".to_string(),
+                    global: false,
+                    writable: true,
+                    supporting_files: Vec::new(),
+                    properties: HashMap::new(),
+                },
+                SourceEntry {
+                    source_type: SourceType::BuiltinSkill,
+                    name: "goose-doc-guide".to_string(),
+                    description: "Builtin".to_string(),
+                    content: String::new(),
+                    path: "builtin://skills/goose-doc-guide".to_string(),
+                    global: true,
+                    writable: false,
+                    supporting_files: Vec::new(),
+                    properties: HashMap::new(),
+                },
+            ],
+            true,
+        );
+
+        assert_eq!(
+            filtered
+                .iter()
+                .map(|source| source.name.as_str())
+                .collect::<Vec<_>>(),
+            vec!["alert-triage", "goose-doc-guide"]
+        );
     }
 }

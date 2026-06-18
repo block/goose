@@ -14,17 +14,68 @@
   "appLayout.openNavigation": {
     "defaultMessage": "展开导航"
   },
+  "appsView.builtInSecurityApp": {
+    "defaultMessage": "内置安全工具"
+  },
+  "appsView.builtInSectionDescription": {
+    "defaultMessage": "这些离线小工具随当前版本内置提供，适合快速完成常见安全分析工作。"
+  },
+  "appsView.builtInSectionTitle": {
+    "defaultMessage": "内置安全工具"
+  },
   "appsView.customApp": {
-    "defaultMessage": "自定义应用"
+    "defaultMessage": "导入/自定义应用"
+  },
+  "appsView.customSectionDescription": {
+    "defaultMessage": "你导入的应用，或通过聊天生成的应用，会继续显示在这里。"
+  },
+  "appsView.customSectionTitle": {
+    "defaultMessage": "导入 / 自定义应用"
   },
   "appsView.description": {
-    "defaultMessage": "来自你 MCP 服务器的应用，以及 goose 自己构建的应用。你可以通过聊天界面让它创建新应用，新应用会显示在这里。"
+    "defaultMessage": "这里会显示内置安全工具，以及当前 apps runtime 管理的应用。当前版本默认附带一组经典安全分析小工具。"
+  },
+  "appsView.encodeHashLabCategory": {
+    "defaultMessage": "编码 / 解码 / 哈希"
+  },
+  "appsView.encodeHashLabDescription": {
+    "defaultMessage": "以多步操作链方式离线处理可疑字符串、请求头、载荷、JSON 和 token 片段，适合中文安全分析流程。"
+  },
+  "appsView.encodeHashLabTitle": {
+    "defaultMessage": "编码与哈希工作台"
+  },
+  "appsView.secretCredentialScannerCategory": {
+    "defaultMessage": "密钥 / 凭据排查"
+  },
+  "appsView.secretCredentialScannerDescription": {
+    "defaultMessage": "离线扫描日志、配置和代码片段中的云平台密钥、企微/钉钉地址、Token、私钥块和其他敏感凭据。"
+  },
+  "appsView.secretCredentialScannerTitle": {
+    "defaultMessage": "敏感信息扫描台"
   },
   "appsView.errorLoading": {
     "defaultMessage": "加载应用出错：{error}"
   },
   "appsView.importApp": {
     "defaultMessage": "导入应用"
+  },
+  "appsView.iocToolboxCategory": {
+    "defaultMessage": "IOC 研判"
+  },
+  "appsView.iocToolboxDescription": {
+    "defaultMessage": "对域名、IP、URL、哈希、邮箱和 CVE 做归一化、去重与整理，适合快速 IOC 研判。"
+  },
+  "appsView.iocToolboxTitle": {
+    "defaultMessage": "IOC Toolbox"
+  },
+  "appsView.jwtInspectorCategory": {
+    "defaultMessage": "认证 / Token 检查"
+  },
+  "appsView.jwtInspectorDescription": {
+    "defaultMessage": "本地解析 token 头部和 claims，快速标记未签名、已过期或可疑的 JWT 认证字段。"
+  },
+  "appsView.jwtInspectorTitle": {
+    "defaultMessage": "JWT Inspector"
   },
   "appsView.launch": {
     "defaultMessage": "启动"
@@ -33,7 +84,7 @@
     "defaultMessage": "正在加载应用…"
   },
   "appsView.noAppsDescription": {
-    "defaultMessage": "打开聊天，告诉 goose 你想要什么应用，它可以为你构建一个，然后出现在这里。或者如果有人分享了一个应用，你可以用上面的按钮导入。"
+    "defaultMessage": "你可以导入应用包，或在聊天里让助手创建一个应用。只要 apps runtime 正常，内置安全工具也会自动显示在这里。"
   },
   "appsView.noAppsTitle": {
     "defaultMessage": "暂无可用应用"
@@ -120,7 +171,7 @@
     "defaultMessage": "“{title}”已保存，可以使用了。"
   },
   "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "配方创建成功！"
+    "defaultMessage": "任务模板创建成功！"
   },
   "bottomMenuExtensionSelection.extensionToggleError": {
     "defaultMessage": "扩展开关错误"
@@ -162,16 +213,16 @@
     "defaultMessage": "启动"
   },
   "chat.notification.taskComplete.body": {
-    "defaultMessage": "点击这里让 Goose 窗口回到前台。"
+    "defaultMessage": "点击这里让 {appName} 窗口回到前台。"
   },
   "chat.notification.taskComplete.title": {
-    "defaultMessage": "Goose 完成任务了。"
+    "defaultMessage": "{appName} 完成任务了。"
   },
   "chatInput.contextWindow": {
     "defaultMessage": "上下文窗口"
   },
   "chatInput.createRecipeFromSession": {
-    "defaultMessage": "从会话创建配方"
+    "defaultMessage": "保存为任务模板"
   },
   "chatInput.dictationError": {
     "defaultMessage": "语音输入错误"
@@ -213,7 +264,7 @@
     "defaultMessage": "未知类型"
   },
   "chatInput.viewEditRecipe": {
-    "defaultMessage": "查看/编辑配方"
+    "defaultMessage": "查看/编辑任务模板"
   },
   "chatInput.viewExtensions": {
     "defaultMessage": "查看扩展"
@@ -222,13 +273,13 @@
     "defaultMessage": "正在等待图片保存…"
   },
   "chatSettings.modeDescription": {
-    "defaultMessage": "配置 Goose 与工具和扩展的交互方式"
+    "defaultMessage": "配置助手与工具和扩展的交互方式"
   },
   "chatSettings.modeTitle": {
     "defaultMessage": "模式"
   },
   "chatSettings.responseStylesDescription": {
-    "defaultMessage": "选择 Goose 格式化和呈现回复的方式"
+    "defaultMessage": "选择助手格式化和呈现回复的方式"
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "回复风格"
@@ -324,7 +375,7 @@
     "defaultMessage": "最大轮次"
   },
   "conversationLimitsDropdown.maxTurnsDescription": {
-    "defaultMessage": "Goose 请求用户输入前的最大 agent 轮次"
+    "defaultMessage": "助手请求用户输入前允许连续运行的最大 agent 轮次"
   },
   "costTracker.costUnavailable": {
     "defaultMessage": "无法获取 {model} 的费用数据（输入 {inputTokens}、输出 {outputTokens} 令牌）"
@@ -354,13 +405,13 @@
     "defaultMessage": "复制此链接分享给好友，或直接粘贴到 Chrome 打开"
   },
   "createEditRecipe.createRecipeTitle": {
-    "defaultMessage": "创建配方"
+    "defaultMessage": "创建任务模板"
   },
   "createEditRecipe.createSubtitle": {
-    "defaultMessage": "创建新配方，为可复用的聊天会话定义 agent 行为和能力。"
+    "defaultMessage": "创建新的任务模板，为可复用的聊天会话定义 agent 行为和能力。"
   },
   "createEditRecipe.editSubtitle": {
-    "defaultMessage": "你可以在下方编辑配方，以改变新会话中 agent 的行为。"
+    "defaultMessage": "你可以在下方编辑任务模板，以改变新会话中 agent 的行为。"
   },
   "createEditRecipe.generatingDeeplink": {
     "defaultMessage": "正在生成深层链接…"
@@ -369,28 +420,28 @@
     "defaultMessage": "了解更多"
   },
   "createEditRecipe.recipeSavedAndLaunchedMsg": {
-    "defaultMessage": "配方保存并启动成功"
+    "defaultMessage": "任务模板保存并启动成功"
   },
   "createEditRecipe.recipeSavedMsg": {
-    "defaultMessage": "配方保存成功"
+    "defaultMessage": "任务模板保存成功"
   },
   "createEditRecipe.saveAndRunFailed": {
     "defaultMessage": "保存并运行失败"
   },
   "createEditRecipe.saveAndRunFailedMsg": {
-    "defaultMessage": "保存并运行配方失败：{error}"
+    "defaultMessage": "保存并启动任务失败：{error}"
   },
   "createEditRecipe.saveAndRunRecipe": {
-    "defaultMessage": "保存并运行配方"
+    "defaultMessage": "保存并启动任务"
   },
   "createEditRecipe.saveFailed": {
     "defaultMessage": "保存失败"
   },
   "createEditRecipe.saveFailedMsg": {
-    "defaultMessage": "保存配方失败：{error}"
+    "defaultMessage": "保存任务模板失败：{error}"
   },
   "createEditRecipe.saveRecipe": {
-    "defaultMessage": "保存配方"
+    "defaultMessage": "保存任务模板"
   },
   "createEditRecipe.saving": {
     "defaultMessage": "保存中…"
@@ -402,7 +453,7 @@
     "defaultMessage": "请填写所有必填字段并确保 JSON Schema 合法。"
   },
   "createEditRecipe.viewEditRecipeTitle": {
-    "defaultMessage": "查看/编辑配方"
+    "defaultMessage": "查看/编辑任务模板"
   },
   "createRecipeFromSession.analyzingTitle": {
     "defaultMessage": "正在分析你的对话"
@@ -411,10 +462,10 @@
     "defaultMessage": "取消"
   },
   "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "创建并运行配方"
+    "defaultMessage": "保存并启动任务"
   },
   "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "创建配方"
+    "defaultMessage": "保存任务模板"
   },
   "createRecipeFromSession.creating": {
     "defaultMessage": "创建中…"
@@ -423,10 +474,10 @@
     "defaultMessage": "正在从你的聊天中提取要点"
   },
   "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "创建配方时发生意外错误，请重试。"
+    "defaultMessage": "创建任务模板时发生意外错误，请重试。"
   },
   "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "创建配方失败"
+    "defaultMessage": "创建任务模板失败"
   },
   "createRecipeFromSession.stageComplete": {
     "defaultMessage": "完成！"
@@ -438,7 +489,7 @@
     "defaultMessage": "正在敲定细节…"
   },
   "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "正在生成配方结构…"
+    "defaultMessage": "正在生成任务模板结构…"
   },
   "createRecipeFromSession.stageIdentifying": {
     "defaultMessage": "正在识别关键模式…"
@@ -447,22 +498,22 @@
     "defaultMessage": "正在阅读你的对话…"
   },
   "createRecipeFromSession.subtitle": {
-    "defaultMessage": "基于当前对话创建一份可复用的配方。"
+    "defaultMessage": "基于当前对话生成一份可复用的任务模板。"
   },
   "createRecipeFromSession.title": {
-    "defaultMessage": "从会话创建配方"
+    "defaultMessage": "保存为任务模板"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "取消"
   },
   "createSubRecipeInline.closeModal": {
-    "defaultMessage": "关闭创建子配方弹窗"
+    "defaultMessage": "关闭创建子任务模板弹窗"
   },
   "createSubRecipeInline.createAndAdd": {
-    "defaultMessage": "创建并添加子配方"
+    "defaultMessage": "创建并添加子任务模板"
   },
   "createSubRecipeInline.createdSuccess": {
-    "defaultMessage": "子配方创建成功"
+    "defaultMessage": "子任务模板创建成功"
   },
   "createSubRecipeInline.creating": {
     "defaultMessage": "创建中…"
@@ -471,13 +522,13 @@
     "defaultMessage": "名称重复"
   },
   "createSubRecipeInline.duplicateNameMsg": {
-    "defaultMessage": "已存在名为“{name}”的子配方，请使用唯一名称。"
+    "defaultMessage": "已存在名为“{name}”的子任务模板，请使用唯一名称。"
   },
   "createSubRecipeInline.instructionsLabel": {
     "defaultMessage": "指令"
   },
   "createSubRecipeInline.instructionsPlaceholder": {
-    "defaultMessage": "当此子配方被调用时给 AI 的指令…"
+    "defaultMessage": "当此子任务模板被调用时给 AI 的指令…"
   },
   "createSubRecipeInline.nameHint": {
     "defaultMessage": "用于生成工具名的唯一标识符"
@@ -492,16 +543,16 @@
     "defaultMessage": "预设参数值"
   },
   "createSubRecipeInline.preconfiguredValuesHint": {
-    "defaultMessage": "始终传给子配方的可选参数值"
+    "defaultMessage": "始终传给子任务模板的可选参数值"
   },
   "createSubRecipeInline.recipeDescriptionLabel": {
-    "defaultMessage": "配方描述"
+    "defaultMessage": "任务模板说明"
   },
   "createSubRecipeInline.recipeDescriptionPlaceholder": {
-    "defaultMessage": "此配方执行时的作用"
+    "defaultMessage": "此任务模板启动时的作用"
   },
   "createSubRecipeInline.recipeTitleLabel": {
-    "defaultMessage": "配方标题"
+    "defaultMessage": "任务模板标题"
   },
   "createSubRecipeInline.recipeTitlePlaceholder": {
     "defaultMessage": "例如：Security Analysis Tool"
@@ -510,7 +561,7 @@
     "defaultMessage": "保存失败"
   },
   "createSubRecipeInline.saveFailedMsg": {
-    "defaultMessage": "保存子配方失败：{error}"
+    "defaultMessage": "保存子任务模板失败：{error}"
   },
   "createSubRecipeInline.sequentialHint": {
     "defaultMessage": "（强制多个实例按顺序执行）"
@@ -519,10 +570,10 @@
     "defaultMessage": "重复调用时按顺序执行"
   },
   "createSubRecipeInline.subtitle": {
-    "defaultMessage": "创建一个简单配方，作为主配方中可调用的工具"
+    "defaultMessage": "创建一个简单任务模板，作为主任务模板中可调用的工具"
   },
   "createSubRecipeInline.title": {
-    "defaultMessage": "创建新子配方"
+    "defaultMessage": "创建新子任务模板"
   },
   "createSubRecipeInline.toolDescriptionLabel": {
     "defaultMessage": "工具描述"
@@ -534,7 +585,7 @@
     "defaultMessage": "校验失败"
   },
   "createSubRecipeInline.validationMsg": {
-    "defaultMessage": "名称、标题、配方描述和指令均为必填项。"
+    "defaultMessage": "名称、标题、任务模板说明和指令均为必填项。"
   },
   "creditsExhaustedNotification.addCredits": {
     "defaultMessage": "充值额度"
@@ -984,7 +1035,7 @@
     "defaultMessage": "信息请求已取消。"
   },
   "elicitationRequest.defaultMessage": {
-    "defaultMessage": "Goose 需要你提供一些信息。"
+    "defaultMessage": "助手需要你提供一些信息。"
   },
   "elicitationRequest.expired": {
     "defaultMessage": "此请求已过期，扩展需要重新询问。"
@@ -1026,7 +1077,7 @@
     "defaultMessage": "发生了错误。"
   },
   "errorBoundary.errorWithVersion": {
-    "defaultMessage": "Goose v{version} 发生了错误。"
+    "defaultMessage": "{appName} v{version} 发生了错误。"
   },
   "errorBoundary.heading": {
     "defaultMessage": "嘎！"
@@ -1212,7 +1263,7 @@
     "defaultMessage": "在此启用的扩展将作为新聊天的默认扩展。你也可以在聊天过程中切换活跃的扩展。"
   },
   "extensionsView.description": {
-    "defaultMessage": "这些扩展使用模型上下文协议（MCP）。它们可以通过三大组件扩展 Goose 的能力：Prompts、Resources 和 Tools。按 {searchShortcut} 搜索。"
+    "defaultMessage": "这些扩展使用模型上下文协议（MCP）。它们可以通过三大组件扩展应用能力：Prompts、Resources 和 Tools。按 {searchShortcut} 搜索。"
   },
   "extensionsView.heading": {
     "defaultMessage": "扩展"
@@ -1230,10 +1281,10 @@
     "defaultMessage": "AA:BB:CC:… 或 sha256/base64"
   },
   "externalBackendSection.description": {
-    "defaultMessage": "默认情况下 goose 会为你启动一个服务器，此选项用于连接到外部的 goose 服务器"
+    "defaultMessage": "默认情况下，应用会为你启动一个本地服务；如果需要，也可以改为连接外部服务。"
   },
   "externalBackendSection.restartNote": {
-    "defaultMessage": "更改需要重启 Goose 才能生效。新的聊天窗口将连接到外部服务器。"
+    "defaultMessage": "更改需要重启应用才能生效。新的聊天窗口将连接到外部服务器。"
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "密钥"
@@ -1248,7 +1299,7 @@
     "defaultMessage": "服务器地址"
   },
   "externalBackendSection.title": {
-    "defaultMessage": "Goose 服务器"
+    "defaultMessage": "后端服务"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "URL 格式无效"
@@ -1359,7 +1410,7 @@
     "defaultMessage": "Developer"
   },
   "goosehintsModal.dialogDescription": {
-    "defaultMessage": "为你的项目提供额外上下文，改善与 Goose 的沟通"
+    "defaultMessage": "为你的项目提供额外上下文，改善与助手的沟通"
   },
   "goosehintsModal.dialogTitle": {
     "defaultMessage": "配置项目提示（.goosehints）"
@@ -1380,7 +1431,7 @@
     "defaultMessage": "已找到 .goosehints 文件：{filePath}"
   },
   "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints 是一个文本文件，用于为你的项目提供额外上下文，改善与 Goose 的沟通。"
+    "defaultMessage": ".goosehints 是一个文本文件，用于为你的项目提供额外上下文，改善与助手的沟通。"
   },
   "goosehintsModal.helpText2": {
     "defaultMessage": "请确认已在扩展页面启用 {bold} 扩展。此扩展是使用 .goosehints 所必需的。你需要重启会话，.goosehints 的更新才会生效。"
@@ -1407,7 +1458,7 @@
     "defaultMessage": "配置"
   },
   "goosehintsSection.description": {
-    "defaultMessage": "配置项目的 .goosehints 文件，为 Goose 提供额外上下文"
+    "defaultMessage": "配置项目的 .goosehints 文件，为助手提供额外上下文"
   },
   "goosehintsSection.title": {
     "defaultMessage": "项目提示（.goosehints）"
@@ -1548,22 +1599,22 @@
     "defaultMessage": "取消"
   },
   "importRecipeForm.deeplinkHint": {
-    "defaultMessage": "粘贴以“goose://recipe?config=”开头的配方深层链接"
+    "defaultMessage": "粘贴以“goose://recipe?config=”开头的任务模板链接"
   },
   "importRecipeForm.deeplinkPlaceholder": {
-    "defaultMessage": "在此粘贴你的 goose://recipe?config=... 深层链接"
+    "defaultMessage": "在此粘贴你的 goose://recipe?config=... 任务模板链接"
   },
   "importRecipeForm.example": {
     "defaultMessage": "示例"
   },
   "importRecipeForm.expectedRecipeStructure": {
-    "defaultMessage": "期望的配方结构"
+    "defaultMessage": "期望的任务模板结构"
   },
   "importRecipeForm.importRecipeButton": {
-    "defaultMessage": "导入配方"
+    "defaultMessage": "导入任务模板"
   },
   "importRecipeForm.importRecipeTitle": {
-    "defaultMessage": "导入配方"
+    "defaultMessage": "导入任务模板"
   },
   "importRecipeForm.importing": {
     "defaultMessage": "导入中…"
@@ -1572,16 +1623,16 @@
     "defaultMessage": "或"
   },
   "importRecipeForm.recipeDeeplinkLabel": {
-    "defaultMessage": "配方深层链接"
+    "defaultMessage": "任务模板链接"
   },
   "importRecipeForm.recipeFileHint": {
-    "defaultMessage": "上传包含配方结构的 YAML 或 JSON 文件"
+    "defaultMessage": "上传包含任务模板结构的 YAML 或 JSON 文件"
   },
   "importRecipeForm.recipeFileLabel": {
-    "defaultMessage": "配方文件"
+    "defaultMessage": "任务模板文件"
   },
   "importRecipeForm.reviewWarning": {
-    "defaultMessage": "在将配方文件添加到 goose 之前，请务必先审查其内容。"
+    "defaultMessage": "在将任务模板文件添加到当前工作区之前，请务必先审查其内容。"
   },
   "importRecipeForm.schemaDescription": {
     "defaultMessage": "你的 YAML 或 JSON 文件应遵循此结构。必填字段：title、description，以及 instructions 或 prompt 之一。"
@@ -1824,7 +1875,13 @@
     "defaultMessage": "切换导航"
   },
   "launcher.placeholder": {
-    "defaultMessage": "问 goose 任何问题…"
+    "defaultMessage": "问 {appName} 任何问题…"
+  },
+  "launcher.securityTasksDescription": {
+    "defaultMessage": "这些入口默认启动原生安全任务模板；如果当前工作区缺少内置任务模板运行时，会回退到对应技能提示。推荐扩展仍保持可选，并继续标记为本机预览、禁用占位或阻塞。"
+  },
+  "launcher.securityTasksTitle": {
+    "defaultMessage": "安全任务入口"
   },
   "loadingGoose.compacting": {
     "defaultMessage": "goose 正在压缩对话…"
@@ -2436,13 +2493,13 @@
     "defaultMessage": "新对话"
   },
   "navigation.itemRecipes": {
-    "defaultMessage": "配方"
+    "defaultMessage": "任务模板"
   },
   "navigation.itemScheduler": {
-    "defaultMessage": "调度"
+    "defaultMessage": "自动化"
   },
   "navigation.itemSessions": {
-    "defaultMessage": "会话历史"
+    "defaultMessage": "历史会话"
   },
   "navigation.itemSettings": {
     "defaultMessage": "设置"
@@ -2466,19 +2523,22 @@
     "defaultMessage": "服务器可能正在启动或暂时不可用。"
   },
   "onboardingGuard.checkProviderErrorTitle": {
-    "defaultMessage": "无法连接到 Goose 服务器"
+    "defaultMessage": "无法连接到 {appName} 服务器"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "重试"
   },
   "onboardingGuard.welcomeDescription": {
-    "defaultMessage": "你的本地 AI agent。连接 AI 模型提供商即可开始。"
+    "defaultMessage": "你的本地 AI agent。连接 AI 模型提供商即可开始使用 {appName}。"
+  },
+  "onboardingGuard.welcomeDescriptionBuiltIn": {
+    "defaultMessage": "你的本地 AI agent。{appName} 已内置 {providerName} 后端，默认从 {modelName} 开始，后续可随时切换模型。"
   },
   "onboardingGuard.welcomeTitle": {
-    "defaultMessage": "欢迎使用 goose"
+    "defaultMessage": "欢迎使用 {appName}"
   },
   "onboardingSuccess.allSet": {
-    "defaultMessage": "一切就绪，可以开始使用 goose 了。"
+    "defaultMessage": "一切就绪，可以开始使用 {appName} 了。"
   },
   "onboardingSuccess.connectedTo": {
     "defaultMessage": "已连接到 {providerName}"
@@ -2493,7 +2553,7 @@
     "defaultMessage": "本地模型就绪"
   },
   "onboardingSuccess.privacyDescription": {
-    "defaultMessage": "匿名使用数据有助于改善 goose。我们绝不采集你的对话、代码或个人数据。"
+    "defaultMessage": "匿名使用数据有助于改善 {appName}。我们绝不采集你的对话、代码或个人数据。"
   },
   "onboardingSuccess.privacyTitle": {
     "defaultMessage": "隐私"
@@ -2565,7 +2625,7 @@
     "defaultMessage": "取消"
   },
   "parameterInputModal.cancelRecipeSetup": {
-    "defaultMessage": "取消配方设置"
+    "defaultMessage": "取消任务设置"
   },
   "parameterInputModal.enterValue": {
     "defaultMessage": "为 {key} 输入值…"
@@ -2574,7 +2634,7 @@
     "defaultMessage": "False"
   },
   "parameterInputModal.recipeParameters": {
-    "defaultMessage": "配方参数"
+    "defaultMessage": "任务参数"
   },
   "parameterInputModal.select": {
     "defaultMessage": "请选择…"
@@ -2583,10 +2643,10 @@
     "defaultMessage": "选择一个选项…"
   },
   "parameterInputModal.startNewChat": {
-    "defaultMessage": "开始新聊天（不使用配方）"
+    "defaultMessage": "开始新聊天（不使用任务模板）"
   },
   "parameterInputModal.startRecipe": {
-    "defaultMessage": "启动配方"
+    "defaultMessage": "启动任务"
   },
   "parameterInputModal.true": {
     "defaultMessage": "True"
@@ -2661,10 +2721,10 @@
     "defaultMessage": "会话指标（时长、交互次数、令牌用量）"
   },
   "privacyInfoModal.collectVersion": {
-    "defaultMessage": "goose 版本和安装方式"
+    "defaultMessage": "{appName} 版本和安装方式"
   },
   "privacyInfoModal.description": {
-    "defaultMessage": "匿名使用数据帮助我们理解 goose 的使用情况并找出改进方向。"
+    "defaultMessage": "匿名使用数据帮助我们理解 {appName} 的使用情况并找出改进方向。"
   },
   "privacyInfoModal.neverCollect": {
     "defaultMessage": "我们绝不采集你的对话、代码、工具参数、错误消息或任何个人数据。你随时可以在“设置”中更改此设置。"
@@ -2921,6 +2981,12 @@
   "providerSelector.addCustomProviderTitle": {
     "defaultMessage": "添加自定义提供商"
   },
+  "providerSelector.advancedProviderSetup": {
+    "defaultMessage": "高级提供商配置"
+  },
+  "providerSelector.advancedProviderSetupDescription": {
+    "defaultMessage": "仅在你需要改用其他提供商、自定义 Host 或自带 API Key 时使用。"
+  },
   "providerSelector.connectProvider": {
     "defaultMessage": "连接提供商"
   },
@@ -2933,6 +2999,12 @@
   "providerSelector.selectProvider": {
     "defaultMessage": "选择提供商"
   },
+  "providerSelector.useBuiltInModels": {
+    "defaultMessage": "使用内置模型通道"
+  },
+  "providerSelector.useBuiltInModelsDescription": {
+    "defaultMessage": "{providerName} 已经接好，先用 {modelName} 即可，后续再切换模型。"
+  },
   "providerSelector.useFreeLocal": {
     "defaultMessage": "使用免费/本地提供商"
   },
@@ -2944,6 +3016,9 @@
   },
   "providerSettings.onboardingDescription": {
     "defaultMessage": "选择一个 AI 模型提供商来开始使用 goose。你需要用各提供商生成的 API 密钥，密钥将加密后本地存储。你随时可以在设置中更改提供商。"
+  },
+  "providerSettings.onboardingDescriptionBuiltIn": {
+    "defaultMessage": "这个本地版本已经内置了 {providerName} 后端。只有在你需要覆盖成其他提供商、Host 或 API Key 时，才需要来这里配置。"
   },
   "providerSettings.otherProviders": {
     "defaultMessage": "其他提供商"
@@ -2973,13 +3048,13 @@
     "defaultMessage": "提交"
   },
   "recipeActivityEditor.activitiesDescription": {
-    "defaultMessage": "将在配方聊天窗口中显示的顶部提示和活动按钮。"
+    "defaultMessage": "将在任务模板聊天窗口中显示的顶部提示和活动按钮。"
   },
   "recipeActivityEditor.activitiesLabel": {
     "defaultMessage": "活动"
   },
   "recipeActivityEditor.activityButtonsDescription": {
-    "defaultMessage": "将出现在消息下方、帮助用户与你的配方交互的可点击按钮。"
+    "defaultMessage": "将出现在消息下方、帮助用户与你的任务模板交互的可点击按钮。"
   },
   "recipeActivityEditor.activityButtonsLabel": {
     "defaultMessage": "活动按钮"
@@ -2991,16 +3066,16 @@
     "defaultMessage": "添加新活动…"
   },
   "recipeActivityEditor.messageDescription": {
-    "defaultMessage": "将出现在配方顶部的格式化消息。支持 markdown 格式。"
+    "defaultMessage": "将出现在任务模板顶部的格式化消息。支持 markdown 格式。"
   },
   "recipeActivityEditor.messageLabel": {
     "defaultMessage": "消息"
   },
   "recipeActivityEditor.messagePlaceholder": {
-    "defaultMessage": "为你的配方输入面向用户的介绍消息（支持 **加粗**、*斜体*、`代码` 等）"
+    "defaultMessage": "为你的任务模板输入面向用户的介绍消息（支持 **加粗**、*斜体*、`代码` 等）"
   },
   "recipeExtensionSelector.description": {
-    "defaultMessage": "选择运行此配方时可用的扩展。留空将使用默认扩展。"
+    "defaultMessage": "选择运行此任务模板时可用的扩展。留空将使用默认扩展。"
   },
   "recipeExtensionSelector.extensionsSelected": {
     "defaultMessage": "{count,plural,one{已选 # 个扩展} other{已选 # 个扩展}}"
@@ -3024,13 +3099,13 @@
     "defaultMessage": "高级选项"
   },
   "recipeFormFields.advancedOptionsHint": {
-    "defaultMessage": "活动、参数、模型、扩展、响应 schema、子配方"
+    "defaultMessage": "活动、参数、模型、扩展、响应 schema、子任务模板"
   },
   "recipeFormFields.descriptionLabel": {
     "defaultMessage": "描述"
   },
   "recipeFormFields.descriptionPlaceholder": {
-    "defaultMessage": "此配方功能的简要描述"
+    "defaultMessage": "此任务模板功能的简要描述"
   },
   "recipeFormFields.enterValueFor": {
     "defaultMessage": "为 {key} 输入值"
@@ -3060,7 +3135,7 @@
     "defaultMessage": "（可选 - instructions 或 prompt 至少填一项）"
   },
   "recipeFormFields.promptPlaceholder": {
-    "defaultMessage": "配方启动时预填的提示词"
+    "defaultMessage": "任务启动时预填的提示词"
   },
   "recipeFormFields.responseJsonSchema": {
     "defaultMessage": "响应 JSON Schema"
@@ -3069,16 +3144,16 @@
     "defaultMessage": "使用 JSON Schema 格式定义 AI 响应的期望结构"
   },
   "recipeFormFields.templateVarHint": {
-    "defaultMessage": "使用 '{{parameter_name}}' 定义运行配方时可填入的参数。"
+    "defaultMessage": "使用 '{{parameter_name}}' 定义运行任务时可填入的参数。"
   },
   "recipeFormFields.titleLabel": {
     "defaultMessage": "标题"
   },
   "recipeFormFields.titlePlaceholder": {
-    "defaultMessage": "配方标题"
+    "defaultMessage": "任务模板标题"
   },
   "recipeHeader.recipeLabel": {
-    "defaultMessage": "配方"
+    "defaultMessage": "任务模板"
   },
   "recipeModelSelector.backToModelList": {
     "defaultMessage": "返回模型列表"
@@ -3117,7 +3192,7 @@
     "defaultMessage": "使用默认提供商"
   },
   "recipeNameField.defaultLabel": {
-    "defaultMessage": "配方名称"
+    "defaultMessage": "任务模板名称"
   },
   "recipeNameField.formatHint": {
     "defaultMessage": "将自动格式化（小写字母，空格转为短横线）"
@@ -3129,19 +3204,19 @@
     "defaultMessage": "描述："
   },
   "recipeWarningModal.firstTimeDescription": {
-    "defaultMessage": "你即将执行一个从未运行过的配方。"
+    "defaultMessage": "你即将执行一个从未运行过的任务模板。"
   },
   "recipeWarningModal.hiddenCharsWarning": {
-    "defaultMessage": "此配方包含隐藏字符，为了你的安全这些字符会被忽略，因为它们可能被用于恶意目的。"
+    "defaultMessage": "此任务模板包含隐藏字符，为了你的安全这些字符会被忽略，因为它们可能被用于恶意目的。"
   },
   "recipeWarningModal.instructionsLabel": {
     "defaultMessage": "指令："
   },
   "recipeWarningModal.newRecipeWarningTitle": {
-    "defaultMessage": "⚠️ 新配方警告"
+    "defaultMessage": "⚠️ 新任务模板警告"
   },
   "recipeWarningModal.recipePreview": {
-    "defaultMessage": "配方预览："
+    "defaultMessage": "任务模板预览："
   },
   "recipeWarningModal.securityWarningTitle": {
     "defaultMessage": "⚠️ 安全警告"
@@ -3150,13 +3225,13 @@
     "defaultMessage": "标题："
   },
   "recipeWarningModal.trustAndExecute": {
-    "defaultMessage": "信任并执行"
+    "defaultMessage": "信任并运行"
   },
   "recipeWarningModal.trustSource": {
-    "defaultMessage": "只有在你信任此配方来源的情况下才应继续。"
+    "defaultMessage": "只有在你信任此任务模板来源的情况下才应继续。"
   },
   "recipesView.addSchedule": {
-    "defaultMessage": "添加计划"
+    "defaultMessage": "新增自动化"
   },
   "recipesView.addSlashCommand": {
     "defaultMessage": "添加斜杠命令"
@@ -3183,85 +3258,85 @@
     "defaultMessage": "复制 YAML"
   },
   "recipesView.copyYamlFailedMsg": {
-    "defaultMessage": "复制配方 YAML 到剪贴板失败"
+    "defaultMessage": "复制任务模板 YAML 到剪贴板失败"
   },
   "recipesView.createRecipe": {
-    "defaultMessage": "创建配方"
+    "defaultMessage": "创建任务模板"
   },
   "recipesView.deeplinkCopiedMsg": {
-    "defaultMessage": "配方深层链接已复制到剪贴板"
+    "defaultMessage": "任务模板链接已复制到剪贴板"
   },
   "recipesView.deeplinkCopiedTitle": {
     "defaultMessage": "深层链接已复制"
   },
   "recipesView.deleteRecipe": {
-    "defaultMessage": "删除配方"
+    "defaultMessage": "删除任务模板"
   },
   "recipesView.deleteRecipeConfirm": {
-    "defaultMessage": "确定要删除“{title}”吗？"
+    "defaultMessage": "确定要删除任务模板“{title}”吗？"
   },
   "recipesView.deleteRecipeDetail": {
-    "defaultMessage": "配方文件将被删除。"
+    "defaultMessage": "任务模板文件将被删除。"
   },
   "recipesView.deleteRecipeTitle": {
-    "defaultMessage": "删除配方"
+    "defaultMessage": "删除任务模板"
   },
   "recipesView.editRecipe": {
-    "defaultMessage": "编辑配方"
+    "defaultMessage": "编辑任务模板"
   },
   "recipesView.editSchedule": {
-    "defaultMessage": "编辑计划"
+    "defaultMessage": "编辑自动化"
   },
   "recipesView.editSlashCommand": {
     "defaultMessage": "编辑斜杠命令"
   },
   "recipesView.errorLoadingRecipes": {
-    "defaultMessage": "加载配方出错"
+    "defaultMessage": "加载任务模板出错"
   },
   "recipesView.exportFailedMsg": {
-    "defaultMessage": "导出配方到文件失败"
+    "defaultMessage": "导出任务模板到文件失败"
   },
   "recipesView.exportFailedTitle": {
     "defaultMessage": "导出失败"
   },
   "recipesView.exportRecipeDialogTitle": {
-    "defaultMessage": "导出配方"
+    "defaultMessage": "导出任务模板"
   },
   "recipesView.exportToFile": {
     "defaultMessage": "导出到文件"
   },
   "recipesView.noMatchingRecipes": {
-    "defaultMessage": "未找到匹配的配方"
+    "defaultMessage": "未找到匹配的任务模板"
   },
   "recipesView.noSavedRecipes": {
-    "defaultMessage": "暂无已保存的配方"
+    "defaultMessage": "暂无已保存任务模板"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "从聊天中保存的配方会显示在这里。"
+    "defaultMessage": "从聊天中保存的任务模板会显示在这里。"
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "在新窗口中打开"
   },
   "recipesView.recipeDeletedSuccess": {
-    "defaultMessage": "配方删除成功"
+    "defaultMessage": "任务模板删除成功"
   },
   "recipesView.recipeExportedMsg": {
-    "defaultMessage": "配方已保存到 {filePath}"
+    "defaultMessage": "任务模板已保存到 {filePath}"
   },
   "recipesView.recipeExportedTitle": {
-    "defaultMessage": "配方已导出"
+    "defaultMessage": "任务模板已导出"
   },
   "recipesView.recipesDescription": {
-    "defaultMessage": "查看并管理已保存的配方，以快速用预置配置开启新会话。按 {shortcut} 搜索。"
+    "defaultMessage": "查看并管理已保存的任务模板，以快速用预置配置开启新会话。按 {shortcut} 搜索。"
   },
   "recipesView.recipesTitle": {
-    "defaultMessage": "配方"
+    "defaultMessage": "任务模板"
   },
   "recipesView.remove": {
     "defaultMessage": "移除"
   },
   "recipesView.removeSchedule": {
-    "defaultMessage": "移除计划"
+    "defaultMessage": "移除自动化"
   },
   "recipesView.runs": {
     "defaultMessage": "运行 {schedule}"
@@ -3270,40 +3345,40 @@
     "defaultMessage": "保存"
   },
   "recipesView.scheduleDialogTitle": {
-    "defaultMessage": "{action}计划"
+    "defaultMessage": "{action}自动化"
   },
   "recipesView.scheduleRemovedMsg": {
-    "defaultMessage": "配方将不再自动运行"
+    "defaultMessage": "该任务模板将不再自动运行"
   },
   "recipesView.scheduleRemovedTitle": {
-    "defaultMessage": "计划已移除"
+    "defaultMessage": "自动化已移除"
   },
   "recipesView.scheduleSavedMsg": {
-    "defaultMessage": "配方将按 {schedule} 运行"
+    "defaultMessage": "该任务模板将按 {schedule} 运行"
   },
   "recipesView.scheduleSavedTitle": {
-    "defaultMessage": "计划已保存"
+    "defaultMessage": "自动化已保存"
   },
   "recipesView.searchRecipesPlaceholder": {
-    "defaultMessage": "搜索配方…"
+    "defaultMessage": "搜索任务模板…"
   },
   "recipesView.shareRecipe": {
-    "defaultMessage": "分享配方"
+    "defaultMessage": "分享任务模板"
   },
   "recipesView.slashCommandDescription": {
-    "defaultMessage": "设置斜杠命令，以便在任何聊天中快速运行此配方"
+    "defaultMessage": "设置斜杠命令，以便在任何聊天中快速运行此任务模板"
   },
   "recipesView.slashCommandPlaceholder": {
     "defaultMessage": "command-name"
   },
   "recipesView.slashCommandRemovedMsg": {
-    "defaultMessage": "配方的斜杠命令已被移除"
+    "defaultMessage": "任务模板的斜杠命令已被移除"
   },
   "recipesView.slashCommandRemovedTitle": {
     "defaultMessage": "斜杠命令已移除"
   },
   "recipesView.slashCommandSavedMsg": {
-    "defaultMessage": "使用 /{command} 运行此配方"
+    "defaultMessage": "使用 /{command} 运行此任务模板"
   },
   "recipesView.slashCommandSavedTitle": {
     "defaultMessage": "斜杠命令已保存"
@@ -3312,16 +3387,16 @@
     "defaultMessage": "斜杠命令"
   },
   "recipesView.slashCommandUsageHint": {
-    "defaultMessage": "在任何聊天中使用 /{command} 即可运行此配方"
+    "defaultMessage": "在任何聊天中使用 /{command} 即可运行此任务模板"
   },
   "recipesView.tryAgain": {
     "defaultMessage": "重试"
   },
   "recipesView.useRecipe": {
-    "defaultMessage": "使用配方"
+    "defaultMessage": "启动任务"
   },
   "recipesView.yamlCopiedMsg": {
-    "defaultMessage": "配方 YAML 已复制到剪贴板"
+    "defaultMessage": "任务模板 YAML 已复制到剪贴板"
   },
   "recipesView.yamlCopiedTitle": {
     "defaultMessage": "YAML 已复制"
@@ -3351,7 +3426,7 @@
     "defaultMessage": "操作"
   },
   "scheduleDetailView.cannotModifyRunning": {
-    "defaultMessage": "计划正在运行中，无法触发或修改。"
+    "defaultMessage": "自动化正在运行中，无法触发或修改。"
   },
   "scheduleDetailView.created": {
     "defaultMessage": "创建于：{date}"
@@ -3369,7 +3444,7 @@
     "defaultMessage": "目录：{path}"
   },
   "scheduleDetailView.editSchedule": {
-    "defaultMessage": "编辑计划"
+    "defaultMessage": "编辑自动化"
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "错误：{error}"
@@ -3411,7 +3486,7 @@
     "defaultMessage": "上次运行："
   },
   "scheduleDetailView.loadingSchedule": {
-    "defaultMessage": "正在加载计划…"
+    "defaultMessage": "正在加载自动化…"
   },
   "scheduleDetailView.loadingSessions": {
     "defaultMessage": "正在加载会话…"
@@ -3423,16 +3498,16 @@
     "defaultMessage": "新会话：{sessionId}"
   },
   "scheduleDetailView.noScheduleId": {
-    "defaultMessage": "未提供计划 ID。返回计划列表。"
+    "defaultMessage": "未提供自动化 ID。返回自动化列表。"
   },
   "scheduleDetailView.noSessions": {
-    "defaultMessage": "此计划下没有会话。"
+    "defaultMessage": "此自动化下没有会话。"
   },
   "scheduleDetailView.pauseSchedule": {
-    "defaultMessage": "暂停计划"
+    "defaultMessage": "暂停自动化"
   },
   "scheduleDetailView.pauseUnpauseError": {
-    "defaultMessage": "暂停/取消暂停错误"
+    "defaultMessage": "暂停或恢复自动化时出错"
   },
   "scheduleDetailView.paused": {
     "defaultMessage": "已暂停"
@@ -3441,7 +3516,7 @@
     "defaultMessage": "已暂停“{id}”"
   },
   "scheduleDetailView.pausedWarning": {
-    "defaultMessage": "此计划已暂停，将不会自动运行。使用“立即运行计划”手动触发，或取消暂停以恢复自动执行。"
+    "defaultMessage": "此自动化已暂停，将不会自动运行。使用“立即运行自动化”手动触发，或恢复自动化以继续自动执行。"
   },
   "scheduleDetailView.processStarted": {
     "defaultMessage": "进程已启动："
@@ -3450,40 +3525,40 @@
     "defaultMessage": "近期会话"
   },
   "scheduleDetailView.recipeSource": {
-    "defaultMessage": "配方来源："
+    "defaultMessage": "任务模板来源："
   },
   "scheduleDetailView.runScheduleError": {
-    "defaultMessage": "运行计划错误"
+    "defaultMessage": "运行自动化错误"
   },
   "scheduleDetailView.runScheduleNow": {
-    "defaultMessage": "立即运行计划"
+    "defaultMessage": "立即运行自动化"
   },
   "scheduleDetailView.scheduleDetails": {
-    "defaultMessage": "计划详情"
+    "defaultMessage": "自动化详情"
   },
   "scheduleDetailView.scheduleInformation": {
-    "defaultMessage": "计划信息"
+    "defaultMessage": "自动化信息"
   },
   "scheduleDetailView.scheduleLabel": {
-    "defaultMessage": "计划："
+    "defaultMessage": "自动化："
   },
   "scheduleDetailView.scheduleNotFound": {
-    "defaultMessage": "未找到计划"
+    "defaultMessage": "未找到自动化"
   },
   "scheduleDetailView.scheduleNotFoundError": {
-    "defaultMessage": "未找到计划"
+    "defaultMessage": "未找到自动化"
   },
   "scheduleDetailView.schedulePaused": {
-    "defaultMessage": "计划已暂停"
+    "defaultMessage": "自动化已暂停"
   },
   "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "计划已触发"
+    "defaultMessage": "自动化已触发"
   },
   "scheduleDetailView.scheduleUnpaused": {
-    "defaultMessage": "计划已恢复"
+    "defaultMessage": "自动化已恢复"
   },
   "scheduleDetailView.scheduleUpdated": {
-    "defaultMessage": "计划已更新"
+    "defaultMessage": "自动化已更新"
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "会话 ID：{id}"
@@ -3492,19 +3567,19 @@
     "defaultMessage": "令牌：{count}"
   },
   "scheduleDetailView.unpauseSchedule": {
-    "defaultMessage": "恢复计划"
+    "defaultMessage": "恢复自动化"
   },
   "scheduleDetailView.unpausedMsg": {
     "defaultMessage": "已恢复“{id}”"
   },
   "scheduleDetailView.updateScheduleError": {
-    "defaultMessage": "更新计划错误"
+    "defaultMessage": "更新自动化错误"
   },
   "scheduleDetailView.updatedMsg": {
     "defaultMessage": "已更新“{id}”"
   },
   "scheduleDetailView.viewingScheduleId": {
-    "defaultMessage": "正在查看计划 ID：{id}"
+    "defaultMessage": "正在查看自动化 ID：{id}"
   },
   "scheduleModal.browseYaml": {
     "defaultMessage": "浏览 YAML 文件…"
@@ -3513,10 +3588,10 @@
     "defaultMessage": "取消"
   },
   "scheduleModal.createNewSchedule": {
-    "defaultMessage": "创建新计划"
+    "defaultMessage": "创建新自动化"
   },
   "scheduleModal.createSchedule": {
-    "defaultMessage": "创建计划"
+    "defaultMessage": "创建自动化"
   },
   "scheduleModal.creating": {
     "defaultMessage": "创建中…"
@@ -3528,10 +3603,10 @@
     "defaultMessage": "在此粘贴 goose://recipe 链接…"
   },
   "scheduleModal.editSchedule": {
-    "defaultMessage": "编辑计划"
+    "defaultMessage": "编辑自动化"
   },
   "scheduleModal.failedParseRecipe": {
-    "defaultMessage": "从文件解析配方失败。"
+    "defaultMessage": "从文件解析任务模板失败。"
   },
   "scheduleModal.failedReadFile": {
     "defaultMessage": "读取所选文件失败。"
@@ -3549,22 +3624,22 @@
     "defaultMessage": "例如：daily-summary-job"
   },
   "scheduleModal.provideValidRecipe": {
-    "defaultMessage": "请提供有效的配方来源。"
+    "defaultMessage": "请提供有效的任务模板来源。"
   },
   "scheduleModal.recipeDescription": {
-    "defaultMessage": "描述：{description}"
+    "defaultMessage": "模板说明：{description}"
   },
   "scheduleModal.recipeParsed": {
-    "defaultMessage": "配方解析成功"
+    "defaultMessage": "任务模板解析成功"
   },
   "scheduleModal.recipeTitle": {
-    "defaultMessage": "标题：{title}"
+    "defaultMessage": "模板标题：{title}"
   },
   "scheduleModal.scheduleIdRequired": {
-    "defaultMessage": "计划 ID 为必填项。"
+    "defaultMessage": "自动化 ID 为必填项。"
   },
   "scheduleModal.scheduleLabel": {
-    "defaultMessage": "计划："
+    "defaultMessage": "自动化："
   },
   "scheduleModal.selected": {
     "defaultMessage": "已选择：{path}"
@@ -3573,7 +3648,7 @@
     "defaultMessage": "来源："
   },
   "scheduleModal.updateSchedule": {
-    "defaultMessage": "更新计划"
+    "defaultMessage": "更新自动化"
   },
   "scheduleModal.updating": {
     "defaultMessage": "更新中…"
@@ -3582,13 +3657,13 @@
     "defaultMessage": "YAML"
   },
   "schedulesView.confirmDelete": {
-    "defaultMessage": "确定要删除计划“{id}”吗？"
+    "defaultMessage": "确定要删除自动化“{id}”吗？"
   },
   "schedulesView.createSchedule": {
-    "defaultMessage": "创建计划"
+    "defaultMessage": "创建自动化"
   },
   "schedulesView.description": {
-    "defaultMessage": "创建和管理定时任务，在指定时间自动运行配方。"
+    "defaultMessage": "创建和管理自动化任务，在指定时间自动运行任务模板。"
   },
   "schedulesView.edit": {
     "defaultMessage": "编辑"
@@ -3621,13 +3696,13 @@
     "defaultMessage": "上次运行：{date}"
   },
   "schedulesView.noSchedules": {
-    "defaultMessage": "暂无计划"
+    "defaultMessage": "暂无自动化任务"
   },
   "schedulesView.pause": {
     "defaultMessage": "暂停"
   },
   "schedulesView.pauseError": {
-    "defaultMessage": "暂停计划错误"
+    "defaultMessage": "暂停自动化错误"
   },
   "schedulesView.paused": {
     "defaultMessage": "已暂停"
@@ -3645,28 +3720,28 @@
     "defaultMessage": "运行中"
   },
   "schedulesView.schedulePaused": {
-    "defaultMessage": "计划已暂停"
+    "defaultMessage": "自动化已暂停"
   },
   "schedulesView.schedulePausedMsg": {
-    "defaultMessage": "已成功暂停计划“{id}”"
+    "defaultMessage": "已成功暂停自动化“{id}”"
   },
   "schedulesView.scheduleUnpaused": {
-    "defaultMessage": "计划已恢复"
+    "defaultMessage": "自动化已恢复"
   },
   "schedulesView.scheduleUnpausedMsg": {
-    "defaultMessage": "已成功恢复计划“{id}”"
+    "defaultMessage": "已成功恢复自动化“{id}”"
   },
   "schedulesView.scheduleUpdated": {
-    "defaultMessage": "计划已更新"
+    "defaultMessage": "自动化已更新"
   },
   "schedulesView.scheduleUpdatedMsg": {
-    "defaultMessage": "已成功更新计划“{id}”"
+    "defaultMessage": "已成功更新自动化“{id}”"
   },
   "schedulesView.scheduler": {
-    "defaultMessage": "调度"
+    "defaultMessage": "自动化"
   },
   "schedulesView.unpauseError": {
-    "defaultMessage": "恢复计划错误"
+    "defaultMessage": "恢复自动化错误"
   },
   "searchBar.caseSensitive": {
     "defaultMessage": "区分大小写"
@@ -3685,6 +3760,162 @@
   },
   "secureStorageNotice.defaultMessage": {
     "defaultMessage": "密钥已安全地存储在系统密钥库中"
+  },
+  "securityPreviewLaunchGuard.commandsLabel": {
+    "defaultMessage": "请回到仓库根目录，使用以下任一官方命令重新打开："
+  },
+  "securityPreviewLaunchGuard.description": {
+    "defaultMessage": "{appName} 当前正在使用 fallback 本地状态，因此你看到的聊天记录、模型选择或工作目录，可能与官方隔离预览会话不一致。"
+  },
+  "securityPreviewLaunchGuard.title": {
+    "defaultMessage": "当前 local-preview 并非通过官方启动器打开。"
+  },
+  "securityRuntimeNotice.driftedRecipes": {
+    "defaultMessage": "已漂移任务模板：{ids}"
+  },
+  "securityRuntimeNotice.driftedSkills": {
+    "defaultMessage": "已漂移技能：{ids}"
+  },
+  "securityRuntimeNotice.missingRecipes": {
+    "defaultMessage": "缺失任务模板：{ids}"
+  },
+  "securityRuntimeNotice.missingSkills": {
+    "defaultMessage": "缺失技能：{ids}"
+  },
+  "securityRuntimeNotice.overviewDescription": {
+    "defaultMessage": "当前工作目录中的安全 skills 或任务模板与 bundled 源不一致，可能缺失或已漂移。部分安全任务入口会回退到引导式聊天，或继续使用旧版指令。"
+  },
+  "securityRuntimeNotice.overviewTitle": {
+    "defaultMessage": "安全运行时需要关注"
+  },
+  "securityRuntimeNotice.packagedReseedHint": {
+    "defaultMessage": "请通过官方 packaged preview 启动入口重新打开，以便把缺失资产重新种到当前工作目录。"
+  },
+  "securityRuntimeNotice.repoResyncHint": {
+    "defaultMessage": "repo preview 可执行 `node scripts/sync-security-runtime-assets.mjs` 重新同步镜像运行时资产。"
+  },
+  "securityRuntimeNotice.skippedMissingDistro": {
+    "defaultMessage": "当前无法访问 bundled security distro 源，因此应用无法校验本地 skill 和任务模板资产。"
+  },
+  "securityRuntimeNotice.skippedMissingWorkingDir": {
+    "defaultMessage": "当前工作目录不可用，因此应用无法校验本地 skill 和任务模板资产。"
+  },
+  "securityRuntimeNotice.taskRecipeDrifted": {
+    "defaultMessage": "当前目录里的任务模板运行时文件与 bundled 源不一致"
+  },
+  "securityRuntimeNotice.taskRecipeMissing": {
+    "defaultMessage": "当前工作目录缺少对应任务模板运行时文件"
+  },
+  "securityRuntimeNotice.taskSkillDrifted": {
+    "defaultMessage": "当前目录里的 skill 资产与 bundled 源不一致"
+  },
+  "securityRuntimeNotice.taskSkillMissing": {
+    "defaultMessage": "当前工作目录缺少对应 skill 资产"
+  },
+  "securityTasks.alertInvestigation.description": {
+    "defaultMessage": "对安全告警做真实性判断、影响范围分析和处置建议整理。"
+  },
+  "securityTasks.alertInvestigation.title": {
+    "defaultMessage": "告警分析"
+  },
+  "securityTasks.badgePreview": {
+    "defaultMessage": "预览"
+  },
+  "securityTasks.badgeReady": {
+    "defaultMessage": "模板"
+  },
+  "securityTasks.extensionDetailBlockedExternal": {
+    "defaultMessage": "依赖外部专有 API、账号或服务协议，当前不能直接启用。"
+  },
+  "securityTasks.extensionDetailDisabledStub": {
+    "defaultMessage": "当前只保留目录条目，真实网关或运行时仍明确延后。"
+  },
+  "securityTasks.extensionDetailLocalPreview": {
+    "defaultMessage": "当前本机预览实现已经可用，现在可以在扩展设置里启用。"
+  },
+  "securityTasks.extensionOverviewDescription": {
+    "defaultMessage": "可在“设置 → 扩展”启用真实本机预览链路。禁用占位和阻塞条目继续保留可见，避免任务推荐伪装成已完整可用。"
+  },
+  "securityTasks.extensionOverviewTitle": {
+    "defaultMessage": "扩展状态"
+  },
+  "securityTasks.extensionStatusBlocked": {
+    "defaultMessage": "阻塞"
+  },
+  "securityTasks.extensionStatusDisabledStub": {
+    "defaultMessage": "禁用占位"
+  },
+  "securityTasks.extensionStatusLocalPreview": {
+    "defaultMessage": "本机预览"
+  },
+  "securityTasks.iocAnalysis.description": {
+    "defaultMessage": "对域名、IP、URL、Hash 等 IOC 线索做结构化调查。"
+  },
+  "securityTasks.iocAnalysis.title": {
+    "defaultMessage": "IOC 研判"
+  },
+  "securityTasks.mappingRecipe": {
+    "defaultMessage": "任务模板"
+  },
+  "securityTasks.mappingSkill": {
+    "defaultMessage": "技能"
+  },
+  "securityTasks.methodologyBoundary": {
+    "defaultMessage": "当前界面可以展示已附带的任务模板，但还不能显式显示技能加载遥测。因此这里的技能映射仍属于方法论提示，而不是已确认的运行时信号。"
+  },
+  "securityTasks.openExtensions": {
+    "defaultMessage": "打开扩展设置"
+  },
+  "securityTasks.primaryPathLabel": {
+    "defaultMessage": "主路径"
+  },
+  "securityTasks.primaryPathRecipe": {
+    "defaultMessage": "任务模板运行时"
+  },
+  "securityTasks.primaryPathSkill": {
+    "defaultMessage": "技能引导提示"
+  },
+  "securityTasks.recommendedExtensions": {
+    "defaultMessage": "推荐扩展"
+  },
+  "securityTasks.reportWriting.description": {
+    "defaultMessage": "把调查结果整理成适合汇报、留痕或转工单的结构化报告。"
+  },
+  "securityTasks.reportWriting.title": {
+    "defaultMessage": "报告生成"
+  },
+  "securityTasks.savedRecipesTitle": {
+    "defaultMessage": "已保存任务模板"
+  },
+  "securityTasks.sectionDescription": {
+    "defaultMessage": "这些入口只映射到现有任务模板和技能运行时。6 个内置安全任务都优先进入原生任务模板运行时；如果当前工作区缺少某个任务模板运行时，应用只会回退到对应技能提示，而不会新增并行执行层。推荐扩展保持可选，并继续明确区分本机预览、禁用占位和阻塞。"
+  },
+  "securityTasks.sectionTitle": {
+    "defaultMessage": "安全任务入口"
+  },
+  "securityTasks.startPreview": {
+    "defaultMessage": "启动引导对话"
+  },
+  "securityTasks.startRecipe": {
+    "defaultMessage": "启动任务"
+  },
+  "securityTasks.vulnTriage.description": {
+    "defaultMessage": "把 CVE、公告、PoC、补丁和资产上下文整理成可处置的漏洞结论。"
+  },
+  "securityTasks.vulnTriage.title": {
+    "defaultMessage": "漏洞研判"
+  },
+  "securityTasks.webInvestigation.description": {
+    "defaultMessage": "调查页面内容、提取可疑指标，并整理后续下钻线索。"
+  },
+  "securityTasks.webInvestigation.title": {
+    "defaultMessage": "网页调查"
+  },
+  "securityTasks.wooyunLegacy.description": {
+    "defaultMessage": "按 WooYun 风格的方法对业务流程做逻辑安全排查。"
+  },
+  "securityTasks.wooyunLegacy.title": {
+    "defaultMessage": "业务逻辑排查"
   },
   "securityToggle.apiTokenDescription": {
     "defaultMessage": "分类服务的认证令牌"
@@ -4176,13 +4407,10 @@
     "defaultMessage": "保存"
   },
   "skillsView.addSkill": {
-    "defaultMessage": "添加技能"
+    "defaultMessage": "导入技能"
   },
   "skillsView.adjustSearchTerms": {
     "defaultMessage": "尝试调整搜索关键词"
-  },
-  "skillsView.comingSoon": {
-    "defaultMessage": "即将推出"
   },
   "skillsView.errorLoadingSkills": {
     "defaultMessage": "加载技能出错"
@@ -4193,14 +4421,23 @@
   "skillsView.noSkillsDescription": {
     "defaultMessage": "技能从 ~/.config/agents/skills/、.goose/skills/ 或其他受支持目录中的 SKILL.md 文件加载。"
   },
+  "skillsView.noSecuritySkillsDescription": {
+    "defaultMessage": "当前版本只展示三类技能：内置技能、附带的安全技能，以及安装到当前项目里的本地技能。"
+  },
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "未安装任何技能"
   },
   "skillsView.searchSkillsPlaceholder": {
     "defaultMessage": "搜索技能…"
   },
+  "skillsView.securitySkillsDescription": {
+    "defaultMessage": "这里显示三类技能：内置技能、附带的安全技能，以及安装到当前项目里的本地技能。默认不会把 Claude、Codex 等其他目录里的技能混进来。{shortcut} 搜索。"
+  },
+  "skillsView.securitySkillsDiscoveryDescription": {
+    "defaultMessage": "“/” 菜单只会显示当前运行时这一轮真正发现到的技能。新导入的本地技能通常在重新打开会话后出现在那里。"
+  },
   "skillsView.skillsDescription": {
-    "defaultMessage": "查看已安装的用于扩展 Goose 能力的技能。按 {shortcut} 搜索。"
+    "defaultMessage": "查看已安装的用于扩展应用能力的技能。按 {shortcut} 搜索。"
   },
   "skillsView.skillsTitle": {
     "defaultMessage": "技能"
@@ -4239,25 +4476,25 @@
     "defaultMessage": "添加已有"
   },
   "subRecipeEditor.createNew": {
-    "defaultMessage": "创建新子配方"
+    "defaultMessage": "创建新子任务模板"
   },
   "subRecipeEditor.deleteSubrecipe": {
-    "defaultMessage": "删除子配方 {name}"
+    "defaultMessage": "删除子任务模板 {name}"
   },
   "subRecipeEditor.description": {
-    "defaultMessage": "子配方是可在执行过程中作为工具调用的配方。它们支持多步工作流和可复用组件。"
+    "defaultMessage": "子任务模板是可在执行过程中作为工具调用的任务模板。它们支持多步工作流和可复用组件。"
   },
   "subRecipeEditor.duplicateName": {
     "defaultMessage": "名称重复"
   },
   "subRecipeEditor.duplicateNameMsg": {
-    "defaultMessage": "已存在名为“{name}”的子配方，请使用唯一名称。"
+    "defaultMessage": "已存在名为“{name}”的子任务模板，请使用唯一名称。"
   },
   "subRecipeEditor.editSubrecipe": {
-    "defaultMessage": "编辑子配方 {name}"
+    "defaultMessage": "编辑子任务模板 {name}"
   },
   "subRecipeEditor.label": {
-    "defaultMessage": "子配方"
+    "defaultMessage": "子任务模板"
   },
   "subRecipeEditor.preconfiguredValues": {
     "defaultMessage": "预设参数值："
@@ -4266,7 +4503,7 @@
     "defaultMessage": "按顺序"
   },
   "subRecipeModal.addTitle": {
-    "defaultMessage": "添加子配方"
+    "defaultMessage": "添加子任务模板"
   },
   "subRecipeModal.apply": {
     "defaultMessage": "应用"
@@ -4278,16 +4515,16 @@
     "defaultMessage": "取消"
   },
   "subRecipeModal.closeModal": {
-    "defaultMessage": "关闭子配方弹窗"
+    "defaultMessage": "关闭子任务模板弹窗"
   },
   "subRecipeModal.configureTitle": {
-    "defaultMessage": "配置子配方"
+    "defaultMessage": "配置子任务模板"
   },
   "subRecipeModal.descriptionLabel": {
     "defaultMessage": "描述"
   },
   "subRecipeModal.descriptionPlaceholder": {
-    "defaultMessage": "此子配方功能的可选描述…"
+    "defaultMessage": "此子任务模板功能的可选描述…"
   },
   "subRecipeModal.invalidFile": {
     "defaultMessage": "文件无效"
@@ -4305,7 +4542,7 @@
     "defaultMessage": "例如：security_scan"
   },
   "subRecipeModal.pathHint": {
-    "defaultMessage": "浏览现有配方文件，或手动输入路径"
+    "defaultMessage": "浏览现有任务模板文件，或手动输入路径"
   },
   "subRecipeModal.pathLabel": {
     "defaultMessage": "路径"
@@ -4317,16 +4554,16 @@
     "defaultMessage": "预设参数值"
   },
   "subRecipeModal.preconfiguredValuesHint": {
-    "defaultMessage": "始终传给子配方的可选参数值"
+    "defaultMessage": "始终传给子任务模板的可选参数值"
   },
   "subRecipeModal.sequentialHint": {
-    "defaultMessage": "（强制多个子配方实例按顺序执行）"
+    "defaultMessage": "（强制多个子任务模板实例按顺序执行）"
   },
   "subRecipeModal.sequentialLabel": {
     "defaultMessage": "重复调用时按顺序执行"
   },
   "subRecipeModal.subtitle": {
-    "defaultMessage": "配置一个可在配方执行过程中作为工具调用的子配方"
+    "defaultMessage": "配置一个可在任务执行过程中作为工具调用的子任务模板"
   },
   "switchModelModal.backToModelList": {
     "defaultMessage": "返回模型列表"
@@ -4452,10 +4689,10 @@
     "defaultMessage": "使用其他提供商"
   },
   "telemetryConsentPrompt.description": {
-    "defaultMessage": "是否愿意分享匿名使用数据帮助改进 goose？我们绝不采集你的对话、代码或个人数据。"
+    "defaultMessage": "是否愿意分享匿名使用数据帮助改进 {appName}？我们绝不采集你的对话、代码或个人数据。"
   },
   "telemetryConsentPrompt.heading": {
-    "defaultMessage": "帮助改进 goose"
+    "defaultMessage": "帮助改进 {appName}"
   },
   "telemetryConsentPrompt.learnMore": {
     "defaultMessage": "了解更多"
@@ -4560,7 +4797,7 @@
     "defaultMessage": "允许 {toolName} 吗？"
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
-    "defaultMessage": "Goose 想调用 {toolName}，允许吗？"
+    "defaultMessage": "助手想调用 {toolName}，允许吗？"
   },
   "tunnelSection.appStoreQrInstructions": {
     "defaultMessage": "用 iPhone 相机扫描此二维码，从 App Store 安装 goose 手机应用"
@@ -4688,6 +4925,12 @@
   "updateSection.loading": {
     "defaultMessage": "加载中…"
   },
+  "updateSection.localPreviewDisabled": {
+    "defaultMessage": "本地预览包不会检查正式签名发布更新。"
+  },
+  "updateSection.localPreviewDisabledDetail": {
+    "defaultMessage": "本地验证请继续使用官方 preview 启动脚本。真正的更新通道只保留给正式签名发布包。"
+  },
   "updateSection.manualInstallNote": {
     "defaultMessage": "下载完成后，你需要手动安装更新。"
   },
@@ -4705,6 +4948,9 @@
   },
   "updateSection.updateAvailable": {
     "defaultMessage": "有可用更新！"
+  },
+  "updateSection.updatesDisabled": {
+    "defaultMessage": "当前构建不提供正式更新检查。"
   },
   "updateSection.versionAvailable": {
     "defaultMessage": "→ {version} 可用"
@@ -4756,5 +5002,224 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "用编辑过的消息创建新会话"
+  },
+  "skillsView.bundledSkillsTitle": {
+    "defaultMessage": "已内置技能"
+  },
+  "skillsView.cancel": {
+    "defaultMessage": "取消"
+  },
+  "skillsView.currentProjectStatus": {
+    "defaultMessage": "当前项目"
+  },
+  "skillsView.deleteAction": {
+    "defaultMessage": "删除"
+  },
+  "skillsView.deleteSkillSuccessMessage": {
+    "defaultMessage": "已从当前项目运行时删除“{skillName}”。"
+  },
+  "skillsView.deleteSkillSuccessTitle": {
+    "defaultMessage": "已删除本地技能"
+  },
+  "skillsView.deleteSkillErrorTitle": {
+    "defaultMessage": "无法删除本地技能"
+  },
+  "skillsView.deleteSkillErrorMessage": {
+    "defaultMessage": "无法从当前项目运行时移除所选本地技能。"
+  },
+  "skillsView.deleteSkill": {
+    "defaultMessage": "删除本地技能"
+  },
+  "skillsView.deleteSkillConfirmMessage": {
+    "defaultMessage": "要从 .agents/skills 删除当前项目技能“{skillName}”吗？这不会影响 bundled 源或其他目录。"
+  },
+  "skillsView.deleteSkillConfirmTitle": {
+    "defaultMessage": "删除本地技能？"
+  },
+  "skillsView.importConflictMessage": {
+    "defaultMessage": "当前项目里已经存在名为“{skillName}”的 skill。要用刚选择的包覆盖它吗？"
+  },
+  "skillsView.importConflictTitle": {
+    "defaultMessage": "覆盖现有 skill？"
+  },
+  "skillsView.importSkillErrorTitle": {
+    "defaultMessage": "导入 skill 失败"
+  },
+  "skillsView.importSkillErrorMessage": {
+    "defaultMessage": "无法导入所选 skill 包。"
+  },
+  "skillsView.detailsAction": {
+    "defaultMessage": "详情"
+  },
+  "skillsView.detailDescription": {
+    "defaultMessage": "查看这个技能的描述、skill 文件夹，以及用于方法论说明的 SKILL.md 正文。"
+  },
+  "skillsView.detailTitle": {
+    "defaultMessage": "{skillName} 详情"
+  },
+  "skillsView.descriptionLabel": {
+    "defaultMessage": "描述"
+  },
+  "skillsView.builtInDetailDescription": {
+    "defaultMessage": "这是内置 skill。应用可以展示它，但当前项目里没有可检查或恢复的 skill 包。"
+  },
+  "skillsView.importSkillSuccessMessage": {
+    "defaultMessage": "已把“{skillName}”安装到当前项目运行时。"
+  },
+  "skillsView.importSkillSuccessTitle": {
+    "defaultMessage": "技能已导入"
+  },
+  "skillsView.invalidSkillDescription": {
+    "defaultMessage": "当前项目中的这个 skill 包缺少有效的 SKILL.md frontmatter name，或目录结构不正确。"
+  },
+  "skillsView.invalidRecoveryLabel": {
+    "defaultMessage": "修复建议"
+  },
+  "skillsView.invalidRecoveryInvalidFrontmatter": {
+    "defaultMessage": "修正 SKILL.md 中 YAML frontmatter 的语法后，再重新导入或恢复该技能。"
+  },
+  "skillsView.invalidRecoveryMissingFrontmatter": {
+    "defaultMessage": "为 SKILL.md 补充 YAML frontmatter，至少包含非空的 name 字段，然后重新导入或恢复该技能。"
+  },
+  "skillsView.invalidRecoveryMissingName": {
+    "defaultMessage": "为 SKILL.md frontmatter 增加非空的 name 字段，然后重新导入或恢复该技能。"
+  },
+  "skillsView.invalidRecoveryMissingSkillMd": {
+    "defaultMessage": "在技能目录根部补上 SKILL.md，然后重新导入或恢复该技能。"
+  },
+  "skillsView.invalidRecoveryNameMismatch": {
+    "defaultMessage": "让文件夹名称与 frontmatter name 保持一致，然后重新导入或恢复该技能。"
+  },
+  "skillsView.invalidRecoveryUnsupported": {
+    "defaultMessage": "修正本地包结构后，再以技能文件夹或 zip 形式重新导入。"
+  },
+  "skillsView.invalidSkillPackageStatus": {
+    "defaultMessage": "Skill 包无效"
+  },
+  "skillsView.localSkillsTitle": {
+    "defaultMessage": "我的技能 / 本地技能"
+  },
+  "skillsView.missingRuntimeStatus": {
+    "defaultMessage": "运行时缺失"
+  },
+  "skillsView.noSkillsInstalledDetail": {
+    "defaultMessage": "当前项目还没有受控本地 skill。可导入 skill 文件夹或 zip 安装到 .agents/skills。"
+  },
+  "skillsView.noSkillFileAvailable": {
+    "defaultMessage": "这个技能来源没有可读取的 SKILL.md 文件。"
+  },
+  "skillsView.ok": {
+    "defaultMessage": "好"
+  },
+  "skillsView.overriddenLocallyStatus": {
+    "defaultMessage": "已被本地覆盖"
+  },
+  "skillsView.overrideBundledWarning": {
+    "defaultMessage": "这会替换当前项目里 bundled 安全 skill 的运行时副本。之后仍可恢复内置版本。"
+  },
+  "skillsView.overwriteAction": {
+    "defaultMessage": "覆盖"
+  },
+  "skillsView.overwriteLocalWarning": {
+    "defaultMessage": "这会替换 .agents/skills 中当前已有的本地 skill 包。"
+  },
+  "skillsView.restoreBundledSkill": {
+    "defaultMessage": "恢复内置版本"
+  },
+  "skillsView.restoreSkillSuccessMessage": {
+    "defaultMessage": "已把 bundled 技能“{skillName}”恢复到当前项目运行时。"
+  },
+  "skillsView.restoreSkillSuccessTitle": {
+    "defaultMessage": "已恢复 bundled 技能"
+  },
+  "skillsView.restoreSkillErrorTitle": {
+    "defaultMessage": "无法恢复 bundled 技能"
+  },
+  "skillsView.restoreSkillErrorMessage": {
+    "defaultMessage": "无法把 bundled 技能恢复到当前项目运行时。"
+  },
+  "skillsView.restoreConfirmMessage": {
+    "defaultMessage": "要把 bundled skill “{skillName}”恢复到当前项目运行时，并丢弃本地覆盖吗？"
+  },
+  "skillsView.restoreConfirmTitle": {
+    "defaultMessage": "恢复内置版本？"
+  },
+  "skillsView.restoreShortAction": {
+    "defaultMessage": "恢复"
+  },
+  "skillsView.scopedBuiltInStatus": {
+    "defaultMessage": "内置"
+  },
+  "skillsView.revealCurrentProjectFolder": {
+    "defaultMessage": "在 Finder 中打开 skill 文件夹"
+  },
+  "skillsView.revealCurrentProjectFolderSuccessTitle": {
+    "defaultMessage": "已打开 skill 文件夹"
+  },
+  "skillsView.revealCurrentProjectFolderSuccessMessage": {
+    "defaultMessage": "已在 Finder 中打开“{directoryPath}”。"
+  },
+  "skillsView.revealCurrentProjectFolderErrorTitle": {
+    "defaultMessage": "无法打开 skill 文件夹"
+  },
+  "skillsView.revealCurrentProjectFolderErrorMessage": {
+    "defaultMessage": "无法打开所选 skill 文件夹。"
+  },
+  "skillsView.launchPromptConfirm": {
+    "defaultMessage": "启动对话"
+  },
+  "skillsView.launchPromptDescription": {
+    "defaultMessage": "这个 skill 需要先提供 slash-command 输入，应用才会打开新对话。"
+  },
+  "skillsView.launchPromptTitle": {
+    "defaultMessage": "启动 {skillName}"
+  },
+  "skillsView.requiredInputHint": {
+    "defaultMessage": "这个 skill 需要先提供输入内容。应用会把你在这里填写的值拼接到 slash-command 后再启动对话。"
+  },
+  "skillsView.requiredInputLabel": {
+    "defaultMessage": "必填输入"
+  },
+  "skillsView.startAction": {
+    "defaultMessage": "启动"
+  },
+  "skillsView.startChatFromSkill": {
+    "defaultMessage": "从此 skill 开始对话"
+  },
+  "skillsView.startChatFromSkillErrorTitle": {
+    "defaultMessage": "无法从该 skill 启动对话"
+  },
+  "skillsView.startChatFromSkillErrorMessage": {
+    "defaultMessage": "无法基于所选 skill 启动新对话。"
+  },
+  "skillsView.startChatFromSkillUnavailable": {
+    "defaultMessage": "当前会话的 / 菜单还没有发现这个 skill。请在导入、恢复或修复 skill 包后重新打开会话，再重试。"
+  },
+  "skillsView.runtimeDiagnosisInvalid": {
+    "defaultMessage": "当前项目里的 skill 包无效，当前运行时可能无法稳定发现它。"
+  },
+  "skillsView.runtimeDiagnosisLabel": {
+    "defaultMessage": "运行时诊断"
+  },
+  "skillsView.runtimeDiagnosisLocalOverride": {
+    "defaultMessage": "当前项目运行时副本与 bundled 安全源目录内容不一致。"
+  },
+  "skillsView.runtimeDiagnosisMissingRuntime": {
+    "defaultMessage": "Bundled 安全源目录存在，但当前项目运行时副本缺失。"
+  },
+  "skillsView.skillFolderLabel": {
+    "defaultMessage": "Skill 文件夹"
+  },
+  "skillsView.skillFileLabel": {
+    "defaultMessage": "SKILL.md"
+  },
+  "skillsView.skillFileBodyLabel": {
+    "defaultMessage": "SKILL.md 正文"
+  },
+  "skillsView.loadingSkillFile": {
+    "defaultMessage": "正在加载 SKILL.md…"
+  },
+  "skillsView.unavailableValue": {
+    "defaultMessage": "不可用"
   }
 }

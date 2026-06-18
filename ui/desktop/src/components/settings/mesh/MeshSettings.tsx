@@ -539,7 +539,7 @@ export const MeshSettings = () => {
             <div>
               <h4 className="text-sm font-medium text-text-default mb-2">Available Models</h4>
               <p className="text-xs text-text-muted mb-3">
-                Select a model to use it as your Goose provider.
+                Select a model to use it as your active provider.
               </p>
               <div className="space-y-2">
                 {statusInfo.models.map((modelId) => {
