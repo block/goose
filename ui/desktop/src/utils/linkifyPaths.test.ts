@@ -153,6 +153,12 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/Users/me/Downloads/report (final).pdf');
     });
 
+    it('detects paths with alphanumeric parenthesized filename suffixes', () => {
+      const matches = findPaths('Saved /Users/me/Downloads/report (v2).pdf');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/Users/me/Downloads/report (v2).pdf');
+    });
+
     it('preserves closing parens in parenthesized paths without extension', () => {
       const matches = findPaths('Saved /Users/me/Downloads/report (1)');
       expect(matches).toHaveLength(1);

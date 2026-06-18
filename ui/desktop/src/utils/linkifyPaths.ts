@@ -87,7 +87,7 @@ function readParenthesizedSuffix(text: string, spaceIndex: number): number {
   if (i >= text.length) return spaceIndex;
 
   const content = text.slice(contentStart, i);
-  if (!/^(\d+|[a-zA-Z]+)$/.test(content)) return spaceIndex;
+  if (!/^[a-zA-Z0-9]+$/.test(content)) return spaceIndex;
 
   i++;
   while (i < text.length && isPathChar(text[i])) {
