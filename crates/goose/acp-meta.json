@@ -201,6 +201,11 @@
       "responseType": "GetSessionInfoResponse_unstable"
     },
     {
+      "method": "_goose/unstable/session/conversation/truncate",
+      "requestType": "TruncateSessionConversationRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
       "method": "_goose/unstable/session/project/update",
       "requestType": "UpdateSessionProjectRequest_unstable",
       "responseType": "EmptyResponse"

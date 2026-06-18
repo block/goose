@@ -491,6 +491,18 @@ pub struct GetSessionInfoResponse {
     pub session: SessionInfo,
 }
 
+/// Truncate a session conversation from the given message timestamp onward.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/session/conversation/truncate",
+    response = EmptyResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct TruncateSessionConversationRequest {
+    pub session_id: String,
+    pub truncate_from: i64,
+}
+
 /// Update the project association for a session.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/session/project/update", response = EmptyResponse)]

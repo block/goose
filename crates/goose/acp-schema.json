@@ -2768,6 +2768,24 @@
       "type": "string",
       "description": "A unique identifier for a conversation session between a client and agent.\n\nSessions maintain their own context, conversation history, and state,\nallowing multiple independent interactions with the same agent.\n\nSee protocol docs: [Session ID](https://agentclientprotocol.com/protocol/session-setup#session-id)"
     },
+    "TruncateSessionConversationRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "truncateFrom": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sessionId",
+        "truncateFrom"
+      ],
+      "description": "Truncate a session conversation from the given message timestamp onward.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/conversation/truncate"
+    },
     "UpdateSessionProjectRequest_unstable": {
       "type": "object",
       "properties": {
@@ -4042,6 +4060,15 @@
                   ],
                   "description": "Params for _goose/unstable/session/info",
                   "title": "GetSessionInfoRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/TruncateSessionConversationRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/conversation/truncate",
+                  "title": "TruncateSessionConversationRequest_unstable"
                 },
                 {
                   "allOf": [
