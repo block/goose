@@ -14,7 +14,6 @@ workspace = true
 [features]
 default = []
 rustls-tls = [
-    "dep:rustls",
     "reqwest/rustls",
     "rmcp/reqwest",
 ]
@@ -48,7 +47,6 @@ async-trait = { workspace = true }
 strum = { workspace = true }
 tokio = { workspace = true }
 rand = { workspace = true }
-rustls = { workspace = true, optional = true }
 url = { workspace = true }
 pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
 pkcs1 = { version = "0.7.5", default-features = false, features = ["pkcs8", "std"], optional = true }
