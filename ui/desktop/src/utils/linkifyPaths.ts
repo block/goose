@@ -4,7 +4,7 @@ import type { Root, Text, InlineCode, Link, Parent } from 'mdast';
 
 const OPEN_FILE_PROTOCOL = 'open-file://';
 
-const TRAILING_PUNCTUATION_RE = /[.,;:!?)'\]"]+$/;
+const TRAILING_PUNCTUATION_RE = /[.,;:!?'"]+$/;
 
 type PathMatch = [index: number, path: string];
 type Separator = '/' | '\\';

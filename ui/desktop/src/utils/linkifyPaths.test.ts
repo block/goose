@@ -141,6 +141,18 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/Users/me/Downloads/report (1).pdf');
     });
 
+    it('preserves closing parens in parenthesized paths without extension', () => {
+      const matches = findPaths('Saved /Users/me/Downloads/report (1)');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/Users/me/Downloads/report (1)');
+    });
+
+    it('strips sentence punctuation after parenthesized paths', () => {
+      const matches = findPaths('Saved /Users/me/Downloads/report (1).');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/Users/me/Downloads/report (1)');
+    });
+
     it('detects paths with commas in filenames', () => {
       const matches = findPaths('Saved /tmp/report,final.txt');
       expect(matches).toHaveLength(1);
