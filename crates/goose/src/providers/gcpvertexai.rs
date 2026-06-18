@@ -296,10 +296,21 @@ impl GcpVertexAIProvider {
                 );
             }
 
-            let auth_header = self
-                .get_auth_header()
-                .await
-                .map_err(|e| ProviderError::Authentication(e.to_string()))?;
+            let auth_header = match self.get_auth_header().await {
+                Ok(header) => header,
+                Err(e) => {
+                    if !retried_auth {
+                        retried_auth = true;
+                        if self.auth.refresh_credentials().await.is_ok() {
+                            tracing::info!(
+                                "gcloud token exchange failed ({e}); reloaded credentials and retrying"
+                            );
+                            continue;
+                        }
+                    }
+                    return Err(ProviderError::Authentication(e.to_string()));
+                }
+            };
 
             let mut request = self
                 .client
