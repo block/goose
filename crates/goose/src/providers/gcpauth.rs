@@ -354,14 +354,6 @@ impl GcpAuth {
         })
     }
 
-    /// Reloads credentials from disk and clears the cached token.
-    ///
-    /// Credentials are loaded once at startup and a token is cached until it
-    /// expires. When the user re-runs `gcloud auth application-default login`
-    /// (for example after a session's refresh token expires), the in-memory
-    /// credentials and cached token become stale and every request keeps
-    /// failing until the process restarts. Calling this after an auth failure
-    /// picks up the freshly written credentials without a restart.
     pub async fn refresh_credentials(&self) -> Result<(), AuthError> {
         let reloaded = AdcCredentials::load().await?;
         *self.credentials.write().await = reloaded;
