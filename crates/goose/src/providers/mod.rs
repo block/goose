@@ -1,7 +1,9 @@
 mod acp_tooling;
 pub mod amp_acp;
 pub mod anthropic;
-pub mod api_client;
+pub mod api_client {
+    pub use goose_providers::api_client::*;
+}
 pub mod avian;
 pub mod azure;
 pub mod azureauth;
