@@ -2045,6 +2045,9 @@ mod tests {
     use super::*;
     use crate::conversation::message::{Message, MessageContent};
     use crate::providers::base::MessageStream;
+    use goose_providers::conversation::token_usage::ProviderUsage;
+    use goose_providers::errors::ProviderError;
+    use rmcp::model::Tool;
     use tempfile::TempDir;
     use test_case::test_case;
 
@@ -2069,11 +2072,24 @@ mod tests {
             _messages: &[Message],
             _tools: &[rmcp::model::Tool],
         ) -> std::result::Result<MessageStream, goose_providers::errors::ProviderError> {
-            unimplemented!("session naming tests override generate_session_name")
+            unimplemented!("session naming calls complete_fast")
         }
 
         fn get_model_config(&self) -> ModelConfig {
             self.model_config.clone()
+        }
+
+        async fn complete_fast(
+            &self,
+            _session_id: &str,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            Ok((
+                Message::assistant().with_text(GENERATED_SESSION_NAME),
+                ProviderUsage::new("test".to_string(), Default::default()),
+            ))
         }
     }
 
