@@ -43,32 +43,8 @@ jobs:
           VERSION="${VERSION}-canary+${SHORT_SHA}"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-  # ------------------------------------
-  # 2) Build CLI for current supported release scope
-  # ------------------------------------
-  build-cli:
-    needs: [prepare-version]
-    uses: ./.github/workflows/build-cli.yml
-    with:
-      version: ${{ needs.prepare-version.outputs.version }}
-      platform_scope: macos-only
-
-  # ------------------------------------
-  # 3) Upload Install CLI Script (we only need to do this once)
-  # ------------------------------------
-  install-script:
-    name: Upload Install Script
-    runs-on: ubuntu-latest
-    needs: [build-cli]
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
-        with:
-          name: download_cli.sh
-          path: download_cli.sh
-
   # ------------------------------------------------------------
-  # 4) Bundle Desktop App (macOS only) - builds goosed and Electron app
+  # 2) Bundle Desktop App (macOS only) - builds goosed and Electron app
   # ------------------------------------------------------------
   bundle-desktop:
     needs: [prepare-version]
@@ -81,7 +57,7 @@ jobs:
       signing: false
 
   # ------------------------------------------------------------
-  # 5) Bundle Desktop App (macOS Intel) - builds goosed and Electron app
+  # 3) Bundle Desktop App (macOS Intel) - builds goosed and Electron app
   # ------------------------------------------------------------
   bundle-desktop-intel:
     needs: [prepare-version]
@@ -94,12 +70,12 @@ jobs:
       signing: false
 
   # ------------------------------------
-  # 7) Create/Update GitHub Release
+  # 4) Create/Update GitHub Release
   # ------------------------------------
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [build-cli, install-script, bundle-desktop, bundle-desktop-intel]
+    needs: [bundle-desktop, bundle-desktop-intel]
     permissions:
       contents: write
       id-token: write      # Required for Sigstore OIDC signing
@@ -115,11 +91,7 @@ jobs:
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
         with:
           subject-path: |
-            goose-*.tar.bz2
-            goose-*.tar.gz
-            goose-*.zip
             Goose*.zip
-            download_cli.sh
 
       # Create/update the canary release
       - name: Release canary
@@ -129,11 +101,7 @@ jobs:
           name: Canary
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: |
-            goose-*.tar.bz2
-            goose-*.tar.gz
-            goose-*.zip
             Goose*.zip
-            download_cli.sh
           allowUpdates: true
           omitBody: true
           omitPrereleaseDuringUpdate: true

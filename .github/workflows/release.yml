@@ -20,30 +20,8 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # ------------------------------------
-  # 1) Build CLI for current supported release scope
-  # ------------------------------------
-  build-cli:
-    uses: ./.github/workflows/build-cli.yml
-    with:
-      platform_scope: macos-only
-
-  # ------------------------------------
-  # 2) Upload Install CLI Script
-  # ------------------------------------
-  install-script:
-    name: Upload Install Script
-    runs-on: ubuntu-latest
-    needs: [build-cli]
-    steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
-        with:
-          name: download_cli.sh
-          path: download_cli.sh
-
   # ------------------------------------------------------------
-  # 3) Bundle Desktop App (macOS)
+  # 1) Bundle Desktop App (macOS)
   # ------------------------------------------------------------
   bundle-desktop:
     uses: ./.github/workflows/bundle-desktop.yml
@@ -56,7 +34,7 @@ jobs:
     secrets: inherit
 
   # ------------------------------------------------------------
-  # 4) Bundle Desktop App (macOS)
+  # 2) Bundle Desktop App (macOS)
   # ------------------------------------------------------------
   bundle-desktop-intel:
     uses: ./.github/workflows/bundle-desktop-intel.yml
@@ -69,12 +47,12 @@ jobs:
     secrets: inherit
 
   # ------------------------------------
-  # 7) Create/Update GitHub Release
+  # 3) Create/Update GitHub Release
   # ------------------------------------
   release:
     name: Release
     runs-on: ubuntu-latest
-    needs: [build-cli, install-script, bundle-desktop, bundle-desktop-intel]
+    needs: [bundle-desktop, bundle-desktop-intel]
     permissions:
       contents: write
       id-token: write      # Required for Sigstore OIDC signing
@@ -89,11 +67,7 @@ jobs:
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
         with:
           subject-path: |
-            goose-*.tar.bz2
-            goose-*.tar.gz
-            goose-*.zip
             Goose*.zip
-            download_cli.sh
 
       # Create/update the versioned release
       - name: Release versioned
@@ -101,11 +75,7 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: |
-            goose-*.tar.bz2
-            goose-*.tar.gz
-            goose-*.zip
             Goose*.zip
-            download_cli.sh
           allowUpdates: true
           omitBody: true
           omitPrereleaseDuringUpdate: true
@@ -118,11 +88,7 @@ jobs:
           name: Stable
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: |
-            goose-*.tar.bz2
-            goose-*.tar.gz
-            goose-*.zip
             Goose*.zip
-            download_cli.sh
           allowUpdates: true
           omitBody: true
           omitPrereleaseDuringUpdate: true
