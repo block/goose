@@ -34,7 +34,7 @@ interface GooseMessageProps {
   submitElicitationResponse?: (
     elicitationId: string,
     userData: Record<string, unknown>
-  ) => Promise<void>;
+  ) => Promise<boolean>;
 }
 
 export default function GooseMessage({

@@ -17,7 +17,7 @@ export interface UseChatSessionResult {
   submitElicitationResponse: (
     elicitationId: string,
     userData: Record<string, unknown>
-  ) => Promise<void>;
+  ) => Promise<boolean>;
   setRecipeUserParams: (values: Record<string, string>) => Promise<void>;
   stopStreaming: () => void;
   sessionLoadError?: string;

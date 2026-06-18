@@ -469,12 +469,15 @@ export function useAcpChatSession({
       const currentState = stateRef.current;
 
       if (!currentState.session || currentState.chatState === ChatState.LoadingConversation) {
-        return;
+        return false;
       }
 
       if (!resolveAcpElicitationRequest(sessionId, elicitationId, userData)) {
         console.error('No pending ACP elicitation request found', { sessionId, elicitationId });
+        return false;
       }
+
+      return true;
     },
     [sessionId]
   );
