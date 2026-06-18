@@ -177,6 +177,12 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe("/tmp/it's.txt");
     });
 
+    it('detects paths with colons in timestamped filenames', () => {
+      const matches = findPaths('Saved /tmp/2026-06-18T18:30:00.log');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/tmp/2026-06-18T18:30:00.log');
+    });
+
     it('does not extend paths across comma-separated prose', () => {
       const matches = findPaths('Created /tmp/report, then continued');
       expect(matches).toHaveLength(1);

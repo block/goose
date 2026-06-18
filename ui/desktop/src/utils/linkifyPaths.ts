@@ -133,7 +133,7 @@ function readSpacedContinuation(
 }
 
 function isFilenamePunctuation(char: string): boolean {
-  return char === ',' || char === "'";
+  return char === ',' || char === "'" || char === ':';
 }
 
 function readSegment(text: string, start: number, separator: Separator): { end: number } | null {
