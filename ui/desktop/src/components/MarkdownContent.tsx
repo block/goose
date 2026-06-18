@@ -284,7 +284,7 @@ const MarkdownContent = memo(function MarkdownContent({
                   return (
                     <a
                       {...props}
-                      href={undefined}
+                      href={href}
                       onClick={(e) => {
                         e.preventDefault();
                         e.stopPropagation();

@@ -134,6 +134,17 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/usr/local/bin/node');
     });
 
+    it('detects paths with Unicode segment names', () => {
+      const matches = findPaths('Saved /Users/me/デスクトップ/out.txt');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/Users/me/デスクトップ/out.txt');
+    });
+
+    it('does not linkify partial paths before unsupported characters', () => {
+      const matches = findPaths('See /Users/me/🎉/out.txt');
+      expect(matches).toHaveLength(0);
+    });
+
     it('returns no matches for long prose without paths', () => {
       const prose = 'word '.repeat(10_000);
       const start = Date.now();

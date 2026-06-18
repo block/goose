@@ -10,7 +10,8 @@ type PathMatch = [index: number, path: string];
 type Separator = '/' | '\\';
 
 function isPathChar(char: string): boolean {
-  return /[a-zA-Z0-9._+-]/.test(char);
+  if (/[a-zA-Z0-9._+-]/.test(char)) return true;
+  return /\p{L}|\p{N}/u.test(char);
 }
 
 function stripTrailingPunctuation(path: string): string {
@@ -57,9 +58,8 @@ function getLastToken(text: string, segmentStart: number, beforeIndex: number): 
 }
 
 function isPathLikeSpacedWord(word: string, prevToken: string): boolean {
-  if (/[A-Z0-9._+-]/.test(word)) return true;
+  if (!/^[a-z0-9]+$/.test(word)) return true;
   return (
-    /^[a-z][a-z0-9]*$/.test(word) &&
     prevToken.length >= 2 &&
     prevToken.length <= 3 &&
     !prevToken.includes('.')
@@ -144,7 +144,15 @@ function parsePathAt(text: string, index: number): PathMatch | null {
   let segmentCount = 0;
   while (i < text.length) {
     const segment = readSegment(text, i, separator);
-    if (!segment) break;
+    if (!segment) {
+      if (segmentCount >= minSegments && i < text.length) {
+        const next = text[i];
+        if (next !== separator && next !== ' ' && !/[.,;:!?)'\]"]/.test(next)) {
+          return null;
+        }
+      }
+      break;
+    }
     i = segment.end;
     segmentCount++;
     if (i < text.length && text[i] === separator) {
