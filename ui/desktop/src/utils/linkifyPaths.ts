@@ -4,13 +4,14 @@ import type { Root, Text, InlineCode, Link, Parent } from 'mdast';
 
 const OPEN_FILE_PROTOCOL = 'open-file://';
 
-const UNIX_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?(\/(?:[a-zA-Z0-9._+-]+\/){1,}[a-zA-Z0-9._+-]+)/g;
-const TILDE_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?(~\/(?:[a-zA-Z0-9._+-]+\/)*[a-zA-Z0-9._+-]+)/g;
-const WIN_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?([A-Za-z]:[\\/](?:[a-zA-Z0-9._+-]+[\\/])+[a-zA-Z0-9._+-]+)/g;
-
 const TRAILING_PUNCTUATION_RE = /[.,;:!?)'\]"]+$/;
 
 type PathMatch = [index: number, path: string];
+type Separator = '/' | '\\';
+
+function isPathChar(char: string): boolean {
+  return /[a-zA-Z0-9._+-]/.test(char);
+}
 
 function stripTrailingPunctuation(path: string): string {
   return path.replace(TRAILING_PUNCTUATION_RE, '');
@@ -21,29 +22,116 @@ function isUrlPath(text: string, index: number): boolean {
   return /[a-zA-Z][a-zA-Z0-9+.-]*:\/\/?$/.test(before);
 }
 
+function isValidPathStart(text: string, index: number): boolean {
+  if (index === 0) return true;
+  if (isUrlPath(text, index)) return false;
+  const prev = text[index - 1];
+  if (/[\s('"`[(,;]/.test(prev)) return true;
+  const before = text.slice(0, index);
+  return /\/\*.*?\*\/$/.test(before);
+}
+
+function readSpacedContinuation(text: string, spaceIndex: number, separator: Separator): number {
+  if (text[spaceIndex] !== ' ') return spaceIndex;
+
+  let j = spaceIndex + 1;
+  while (j < text.length && isPathChar(text[j])) {
+    j++;
+  }
+  if (j === spaceIndex + 1) return spaceIndex;
+
+  const after = text[j];
+  if (after === separator) return j;
+  if (after === undefined || /[.,;:!?)'\]"]/.test(after)) return j;
+
+  if (after === ' ') {
+    const rest = text.slice(j).trimStart();
+    if (rest.startsWith(separator)) return spaceIndex;
+
+    const word = text.slice(spaceIndex + 1, j);
+    if (/[A-Z0-9._+-]/.test(word)) return j;
+
+    if (/^[a-z][a-z0-9]*$/.test(word) && (rest === '' || /^[.,;:!?)'\]"]/.test(rest))) {
+      return j;
+    }
+    return spaceIndex;
+  }
+
+  return spaceIndex;
+}
+
+function readSegment(text: string, start: number, separator: Separator): { end: number } | null {
+  let i = start;
+  if (i >= text.length || !isPathChar(text[i])) return null;
+
+  while (i < text.length && isPathChar(text[i])) {
+    i++;
+  }
+
+  while (i < text.length && text[i] === ' ') {
+    const continuationEnd = readSpacedContinuation(text, i, separator);
+    if (continuationEnd === i) break;
+    i = continuationEnd;
+  }
+
+  return i > start ? { end: i } : null;
+}
+
+function tryParsePath(text: string, index: number): PathMatch | null {
+  if (!isValidPathStart(text, index)) return null;
+
+  let i = index;
+  let separator: Separator = '/';
+  let minSegments: number;
+
+  if (text[i] === '/') {
+    i++;
+    minSegments = 2;
+  } else if (text[i] === '~' && text[i + 1] === '/') {
+    i += 2;
+    minSegments = 1;
+  } else if (/[A-Za-z]/.test(text[i] ?? '') && text[i + 1] === ':') {
+    i += 2;
+    if (text[i] === '/' || text[i] === '\\') {
+      separator = text[i] as Separator;
+      i++;
+    }
+    minSegments = 2;
+  } else {
+    return null;
+  }
+
+  let segmentCount = 0;
+  while (i < text.length) {
+    const segment = readSegment(text, i, separator);
+    if (!segment) break;
+    i = segment.end;
+    segmentCount++;
+    if (i < text.length && text[i] === separator) {
+      i++;
+      continue;
+    }
+    break;
+  }
+
+  if (segmentCount < minSegments) return null;
+
+  const path = stripTrailingPunctuation(text.slice(index, i));
+  if (path.length === 0) return null;
+
+  return [index, path];
+}
+
 export function findPaths(text: string): PathMatch[] {
   const matches: PathMatch[] = [];
-  for (const re of [UNIX_PATH_RE, TILDE_PATH_RE, WIN_PATH_RE]) {
-    let m: RegExpExecArray | null;
-    const localRe = new RegExp(re.source, 'g');
-    while ((m = localRe.exec(text)) !== null) {
-      const path = stripTrailingPunctuation(m[1]);
-      if (path.length === 0) continue;
-      const prefixLen = m[0].length - m[1].length;
-      const index = m.index + prefixLen;
-      if (isUrlPath(text, index)) continue;
-      matches.push([index, path]);
+  for (let i = 0; i < text.length; i++) {
+    const match = tryParsePath(text, i);
+    if (match) {
+      matches.push(match);
+      i = match[0] + match[1].length - 1;
     }
   }
-  matches.sort((a, b) => a[0] - b[0]);
-  const result: PathMatch[] = [];
-  let lastEnd = 0;
-  for (const [index, path] of matches) {
-    if (index < lastEnd) continue;
-    result.push([index, path]);
-    lastEnd = index + path.length;
-  }
-  return result;
+  return matches;
 }
 
 function linkifyNode(node: Text | InlineCode, index: number, parent: Parent): void {
@@ -62,7 +150,7 @@ function linkifyNode(node: Text | InlineCode, index: number, parent: Parent): vo
     }
     newNodes.push({
       type: 'link',
-      url: OPEN_FILE_PROTOCOL + path,
+      url: OPEN_FILE_PROTOCOL + encodeURI(path),
       title: null,
       children: [
         {

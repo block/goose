@@ -20,6 +20,18 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/etc/hosts');
       expect(matches[1][1]).toBe('/etc/resolv.conf');
     });
+
+    it('detects paths with spaces in segment names', () => {
+      const matches = findPaths('Saved /Users/me/My Project/result.txt for review');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/Users/me/My Project/result.txt');
+    });
+
+    it('detects lowercase folder names with spaces at end of path', () => {
+      const matches = findPaths('Output in /home/user/my documents');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/home/user/my documents');
+    });
   });
 
   describe('Tilde paths', () => {
@@ -40,6 +52,12 @@ describe('path linkification', () => {
       const matches = findPaths('File at C:\\Users\\dev\\project\\index.ts');
       expect(matches).toHaveLength(1);
       expect(matches[0][1]).toBe('C:\\Users\\dev\\project\\index.ts');
+    });
+
+    it('detects Windows paths with spaces in segment names', () => {
+      const matches = findPaths('File at C:\\Users\\dev\\My Project\\index.ts');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('C:\\Users\\dev\\My Project\\index.ts');
     });
   });
 
@@ -69,7 +87,16 @@ describe('path linkification', () => {
 
     it('generates correct open-file URLs', () => {
       const path = '/home/user/project/src/main.rs';
-      expect(OPEN_FILE_PROTOCOL + path).toBe('open-file:///home/user/project/src/main.rs');
+      expect(OPEN_FILE_PROTOCOL + encodeURI(path)).toBe(
+        'open-file:///home/user/project/src/main.rs'
+      );
+    });
+
+    it('encodes spaces in open-file URLs', () => {
+      const path = '/Users/me/My Project/result.txt';
+      expect(OPEN_FILE_PROTOCOL + encodeURI(path)).toBe(
+        'open-file:///Users/me/My%20Project/result.txt'
+      );
     });
 
     it('handles paths with hyphens', () => {
