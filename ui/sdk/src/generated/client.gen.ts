@@ -41,7 +41,6 @@ import type {
   DictationSecretSaveRequest_unstable,
   DictationTranscribeRequest_unstable,
   DictationTranscribeResponse_unstable,
-  ElicitationRespondRequest_unstable,
   ExportSessionRequest_unstable,
   ExportSessionResponse_unstable,
   ExportSourceRequest_unstable,
@@ -102,6 +101,7 @@ import type {
   SetSessionSystemPromptRequest_unstable,
   SteerSessionRequest_unstable,
   SteerSessionResponse_unstable,
+  TruncateSessionConversationRequest_unstable,
   UnarchiveSessionRequest_unstable,
   UpdateSessionProjectRequest_unstable,
   UpdateSourceRequest_unstable,
@@ -576,10 +576,13 @@ export class GooseExtClient {
     ) as GetSessionInfoResponse_unstable;
   }
 
-  async elicitationRespond_unstable(
-    params: ElicitationRespondRequest_unstable,
+  async sessionConversationTruncate_unstable(
+    params: TruncateSessionConversationRequest_unstable,
   ): Promise<void> {
-    await this.conn.extMethod("_goose/unstable/elicitation/respond", params);
+    await this.conn.extMethod(
+      "_goose/unstable/session/conversation/truncate",
+      params,
+    );
   }
 
   async sessionProjectUpdate_unstable(

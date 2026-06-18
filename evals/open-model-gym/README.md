@@ -267,6 +267,7 @@ Each tool returns realistic mock data. Tool calls are logged to `tool-calls.log`
 | Command | Description |
 |---------|-------------|
 | `just run` | Full test run (3 reps each, worst kept) |
+| `just run-clean` | Full run with artifacts isolated under `~/.goose/gym-runs/<YYYYDDMMHHMMSS>` |
 | `just test` | Quick run (1 rep each) |
 | `just scenario <name>` | Run specific scenario |
 | `just agent <name>` | Run specific agent |
@@ -283,9 +284,40 @@ npx tsx src/runner.ts --run-count=5
 
 # Don't auto-open browser
 npx tsx src/runner.ts --no-open
+
+# Redirect all run artifacts outside the repo (see Output below)
+npx tsx src/runner.ts --output-dir=~/.goose/gym-runs/latest
+
+# Raise the per-agent timeout (seconds) for slow local models on heavy
+# scenarios. Default 300s; also settable via GYM_AGENT_TIMEOUT.
+npx tsx src/runner.ts --agent-timeout=1200
 ```
 
 ## Output
 
 - `report.html` — Live-updating HTML matrix showing pass/fail status, duration, and validation details
 - `logs/` — Full agent output logs for each run
+
+By default these (plus the cache, scratch workdir, and isolated agent config
+roots `.goose-root/` / `.opencode-root/` / `.pi-root/`) are written inside the
+gym directory. They're gitignored, but still pile up in your checkout — awkward
+if you want to run the bench regularly or from a worktree.
+
+To keep the repo clean, redirect **all** run artifacts to a single base
+directory with the `GYM_OUTPUT_DIR` env var (or the `--output-dir=` flag).
+`config.yaml` and `scenarios/` are still read from the repo.
+
+```bash
+# Everything lands under a timestamped dir outside the repo (YYYYDDMMHHMMSS)
+GYM_OUTPUT_DIR=~/.goose/gym-runs/$(date +%Y%d%m%H%M%S) just run
+
+# Convenience recipe that does the timestamping for you
+just run-clean
+
+# View the report from a redirected run
+GYM_OUTPUT_DIR=~/.goose/gym-runs/20261406101500 just report
+```
+
+> Note: the run cache lives under the output dir too, so a fresh timestamped
+> dir means a fresh (cold) cache. Point `GYM_OUTPUT_DIR` at a stable directory
+> if you want cache reuse across runs.

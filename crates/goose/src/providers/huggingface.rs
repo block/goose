@@ -4,15 +4,14 @@ use super::base::{
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 use super::huggingface_auth;
-use super::inventory::{default_inventory_identity, InventoryIdentityInput};
 use super::openai_compatible::OpenAiCompatibleProvider;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use anyhow::{anyhow, Result};
 use futures::future::BoxFuture;
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub const HUGGINGFACE_API_HOST: &str = "https://router.huggingface.co/v1";
@@ -110,7 +109,7 @@ impl HuggingFaceProvider {
         }
 
         let model = if let Some(ref fast_model_name) = config.fast_model {
-            model.with_fast(fast_model_name, &config.name)?
+            crate::model_config::with_configured_fast_model(model, &config.name, fast_model_name)?
         } else {
             model
         };
@@ -228,20 +227,6 @@ impl ProviderDef for HuggingFaceProvider {
                 dynamic_models: None,
             })
         })
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        let metadata = Self::metadata();
-        Ok(default_inventory_identity(
-            &metadata.name,
-            &metadata.name,
-            &metadata.config_keys,
-            Config::global(),
-        ))
-    }
-
-    fn inventory_configured() -> bool {
-        huggingface_auth::has_configured_token().unwrap_or(false)
     }
 }
 

@@ -11,7 +11,6 @@ use crate::config::paths::Paths;
 use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
 use crate::execution::manager::AgentManager;
-use crate::model::ModelConfig;
 use crate::session::SessionType;
 use crate::session::{EnabledExtensionsState, ExtensionState, Session};
 
@@ -164,17 +163,23 @@ impl GatewayHandler {
         // Store the current provider and model config on the session so the agent
         // can be restored after LRU eviction, matching the start_agent flow.
         let mut update = manager.update(&session.id);
-        if let Ok(provider) = config.get_goose_provider() {
+        let provider = config.get_goose_provider().ok();
+        if let Some(ref provider) = provider {
             update = update.provider_name(provider);
         }
-        if let Ok(model_name) = config.get_goose_model() {
-            if let Ok(model_config) = ModelConfig::new(&model_name) {
+        if let (Some(ref provider), Ok(model_name)) = (&provider, config.get_goose_model()) {
+            if let Ok(model_config) =
+                crate::model_config::model_config_from_user_config(provider, &model_name)
+            {
                 update = update.model_config(model_config);
             }
         }
 
         // Store default extensions so load_extensions_from_session works.
-        let extensions = get_enabled_extensions();
+        let mut extensions = get_enabled_extensions();
+        extensions.extend(crate::plugins::mcp_servers::enabled_plugin_mcp_servers(
+            Some(&session.working_dir),
+        ));
         let extensions_state = EnabledExtensionsState::new(extensions);
         let mut extension_data = session.extension_data.clone();
         if let Err(e) = extensions_state.to_extension_data(&mut extension_data) {
@@ -220,7 +225,10 @@ impl GatewayHandler {
         // --- current global config ---
         let current_provider = config.get_goose_provider().ok();
         let current_model_name = config.get_goose_model().ok();
-        let current_extensions = get_enabled_extensions();
+        let mut current_extensions = get_enabled_extensions();
+        current_extensions.extend(crate::plugins::mcp_servers::enabled_plugin_mcp_servers(
+            Some(&session.working_dir),
+        ));
         let current_mode = config.get_goose_mode().unwrap_or_default();
 
         // --- what the session has ---
@@ -253,8 +261,11 @@ impl GatewayHandler {
         if let Some(ref provider) = current_provider {
             update = update.provider_name(provider);
         }
-        if let Some(ref model_name) = current_model_name {
-            if let Ok(model_config) = ModelConfig::new(model_name) {
+        if let (Some(ref provider), Some(ref model_name)) = (&current_provider, &current_model_name)
+        {
+            if let Ok(model_config) =
+                crate::model_config::model_config_from_user_config(provider, model_name)
+            {
                 update = update.model_config(model_config);
             }
         }
@@ -466,6 +477,7 @@ impl GatewayHandler {
                         }
                     }
                 }
+                Ok(AgentEvent::Usage(_)) => {}
                 Ok(AgentEvent::McpNotification(_)) => {
                     tracing::debug!(
                         session_id,

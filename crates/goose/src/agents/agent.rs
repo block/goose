@@ -16,7 +16,7 @@ use super::mcp_client::GooseMcpHostInfo;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::action_required_manager::ActionRequiredManager;
+use crate::action_required_manager::{ActionRequiredManager, ElicitationOutcome};
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
     get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
@@ -57,8 +57,8 @@ use goose_providers::errors::ProviderError;
 use goose_providers::thinking::ThinkingEffort;
 use regex::Regex;
 use rmcp::model::{
-    CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData, GetPromptResult, Prompt,
-    ServerNotification, Tool,
+    CallToolRequestParams, CallToolResult, Content, ElicitationAction, ErrorCode, ErrorData,
+    GetPromptResult, Prompt, ServerNotification, Tool,
 };
 use serde_json::Value;
 use tokio::sync::{mpsc, Mutex};
@@ -221,6 +221,14 @@ impl AgentConfig {
         self.use_login_shell_path = Some(use_login_shell_path);
         self
     }
+
+    fn resolve_use_login_shell_path(&self) -> bool {
+        resolve_use_login_shell_path(self.use_login_shell_path, &self.goose_platform)
+    }
+}
+
+fn resolve_use_login_shell_path(explicit: Option<bool>, platform: &GoosePlatform) -> bool {
+    explicit.unwrap_or(matches!(platform, GoosePlatform::GooseDesktop))
 }
 
 /// The main goose Agent
@@ -253,6 +261,7 @@ pub struct Agent {
 #[derive(Clone, Debug)]
 pub enum AgentEvent {
     Message(Message),
+    Usage(crate::providers::base::ProviderUsage),
     McpNotification((String, ServerNotification)),
     HistoryReplaced(Conversation),
 }
@@ -336,9 +345,7 @@ impl Agent {
             .unwrap_or_else(|| goose_platform.to_string());
         let session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
-        let use_login_shell_path = config
-            .use_login_shell_path
-            .unwrap_or(matches!(goose_platform, GoosePlatform::GooseDesktop));
+        let use_login_shell_path = config.resolve_use_login_shell_path();
         Self {
             provider: provider.clone(),
             config,
@@ -363,7 +370,10 @@ impl Agent {
                 permission_manager,
                 provider.clone(),
             ),
-            hook_manager: crate::hooks::HookManager::load(std::env::current_dir().ok().as_deref()),
+            hook_manager: crate::hooks::HookManager::load(
+                std::env::current_dir().ok().as_deref(),
+                use_login_shell_path,
+            ),
             #[cfg(test)]
             stop_hook_block_cap_override: None,
             container: Mutex::new(None),
@@ -630,8 +640,10 @@ impl Agent {
     async fn drain_elicitation_messages(&self, session_id: &str) -> Vec<Message> {
         let mut messages = Vec::new();
         let manager = self.config.session_manager.clone();
-        let mut elicitation_rx = ActionRequiredManager::global().request_rx.lock().await;
-        while let Ok(mut elicitation_message) = elicitation_rx.try_recv() {
+        for mut elicitation_message in ActionRequiredManager::global()
+            .drain_requests_for_session(session_id)
+            .await
+        {
             if elicitation_message.id.is_none() {
                 elicitation_message = elicitation_message.with_generated_id();
             }
@@ -695,7 +707,7 @@ impl Agent {
                     .provider()
                     .await
                     .map(|p| p.get_model_config().context_limit())
-                    .unwrap_or(crate::model::DEFAULT_CONTEXT_LIMIT);
+                    .unwrap_or(goose_providers::model::DEFAULT_CONTEXT_LIMIT);
                 let compaction_threshold = Config::global()
                     .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
                     .unwrap_or(crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD);
@@ -1462,16 +1474,23 @@ impl Agent {
                     // success while the blocked tool call stays unblocked.
                     // The success path returns an empty stream after the MCP
                     // server receives the user's accept/decline/cancel action.
-                    ActionRequiredManager::global()
-                        .submit_response(id.clone(), user_data.clone(), action.clone())
-                        .await
-                        .map_err(|e| {
-                            error!("Failed to submit elicitation response: {}", e);
-                            anyhow!("Failed to submit elicitation response: {}", e)
-                        })?;
-                    session_manager
-                        .add_message(&session_config.id, &user_message)
-                        .await?;
+                    let response = match action {
+                        ElicitationAction::Accept => ElicitationOutcome::Accept(user_data.clone()),
+                        ElicitationAction::Decline => ElicitationOutcome::Decline,
+                        ElicitationAction::Cancel => ElicitationOutcome::Cancel,
+                    };
+                    crate::elicitation::complete_elicitation_with_message(
+                        &session_manager,
+                        &session_config.id,
+                        id,
+                        response,
+                        &user_message,
+                    )
+                    .await
+                    .map_err(|e| {
+                        error!("Failed to submit elicitation response: {}", e);
+                        anyhow!("Failed to submit elicitation response: {}", e)
+                    })?;
                     return Ok(Box::pin(futures::stream::empty()));
                 }
             }
@@ -1497,6 +1516,8 @@ impl Agent {
             .execute_command(&message_text, &session_config.id)
             .await;
 
+        let mut command_preamble: Vec<AgentEvent> = Vec::new();
+
         match command_result {
             Err(e) => {
                 let error_message = Message::assistant()
@@ -1505,6 +1526,44 @@ impl Agent {
                 return Ok(Box::pin(stream::once(async move {
                     Ok(AgentEvent::Message(error_message))
                 })));
+            }
+            Ok(Some(response))
+                if response.role == rmcp::model::Role::Assistant
+                    && crate::agents::execute_commands::command_starts_turn(&message_text) =>
+            {
+                // Setting a goal/grind should immediately start a turn so the
+                // agent begins pursuing it, rather than waiting for the next
+                // user prompt. Record the command and its confirmation as
+                // user-visible only, then inject an agent-visible kickoff and
+                // fall through into the reply loop.
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &user_message.clone().with_visibility(true, false),
+                    )
+                    .await?;
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &response.clone().with_visibility(true, false),
+                    )
+                    .await?;
+                let goal_text = crate::agents::execute_commands::parse_slash_command(&message_text)
+                    .map(|parsed| parsed.params_str.to_string())
+                    .unwrap_or_default();
+                let kickoff = Message::user()
+                    .with_text(format!(
+                        "Start working toward this goal now:\n\n**Goal:** {goal_text}"
+                    ))
+                    .with_visibility(false, true);
+                session_manager
+                    .add_message(&session_config.id, &kickoff)
+                    .await?;
+
+                command_preamble = vec![
+                    AgentEvent::Message(user_message.clone()),
+                    AgentEvent::Message(response.clone()),
+                ];
             }
             Ok(Some(response)) if response.role == rmcp::model::Role::Assistant => {
                 session_manager
@@ -1580,6 +1639,10 @@ impl Agent {
         let conversation_to_compact = conversation.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
+            for event in command_preamble {
+                yield event;
+            }
+
             let final_conversation = if !needs_auto_compact {
                 conversation
             } else {
@@ -1888,6 +1951,7 @@ impl Agent {
 
                             if let Some(ref usage) = usage {
                                 self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
+                                yield AgentEvent::Usage(usage.clone());
                             }
 
                             if let Some(response) = response {
@@ -2587,7 +2651,7 @@ impl Agent {
         &self,
         session_id: &str,
         provider_name: &str,
-        model_config: crate::model::ModelConfig,
+        model_config: goose_providers::model::ModelConfig,
     ) -> Result<()> {
         let session = self
             .config
@@ -2650,9 +2714,8 @@ impl Agent {
                     .get_goose_model()
                     .ok()
                     .ok_or_else(|| anyhow!("Could not configure agent: missing model"))?;
-                crate::model::ModelConfig::new(&model_name)
+                crate::model_config::model_config_from_user_config(&provider_name, &model_name)
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
-                    .with_canonical_limits(&provider_name)
             }
         };
 
@@ -2694,9 +2757,11 @@ impl Agent {
                 .get_goose_model()
                 .ok()
                 .ok_or_else(|| anyhow!("Could not configure fallback provider: missing model"))?;
-            let fallback_model_config = crate::model::ModelConfig::new(&fallback_model_name)
-                .map_err(|e| anyhow!("Could not configure fallback provider: invalid model {}", e))?
-                .with_canonical_limits(&fallback_provider_name);
+            let fallback_model_config = crate::model_config::model_config_from_user_config(
+                &fallback_provider_name,
+                &fallback_model_name,
+            )
+            .map_err(|e| anyhow!("Could not configure fallback provider: invalid model {}", e))?;
 
             let fallback_provider = crate::providers::create_with_working_dir(
                 &fallback_provider_name,
@@ -3078,6 +3143,30 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
 
+    #[test]
+    fn resolve_use_login_shell_path_defaults_by_platform() {
+        assert!(resolve_use_login_shell_path(
+            None,
+            &GoosePlatform::GooseDesktop
+        ));
+        assert!(!resolve_use_login_shell_path(
+            None,
+            &GoosePlatform::GooseCli
+        ));
+    }
+
+    #[test]
+    fn resolve_use_login_shell_path_explicit_overrides_platform() {
+        assert!(resolve_use_login_shell_path(
+            Some(true),
+            &GoosePlatform::GooseCli
+        ));
+        assert!(!resolve_use_login_shell_path(
+            Some(false),
+            &GoosePlatform::GooseDesktop
+        ));
+    }
+
     struct ActionRequiredProvider {
         handled: tokio::sync::Mutex<Vec<(String, PermissionConfirmation)>>,
     }
@@ -3101,12 +3190,12 @@ mod tests {
         fn get_name(&self) -> &str {
             "test-action-required"
         }
-        fn get_model_config(&self) -> crate::model::ModelConfig {
-            crate::model::ModelConfig::new("test").unwrap()
+        fn get_model_config(&self) -> goose_providers::model::ModelConfig {
+            goose_providers::model::ModelConfig::new("test").unwrap()
         }
         async fn stream(
             &self,
-            _: &crate::model::ModelConfig,
+            _: &goose_providers::model::ModelConfig,
             _: &str,
             _: &str,
             _: &[crate::conversation::message::Message],
@@ -3288,7 +3377,7 @@ exit 0
     impl crate::providers::base::Provider for CountingTextProvider {
         async fn stream(
             &self,
-            _model_config: &crate::model::ModelConfig,
+            _model_config: &goose_providers::model::ModelConfig,
             _session_id: &str,
             _system_prompt: &str,
             _messages: &[Message],
@@ -3300,8 +3389,8 @@ exit 0
             Ok(stream_from_single_message(message, usage))
         }
 
-        fn get_model_config(&self) -> crate::model::ModelConfig {
-            crate::model::ModelConfig::new("mock-model").unwrap()
+        fn get_model_config(&self) -> goose_providers::model::ModelConfig {
+            goose_providers::model::ModelConfig::new("mock-model").unwrap()
         }
 
         fn get_name(&self) -> &str {
@@ -3317,7 +3406,7 @@ exit 0
     impl crate::providers::base::Provider for RefusingProvider {
         async fn stream(
             &self,
-            _model_config: &crate::model::ModelConfig,
+            _model_config: &goose_providers::model::ModelConfig,
             _session_id: &str,
             _system_prompt: &str,
             _messages: &[Message],
@@ -3332,8 +3421,8 @@ exit 0
             })))
         }
 
-        fn get_model_config(&self) -> crate::model::ModelConfig {
-            crate::model::ModelConfig::new("mock-model").unwrap()
+        fn get_model_config(&self) -> goose_providers::model::ModelConfig {
+            goose_providers::model::ModelConfig::new("mock-model").unwrap()
         }
 
         fn get_name(&self) -> &str {
@@ -3442,7 +3531,9 @@ exit 0
         while let Some(event) = reply_stream.next().await {
             match event? {
                 AgentEvent::Message(message) => messages.push(message),
-                AgentEvent::McpNotification(_) | AgentEvent::HistoryReplaced(_) => {}
+                AgentEvent::McpNotification(_)
+                | AgentEvent::HistoryReplaced(_)
+                | AgentEvent::Usage(_) => {}
             }
         }
         Ok(messages)

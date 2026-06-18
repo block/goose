@@ -835,7 +835,7 @@ async fn execute_job(
     let provider_name = config.get_goose_provider()?;
     let model_name = config.get_goose_model()?;
     let model_config =
-        crate::model::ModelConfig::new(&model_name)?.with_canonical_limits(&provider_name);
+        crate::model_config::model_config_from_user_config(&provider_name, &model_name)?;
 
     let session = agent
         .config
@@ -848,7 +848,12 @@ async fn execute_job(
         )
         .await?;
 
-    let extensions = resolve_extensions_for_new_session(recipe.extensions.as_deref(), None);
+    let mut extensions = resolve_extensions_for_new_session(recipe.extensions.as_deref(), None);
+    if recipe.extensions.is_none() {
+        extensions.extend(crate::plugins::mcp_servers::enabled_plugin_mcp_servers(
+            std::env::current_dir().ok().as_deref(),
+        ));
+    }
     for ext in &extensions {
         agent.add_extension(ext.clone(), &session.id).await?;
     }

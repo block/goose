@@ -14,8 +14,7 @@ import {
 import { AppEvents } from '../../constants/events';
 import { InlineEditText } from '../common/InlineEditText';
 import { SessionIndicators } from '../SessionIndicators';
-import { updateSessionName } from '../../api';
-import type { SessionListItem } from '../../acp/sessions';
+import { acpRenameSession, type SessionListItem } from '../../acp/sessions';
 import { cn } from '../../utils';
 import { defineMessages, useIntl } from '../../i18n';
 
@@ -97,10 +96,12 @@ const SessionRow: React.FC<SessionRowProps> = ({ session, active, status, onClic
       <InlineEditText
         value={session.name}
         onSave={async (newName) => {
-          await updateSessionName({
-            path: { session_id: session.id },
-            body: { name: newName },
-          });
+          await acpRenameSession(session.id, newName);
+          window.dispatchEvent(
+            new CustomEvent(AppEvents.SESSION_RENAMED, {
+              detail: { sessionId: session.id, newName, userInitiated: true },
+            })
+          );
           onRenamed();
         }}
         placeholder={intl.formatMessage(i18n.untitledSession)}

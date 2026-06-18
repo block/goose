@@ -36,13 +36,12 @@ use super::ollama::OLLAMA_DEFAULT_PORT;
 use super::ollama::OLLAMA_HOST;
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::Conversation;
-use crate::model::ModelConfig;
+use crate::model_config::model_config_from_user_config;
 use crate::providers::base::DEFAULT_PROVIDER_TIMEOUT_SECS;
 use anyhow::Result;
 use futures::StreamExt;
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::create_request;
-use goose_providers::formats::openai::ModelConfigParams;
 use goose_providers::images::ImageFormat;
 use reqwest::Client;
 use rmcp::model::{object, CallToolRequestParams, RawContent, Tool};
@@ -567,9 +566,8 @@ impl LocalInterpreter {
         &self,
         format_instruction: &str,
     ) -> Result<String, ProviderError> {
-        let model_config = ModelConfig::new(&self.model)
+        let model_config = crate::model_config::model_config_from_user_config("local", &self.model)
             .map_err(|e| ProviderError::RequestFailed(format!("Model config error: {e}")))?
-            .with_canonical_limits("local")
             .with_toolshim(false)
             .with_toolshim_model(None);
 
@@ -693,18 +691,10 @@ impl OllamaInterpreter {
         let user_message = Message::user().with_text(format_instruction);
         messages.push(user_message);
 
-        let model_config = ModelConfig::new(model)
-            .map_err(|e| ProviderError::RequestFailed(format!("Model config error: {e}")))?
-            .with_canonical_limits("ollama");
+        let model_config = model_config_from_user_config("ollama", model)?;
 
         let mut payload = create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            &model_config,
             system_prompt,
             &messages,
             &[], // No tools

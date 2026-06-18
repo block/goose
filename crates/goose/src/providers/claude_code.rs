@@ -27,10 +27,10 @@ use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::subprocess::configure_subprocess;
+use goose_providers::model::ModelConfig;
 
 use super::cli_common::{error_from_event, extract_usage_tokens};
 
@@ -1128,6 +1128,7 @@ mod tests {
             envs: Envs::new([("API_KEY".into(), "secret".into())].into()),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: Some(false),
             available_tools: vec![],
         }],

@@ -3,13 +3,11 @@ use super::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::inventory::InventoryIdentityInput;
 use super::openai_compatible::handle_status;
 use super::retry::{ProviderRetry, RetryConfig};
 use super::utils::RequestLog;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use crate::providers::formats::ollama::{create_request, response_to_streaming_message_ollama};
 use anyhow::{Error, Result};
 use async_stream::try_stream;
@@ -17,8 +15,8 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
 use goose_providers::errors::ProviderError;
-use goose_providers::formats::openai::ModelConfigParams;
 use goose_providers::images::ImageFormat;
+use goose_providers::model::ModelConfig;
 use reqwest::Response;
 use rmcp::model::Tool;
 use serde_json::{json, Value};
@@ -29,7 +27,7 @@ use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 use url::Url;
 
-const OLLAMA_PROVIDER_NAME: &str = "ollama";
+pub(crate) const OLLAMA_PROVIDER_NAME: &str = "ollama";
 pub const OLLAMA_HOST: &str = "localhost";
 pub const OLLAMA_TIMEOUT: u64 = DEFAULT_PROVIDER_TIMEOUT_SECS;
 pub const OLLAMA_DEFAULT_PORT: u16 = 11434;
@@ -127,7 +125,7 @@ fn apply_ollama_options(payload: &mut Value, model_config: &ModelConfig) {
     }
 }
 
-fn ollama_host_configured(config: &crate::config::Config) -> bool {
+pub(crate) fn ollama_host_configured(config: &crate::config::Config) -> bool {
     config.get_param::<String>("OLLAMA_HOST").is_ok()
 }
 
@@ -221,7 +219,7 @@ impl OllamaProvider {
         }
 
         let model = if let Some(ref fast_model_name) = config.fast_model {
-            model.with_fast(fast_model_name, &config.name)?
+            crate::model_config::with_configured_fast_model(model, &config.name, fast_model_name)?
         } else {
             model
         };
@@ -266,26 +264,6 @@ impl ProviderDef for OllamaProvider {
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(Self::from_env(model))
     }
-
-    fn supports_inventory_refresh() -> bool {
-        true
-    }
-
-    fn inventory_configured() -> bool {
-        ollama_host_configured(crate::config::Config::global())
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        let config = crate::config::Config::global();
-        Ok(
-            InventoryIdentityInput::new(OLLAMA_PROVIDER_NAME, OLLAMA_PROVIDER_NAME).with_public(
-                "host",
-                config
-                    .get_param::<String>("OLLAMA_HOST")
-                    .unwrap_or_else(|_| OLLAMA_HOST.to_string()),
-            ),
-        )
-    }
 }
 
 #[async_trait]
@@ -321,13 +299,7 @@ impl Provider for OllamaProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let mut payload = create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            model_config,
             system,
             messages,
             tools,
@@ -571,13 +543,7 @@ mod tests {
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let payload = create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            &model_config,
             "You are a helpful assistant.",
             &messages,
             &[],
@@ -610,13 +576,7 @@ mod tests {
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let mut payload = create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            &model_config,
             "You are a helpful assistant.",
             &messages,
             &[],
@@ -660,13 +620,7 @@ mod tests {
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let mut payload = create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            &model_config,
             "You are a helpful assistant.",
             &messages,
             &[],

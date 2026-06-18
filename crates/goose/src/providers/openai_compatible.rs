@@ -17,13 +17,12 @@ use super::base::{stream_from_single_message, MessageStream, Provider};
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
-    ModelConfigParams,
 };
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub struct OpenAiCompatibleProvider {
@@ -66,13 +65,7 @@ impl OpenAiCompatibleProvider {
         for_streaming: bool,
     ) -> Result<Value, ProviderError> {
         create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            model_config,
             system,
             messages,
             tools,
@@ -235,7 +228,7 @@ pub fn stream_responses_compat(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::ModelConfig;
+    use goose_providers::model::ModelConfig;
     use serde_json::json;
     use test_case::test_case;
 

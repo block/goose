@@ -10,10 +10,10 @@ use super::openai_compatible::{handle_status, stream_openai_compat};
 use super::retry::ProviderRetry;
 use super::utils::RequestLog;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use crate::providers::formats::openrouter as openrouter_format;
 use goose_providers::errors::ProviderError;
-use goose_providers::formats::openai::{create_request, ModelConfigParams};
+use goose_providers::formats::openai::create_request;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub const OPENROUTER_PROVIDER_NAME: &str = "openrouter";
@@ -48,7 +48,11 @@ pub struct OpenRouterProvider {
 
 impl OpenRouterProvider {
     pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL, OPENROUTER_PROVIDER_NAME)?;
+        let model = crate::model_config::with_configured_fast_model(
+            model,
+            OPENROUTER_PROVIDER_NAME,
+            OPENROUTER_DEFAULT_FAST_MODEL,
+        )?;
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
@@ -257,13 +261,7 @@ impl Provider for OpenRouterProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let mut payload = create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            model_config,
             system,
             messages,
             tools,

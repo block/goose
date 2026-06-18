@@ -2768,26 +2768,23 @@
       "type": "string",
       "description": "A unique identifier for a conversation session between a client and agent.\n\nSessions maintain their own context, conversation history, and state,\nallowing multiple independent interactions with the same agent.\n\nSee protocol docs: [Session ID](https://agentclientprotocol.com/protocol/session-setup#session-id)"
     },
-    "ElicitationRespondRequest_unstable": {
+    "TruncateSessionConversationRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
           "type": "string"
         },
-        "elicitationId": {
-          "type": "string"
-        },
-        "userData": {
-          "default": null
+        "truncateFrom": {
+          "type": "integer"
         }
       },
       "required": [
         "sessionId",
-        "elicitationId"
+        "truncateFrom"
       ],
-      "description": "Submit a response for a pending MCP elicitation in an active session.",
+      "description": "Truncate a session conversation from the given message timestamp onward.",
       "x-side": "agent",
-      "x-method": "_goose/unstable/elicitation/respond"
+      "x-method": "_goose/unstable/session/conversation/truncate"
     },
     "UpdateSessionProjectRequest_unstable": {
       "type": "object",
@@ -3598,19 +3595,6 @@
           "required": [
             "sessionUpdate"
           ]
-        },
-        {
-          "$ref": "#/$defs/InteractionUpdate",
-          "type": "object",
-          "properties": {
-            "sessionUpdate": {
-              "type": "string",
-              "const": "interaction_update"
-            }
-          },
-          "required": [
-            "sessionUpdate"
-          ]
         }
       ],
       "description": "Discriminated union of goose-specific session update payloads.\nVariant tag matches ACP's convention (`sessionUpdate: \"<snake_case>\"`).\n\n`discriminator.mapping` is what makes TS codegen (`@hey-api/openapi-ts`)\nemit the correct snake_case tag value even when this enum has a single\nvariant. Add a mapping entry per variant.",
@@ -3618,8 +3602,7 @@
         "propertyName": "sessionUpdate",
         "mapping": {
           "usage_update": "#/$defs/SessionUsageUpdate",
-          "status_message": "#/$defs/StatusMessageUpdate",
-          "interaction_update": "#/$defs/InteractionUpdate"
+          "status_message": "#/$defs/StatusMessageUpdate"
         }
       }
     },
@@ -3705,56 +3688,6 @@
         "status"
       ],
       "description": "Live UI/session status. This is not conversation transcript content, and\nshould not be persisted or replayed as history."
-    },
-    "Interaction": {
-      "oneOf": [
-        {
-          "type": "object",
-          "properties": {
-            "id": {
-              "type": "string"
-            },
-            "state": {
-              "$ref": "#/$defs/InteractionState"
-            },
-            "message": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "requestedSchema": {},
-            "type": {
-              "type": "string",
-              "const": "elicitation"
-            }
-          },
-          "required": [
-            "type",
-            "id",
-            "state"
-          ]
-        }
-      ]
-    },
-    "InteractionState": {
-      "type": "string",
-      "enum": [
-        "pending",
-        "submitted"
-      ]
-    },
-    "InteractionUpdate": {
-      "type": "object",
-      "properties": {
-        "interaction": {
-          "$ref": "#/$defs/Interaction"
-        },
-        "_meta": {}
-      },
-      "required": [
-        "interaction"
-      ]
     },
     "ExtRequest": {
       "properties": {
@@ -4131,11 +4064,11 @@
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/ElicitationRespondRequest_unstable"
+                      "$ref": "#/$defs/TruncateSessionConversationRequest_unstable"
                     }
                   ],
-                  "description": "Params for _goose/unstable/elicitation/respond",
-                  "title": "ElicitationRespondRequest_unstable"
+                  "description": "Params for _goose/unstable/session/conversation/truncate",
+                  "title": "TruncateSessionConversationRequest_unstable"
                 },
                 {
                   "allOf": [

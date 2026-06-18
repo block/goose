@@ -1,9 +1,9 @@
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
-use super::inventory::InventoryIdentityInput;
+use super::inventory::{InventoryIdentityInput, InventoryRegistration, InventoryResolvers};
 use crate::config::{DeclarativeProviderConfig, ExtensionConfig};
-use crate::model::ModelConfig;
 use anyhow::Result;
 use futures::future::BoxFuture;
+use goose_providers::model::ModelConfig;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -20,17 +20,12 @@ pub type ProviderConstructor = Arc<
 
 pub type ProviderCleanup = Arc<dyn Fn() -> BoxFuture<'static, Result<()>> + Send + Sync>;
 
-pub type ProviderInventoryIdentityResolver =
-    Arc<dyn Fn() -> Result<InventoryIdentityInput> + Send + Sync>;
-
-pub type ProviderInventoryConfiguredResolver = Arc<dyn Fn() -> bool + Send + Sync>;
-
 #[derive(Clone)]
 pub struct ProviderEntry {
     metadata: ProviderMetadata,
     pub(crate) constructor: ProviderConstructor,
-    pub(crate) inventory_identity: ProviderInventoryIdentityResolver,
-    pub(crate) inventory_configured: ProviderInventoryConfiguredResolver,
+    pub(crate) inventory_identity: super::inventory::InventoryIdentityResolver,
+    pub(crate) inventory_configured: super::inventory::InventoryConfiguredResolver,
     pub(crate) cleanup: Option<ProviderCleanup>,
     provider_type: ProviderType,
     supports_inventory_refresh: bool,
@@ -57,8 +52,8 @@ impl ProviderEntry {
         (self.inventory_configured)()
     }
 
-    fn normalize_model_config(&self, mut model: ModelConfig) -> ModelConfig {
-        model = model.with_canonical_limits(&self.metadata.name);
+    fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
+        model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
 
         if model.context_limit.is_none() {
             if let Some(info) = self
@@ -71,15 +66,18 @@ impl ProviderEntry {
             }
         }
 
-        model
+        Ok(model)
     }
 
     pub async fn create_with_default_model(
         &self,
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
-        let default_model = &self.metadata.default_model;
-        let model_config = self.normalize_model_config(ModelConfig::new(default_model.as_str())?);
+        let model_config = crate::model_config::model_config_from_user_config(
+            &self.metadata.name,
+            &self.metadata.default_model,
+        )?;
+        let model_config = self.normalize_model_config(model_config)?;
         (self.constructor)(model_config, extensions, None).await
     }
 
@@ -88,7 +86,7 @@ impl ProviderEntry {
         model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
-        let model = self.normalize_model_config(model);
+        let model = self.normalize_model_config(model)?;
         (self.constructor)(model, extensions, None).await
     }
 
@@ -98,7 +96,7 @@ impl ProviderEntry {
         extensions: Vec<ExtensionConfig>,
         working_dir: PathBuf,
     ) -> Result<Arc<dyn Provider>> {
-        let model = self.normalize_model_config(model);
+        let model = self.normalize_model_config(model)?;
         (self.constructor)(model, extensions, Some(working_dir)).await
     }
 }
@@ -119,8 +117,20 @@ impl ProviderRegistry {
     where
         F: ProviderDef + 'static,
     {
+        self.register_with_inventory::<F>(preferred, None);
+    }
+
+    pub fn register_with_inventory<F>(
+        &mut self,
+        preferred: bool,
+        inventory_registration: Option<InventoryRegistration>,
+    ) where
+        F: ProviderDef + 'static,
+    {
         let metadata = F::metadata();
         let name = metadata.name.clone();
+
+        let inventory = InventoryResolvers::for_metadata(&metadata, inventory_registration);
 
         self.entries.insert(
             name,
@@ -137,15 +147,15 @@ impl ProviderRegistry {
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
-                inventory_identity: Arc::new(F::inventory_identity),
-                inventory_configured: Arc::new(F::inventory_configured),
+                inventory_identity: inventory.identity,
+                inventory_configured: inventory.configured,
                 cleanup: None,
                 provider_type: if preferred {
                     ProviderType::Preferred
                 } else {
                     ProviderType::Builtin
                 },
-                supports_inventory_refresh: F::supports_inventory_refresh(),
+                supports_inventory_refresh: inventory.supports_refresh,
             },
         );
     }
@@ -203,7 +213,7 @@ impl ProviderRegistry {
         supports_inventory_refresh: bool,
         constructor: F,
         inventory_identity: G,
-        inventory_configured: Option<ProviderInventoryConfiguredResolver>,
+        inventory_configured: Option<super::inventory::InventoryConfiguredResolver>,
     ) where
         P: ProviderDef + 'static,
         F: Fn(ModelConfig) -> Result<P::Provider> + Send + Sync + 'static,

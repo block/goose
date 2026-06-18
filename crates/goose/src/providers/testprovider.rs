@@ -11,11 +11,11 @@ use std::sync::{Arc, Mutex};
 use super::base::stream_from_single_message;
 use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::conversation::message::{Message, ToolResponse};
-use crate::model::ModelConfig;
 use crate::utils::bytes_to_hex;
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use rmcp::model::{CallToolResult, Tool};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
