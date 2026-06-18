@@ -147,6 +147,11 @@ describe('ACP elicitation requests', () => {
 
       await vi.advanceTimersByTimeAsync(ACP_ELICITATION_TIMEOUT_SECONDS * 1000);
 
+      expect(acpChatSessionStore.setElicitationStatus).toHaveBeenCalledWith(
+        'session-1',
+        appliedRequest.id,
+        'cancelled'
+      );
       await expect(response).resolves.toEqual({ action: 'cancel' });
       expect(resolveAcpElicitationRequest('session-1', appliedRequest.id, {})).toBe(false);
     } finally {

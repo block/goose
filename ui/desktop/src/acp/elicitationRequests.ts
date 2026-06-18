@@ -51,6 +51,11 @@ export async function requestAcpElicitation(
       }
 
       pendingRequests.delete(key);
+      acpChatSessionStore.setElicitationStatus(
+        elicitationRequest.sessionId,
+        elicitationRequest.id,
+        'cancelled'
+      );
       pending.resolve(cancelledElicitationResponse());
     }, ACP_ELICITATION_TIMEOUT_SECONDS * 1000);
 
