@@ -23,9 +23,11 @@ export interface AcpElicitationRequest {
 interface PendingElicitationRequest {
   request: AcpElicitationRequest;
   resolve: (response: CreateElicitationResponse) => void;
+  timeoutId: ReturnType<typeof setTimeout>;
 }
 
 const pendingRequests = new Map<string, PendingElicitationRequest>();
+export const ACP_ELICITATION_TIMEOUT_SECONDS = 300;
 
 export async function requestAcpElicitation(
   request: CreateElicitationRequest
@@ -42,7 +44,17 @@ export async function requestAcpElicitation(
   const key = elicitationRequestKey(elicitationRequest.sessionId, elicitationRequest.id);
 
   return new Promise<CreateElicitationResponse>((resolve) => {
-    pendingRequests.set(key, { request: elicitationRequest, resolve });
+    const timeoutId = setTimeout(() => {
+      const pending = pendingRequests.get(key);
+      if (!pending) {
+        return;
+      }
+
+      pendingRequests.delete(key);
+      pending.resolve(cancelledElicitationResponse());
+    }, ACP_ELICITATION_TIMEOUT_SECONDS * 1000);
+
+    pendingRequests.set(key, { request: elicitationRequest, resolve, timeoutId });
     acpChatSessionStore.applyElicitationRequest(elicitationRequest);
   });
 }
@@ -59,6 +71,7 @@ export function resolveAcpElicitationRequest(
   }
 
   pendingRequests.delete(key);
+  clearTimeout(pending.timeoutId);
   acpChatSessionStore.setElicitationStatus(sessionId, elicitationId, 'submitted');
   pending.resolve(acceptedElicitationResponse(userData));
   return true;
@@ -68,6 +81,7 @@ export function cancelAcpElicitationRequestsForSession(sessionId: string): void 
   for (const [key, pending] of pendingRequests) {
     if (pending.request.sessionId === sessionId) {
       pendingRequests.delete(key);
+      clearTimeout(pending.timeoutId);
       acpChatSessionStore.setElicitationStatus(sessionId, pending.request.id, 'cancelled');
       pending.resolve(cancelledElicitationResponse());
     }

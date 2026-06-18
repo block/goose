@@ -1,6 +1,7 @@
 import type { CreateElicitationRequest, CreateElicitationResponse } from '@agentclientprotocol/sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
+  ACP_ELICITATION_TIMEOUT_SECONDS,
   cancelAcpElicitationRequestsForSession,
   requestAcpElicitation,
   resolveAcpElicitationRequest,
@@ -133,5 +134,23 @@ describe('ACP elicitation requests', () => {
       content: {},
     });
     expect(resolveAcpElicitationRequest('session-1', sessionOneRequest.id, {})).toBe(false);
+  });
+
+  it('cancels pending requests when they expire', async () => {
+    vi.useFakeTimers();
+    try {
+      const response = requestAcpElicitation(formRequest('session-1'));
+      const appliedRequest = vi.mocked(acpChatSessionStore.applyElicitationRequest).mock
+        .calls[0][0];
+
+      await expectStillPending(response);
+
+      await vi.advanceTimersByTimeAsync(ACP_ELICITATION_TIMEOUT_SECONDS * 1000);
+
+      await expect(response).resolves.toEqual({ action: 'cancel' });
+      expect(resolveAcpElicitationRequest('session-1', appliedRequest.id, {})).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

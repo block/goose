@@ -36,7 +36,7 @@ const i18n = defineMessages({
   },
   submitError: {
     id: 'elicitationRequest.submitError',
-    defaultMessage: 'This request is no longer active. Please ask Goose to try again.',
+    defaultMessage: 'This request is no longer active. The extension will need to ask again.',
   },
 });
 

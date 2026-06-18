@@ -992,6 +992,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "सबमिट करें"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "जानकारी प्रस्तुत की गई"
   },

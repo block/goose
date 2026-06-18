@@ -74,7 +74,7 @@ describe('ElicitationRequest', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Accept' }));
 
     expect(await screen.findByRole('alert')).toHaveTextContent(
-      'This request is no longer active. Please ask Goose to try again.'
+      'This request is no longer active. The extension will need to ask again.'
     );
     expect(screen.queryByText('Information submitted')).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Accept' })).toBeEnabled();
