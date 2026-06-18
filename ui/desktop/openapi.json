@@ -4991,6 +4991,10 @@
               "cmd": {
                 "type": "string"
               },
+              "cwd": {
+                "type": "string",
+                "nullable": true
+              },
               "description": {
                 "type": "string"
               },

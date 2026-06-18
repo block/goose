@@ -28,7 +28,7 @@ export interface SessionSharingConfig {
   baseUrl: string;
 }
 
-export type LanguageSetting = 'system' | 'en' | 'hi' | 'ja' | 'ru' | 'tr' | 'zh-CN';
+export type LanguageSetting = 'system' | 'en' | 'es' | 'hi' | 'ja' | 'ru' | 'tr' | 'zh-CN';
 
 export interface Settings {
   // Desktop app settings

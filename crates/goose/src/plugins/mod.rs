@@ -1,5 +1,6 @@
 pub mod discovery;
 pub mod formats;
+pub mod mcp_servers;
 
 use crate::config::paths::Paths;
 use crate::subprocess::SubprocessExt;

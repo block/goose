@@ -992,6 +992,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "提交"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "信息已提交"
   },
@@ -4099,6 +4102,9 @@
   },
   "settings.language.russian": {
     "defaultMessage": "俄语"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "西班牙语"
   },
   "settings.language.systemDefault": {
     "defaultMessage": "系统默认"

@@ -4,7 +4,6 @@ use super::base::{
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
 use super::huggingface_auth;
-use super::inventory::{default_inventory_identity, InventoryIdentityInput};
 use super::openai_compatible::OpenAiCompatibleProvider;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::{Config, ConfigError};
@@ -228,20 +227,6 @@ impl ProviderDef for HuggingFaceProvider {
                 dynamic_models: None,
             })
         })
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        let metadata = Self::metadata();
-        Ok(default_inventory_identity(
-            &metadata.name,
-            &metadata.name,
-            &metadata.config_keys,
-            Config::global(),
-        ))
-    }
-
-    fn inventory_configured() -> bool {
-        huggingface_auth::has_configured_token().unwrap_or(false)
     }
 }
 

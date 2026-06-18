@@ -101,6 +101,7 @@ import type {
   SetSessionSystemPromptRequest_unstable,
   SteerSessionRequest_unstable,
   SteerSessionResponse_unstable,
+  TruncateSessionConversationRequest_unstable,
   UnarchiveSessionRequest_unstable,
   UpdateSessionProjectRequest_unstable,
   UpdateSourceRequest_unstable,
@@ -573,6 +574,15 @@ export class GooseExtClient {
     return zGetSessionInfoResponse_unstable.parse(
       raw,
     ) as GetSessionInfoResponse_unstable;
+  }
+
+  async sessionConversationTruncate_unstable(
+    params: TruncateSessionConversationRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod(
+      "_goose/unstable/session/conversation/truncate",
+      params,
+    );
   }
 
   async sessionProjectUpdate_unstable(

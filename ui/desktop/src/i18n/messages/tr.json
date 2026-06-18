@@ -992,6 +992,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "Gönder"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "Bilgiler gönderildi"
   },
@@ -4099,6 +4102,9 @@
   },
   "settings.language.russian": {
     "defaultMessage": "Rusça"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "İspanyolca"
   },
   "settings.language.systemDefault": {
     "defaultMessage": "Sistem varsayılanı"

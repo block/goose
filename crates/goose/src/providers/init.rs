@@ -55,42 +55,86 @@ static REGISTRY: OnceCell<RwLock<ProviderRegistry>> = OnceCell::const_new();
 
 async fn init_registry() -> RwLock<ProviderRegistry> {
     let mut registry = ProviderRegistry::new().with_providers(|registry| {
-        registry.register::<AmpAcpProvider>(false);
-        registry.register::<AnthropicProvider>(true);
+        use super::inventory::registrations;
+
+        registry.register_with_inventory::<AmpAcpProvider>(
+            false,
+            Some(registrations::amp_acp_inventory()),
+        );
+        registry.register_with_inventory::<AnthropicProvider>(
+            true,
+            Some(registrations::anthropic_inventory()),
+        );
         registry.register::<AvianProvider>(false);
         registry.register::<AzureProvider>(false);
         #[cfg(feature = "aws-providers")]
         registry.register::<BedrockProvider>(false);
         #[cfg(feature = "local-inference")]
         registry.register::<LocalInferenceProvider>(false);
-        registry.register::<ChatGptCodexProvider>(true);
-        registry.register::<ClaudeAcpProvider>(false);
+        registry.register_with_inventory::<ChatGptCodexProvider>(
+            true,
+            Some(registrations::chatgpt_codex_inventory()),
+        );
+        registry.register_with_inventory::<ClaudeAcpProvider>(
+            false,
+            Some(registrations::claude_acp_inventory()),
+        );
         registry.register::<ClaudeCodeProvider>(true);
-        registry.register::<CodexAcpProvider>(false);
-        registry.register::<CopilotAcpProvider>(false);
+        registry.register_with_inventory::<CodexAcpProvider>(
+            false,
+            Some(registrations::codex_acp_inventory()),
+        );
+        registry.register_with_inventory::<CopilotAcpProvider>(
+            false,
+            Some(registrations::copilot_acp_inventory()),
+        );
         registry.register::<CodexProvider>(true);
         registry.register::<CursorAgentProvider>(false);
-        registry.register::<DatabricksProvider>(true);
-        registry.register::<DatabricksV2Provider>(false);
+        registry.register_with_inventory::<DatabricksProvider>(
+            true,
+            Some(registrations::refresh_only()),
+        );
+        registry.register_with_inventory::<DatabricksV2Provider>(
+            false,
+            Some(registrations::refresh_only()),
+        );
         registry.register::<GcpVertexAIProvider>(false);
         registry.register::<GeminiCliProvider>(false);
         registry.register::<GeminiOAuthProvider>(true);
         registry.register::<GithubCopilotProvider>(false);
-        registry.register::<GoogleProvider>(true);
-        registry.register::<HuggingFaceProvider>(true);
+        registry.register_with_inventory::<GoogleProvider>(
+            true,
+            Some(registrations::google_inventory()),
+        );
+        registry.register_with_inventory::<HuggingFaceProvider>(
+            true,
+            Some(registrations::huggingface_inventory()),
+        );
         registry.register::<KimiCodeProvider>(true);
         registry.register::<LiteLLMProvider>(false);
         registry.register::<NanoGptProvider>(true);
-        registry.register::<OllamaProvider>(true);
-        registry.register::<OpenAiProvider>(true);
+        registry.register_with_inventory::<OllamaProvider>(
+            true,
+            Some(registrations::ollama_inventory()),
+        );
+        registry.register_with_inventory::<OpenAiProvider>(
+            true,
+            Some(registrations::openai_inventory()),
+        );
         registry.register::<OpenRouterProvider>(true);
-        registry.register::<PiAcpProvider>(false);
+        registry.register_with_inventory::<PiAcpProvider>(
+            false,
+            Some(registrations::pi_acp_inventory()),
+        );
         #[cfg(feature = "aws-providers")]
         registry.register::<SageMakerTgiProvider>(false);
         registry.register::<SnowflakeProvider>(false);
         registry.register::<TetrateProvider>(true);
         registry.register::<XaiProvider>(false);
-        registry.register::<XaiOAuthProvider>(true);
+        registry.register_with_inventory::<XaiOAuthProvider>(
+            true,
+            Some(registrations::xai_oauth_inventory()),
+        );
     });
     // Register cleanup functions for providers with cached state
     registry.set_cleanup(

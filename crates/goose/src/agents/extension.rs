@@ -181,6 +181,8 @@ pub enum ExtensionConfig {
         env_keys: Vec<String>,
         timeout: Option<u64>,
         #[serde(default)]
+        cwd: Option<String>,
+        #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
@@ -333,6 +335,7 @@ impl ExtensionConfig {
             env_keys: Vec::new(),
             description: description.into(),
             timeout: Some(timeout.into()),
+            cwd: None,
             bundled: None,
             available_tools: Vec::new(),
         }
@@ -366,6 +369,7 @@ impl ExtensionConfig {
                 envs,
                 env_keys,
                 timeout,
+                cwd,
                 description,
                 bundled,
                 available_tools,
@@ -378,6 +382,7 @@ impl ExtensionConfig {
                 args: args.into_iter().map(Into::into).collect(),
                 description,
                 timeout,
+                cwd,
                 bundled,
                 available_tools,
             },
@@ -443,6 +448,7 @@ impl ExtensionConfig {
                 envs,
                 env_keys,
                 timeout,
+                cwd,
                 bundled,
                 available_tools,
             } => {
@@ -452,9 +458,10 @@ impl ExtensionConfig {
                     description,
                     cmd,
                     args,
-                    envs: Envs::new(merged),
+                    envs: Envs::new(merged.clone()),
                     env_keys: vec![],
                     timeout,
+                    cwd: cwd.map(|s| substitute_env_vars(&s, &merged)),
                     bundled,
                     available_tools,
                 })
@@ -731,6 +738,7 @@ available_tools: []
             envs: extension::Envs::default(),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -742,6 +750,7 @@ available_tools: []
             envs: extension::Envs::default(),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -756,6 +765,7 @@ available_tools: []
             envs: extension::Envs::default(),
             env_keys: vec!["MY_SECRET".into()],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -771,6 +781,7 @@ available_tools: []
             }),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -858,6 +869,7 @@ available_tools: []
             }),
             env_keys: vec!["MY_SECRET".into()],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -873,6 +885,7 @@ available_tools: []
             }),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }

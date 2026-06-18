@@ -228,16 +228,27 @@ pub fn recommend_local_model(runtime: &InferenceRuntime) -> String {
     FEATURED_MODELS[0].spec.to_string()
 }
 
-fn build_openai_messages_json(system: &str, messages: &[Message]) -> String {
+fn build_openai_messages_json(
+    system: &str,
+    messages: &[Message],
+    media_marker: Option<&str>,
+) -> String {
     use goose_providers::formats::openai::format_messages;
 
     let mut arr: Vec<Value> = vec![json!({"role": "system", "content": system})];
     arr.extend(format_messages(messages, &ImageFormat::OpenAi));
     strip_image_parts_from_messages(&mut arr);
+    if let Some(marker) = media_marker {
+        convert_text_media_markers(&mut arr, marker);
+    }
     serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string())
 }
 
-fn build_openai_text_messages_json(system: &str, messages: &[Message]) -> String {
+fn build_openai_text_messages_json(
+    system: &str,
+    messages: &[Message],
+    media_marker: Option<&str>,
+) -> String {
     let mut arr: Vec<Value> = vec![json!({"role": "system", "content": system})];
     arr.extend(messages.iter().filter_map(|m| {
         let content = extract_text_content(m);
@@ -250,7 +261,73 @@ fn build_openai_text_messages_json(system: &str, messages: &[Message]) -> String
         };
         Some(json!({"role": role, "content": content}))
     }));
+    if let Some(marker) = media_marker {
+        convert_text_media_markers(&mut arr, marker);
+    }
     serde_json::to_string(&arr).unwrap_or_else(|_| "[]".to_string())
+}
+
+fn convert_text_media_markers(messages: &mut [Value], marker: &str) {
+    if marker.is_empty() {
+        return;
+    }
+
+    for msg in messages {
+        let Some(content) = msg.get_mut("content") else {
+            continue;
+        };
+
+        if let Some(text) = content.as_str() {
+            if let Some(parts) = split_media_marker_text(text, marker) {
+                *content = json!(parts);
+            }
+            continue;
+        }
+
+        let Some(content_parts) = content.as_array_mut() else {
+            continue;
+        };
+        let mut updated = Vec::new();
+        let mut changed = false;
+        for part in content_parts.iter() {
+            if part.get("type").and_then(|v| v.as_str()) == Some("text") {
+                if let Some(text) = part.get("text").and_then(|v| v.as_str()) {
+                    if let Some(parts) = split_media_marker_text(text, marker) {
+                        updated.extend(parts);
+                        changed = true;
+                        continue;
+                    }
+                }
+            }
+            updated.push(part.clone());
+        }
+        if changed {
+            *content_parts = updated;
+        }
+    }
+}
+
+fn split_media_marker_text(text: &str, marker: &str) -> Option<Vec<Value>> {
+    let mut parts = Vec::new();
+    let mut rest = text;
+    let mut found_marker = false;
+    while let Some((before, after)) = rest.split_once(marker) {
+        found_marker = true;
+        let before = before.strip_suffix('\n').unwrap_or(before);
+        if !before.is_empty() {
+            parts.push(json!({"type": "text", "text": before}));
+        }
+        parts.push(json!({"type": "media_marker", "text": marker}));
+        rest = after;
+        rest = rest.strip_prefix('\n').unwrap_or(rest);
+    }
+    if !found_marker {
+        return None;
+    }
+    if !rest.is_empty() {
+        parts.push(json!({"type": "text", "text": rest}));
+    }
+    Some(parts)
 }
 
 /// Remove `image_url` content parts from OpenAI-format messages JSON, replacing
@@ -645,5 +722,53 @@ impl Provider for LocalInferenceProvider {
             }
 
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn converts_marker_in_string_content_to_media_marker_part() {
+        let mut messages = vec![json!({
+            "role": "user",
+            "content": "look\n<__media__>\nclosely",
+        })];
+
+        convert_text_media_markers(&mut messages, "<__media__>");
+
+        assert_eq!(
+            messages[0]["content"],
+            json!([
+                {"type": "text", "text": "look"},
+                {"type": "media_marker", "text": "<__media__>"},
+                {"type": "text", "text": "closely"},
+            ])
+        );
+    }
+
+    #[test]
+    fn converts_marker_inside_text_content_parts() {
+        let mut messages = vec![json!({
+            "role": "user",
+            "content": [
+                {"type": "text", "text": "<__media__>describe"},
+                {"type": "text", "text": "next"},
+                {"type": "media_marker", "text": "<__media__>"},
+            ],
+        })];
+
+        convert_text_media_markers(&mut messages, "<__media__>");
+
+        assert_eq!(
+            messages[0]["content"],
+            json!([
+                {"type": "media_marker", "text": "<__media__>"},
+                {"type": "text", "text": "describe"},
+                {"type": "text", "text": "next"},
+                {"type": "media_marker", "text": "<__media__>"},
+            ])
+        );
     }
 }

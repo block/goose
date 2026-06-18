@@ -10,24 +10,8 @@ import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
 import { decodeRecipe, Recipe } from './recipe';
 
-export function shouldShowNewChatTitle(session: Session): boolean {
-  if (session.recipe) {
-    return false;
-  }
-  return !session.user_set_name && session.message_count === 0;
-}
-
 export function getSessionDisplayName(session: Session): string {
-  if (session.user_set_name) {
-    return session.name;
-  }
-  if (session.recipe?.title) {
-    return session.recipe.title;
-  }
-  if (shouldShowNewChatTitle(session)) {
-    return DEFAULT_CHAT_TITLE;
-  }
-  return session.name;
+  return session.name || DEFAULT_CHAT_TITLE;
 }
 
 export function resumeSession(session: Session, setView: setViewType) {

@@ -142,6 +142,24 @@ impl GooseAcpAgent {
         })
     }
 
+    pub(super) async fn on_truncate_session_conversation(
+        &self,
+        req: TruncateSessionConversationRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let session_id = req.session_id.trim();
+        if session_id.is_empty() {
+            return Err(
+                agent_client_protocol::Error::invalid_params().data("sessionId cannot be empty")
+            );
+        }
+
+        self.session_manager
+            .truncate_conversation(session_id, req.truncate_from)
+            .await
+            .internal_err()?;
+        Ok(EmptyResponse {})
+    }
+
     pub(super) async fn on_update_session_project(
         &self,
         req: UpdateSessionProjectRequest,

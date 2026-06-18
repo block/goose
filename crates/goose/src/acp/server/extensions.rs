@@ -279,6 +279,7 @@ fn goose_extension_to_config(
                     envs: Envs::default(),
                     env_keys,
                     timeout,
+                    cwd: None,
                     bundled,
                     available_tools: Vec::new(),
                 }
@@ -421,6 +422,7 @@ mod tests {
             )])),
             env_keys: vec!["SECRET_TOKEN".to_string()],
             timeout: Some(42),
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         };
@@ -596,6 +598,7 @@ mod tests {
             timeout,
             bundled,
             available_tools,
+            ..
         } = conversion.config
         else {
             panic!("expected stdio config");

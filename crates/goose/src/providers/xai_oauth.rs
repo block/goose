@@ -72,7 +72,7 @@ struct XaiAuthState {
 }
 
 impl XaiAuthState {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             oauth_mutex: TokioMutex::new(()),
             refresh_mutex: TokioMutex::new(()),
@@ -97,7 +97,7 @@ struct TokenData {
 }
 
 #[derive(Debug, Clone)]
-struct TokenCache {
+pub(crate) struct TokenCache {
     cache_path: PathBuf,
 }
 
@@ -106,7 +106,7 @@ fn get_cache_path() -> PathBuf {
 }
 
 impl TokenCache {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let cache_path = get_cache_path();
         if let Some(parent) = cache_path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -117,6 +117,9 @@ impl TokenCache {
     fn load(&self) -> Option<TokenData> {
         let contents = std::fs::read_to_string(&self.cache_path).ok()?;
         serde_json::from_str(&contents).ok()
+    }
+    pub(crate) fn has_token(&self) -> bool {
+        self.load().is_some()
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
@@ -804,10 +807,6 @@ impl ProviderDef for XaiOAuthProvider {
                 auth_provider,
             })
         })
-    }
-
-    fn inventory_configured() -> bool {
-        TokenCache::new().load().is_some()
     }
 }
 

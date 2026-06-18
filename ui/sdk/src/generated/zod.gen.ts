@@ -1174,6 +1174,14 @@ export const zGetSessionInfoResponse_unstable = z.object({
 });
 
 /**
+ * Truncate a session conversation from the given message timestamp onward.
+ */
+export const zTruncateSessionConversationRequest_unstable = z.object({
+    sessionId: z.string(),
+    truncateFrom: z.number().int()
+});
+
+/**
  * Update the project association for a session.
  */
 export const zUpdateSessionProjectRequest_unstable = z.object({
@@ -1605,6 +1613,7 @@ export const zExtRequest = z.object({
             zExportSessionRequest_unstable,
             zImportSessionRequest_unstable,
             zGetSessionInfoRequest_unstable,
+            zTruncateSessionConversationRequest_unstable,
             zUpdateSessionProjectRequest_unstable,
             zRenameSessionRequest_unstable,
             zArchiveSessionRequest_unstable,
