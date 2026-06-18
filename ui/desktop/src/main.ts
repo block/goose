@@ -2781,7 +2781,7 @@ async function appMain() {
 
   ipcMain.handle('open-path-in-explorer', async (_event, path: string) => {
     try {
-      shell.showItemInFolder(path);
+      shell.showItemInFolder(expandTilde(path));
       return true;
     } catch (error) {
       console.error('Error showing path in explorer:', error);

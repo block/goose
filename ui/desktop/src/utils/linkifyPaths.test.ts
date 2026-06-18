@@ -1,34 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { OPEN_FILE_PROTOCOL } from './linkifyPaths';
-
-const UNIX_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?(\/(?:[a-zA-Z0-9._+-]+\/){1,}[a-zA-Z0-9._+-]+)/g;
-const TILDE_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?(~\/(?:[a-zA-Z0-9._+-]+\/)*[a-zA-Z0-9._+-]+)/g;
-const WIN_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?([A-Za-z]:[\\/](?:[a-zA-Z0-9._+-]+[\\/])+[a-zA-Z0-9._+-]+)/g;
-
-type PathMatch = [index: number, path: string];
-
-function findPaths(text: string): PathMatch[] {
-  const matches: PathMatch[] = [];
-  for (const re of [UNIX_PATH_RE, TILDE_PATH_RE, WIN_PATH_RE]) {
-    let m: RegExpExecArray | null;
-    const localRe = new RegExp(re.source, 'g');
-    while ((m = localRe.exec(text)) !== null) {
-      const prefixLen = m[1].length;
-      const path = m[2];
-      const index = m.index + prefixLen;
-      matches.push([index, path]);
-    }
-  }
-  matches.sort((a, b) => a[0] - b[0]);
-  const result: PathMatch[] = [];
-  let lastEnd = 0;
-  for (const [index, path] of matches) {
-    if (index < lastEnd) continue;
-    result.push([index, path]);
-    lastEnd = index + path.length;
-  }
-  return result;
-}
+import { findPaths, OPEN_FILE_PROTOCOL } from './linkifyPaths';
 
 describe('path linkification', () => {
   describe('Unix absolute paths', () => {
@@ -83,6 +54,12 @@ describe('path linkification', () => {
       const matches = findPaths('Read /home/user/.env.local');
       expect(matches).toHaveLength(1);
       expect(matches[0][1]).toBe('/home/user/.env.local');
+    });
+
+    it('strips trailing sentence punctuation', () => {
+      const matches = findPaths('Created /tmp/result.txt.');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/tmp/result.txt');
     });
 
     it('does not match URLs', () => {

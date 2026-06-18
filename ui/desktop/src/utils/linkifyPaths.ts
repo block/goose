@@ -8,17 +8,30 @@ const UNIX_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?(\/(?:[a-zA-Z0-9._+-]+\/){1
 const TILDE_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?(~\/(?:[a-zA-Z0-9._+-]+\/)*[a-zA-Z0-9._+-]+)/g;
 const WIN_PATH_RE = /(?:^|[\s('"`[(,;]|\/\*.*?\*\/)?([A-Za-z]:[\\/](?:[a-zA-Z0-9._+-]+[\\/])+[a-zA-Z0-9._+-]+)/g;
 
+const TRAILING_PUNCTUATION_RE = /[.,;:!?)'\]"]+$/;
+
 type PathMatch = [index: number, path: string];
 
-function findPaths(text: string): PathMatch[] {
+function stripTrailingPunctuation(path: string): string {
+  return path.replace(TRAILING_PUNCTUATION_RE, '');
+}
+
+function isUrlPath(text: string, index: number): boolean {
+  const before = text.slice(0, index);
+  return /[a-zA-Z][a-zA-Z0-9+.-]*:\/\/?$/.test(before);
+}
+
+export function findPaths(text: string): PathMatch[] {
   const matches: PathMatch[] = [];
   for (const re of [UNIX_PATH_RE, TILDE_PATH_RE, WIN_PATH_RE]) {
     let m: RegExpExecArray | null;
     const localRe = new RegExp(re.source, 'g');
     while ((m = localRe.exec(text)) !== null) {
-      const prefixLen = m[1].length;
-      const path = m[2];
+      const path = stripTrailingPunctuation(m[1]);
+      if (path.length === 0) continue;
+      const prefixLen = m[0].length - m[1].length;
       const index = m.index + prefixLen;
+      if (isUrlPath(text, index)) continue;
       matches.push([index, path]);
     }
   }
@@ -72,11 +85,11 @@ function linkifyNode(node: Text | InlineCode, index: number, parent: Parent): vo
 export const remarkLinkifyPaths: Plugin<[], Root> = function () {
   return (tree: Root) => {
     visit(tree, 'text', (node: Text, index: number | undefined, parent: Parent | undefined) => {
-      if (index === undefined || !parent) return;
+      if (index === undefined || !parent || parent.type === 'link') return;
       linkifyNode(node, index, parent);
     });
     visit(tree, 'inlineCode', (node: InlineCode, index: number | undefined, parent: Parent | undefined) => {
-      if (index === undefined || !parent) return;
+      if (index === undefined || !parent || parent.type === 'link') return;
       linkifyNode(node, index, parent);
     });
   };
