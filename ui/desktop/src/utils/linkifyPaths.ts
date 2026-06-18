@@ -87,7 +87,7 @@ function readParenthesizedSuffix(text: string, spaceIndex: number): number {
   if (i >= text.length) return spaceIndex;
 
   const content = text.slice(contentStart, i);
-  if (!/^\d+$/.test(content)) return spaceIndex;
+  if (!/^(\d+|[a-zA-Z]+)$/.test(content)) return spaceIndex;
 
   i++;
   while (i < text.length && isPathChar(text[i])) {
@@ -133,7 +133,7 @@ function readSpacedContinuation(
 }
 
 function isFilenamePunctuation(char: string): boolean {
-  return char === ',';
+  return char === ',' || char === "'";
 }
 
 function readSegment(text: string, start: number, separator: Separator): { end: number } | null {

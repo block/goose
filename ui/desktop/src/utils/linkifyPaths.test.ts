@@ -147,6 +147,12 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/Users/me/Downloads/report (1).pdf');
     });
 
+    it('detects paths with word parenthesized filename suffixes', () => {
+      const matches = findPaths('Saved /Users/me/Downloads/report (final).pdf');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/Users/me/Downloads/report (final).pdf');
+    });
+
     it('preserves closing parens in parenthesized paths without extension', () => {
       const matches = findPaths('Saved /Users/me/Downloads/report (1)');
       expect(matches).toHaveLength(1);
@@ -163,6 +169,12 @@ describe('path linkification', () => {
       const matches = findPaths('Saved /tmp/report,final.txt');
       expect(matches).toHaveLength(1);
       expect(matches[0][1]).toBe('/tmp/report,final.txt');
+    });
+
+    it('detects paths with apostrophes in filenames', () => {
+      const matches = findPaths("Saved /tmp/it's.txt");
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe("/tmp/it's.txt");
     });
 
     it('does not extend paths across comma-separated prose', () => {
