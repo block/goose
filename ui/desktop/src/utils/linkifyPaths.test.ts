@@ -127,5 +127,15 @@ describe('path linkification', () => {
       expect(matches).toHaveLength(1);
       expect(matches[0][1]).toBe('/usr/local/bin/node');
     });
+
+    it('returns no matches for long prose without paths', () => {
+      const prose = 'word '.repeat(10_000);
+      const start = performance.now();
+      const matches = findPaths(prose);
+      const elapsed = performance.now() - start;
+
+      expect(matches).toHaveLength(0);
+      expect(elapsed).toBeLessThan(500);
+    });
   });
 });

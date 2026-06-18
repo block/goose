@@ -1,4 +1,4 @@
-import { visit } from 'unist-util-visit';
+import { visit, SKIP } from 'unist-util-visit';
 import type { Plugin } from 'unified';
 import type { Root, Text, InlineCode, Link, Parent } from 'mdast';
 
@@ -17,18 +17,37 @@ function stripTrailingPunctuation(path: string): string {
   return path.replace(TRAILING_PUNCTUATION_RE, '');
 }
 
-function isUrlPath(text: string, index: number): boolean {
-  const before = text.slice(0, index);
-  return /[a-zA-Z][a-zA-Z0-9+.-]*:\/\/?$/.test(before);
+function isUrlPathAt(text: string, index: number): boolean {
+  let i = index - 1;
+  if (i < 0) return false;
+
+  if (text[i] === '/') {
+    i--;
+    if (i >= 0 && text[i] === '/') i--;
+  }
+  if (i < 0 || text[i] !== ':') return false;
+
+  i--;
+  const schemeEnd = i;
+  while (i >= 0 && /[a-zA-Z0-9+.-]/.test(text[i])) {
+    i--;
+  }
+
+  const scheme = text.slice(i + 1, schemeEnd + 1);
+  return scheme.length > 0 && /[a-zA-Z]/.test(scheme[0]);
 }
 
-function isValidPathStart(text: string, index: number): boolean {
+function isCandidatePathStart(text: string, index: number, afterBlockComment: boolean): boolean {
   if (index === 0) return true;
-  if (isUrlPath(text, index)) return false;
+  if (isUrlPathAt(text, index)) return false;
   const prev = text[index - 1];
   if (/[\s('"`[(,;]/.test(prev)) return true;
-  const before = text.slice(0, index);
-  return /\/\*.*?\*\/$/.test(before);
+  return afterBlockComment;
+}
+
+function couldStartPath(text: string, index: number): boolean {
+  const char = text[index];
+  return char === '/' || char === '~' || /[A-Za-z]/.test(char);
 }
 
 function getLastToken(text: string, segmentStart: number, beforeIndex: number): string {
@@ -97,9 +116,7 @@ function readSegment(text: string, start: number, separator: Separator): { end: 
   return i > start ? { end: i } : null;
 }
 
-function tryParsePath(text: string, index: number): PathMatch | null {
-  if (!isValidPathStart(text, index)) return null;
-
+function parsePathAt(text: string, index: number): PathMatch | null {
   let i = index;
   let separator: Separator = '/';
   let minSegments: number;
@@ -144,13 +161,35 @@ function tryParsePath(text: string, index: number): PathMatch | null {
 
 export function findPaths(text: string): PathMatch[] {
   const matches: PathMatch[] = [];
+  let afterBlockComment = false;
+
   for (let i = 0; i < text.length; i++) {
-    const match = tryParsePath(text, i);
-    if (match) {
-      matches.push(match);
-      i = match[0] + match[1].length - 1;
+    if (text[i] === '/' && text[i + 1] === '*') {
+      i += 2;
+      while (i < text.length - 1 && !(text[i] === '*' && text[i + 1] === '/')) {
+        i++;
+      }
+      i += 1;
+      afterBlockComment = true;
+      continue;
     }
+
+    if (
+      couldStartPath(text, i) &&
+      isCandidatePathStart(text, i, afterBlockComment)
+    ) {
+      const match = parsePathAt(text, i);
+      if (match) {
+        matches.push(match);
+        i = match[0] + match[1].length - 1;
+        afterBlockComment = false;
+        continue;
+      }
+    }
+
+    afterBlockComment = false;
   }
+
   return matches;
 }
 
@@ -192,11 +231,16 @@ function linkifyNode(node: Text | InlineCode, index: number, parent: Parent): vo
 
 export const remarkLinkifyPaths: Plugin<[], Root> = function () {
   return (tree: Root) => {
-    visit(tree, 'text', (node: Text, index: number | undefined, parent: Parent | undefined) => {
-      if (index === undefined || !parent || parent.type === 'link') return;
-      linkifyNode(node, index, parent);
-    });
-    visit(tree, 'inlineCode', (node: InlineCode, index: number | undefined, parent: Parent | undefined) => {
+    visit(tree, (node, index, parent) => {
+      if (node.type === 'link') {
+        const url = 'url' in node ? node.url : undefined;
+        if (url?.startsWith(OPEN_FILE_PROTOCOL)) {
+          return SKIP;
+        }
+        return;
+      }
+
+      if (node.type !== 'text' && node.type !== 'inlineCode') return;
       if (index === undefined || !parent || parent.type === 'link') return;
       linkifyNode(node, index, parent);
     });
