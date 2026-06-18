@@ -46,6 +46,8 @@ import {
   type SessionListItem,
 } from '../../acp/sessions';
 import { acpChatSessionStore } from '../../acp/chatSessionStore';
+import { cancelAcpPermissionRequestsForSession } from '../../acp/permissionRequests';
+import { cancelAcpElicitationRequestsForSession } from '../../acp/elicitationRequests';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { clearSessionCache } from '../../hooks/useChatStream';
 
@@ -510,6 +512,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
         clearSessionCache(sessionToDeleteId);
+        cancelAcpPermissionRequestsForSession(sessionToDeleteId);
+        cancelAcpElicitationRequestsForSession(sessionToDeleteId);
         acpChatSessionStore.deleteSnapshot(sessionToDeleteId);
       } catch (error) {
         console.error('Error deleting session:', error);
