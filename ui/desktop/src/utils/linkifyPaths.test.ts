@@ -142,6 +142,26 @@ describe('path linkification', () => {
       );
     });
 
+    it('detects spaced filenames with hyphenated or underscored intermediate words', () => {
+      expect(findPaths('Saved /tmp/project release-notes draft.txt')[0][1]).toBe(
+        '/tmp/project release-notes draft.txt'
+      );
+      expect(findPaths('Saved /tmp/project release_notes draft.txt')[0][1]).toBe(
+        '/tmp/project release_notes draft.txt'
+      );
+      expect(findPaths('Saved /tmp/project release-notes draft.txt.')[0][1]).toBe(
+        '/tmp/project release-notes draft.txt'
+      );
+      expect(findPaths('Saved /tmp/Project release-notes draft.txt')[0][1]).toBe(
+        '/tmp/Project release-notes draft.txt'
+      );
+    });
+
+    it('still rejects prose after two-char basenames with spaced filename lookahead', () => {
+      expect(findPaths('Created /tmp/ui successfully.')[0][1]).toBe('/tmp/ui');
+      expect(findPaths('Check /tmp/go output')[0][1]).toBe('/tmp/go');
+    });
+
     it('detects paths with uppercase extension words after spaced segments', () => {
       expect(findPaths('Saved /tmp/project notes Draft.txt')[0][1]).toBe(
         '/tmp/project notes Draft.txt'
@@ -353,6 +373,23 @@ describe('path linkification', () => {
       expect(findPaths('See https://host/download?content-type=/tmp/out.log')).toHaveLength(0);
       expect(findPaths('See https://host/download?x-custom-param=/tmp/out')).toHaveLength(0);
       expect(findPaths('Visit example.com?file-name=/tmp/out&other=1')).toHaveLength(0);
+    });
+
+    it('does not linkify paths inside URL path assignment values', () => {
+      expect(findPaths('See https://host/download/file=/tmp/out')).toHaveLength(0);
+      expect(findPaths('See https://host/download/output=/tmp/out.log')).toHaveLength(0);
+      expect(findPaths('Visit example.com/download/file=/tmp/out')).toHaveLength(0);
+      expect(findPaths('Visit example.com/path/to/output=/tmp/out')).toHaveLength(0);
+    });
+
+    it('still linkifies assignment-style paths outside URL context', () => {
+      expect(findPaths('artifact=/tmp/out')[0][1]).toBe('/tmp/out');
+      expect(findPaths('--output=/tmp/out')[0][1]).toBe('/tmp/out');
+      expect(findPaths('See ?file=/tmp/out')).toHaveLength(0);
+      expect(findPaths('See #file=/tmp/out')).toHaveLength(0);
+      expect(findPaths('See ;file=/tmp/out')).toHaveLength(0);
+      expect(findPaths('See ?file[]=/tmp/out')).toHaveLength(0);
+      expect(findPaths('See ?file-name=/tmp/out')).toHaveLength(0);
     });
 
     it('does not match URLs', () => {

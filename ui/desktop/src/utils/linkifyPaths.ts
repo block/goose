@@ -81,11 +81,42 @@ function isQueryParamKeyChar(char: string): boolean {
   return /[-a-zA-Z0-9_.$[\]%]/.test(char);
 }
 
+function isUrlPathSlashBeforeAssignment(text: string, slashPos: number): boolean {
+  if (text[slashPos] !== '/') return false;
+
+  let i = slashPos - 1;
+  while (i >= 0 && /[a-zA-Z0-9._-]/.test(text[i])) {
+    i--;
+  }
+  if (i >= 2 && text[i] === '/' && text[i - 1] === '/' && text[i - 2] === ':') {
+    let j = i - 3;
+    while (j >= 0 && /[a-zA-Z0-9+.-]/.test(text[j])) {
+      j--;
+    }
+    const scheme = text.slice(j + 1, i - 2);
+    if (scheme.length > 0 && /[a-zA-Z]/.test(scheme[0])) {
+      return true;
+    }
+  }
+  if (i >= 0 && text[i] === '/') {
+    return isUrlPathSlashBeforeAssignment(text, i);
+  }
+  const token = text.slice(i + 1, slashPos);
+  return (
+    token.length > 0 &&
+    /^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+$/.test(token) &&
+    /\.[a-zA-Z]{2,}$/.test(token)
+  );
+}
+
 function isAssignmentEqualsStart(text: string, index: number): boolean {
   if (text[index - 1] !== '=') return false;
   let i = index - 2;
   while (i >= 0 && isQueryParamKeyChar(text[i])) {
     i--;
+  }
+  if (i >= 0 && text[i] === '/' && isUrlPathSlashBeforeAssignment(text, i)) {
+    return false;
   }
   return !(i >= 0 && URL_PARAM_DELIMITERS.has(text[i]));
 }
@@ -116,6 +147,10 @@ function isParenthesizedSuffix(token: string): boolean {
 
 function hasFileExtension(word: string): boolean {
   return /\.[A-Za-z0-9]+$/.test(word);
+}
+
+function isSpacedFilenameWord(word: string): boolean {
+  return /^[a-z][a-z0-9_-]*$/.test(word);
 }
 
 function canContinueWithNumericWord(word: string, prevToken: string, after: string | undefined): boolean {
@@ -183,7 +218,7 @@ function readExtensionWordAhead(text: string, fromIndex: number): boolean {
     if (j === i) return false;
     const word = text.slice(i, j).replace(TRAILING_PUNCTUATION_RE, '');
     if (hasFileExtension(word)) return true;
-    if (!/^[a-z][a-z0-9]*$/.test(word)) return false;
+    if (!isSpacedFilenameWord(word)) return false;
     i = j;
   }
   return false;
@@ -208,7 +243,7 @@ function isSpacedFilenameContinuation(
     return true;
   }
   return (
-    /^[a-z][a-z0-9]*$/.test(word) &&
+    isSpacedFilenameWord(word) &&
     /^[A-Za-z]/.test(prevToken) &&
     readExtensionWordAhead(text, endIndex)
   );
