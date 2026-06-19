@@ -98,7 +98,7 @@ function readExtensionWordAhead(text: string, fromIndex: number): boolean {
       j++;
     }
     if (j === i) return false;
-    const word = text.slice(i, j);
+    const word = text.slice(i, j).replace(TRAILING_PUNCTUATION_RE, '');
     if (/\.[A-Za-z0-9]+$/.test(word) && /^[a-z]/.test(word)) return true;
     if (!/^[a-z][a-z0-9]*$/.test(word)) return false;
     i = j;

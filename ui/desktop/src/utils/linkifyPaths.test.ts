@@ -96,6 +96,9 @@ describe('path linkification', () => {
       expect(findPaths('Saved /tmp/project notes draft.txt')[0][1]).toBe(
         '/tmp/project notes draft.txt'
       );
+      expect(findPaths('Saved /tmp/project notes draft.txt.')[0][1]).toBe(
+        '/tmp/project notes draft.txt'
+      );
     });
 
     it('strips trailing line and column suffixes from paths', () => {
