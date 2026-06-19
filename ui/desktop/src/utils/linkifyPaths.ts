@@ -91,7 +91,7 @@ function isPathLikeSpacedWord(word: string, prevToken: string): boolean {
   return (
     word.length >= 4 &&
     prevToken.length >= 2 &&
-    prevToken.length <= 3 &&
+    prevToken.length <= 2 &&
     !prevToken.includes('.')
   );
 }
@@ -201,7 +201,9 @@ function readSpacedContinuation(
   const prevToken = getLastToken(text, segmentStart, spaceIndex);
   const after = text[j];
 
-  if (after === separator) return j;
+  if (after === separator) {
+    return isSpacedFilenameContinuation(word, prevToken, text, j) ? j : spaceIndex;
+  }
 
   if (after === undefined || /[.,;:!?)'\]"]/.test(after)) {
     return isSpacedFilenameContinuation(word, prevToken, text, j) ? j : spaceIndex;

@@ -181,6 +181,16 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/tmp/my');
     });
 
+    it('does not extend short basenames with generic nouns', () => {
+      expect(findPaths('Check /tmp/log file for details')[0][1]).toBe('/tmp/log');
+    });
+
+    it('does not extend paths through connective prose before another slash', () => {
+      const matches = findPaths('Review /tmp/output and/or /tmp/logs');
+      expect(matches[0][1]).toBe('/tmp/output');
+      expect(matches[1][1]).toBe('/tmp/logs');
+    });
+
     it('includes spaced folder names before sentence punctuation', () => {
       const matches = findPaths('Saved to /home/user/my documents.');
       expect(matches).toHaveLength(1);
