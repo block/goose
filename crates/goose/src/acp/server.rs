@@ -2310,43 +2310,6 @@ impl GooseAcpAgent {
         ))
     }
 
-    #[allow(dead_code)]
-    async fn add_mcp_extensions(
-        agent: &Arc<Agent>,
-        mcp_servers: Vec<McpServer>,
-        session_id: &str,
-    ) -> Result<(), agent_client_protocol::Error> {
-        let mut configs = Vec::with_capacity(mcp_servers.len());
-        for mcp_server in mcp_servers {
-            let config = match mcp_server_to_extension_config(mcp_server) {
-                Ok(c) => c,
-                Err(msg) => {
-                    return Err(agent_client_protocol::Error::invalid_params().data(msg));
-                }
-            };
-            configs.push(config);
-        }
-
-        if configs.is_empty() {
-            return Ok(());
-        }
-
-        let results = agent
-            .add_extensions_bulk(configs, session_id)
-            .await
-            .internal_err()?;
-        for result in &results {
-            if !result.success {
-                let error_msg = result.error.as_deref().unwrap_or("unknown error");
-                return Err(agent_client_protocol::Error::internal_error().data(format!(
-                    "Failed to add MCP server '{}': {}",
-                    result.name, error_msg
-                )));
-            }
-        }
-        Ok(())
-    }
-
     async fn on_load_session(
         &self,
         cx: &ConnectionTo<Client>,

@@ -26,18 +26,16 @@ pub struct CustomMethodSchema {
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/session/extensions/add", response = EmptyResponse)]
 #[serde(rename_all = "camelCase")]
-pub struct AddExtensionRequest {
+pub struct AddSessionExtensionRequest {
     pub session_id: String,
-    /// Extension configuration (see ExtensionConfig variants: Stdio, StreamableHttp, Builtin, Platform).
-    #[serde(default)]
-    pub config: serde_json::Value,
+    pub extension: GooseExtension,
 }
 
 /// Remove an extension from an active session.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/session/extensions/remove", response = EmptyResponse)]
 #[serde(rename_all = "camelCase")]
-pub struct RemoveExtensionRequest {
+pub struct RemoveSessionExtensionRequest {
     pub session_id: String,
     pub name: String,
 }
@@ -303,7 +301,7 @@ pub struct GetSessionExtensionsRequest {
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct GetSessionExtensionsResponse {
-    pub extensions: Vec<serde_json::Value>,
+    pub extensions: Vec<GooseExtension>,
 }
 
 /// Read allowlisted user preferences. Empty `keys` means all supported preferences.
