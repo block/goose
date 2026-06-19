@@ -35,7 +35,10 @@ pub fn canonical_name(provider: &str, model: &str) -> String {
 }
 
 fn is_meta_provider(provider: &str) -> bool {
-    matches!(provider, "databricks" | "tetrate" | "bedrock" | "azure")
+    matches!(
+        provider,
+        "databricks" | "databricks_v2" | "tetrate" | "bedrock" | "azure"
+    )
 }
 
 pub fn map_provider_name(provider: &str) -> &str {
@@ -535,6 +538,25 @@ mod tests {
         assert_eq!(
             map_to_canonical_model("gcp_vertex_ai", "claude-haiku-4-5@20251001", r),
             Some("google-vertex/claude-haiku-4.5".to_string())
+        );
+    }
+
+    // databricks_v2 is the current Goose provider name; it must resolve the same
+    // way as the legacy "databricks" meta-provider so per-session cost is computed.
+    #[test]
+    fn test_databricks_v2_goose_aliases_resolve() {
+        let r = super::super::CanonicalModelRegistry::bundled().unwrap();
+        assert_eq!(
+            map_to_canonical_model("databricks_v2", "goose-claude-opus-4-8", r),
+            Some("anthropic/claude-opus-4.8".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("databricks_v2", "goose-gpt-5-5", r),
+            Some("openai/gpt-5.5".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("databricks_v2", "goose-claude-4-6-sonnet", r),
+            Some("anthropic/claude-sonnet-4.6".to_string())
         );
     }
 }

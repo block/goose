@@ -41,7 +41,7 @@ use crate::utils::sanitize_unicode_tags;
 use agent_client_protocol::schema::{
     AgentCapabilities, Annotations, AuthMethod, AuthMethodAgent, AuthenticateRequest,
     AuthenticateResponse, BlobResourceContents, CancelNotification, CloseSessionRequest,
-    CloseSessionResponse, ConfigOptionUpdate, Content, ContentBlock, ContentChunk,
+    CloseSessionResponse, ConfigOptionUpdate, Content, ContentBlock, ContentChunk, Cost,
     CurrentModeUpdate, EmbeddedResource, EmbeddedResourceResource, FileSystemCapabilities,
     ForkSessionRequest, ForkSessionResponse, ImageContent, Implementation, InitializeRequest,
     InitializeResponse, ListSessionsRequest, ListSessionsResponse, LoadSessionRequest,
@@ -825,7 +825,13 @@ pub(super) fn build_usage_updates(session: &Session) -> Option<UsageUpdates> {
                 accumulated_cost: session.accumulated_cost,
             }),
         },
-        standard: UsageUpdate::new(used, ctx_limit),
+        standard: {
+            let mut standard = UsageUpdate::new(used, ctx_limit);
+            if let Some(amount) = session.accumulated_cost {
+                standard = standard.cost(Cost::new(amount, "USD"));
+            }
+            standard
+        },
     })
 }
 
@@ -3733,6 +3739,27 @@ print(\"hello, world\")
             TokenUsage::default(),
         );
         assert!(build_prompt_usage(&session).is_none());
+    }
+
+    #[test]
+    fn test_standard_usage_update_serializes_cost() {
+        let mut session = make_session_with_usage(
+            TokenUsage::new(Some(60), Some(40), Some(100)),
+            TokenUsage::default(),
+        );
+        session.model_config = Some(
+            goose_providers::model::ModelConfig::new("goose-claude-opus-4-8")
+                .unwrap()
+                .with_context_limit(Some(1_000_000)),
+        );
+        session.accumulated_cost = Some(2.5);
+        let updates = build_usage_updates(&session).expect("usage updates present");
+        let json = serde_json::to_string(&updates.standard).unwrap();
+        assert!(
+            json.contains("\"cost\""),
+            "standard usage update must serialize cost: {json}"
+        );
+        assert!(json.contains("2.5"));
     }
 
     #[test]
