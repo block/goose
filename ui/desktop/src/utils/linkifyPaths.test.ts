@@ -218,6 +218,12 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/Users/me/Project 2026');
     });
 
+    it('does not extend paths with trailing numeric counts', () => {
+      const matches = findPaths('Created /tmp/out 2 files');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/tmp/out');
+    });
+
     it('detects paths with @ and percent-encoded characters in filenames', () => {
       expect(findPaths('File /tmp/foo@bar.txt')[0][1]).toBe('/tmp/foo@bar.txt');
       expect(findPaths('File /tmp/foo%20bar.txt')[0][1]).toBe('/tmp/foo%20bar.txt');
