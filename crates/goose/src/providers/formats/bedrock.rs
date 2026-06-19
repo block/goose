@@ -86,15 +86,24 @@ fn strip_bedrock_version_suffix(model_name: &str) -> String {
 ///
 /// Without this the `Converse`/`ConverseStream` APIs fall back to per-model
 /// server defaults, so a configured `max_tokens`/`temperature` is silently
-/// dropped. Mirrors the Anthropic provider, which already sends these fields:
-/// `max_tokens` always (via [`ModelConfig::max_output_tokens`]) and
-/// `temperature` only when the model supports it. Temperature support is
-/// resolved against the Anthropic canonical registry for `anthropic.*` model
-/// ids (the same mapping used for thinking), so reasoning models that reject a
-/// custom temperature keep the server default.
+/// dropped. Each field is sent only when the user has configured it, so that
+/// unset values continue to use Bedrock's per-model server defaults rather than
+/// being pinned to a generic fallback:
+/// - `max_tokens` is sent only when explicitly set (`model_config.max_tokens`).
+///   Using [`ModelConfig::max_output_tokens`] here would forward its `4096`
+///   fallback for every model whose id is not in the canonical catalog (e.g.
+///   cross-region ids like `us.anthropic.claude-...`), capping models whose
+///   real output limit is far higher.
+/// - `temperature` is sent only when set and the model supports it. Support is
+///   resolved against the Anthropic canonical registry for `anthropic.*` model
+///   ids (the same mapping used for thinking), so reasoning models that reject a
+///   custom temperature keep the server default.
 pub fn bedrock_inference_config(model_config: &ModelConfig) -> bedrock::InferenceConfiguration {
-    let mut builder =
-        bedrock::InferenceConfiguration::builder().max_tokens(model_config.max_output_tokens());
+    let mut builder = bedrock::InferenceConfiguration::builder();
+
+    if let Some(max_tokens) = model_config.max_tokens {
+        builder = builder.max_tokens(max_tokens);
+    }
 
     if let Some(temperature) = model_config.temperature {
         if bedrock_model_supports_temperature(model_config) {
@@ -1248,20 +1257,31 @@ mod tests {
     }
 
     #[test]
-    fn test_bedrock_inference_config_defaults_max_tokens_without_config() {
+    fn test_bedrock_inference_config_omits_max_tokens_without_config() {
         let mut config = ModelConfig::new_or_fail("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
         config.max_tokens = None;
         config.temperature = None;
 
         let inference_config = bedrock_inference_config(&config);
 
-        // max_tokens always falls back to the model default so the response is
-        // never silently truncated to the server's per-model default.
-        assert_eq!(
-            inference_config.max_tokens(),
-            Some(config.max_output_tokens())
-        );
+        // When max_tokens is not explicitly configured we leave it unset so
+        // Bedrock applies its per-model server default. Forwarding
+        // ModelConfig::max_output_tokens() here would pin every model without a
+        // canonical-catalog entry (e.g. cross-region ids) to the generic 4096
+        // fallback, capping models whose real output limit is much higher.
+        assert_eq!(inference_config.max_tokens(), None);
         assert_eq!(inference_config.temperature(), None);
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_sends_explicit_max_tokens() {
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        config.max_tokens = Some(4096);
+
+        let inference_config = bedrock_inference_config(&config);
+
+        // An explicitly configured value is always forwarded.
+        assert_eq!(inference_config.max_tokens(), Some(4096));
     }
 
     #[test]
