@@ -92,6 +92,16 @@ describe('path linkification', () => {
       expect(findPaths('Saved /tmp/project notes.txt')[0][1]).toBe('/tmp/project notes.txt');
     });
 
+    it('detects paths with multiple lowercase spaced filename words', () => {
+      expect(findPaths('Saved /tmp/project notes draft.txt')[0][1]).toBe(
+        '/tmp/project notes draft.txt'
+      );
+    });
+
+    it('strips trailing line and column suffixes from paths', () => {
+      expect(findPaths('error at /workspace/src/lib.rs:42:7')[0][1]).toBe('/workspace/src/lib.rs');
+    });
+
     it('detects paths with dots and underscores', () => {
       const matches = findPaths('Read /home/user/.env.local');
       expect(matches).toHaveLength(1);

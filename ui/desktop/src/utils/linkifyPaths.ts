@@ -18,6 +18,10 @@ function stripTrailingPunctuation(path: string): string {
   return path.replace(TRAILING_PUNCTUATION_RE, '');
 }
 
+function stripLineColumnSuffix(path: string): string {
+  return path.replace(/:\d+(?::\d+)?$/, '');
+}
+
 function isUrlPathAt(text: string, index: number): boolean {
   let i = index - 1;
   if (i < 0) return false;
@@ -80,6 +84,38 @@ function isPathLikeSpacedWord(word: string, prevToken: string): boolean {
   );
 }
 
+function readExtensionWordAhead(text: string, fromIndex: number): boolean {
+  let i = fromIndex;
+  while (i < text.length) {
+    if (text[i] !== ' ') return false;
+    i++;
+    let j = i;
+    while (j < text.length && isPathChar(text[j])) {
+      j++;
+    }
+    if (j === i) return false;
+    const word = text.slice(i, j);
+    if (/\.[A-Za-z0-9]+$/.test(word) && /^[a-z]/.test(word)) return true;
+    if (!/^[a-z][a-z0-9]*$/.test(word)) return false;
+    i = j;
+  }
+  return false;
+}
+
+function isSpacedFilenameContinuation(
+  word: string,
+  prevToken: string,
+  text: string,
+  endIndex: number
+): boolean {
+  if (isPathLikeSpacedWord(word, prevToken)) return true;
+  return (
+    /^[a-z][a-z0-9]*$/.test(word) &&
+    /^[a-z]/.test(prevToken) &&
+    readExtensionWordAhead(text, endIndex)
+  );
+}
+
 function isLinkLikeParent(parent: Parent | undefined): boolean {
   return parent?.type === 'link' || parent?.type === 'linkReference';
 }
@@ -139,13 +175,13 @@ function readSpacedContinuation(
   if (after === separator) return j;
 
   if (after === undefined || /[.,;:!?)'\]"]/.test(after)) {
-    return isPathLikeSpacedWord(word, prevToken) ? j : spaceIndex;
+    return isSpacedFilenameContinuation(word, prevToken, text, j) ? j : spaceIndex;
   }
 
   if (after === ' ') {
     const rest = text.slice(j).trimStart();
     if (rest.startsWith(separator)) return spaceIndex;
-    return isPathLikeSpacedWord(word, prevToken) ? j : spaceIndex;
+    return isSpacedFilenameContinuation(word, prevToken, text, j) ? j : spaceIndex;
   }
 
   return spaceIndex;
@@ -260,7 +296,7 @@ function parsePathAt(text: string, index: number): PathMatch | null {
 
   if (segmentCount < minSegments) return null;
 
-  const path = stripTrailingPunctuation(text.slice(index, i));
+  const path = stripLineColumnSuffix(stripTrailingPunctuation(text.slice(index, i)));
   if (path.length === 0) return null;
 
   return [index, path];
