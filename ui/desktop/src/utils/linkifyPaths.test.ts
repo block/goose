@@ -88,6 +88,10 @@ describe('path linkification', () => {
       expect(findPaths('Saved /tmp/My report[1].pdf')[0][1]).toBe('/tmp/My report[1].pdf');
     });
 
+    it('detects paths with long lowercase spaced filename segments', () => {
+      expect(findPaths('Saved /tmp/project notes.txt')[0][1]).toBe('/tmp/project notes.txt');
+    });
+
     it('detects paths with dots and underscores', () => {
       const matches = findPaths('Read /home/user/.env.local');
       expect(matches).toHaveLength(1);
