@@ -4730,6 +4730,12 @@
   "updateSection.autoDownload": {
     "defaultMessage": "アップデートはバックグラウンドで自動的にダウンロードされます。"
   },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "自動ダウンロードは GOOSE_DISABLE_AUTO_DOWNLOAD 環境変数によって無効になっています。"
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "自動ダウンロードは無効です。手動でダウンロードするには「今すぐダウンロード」をクリックしてください。"
+  },
   "updateSection.autoInstallNote": {
     "defaultMessage": "アプリを終了すると、アップデートが自動的にインストールされます。"
   },
@@ -4741,6 +4747,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "現在のバージョン"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "アップデートの自動ダウンロードを無効にする"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "有効にすると、Goose は新しいバージョンを通知しますが、自動的にはダウンロードしません。"
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "今すぐダウンロード"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "アップデートのダウンロードが完了し、インストールの準備ができました！"

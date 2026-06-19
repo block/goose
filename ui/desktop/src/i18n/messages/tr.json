@@ -4730,6 +4730,12 @@
   "updateSection.autoDownload": {
     "defaultMessage": "Güncelleme arka planda otomatik olarak indirilecektir."
   },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "Otomatik indirmeler GOOSE_DISABLE_AUTO_DOWNLOAD ortam değişkeni aracılığıyla devre dışı bırakılmıştır."
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "Otomatik indirme devre dışı. Manuel olarak indirmek için \"Şimdi İndir\"e tıklayın."
+  },
   "updateSection.autoInstallNote": {
     "defaultMessage": "Uygulamadan çıktığınızda güncelleme otomatik olarak yüklenecektir."
   },
@@ -4741,6 +4747,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "Güncel sürüm"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "Otomatik güncelleme indirmelerini devre dışı bırak"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "Etkinleştirildiğinde, Goose yeni sürümleri bildirir ancak bunları otomatik olarak indirmez."
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "Şimdi İndir"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "Güncelleme indirildi ve kuruluma hazır!"

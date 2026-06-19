@@ -4730,6 +4730,12 @@
   "updateSection.autoDownload": {
     "defaultMessage": "Update will be downloaded automatically in the background."
   },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "Automatic downloads are disabled via the GOOSE_DISABLE_AUTO_DOWNLOAD environment variable."
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "Automatic download is disabled. Click \"Download Now\" to download manually."
+  },
   "updateSection.autoInstallNote": {
     "defaultMessage": "The update will be installed automatically when you quit the app."
   },
@@ -4741,6 +4747,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "Current version"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "Disable automatic update downloads"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "When enabled, Goose will notify you of new versions but will not download them automatically."
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "Download Now"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "Update downloaded and ready to install!"

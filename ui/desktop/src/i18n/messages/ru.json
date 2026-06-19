@@ -4730,6 +4730,12 @@
   "updateSection.autoDownload": {
     "defaultMessage": "Обновление будет автоматически скачано в фоновом режиме."
   },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "Автоматическая загрузка отключена через переменную окружения GOOSE_DISABLE_AUTO_DOWNLOAD."
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "Автоматическая загрузка отключена. Нажмите «Скачать сейчас», чтобы загрузить вручную."
+  },
   "updateSection.autoInstallNote": {
     "defaultMessage": "Обновление будет установлено автоматически при выходе из приложения."
   },
@@ -4741,6 +4747,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "Текущая версия"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "Отключить автоматическую загрузку обновлений"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "Когда включено, Goose будет уведомлять о новых версиях, но не будет загружать их автоматически."
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "Скачать сейчас"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "Обновление скачано и готово к установке!"

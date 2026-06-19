@@ -4730,6 +4730,12 @@
   "updateSection.autoDownload": {
     "defaultMessage": "अपडेट बैकग्राउंड में अपने आप डाउनलोड हो जाएगा."
   },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "स्वचालित डाउनलोड GOOSE_DISABLE_AUTO_DOWNLOAD पर्यावरण चर के माध्यम से अक्षम हैं।"
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "स्वचालित डाउनलोड अक्षम है। मैन्युअल रूप से डाउनलोड करने के लिए \"अभी डाउनलोड करें\" पर क्लिक करें।"
+  },
   "updateSection.autoInstallNote": {
     "defaultMessage": "जब आप ऐप छोड़ देंगे तो अपडेट अपने आप इंस्टॉल हो जाएगा।"
   },
@@ -4741,6 +4747,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "वर्तमान संस्करण"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "स्वचालित अपडेट डाउनलोड अक्षम करें"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "सक्षम होने पर, Goose आपको नई संस्करणों की सूचना देगा लेकिन उन्हें स्वचालित रूप से डाउनलोड नहीं करेगा।"
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "अभी डाउनलोड करें"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "अपडेट डाउनलोड हो गया है और इंस्टॉल करने के लिए तैयार है!"
