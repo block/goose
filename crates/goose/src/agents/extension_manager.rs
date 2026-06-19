@@ -498,7 +498,7 @@ pub(crate) async fn merge_environments(
         }
     }
 
-    Ok(all_envs)
+    Ok(Envs::new(all_envs).get_env())
 }
 
 /// Substitute environment variables in a string. Supports both ${VAR} and $VAR syntax.
