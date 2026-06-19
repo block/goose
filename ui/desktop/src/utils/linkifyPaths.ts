@@ -211,6 +211,9 @@ function readParenthesizedContent(text: string, openIndex: number): number {
 
   i++;
   const afterParen = i;
+  if (text[i] === '/' || text[i] === '\\') {
+    return afterParen;
+  }
   while (i < text.length && isPathChar(text[i])) {
     i++;
   }
@@ -236,6 +239,18 @@ function readParenthesizedSuffix(text: string, spaceIndex: number): number {
   if (text[spaceIndex + 1] !== '(') return spaceIndex;
   const end = readParenthesizedContent(text, spaceIndex + 1);
   return end > spaceIndex + 1 ? end : spaceIndex;
+}
+
+function hasParenthesizedDirectoryBeforeSeparator(
+  text: string,
+  fromIndex: number,
+  separator: Separator
+): boolean {
+  let i = fromIndex;
+  while (i < text.length && text[i] === ' ') i++;
+  if (text[i] !== '(') return false;
+  const end = readParenthesizedContent(text, i);
+  return end > i && text[end] === separator;
 }
 
 function isConnectiveSpacedWord(word: string): boolean {
@@ -282,6 +297,7 @@ function readSpacedContinuation(
     if (after === ' ') {
       const rest = text.slice(j).trimStart();
       if (rest.startsWith(separator)) return spaceIndex;
+      if (hasParenthesizedDirectoryBeforeSeparator(text, j, separator)) return j;
     }
     return isSpacedFilenameContinuation(word, prevToken, text, j) ? j : spaceIndex;
   }

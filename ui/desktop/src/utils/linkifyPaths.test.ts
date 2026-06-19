@@ -239,6 +239,13 @@ describe('path linkification', () => {
       expect(findPaths('See C:\\Program Files\\Goose')[0][1]).toBe('C:\\Program Files\\Goose');
     });
 
+    it('detects paths with parenthesized spaced directory names before separators', () => {
+      expect(findPaths('See C:\\Program Files (x86)\\Goose')[0][1]).toBe(
+        'C:\\Program Files (x86)\\Goose'
+      );
+      expect(findPaths('/Users/me/Apps (Beta)/app')[0][1]).toBe('/Users/me/Apps (Beta)/app');
+    });
+
     it('includes spaced folder names before sentence punctuation', () => {
       const matches = findPaths('Saved to /home/user/my documents.');
       expect(matches).toHaveLength(1);
