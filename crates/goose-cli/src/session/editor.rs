@@ -93,12 +93,13 @@ impl Drop for SymlinkCleanup {
 fn launch_editor(editor_cmd: &str, file_path: &PathBuf) -> Result<()> {
     use std::process::Stdio;
 
-    let parts: Vec<&str> = editor_cmd.split_whitespace().collect();
+    let parts: Vec<String> = shlex::split(editor_cmd)
+        .ok_or_else(|| anyhow::anyhow!("Invalid editor command: unmatched quotes in '{editor_cmd}'"))?;
     if parts.is_empty() {
         return Err(anyhow::anyhow!("Empty editor command"));
     }
 
-    let mut cmd = Command::new(parts[0]);
+    let mut cmd = Command::new(&parts[0]);
     if let Ok(cwd) = std::env::current_dir() {
         cmd.current_dir(cwd);
     }

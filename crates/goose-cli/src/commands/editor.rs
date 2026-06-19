@@ -17,6 +17,18 @@ fn detect_editor() -> String {
         })
 }
 
+/// Parse the editor command string using shell-word semantics so that
+/// quoted paths with spaces (e.g. `"/Applications/Sublime Text.app/.../subl"`)
+/// and empty-string arguments (e.g. `emacsclient -a "" -t`) are handled correctly.
+fn editor_command(editor: &str) -> Command {
+    let parts: Vec<String> = shlex::split(editor).unwrap_or_else(|| vec![editor.to_string()]);
+    let mut cmd = Command::new(&parts[0]);
+    for arg in &parts[1..] {
+        cmd.arg(arg);
+    }
+    cmd
+}
+
 pub fn edit_conversation(conversation: &Conversation) -> Result<Conversation> {
     let yaml = serde_yaml::to_string(conversation.messages())?;
 
@@ -27,7 +39,7 @@ pub fn edit_conversation(conversation: &Conversation) -> Result<Conversation> {
     let editor = detect_editor();
     let path = tmp.path().to_path_buf();
 
-    let status = Command::new(&editor)
+    let status = editor_command(&editor)
         .arg(&path)
         .status()
         .with_context(|| format!("failed to launch editor '{editor}'"))?;
