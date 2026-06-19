@@ -72,7 +72,7 @@ function isParenthesizedSuffix(token: string): boolean {
 function isPathLikeSpacedWord(word: string, prevToken: string): boolean {
   if (isParenthesizedSuffix(prevToken)) return false;
   if (/^\d+$/.test(word)) {
-    return word.length >= 4 || /^[A-Z]/.test(prevToken);
+    return word.length >= 4;
   }
   if (/^[A-Z]/.test(word)) {
     return /^[A-Z]/.test(prevToken);

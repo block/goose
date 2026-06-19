@@ -272,6 +272,10 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/tmp/out');
     });
 
+    it('does not extend capitalized paths with short numeric counts', () => {
+      expect(findPaths('Created /tmp/Out 2 files')[0][1]).toBe('/tmp/Out');
+    });
+
     it('does not extend paths with capitalized prose', () => {
       const matches = findPaths('See /tmp/out Please review.');
       expect(matches).toHaveLength(1);
