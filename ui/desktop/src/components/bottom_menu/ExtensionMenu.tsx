@@ -18,7 +18,7 @@ interface ExtensionMenuProps {
   isSortPending: boolean;
   togglingExtensionName: string | null;
   onToggle: (extension: FixedExtensionEntry) => void;
-  onClose: () => void;
+  onClose?: () => void;
 }
 
 export function ExtensionMenu({
@@ -66,7 +66,7 @@ export function ExtensionMenu({
         setIsOpen(open);
         if (!open) {
           setSearchQuery('');
-          onClose();
+          onClose?.();
         }
       }}
     >

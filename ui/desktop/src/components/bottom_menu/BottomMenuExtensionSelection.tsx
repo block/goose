@@ -390,7 +390,6 @@ function SessionExtensionsMenu({ sessionId }: { sessionId: string }) {
       isSortPending={isSortPending}
       togglingExtensionName={togglingExtensionName}
       onToggle={handleToggle}
-      onClose={resetTransition}
     />
   );
 }
