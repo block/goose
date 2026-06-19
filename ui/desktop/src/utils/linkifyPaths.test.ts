@@ -191,6 +191,13 @@ describe('path linkification', () => {
       expect(matches[1][1]).toBe('/tmp/logs');
     });
 
+    it('detects paths with spaced directory names before separators', () => {
+      expect(findPaths('/Users/me/Library/Application Support/Goose')[0][1]).toBe(
+        '/Users/me/Library/Application Support/Goose'
+      );
+      expect(findPaths('See C:\\Program Files\\Goose')[0][1]).toBe('C:\\Program Files\\Goose');
+    });
+
     it('includes spaced folder names before sentence punctuation', () => {
       const matches = findPaths('Saved to /home/user/my documents.');
       expect(matches).toHaveLength(1);

@@ -173,6 +173,10 @@ function readParenthesizedSuffix(text: string, spaceIndex: number): number {
   return spaceIndex;
 }
 
+function isConnectiveSpacedWord(word: string): boolean {
+  return /^(?:and|or)$/i.test(word);
+}
+
 function readSpacedContinuation(
   text: string,
   spaceIndex: number,
@@ -202,7 +206,7 @@ function readSpacedContinuation(
   const after = text[j];
 
   if (after === separator) {
-    return isSpacedFilenameContinuation(word, prevToken, text, j) ? j : spaceIndex;
+    return isConnectiveSpacedWord(word) ? spaceIndex : j;
   }
 
   if (after === undefined || /[.,;:!?)'\]"]/.test(after)) {
