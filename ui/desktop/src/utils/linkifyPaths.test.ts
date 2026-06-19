@@ -151,6 +151,12 @@ describe('path linkification', () => {
       expect(findPaths('See /project/README.md:3 for details')[0][1]).toBe('/project/README.md');
     });
 
+    it('strips line and column suffixes from extensionless diagnostic filenames', () => {
+      expect(findPaths('error at /workspace/Dockerfile:12')[0][1]).toBe('/workspace/Dockerfile');
+      expect(findPaths('error at /workspace/Makefile:8:1')[0][1]).toBe('/workspace/Makefile');
+      expect(findPaths('See /project/README:5 for details')[0][1]).toBe('/project/README');
+    });
+
     it('preserves colon-number suffixes in filenames', () => {
       expect(findPaths('Saved /tmp/snapshot:1')[0][1]).toBe('/tmp/snapshot:1');
       expect(findPaths('Saved /tmp/2026-06-18T18:30:00')[0][1]).toBe('/tmp/2026-06-18T18:30:00');
@@ -171,6 +177,12 @@ describe('path linkification', () => {
     it('does not absorb explanatory parentheticals after paths', () => {
       expect(findPaths('Created /tmp/out (temporary) for debugging')[0][1]).toBe('/tmp/out');
       expect(findPaths('Created /tmp/out (temp) for debugging')[0][1]).toBe('/tmp/out');
+    });
+
+    it('does not absorb parentheticals followed only by sentence punctuation', () => {
+      expect(findPaths('Created /tmp/out (temporary).')[0][1]).toBe('/tmp/out');
+      expect(findPaths('Created /tmp/report (temp).')[0][1]).toBe('/tmp/report');
+      expect(findPaths('Created /tmp/out(temporary).')[0][1]).toBe('/tmp/out');
     });
 
     it('detects paths with dots and underscores', () => {

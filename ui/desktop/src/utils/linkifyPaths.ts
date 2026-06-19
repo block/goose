@@ -19,10 +19,18 @@ function stripTrailingPunctuation(path: string): string {
 }
 
 function stripLineColumnSuffix(path: string): string {
-  const match = path.match(/\.[A-Za-z0-9]+(:\d+(?::\d+)?)$/);
-  if (match) {
-    return path.slice(0, -match[1].length);
+  const extMatch = path.match(/\.[A-Za-z0-9]+(:\d+(?::\d+)?)$/);
+  if (extMatch) {
+    return path.slice(0, -extMatch[1].length);
   }
+
+  const lastSep = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
+  const basename = path.slice(lastSep + 1);
+  const lineColMatch = basename.match(/^([A-Z][A-Za-z0-9_-]*)(:\d+(?::\d+)?)$/);
+  if (lineColMatch) {
+    return path.slice(0, -lineColMatch[2].length);
+  }
+
   return path;
 }
 
@@ -161,6 +169,11 @@ function isParenthesizedFilenameContent(content: string): boolean {
   return /^[a-zA-Z0-9._]+(?:[ -][a-zA-Z0-9._]+)*$/.test(content);
 }
 
+function hasFilenameSuffixAfterParen(text: string, afterParen: number, endIndex: number): boolean {
+  const suffix = text.slice(afterParen, endIndex).replace(TRAILING_PUNCTUATION_RE, '');
+  return suffix.length > 0 && hasFileExtension(suffix);
+}
+
 function readParenthesizedContent(text: string, openIndex: number): number {
   let i = openIndex + 1;
   const contentStart = i;
@@ -181,7 +194,7 @@ function readParenthesizedContent(text: string, openIndex: number): number {
   if (/^\d+$/.test(content)) {
     return i;
   }
-  if (i > afterParen) {
+  if (i > afterParen && hasFilenameSuffixAfterParen(text, afterParen, i)) {
     return i;
   }
   if (!/[ -]/.test(content) && /^[a-zA-Z0-9]{1,4}$/.test(content) && /\d/.test(content)) {
