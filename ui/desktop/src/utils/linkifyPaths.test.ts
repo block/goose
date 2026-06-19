@@ -75,6 +75,11 @@ describe('path linkification', () => {
       expect(findPaths('See [/tmp/out]')[0][1]).toBe('/tmp/out');
     });
 
+    it('detects paths with brackets and question marks in filenames', () => {
+      expect(findPaths('Saved /tmp/report[1].pdf')[0][1]).toBe('/tmp/report[1].pdf');
+      expect(findPaths('Saved /tmp/what?now.txt')[0][1]).toBe('/tmp/what?now.txt');
+    });
+
     it('detects paths with dots and underscores', () => {
       const matches = findPaths('Read /home/user/.env.local');
       expect(matches).toHaveLength(1);

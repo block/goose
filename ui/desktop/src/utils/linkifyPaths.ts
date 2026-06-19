@@ -138,7 +138,7 @@ function readSpacedContinuation(
 }
 
 function isFilenamePunctuation(char: string): boolean {
-  return char === ',' || char === "'" || char === ':';
+  return char === ',' || char === "'" || char === ':' || char === '[' || char === ']' || char === '?';
 }
 
 function readSegment(text: string, start: number, separator: Separator): { end: number } | null {
@@ -176,7 +176,7 @@ function readSegment(text: string, start: number, separator: Separator): { end: 
 }
 
 function isPathTerminator(char: string): boolean {
-  return /[.,;:!?'"`[\])]/.test(char);
+  return /[.,;:!'"`)\]]/.test(char);
 }
 
 function parsePathAt(text: string, index: number): PathMatch | null {
