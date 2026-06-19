@@ -121,6 +121,13 @@ export default function BaseChat({
     onStreamFinish,
   });
 
+  const handleWorkingDirChange = useCallback(
+    (newDir: string) => {
+      updateSession((currentSession) => ({ ...currentSession, working_dir: newDir }));
+    },
+    [updateSession]
+  );
+
   const recipe = session?.recipe;
 
   const resolvedInitialMessage = useMemo((): UserInput | undefined => {
@@ -536,6 +543,7 @@ export default function BaseChat({
             sessionProvider={sessionProvider}
             sessionLoaded={sessionLoaded}
             workingDir={session?.working_dir}
+            onWorkingDirChange={handleWorkingDirChange}
             latestInference={latestInference}
             {...customChatInputProps}
           />
