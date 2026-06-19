@@ -46,11 +46,21 @@ function isUrlPathAt(text: string, index: number): boolean {
   return scheme.length > 0 && /[a-zA-Z]/.test(scheme[0]);
 }
 
+function isAssignmentEqualsStart(text: string, index: number): boolean {
+  if (text[index - 1] !== '=') return false;
+  let i = index - 2;
+  while (i >= 0 && /[a-zA-Z0-9_.$-]/.test(text[i])) {
+    i--;
+  }
+  return !(i >= 0 && (text[i] === '?' || text[i] === '&'));
+}
+
 function isCandidatePathStart(text: string, index: number, afterBlockComment: boolean): boolean {
   if (index === 0) return true;
   if (isUrlPathAt(text, index)) return false;
   const prev = text[index - 1];
-  if (/[\s('"`[(,;=]/.test(prev)) return true;
+  if (prev === '=') return isAssignmentEqualsStart(text, index);
+  if (/[\s('"`[(,;]/.test(prev)) return true;
   return afterBlockComment;
 }
 

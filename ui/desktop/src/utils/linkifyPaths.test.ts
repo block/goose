@@ -215,6 +215,11 @@ describe('path linkification', () => {
       expect(findPaths('--output=/tmp/out')[0][1]).toBe('/tmp/out');
     });
 
+    it('does not linkify paths inside URL query values', () => {
+      expect(findPaths('See `https://host/download?file=/tmp/out`')).toHaveLength(0);
+      expect(findPaths('Visit example.com?file=/tmp/out')).toHaveLength(0);
+    });
+
     it('does not match URLs', () => {
       const matches = findPaths('Visit https://example.com/page for info');
       expect(matches).toHaveLength(0);
