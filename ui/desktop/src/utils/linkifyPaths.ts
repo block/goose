@@ -191,9 +191,22 @@ function isLinkLikeParent(parent: Parent | undefined): boolean {
   return parent?.type === 'link' || parent?.type === 'linkReference';
 }
 
+function isParenthesizedFilenameChar(char: string): boolean {
+  if (char === ' ' || char === '-' || char === "'") return true;
+  return isPathChar(char);
+}
+
 function isParenthesizedFilenameContent(content: string): boolean {
   if (/^\d+$/.test(content)) return true;
-  return /^[a-zA-Z0-9._]+(?:[ -][a-zA-Z0-9._]+)*$/.test(content);
+  if (content.length === 0) return false;
+  let hasSubstantive = false;
+  for (const char of content) {
+    if (!isParenthesizedFilenameChar(char)) return false;
+    if (/[\p{L}\p{N}a-zA-Z0-9._]/u.test(char)) {
+      hasSubstantive = true;
+    }
+  }
+  return hasSubstantive;
 }
 
 function hasFilenameSuffixAfterParen(text: string, afterParen: number, endIndex: number): boolean {

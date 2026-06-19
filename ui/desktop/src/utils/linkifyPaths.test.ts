@@ -460,6 +460,28 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe("/tmp/it's.txt");
     });
 
+    it('detects paths with apostrophes in parenthesized filename suffixes', () => {
+      expect(findPaths("Saved /tmp/report (John's copy).pdf")[0][1]).toBe(
+        "/tmp/report (John's copy).pdf"
+      );
+      expect(findPaths("Saved /tmp/report(John's).pdf")[0][1]).toBe("/tmp/report(John's).pdf");
+    });
+
+    it('detects paths with Unicode in parenthesized filename suffixes', () => {
+      expect(findPaths('Saved /tmp/report (最終).pdf')[0][1]).toBe('/tmp/report (最終).pdf');
+      expect(findPaths('Saved /tmp/report(最終).pdf')[0][1]).toBe('/tmp/report(最終).pdf');
+      expect(findPaths('Saved /tmp/report (コピー v2).pdf')[0][1]).toBe(
+        '/tmp/report (コピー v2).pdf'
+      );
+    });
+
+    it('still rejects prose parentheticals without extension evidence', () => {
+      expect(findPaths('Created /tmp/out (temporary) for debugging')[0][1]).toBe('/tmp/out');
+      expect(findPaths('Created /tmp/report (temp) for debugging')[0][1]).toBe('/tmp/report');
+      expect(findPaths('Created /tmp/out (temporary).')[0][1]).toBe('/tmp/out');
+      expect(findPaths('Created /tmp/report (see notes) for review')[0][1]).toBe('/tmp/report');
+    });
+
     it('detects paths with colons in timestamped filenames', () => {
       const matches = findPaths('Saved /tmp/2026-06-18T18:30:00.log');
       expect(matches).toHaveLength(1);
