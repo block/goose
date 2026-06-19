@@ -75,7 +75,15 @@ function isPathLikeSpacedWord(word: string, prevToken: string): boolean {
     return word.length >= 4;
   }
   if (/^[A-Z]/.test(word)) {
-    return /^[A-Z]/.test(prevToken);
+    if (/\.[A-Za-z0-9]+$/.test(word)) {
+      return /^[A-Z]/.test(prevToken);
+    }
+    return (
+      /^[A-Z]/.test(prevToken) &&
+      word.length >= 4 &&
+      prevToken.length >= 2 &&
+      prevToken.length <= 3
+    );
   }
   if (/\.[A-Za-z0-9]+$/.test(word) && /^[a-z]/.test(prevToken)) {
     return true;
@@ -159,7 +167,7 @@ function readParenthesizedSuffix(text: string, spaceIndex: number): number {
   if (i > afterParen) {
     return i;
   }
-  if (/^[a-zA-Z0-9]{1,4}$/.test(content)) {
+  if (/^[a-zA-Z0-9]{1,4}$/.test(content) && /\d/.test(content)) {
     return afterParen;
   }
   return spaceIndex;

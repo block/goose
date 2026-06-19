@@ -148,6 +148,7 @@ describe('path linkification', () => {
 
     it('does not absorb explanatory parentheticals after paths', () => {
       expect(findPaths('Created /tmp/out (temporary) for debugging')[0][1]).toBe('/tmp/out');
+      expect(findPaths('Created /tmp/out (temp) for debugging')[0][1]).toBe('/tmp/out');
     });
 
     it('detects paths with dots and underscores', () => {
@@ -313,6 +314,10 @@ describe('path linkification', () => {
       const matches = findPaths('See /tmp/out Please review.');
       expect(matches).toHaveLength(1);
       expect(matches[0][1]).toBe('/tmp/out');
+    });
+
+    it('does not extend capitalized basenames with following prose', () => {
+      expect(findPaths('See /tmp/Result Please review.')[0][1]).toBe('/tmp/Result');
     });
 
     it('detects paths with @ and percent-encoded characters in filenames', () => {
