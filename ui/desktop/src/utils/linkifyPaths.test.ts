@@ -336,6 +336,13 @@ describe('path linkification', () => {
       expect(findPaths('See https://host/page#path=/tmp/out&other=1')).toHaveLength(0);
     });
 
+    it('does not linkify paths inside URL query values with hyphenated keys', () => {
+      expect(findPaths('See https://host/download?file-name=/tmp/out')).toHaveLength(0);
+      expect(findPaths('See https://host/download?content-type=/tmp/out.log')).toHaveLength(0);
+      expect(findPaths('See https://host/download?x-custom-param=/tmp/out')).toHaveLength(0);
+      expect(findPaths('Visit example.com?file-name=/tmp/out&other=1')).toHaveLength(0);
+    });
+
     it('does not match URLs', () => {
       const matches = findPaths('Visit https://example.com/page for info');
       expect(matches).toHaveLength(0);
