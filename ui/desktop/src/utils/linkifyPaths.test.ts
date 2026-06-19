@@ -112,6 +112,14 @@ describe('path linkification', () => {
       expect(findPaths('See /tmp/out\tOK')[0][1]).toBe('/tmp/out');
     });
 
+    it('detects paths with spaced bracket suffixes', () => {
+      expect(findPaths('Saved /tmp/log [draft]')[0][1]).toBe('/tmp/log [draft]');
+    });
+
+    it('does not absorb explanatory parentheticals after paths', () => {
+      expect(findPaths('Created /tmp/out (temporary) for debugging')[0][1]).toBe('/tmp/out');
+    });
+
     it('detects paths with dots and underscores', () => {
       const matches = findPaths('Read /home/user/.env.local');
       expect(matches).toHaveLength(1);

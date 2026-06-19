@@ -114,6 +114,9 @@ function isSpacedFilenameContinuation(
   text: string,
   endIndex: number
 ): boolean {
+  if (/^\[[^\]]+\]$/.test(word)) {
+    return prevToken.length >= 2;
+  }
   if (isPathLikeSpacedWord(word, prevToken)) return true;
   return (
     /^[a-z][a-z0-9]*$/.test(word) &&
@@ -144,10 +147,20 @@ function readParenthesizedSuffix(text: string, spaceIndex: number): number {
   if (!/^[a-zA-Z0-9]+$/.test(content)) return spaceIndex;
 
   i++;
+  const afterParen = i;
   while (i < text.length && isPathChar(text[i])) {
     i++;
   }
-  return i;
+  if (/^\d+$/.test(content)) {
+    return i;
+  }
+  if (i > afterParen) {
+    return i;
+  }
+  if (/^[a-zA-Z0-9]{1,4}$/.test(content)) {
+    return afterParen;
+  }
+  return spaceIndex;
 }
 
 function readSpacedContinuation(
@@ -169,7 +182,7 @@ function readSpacedContinuation(
       j++;
     }
   }
-  while (j > spaceIndex + 1 && /[.,;:!?)'\]"]/.test(text[j - 1] ?? '')) {
+  while (j > spaceIndex + 1 && /[.,;:!?)'"]/.test(text[j - 1] ?? '')) {
     j--;
   }
   if (j === spaceIndex + 1) return spaceIndex;
