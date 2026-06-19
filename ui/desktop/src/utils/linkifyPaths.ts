@@ -66,7 +66,9 @@ function isPathLikeSpacedWord(word: string, prevToken: string): boolean {
   if (/^\d+$/.test(word)) {
     return word.length >= 4 || /^[A-Z]/.test(prevToken);
   }
-  if (!/^[a-z0-9]+$/.test(word)) return true;
+  if (/^[A-Z]/.test(word)) {
+    return /^[A-Z]/.test(prevToken);
+  }
   return (
     word.length >= 4 &&
     prevToken.length >= 2 &&

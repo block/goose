@@ -224,6 +224,12 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/tmp/out');
     });
 
+    it('does not extend paths with capitalized prose', () => {
+      const matches = findPaths('See /tmp/out Please review.');
+      expect(matches).toHaveLength(1);
+      expect(matches[0][1]).toBe('/tmp/out');
+    });
+
     it('detects paths with @ and percent-encoded characters in filenames', () => {
       expect(findPaths('File /tmp/foo@bar.txt')[0][1]).toBe('/tmp/foo@bar.txt');
       expect(findPaths('File /tmp/foo%20bar.txt')[0][1]).toBe('/tmp/foo%20bar.txt');
