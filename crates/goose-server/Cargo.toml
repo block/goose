@@ -27,6 +27,7 @@ local-inference = ["goose/local-inference"]
 aws-providers = ["goose/aws-providers"]
 cuda = ["goose/cuda", "local-inference"]
 vulkan = ["goose/vulkan", "local-inference"]
+mlx = ["goose/mlx", "local-inference"]
 telemetry = ["goose/telemetry"]
 nostr = ["goose/nostr"]
 otel = ["goose/otel"]
@@ -40,6 +41,7 @@ rustls-tls = [
     "dep:aws-lc-rs",
     "goose/rustls-tls",
     "goose-mcp/rustls-tls",
+    "goose-providers/rustls-tls",
 ]
 native-tls = [
     "reqwest/native-tls",
@@ -48,6 +50,7 @@ native-tls = [
     "dep:openssl",
     "goose/native-tls",
     "goose-mcp/native-tls",
+    "goose-providers/native-tls",
 ]
 
 [dependencies]

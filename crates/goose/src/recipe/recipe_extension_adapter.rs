@@ -20,6 +20,8 @@ enum RecipeExtensionConfigInternal {
         env_keys: Vec<String>,
         timeout: Option<u64>,
         #[serde(default)]
+        cwd: Option<String>,
+        #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
@@ -122,6 +124,7 @@ impl From<RecipeExtensionConfigInternal> for ExtensionConfig {
                 envs,
                 env_keys,
                 timeout,
+                cwd,
                 bundled,
                 available_tools
             },

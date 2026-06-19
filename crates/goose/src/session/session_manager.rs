@@ -2,12 +2,15 @@ use crate::config::paths::Paths;
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::model::ModelConfig;
-use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
+use crate::providers::base::Provider;
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
+use crate::session::session_naming::{
+    generate_session_name, MSG_COUNT_FOR_SESSION_NAME_GENERATION,
+};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use goose_providers::model::ModelConfig;
 use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
@@ -86,21 +89,8 @@ pub struct Session {
     pub archived_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub project_id: Option<String>,
-}
-
-impl Session {
-    pub fn display_title(&self) -> Option<String> {
-        if !self.user_set_name && self.session_type != SessionType::Scheduled {
-            if let Some(recipe) = &self.recipe {
-                return Some(recipe.title.clone());
-            }
-        }
-        if self.name.is_empty() {
-            None
-        } else {
-            Some(self.name.clone())
-        }
-    }
+    #[serde(default)]
+    pub last_message_snippet: Option<String>,
 }
 
 pub struct SessionUpdateBuilder<'a> {
@@ -314,6 +304,7 @@ pub(crate) struct SessionListPageQuery<'a> {
     pub(crate) filters: SessionListFilters<'a>,
     pub(crate) cursor: Option<&'a SessionListCursor>,
     pub(crate) page_size: usize,
+    pub(crate) include_last_message_snippet: bool,
 }
 
 #[derive(Debug, Default)]
@@ -465,6 +456,26 @@ impl SessionManager {
             .await
     }
 
+    async fn system_generated_name_update(
+        &self,
+        id: &str,
+        name: String,
+    ) -> Result<SessionNameUpdate> {
+        self.update(id)
+            .system_generated_name(name.clone())
+            .apply()
+            .await?;
+
+        let session = self.get_session(id, false).await?;
+        Ok(SessionNameUpdate {
+            session_id: id.to_string(),
+            name,
+            updated_at: session.updated_at,
+            message_count: session.message_count,
+            user_set_name: session.user_set_name,
+        })
+    }
+
     pub async fn maybe_update_name(
         &self,
         id: &str,
@@ -474,6 +485,19 @@ impl SessionManager {
 
         if session.user_set_name {
             return Ok(None);
+        }
+
+        if session.session_type == SessionType::Scheduled {
+            return Ok(None);
+        }
+
+        if let Some(recipe) = &session.recipe {
+            let name = recipe.title.trim().to_string();
+            if name.is_empty() || session.name == name {
+                return Ok(None);
+            }
+
+            return Ok(Some(self.system_generated_name_update(id, name).await?));
         }
 
         let conversation = session
@@ -487,20 +511,8 @@ impl SessionManager {
             .count();
 
         if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
-            let name = provider.generate_session_name(id, &conversation).await?;
-            self.update(id)
-                .system_generated_name(name.clone())
-                .apply()
-                .await?;
-
-            let session = self.get_session(id, false).await?;
-            return Ok(Some(SessionNameUpdate {
-                session_id: id.to_string(),
-                name,
-                updated_at: session.updated_at,
-                message_count: session.message_count,
-                user_set_name: session.user_set_name,
-            }));
+            let name = generate_session_name(provider.as_ref(), id, &conversation).await?;
+            return Ok(Some(self.system_generated_name_update(id, name).await?));
         }
         Ok(None)
     }
@@ -596,6 +608,7 @@ impl Default for Session {
             goose_mode: GooseMode::default(),
             archived_at: None,
             project_id: None,
+            last_message_snippet: None,
         }
     }
 }
@@ -668,6 +681,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
                 .unwrap_or_default(),
             archived_at: row.try_get("archived_at").ok(),
             project_id: row.try_get("project_id").ok().flatten(),
+            last_message_snippet: None,
         })
     }
 }
@@ -1678,6 +1692,7 @@ impl SessionStorage {
         }
 
         let page_size = query.page_size;
+        let include_last_message_snippet = query.include_last_message_snippet;
         let mut sessions = self
             .list_sessions_matching(SessionListQuery {
                 filters: query.filters,
@@ -1697,6 +1712,10 @@ impl SessionStorage {
         };
         if has_next_page {
             sessions.truncate(page_size);
+        }
+        if include_last_message_snippet {
+            let pool = self.pool().await?;
+            super::last_message_snippet::hydrate_last_message_snippets(pool, &mut sessions).await?;
         }
 
         Ok(SessionListPage {
@@ -2025,10 +2044,69 @@ fn merge_tool_meta(
 mod tests {
     use super::*;
     use crate::conversation::message::{Message, MessageContent};
+    use crate::providers::base::MessageStream;
+    use goose_providers::conversation::token_usage::ProviderUsage;
+    use goose_providers::errors::ProviderError;
+    use rmcp::model::Tool;
     use tempfile::TempDir;
     use test_case::test_case;
 
     const NUM_CONCURRENT_SESSIONS: i32 = 10;
+    const GENERATED_SESSION_NAME: &str = "Generated session name";
+
+    struct NamingTestProvider {
+        model_config: ModelConfig,
+    }
+
+    #[async_trait::async_trait]
+    impl Provider for NamingTestProvider {
+        fn get_name(&self) -> &str {
+            "naming-test"
+        }
+
+        async fn stream(
+            &self,
+            _model_config: &ModelConfig,
+            _session_id: &str,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[rmcp::model::Tool],
+        ) -> std::result::Result<MessageStream, goose_providers::errors::ProviderError> {
+            unimplemented!("session naming calls complete_fast")
+        }
+
+        fn get_model_config(&self) -> ModelConfig {
+            self.model_config.clone()
+        }
+
+        async fn complete_fast(
+            &self,
+            _session_id: &str,
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            Ok((
+                Message::assistant().with_text(GENERATED_SESSION_NAME),
+                ProviderUsage::new("test".to_string(), Default::default()),
+            ))
+        }
+    }
+
+    fn naming_test_provider() -> Arc<dyn Provider> {
+        Arc::new(NamingTestProvider {
+            model_config: ModelConfig::new("test-model").unwrap(),
+        })
+    }
+
+    fn test_recipe(title: &str) -> Recipe {
+        Recipe::builder()
+            .title(title)
+            .description("Recipe description")
+            .instructions("Follow the recipe")
+            .build()
+            .unwrap()
+    }
 
     async fn create_session_for_list(
         sm: &SessionManager,
@@ -2103,6 +2181,147 @@ mod tests {
         .execute(pool)
         .await
         .unwrap();
+    }
+
+    async fn add_user_message(sm: &SessionManager, session_id: &str) {
+        sm.add_message(session_id, &Message::user().with_text("hello world"))
+            .await
+            .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_maybe_update_name_updates_eligible_session() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "New Chat".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        add_user_message(&sm, &session.id).await;
+
+        let update = sm
+            .maybe_update_name(&session.id, naming_test_provider())
+            .await
+            .unwrap();
+        assert_eq!(
+            update.as_ref().map(|update| update.name.as_str()),
+            Some(GENERATED_SESSION_NAME)
+        );
+
+        let reloaded = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(reloaded.name, GENERATED_SESSION_NAME);
+        assert!(!reloaded.user_set_name);
+    }
+
+    #[tokio::test]
+    async fn test_maybe_update_name_preserves_user_renamed_session() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "New Chat".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        sm.update(&session.id)
+            .user_provided_name("Manual title".to_string())
+            .apply()
+            .await
+            .unwrap();
+        add_user_message(&sm, &session.id).await;
+
+        let update = sm
+            .maybe_update_name(&session.id, naming_test_provider())
+            .await
+            .unwrap();
+        assert!(update.is_none());
+
+        let reloaded = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(reloaded.name, "Manual title");
+        assert!(reloaded.user_set_name);
+    }
+
+    #[tokio::test]
+    async fn test_maybe_update_name_uses_recipe_title_for_recipe_session() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "New Chat".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        sm.update(&session.id)
+            .recipe(Some(test_recipe("Recipe title")))
+            .apply()
+            .await
+            .unwrap();
+        add_user_message(&sm, &session.id).await;
+
+        let update = sm
+            .maybe_update_name(&session.id, naming_test_provider())
+            .await
+            .unwrap();
+        assert_eq!(
+            update.as_ref().map(|update| update.name.as_str()),
+            Some("Recipe title")
+        );
+
+        let reloaded = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(reloaded.name, "Recipe title");
+        assert!(!reloaded.user_set_name);
+
+        let update = sm
+            .maybe_update_name(&session.id, naming_test_provider())
+            .await
+            .unwrap();
+        assert!(update.is_none());
+    }
+
+    #[tokio::test]
+    async fn test_maybe_update_name_preserves_scheduled_session() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let original_name = "Scheduled job: test-job";
+
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                original_name.to_string(),
+                SessionType::Scheduled,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        add_user_message(&sm, &session.id).await;
+
+        let update = sm
+            .maybe_update_name(&session.id, naming_test_provider())
+            .await
+            .unwrap();
+        assert!(update.is_none());
+
+        let reloaded = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(reloaded.name, original_name);
+        assert!(!reloaded.user_set_name);
     }
 
     async fn create_search_session(
@@ -2204,6 +2423,7 @@ mod tests {
                 },
                 cursor,
                 page_size,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2397,6 +2617,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2438,6 +2659,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2472,6 +2694,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2510,6 +2733,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2530,6 +2754,7 @@ mod tests {
                 },
                 cursor: None,
                 page_size: 10,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2568,6 +2793,7 @@ mod tests {
                 filters: filters.clone(),
                 cursor: None,
                 page_size: 1,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();
@@ -2584,6 +2810,7 @@ mod tests {
                 filters,
                 cursor: cursor.next_cursor.as_ref(),
                 page_size: 1,
+                include_last_message_snippet: false,
             })
             .await
             .unwrap();

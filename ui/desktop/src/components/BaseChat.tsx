@@ -16,7 +16,7 @@ import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useNavigationContextSafe } from './Layout/NavigationContext';
 import { cn } from '../utils';
-import { useChatStream } from '../hooks/useChatStream';
+import { useChatSession } from '../hooks/useChatSession';
 import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
@@ -33,6 +33,7 @@ import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 import apeCloudLogo from '../images/logo.png';
+import SessionActionsHeader from './SessionActionsHeader';
 
 const RECIPE_TRUST_WARNINGS_ENABLED = false;
 
@@ -71,6 +72,7 @@ interface BaseChatProps {
   sessionId: string;
   isActiveSession: boolean;
   initialMessage?: UserInput;
+  noAutoSubmit?: boolean;
 }
 
 export default function BaseChat({
@@ -80,6 +82,7 @@ export default function BaseChat({
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
+  noAutoSubmit,
   isActiveSession,
 }: BaseChatProps) {
   const intl = useIntl();
@@ -95,7 +98,7 @@ export default function BaseChat({
   const navContext = useNavigationContextSafe();
   const setView = useNavigation();
   const isNavCollapsed = !navContext?.isNavExpanded;
-  const contentClassName = cn('pr-1 pb-10 pt-10', (isMobile || isNavCollapsed) && 'pt-14');
+  const contentClassName = cn('pr-1 pb-10 pt-12', (isMobile || isNavCollapsed) && 'pt-16');
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
   const onStreamFinish = useCallback(() => {}, []);
   const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
@@ -105,6 +108,7 @@ export default function BaseChat({
     messages,
     chatState,
     setChatState,
+    updateSession,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,
@@ -112,8 +116,9 @@ export default function BaseChat({
     setRecipeUserParams,
     tokenState,
     notifications: toolCallNotifications,
+    pauseQueueOnStop,
     onMessageUpdate,
-  } = useChatStream({
+  } = useChatSession({
     sessionId,
     onStreamFinish,
   });
@@ -131,11 +136,16 @@ export default function BaseChat({
     return initialMessage;
   }, [initialMessage, recipe?.prompt, session?.user_recipe_values]);
 
+  // noAutoSubmit only suppresses auto-submitting the initial prompt of a fresh session
+  // (goose://new-session?prompt=...). Once the conversation has messages, later flows
+  // such as forks or resumes should auto-submit normally.
+  const suppressInitialAutoSubmit = noAutoSubmit && messages.length === 0;
   const canAutoSubmit =
-    session?.session_type === 'scheduled' ||
-    !recipe ||
-    !RECIPE_TRUST_WARNINGS_ENABLED ||
-    hasNotAcceptedRecipe === false;
+    !suppressInitialAutoSubmit &&
+    (session?.session_type === 'scheduled' ||
+      !recipe ||
+      !RECIPE_TRUST_WARNINGS_ENABLED ||
+      hasNotAcceptedRecipe === false);
 
   useAutoSubmit({
     sessionId,
@@ -369,7 +379,10 @@ export default function BaseChat({
       : recipe.prompt;
   }
 
-  const initialPrompt = recipePrompt;
+  const initialPrompt =
+    noAutoSubmit && messages.length === 0 && resolvedInitialMessage?.msg
+      ? resolvedInitialMessage.msg
+      : recipePrompt;
 
   if (sessionLoadError) {
     return (
@@ -427,6 +440,8 @@ export default function BaseChat({
             </div>
             <EnvironmentBadge className="translate-y-px" />
           </div>
+
+          <SessionActionsHeader session={session} onSessionChange={updateSession} />
 
           <ScrollArea
             ref={scrollRef}
@@ -503,6 +518,7 @@ export default function BaseChat({
             chatState={chatState}
             setChatState={setChatState}
             onStop={stopStreaming}
+            pauseQueueOnStop={pauseQueueOnStop}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
@@ -552,16 +568,16 @@ export default function BaseChat({
         recipe.parameters.length > 0 &&
         !session?.user_recipe_values &&
         session?.session_type !== 'scheduled' && (
-        <ParameterInputModal
-          parameters={recipe.parameters}
-          onSubmit={setRecipeUserParams}
-          onClose={() => setView('chat')}
-          initialValues={
-            (window.appConfig?.get('recipeParameters') as Record<string, string> | undefined) ||
-            undefined
-          }
-        />
-      )}
+          <ParameterInputModal
+            parameters={recipe.parameters}
+            onSubmit={setRecipeUserParams}
+            onClose={() => setView('chat')}
+            initialValues={
+              (window.appConfig?.get('recipeParameters') as Record<string, string> | undefined) ||
+              undefined
+            }
+          />
+        )}
 
       <CreateRecipeFromSessionModal
         isOpen={isCreateRecipeModalOpen}

@@ -1174,12 +1174,11 @@ export const zGetSessionInfoResponse_unstable = z.object({
 });
 
 /**
- * Submit a response for a pending MCP elicitation in an active session.
+ * Truncate a session conversation from the given message timestamp onward.
  */
-export const zElicitationRespondRequest_unstable = z.object({
+export const zTruncateSessionConversationRequest_unstable = z.object({
     sessionId: z.string(),
-    elicitationId: z.string(),
-    userData: z.unknown().optional().default(null)
+    truncateFrom: z.number().int()
 });
 
 /**
@@ -1543,24 +1542,6 @@ export const zStatusMessageUpdate = z.object({
     status: zStatusMessage
 });
 
-export const zInteractionState = z.enum(['pending', 'submitted']);
-
-export const zInteraction = z.object({
-    id: z.string(),
-    state: zInteractionState,
-    message: z.union([
-        z.string(),
-        z.null()
-    ]).optional(),
-    requestedSchema: z.unknown().optional(),
-    type: z.literal('elicitation')
-});
-
-export const zInteractionUpdate = z.object({
-    interaction: zInteraction,
-    _meta: z.unknown().optional()
-});
-
 /**
  * Discriminated union of goose-specific session update payloads.
  * Variant tag matches ACP's convention (`sessionUpdate: "<snake_case>"`).
@@ -1575,10 +1556,7 @@ export const zGooseSessionUpdate = z.union([
     }).and(zSessionUsageUpdate),
     z.object({
         sessionUpdate: z.literal('status_message')
-    }).and(zStatusMessageUpdate),
-    z.object({
-        sessionUpdate: z.literal('interaction_update')
-    }).and(zInteractionUpdate)
+    }).and(zStatusMessageUpdate)
 ]);
 
 /**
@@ -1635,7 +1613,7 @@ export const zExtRequest = z.object({
             zExportSessionRequest_unstable,
             zImportSessionRequest_unstable,
             zGetSessionInfoRequest_unstable,
-            zElicitationRespondRequest_unstable,
+            zTruncateSessionConversationRequest_unstable,
             zUpdateSessionProjectRequest_unstable,
             zRenameSessionRequest_unstable,
             zArchiveSessionRequest_unstable,

@@ -201,8 +201,8 @@
       "responseType": "GetSessionInfoResponse_unstable"
     },
     {
-      "method": "_goose/unstable/elicitation/respond",
-      "requestType": "ElicitationRespondRequest_unstable",
+      "method": "_goose/unstable/session/conversation/truncate",
+      "requestType": "TruncateSessionConversationRequest_unstable",
       "responseType": "EmptyResponse"
     },
     {

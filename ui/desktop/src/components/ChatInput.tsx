@@ -30,11 +30,7 @@ import { DiagnosticsModal } from './ui/Diagnostics';
 import { getSession, Message } from '../api';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { getPredefinedModelsFromEnv } from './settings/models/predefinedModelsUtils';
-import {
-  trackFileAttached,
-  trackVoiceDictation,
-  trackDiagnosticsOpened,
-} from '../utils/analytics';
+import { trackFileAttached, trackVoiceDictation, trackDiagnosticsOpened } from '../utils/analytics';
 import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
 import { UserInput, ImageData } from '../types/message';
 import { compressImageDataUrl } from '../utils/conversionUtils';
@@ -176,6 +172,7 @@ interface ChatInputProps {
   chatState: ChatState;
   setChatState?: (state: ChatState) => void;
   onStop?: () => void;
+  pauseQueueOnStop?: boolean;
   commandHistory?: string[];
   initialValue?: string;
   droppedFiles?: DroppedFile[];
@@ -207,6 +204,7 @@ export default function ChatInput({
   chatState = ChatState.Idle,
   setChatState,
   onStop,
+  pauseQueueOnStop = false,
   commandHistory = [],
   initialValue = '',
   droppedFiles = [],
@@ -1376,6 +1374,13 @@ export default function ChatInput({
     if (onStop) onStop();
   };
 
+  const handleStop = () => {
+    if (pauseQueueOnStop && queuedMessages.length > 0) {
+      pauseRemainingQueue();
+    }
+    if (onStop) onStop();
+  };
+
   const handleResumeQueue = () => {
     queuePausedRef.current = false;
     setLastInterruption(null);
@@ -1586,10 +1591,7 @@ export default function ChatInput({
           extensions, diagnostics, attach, mic, send. When the bar is narrow
           (e.g. on a small window), the secondary controls drop out so the
           model selector + send button always stay visible. */}
-      <div
-        ref={bottomBarRef}
-        className="flex flex-row items-center gap-2 px-3 py-2 relative"
-      >
+      <div ref={bottomBarRef} className="flex flex-row items-center gap-2 px-3 py-2 relative">
         {/* Left: model selector */}
         <Tooltip>
           <div>
@@ -1744,7 +1746,7 @@ export default function ChatInput({
         {isLoading && !hasSubmittableContent ? (
           <Button
             type="button"
-            onClick={onStop}
+            onClick={handleStop}
             size="sm"
             shape="round"
             variant="ghost"
@@ -1802,7 +1804,6 @@ export default function ChatInput({
           }
           workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
         />
-
       </div>
     </div>
   );

@@ -567,10 +567,10 @@ pub fn maybe_summarize_tool_pairs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::ModelConfig;
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::Usage;
     use goose_providers::errors::ProviderError;
+    use goose_providers::model::ModelConfig;
     use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
 
     fn create_tool_pair(

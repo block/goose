@@ -34,6 +34,10 @@ const i18n = defineMessages({
     id: 'elicitationRequest.waitingForResponse',
     defaultMessage: 'Waiting for your response ({timeRemaining} remaining)',
   },
+  submitError: {
+    id: 'elicitationRequest.submitError',
+    defaultMessage: 'This request is no longer active. The extension will need to ask again.',
+  },
 });
 
 const ELICITATION_TIMEOUT_SECONDS = 300;
@@ -42,7 +46,7 @@ interface ElicitationRequestProps {
   isCancelledMessage: boolean;
   isClicked: boolean;
   actionRequiredContent: ActionRequired & { type: 'actionRequired' };
-  onSubmit: (elicitationId: string, userData: Record<string, unknown>) => void;
+  onSubmit: (elicitationId: string, userData: Record<string, unknown>) => Promise<boolean>;
 }
 
 function formatTime(seconds: number): string {
@@ -59,8 +63,17 @@ export default function ElicitationRequest({
 }: ElicitationRequestProps) {
   const intl = useIntl();
   const [submitted, setSubmitted] = useState(isClicked);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | undefined>();
   const [timeRemaining, setTimeRemaining] = useState(ELICITATION_TIMEOUT_SECONDS);
   const startTimeRef = useRef(Date.now());
+
+  useEffect(() => {
+    if (isClicked) {
+      setSubmitted(true);
+      setSubmitError(undefined);
+    }
+  }, [isClicked]);
 
   useEffect(() => {
     if (submitted || isCancelledMessage || isClicked) return;
@@ -87,14 +100,31 @@ export default function ElicitationRequest({
   const schema = (requested_schema ?? {}) as JsonSchema;
   const hasSchemaFields = Boolean(schema.properties && Object.keys(schema.properties).length > 0);
 
-  const handleSubmit = (formData: Record<string, unknown>) => {
+  const submitResponse = async (formData: Record<string, unknown>) => {
     setSubmitted(true);
-    onSubmit(elicitationId, formData);
+    setIsSubmitting(true);
+    setSubmitError(undefined);
+    try {
+      const didSubmit = await onSubmit(elicitationId, formData);
+      if (!didSubmit) {
+        setSubmitted(false);
+        setSubmitError(intl.formatMessage(i18n.submitError));
+      }
+    } catch (error) {
+      console.error('Error submitting elicitation response:', error);
+      setSubmitted(false);
+      setSubmitError(intl.formatMessage(i18n.submitError));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleSubmit = (formData: Record<string, unknown>) => {
+    void submitResponse(formData);
   };
 
   const handleAccept = () => {
-    setSubmitted(true);
-    onSubmit(elicitationId, {});
+    void submitResponse({});
   };
 
   if (isCancelledMessage) {
@@ -165,12 +195,18 @@ export default function ElicitationRequest({
             schema={schema}
             onSubmit={handleSubmit}
             submitLabel={intl.formatMessage(i18n.submit)}
+            disabled={isSubmitting}
           />
         ) : (
           <div className="flex gap-2">
-            <Button type="button" onClick={handleAccept}>
+            <Button type="button" onClick={handleAccept} disabled={isSubmitting}>
               {intl.formatMessage(i18n.accept)}
             </Button>
+          </div>
+        )}
+        {submitError && (
+          <div role="alert" className="mt-3 text-sm text-red-500">
+            {submitError}
           </div>
         )}
         <div

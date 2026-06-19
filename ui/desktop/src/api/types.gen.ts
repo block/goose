@@ -20,6 +20,7 @@ export type ActionRequiredData = {
     message: string;
     requested_schema: unknown;
 } | {
+    action?: string;
     actionType: 'elicitationResponse';
     id: string;
     user_data: unknown;
@@ -292,9 +293,17 @@ export type DictationProviderStatus = {
 
 export type DownloadModelRequest = {
     /**
-     * Model spec like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M"
+     * Optional backend id for callers selecting a concrete variant row.
+     */
+    backend_id?: string | null;
+    /**
+     * Model spec/download id like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M" or "google/gemma-4-31B-it"
      */
     spec: string;
+    /**
+     * Optional backend-specific variant id, such as a GGUF quantization or MLX dtype.
+     */
+    variant_id?: string | null;
 };
 
 export type DownloadProgress = {
@@ -383,6 +392,7 @@ export type ExtensionConfig = {
     available_tools?: Array<string>;
     bundled?: boolean | null;
     cmd: string;
+    cwd?: string | null;
     description: string;
     env_keys?: Array<string>;
     envs?: Envs;
@@ -558,6 +568,24 @@ export type HfModelInfo = {
     gguf_files: Array<HfGgufFile>;
     model_name: string;
     repo_id: string;
+    variants?: Array<HfModelVariant>;
+};
+
+export type HfModelVariant = {
+    backend_id: string;
+    description: string;
+    download_id: string;
+    download_url?: string | null;
+    filename?: string | null;
+    format: string;
+    label: string;
+    model_id: string;
+    quality_rank: number;
+    sharded?: boolean;
+    size_bytes: number;
+    supported?: boolean;
+    unsupported_reason?: string | null;
+    variant_id: string;
 };
 
 /**
@@ -875,8 +903,13 @@ export type ModelInfoResponse = {
 };
 
 export type ModelSettings = {
+    /**
+     * Backend implementation to use for this model. Defaults to llama.cpp.
+     */
+    backend_id?: string | null;
     chat_template?: ChatTemplate;
     context_size?: number | null;
+    draft_model?: string | null;
     enable_thinking?: boolean;
     flash_attention?: boolean | null;
     frequency_penalty?: number;
@@ -1185,8 +1218,9 @@ export type RemoveExtensionRequest = {
 export type RepoVariantsResponse = {
     available_memory_bytes: number;
     downloaded_quants: Array<string>;
+    downloaded_variants: Array<string>;
     recommended_index?: number | null;
-    variants: Array<HfQuantVariant>;
+    variants: Array<HfModelVariant>;
 };
 
 export type ResourceContents = {
@@ -1340,6 +1374,7 @@ export type Session = {
     goose_mode?: GooseMode;
     id: string;
     input_tokens?: number | null;
+    last_message_snippet?: string | null;
     message_count: number;
     model_config?: ModelConfig | null;
     name: string;

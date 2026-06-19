@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
 import { confirmToolAction, Permission } from '../api';
+import { resolveAcpPermissionRequest } from '../acp/permissionRequests';
+import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 import { defineMessages, useIntl } from '../i18n';
 
 const i18n = defineMessages({
@@ -75,10 +77,18 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
   }, [id, decision, isClicked]);
 
   const handleAction = async (action: Permission) => {
-    setDecision(action);
-    setIsClicked(true);
-
     try {
+      // Edit-in-place reruns go through the legacy REST path even when ACP chat is
+      // enabled, so fall back to confirmToolAction when no ACP request is pending.
+      if (USE_ACP_CHAT && resolveAcpPermissionRequest(sessionId, id, action)) {
+        setDecision(action);
+        setIsClicked(true);
+        return;
+      }
+
+      setDecision(action);
+      setIsClicked(true);
+
       const response = await confirmToolAction({
         body: {
           sessionId,

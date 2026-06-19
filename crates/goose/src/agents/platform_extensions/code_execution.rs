@@ -478,21 +478,8 @@ impl McpClientTrait for CodeExecutionClient {
 
         let disclosure_style_moim = match self.disclosure {
             ToolDisclosure::Catalog => {
-                let functions = code_mode.list_functions().functions;
-                let sandbox_only: Vec<_> = functions
-                    .iter()
-                    .filter(|f| !crate::agents::extension_manager::is_first_class_extension(&f.namespace))
-                    .map(|f| format!("{}.{}", &f.namespace, &f.name))
-                    .collect();
-                let mut msg = String::new();
-                if !sandbox_only.is_empty() {
-                    msg.push_str(&format!(
-                        "Additional functions available ONLY via execute_typescript (do NOT call these as direct tool calls): {}",
-                        sandbox_only.join(", ")
-                    ));
-                }
-                msg.push_str("\n\n                Use the list_functions & get_function_details tools to see tool signatures and input/output types before calling execute_typescript.");
-                msg
+                let function_count = code_mode.list_functions().functions.len();
+                catalog_disclosure_moim(function_count)
             }
             ToolDisclosure::Filesystem => {
                 let available_filepaths: Vec<_> = code_mode
@@ -512,6 +499,16 @@ impl McpClientTrait for CodeExecutionClient {
             "#},
             disclosure_style_moim
         ))
+    }
+}
+
+fn catalog_disclosure_moim(function_count: usize) -> String {
+    if function_count == 0 {
+        "No execute_typescript callback functions are currently registered.".to_string()
+    } else {
+        format!(
+            "{function_count} callback functions are available only from inside execute_typescript. Do not call callback function names directly as tools. Use list_functions and get_function_details to inspect signatures before writing one execute_typescript call."
+        )
     }
 }
 
@@ -552,5 +549,21 @@ impl CodeModeState {
             s.hash(&mut hasher);
         }
         hasher.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn catalog_moim_mentions_inspection_tools_without_function_names() {
+        let moim = catalog_disclosure_moim(3);
+
+        assert!(moim.contains("3 callback functions"));
+        assert!(moim.contains("list_functions"));
+        assert!(moim.contains("get_function_details"));
+        assert!(!moim.contains("extract_relations"));
+        assert!(!moim.contains("ask_heimdall"));
     }
 }

@@ -11,6 +11,9 @@
   "announcementModal.gotIt": {
     "defaultMessage": "Got it!"
   },
+  "appLayout.collapseNavigation": {
+    "defaultMessage": "Collapse navigation"
+  },
   "appLayout.openNavigation": {
     "defaultMessage": "Open navigation"
   },
@@ -992,6 +995,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "Submit"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "Information submitted"
   },
@@ -1488,7 +1494,7 @@
     "defaultMessage": "Loading variants..."
   },
   "huggingFaceModelSearch.noGgufModels": {
-    "defaultMessage": "No GGUF models found for this query."
+    "defaultMessage": "No compatible local models found for this query."
   },
   "huggingFaceModelSearch.recommended": {
     "defaultMessage": "Recommended"
@@ -1506,7 +1512,7 @@
     "defaultMessage": "Search returned no data."
   },
   "huggingFaceModelSearch.searchPlaceholder": {
-    "defaultMessage": "Search for GGUF models..."
+    "defaultMessage": "Search for local models..."
   },
   "huggingFaceModelSearch.tooLarge": {
     "defaultMessage": "May not fit in memory ({size} model, {available} available)"
@@ -1845,10 +1851,16 @@
     "defaultMessage": "Delete this model? You can re-download it later."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "Download and manage local LLM models for inference without API keys. Search HuggingFace for any GGUF model or use the featured picks below."
+    "defaultMessage": "Download and manage local LLM models for inference without API keys. Search HuggingFace for GGUF or MLX models, or use the featured picks below."
+  },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "Dismiss"
   },
   "localInferenceSettings.download": {
     "defaultMessage": "Download"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "Download cancelled"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "Download failed"
@@ -1882,6 +1894,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "{time} remaining"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "Retry"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "Show all featured ({count} more)"
@@ -2446,9 +2461,6 @@
   },
   "navigationPanel.chats": {
     "defaultMessage": "Chats"
-  },
-  "navigationPanel.collapseSidebar": {
-    "defaultMessage": "Collapse sidebar"
   },
   "navigationPanel.noChats": {
     "defaultMessage": "No recent chats"
@@ -3737,6 +3749,72 @@
   "securityToggle.warpNotice": {
     "defaultMessage": "Command injection detection works best when connected to WARP (required to reach the classification service)."
   },
+  "sessionActionsHeader.actionsLabel": {
+    "defaultMessage": "Session actions"
+  },
+  "sessionActionsHeader.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "sessionActionsHeader.close": {
+    "defaultMessage": "Close"
+  },
+  "sessionActionsHeader.copiedJson": {
+    "defaultMessage": "Session JSON copied"
+  },
+  "sessionActionsHeader.copiedText": {
+    "defaultMessage": "Text copied"
+  },
+  "sessionActionsHeader.copyJson": {
+    "defaultMessage": "Copy JSON"
+  },
+  "sessionActionsHeader.copyText": {
+    "defaultMessage": "Copy text"
+  },
+  "sessionActionsHeader.duplicateFailed": {
+    "defaultMessage": "Failed to duplicate session: {error}"
+  },
+  "sessionActionsHeader.duplicateSession": {
+    "defaultMessage": "Duplicate session"
+  },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "Session duplicated"
+  },
+  "sessionActionsHeader.fullTextTitle": {
+    "defaultMessage": "Text value"
+  },
+  "sessionActionsHeader.jsonFailed": {
+    "defaultMessage": "Failed to load session JSON: {error}"
+  },
+  "sessionActionsHeader.jsonTitle": {
+    "defaultMessage": "Session JSON"
+  },
+  "sessionActionsHeader.loadingJson": {
+    "defaultMessage": "Loading JSON..."
+  },
+  "sessionActionsHeader.renameFailed": {
+    "defaultMessage": "Failed to rename session: {error}"
+  },
+  "sessionActionsHeader.renamePlaceholder": {
+    "defaultMessage": "Enter session name"
+  },
+  "sessionActionsHeader.renameSession": {
+    "defaultMessage": "Rename session"
+  },
+  "sessionActionsHeader.renameTitle": {
+    "defaultMessage": "Rename Session"
+  },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "Session renamed"
+  },
+  "sessionActionsHeader.save": {
+    "defaultMessage": "Save"
+  },
+  "sessionActionsHeader.saving": {
+    "defaultMessage": "Saving..."
+  },
+  "sessionActionsHeader.viewJson": {
+    "defaultMessage": "View session JSON"
+  },
   "sessionHistory.cancel": {
     "defaultMessage": "Cancel"
   },
@@ -4036,6 +4114,39 @@
   },
   "settings.help.title": {
     "defaultMessage": "Help & feedback"
+  },
+  "settings.language.description": {
+    "defaultMessage": "Choose the display language for goose"
+  },
+  "settings.language.english": {
+    "defaultMessage": "English"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "Hindi"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "Japanese"
+  },
+  "settings.language.korean": {
+    "defaultMessage": "Korean"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "Russian"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "Spanish"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "System Default"
+  },
+  "settings.language.title": {
+    "defaultMessage": "Language"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "Turkish"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "Chinese (Simplified)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Show ApeMind Agent in the menu bar"

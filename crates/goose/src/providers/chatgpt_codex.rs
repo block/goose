@@ -1,6 +1,5 @@
 use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
 use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
@@ -16,6 +15,7 @@ use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
 use reqwest::header::{HeaderName, HeaderValue};
@@ -319,7 +319,7 @@ struct TokenData {
 }
 
 #[derive(Debug, Clone)]
-struct TokenCache {
+pub(crate) struct TokenCache {
     cache_path: PathBuf,
 }
 
@@ -328,7 +328,7 @@ fn get_cache_path() -> PathBuf {
 }
 
 impl TokenCache {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let cache_path = get_cache_path();
         if let Some(parent) = cache_path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -342,6 +342,9 @@ impl TokenCache {
         } else {
             None
         }
+    }
+    pub(crate) fn has_token(&self) -> bool {
+        self.load().is_some()
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
@@ -891,7 +894,10 @@ impl ChatGptCodexProvider {
         Ok(())
     }
 
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let auth_provider = Arc::new(ChatGptCodexAuthProvider::new(
             ChatGptCodexAuthState::instance(),
         ));
@@ -973,12 +979,9 @@ impl ProviderDef for ChatGptCodexProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
-    }
-
-    fn inventory_configured() -> bool {
-        TokenCache::new().load().is_some()
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 
@@ -1098,7 +1101,7 @@ mod tests {
         let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
 
         TokenCache::new().clear();
-        assert!(!ChatGptCodexProvider::inventory_configured());
+        assert!(!TokenCache::new().has_token());
 
         TokenCache::new()
             .save(&TokenData {
@@ -1110,7 +1113,7 @@ mod tests {
             })
             .unwrap();
 
-        assert!(ChatGptCodexProvider::inventory_configured());
+        assert!(TokenCache::new().has_token());
     }
 
     #[test_case(

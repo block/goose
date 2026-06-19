@@ -8,6 +8,7 @@ interface ChatSessionsContainerProps {
   activeSessions: Array<{
     sessionId: string;
     initialMessage?: UserInput;
+    noAutoSubmit?: boolean;
   }>;
 }
 
@@ -51,6 +52,7 @@ export default function ChatSessionsContainer({
               setChat={setChat}
               sessionId={session.sessionId}
               initialMessage={session.initialMessage}
+              noAutoSubmit={session.noAutoSubmit}
               suppressEmptyState={false}
               isActiveSession={isVisible}
             />

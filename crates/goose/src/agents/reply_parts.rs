@@ -11,6 +11,7 @@ use tracing::debug;
 use super::super::agents::Agent;
 #[cfg(feature = "code-mode")]
 use crate::agents::platform_extensions::code_execution;
+use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 #[cfg(test)]
@@ -280,7 +281,9 @@ impl Agent {
 
         // Capture errors during stream creation and return them as part of the stream
         // so they can be handled by the existing error handling logic in the agent
-        let model_config = provider.get_model_config();
+        let model_config = provider
+            .get_model_config()
+            .with_default_thinking_effort(Config::global().get_goose_thinking_effort());
         debug!("WAITING_LLM_STREAM_START");
         let stream_result = provider
             .stream(
@@ -419,6 +422,17 @@ impl Agent {
             })
             .collect();
 
+        // Providers should emit unique tool-call ids within a turn, but a
+        // malformed or malicious provider can repeat one. Keep only the first
+        // occurrence of each id, in the order the provider sent them, so tools
+        // aren't executed twice and duplicate tool_results don't pollute the
+        // conversation history.
+        let mut seen_ids = std::collections::HashSet::new();
+        let tool_requests: Vec<ToolRequest> = tool_requests
+            .into_iter()
+            .filter(|req| seen_ids.insert(req.id.clone()))
+            .collect();
+
         let has_tool_requests = !tool_requests.is_empty();
         let should_suppress_replayed_thinking = suppress_replayed_thinking && has_tool_requests;
 
@@ -430,29 +444,32 @@ impl Agent {
         // accumulated reasoning after streamed thought chunks while still
         // preserving final-only non-streaming thoughts.
         let mut filtered_content = Vec::new();
-        let mut tool_request_index = 0;
+        let mut deduped_requests = tool_requests.iter();
+        let mut next_request = deduped_requests.next();
 
         for content in &response.content {
             match content {
-                MessageContent::ToolRequest(_) => {
-                    if tool_request_index < tool_requests.len() {
-                        let coerced_req = &tool_requests[tool_request_index];
-                        tool_request_index += 1;
+                MessageContent::ToolRequest(req) => {
+                    // Drop content for requests removed during dedup so duplicate
+                    // ids don't survive into the filtered (history) message.
+                    let Some(coerced_req) = next_request.filter(|r| r.id == req.id) else {
+                        continue;
+                    };
+                    next_request = deduped_requests.next();
 
-                        // Always keep externally-dispatched requests visible, even if
-                        // their name happens to overlap a registered frontend tool —
-                        // they're observation-only and must not be removed from history.
-                        let should_include = if coerced_req.is_externally_dispatched() {
-                            true
-                        } else if let Ok(tool_call) = &coerced_req.tool_call {
-                            !self.is_frontend_tool(&tool_call.name).await
-                        } else {
-                            true
-                        };
+                    // Always keep externally-dispatched requests visible, even if
+                    // their name happens to overlap a registered frontend tool —
+                    // they're observation-only and must not be removed from history.
+                    let should_include = if coerced_req.is_externally_dispatched() {
+                        true
+                    } else if let Ok(tool_call) = &coerced_req.tool_call {
+                        !self.is_frontend_tool(&tool_call.name).await
+                    } else {
+                        true
+                    };
 
-                        if should_include {
-                            filtered_content.push(MessageContent::ToolRequest(coerced_req.clone()));
-                        }
+                    if should_include {
+                        filtered_content.push(MessageContent::ToolRequest(coerced_req.clone()));
                     }
                 }
                 MessageContent::Thinking(_) | MessageContent::RedactedThinking(_)
@@ -622,11 +639,11 @@ mod tests {
     use super::*;
     use crate::config::GooseMode;
     use crate::conversation::message::Message;
-    use crate::model::ModelConfig;
     use crate::providers::base::Provider;
     use crate::session::session_manager::SessionType;
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+    use goose_providers::model::ModelConfig;
     use rmcp::object;
 
     #[derive(Clone)]
@@ -863,6 +880,47 @@ mod tests {
             merged.contains_key("ui"),
             "registry tool meta keys were dropped; merged tool_meta = {merged:?}"
         );
+    }
+
+    #[tokio::test]
+    async fn categorize_tool_requests_dedups_duplicate_ids_in_provider_order() {
+        // A malformed provider repeats id "dup". The first occurrence wins, the
+        // later duplicate is dropped from both the dispatch bucket and the
+        // filtered (history) message, and unique ids are kept.
+        let agent = crate::agents::Agent::new();
+
+        let response = Message::assistant()
+            .with_tool_request(
+                "dup",
+                Ok(rmcp::model::CallToolRequestParams::new("first_tool")),
+            )
+            .with_tool_request(
+                "dup",
+                Ok(rmcp::model::CallToolRequestParams::new("second_tool")),
+            )
+            .with_tool_request(
+                "unique",
+                Ok(rmcp::model::CallToolRequestParams::new("third_tool")),
+            );
+
+        let (_frontend_requests, other_requests, filtered_message) =
+            agent.categorize_tool_requests(&response, &[], false).await;
+
+        let kept: Vec<(&str, &str)> = other_requests
+            .iter()
+            .map(|r| (r.id.as_str(), r.tool_call.as_ref().unwrap().name.as_ref()))
+            .collect();
+        assert_eq!(kept, vec![("dup", "first_tool"), ("unique", "third_tool")]);
+
+        let filtered_ids: Vec<&str> = filtered_message
+            .content
+            .iter()
+            .filter_map(|c| match c {
+                MessageContent::ToolRequest(req) => Some(req.id.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(filtered_ids, vec!["dup", "unique"]);
     }
 
     fn make_tool_with_meta(meta_json: Option<serde_json::Value>) -> Tool {

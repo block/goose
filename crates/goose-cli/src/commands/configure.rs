@@ -19,13 +19,13 @@ use goose::config::{
     configure_tetrate, Config, ConfigError, ExperimentManager, ExtensionEntry, GooseMode,
     PermissionManager,
 };
-use goose::model::ModelConfig;
 #[cfg(feature = "telemetry")]
 use goose::posthog::{get_telemetry_choice, TELEMETRY_ENABLED_KEY};
 use goose::providers::base::ConfigKey;
 use goose::providers::provider_test::test_provider_configuration;
 use goose::providers::{create, providers, retry_operation, RetryConfig};
 use goose::session::SessionType;
+use goose_providers::thinking::ThinkingEffort;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::IsTerminal;
@@ -339,7 +339,7 @@ async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyh
     ));
 
     // Create a temporary provider instance to handle OAuth
-    let temp_model = ModelConfig::new("temp")?.with_canonical_limits(provider_name);
+    let temp_model = goose::model_config::model_config_from_user_config(provider_name, "temp")?;
     match create(provider_name, temp_model, Vec::new()).await {
         Ok(provider) => match provider.configure_oauth().await {
             Ok(_) => {
@@ -736,8 +736,10 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
 
     let spin = spinner();
     spin.start("Attempting to fetch supported models...");
-    let temp_model_config =
-        ModelConfig::new(&provider_meta.default_model)?.with_canonical_limits(provider_name);
+    let temp_model_config = goose::model_config::model_config_from_user_config(
+        provider_name,
+        &provider_meta.default_model,
+    )?;
     let temp_provider = create(provider_name, temp_model_config, Vec::new()).await?;
     let models_res = retry_operation(&RetryConfig::default(), || async {
         temp_provider.fetch_recommended_models().await
@@ -765,20 +767,22 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     {
         let supports_thinking = match temp_provider.fetch_model_info(&model).await {
             Ok(model_info) => model_info.reasoning,
-            Err(_) => goose::model::ModelConfig::new(&model)
+            Err(_) => goose_providers::model::ModelConfig::new(&model)
                 .map(|c| c.is_reasoning_model())
                 .unwrap_or(false),
         };
 
         if supports_thinking {
-            let effort: &str = cliclack::select("Select thinking effort:")
+            let effort: ThinkingEffort = cliclack::select("Select thinking effort:")
                 .item("off", "Off - No extended thinking", "")
                 .item("low", "Low - Better latency, lighter reasoning", "")
                 .item("medium", "Medium - Moderate thinking", "")
                 .item("high", "High - Deep reasoning", "")
                 .item("max", "Max - No constraints on thinking depth", "")
                 .initial_value("off")
-                .interact()?;
+                .interact()?
+                .parse()
+                .map_err(|_| anyhow::anyhow!("invalid thinking effort"))?;
             config.set_goose_thinking_effort(effort)?;
         }
     }
@@ -1080,6 +1084,7 @@ fn configure_stdio_extension() -> anyhow::Result<()> {
             env_keys,
             description,
             timeout: Some(timeout),
+            cwd: None,
             bundled: None,
             available_tools: Vec::new(),
         },
@@ -1551,7 +1556,7 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     let model: String = config
         .get_goose_model()
         .expect("No model configured. Please set model first");
-    let model_config = ModelConfig::new(&model)?.with_canonical_limits(&provider_name);
+    let model_config = goose::model_config::model_config_from_user_config(&provider_name, &model)?;
 
     let agent = Agent::new();
 
@@ -1771,14 +1776,15 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
     // Test configuration - get the model that was configured
     println!("\nTesting configuration...");
     let configured_model: String = config.get_goose_model()?;
-    let model_config = match goose::model::ModelConfig::new(&configured_model) {
-        Ok(config) => config.with_canonical_limits("openrouter"),
-        Err(e) => {
-            eprintln!("⚠️  Invalid model configuration: {}", e);
-            eprintln!("Your settings have been saved. Please check your model configuration.");
-            return Ok(());
-        }
-    };
+    let model_config =
+        match goose::model_config::model_config_from_user_config("openrouter", &configured_model) {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!("⚠️  Invalid model configuration: {}", e);
+                eprintln!("Your settings have been saved. Please check your model configuration.");
+                return Ok(());
+            }
+        };
 
     match create("openrouter", model_config, Vec::new()).await {
         Ok(provider) => {
@@ -1852,14 +1858,15 @@ pub async fn handle_tetrate_auth() -> anyhow::Result<()> {
     // Test configuration
     println!("\nTesting configuration...");
     let configured_model: String = config.get_goose_model()?;
-    let model_config = match goose::model::ModelConfig::new(&configured_model) {
-        Ok(config) => config.with_canonical_limits("tetrate"),
-        Err(e) => {
-            eprintln!("⚠️  Invalid model configuration: {}", e);
-            eprintln!("Your settings have been saved. Please check your model configuration.");
-            return Ok(());
-        }
-    };
+    let model_config =
+        match goose::model_config::model_config_from_user_config("tetrate", &configured_model) {
+            Ok(config) => config,
+            Err(e) => {
+                eprintln!("⚠️  Invalid model configuration: {}", e);
+                eprintln!("Your settings have been saved. Please check your model configuration.");
+                return Ok(());
+            }
+        };
 
     match create("tetrate", model_config, Vec::new()).await {
         Ok(provider) => {
