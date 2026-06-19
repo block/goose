@@ -78,7 +78,7 @@ function isUrlPathAt(text: string, index: number): boolean {
 }
 
 function isQueryParamKeyChar(char: string): boolean {
-  return /[-a-zA-Z0-9_.$\[\]%]/.test(char);
+  return /[-a-zA-Z0-9_.$[\]%]/.test(char);
 }
 
 function isAssignmentEqualsStart(text: string, index: number): boolean {
