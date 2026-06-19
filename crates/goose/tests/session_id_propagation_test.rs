@@ -36,9 +36,10 @@ impl HeaderCapture {
 }
 
 fn create_test_provider(mock_server_url: &str) -> Box<dyn Provider> {
-    let api_client = ApiClient::new(
+    let api_client = ApiClient::new_with_tls(
         mock_server_url.to_string(),
         AuthMethod::BearerToken("test-key".to_string()),
+        None,
     )
     .unwrap();
     let model = ModelConfig::new_or_fail("gpt-5-nano");

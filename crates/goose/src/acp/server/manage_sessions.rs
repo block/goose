@@ -13,20 +13,43 @@ impl GooseAcpAgent {
         let path = std::path::PathBuf::from(&working_dir);
         validate_absolute_cwd(&path)?;
         let session_id = &req.session_id;
+
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .map_err(|_| {
+                agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
+                    .data(format!("Session not found: {}", session_id))
+            })?;
+
+        if path == session.working_dir {
+            return Ok(EmptyResponse {});
+        }
+
         self.session_manager
             .update(session_id)
-            .working_dir(path.clone())
+            .working_dir(path)
             .apply()
             .await
-            .internal_err()?;
+            .internal_err_ctx("Failed to update session working directory")?;
 
-        if let Some(session) = self.sessions.lock().await.get(session_id) {
-            session
-                .agent
-                .extension_manager
-                .update_working_dir(&path)
-                .await;
-        }
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .internal_err_ctx("Failed to reload session")?;
+
+        let agent = self.get_session_agent(session_id).await?;
+        agent
+            .restore_provider_from_session(&session)
+            .await
+            .internal_err_ctx("Failed to refresh provider from session")?;
+
+        agent
+            .extension_manager
+            .update_working_dir(&session.working_dir)
+            .await;
 
         Ok(EmptyResponse {})
     }

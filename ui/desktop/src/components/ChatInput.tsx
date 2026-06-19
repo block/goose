@@ -27,7 +27,7 @@ import { Recipe } from '../recipe';
 import { MessageQueue, QueuedMessage } from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/Diagnostics';
-import { getSession, Message } from '../api';
+import { Message } from '../api';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { getPredefinedModelsFromEnv } from './settings/models/predefinedModelsUtils';
 import { trackFileAttached, trackVoiceDictation, trackDiagnosticsOpened } from '../utils/analytics';
@@ -195,6 +195,7 @@ interface ChatInputProps {
   sessionModel?: string | null;
   sessionProvider?: string | null;
   sessionLoaded?: boolean;
+  workingDir?: string | null;
   latestInference?: Message['metadata']['inference'] | null;
 }
 
@@ -227,6 +228,7 @@ export default function ChatInput({
   sessionModel,
   sessionProvider,
   sessionLoaded,
+  workingDir,
   latestInference,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
@@ -299,7 +301,8 @@ export default function ChatInput({
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
-  const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
+  const [workingDirOverride, setWorkingDirOverride] = useState<string | null>(null);
+  const currentWorkingDir = workingDirOverride ?? workingDir ?? getInitialWorkingDir();
 
   // Hide non-essential bottom-bar controls when the chat input is narrow.
   // Only the model selector, mic, and send button remain visible.
@@ -317,23 +320,8 @@ export default function ChatInput({
   }, []);
 
   useEffect(() => {
-    if (!sessionId) {
-      return;
-    }
-
-    const fetchSessionWorkingDir = async () => {
-      try {
-        const response = await getSession({ path: { session_id: sessionId } });
-        if (response.data?.working_dir) {
-          setSessionWorkingDir(response.data.working_dir);
-        }
-      } catch (error) {
-        console.error('[ChatInput] Failed to fetch session working dir:', error);
-      }
-    };
-
-    fetchSessionWorkingDir();
-  }, [sessionId]);
+    setWorkingDirOverride(null);
+  }, [sessionId, workingDir]);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -1613,9 +1601,9 @@ export default function ChatInput({
           <DirSwitcher
             className=""
             sessionId={sessionId ?? undefined}
-            workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
+            workingDir={currentWorkingDir}
             onWorkingDirChange={(newDir) => {
-              setSessionWorkingDir(newDir);
+              setWorkingDirOverride(newDir);
               if (onWorkingDirChange) {
                 onWorkingDirChange(newDir);
               }
@@ -1802,7 +1790,7 @@ export default function ChatInput({
           onSelectedIndexChange={(index) =>
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
-          workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
+          workingDir={currentWorkingDir}
         />
       </div>
     </div>

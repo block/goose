@@ -1,3 +1,4 @@
+use super::api_client::TlsConfig;
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderType};
 use super::inventory::{InventoryIdentityInput, InventoryRegistration, InventoryResolvers};
 use crate::config::{DeclarativeProviderConfig, ExtensionConfig};
@@ -13,6 +14,7 @@ pub type ProviderConstructor = Arc<
             ModelConfig,
             Vec<ExtensionConfig>,
             Option<PathBuf>,
+            Option<TlsConfig>,
         ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
         + Send
         + Sync,
@@ -29,6 +31,7 @@ pub struct ProviderEntry {
     pub(crate) cleanup: Option<ProviderCleanup>,
     provider_type: ProviderType,
     supports_inventory_refresh: bool,
+    tls_config: Option<TlsConfig>,
 }
 
 impl ProviderEntry {
@@ -78,7 +81,7 @@ impl ProviderEntry {
             &self.metadata.default_model,
         )?;
         let model_config = self.normalize_model_config(model_config)?;
-        (self.constructor)(model_config, extensions, None).await
+        (self.constructor)(model_config, extensions, None, self.tls_config.clone()).await
     }
 
     pub async fn create(
@@ -87,7 +90,7 @@ impl ProviderEntry {
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
         let model = self.normalize_model_config(model)?;
-        (self.constructor)(model, extensions, None).await
+        (self.constructor)(model, extensions, None, self.tls_config.clone()).await
     }
 
     pub async fn create_with_working_dir(
@@ -97,19 +100,27 @@ impl ProviderEntry {
         working_dir: PathBuf,
     ) -> Result<Arc<dyn Provider>> {
         let model = self.normalize_model_config(model)?;
-        (self.constructor)(model, extensions, Some(working_dir)).await
+        (self.constructor)(
+            model,
+            extensions,
+            Some(working_dir),
+            self.tls_config.clone(),
+        )
+        .await
     }
 }
 
 #[derive(Default)]
 pub struct ProviderRegistry {
     pub(crate) entries: HashMap<String, ProviderEntry>,
+    tls_config: Option<TlsConfig>,
 }
 
 impl ProviderRegistry {
-    pub fn new() -> Self {
+    pub fn new(tls_config: Option<TlsConfig>) -> Self {
         Self {
             entries: HashMap::new(),
+            tls_config,
         }
     }
 
@@ -136,13 +147,19 @@ impl ProviderRegistry {
             name,
             ProviderEntry {
                 metadata,
-                constructor: Arc::new(|model, extensions, working_dir| {
+                constructor: Arc::new(|model, extensions, working_dir, tls_config| {
                     Box::pin(async move {
                         let provider = match working_dir {
                             Some(working_dir) => {
-                                F::from_env_with_working_dir(model, extensions, working_dir).await?
+                                F::from_env_with_working_dir(
+                                    model,
+                                    extensions,
+                                    working_dir,
+                                    tls_config,
+                                )
+                                .await?
                             }
-                            None => F::from_env(model, extensions).await?,
+                            None => F::from_env(model, extensions, tls_config).await?,
                         };
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
@@ -156,6 +173,7 @@ impl ProviderRegistry {
                     ProviderType::Builtin
                 },
                 supports_inventory_refresh: inventory.supports_refresh,
+                tls_config: self.tls_config.clone(),
             },
         );
     }
@@ -169,7 +187,7 @@ impl ProviderRegistry {
         inventory_identity: G,
     ) where
         P: ProviderDef + 'static,
-        F: Fn(ModelConfig) -> Result<P::Provider> + Send + Sync + 'static,
+        F: Fn(ModelConfig, Option<TlsConfig>) -> Result<P::Provider> + Send + Sync + 'static,
         G: Fn() -> Result<InventoryIdentityInput> + Send + Sync + 'static,
     {
         self.register_with_name_impl::<P, F, G>(
@@ -192,7 +210,7 @@ impl ProviderRegistry {
         inventory_configured: H,
     ) where
         P: ProviderDef + 'static,
-        F: Fn(ModelConfig) -> Result<P::Provider> + Send + Sync + 'static,
+        F: Fn(ModelConfig, Option<TlsConfig>) -> Result<P::Provider> + Send + Sync + 'static,
         G: Fn() -> Result<InventoryIdentityInput> + Send + Sync + 'static,
         H: Fn() -> bool + Send + Sync + 'static,
     {
@@ -216,7 +234,7 @@ impl ProviderRegistry {
         inventory_configured: Option<super::inventory::InventoryConfiguredResolver>,
     ) where
         P: ProviderDef + 'static,
-        F: Fn(ModelConfig) -> Result<P::Provider> + Send + Sync + 'static,
+        F: Fn(ModelConfig, Option<TlsConfig>) -> Result<P::Provider> + Send + Sync + 'static,
         G: Fn() -> Result<InventoryIdentityInput> + Send + Sync + 'static,
     {
         let base_metadata = P::metadata();
@@ -311,8 +329,8 @@ impl ProviderRegistry {
             config.name.clone(),
             ProviderEntry {
                 metadata: custom_metadata,
-                constructor: Arc::new(move |model, _extensions, _working_dir| {
-                    let result = constructor(model);
+                constructor: Arc::new(move |model, _extensions, _working_dir, tls_config| {
+                    let result = constructor(model, tls_config);
                     Box::pin(async move {
                         let provider = result?;
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
@@ -323,6 +341,7 @@ impl ProviderRegistry {
                 cleanup: None,
                 provider_type,
                 supports_inventory_refresh,
+                tls_config: self.tls_config.clone(),
             },
         );
     }
@@ -400,12 +419,12 @@ mod tests {
 
     #[test]
     fn register_with_name_can_override_inventory_configured() {
-        let mut registry = ProviderRegistry::new();
+        let mut registry = ProviderRegistry::new(None);
         registry.register_with_name_and_inventory_configured::<OpenAiProvider, _, _, _>(
             &test_config(),
             ProviderType::Declarative,
             false,
-            |_| unreachable!("constructor is not used by this test"),
+            |_, _| unreachable!("constructor is not used by this test"),
             || Ok(InventoryIdentityInput::new("custom_hf", "huggingface")),
             || false,
         );

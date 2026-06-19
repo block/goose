@@ -1,19 +1,74 @@
-import { useCallback, useMemo, useState } from 'react';
-import { ChevronDown, ChevronRight, FileJson, LoaderCircle } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
+import { ChevronDown, ChevronRight, Copy, Edit2, FileJson, LoaderCircle } from 'lucide-react';
 import { toast } from 'react-toastify';
+import { AppEvents } from '../constants/events';
 import { defineMessages, useIntl } from '../i18n';
-import { acpExportSession } from '../acp/sessions';
+import { acpExportSession, acpForkSession, acpRenameSession } from '../acp/sessions';
 import type { Session } from '../api';
 import { getSessionDisplayName } from '../sessions';
 import { errorMessage } from '../utils/conversionUtils';
 import { cn } from '../utils';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from './ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './ui/dropdown-menu';
 
 const i18n = defineMessages({
+  actionsLabel: {
+    id: 'sessionActionsHeader.actionsLabel',
+    defaultMessage: 'Session actions',
+  },
+  renameSession: {
+    id: 'sessionActionsHeader.renameSession',
+    defaultMessage: 'Rename session',
+  },
+  duplicateSession: {
+    id: 'sessionActionsHeader.duplicateSession',
+    defaultMessage: 'Duplicate session',
+  },
   viewJson: {
     id: 'sessionActionsHeader.viewJson',
     defaultMessage: 'View session JSON',
+  },
+  renameTitle: {
+    id: 'sessionActionsHeader.renameTitle',
+    defaultMessage: 'Rename Session',
+  },
+  renamePlaceholder: {
+    id: 'sessionActionsHeader.renamePlaceholder',
+    defaultMessage: 'Enter session name',
+  },
+  cancel: {
+    id: 'sessionActionsHeader.cancel',
+    defaultMessage: 'Cancel',
+  },
+  save: {
+    id: 'sessionActionsHeader.save',
+    defaultMessage: 'Save',
+  },
+  saving: {
+    id: 'sessionActionsHeader.saving',
+    defaultMessage: 'Saving...',
+  },
+  renamed: {
+    id: 'sessionActionsHeader.renamed',
+    defaultMessage: 'Session renamed',
+  },
+  renameFailed: {
+    id: 'sessionActionsHeader.renameFailed',
+    defaultMessage: 'Failed to rename session: {error}',
+  },
+  duplicated: {
+    id: 'sessionActionsHeader.duplicated',
+    defaultMessage: 'Session duplicated',
+  },
+  duplicateFailed: {
+    id: 'sessionActionsHeader.duplicateFailed',
+    defaultMessage: 'Failed to duplicate session: {error}',
   },
   jsonTitle: {
     id: 'sessionActionsHeader.jsonTitle',
@@ -59,6 +114,7 @@ const STRING_PREVIEW_END = 56;
 
 interface SessionActionsHeaderProps {
   session?: Session;
+  onSessionChange: (updater: (session: Session) => Session) => void;
   className?: string;
 }
 
@@ -253,15 +309,81 @@ function JsonTree({
   );
 }
 
-export default function SessionActionsHeader({ session, className }: SessionActionsHeaderProps) {
+export default function SessionActionsHeader({
+  session,
+  onSessionChange,
+  className,
+}: SessionActionsHeaderProps) {
   const intl = useIntl();
+  const [isRenameOpen, setIsRenameOpen] = useState(false);
+  const [renameValue, setRenameValue] = useState('');
+  const [isRenaming, setIsRenaming] = useState(false);
   const [isJsonOpen, setIsJsonOpen] = useState(false);
   const [jsonValue, setJsonValue] = useState<unknown>(null);
   const [jsonText, setJsonText] = useState('');
   const [isJsonLoading, setIsJsonLoading] = useState(false);
+  const [isDuplicating, setIsDuplicating] = useState(false);
   const [fullTextSelection, setFullTextSelection] = useState<FullTextSelection | null>(null);
 
   const title = useMemo(() => (session ? getSessionDisplayName(session) : ''), [session]);
+
+  useEffect(() => {
+    if (session && isRenameOpen) {
+      setRenameValue(getSessionDisplayName(session));
+    }
+  }, [isRenameOpen, session]);
+
+  const handleRename = useCallback(async () => {
+    if (!session || isRenaming) return;
+
+    const trimmedName = renameValue.trim();
+    if (!trimmedName) return;
+
+    if (trimmedName === session.name) {
+      setIsRenameOpen(false);
+      return;
+    }
+
+    setIsRenaming(true);
+    try {
+      await acpRenameSession(session.id, trimmedName);
+      onSessionChange((current) => ({ ...current, name: trimmedName, user_set_name: true }));
+      window.dispatchEvent(
+        new CustomEvent(AppEvents.SESSION_RENAMED, {
+          detail: { sessionId: session.id, newName: trimmedName, userInitiated: true },
+        })
+      );
+      setIsRenameOpen(false);
+      toast.success(intl.formatMessage(i18n.renamed));
+    } catch (error) {
+      toast.error(
+        intl.formatMessage(i18n.renameFailed, {
+          error: errorMessage(error, 'Unknown error'),
+        })
+      );
+    } finally {
+      setIsRenaming(false);
+    }
+  }, [intl, isRenaming, onSessionChange, renameValue, session]);
+
+  const handleDuplicate = useCallback(async () => {
+    if (!session || isDuplicating) return;
+
+    setIsDuplicating(true);
+    try {
+      await acpForkSession(session.id);
+      window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
+      toast.success(intl.formatMessage(i18n.duplicated));
+    } catch (error) {
+      toast.error(
+        intl.formatMessage(i18n.duplicateFailed, {
+          error: errorMessage(error, 'Unknown error'),
+        })
+      );
+    } finally {
+      setIsDuplicating(false);
+    }
+  }, [intl, isDuplicating, session]);
 
   const handleViewJson = useCallback(async () => {
     if (!session) return;
@@ -306,6 +428,15 @@ export default function SessionActionsHeader({ session, className }: SessionActi
     }
   }, []);
 
+  const handleRenameKeyDown = useCallback(
+    (event: KeyboardEvent<HTMLInputElement>) => {
+      if (event.key === 'Enter') {
+        void handleRename();
+      }
+    },
+    [handleRename]
+  );
+
   if (!session) {
     return null;
   }
@@ -318,21 +449,68 @@ export default function SessionActionsHeader({ session, className }: SessionActi
           className
         )}
       >
-        <button
-          type="button"
-          className="flex h-7 max-w-full items-center gap-1 rounded-md px-2.5 text-text-primary transition-colors hover:bg-background-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-active"
-          aria-label={intl.formatMessage(i18n.viewJson)}
-          title={intl.formatMessage(i18n.viewJson)}
-          onClick={() => void handleViewJson()}
-        >
-          <span className="truncate text-xs font-medium">{title}</span>
-          {isJsonLoading ? (
-            <LoaderCircle className="size-3.5 shrink-0 animate-spin text-text-secondary" />
-          ) : (
-            <FileJson className="size-3.5 shrink-0 text-text-secondary" />
-          )}
-        </button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              className="flex h-7 max-w-full items-center gap-1 rounded-md px-2.5 text-text-primary transition-colors hover:bg-background-secondary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-border-active"
+              aria-label={intl.formatMessage(i18n.actionsLabel)}
+            >
+              <span className="truncate text-xs font-medium">{title}</span>
+              <ChevronDown className="size-3.5 text-text-secondary" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="center" className="w-56">
+            <DropdownMenuItem onSelect={() => setIsRenameOpen(true)}>
+              <Edit2 className="size-4" />
+              {intl.formatMessage(i18n.renameSession)}
+            </DropdownMenuItem>
+            <DropdownMenuItem disabled={isDuplicating} onSelect={() => void handleDuplicate()}>
+              {isDuplicating ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : (
+                <Copy className="size-4" />
+              )}
+              {intl.formatMessage(i18n.duplicateSession)}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={() => void handleViewJson()}>
+              {isJsonLoading ? (
+                <LoaderCircle className="size-4 animate-spin" />
+              ) : (
+                <FileJson className="size-4" />
+              )}
+              {intl.formatMessage(i18n.viewJson)}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+
+      <Dialog open={isRenameOpen} onOpenChange={setIsRenameOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{intl.formatMessage(i18n.renameTitle)}</DialogTitle>
+          </DialogHeader>
+          <input
+            type="text"
+            value={renameValue}
+            onChange={(event) => setRenameValue(event.target.value)}
+            onKeyDown={handleRenameKeyDown}
+            placeholder={intl.formatMessage(i18n.renamePlaceholder)}
+            className="w-full rounded-lg border border-border-primary bg-background-primary p-3 text-text-primary outline-none focus:ring-2 focus:ring-border-active"
+            disabled={isRenaming}
+            maxLength={200}
+            autoFocus
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsRenameOpen(false)} disabled={isRenaming}>
+              {intl.formatMessage(i18n.cancel)}
+            </Button>
+            <Button onClick={() => void handleRename()} disabled={isRenaming || !renameValue.trim()}>
+              {isRenaming ? intl.formatMessage(i18n.saving) : intl.formatMessage(i18n.save)}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={isJsonOpen} onOpenChange={handleJsonOpenChange}>
         <DialogContent className="grid max-h-[85vh] grid-rows-[auto_minmax(0,1fr)_auto] sm:max-w-4xl">

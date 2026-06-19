@@ -3,6 +3,7 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::TryStreamExt;
 use goose_providers::errors::ProviderError;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use reqwest::StatusCode;
 use serde_json::Value;
 use std::io;
@@ -20,7 +21,6 @@ use super::openai_compatible::map_http_error_to_provider_error;
 use super::retry::ProviderRetry;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
-use crate::providers::utils::RequestLog;
 use futures::future::BoxFuture;
 use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
@@ -63,7 +63,10 @@ pub struct AnthropicProvider {
 }
 
 impl AnthropicProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let model = crate::model_config::with_configured_fast_model(
             model,
             ANTHROPIC_PROVIDER_NAME,
@@ -81,8 +84,8 @@ impl AnthropicProvider {
             key: api_key,
         };
 
-        let api_client =
-            ApiClient::new(host, auth)?.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
+        let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
+            .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
         Ok(Self {
             api_client,
@@ -99,6 +102,7 @@ impl AnthropicProvider {
     pub fn from_custom_config(
         model: ModelConfig,
         config: DeclarativeProviderConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let custom_models = if !config.models.is_empty() {
             Some(
@@ -132,7 +136,7 @@ impl AnthropicProvider {
 
         let format_options = Self::format_options_for_provider(config.preserves_thinking);
 
-        let mut api_client = ApiClient::new(config.base_url, auth)?
+        let mut api_client = ApiClient::new_with_tls(config.base_url, auth, tls_config)?
             .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
         if let Some(headers) = &config.headers {
@@ -267,8 +271,9 @@ impl ProviderDef for AnthropicProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 
@@ -330,7 +335,7 @@ impl Provider for AnthropicProvider {
             .insert("stream".to_string(), Value::Bool(true));
 
         let conditional_headers = self.get_conditional_headers();
-        let mut log = RequestLog::start(model_config, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
@@ -362,6 +367,7 @@ impl Provider for AnthropicProvider {
         }))
     }
 }
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -378,7 +384,7 @@ mod tests {
             header_name: "x-api-key".to_string(),
             key: "test-key".to_string(),
         };
-        let api_client = ApiClient::new(server_uri.to_string(), auth)
+        let api_client = ApiClient::new_with_tls(server_uri.to_string(), auth, None)
             .unwrap()
             .with_header("anthropic-version", ANTHROPIC_API_VERSION)
             .unwrap();
@@ -443,10 +449,13 @@ mod tests {
     #[test]
     fn from_custom_config_rejects_static_only_without_models() {
         let config = base_declarative_config(vec![], Some(false));
-        let err =
-            AnthropicProvider::from_custom_config(ModelConfig::new_or_fail("claude-test"), config)
-                .err()
-                .expect("expected construction error for dynamic_models: false with empty models");
+        let err = AnthropicProvider::from_custom_config(
+            ModelConfig::new_or_fail("claude-test"),
+            config,
+            None,
+        )
+        .err()
+        .expect("expected construction error for dynamic_models: false with empty models");
         let msg = err.to_string();
         assert!(
             msg.contains("dynamic_models: false"),

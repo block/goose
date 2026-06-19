@@ -1,7 +1,7 @@
 import type { RequestPermissionRequest, RequestPermissionResponse } from '@agentclientprotocol/sdk';
 import type { Permission } from '../api';
 import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
-import { acpChatSessionStore } from './chatSessionStore';
+import { acpChatSessionActions } from './chatSessionStore';
 
 interface PendingPermissionRequest {
   request: RequestPermissionRequest;
@@ -25,7 +25,7 @@ export async function requestAcpPermission(
 
   return new Promise<RequestPermissionResponse>((resolve) => {
     pendingRequests.set(key, { request, resolve });
-    acpChatSessionStore.applyPermissionRequest(request);
+    acpChatSessionActions.applyPermissionRequest(request);
   });
 }
 

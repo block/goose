@@ -41,6 +41,7 @@ rustls-tls = [
     "dep:aws-lc-rs",
     "goose/rustls-tls",
     "goose-mcp/rustls-tls",
+    "goose-providers/rustls-tls",
 ]
 native-tls = [
     "reqwest/native-tls",
@@ -49,6 +50,7 @@ native-tls = [
     "dep:openssl",
     "goose/native-tls",
     "goose-mcp/native-tls",
+    "goose-providers/native-tls",
 ]
 
 [dependencies]

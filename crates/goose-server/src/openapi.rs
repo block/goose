@@ -6,10 +6,11 @@ use goose::config::ExtensionEntry;
 use goose::conversation::token_usage::Usage;
 use goose::conversation::Conversation;
 use goose::download_manager::{DownloadProgress, DownloadStatus};
-use goose::permission::permission_confirmation::{Permission, PrincipalType};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionType, SystemInfo};
 use goose_providers::model::ModelConfig;
+use goose_providers::permission::Permission;
+use goose_providers::permission::PrincipalType;
 use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, IconTheme, ImageContent, JsonObject,
@@ -580,7 +581,7 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         ThinkingEffort,
         super::routes::config_management::ProviderModelInfoQuery,
         Session,
-        goose::config::goose_mode::GooseMode,
+        goose_providers::goose_mode::GooseMode,
         SessionType,
         SystemInfo,
         Conversation,

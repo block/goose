@@ -11,6 +11,9 @@
   "announcementModal.gotIt": {
     "defaultMessage": "知道了！"
   },
+  "appLayout.collapseNavigation": {
+    "defaultMessage": "Collapse navigation"
+  },
   "appLayout.openNavigation": {
     "defaultMessage": "展开导航"
   },
@@ -2465,9 +2468,6 @@
   "navigationPanel.chats": {
     "defaultMessage": "聊天"
   },
-  "navigationPanel.collapseSidebar": {
-    "defaultMessage": "折叠侧边栏"
-  },
   "navigationPanel.noChats": {
     "defaultMessage": "没有最近的聊天"
   },
@@ -3758,6 +3758,12 @@
   "securityToggle.warpNotice": {
     "defaultMessage": "连接到 WARP 时，命令注入检测效果最佳（访问分类服务需要 WARP）。"
   },
+  "sessionActionsHeader.actionsLabel": {
+    "defaultMessage": "Session actions"
+  },
+  "sessionActionsHeader.cancel": {
+    "defaultMessage": "Cancel"
+  },
   "sessionActionsHeader.close": {
     "defaultMessage": "Close"
   },
@@ -3773,6 +3779,15 @@
   "sessionActionsHeader.copyText": {
     "defaultMessage": "Copy text"
   },
+  "sessionActionsHeader.duplicateFailed": {
+    "defaultMessage": "Failed to duplicate session: {error}"
+  },
+  "sessionActionsHeader.duplicateSession": {
+    "defaultMessage": "Duplicate session"
+  },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "Session duplicated"
+  },
   "sessionActionsHeader.fullTextTitle": {
     "defaultMessage": "Text value"
   },
@@ -3784,6 +3799,27 @@
   },
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Loading JSON..."
+  },
+  "sessionActionsHeader.renameFailed": {
+    "defaultMessage": "Failed to rename session: {error}"
+  },
+  "sessionActionsHeader.renamePlaceholder": {
+    "defaultMessage": "Enter session name"
+  },
+  "sessionActionsHeader.renameSession": {
+    "defaultMessage": "Rename session"
+  },
+  "sessionActionsHeader.renameTitle": {
+    "defaultMessage": "Rename Session"
+  },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "Session renamed"
+  },
+  "sessionActionsHeader.save": {
+    "defaultMessage": "Save"
+  },
+  "sessionActionsHeader.saving": {
+    "defaultMessage": "Saving..."
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"

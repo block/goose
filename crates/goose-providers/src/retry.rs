@@ -1,6 +1,6 @@
-use crate::providers::base::Provider;
+use crate::base::Provider;
+use crate::errors::ProviderError;
 use async_trait::async_trait;
-use goose_providers::errors::ProviderError;
 use std::future::Future;
 use std::time::Duration;
 use tokio::time::sleep;
@@ -13,16 +13,16 @@ pub const DEFAULT_MAX_RETRY_INTERVAL_MS: u64 = 30_000;
 #[derive(Debug, Clone)]
 pub struct RetryConfig {
     /// Maximum number of retry attempts
-    pub(crate) max_retries: usize,
+    pub max_retries: usize,
     /// Initial interval between retries in milliseconds
-    pub(crate) initial_interval_ms: u64,
+    pub initial_interval_ms: u64,
     /// Multiplier for backoff (exponential)
-    pub(crate) backoff_multiplier: f64,
+    pub backoff_multiplier: f64,
     /// Maximum interval between retries in milliseconds
-    pub(crate) max_interval_ms: u64,
+    pub max_interval_ms: u64,
     /// When true, only retry on transient errors (ServerError, NetworkError,
     /// RateLimitExceeded). RequestFailed (4xx client errors) will not be retried.
-    pub(crate) transient_only: bool,
+    pub transient_only: bool,
 }
 
 impl Default for RetryConfig {

@@ -11,6 +11,9 @@
   "announcementModal.gotIt": {
     "defaultMessage": "了解しました"
   },
+  "appLayout.collapseNavigation": {
+    "defaultMessage": "ナビを折りたたむ"
+  },
   "appLayout.openNavigation": {
     "defaultMessage": "ナビゲーションを開く"
   },
@@ -2465,9 +2468,6 @@
   "navigationPanel.chats": {
     "defaultMessage": "チャット"
   },
-  "navigationPanel.collapseSidebar": {
-    "defaultMessage": "サイドバーを折りたたむ"
-  },
   "navigationPanel.noChats": {
     "defaultMessage": "最近のチャットはありません"
   },
@@ -3758,35 +3758,71 @@
   "securityToggle.warpNotice": {
     "defaultMessage": "コマンドインジェクション検出は、WARPに接続していると最も効果的です（分類サービスに到達するために必要です）。"
   },
+  "sessionActionsHeader.actionsLabel": {
+    "defaultMessage": "セッションの操作"
+  },
+  "sessionActionsHeader.cancel": {
+    "defaultMessage": "キャンセル"
+  },
   "sessionActionsHeader.close": {
-    "defaultMessage": "Close"
+    "defaultMessage": "閉じる"
   },
   "sessionActionsHeader.copiedJson": {
-    "defaultMessage": "Session JSON copied"
+    "defaultMessage": "セッションJSONをコピーしました"
   },
   "sessionActionsHeader.copiedText": {
-    "defaultMessage": "Text copied"
+    "defaultMessage": "テキストをコピーしました"
   },
   "sessionActionsHeader.copyJson": {
-    "defaultMessage": "Copy JSON"
+    "defaultMessage": "JSONをコピー"
   },
   "sessionActionsHeader.copyText": {
-    "defaultMessage": "Copy text"
+    "defaultMessage": "テキストをコピー"
+  },
+  "sessionActionsHeader.duplicateFailed": {
+    "defaultMessage": "セッションを複製できませんでした: {error}"
+  },
+  "sessionActionsHeader.duplicateSession": {
+    "defaultMessage": "セッションを複製"
+  },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "セッションを複製しました"
   },
   "sessionActionsHeader.fullTextTitle": {
-    "defaultMessage": "Text value"
+    "defaultMessage": "テキスト値"
   },
   "sessionActionsHeader.jsonFailed": {
-    "defaultMessage": "Failed to load session JSON: {error}"
+    "defaultMessage": "セッションJSONを読み込めませんでした: {error}"
   },
   "sessionActionsHeader.jsonTitle": {
-    "defaultMessage": "Session JSON"
+    "defaultMessage": "セッションJSON"
   },
   "sessionActionsHeader.loadingJson": {
-    "defaultMessage": "Loading JSON..."
+    "defaultMessage": "JSONを読み込み中..."
+  },
+  "sessionActionsHeader.renameFailed": {
+    "defaultMessage": "セッションの名前を変更できませんでした: {error}"
+  },
+  "sessionActionsHeader.renamePlaceholder": {
+    "defaultMessage": "セッション名を入力"
+  },
+  "sessionActionsHeader.renameSession": {
+    "defaultMessage": "セッションの名前を変更"
+  },
+  "sessionActionsHeader.renameTitle": {
+    "defaultMessage": "セッションの名前を変更"
+  },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "セッションの名前を変更しました"
+  },
+  "sessionActionsHeader.save": {
+    "defaultMessage": "保存"
+  },
+  "sessionActionsHeader.saving": {
+    "defaultMessage": "保存中..."
   },
   "sessionActionsHeader.viewJson": {
-    "defaultMessage": "View session JSON"
+    "defaultMessage": "セッションJSONを表示"
   },
   "sessionHistory.cancel": {
     "defaultMessage": "キャンセル"

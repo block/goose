@@ -11,6 +11,9 @@
   "announcementModal.gotIt": {
     "defaultMessage": "알았어요!"
   },
+  "appLayout.collapseNavigation": {
+    "defaultMessage": "탐색 접기"
+  },
   "appLayout.openNavigation": {
     "defaultMessage": "탐색 열기"
   },
@@ -2465,9 +2468,6 @@
   "navigationPanel.chats": {
     "defaultMessage": "채팅"
   },
-  "navigationPanel.collapseSidebar": {
-    "defaultMessage": "사이드바 접기"
-  },
   "navigationPanel.noChats": {
     "defaultMessage": "최근 채팅 없음"
   },
@@ -3758,6 +3758,12 @@
   "securityToggle.warpNotice": {
     "defaultMessage": "명령 인젝션 감지는 WARP에 연결했을 때 가장 잘 작동합니다. 분류 서비스에 연결하려면 WARP가 필요합니다."
   },
+  "sessionActionsHeader.actionsLabel": {
+    "defaultMessage": "세션 작업"
+  },
+  "sessionActionsHeader.cancel": {
+    "defaultMessage": "취소"
+  },
   "sessionActionsHeader.close": {
     "defaultMessage": "닫기"
   },
@@ -3773,6 +3779,15 @@
   "sessionActionsHeader.copyText": {
     "defaultMessage": "텍스트 복사"
   },
+  "sessionActionsHeader.duplicateFailed": {
+    "defaultMessage": "세션 복제 실패: {error}"
+  },
+  "sessionActionsHeader.duplicateSession": {
+    "defaultMessage": "세션 복제"
+  },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "세션이 복제되었습니다"
+  },
   "sessionActionsHeader.fullTextTitle": {
     "defaultMessage": "텍스트 값"
   },
@@ -3784,6 +3799,27 @@
   },
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "JSON 불러오는 중..."
+  },
+  "sessionActionsHeader.renameFailed": {
+    "defaultMessage": "세션 이름 변경 실패: {error}"
+  },
+  "sessionActionsHeader.renamePlaceholder": {
+    "defaultMessage": "세션 이름 입력"
+  },
+  "sessionActionsHeader.renameSession": {
+    "defaultMessage": "세션 이름 변경"
+  },
+  "sessionActionsHeader.renameTitle": {
+    "defaultMessage": "세션 이름 변경"
+  },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "세션 이름이 변경되었습니다"
+  },
+  "sessionActionsHeader.save": {
+    "defaultMessage": "저장"
+  },
+  "sessionActionsHeader.saving": {
+    "defaultMessage": "저장 중..."
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "세션 JSON 보기"

@@ -13,7 +13,6 @@ mod tool_parsing;
 use crate::config::ExtensionConfig;
 use crate::conversation::message::{Message, MessageContent};
 use crate::providers::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
-use crate::providers::utils::RequestLog;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -23,6 +22,7 @@ use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::images::ImageFormat;
 use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt, RequestLogHandle};
 use llamacpp::{LlamaCppBackend, LLAMACPP_BACKEND_ID};
 use local_model_registry::ChatTemplate;
 use mlx::{MlxBackend, MLX_BACKEND_ID};
@@ -447,7 +447,7 @@ fn strip_info_messages(text: &str) -> String {
 
 /// Build a `ProviderUsage` and write the request log entry.
 fn finalize_usage(
-    log: &mut RequestLog,
+    log: &mut Option<Box<dyn RequestLogHandle>>,
     model_name: String,
     path_label: &str,
     prompt_token_count: usize,
@@ -532,6 +532,7 @@ impl ProviderDef for LocalInferenceProvider {
     fn from_env(
         model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>>
     where
         Self: Sized,
@@ -651,8 +652,7 @@ impl Provider for LocalInferenceProvider {
             },
         });
 
-        let mut log = RequestLog::start(&self.model_config, &log_payload)
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+        let mut log = start_log(&self.model_config, &log_payload)?;
 
         let (tx, mut rx) = tokio::sync::mpsc::channel::<
             Result<(Option<Message>, Option<ProviderUsage>), ProviderError>,

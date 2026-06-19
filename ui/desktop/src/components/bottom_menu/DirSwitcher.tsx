@@ -98,13 +98,13 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
     setRecentDirs((previous) => [newDir, ...previous.filter((dir) => dir !== newDir)].slice(0, 10));
 
     if (sessionId) {
-      onWorkingDirChange?.(newDir);
       onRestartStart?.();
 
       try {
         await updateWorkingDir({
           body: { session_id: sessionId, working_dir: newDir },
         });
+        onWorkingDirChange?.(newDir);
       } catch (error) {
         console.error('[DirSwitcher] Failed to update working directory:', error);
         toast.error(intl.formatMessage(i18n.failedToUpdateWorkingDir));

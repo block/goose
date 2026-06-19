@@ -42,6 +42,10 @@ pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_j
         serde_json::Value::Bool(session.user_set_name),
     );
     meta.insert(
+        "sessionType".to_string(),
+        serde_json::Value::String(session.session_type.to_string()),
+    );
+    meta.insert(
         "hasRecipe".to_string(),
         serde_json::Value::Bool(session.recipe.is_some()),
     );

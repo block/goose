@@ -106,6 +106,7 @@ export default function BaseChat({
     messages,
     chatState,
     setChatState,
+    updateSession,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,
@@ -119,6 +120,13 @@ export default function BaseChat({
     sessionId,
     onStreamFinish,
   });
+
+  const handleWorkingDirChange = useCallback(
+    (newDir: string) => {
+      updateSession((currentSession) => ({ ...currentSession, working_dir: newDir }));
+    },
+    [updateSession]
+  );
 
   const recipe = session?.recipe;
 
@@ -434,7 +442,7 @@ export default function BaseChat({
             <EnvironmentBadge className="translate-y-px" />
           </div>
 
-          <SessionActionsHeader session={session} />
+          <SessionActionsHeader session={session} onSessionChange={updateSession} />
 
           <ScrollArea
             ref={scrollRef}
@@ -538,6 +546,8 @@ export default function BaseChat({
             sessionModel={sessionModel}
             sessionProvider={sessionProvider}
             sessionLoaded={sessionLoaded}
+            workingDir={session?.working_dir}
+            onWorkingDirChange={handleWorkingDirChange}
             latestInference={latestInference}
             {...customChatInputProps}
           />

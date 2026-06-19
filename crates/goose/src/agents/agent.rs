@@ -1898,7 +1898,8 @@ impl Agent {
                     &session_config.id,
                     conversation.clone(),
                     &self.extension_manager,
-                    &working_dir,
+                    turns_taken,
+                    max_turns,
                 ).await;
 
                 let mut stream = Self::stream_response_from_provider(

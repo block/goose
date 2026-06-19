@@ -54,7 +54,10 @@ use tokio::sync::OnceCell;
 static REGISTRY: OnceCell<RwLock<ProviderRegistry>> = OnceCell::const_new();
 
 async fn init_registry() -> RwLock<ProviderRegistry> {
-    let mut registry = ProviderRegistry::new().with_providers(|registry| {
+    let tls_config =
+        crate::config::tls::provider_tls_config_from_config(crate::config::Config::global())
+            .expect("failed to load provider TLS config");
+    let mut registry = ProviderRegistry::new(tls_config).with_providers(|registry| {
         use super::inventory::registrations;
 
         registry.register_with_inventory::<AmpAcpProvider>(
