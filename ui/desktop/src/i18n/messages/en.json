@@ -125,9 +125,6 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "Recipe created successfully!"
   },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "Extension Toggle Error"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension Updated"
   },
@@ -145,9 +142,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "manage extensions"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "No active session found. Please start a chat session first."
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "no extensions available"

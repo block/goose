@@ -91,13 +91,13 @@ export default function Hub({
     setIsCreatingSession(true);
 
     try {
-      const sessionOptions = nextChatExtensionDraft
-        ? {
-            extensionConfigs: selectNextChatExtensions(extensionsList, nextChatExtensionDraft),
-          }
-        : {
-            allExtensions: extensionsList,
-          };
+      const selectedExtensions = nextChatExtensionDraft
+        ? selectNextChatExtensions(extensionsList, nextChatExtensionDraft)
+        : [];
+      const sessionOptions =
+        selectedExtensions.length > 0
+          ? { extensionConfigs: selectedExtensions }
+          : { allExtensions: extensionsList };
 
       const session = await createSession(workingDir, sessionOptions);
       setNextChatExtensionDraft(null);

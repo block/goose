@@ -125,9 +125,6 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "रेसिपी सफलतापूर्वक बनाई गई!"
   },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "एक्सटेंशन टॉगल त्रुटि"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "एक्सटेंशन अपडेट किया गया"
   },
@@ -145,9 +142,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "एक्सटेंशन प्रबंधित करें"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "कोई सक्रिय सत्र नहीं मिला. कृपया पहले एक चैट सत्र प्रारंभ करें."
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "कोई एक्सटेंशन उपलब्ध नहीं है"

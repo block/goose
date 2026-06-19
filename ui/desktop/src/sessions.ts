@@ -64,7 +64,7 @@ export async function createSession(
     body.recipe = await decodeRecipe(options.recipeDeeplink);
   }
 
-  if (options?.extensionConfigs) {
+  if (options?.extensionConfigs && options.extensionConfigs.length > 0) {
     body.extension_overrides = options.extensionConfigs;
   } else if (options?.allExtensions) {
     const extensionConfigs = options.allExtensions

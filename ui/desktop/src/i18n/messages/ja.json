@@ -125,9 +125,6 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "レシピを作成しました！"
   },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "拡張機能の切り替えエラー"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "拡張機能を更新しました"
   },
@@ -145,9 +142,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "拡張機能を管理"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "アクティブなセッションが見つかりません。先にチャットセッションを開始してください。"
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "利用可能な拡張機能はありません"

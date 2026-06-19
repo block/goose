@@ -125,9 +125,6 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "Рецепт успешно создан!"
   },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "Ошибка переключения расширения"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Расширение обновлено"
   },
@@ -145,9 +142,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "управлять расширениями"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "Активный сеанс не найден. Сначала начните чат."
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "нет доступных расширений"

@@ -125,9 +125,6 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "¡Receta creada con éxito!"
   },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "Error al activar/desactivar la extensión"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extensión actualizada"
   },
@@ -145,9 +142,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "administrar extensiones"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "No se encontró ninguna sesión activa. Inicia primero una sesión de chat."
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "no hay extensiones disponibles"

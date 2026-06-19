@@ -125,9 +125,6 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "配方创建成功！"
   },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "扩展开关错误"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "扩展已更新"
   },
@@ -145,9 +142,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "管理扩展"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "未找到活动会话，请先开始一个聊天会话。"
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "暂无可用扩展"

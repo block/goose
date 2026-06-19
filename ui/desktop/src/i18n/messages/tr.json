@@ -125,9 +125,6 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "Tarif başarıyla oluşturuldu!"
   },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "Uzantı Geçiş Hatası"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Uzantı Güncellendi"
   },
@@ -145,9 +142,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "uzantıları yönet"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "Aktif oturum bulunamadı. Lütfen önce bir sohbet oturumu başlatın."
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "Uzantı yok"

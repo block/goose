@@ -61,37 +61,9 @@ interface BottomMenuExtensionSelectionProps {
 
 type GetSessionExtensionsSignal = Parameters<typeof getSessionExtensions>[0]['signal'];
 
-export const BottomMenuExtensionSelection = ({
-  sessionId,
-  nextChatExtensionDraft,
-  onNextChatExtensionDraftChange,
-}: BottomMenuExtensionSelectionProps) => {
-  if (!sessionId) {
-    if (!nextChatExtensionDraft) {
-      return null;
-    }
+const EXTENSION_SORT_DELAY_MS = 800;
 
-    return (
-      <DraftExtensionsMenu
-        draft={nextChatExtensionDraft}
-        onDraftChange={onNextChatExtensionDraftChange ?? (() => {})}
-      />
-    );
-  }
-
-  return <SessionExtensionsMenu sessionId={sessionId} />;
-};
-
-function DraftExtensionsMenu({
-  draft,
-  onDraftChange,
-}: {
-  draft: NextChatExtensionDraft;
-  onDraftChange: (draft: NextChatExtensionDraft) => void;
-}) {
-  const intl = useIntl();
-  const { extensionsList: allExtensions } = useConfig();
-  const [visibleDraft, setVisibleDraft] = useState<NextChatExtensionDraft>(draft);
+function useExtensionMenuTransition() {
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [isSortPending, setIsSortPending] = useState(false);
   const [togglingExtensionName, setTogglingExtensionName] = useState<string | null>(null);
@@ -111,7 +83,100 @@ function DraftExtensionsMenu({
     setTogglingExtensionName(null);
   }, [clearSortTimeout]);
 
+  const beginToggle = useCallback(
+    (extensionName: string) => {
+      if (togglingExtensionName === extensionName) {
+        return false;
+      }
+
+      setIsTransitioning(true);
+      setTogglingExtensionName(extensionName);
+      return true;
+    },
+    [togglingExtensionName]
+  );
+
+  const finishTransition = useCallback(() => {
+    setIsSortPending(false);
+    setIsTransitioning(false);
+    setTogglingExtensionName(null);
+  }, []);
+
+  const scheduleSort = useCallback(
+    (
+      callback: () => void | Promise<void>,
+      options?: {
+        shouldFinish?: () => boolean;
+      }
+    ) => {
+      setIsSortPending(true);
+      clearSortTimeout();
+
+      sortTimeoutRef.current = setTimeout(() => {
+        Promise.resolve()
+          .then(callback)
+          .finally(() => {
+            sortTimeoutRef.current = null;
+            if (options?.shouldFinish?.() ?? true) {
+              finishTransition();
+            }
+          });
+      }, EXTENSION_SORT_DELAY_MS);
+    },
+    [clearSortTimeout, finishTransition]
+  );
+
   useEffect(() => clearSortTimeout, [clearSortTimeout]);
+
+  return {
+    isTransitioning,
+    isSortPending,
+    togglingExtensionName,
+    beginToggle,
+    scheduleSort,
+    resetTransition,
+  };
+}
+
+export const BottomMenuExtensionSelection = ({
+  sessionId,
+  nextChatExtensionDraft,
+  onNextChatExtensionDraftChange,
+}: BottomMenuExtensionSelectionProps) => {
+  if (!sessionId) {
+    if (!nextChatExtensionDraft || !onNextChatExtensionDraftChange) {
+      return null;
+    }
+
+    return (
+      <DraftExtensionsMenu
+        draft={nextChatExtensionDraft}
+        onDraftChange={onNextChatExtensionDraftChange}
+      />
+    );
+  }
+
+  return <SessionExtensionsMenu sessionId={sessionId} />;
+};
+
+function DraftExtensionsMenu({
+  draft,
+  onDraftChange,
+}: {
+  draft: NextChatExtensionDraft;
+  onDraftChange: (draft: NextChatExtensionDraft) => void;
+}) {
+  const intl = useIntl();
+  const { extensionsList: allExtensions } = useConfig();
+  const [visibleDraft, setVisibleDraft] = useState<NextChatExtensionDraft>(draft);
+  const {
+    isTransitioning,
+    isSortPending,
+    togglingExtensionName,
+    beginToggle,
+    scheduleSort,
+    resetTransition,
+  } = useExtensionMenuTransition();
 
   useEffect(() => {
     if (!isTransitioning) {
@@ -121,29 +186,16 @@ function DraftExtensionsMenu({
 
   const handleToggle = useCallback(
     (extensionConfig: FixedExtensionEntry) => {
-      if (togglingExtensionName === extensionConfig.name) {
+      if (!beginToggle(extensionConfig.name)) {
         return;
       }
-
-      setIsTransitioning(true);
-      setTogglingExtensionName(extensionConfig.name);
 
       const currentState = isNextChatExtensionSelected(extensionConfig, draft);
       const nextDraft = toggleNextChatExtension(draft, extensionConfig);
       onDraftChange(nextDraft);
-      setIsSortPending(true);
-
-      if (sortTimeoutRef.current) {
-        clearTimeout(sortTimeoutRef.current);
-      }
-
-      sortTimeoutRef.current = setTimeout(() => {
+      scheduleSort(() => {
         setVisibleDraft(nextDraft);
-        setIsSortPending(false);
-        setIsTransitioning(false);
-        setTogglingExtensionName(null);
-        sortTimeoutRef.current = null;
-      }, 800);
+      });
 
       toastService.success({
         title: intl.formatMessage(i18n.extensionUpdated),
@@ -153,7 +205,7 @@ function DraftExtensionsMenu({
         ),
       });
     },
-    [draft, intl, onDraftChange, togglingExtensionName]
+    [beginToggle, draft, intl, onDraftChange, scheduleSort]
   );
 
   const extensions = useMemo(() => {
@@ -187,27 +239,17 @@ function DraftExtensionsMenu({
 function SessionExtensionsMenu({ sessionId }: { sessionId: string }) {
   const intl = useIntl();
   const [sessionExtensions, setSessionExtensions] = useState<ExtensionConfig[]>([]);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [isSortPending, setIsSortPending] = useState(false);
-  const [togglingExtensionName, setTogglingExtensionName] = useState<string | null>(null);
   const [isSessionExtensionsLoaded, setIsSessionExtensionsLoaded] = useState(false);
-  const sortTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const latestSessionIdRef = useRef(sessionId);
   const { extensionsList: allExtensions } = useConfig();
-
-  const clearSortTimeout = useCallback(() => {
-    if (sortTimeoutRef.current) {
-      clearTimeout(sortTimeoutRef.current);
-      sortTimeoutRef.current = null;
-    }
-  }, []);
-
-  const resetTransition = useCallback(() => {
-    clearSortTimeout();
-    setIsTransitioning(false);
-    setIsSortPending(false);
-    setTogglingExtensionName(null);
-  }, [clearSortTimeout]);
+  const {
+    isTransitioning,
+    isSortPending,
+    togglingExtensionName,
+    beginToggle,
+    scheduleSort,
+    resetTransition,
+  } = useExtensionMenuTransition();
 
   useEffect(() => {
     latestSessionIdRef.current = sessionId;
@@ -215,8 +257,6 @@ function SessionExtensionsMenu({ sessionId }: { sessionId: string }) {
     setSessionExtensions([]);
     resetTransition();
   }, [sessionId, resetTransition]);
-
-  useEffect(() => clearSortTimeout, [clearSortTimeout]);
 
   const loadSessionExtensions = useCallback(
     async (targetSessionId: string, signal?: GetSessionExtensionsSignal) => {
@@ -276,22 +316,11 @@ function SessionExtensionsMenu({ sessionId }: { sessionId: string }) {
     };
   }, [sessionId, loadSessionExtensions]);
 
-  const finishSessionTransition = useCallback((targetSessionId: string) => {
-    if (latestSessionIdRef.current === targetSessionId) {
-      setIsSortPending(false);
-      setIsTransitioning(false);
-      setTogglingExtensionName(null);
-    }
-  }, []);
-
   const handleToggle = useCallback(
     async (extensionConfig: FixedExtensionEntry) => {
-      if (togglingExtensionName === extensionConfig.name) {
+      if (!beginToggle(extensionConfig.name)) {
         return;
       }
-
-      setIsTransitioning(true);
-      setTogglingExtensionName(extensionConfig.name);
 
       try {
         if (extensionConfig.enabled) {
@@ -300,31 +329,22 @@ function SessionExtensionsMenu({ sessionId }: { sessionId: string }) {
           await addToAgent(extensionConfig, sessionId, true);
         }
 
-        setIsSortPending(true);
-
-        if (sortTimeoutRef.current) {
-          clearTimeout(sortTimeoutRef.current);
-        }
-
-        sortTimeoutRef.current = setTimeout(() => {
-          loadSessionExtensions(sessionId)
-            .catch((error) => {
+        scheduleSort(
+          () =>
+            loadSessionExtensions(sessionId).catch((error) => {
               if (latestSessionIdRef.current === sessionId) {
                 console.error('Failed to fetch session extensions:', error);
               }
-            })
-            .finally(() => {
-              finishSessionTransition(sessionId);
-              sortTimeoutRef.current = null;
-            });
-        }, 800);
+            }),
+          {
+            shouldFinish: () => latestSessionIdRef.current === sessionId,
+          }
+        );
       } catch {
-        setIsTransitioning(false);
-        setIsSortPending(false);
-        setTogglingExtensionName(null);
+        resetTransition();
       }
     },
-    [finishSessionTransition, loadSessionExtensions, sessionId, togglingExtensionName]
+    [beginToggle, loadSessionExtensions, resetTransition, scheduleSort, sessionId]
   );
 
   const extensions = useMemo(() => {

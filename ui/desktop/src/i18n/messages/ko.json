@@ -125,9 +125,6 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "레시피가 성공적으로 생성되었습니다!"
   },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "익스텐션 토글 오류"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "익스텐션이 업데이트되었습니다."
   },
@@ -145,9 +142,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "익스텐션 관리"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "활성 세션을 찾을 수 없습니다. 먼저 채팅 세션을 시작하세요."
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "사용 가능한 익스텐션 없음"
