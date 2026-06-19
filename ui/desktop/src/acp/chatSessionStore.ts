@@ -155,6 +155,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
 
   const startSessionLoad: AcpChatSessionActions['startSessionLoad'] = (sessionId) => {
     const entry = getOrCreateEntry(sessionId);
+    resetReplayState(entry);
     entry.sessionLoadError = undefined;
     entry.chatState = ChatState.LoadingConversation;
     return notify(sessionId, entry);
@@ -256,14 +257,13 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(notification.sessionId, entry);
   };
 
-  const applyAcpGooseSessionNotification: AcpChatSessionActions[
-    'applyAcpGooseSessionNotification'
-  ] = (notification) => {
-    const entry = getOrCreateEntry(notification.sessionId);
-    const changes = entry.adapter.applyGoose(notification);
-    applyChatStateChanges(entry, changes);
-    return notify(notification.sessionId, entry);
-  };
+  const applyAcpGooseSessionNotification: AcpChatSessionActions['applyAcpGooseSessionNotification'] =
+    (notification) => {
+      const entry = getOrCreateEntry(notification.sessionId);
+      const changes = entry.adapter.applyGoose(notification);
+      applyChatStateChanges(entry, changes);
+      return notify(notification.sessionId, entry);
+    };
 
   const applyPermissionRequest: AcpChatSessionActions['applyPermissionRequest'] = (request) => {
     const entry = getOrCreateEntry(request.sessionId);
@@ -325,20 +325,20 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
 
 const acpChatSessionStoreInternal = createAcpChatSessionStoreInternal();
 
-export const acpChatSessionStore: AcpChatSessionStore =
-  storeFromInternal(acpChatSessionStoreInternal);
+export const acpChatSessionStore: AcpChatSessionStore = storeFromInternal(
+  acpChatSessionStoreInternal
+);
 
-export const acpChatSessionActions: AcpChatSessionActions =
-  actionsFromStore(acpChatSessionStoreInternal);
+export const acpChatSessionActions: AcpChatSessionActions = actionsFromStore(
+  acpChatSessionStoreInternal
+);
 
 interface AcpChatSessionSnapshotState {
   sessionId: string;
   snapshot: AcpChatSessionSnapshot | undefined;
 }
 
-export function useAcpChatSessionSnapshot(
-  sessionId: string
-): AcpChatSessionSnapshot | undefined {
+export function useAcpChatSessionSnapshot(sessionId: string): AcpChatSessionSnapshot | undefined {
   const [snapshotState, setSnapshotState] = useState<AcpChatSessionSnapshotState>(() => ({
     sessionId,
     snapshot: acpChatSessionStoreInternal.getSnapshot(sessionId),
@@ -409,6 +409,13 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
         break;
     }
   }
+}
+
+function resetReplayState(entry: StoreEntry): void {
+  entry.messages = [];
+  entry.tokenState = { ...initialTokenState };
+  entry.notifications = [];
+  entry.adapter = createAcpSessionNotificationAdapter();
 }
 
 function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {

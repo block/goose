@@ -172,6 +172,10 @@ export async function acpLoadSession(sessionId: string): Promise<AcpLoadSessionR
   }
 }
 
+export function isAcpSessionLoadInFlight(sessionId: string): boolean {
+  return inFlightSessionLoads.has(sessionId);
+}
+
 async function loadAcpSession(sessionId: string): Promise<AcpLoadSessionResult> {
   const client = await getAcpClient();
   const sessionInfoResponse = await client.goose.sessionInfo_unstable({ sessionId });

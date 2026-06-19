@@ -18,6 +18,7 @@ import {
   acpForkSession,
   acpLoadSession,
   acpTruncateSessionConversation,
+  isAcpSessionLoadInFlight,
   sessionInfoToSession,
 } from './sessions';
 
@@ -72,10 +73,7 @@ function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Mess
   };
 }
 
-async function loadSession(
-  sessionId: string,
-  options: AcpLoadSessionOptions = {}
-): Promise<void> {
+async function loadSession(sessionId: string, options: AcpLoadSessionOptions = {}): Promise<void> {
   const cached = acpChatSessionStore.getSnapshot(sessionId);
   if (cached?.session) {
     window.dispatchEvent(
@@ -85,7 +83,9 @@ async function loadSession(
     return;
   }
 
-  acpChatSessionActions.startSessionLoad(sessionId);
+  if (!isAcpSessionLoadInFlight(sessionId)) {
+    acpChatSessionActions.startSessionLoad(sessionId);
+  }
 
   try {
     const { sessionInfo, meta } = await acpLoadSession(sessionId);
@@ -133,7 +133,9 @@ async function submitMessage(
     }
 
     const submitError = 'Submit error: ' + errorMessage(error);
-    if (acpChatSessionActions.finishPromptAttemptIfCurrent(sessionId, promptAttemptId, submitError)) {
+    if (
+      acpChatSessionActions.finishPromptAttemptIfCurrent(sessionId, promptAttemptId, submitError)
+    ) {
       void options.onFinish(submitError);
     }
   }
@@ -141,8 +143,7 @@ async function submitMessage(
 
 function stop(sessionId: string): void {
   const storedPromptAttemptId = acpChatSessionStore.getSnapshot(sessionId)?.activePromptAttemptId;
-  const hasStoredAcpPrompt =
-    storedPromptAttemptId !== null && storedPromptAttemptId !== undefined;
+  const hasStoredAcpPrompt = storedPromptAttemptId !== null && storedPromptAttemptId !== undefined;
 
   if (hasStoredAcpPrompt) {
     acpChatSessionActions.clearActivePromptAttempt(sessionId);

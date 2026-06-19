@@ -115,6 +115,24 @@ function toolProgressNotification(sessionId: string): SessionNotification {
   };
 }
 
+function agentMessageChunkNotification(
+  sessionId: string,
+  messageId: string,
+  text: string
+): SessionNotification {
+  return {
+    sessionId,
+    update: {
+      sessionUpdate: 'agent_message_chunk',
+      messageId,
+      content: {
+        type: 'text',
+        text,
+      },
+    },
+  };
+}
+
 describe('acpChatSessionStore', () => {
   const sessionIds = new Set<string>();
   const sessionId = (id: string): string => {
@@ -238,12 +256,25 @@ describe('acpChatSessionStore', () => {
       },
     });
 
-    const nextSnapshot = acpChatSessionActions.startPromptAttempt(
-      currentSessionId,
-      'attempt-1'
-    );
+    const nextSnapshot = acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
 
     expect(nextSnapshot.notifications).toEqual([]);
+  });
+
+  it('resets replayed messages before starting an unloaded session load', () => {
+    const currentSessionId = sessionId('session-1');
+    const replayedChunk = agentMessageChunkNotification(currentSessionId, 'message-1', 'Hello');
+
+    acpChatSessionActions.startSessionLoad(currentSessionId);
+    acpChatSessionActions.applyAcpSessionNotification(replayedChunk);
+
+    const loadingSnapshot = acpChatSessionActions.startSessionLoad(currentSessionId);
+    expect(loadingSnapshot.messages).toEqual([]);
+
+    const replayedSnapshot = acpChatSessionActions.applyAcpSessionNotification(replayedChunk);
+
+    expect(replayedSnapshot.messages).toHaveLength(1);
+    expect(replayedSnapshot.messages[0].content).toEqual([{ type: 'text', text: 'Hello' }]);
   });
 
   it('applies permission requests as waiting action-required messages', () => {
