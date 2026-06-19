@@ -161,22 +161,17 @@ function isParenthesizedFilenameContent(content: string): boolean {
   return /^[a-zA-Z0-9]+(?:[ -][a-zA-Z0-9]+)*$/.test(content);
 }
 
-function readParenthesizedSuffix(text: string, spaceIndex: number): number {
-  if (text[spaceIndex] !== ' ') return spaceIndex;
-
-  let i = spaceIndex + 1;
-  if (text[i] !== '(') return spaceIndex;
-
-  i++;
+function readParenthesizedContent(text: string, openIndex: number): number {
+  let i = openIndex + 1;
   const contentStart = i;
   while (i < text.length && text[i] !== ')') {
-    if (text[i] === '(') return spaceIndex;
+    if (text[i] === '(') return openIndex;
     i++;
   }
-  if (i >= text.length) return spaceIndex;
+  if (i >= text.length) return openIndex;
 
   const content = text.slice(contentStart, i);
-  if (!isParenthesizedFilenameContent(content)) return spaceIndex;
+  if (!isParenthesizedFilenameContent(content)) return openIndex;
 
   i++;
   const afterParen = i;
@@ -192,7 +187,19 @@ function readParenthesizedSuffix(text: string, spaceIndex: number): number {
   if (!/[ -]/.test(content) && /^[a-zA-Z0-9]{1,4}$/.test(content) && /\d/.test(content)) {
     return afterParen;
   }
-  return spaceIndex;
+  return openIndex;
+}
+
+function readParenthesizedInlineSuffix(text: string, parenIndex: number): number {
+  if (text[parenIndex] !== '(') return parenIndex;
+  return readParenthesizedContent(text, parenIndex);
+}
+
+function readParenthesizedSuffix(text: string, spaceIndex: number): number {
+  if (text[spaceIndex] !== ' ') return spaceIndex;
+  if (text[spaceIndex + 1] !== '(') return spaceIndex;
+  const end = readParenthesizedContent(text, spaceIndex + 1);
+  return end > spaceIndex + 1 ? end : spaceIndex;
 }
 
 function isConnectiveSpacedWord(word: string): boolean {
@@ -278,6 +285,11 @@ function readSegment(text: string, start: number, separator: Separator): { end: 
       i = bracketEnd;
       continue;
     }
+    const parenEnd = readParenthesizedInlineSuffix(text, i);
+    if (parenEnd > i) {
+      i = parenEnd;
+      continue;
+    }
     if (
       isFilenamePunctuation(text[i]) &&
       i + 1 < text.length &&
@@ -304,7 +316,7 @@ function readSegment(text: string, start: number, separator: Separator): { end: 
 }
 
 function isPathTerminator(char: string): boolean {
-  return /[.,;:!?'"`)\]]/.test(char);
+  return /[.,;:!?'"`()\]]/.test(char);
 }
 
 function isPathBoundary(char: string): boolean {
