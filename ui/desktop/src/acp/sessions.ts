@@ -15,6 +15,7 @@ interface GooseSessionInfoMeta {
   projectId?: string;
   providerId?: string;
   modelId?: string;
+  sessionType?: Session['session_type'];
   userSetName?: boolean;
   hasRecipe?: boolean;
   lastMessageSnippet?: string;
@@ -92,6 +93,7 @@ export function sessionInfoToSession(s: SessionInfo, loadMeta: LoadSessionMeta =
     project_id: meta.projectId,
     provider_name: meta.providerId,
     model_config: modelConfig,
+    session_type: meta.sessionType,
     recipe: loadMeta.recipe,
     user_recipe_values: loadMeta.userRecipeValues,
     user_set_name: meta.userSetName,
