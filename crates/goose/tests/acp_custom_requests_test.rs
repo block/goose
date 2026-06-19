@@ -11,9 +11,9 @@ use common_tests::fixtures::{
     TestConnectionConfig,
 };
 use goose::acp::server::AcpProviderFactory;
-use goose::model::ModelConfig;
 use goose::providers::base::{MessageStream, Provider};
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use goose_test_support::{EnforceSessionId, IgnoreSessionId};
 use serial_test::serial;
 use std::path::PathBuf;

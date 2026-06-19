@@ -11,6 +11,7 @@ use tracing::debug;
 use super::super::agents::Agent;
 #[cfg(feature = "code-mode")]
 use crate::agents::platform_extensions::code_execution;
+use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent, ToolRequest};
 use crate::conversation::Conversation;
 #[cfg(test)]
@@ -280,7 +281,9 @@ impl Agent {
 
         // Capture errors during stream creation and return them as part of the stream
         // so they can be handled by the existing error handling logic in the agent
-        let model_config = provider.get_model_config();
+        let model_config = provider
+            .get_model_config()
+            .with_default_thinking_effort(Config::global().get_goose_thinking_effort());
         debug!("WAITING_LLM_STREAM_START");
         let stream_result = provider
             .stream(
@@ -636,11 +639,11 @@ mod tests {
     use super::*;
     use crate::config::GooseMode;
     use crate::conversation::message::Message;
-    use crate::model::ModelConfig;
     use crate::providers::base::Provider;
     use crate::session::session_manager::SessionType;
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+    use goose_providers::model::ModelConfig;
     use rmcp::object;
 
     #[derive(Clone)]

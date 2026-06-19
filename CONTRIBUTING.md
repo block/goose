@@ -361,16 +361,6 @@ This project follows the [Conventional Commits](https://www.conventionalcommits.
 [hermit]: https://cashapp.github.io/hermit/
 [just]: https://github.com/casey/just?tab=readme-ov-file#installation
 
-## Developer Certificate of Origin
-
-This project requires a [Developer Certificate of Origin](https://en.wikipedia.org/wiki/Developer_Certificate_of_Origin) sign-offs on all commits. This is a statement indicating that you are allowed to make the contribution and that the project has the right to distribute it under its license. When you are ready to commit, use the `--signoff` or `-s` flag to attach the sign-off to your commit.
-
-```
-git commit --signoff ...
-# OR
-git commit -s ...
-```
-
 ## Other Ways to Contribute
 
 There are numerous ways to be an open source contributor and contribute to goose. We're here to help you on your way! Here are some suggestions to get started. If you have any questions or need help, feel free to reach out to us on [Discord](https://discord.gg/goose-oss).

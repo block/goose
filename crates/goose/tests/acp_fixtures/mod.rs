@@ -199,9 +199,10 @@ pub async fn spawn_acp_server_in_process(
             move |_provider_name, model_config, _extensions, _working_dir| {
                 let base_url = base_url.clone();
                 Box::pin(async move {
-                    let api_client = ApiClient::new(
+                    let api_client = ApiClient::new_with_tls(
                         base_url,
                         ApiAuthMethod::BearerToken("test-key".to_string()),
+                        None,
                     )
                     .unwrap();
                     let provider: Arc<dyn Provider> =

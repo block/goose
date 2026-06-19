@@ -609,10 +609,10 @@ mod tests {
         use rmcp::model::Tool;
 
         use crate::conversation::message::Message;
-        use crate::model::ModelConfig;
         use crate::providers::base::{MessageStream, Provider};
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
 
         struct FailingProvider;
 

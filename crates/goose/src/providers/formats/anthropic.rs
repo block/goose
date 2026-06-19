@@ -1,12 +1,12 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::mcp_utils::extract_text_from_resource;
-use crate::model::ModelConfig;
 use crate::providers::canonical::maybe_get_canonical_model;
 use anyhow::{anyhow, Result};
 use goose_providers::canonical::ThinkingMode;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::images::{convert_image, ImageFormat};
+use goose_providers::model::ModelConfig;
 use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
@@ -52,16 +52,20 @@ pub struct AnthropicFormatOptions {
 impl AnthropicFormatOptions {
     fn for_model(self, model_config: &ModelConfig) -> Self {
         let preserve_thinking_context = model_config
-            .get_config_param::<bool>(
-                "preserve_thinking_context",
-                "ANTHROPIC_PRESERVE_THINKING_CONTEXT",
-            )
+            .request_param::<bool>("preserve_thinking_context")
+            .or_else(|| {
+                crate::config::Config::global()
+                    .get_param("ANTHROPIC_PRESERVE_THINKING_CONTEXT")
+                    .ok()
+            })
             .unwrap_or(self.preserve_thinking_context);
         let preserve_unsigned_thinking = model_config
-            .get_config_param::<bool>(
-                "preserve_unsigned_thinking",
-                "ANTHROPIC_PRESERVE_UNSIGNED_THINKING",
-            )
+            .request_param::<bool>("preserve_unsigned_thinking")
+            .or_else(|| {
+                crate::config::Config::global()
+                    .get_param("ANTHROPIC_PRESERVE_UNSIGNED_THINKING")
+                    .ok()
+            })
             .unwrap_or(self.preserve_unsigned_thinking)
             || preserve_thinking_context;
 
@@ -1020,7 +1024,7 @@ where
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
-    use crate::model::ModelConfig;
+    use goose_providers::model::ModelConfig;
     use rmcp::object;
     use serde_json::json;
 

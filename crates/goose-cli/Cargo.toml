@@ -103,12 +103,14 @@ rustls-tls = [
     "sigstore-verify?/rustls",
     "goose/rustls-tls",
     "goose-mcp/rustls-tls",
+    "goose-providers/rustls-tls",
 ]
 native-tls = [
     "reqwest/native-tls",
     "sigstore-verify?/native-tls",
     "goose/native-tls",
     "goose-mcp/native-tls",
+    "goose-providers/native-tls",
 ]
 
 [dev-dependencies]

@@ -14,15 +14,16 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
-use super::utils::{filter_extensions_from_system_prompt, RequestLog};
+use super::utils::filter_extensions_from_system_prompt;
 use crate::config::base::{CodexCommand, CodexSkipGitCheck};
 use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::subprocess::configure_subprocess;
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
@@ -636,6 +637,7 @@ impl ProviderDef for CodexProvider {
     fn from_env(
         model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = Config::global();
@@ -717,9 +719,7 @@ impl Provider for CodexProvider {
             "messages_count": messages.len()
         });
 
-        let mut log = RequestLog::start(model_config, &payload).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to start request log: {}", e))
-        })?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = json!({
             "lines": lines.len(),

@@ -342,13 +342,13 @@ mod tests {
         use goose::agents::SessionConfig;
         use goose::config::GooseMode;
         use goose::conversation::message::{Message, MessageContent};
-        use goose::model::ModelConfig;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
         };
         use goose::session::session_manager::SessionType;
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
         use rmcp::model::{CallToolRequestParams, Tool};
         use rmcp::object;
         use std::path::PathBuf;
@@ -381,6 +381,7 @@ mod tests {
             fn from_env(
                 _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
                 Box::pin(async { Ok(Self::new()) })
             }
@@ -504,13 +505,13 @@ mod tests {
         use goose::config::base::Config;
         use goose::config::GooseMode;
         use goose::conversation::message::Message;
-        use goose::model::ModelConfig;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
         };
         use goose::session::session_manager::SessionType;
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
         use rmcp::model::{AnnotateAble, CallToolRequestParams, CallToolResult, RawContent, Tool};
         use std::path::PathBuf;
         use std::sync::atomic::{AtomicUsize, Ordering};
@@ -551,6 +552,7 @@ mod tests {
             fn from_env(
                 _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
                 Box::pin(async { Ok(Self::new()) })
             }
@@ -857,12 +859,12 @@ mod tests {
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
         use goose::conversation::message::Message;
-        use goose::model::ModelConfig;
         use goose::providers::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
         use goose::session::session_manager::SessionType;
         use goose::session::SessionManager;
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
         use rmcp::model::{CallToolRequestParams, Role, Tool};
         use rmcp::object;
         use std::path::PathBuf;
@@ -903,6 +905,7 @@ mod tests {
             fn from_env(
                 _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
                 unimplemented!()
             }
@@ -1128,7 +1131,6 @@ mod tests {
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
         use goose::conversation::message::Message;
-        use goose::model::ModelConfig;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
         };
@@ -1136,6 +1138,7 @@ mod tests {
         use goose::session::SessionManager;
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
         use rmcp::model::Tool;
         use std::path::PathBuf;
         use std::sync::atomic::{AtomicU32, Ordering};
@@ -1173,6 +1176,7 @@ mod tests {
             fn from_env(
                 _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
                 Box::pin(async { Ok(Self::new()) })
             }
@@ -1387,6 +1391,105 @@ mod tests {
 
             Ok(())
         }
+
+        #[tokio::test]
+        async fn test_setting_goal_via_reply_starts_a_turn() -> Result<()> {
+            let temp_dir = TempDir::new()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+            let agent = create_agent_with_session_naming_disabled(session_manager.clone());
+            let provider = Arc::new(GoalTextProvider::new());
+
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "goal-start-turn".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            agent.update_provider(provider.clone(), &session.id).await?;
+
+            let session_config = SessionConfig {
+                id: session.id.clone(),
+                schedule_id: None,
+                max_turns: Some(10),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(
+                    Message::user().with_text("/goal make all tests pass"),
+                    session_config,
+                    None,
+                )
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut messages = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let Ok(AgentEvent::Message(msg)) = event {
+                    messages.push(msg);
+                }
+            }
+
+            // The provider must be invoked: setting a goal kicks off a turn
+            // (the goal-checking loop then runs and clears the goal once met).
+            assert!(
+                provider.call_count.load(Ordering::SeqCst) >= 1,
+                "Setting a goal should start an agent turn"
+            );
+
+            // The user still sees the confirmation.
+            assert!(
+                messages
+                    .iter()
+                    .any(|m| m.as_concat_text().contains("Goal set")),
+                "Goal confirmation should be surfaced to the user"
+            );
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_querying_goal_via_reply_does_not_start_a_turn() -> Result<()> {
+            let temp_dir = TempDir::new()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+            let agent = create_agent_with_session_naming_disabled(session_manager.clone());
+            let provider = Arc::new(GoalTextProvider::new());
+
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "goal-query-no-turn".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            agent.update_provider(provider.clone(), &session.id).await?;
+
+            let session_config = SessionConfig {
+                id: session.id.clone(),
+                schedule_id: None,
+                max_turns: Some(10),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("/goal"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+            while let Some(event) = reply_stream.next().await {
+                let _ = event?;
+            }
+
+            assert_eq!(
+                provider.call_count.load(Ordering::SeqCst),
+                0,
+                "Querying the goal should not start an agent turn"
+            );
+
+            Ok(())
+        }
     }
 
     mod cumulative_token_tests {
@@ -1396,12 +1499,12 @@ mod tests {
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
         use goose::conversation::message::Message;
-        use goose::model::ModelConfig;
         use goose::providers::base::{stream_from_single_message, MessageStream, Provider};
         use goose::session::session_manager::SessionType;
         use goose::session::SessionManager;
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
         use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
         use rmcp::model::Tool;
         use std::path::PathBuf;
         use std::sync::Arc;

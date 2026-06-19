@@ -2,12 +2,15 @@ use crate::config::paths::Paths;
 use crate::config::GooseMode;
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::model::ModelConfig;
-use crate::providers::base::{Provider, MSG_COUNT_FOR_SESSION_NAME_GENERATION};
+use crate::providers::base::Provider;
 use crate::recipe::Recipe;
 use crate::session::extension_data::ExtensionData;
+use crate::session::session_naming::{
+    generate_session_name, MSG_COUNT_FOR_SESSION_NAME_GENERATION,
+};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use goose_providers::model::ModelConfig;
 use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
@@ -508,7 +511,7 @@ impl SessionManager {
             .count();
 
         if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
-            let name = provider.generate_session_name(id, &conversation).await?;
+            let name = generate_session_name(provider.as_ref(), id, &conversation).await?;
             return Ok(Some(self.system_generated_name_update(id, name).await?));
         }
         Ok(None)
@@ -2042,6 +2045,9 @@ mod tests {
     use super::*;
     use crate::conversation::message::{Message, MessageContent};
     use crate::providers::base::MessageStream;
+    use goose_providers::conversation::token_usage::ProviderUsage;
+    use goose_providers::errors::ProviderError;
+    use rmcp::model::Tool;
     use tempfile::TempDir;
     use test_case::test_case;
 
@@ -2066,19 +2072,24 @@ mod tests {
             _messages: &[Message],
             _tools: &[rmcp::model::Tool],
         ) -> std::result::Result<MessageStream, goose_providers::errors::ProviderError> {
-            unimplemented!("session naming tests override generate_session_name")
+            unimplemented!("session naming calls complete_fast")
         }
 
         fn get_model_config(&self) -> ModelConfig {
             self.model_config.clone()
         }
 
-        async fn generate_session_name(
+        async fn complete_fast(
             &self,
             _session_id: &str,
-            _messages: &Conversation,
-        ) -> std::result::Result<String, goose_providers::errors::ProviderError> {
-            Ok(GENERATED_SESSION_NAME.to_string())
+            _system: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<(Message, ProviderUsage), ProviderError> {
+            Ok((
+                Message::assistant().with_text(GENERATED_SESSION_NAME),
+                ProviderUsage::new("test".to_string(), Default::default()),
+            ))
         }
     }
 

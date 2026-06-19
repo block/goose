@@ -9,7 +9,7 @@ use async_trait::async_trait;
 use axum::http;
 use chrono::{DateTime, Utc};
 use goose_providers::errors::ProviderError;
-use goose_providers::formats::openai::{is_openai_responses_model, ModelConfigParams};
+use goose_providers::formats::openai::is_openai_responses_model;
 use goose_providers::images::ImageFormat;
 use reqwest::{Client, Response};
 use serde::{Deserialize, Serialize};
@@ -30,16 +30,17 @@ use super::base::{
 use super::formats::openai_responses::create_responses_request;
 use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, RequestLog};
+use super::utils::get_model;
 use goose_providers::formats::openai::{create_request, get_usage, response_to_message};
 
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::{Message, MessageContent};
 
-use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, MessageStream};
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::{RawContent, Tool};
 use std::ops::Deref;
 
@@ -201,6 +202,8 @@ pub struct GithubCopilotProvider {
     client_id: String,
     #[serde(skip)]
     name: String,
+    #[serde(skip)]
+    tls_config: Option<crate::providers::api_client::TlsConfig>,
 }
 
 impl GithubCopilotProvider {
@@ -228,7 +231,10 @@ impl GithubCopilotProvider {
         })
     }
 
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = Config::global();
         let host = normalize_host(
             &config
@@ -253,6 +259,7 @@ impl GithubCopilotProvider {
             urls,
             client_id,
             name: GITHUB_COPILOT_PROVIDER_NAME.to_string(),
+            tls_config,
         })
     }
 
@@ -272,7 +279,8 @@ impl GithubCopilotProvider {
         }
         let initiator = if is_user_initiated { "user" } else { "agent" };
         headers.insert("X-Initiator", initiator.parse().unwrap());
-        let api_client = ApiClient::new(endpoint.clone(), auth)?.with_headers(headers)?;
+        let api_client = ApiClient::new_with_tls(endpoint.clone(), auth, self.tls_config.clone())?
+            .with_headers(headers)?;
 
         api_client
             .response_post(session_id, path, payload)
@@ -403,7 +411,7 @@ impl GithubCopilotProvider {
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         payload["stream"] = serde_json::Value::Bool(true);
 
-        let mut log = RequestLog::start(model_config, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
@@ -444,20 +452,14 @@ impl GithubCopilotProvider {
 
         if supports_streaming {
             let payload = create_request(
-                ModelConfigParams {
-                    model_name: model_config.model_name.as_str(),
-                    thinking_effort: model_config.thinking_effort(),
-                    temperature: model_config.temperature,
-                    max_tokens: model_config.max_tokens,
-                    request_params: model_config.request_params.as_ref(),
-                },
+                model_config,
                 system,
                 messages,
                 tools,
                 &ImageFormat::OpenAi,
                 true,
             )?;
-            let mut log = RequestLog::start(model_config, &payload)?;
+            let mut log = start_log(model_config, &payload)?;
 
             let response = self
                 .with_retry(|| async {
@@ -486,20 +488,14 @@ impl GithubCopilotProvider {
                 Some(session_id)
             };
             let payload = create_request(
-                ModelConfigParams {
-                    model_name: model_config.model_name.as_str(),
-                    thinking_effort: model_config.thinking_effort(),
-                    temperature: model_config.temperature,
-                    max_tokens: model_config.max_tokens,
-                    request_params: model_config.request_params.as_ref(),
-                },
+                model_config,
                 system,
                 messages,
                 tools,
                 &ImageFormat::OpenAi,
                 false,
             )?;
-            let mut log = RequestLog::start(model_config, &payload)?;
+            let mut log = start_log(model_config, &payload)?;
 
             let response = self
                 .with_retry(|| async {
@@ -557,8 +553,9 @@ impl ProviderDef for GithubCopilotProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 

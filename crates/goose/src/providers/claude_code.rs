@@ -27,10 +27,10 @@ use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::subprocess::configure_subprocess;
+use goose_providers::model::ModelConfig;
 
 use super::cli_common::{error_from_event, extract_usage_tokens};
 
@@ -604,6 +604,7 @@ impl ProviderDef for ClaudeCodeProvider {
     fn from_env(
         model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();

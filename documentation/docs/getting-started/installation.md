@@ -35,7 +35,7 @@ import { PanelLeft } from 'lucide-react';
         <h3>Option 2: Install via Homebrew</h3>
         Homebrew downloads the [same app](https://github.com/Homebrew/homebrew-cask/blob/master/Casks/b/block-goose.rb) but can take care of updates too.
         ```bash
-          brew install --cask block-goose
+        brew install --cask block-goose
         ```
         ---
         <div style={{ marginTop: '1rem' }}>

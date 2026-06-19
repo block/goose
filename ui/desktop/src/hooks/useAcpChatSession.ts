@@ -3,11 +3,7 @@ import { defineMessages, useIntl } from '../i18n';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 
-import {
-  Message,
-  TokenState,
-  updateFromSession,
-} from '../api';
+import { Message, Session, TokenState, updateFromSession } from '../api';
 
 import { createUserMessage, NotificationEvent, UserInput } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
@@ -67,20 +63,27 @@ export function useAcpChatSession({
 
   useEffect(() => {
     const handleSessionRenamed = (event: Event) => {
-      const { sessionId: renamedSessionId, newName } = (
-        event as CustomEvent<{ sessionId: string; newName: string }>
-      ).detail;
+      const {
+        sessionId: renamedSessionId,
+        newName,
+        userInitiated,
+      } = (event as CustomEvent<{ sessionId: string; newName: string; userInitiated?: boolean }>)
+        .detail;
 
       if (renamedSessionId !== sessionId) {
         return;
       }
 
       const currentSession = getCurrentSnapshot()?.session;
-      if (!currentSession || currentSession.name === newName) {
+      if (!currentSession || (currentSession.name === newName && !userInitiated)) {
         return;
       }
 
-      const updatedSession = { ...currentSession, name: newName };
+      const updatedSession = {
+        ...currentSession,
+        name: newName,
+        ...(userInitiated && { user_set_name: true }),
+      };
       acpChatSessionActions.setSessionMetadata(sessionId, updatedSession);
     };
 
@@ -183,7 +186,10 @@ export function useAcpChatSession({
     async (elicitationId: string, userData: Record<string, unknown>) => {
       const currentSnapshot = getCurrentSnapshot();
 
-      if (!currentSnapshot?.session || currentSnapshot.chatState === ChatState.LoadingConversation) {
+      if (
+        !currentSnapshot?.session ||
+        currentSnapshot.chatState === ChatState.LoadingConversation
+      ) {
         return false;
       }
 
@@ -248,6 +254,16 @@ export function useAcpChatSession({
     [sessionId]
   );
 
+  const updateSession = useCallback(
+    (updater: (session: Session) => Session) => {
+      const currentSession = getCurrentSnapshot()?.session;
+      if (!currentSession) return;
+
+      const nextSession = updater(currentSession);
+      acpChatSessionActions.setSessionMetadata(sessionId, nextSession);
+    },
+    [getCurrentSnapshot, sessionId]
+  );
   const notificationsMap = useMemo(() => {
     return (acpSnapshot?.notifications ?? []).reduce((map, notification) => {
       const key = notification.request_id;
@@ -265,6 +281,7 @@ export function useAcpChatSession({
     session,
     chatState,
     setChatState,
+    updateSession,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,

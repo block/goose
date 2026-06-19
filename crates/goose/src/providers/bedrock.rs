@@ -1,10 +1,11 @@
 use std::collections::HashMap;
 
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
+use super::formats::openai_responses::create_responses_request;
+use super::openai_compatible::{handle_status, stream_responses_compat};
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
-use crate::providers::utils::RequestLog;
+use crate::session_context::SESSION_ID_HEADER;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -17,7 +18,10 @@ use base64::Engine;
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
-use reqwest::header::HeaderValue;
+use goose_providers::formats::openai::extract_reasoning_effort;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
+use reqwest::header::{HeaderName, HeaderValue, AUTHORIZATION};
 use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, Tool};
 use serde_json::Value;
 use smithy_transport_reqwest::ReqwestHttpClient;
@@ -26,7 +30,6 @@ use super::formats::bedrock::{
     bedrock_anthropic_thinking_fields, from_bedrock_message, from_bedrock_usage,
     to_bedrock_message_with_caching, to_bedrock_tool_config,
 };
-use crate::session_context::SESSION_ID_HEADER;
 
 pub(crate) const BEDROCK_PROVIDER_NAME: &str = "aws_bedrock";
 pub const BEDROCK_DOC_LINK: &str =
@@ -39,6 +42,8 @@ pub const BEDROCK_KNOWN_MODELS: &[&str] = &[
     "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
     "us.anthropic.claude-opus-4-20250514-v1:0",
     "us.anthropic.claude-opus-4-1-20250805-v1:0",
+    "openai.gpt-5.5",
+    "openai.gpt-5.4",
 ];
 
 pub const BEDROCK_DEFAULT_MAX_RETRIES: usize = 6;
@@ -55,6 +60,14 @@ pub struct BedrockProvider {
     retry_config: RetryConfig,
     #[serde(skip)]
     name: String,
+    #[serde(skip)]
+    region: Option<String>,
+    #[serde(skip)]
+    bearer_token: Option<String>,
+    #[serde(skip)]
+    http_client: reqwest::Client,
+    #[serde(skip)]
+    mantle_base_url: Option<String>,
 }
 
 /// Request inputs shared by the `Converse` and `ConverseStream` APIs.
@@ -66,7 +79,10 @@ struct ConverseRequestParts {
 }
 
 impl BedrockProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
 
         // Attempt to load config and secrets to get AWS_ prefixed keys
@@ -135,13 +151,15 @@ impl BedrockProvider {
             ));
         }
 
-        let client = if let Some(bearer_token) = bearer_token {
+        let resolved_region = sdk_config.region().map(|r| r.to_string());
+
+        let client = if let Some(ref token) = bearer_token {
             // Build from sdk_config to inherit all settings (endpoint overrides, timeouts, etc.)
             // then override authentication with bearer token
             let bedrock_config = aws_sdk_bedrockruntime::Config::new(&sdk_config)
                 .to_builder()
                 .bearer_token(aws_sdk_bedrockruntime::config::Token::new(
-                    bearer_token,
+                    token.clone(),
                     None,
                 ))
                 .build();
@@ -158,6 +176,10 @@ impl BedrockProvider {
             model,
             retry_config,
             name: BEDROCK_PROVIDER_NAME.to_string(),
+            region: resolved_region,
+            bearer_token,
+            http_client: reqwest::Client::new(),
+            mantle_base_url: None,
         })
     }
 
@@ -209,6 +231,52 @@ impl BedrockProvider {
             .get_param::<bool>("BEDROCK_ENABLE_CACHING")
             .unwrap_or(false);
         enabled && self.model.model_name.contains("anthropic.claude")
+    }
+
+    async fn post_mantle_streaming(
+        &self,
+        session_id: Option<&str>,
+        payload: &Value,
+    ) -> Result<reqwest::Response, ProviderError> {
+        let region = self.region.as_deref().ok_or_else(|| {
+            ProviderError::Authentication(
+                "AWS region is required for Bedrock mantle endpoint".to_string(),
+            )
+        })?;
+        let token = self.bearer_token.as_deref().ok_or_else(|| {
+            ProviderError::Authentication(
+                "AWS_BEARER_TOKEN_BEDROCK is required for openai.gpt-* models".to_string(),
+            )
+        })?;
+
+        let url = self.mantle_base_url.clone().unwrap_or_else(|| {
+            format!(
+                "https://bedrock-mantle.{}.api.aws/openai/v1/responses",
+                region
+            )
+        });
+
+        let mut req = self
+            .http_client
+            .post(&url)
+            .header(AUTHORIZATION, format!("Bearer {}", token))
+            .json(payload);
+
+        if let Some(id) = session_id.filter(|id| !id.is_empty()) {
+            if let (Ok(name), Ok(value)) = (
+                HeaderName::from_bytes(SESSION_ID_HEADER.as_bytes()),
+                HeaderValue::from_str(id),
+            ) {
+                req = req.header(name, value);
+            }
+        }
+
+        let response = req
+            .send()
+            .await
+            .map_err(|e| ProviderError::RequestFailed(format!("Mantle request failed: {}", e)))?;
+
+        handle_status(response).await
     }
 
     /// Build the request inputs shared by [`Self::converse`] and
@@ -461,7 +529,7 @@ impl BedrockProvider {
             "messages": messages,
             "tools": tools
         });
-        let mut log = RequestLog::start(&self.model, &debug_payload)?;
+        let mut log = start_log(&self.model, &debug_payload)?;
         log.write(
             &serde_json::to_value(&message).unwrap_or_default(),
             Some(&usage),
@@ -645,8 +713,9 @@ impl ProviderDef for BedrockProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 
@@ -676,17 +745,58 @@ impl Provider for BedrockProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = if session_id.is_empty() {
+        let session_id_opt = if session_id.is_empty() {
             None
         } else {
             Some(session_id)
         };
+
+        let without_prefix = model_config
+            .model_name
+            .strip_prefix("openai.")
+            .unwrap_or(&model_config.model_name);
+        let (base_name, effort) = extract_reasoning_effort(without_prefix);
+        let bedrock_model_id = format!("openai.{}", base_name);
+
+        let is_mantle_model = BEDROCK_KNOWN_MODELS.contains(&bedrock_model_id.as_str());
+
+        if is_mantle_model {
+            let mut normalized_config = ModelConfig {
+                model_name: base_name,
+                ..model_config.clone()
+            };
+            // `ModelConfig::new` cannot normalize the effort suffix for `openai.gpt-*` names
+            // because the `openai.` prefix breaks the reasoning-model regex. Inject it here.
+            if let Some(e) = effort {
+                let params = normalized_config
+                    .request_params
+                    .get_or_insert_with(Default::default);
+                params
+                    .entry("thinking_effort".to_string())
+                    .or_insert_with(|| serde_json::json!(e));
+            }
+            let mut payload =
+                create_responses_request(&normalized_config, system, messages, tools)?;
+            payload["model"] = Value::String(bedrock_model_id.clone());
+            payload["stream"] = Value::Bool(true);
+            let mut log = start_log(model_config, &payload).map_err(anyhow::Error::from)?;
+
+            let response = self
+                .with_retry(|| self.post_mantle_streaming(session_id_opt, &payload))
+                .await
+                .inspect_err(|e| {
+                    let _ = log.error(e);
+                })?;
+
+            return stream_responses_compat(response, log);
+        }
+
         let model_name = model_config.model_name.clone();
 
         // Escape hatch: restore the previous blocking-Converse behaviour.
         if self.streaming_disabled() {
             return self
-                .stream_via_converse(session_id, system, messages, tools, &model_name)
+                .stream_via_converse(session_id_opt, system, messages, tools, &model_name)
                 .await;
         }
 
@@ -694,7 +804,7 @@ impl Provider for BedrockProvider {
         // setup only — mid-stream errors are surfaced, not retried (matching
         // the Anthropic provider's behaviour).
         let response = self
-            .with_retry(|| self.converse_stream(session_id, system, messages, tools))
+            .with_retry(|| self.converse_stream(session_id_opt, system, messages, tools))
             .await?;
 
         // Debug trace with input context; the streamed text is written once
@@ -704,7 +814,7 @@ impl Provider for BedrockProvider {
             "messages": messages,
             "tools": tools
         });
-        let mut log = RequestLog::start(&self.model, &debug_payload)?;
+        let mut log = start_log(&self.model, &debug_payload)?;
 
         let mut event_stream = response.stream;
 
@@ -818,6 +928,10 @@ mod tests {
             },
             retry_config: RetryConfig::default(),
             name: "aws_bedrock".to_string(),
+            region: None,
+            bearer_token: None,
+            http_client: reqwest::Client::new(),
+            mantle_base_url: None,
         }
     }
 
@@ -917,6 +1031,106 @@ mod tests {
         );
 
         std::env::remove_var("BEDROCK_ENABLE_CACHING");
+    }
+
+    #[tokio::test]
+    async fn test_post_mantle_streaming_missing_region() {
+        let provider = create_mock_provider("openai.gpt-5.5");
+        let payload = serde_json::json!({"model": "openai.gpt-5.5"});
+        let result = provider.post_mantle_streaming(None, &payload).await;
+        assert!(result.is_err());
+        if let Err(ProviderError::Authentication(msg)) = result {
+            assert!(
+                msg.contains("region"),
+                "Error message should mention region: {}",
+                msg
+            );
+        } else {
+            panic!("Expected ProviderError::Authentication");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_post_mantle_streaming_missing_bearer_token() {
+        let mut provider = create_mock_provider("openai.gpt-5.5");
+        provider.region = Some("us-east-1".to_string());
+
+        let payload = serde_json::json!({"model": "openai.gpt-5.5"});
+        let result = provider.post_mantle_streaming(None, &payload).await;
+        assert!(result.is_err());
+        if let Err(ProviderError::Authentication(msg)) = result {
+            assert!(
+                msg.contains("AWS_BEARER_TOKEN_BEDROCK"),
+                "Error message should mention AWS_BEARER_TOKEN_BEDROCK: {}",
+                msg
+            );
+        } else {
+            panic!("Expected ProviderError::Authentication");
+        }
+    }
+
+    #[tokio::test]
+    async fn test_mantle_stream_returns_text_message() {
+        use futures::StreamExt;
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+
+        let sse_body = [
+            r#"data: {"type":"response.output_text.delta","sequence_number":1,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}"#,
+            r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":" world"}"#,
+            "data: [DONE]",
+        ]
+        .join("\n");
+
+        Mock::given(method("POST"))
+            .and(path("/openai/v1/responses"))
+            .and(header("authorization", "Bearer test-token"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(sse_body, "text/event-stream"))
+            .mount(&server)
+            .await;
+
+        let sdk_config = aws_config::SdkConfig::builder()
+            .behavior_version(aws_config::BehaviorVersion::latest())
+            .region(aws_config::Region::new("us-east-1"))
+            .build();
+
+        let provider = BedrockProvider {
+            client: Client::new(&sdk_config),
+            model: ModelConfig::new("openai.gpt-5.5").unwrap(),
+            retry_config: RetryConfig::default(),
+            name: "aws_bedrock".to_string(),
+            region: Some("us-east-1".to_string()),
+            bearer_token: Some("test-token".to_string()),
+            http_client: reqwest::Client::new(),
+            mantle_base_url: Some(format!("{}/openai/v1/responses", server.uri())),
+        };
+
+        let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
+        let mut stream = provider
+            .stream(&provider.model.clone(), "", "", &messages, &[])
+            .await
+            .unwrap();
+
+        let mut text = String::new();
+        while let Some(item) = stream.next().await {
+            let (msg, _usage) = item.unwrap();
+            if let Some(m) = msg {
+                for c in m.content {
+                    if let MessageContent::Text(t) = c {
+                        text.push_str(&t.text);
+                    }
+                }
+            }
+        }
+
+        assert_eq!(text, "Hello world");
+
+        let received = server.received_requests().await.unwrap();
+        assert_eq!(received.len(), 1);
+        let body: serde_json::Value = serde_json::from_slice(&received[0].body).unwrap();
+        assert_eq!(body["model"].as_str().unwrap(), "openai.gpt-5.5");
     }
 
     // ── ConverseStream event processing ──────────────────────────────────
