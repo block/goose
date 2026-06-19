@@ -11,6 +11,9 @@
   "announcementModal.gotIt": {
     "defaultMessage": "¡Entendido!"
   },
+  "appLayout.collapseNavigation": {
+    "defaultMessage": "Contraer navegación"
+  },
   "appLayout.openNavigation": {
     "defaultMessage": "Abrir navegación"
   },
@@ -2465,9 +2468,6 @@
   "navigationPanel.chats": {
     "defaultMessage": "Chats"
   },
-  "navigationPanel.collapseSidebar": {
-    "defaultMessage": "Contraer barra lateral"
-  },
   "navigationPanel.noChats": {
     "defaultMessage": "No hay chats recientes"
   },
@@ -3758,6 +3758,12 @@
   "securityToggle.warpNotice": {
     "defaultMessage": "La detección de inyección de comandos funciona mejor cuando estás conectado a WARP (necesario para llegar al servicio de clasificación)."
   },
+  "sessionActionsHeader.actionsLabel": {
+    "defaultMessage": "Acciones de la sesión"
+  },
+  "sessionActionsHeader.cancel": {
+    "defaultMessage": "Cancelar"
+  },
   "sessionActionsHeader.close": {
     "defaultMessage": "Cerrar"
   },
@@ -3773,6 +3779,15 @@
   "sessionActionsHeader.copyText": {
     "defaultMessage": "Copiar texto"
   },
+  "sessionActionsHeader.duplicateFailed": {
+    "defaultMessage": "No se pudo duplicar la sesión: {error}"
+  },
+  "sessionActionsHeader.duplicateSession": {
+    "defaultMessage": "Duplicar sesión"
+  },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "Sesión duplicada"
+  },
   "sessionActionsHeader.fullTextTitle": {
     "defaultMessage": "Valor del texto"
   },
@@ -3784,6 +3799,27 @@
   },
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Cargando JSON..."
+  },
+  "sessionActionsHeader.renameFailed": {
+    "defaultMessage": "No se pudo renombrar la sesión: {error}"
+  },
+  "sessionActionsHeader.renamePlaceholder": {
+    "defaultMessage": "Introduce el nombre de la sesión"
+  },
+  "sessionActionsHeader.renameSession": {
+    "defaultMessage": "Renombrar sesión"
+  },
+  "sessionActionsHeader.renameTitle": {
+    "defaultMessage": "Renombrar sesión"
+  },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "Sesión renombrada"
+  },
+  "sessionActionsHeader.save": {
+    "defaultMessage": "Guardar"
+  },
+  "sessionActionsHeader.saving": {
+    "defaultMessage": "Guardando..."
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Ver el JSON de la sesión"

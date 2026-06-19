@@ -995,6 +995,9 @@
   "elicitationRequest.submit": {
     "defaultMessage": "Gönder"
   },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
+  },
   "elicitationRequest.submitted": {
     "defaultMessage": "Bilgiler gönderildi"
   },
@@ -1856,8 +1859,14 @@
   "localInferenceSettings.description": {
     "defaultMessage": "API anahtarları olmadan çıkarım yapmak için yerel LLM modellerini indirin ve yönetin. Herhangi bir GGUF modeli için HuggingFace'yi arayın veya aşağıdaki öne çıkan seçimleri kullanın."
   },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "Kapat"
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "İndir"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "İndirme iptal edildi"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "İndirme başarısız oldu"
@@ -1891,6 +1900,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "{time} kaldı"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "Yeniden dene"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "Tüm öne çıkanları göster ({count} daha fazlası)"
@@ -4111,6 +4123,39 @@
   },
   "settings.help.title": {
     "defaultMessage": "Yardım ve geri bildirim"
+  },
+  "settings.language.description": {
+    "defaultMessage": "goose için görüntüleme dilini seçin"
+  },
+  "settings.language.english": {
+    "defaultMessage": "İngilizce"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "Hintçe"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "Japonca"
+  },
+  "settings.language.korean": {
+    "defaultMessage": "Korece"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "Rusça"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "İspanyolca"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "Sistem varsayılanı"
+  },
+  "settings.language.title": {
+    "defaultMessage": "Dil"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "Türkçe"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "Çince (Basitleştirilmiş)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Menü çubuğunda goose'yi göster"
