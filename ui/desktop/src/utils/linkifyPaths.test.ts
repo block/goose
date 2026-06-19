@@ -271,6 +271,18 @@ describe('path linkification', () => {
       expect(findPaths('Check /tmp/log file for details')[0][1]).toBe('/tmp/log');
     });
 
+    it('does not extend two-char basenames with following prose', () => {
+      expect(findPaths('Created /tmp/ui successfully.')[0][1]).toBe('/tmp/ui');
+      expect(findPaths('Check /tmp/go output')[0][1]).toBe('/tmp/go');
+      expect(findPaths('Created /tmp/ui successfully for review')[0][1]).toBe('/tmp/ui');
+      expect(findPaths('Check /tmp/go output please')[0][1]).toBe('/tmp/go');
+    });
+
+    it('still detects determiner-led spaced folder names after two-char tokens', () => {
+      expect(findPaths('Output in /home/user/my documents')[0][1]).toBe('/home/user/my documents');
+      expect(findPaths('Saved /tmp/my backup data')[0][1]).toBe('/tmp/my backup');
+    });
+
     it('does not extend paths through connective prose before another slash', () => {
       const matches = findPaths('Review /tmp/output and/or /tmp/logs');
       expect(matches[0][1]).toBe('/tmp/output');

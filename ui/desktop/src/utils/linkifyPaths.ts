@@ -126,7 +126,24 @@ function canContinueWithNumericWord(word: string, prevToken: string, after: stri
   );
 }
 
-function isPathLikeSpacedWord(word: string, prevToken: string, after: string | undefined): boolean {
+function hasFollowingSeparator(text: string, endIndex: number, separator: Separator): boolean {
+  let i = endIndex;
+  while (i < text.length && text[i] === ' ') i++;
+  return i < text.length && text[i] === separator;
+}
+
+function isDeterminerLedSpacedFilename(prevToken: string, word: string): boolean {
+  return prevToken === 'my' && /^[a-z][a-z0-9]*$/.test(word) && word.length >= 4;
+}
+
+function isPathLikeSpacedWord(
+  word: string,
+  prevToken: string,
+  after: string | undefined,
+  text: string,
+  endIndex: number,
+  separator: Separator
+): boolean {
   if (isParenthesizedSuffix(prevToken)) return false;
   if (/^\d+$/.test(word)) {
     return canContinueWithNumericWord(word, prevToken, after);
@@ -140,12 +157,18 @@ function isPathLikeSpacedWord(word: string, prevToken: string, after: string | u
       prevToken.length <= 3
     );
   }
-  return (
+  if (
     word.length >= 4 &&
     prevToken.length >= 2 &&
     prevToken.length <= 2 &&
     !prevToken.includes('.')
-  );
+  ) {
+    return (
+      readExtensionWordAhead(text, endIndex) ||
+      hasFollowingSeparator(text, endIndex, separator)
+    );
+  }
+  return false;
 }
 
 function readExtensionWordAhead(text: string, fromIndex: number): boolean {
@@ -170,7 +193,8 @@ function isSpacedFilenameContinuation(
   word: string,
   prevToken: string,
   text: string,
-  endIndex: number
+  endIndex: number,
+  separator: Separator
 ): boolean {
   if (/^\[[^\]]+\]$/.test(word)) {
     const inner = word.slice(1, -1);
@@ -179,7 +203,10 @@ function isSpacedFilenameContinuation(
       (/^[a-z][a-z0-9]*$/.test(inner) || /^\d+$/.test(inner))
     );
   }
-  if (isPathLikeSpacedWord(word, prevToken, text[endIndex])) return true;
+  if (isDeterminerLedSpacedFilename(prevToken, word)) return true;
+  if (isPathLikeSpacedWord(word, prevToken, text[endIndex], text, endIndex, separator)) {
+    return true;
+  }
   return (
     /^[a-z][a-z0-9]*$/.test(word) &&
     /^[A-Za-z]/.test(prevToken) &&
@@ -307,7 +334,7 @@ function readSpacedContinuation(
   }
 
   if (after === undefined || /[.,;:!?)'\]"]/.test(after)) {
-    return isSpacedFilenameContinuation(word, prevToken, text, j) ? j : spaceIndex;
+    return isSpacedFilenameContinuation(word, prevToken, text, j, separator) ? j : spaceIndex;
   }
 
   if (after !== undefined && /\s/.test(after)) {
@@ -316,7 +343,7 @@ function readSpacedContinuation(
       if (rest.startsWith(separator)) return spaceIndex;
       if (hasParenthesizedDirectoryBeforeSeparator(text, j, separator)) return j;
     }
-    return isSpacedFilenameContinuation(word, prevToken, text, j) ? j : spaceIndex;
+    return isSpacedFilenameContinuation(word, prevToken, text, j, separator) ? j : spaceIndex;
   }
 
   return spaceIndex;
