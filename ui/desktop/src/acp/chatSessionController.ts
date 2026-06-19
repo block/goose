@@ -1,5 +1,5 @@
 import { v7 as uuidv7 } from 'uuid';
-import { listApps, updateSessionUserRecipeValues, type Message } from '../api';
+import { updateSessionUserRecipeValues, type Message } from '../api';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 import { errorMessage } from '../utils/conversionUtils';
@@ -21,10 +21,6 @@ import {
   sessionInfoToSession,
 } from './sessions';
 
-export interface AcpSessionLoadHandle {
-  cancel(): void;
-}
-
 export interface AcpLoadSessionOptions {
   onSessionLoaded?: () => void;
 }
@@ -38,7 +34,7 @@ export interface AcpSubmitMessageOptions extends AcpSnapshotOptions {
 }
 
 export interface AcpChatSessionController {
-  loadSession(sessionId: string, options?: AcpLoadSessionOptions): AcpSessionLoadHandle;
+  loadSession(sessionId: string, options?: AcpLoadSessionOptions): Promise<void>;
   submitMessage(
     sessionId: string,
     userMessage: Message,
@@ -76,60 +72,33 @@ function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Mess
   };
 }
 
-function loadSession(sessionId: string, options: AcpLoadSessionOptions = {}): AcpSessionLoadHandle {
-  let cancelled = false;
-
+async function loadSession(
+  sessionId: string,
+  options: AcpLoadSessionOptions = {}
+): Promise<void> {
   const cached = acpChatSessionStore.getSnapshot(sessionId);
   if (cached?.session) {
     window.dispatchEvent(
       new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
     );
     options.onSessionLoaded?.();
-  } else {
-    acpChatSessionActions.startSessionLoad(sessionId);
-
-    (async () => {
-      try {
-        const { sessionInfo, meta } = await acpLoadSession(sessionId);
-
-        if (cancelled) {
-          return;
-        }
-
-        const loadedSession = sessionInfoToSession(sessionInfo, meta);
-        const extensionResults = meta.extensionResults;
-
-        showExtensionLoadResults(extensionResults);
-        window.dispatchEvent(
-          new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
-        );
-
-        acpChatSessionActions.finishSessionLoad(sessionId, loadedSession);
-
-        listApps({
-          throwOnError: true,
-          query: { session_id: sessionId },
-        }).catch((err) => {
-          console.warn('Failed to populate apps cache:', err);
-        });
-
-        options.onSessionLoaded?.();
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-
-        const loadError = errorMessage(error);
-        acpChatSessionActions.failSessionLoad(sessionId, loadError);
-      }
-    })();
+    return;
   }
 
-  return {
-    cancel() {
-      cancelled = true;
-    },
-  };
+  acpChatSessionActions.startSessionLoad(sessionId);
+
+  try {
+    const { sessionInfo, meta } = await acpLoadSession(sessionId);
+
+    showExtensionLoadResults(meta.extensionResults);
+    window.dispatchEvent(
+      new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
+    );
+    acpChatSessionActions.finishSessionLoad(sessionId, sessionInfoToSession(sessionInfo, meta));
+    options.onSessionLoaded?.();
+  } catch (error) {
+    acpChatSessionActions.failSessionLoad(sessionId, errorMessage(error));
+  }
 }
 
 async function submitMessage(

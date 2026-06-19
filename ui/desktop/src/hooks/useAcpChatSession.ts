@@ -109,7 +109,7 @@ export function useAcpChatSession({
 
       onStreamFinish();
     },
-    [intl, onStreamFinish, sessionId]
+    [intl, onStreamFinish]
   );
 
   const submitToAcpSession = useCallback(
@@ -129,11 +129,7 @@ export function useAcpChatSession({
   useEffect(() => {
     if (!sessionId) return;
 
-    const loadHandle = acpChatSessionController.loadSession(sessionId, { onSessionLoaded });
-
-    return () => {
-      loadHandle.cancel();
-    };
+    void acpChatSessionController.loadSession(sessionId, { onSessionLoaded });
   }, [sessionId, onSessionLoaded]);
 
   const handleSubmit = useCallback(
