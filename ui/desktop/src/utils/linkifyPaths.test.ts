@@ -142,6 +142,27 @@ describe('path linkification', () => {
       );
     });
 
+    it('detects paths with uppercase extension words after spaced segments', () => {
+      expect(findPaths('Saved /tmp/project notes Draft.txt')[0][1]).toBe(
+        '/tmp/project notes Draft.txt'
+      );
+      expect(findPaths('Saved /tmp/project notes FINAL.pdf')[0][1]).toBe(
+        '/tmp/project notes FINAL.pdf'
+      );
+      expect(findPaths('Saved /tmp/My Project Report.DOCX')[0][1]).toBe(
+        '/tmp/My Project Report.DOCX'
+      );
+    });
+
+    it('detects paths with mixed-case multi-word filenames ending in extension', () => {
+      expect(findPaths('Saved /tmp/project notes draft Final.txt')[0][1]).toBe(
+        '/tmp/project notes draft Final.txt'
+      );
+      expect(findPaths('Saved /tmp/project notes Draft.txt.')[0][1]).toBe(
+        '/tmp/project notes Draft.txt'
+      );
+    });
+
     it('strips trailing line and column suffixes from paths', () => {
       expect(findPaths('error at /workspace/src/lib.rs:42:7')[0][1]).toBe('/workspace/src/lib.rs');
       expect(findPaths('error at /workspace/src/lib.rs:42')[0][1]).toBe('/workspace/src/lib.rs');
@@ -268,6 +289,19 @@ describe('path linkification', () => {
       expect(findPaths('Visit example.com?file=/tmp/out')).toHaveLength(0);
       expect(findPaths('Visit example.com?artifact=/tmp/out.log')).toHaveLength(0);
       expect(findPaths('Visit example.com?path=/tmp/out&other=1')).toHaveLength(0);
+    });
+
+    it('does not linkify paths inside URL query values with bracketed keys', () => {
+      expect(findPaths('See https://host/download?file[]=/tmp/out')).toHaveLength(0);
+      expect(findPaths('See https://host/download?items[0]=/tmp/out')).toHaveLength(0);
+      expect(findPaths('See https://host/download?data[key]=/tmp/out.log')).toHaveLength(0);
+      expect(findPaths('Visit example.com?file[]=/tmp/out&other=1')).toHaveLength(0);
+    });
+
+    it('does not linkify paths inside URL query values with percent-encoded keys', () => {
+      expect(findPaths('See https://host/download?file%5B%5D=/tmp/out')).toHaveLength(0);
+      expect(findPaths('See https://host/download?items%5B0%5D=/tmp/out.log')).toHaveLength(0);
+      expect(findPaths('Visit example.com?file%5B%5D=/tmp/out')).toHaveLength(0);
     });
 
     it('does not linkify paths inside URL fragment or path-parameter values', () => {

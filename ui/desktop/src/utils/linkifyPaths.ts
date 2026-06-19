@@ -77,10 +77,14 @@ function isUrlPathAt(text: string, index: number): boolean {
   return scheme.length > 0 && /[a-zA-Z]/.test(scheme[0]);
 }
 
+function isQueryParamKeyChar(char: string): boolean {
+  return /[a-zA-Z0-9_.$\[\]%-]/.test(char);
+}
+
 function isAssignmentEqualsStart(text: string, index: number): boolean {
   if (text[index - 1] !== '=') return false;
   let i = index - 2;
-  while (i >= 0 && /[a-zA-Z0-9_.$-]/.test(text[i])) {
+  while (i >= 0 && isQueryParamKeyChar(text[i])) {
     i--;
   }
   return !(i >= 0 && URL_PARAM_DELIMITERS.has(text[i]));
@@ -155,7 +159,7 @@ function readExtensionWordAhead(text: string, fromIndex: number): boolean {
     }
     if (j === i) return false;
     const word = text.slice(i, j).replace(TRAILING_PUNCTUATION_RE, '');
-    if (hasFileExtension(word) && /^[a-z]/.test(word)) return true;
+    if (hasFileExtension(word)) return true;
     if (!/^[a-z][a-z0-9]*$/.test(word)) return false;
     i = j;
   }
