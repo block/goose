@@ -19,9 +19,7 @@ function stripTrailingPunctuation(path: string): string {
 }
 
 function stripLineColumnSuffix(path: string): string {
-  const match = path.match(
-    /\.(?:rs|c|cpp|cxx|cc|h|hpp|go|java|js|jsx|ts|tsx|py|rb|swift|kt|scala|cs|php|m|mm|vue|svelte)(:\d+(?::\d+)?)$/i
-  );
+  const match = path.match(/\.[A-Za-z0-9]+(:\d+(?::\d+)?)$/);
   if (match) {
     return path.slice(0, -match[1].length);
   }
@@ -115,7 +113,11 @@ function isSpacedFilenameContinuation(
   endIndex: number
 ): boolean {
   if (/^\[[^\]]+\]$/.test(word)) {
-    return prevToken.length >= 2;
+    const inner = word.slice(1, -1);
+    return (
+      prevToken.length >= 2 &&
+      (/^[a-z][a-z0-9]*$/.test(inner) || /^\d+$/.test(inner))
+    );
   }
   if (isPathLikeSpacedWord(word, prevToken)) return true;
   return (

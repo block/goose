@@ -101,6 +101,10 @@ describe('path linkification', () => {
     it('strips trailing line and column suffixes from paths', () => {
       expect(findPaths('error at /workspace/src/lib.rs:42:7')[0][1]).toBe('/workspace/src/lib.rs');
       expect(findPaths('error at /workspace/src/lib.rs:42')[0][1]).toBe('/workspace/src/lib.rs');
+      expect(findPaths('error at /workspace/goose/Cargo.toml:12:5')[0][1]).toBe(
+        '/workspace/goose/Cargo.toml'
+      );
+      expect(findPaths('See /project/README.md:3 for details')[0][1]).toBe('/project/README.md');
     });
 
     it('preserves colon-number suffixes in filenames', () => {
@@ -114,6 +118,10 @@ describe('path linkification', () => {
 
     it('detects paths with spaced bracket suffixes', () => {
       expect(findPaths('Saved /tmp/log [draft]')[0][1]).toBe('/tmp/log [draft]');
+    });
+
+    it('does not absorb bracket status annotations after paths', () => {
+      expect(findPaths('Created /tmp/out [OK] for upload')[0][1]).toBe('/tmp/out');
     });
 
     it('does not absorb explanatory parentheticals after paths', () => {
