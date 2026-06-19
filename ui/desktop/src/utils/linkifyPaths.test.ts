@@ -186,6 +186,17 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/home/user/my documents');
     });
 
+    it('includes spaced folder names before newline terminators', () => {
+      expect(findPaths('Saved /home/user/my documents\nDone')[0][1]).toBe(
+        '/home/user/my documents'
+      );
+    });
+
+    it('detects paths after assignment separators', () => {
+      expect(findPaths('artifact=/tmp/out.log')[0][1]).toBe('/tmp/out.log');
+      expect(findPaths('--output=/tmp/out')[0][1]).toBe('/tmp/out');
+    });
+
     it('does not match URLs', () => {
       const matches = findPaths('Visit https://example.com/page for info');
       expect(matches).toHaveLength(0);

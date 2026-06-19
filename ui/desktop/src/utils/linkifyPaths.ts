@@ -50,7 +50,7 @@ function isCandidatePathStart(text: string, index: number, afterBlockComment: bo
   if (index === 0) return true;
   if (isUrlPathAt(text, index)) return false;
   const prev = text[index - 1];
-  if (/[\s('"`[(,;]/.test(prev)) return true;
+  if (/[\s('"`[(,;=]/.test(prev)) return true;
   return afterBlockComment;
 }
 
@@ -199,9 +199,11 @@ function readSpacedContinuation(
     return isSpacedFilenameContinuation(word, prevToken, text, j) ? j : spaceIndex;
   }
 
-  if (after === ' ') {
-    const rest = text.slice(j).trimStart();
-    if (rest.startsWith(separator)) return spaceIndex;
+  if (after !== undefined && /\s/.test(after)) {
+    if (after === ' ') {
+      const rest = text.slice(j).trimStart();
+      if (rest.startsWith(separator)) return spaceIndex;
+    }
     return isSpacedFilenameContinuation(word, prevToken, text, j) ? j : spaceIndex;
   }
 
