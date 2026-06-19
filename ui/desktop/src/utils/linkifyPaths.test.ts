@@ -74,6 +74,11 @@ describe('path linkification', () => {
       expect(matches).toHaveLength(1);
       expect(matches[0][1]).toBe('C:\\Users\\dev\\My Project\\index.ts');
     });
+
+    it('does not treat prose labels as Windows paths', () => {
+      expect(findPaths('Option A:retry')).toHaveLength(0);
+      expect(findPaths('Status C:passed')).toHaveLength(0);
+    });
   });
 
   describe('Edge cases', () => {

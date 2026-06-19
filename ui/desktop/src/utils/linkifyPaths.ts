@@ -286,10 +286,11 @@ function parsePathAt(text: string, index: number): PathMatch | null {
     minSegments = 1;
   } else if (/[A-Za-z]/.test(text[i] ?? '') && text[i + 1] === ':') {
     i += 2;
-    if (text[i] === '/' || text[i] === '\\') {
-      separator = text[i] as Separator;
-      i++;
+    if (text[i] !== '/' && text[i] !== '\\') {
+      return null;
     }
+    separator = text[i] as Separator;
+    i++;
     minSegments = 1;
   } else {
     return null;
