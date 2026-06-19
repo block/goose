@@ -38,6 +38,7 @@ import { compressImageDataUrl } from '../utils/conversionUtils';
 import { fetchCanonicalModelInfo } from '../utils/canonical';
 import { defineMessages, useIntl } from '../i18n';
 import TurndownService from 'turndown';
+import type { NextChatExtensionDraft } from '../utils/nextChatExtensions';
 
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -198,6 +199,8 @@ interface ChatInputProps {
   sessionLoaded?: boolean;
   workingDir?: string | null;
   latestInference?: Message['metadata']['inference'] | null;
+  nextChatExtensionDraft?: NextChatExtensionDraft;
+  onNextChatExtensionDraftChange?: (draft: NextChatExtensionDraft) => void;
 }
 
 export default function ChatInput({
@@ -231,6 +234,8 @@ export default function ChatInput({
   sessionLoaded,
   workingDir,
   latestInference,
+  nextChatExtensionDraft,
+  onNextChatExtensionDraftChange,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -1638,7 +1643,11 @@ export default function ChatInput({
             />
 
             {/* Right: extension selector */}
-            <BottomMenuExtensionSelection sessionId={sessionId} />
+            <BottomMenuExtensionSelection
+              sessionId={sessionId}
+              nextChatExtensionDraft={nextChatExtensionDraft}
+              onNextChatExtensionDraftChange={onNextChatExtensionDraftChange}
+            />
 
             {/* Right: diagnostics */}
             {sessionId && (
