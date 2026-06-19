@@ -19,7 +19,13 @@ function stripTrailingPunctuation(path: string): string {
 }
 
 function stripLineColumnSuffix(path: string): string {
-  return path.replace(/:\d+(?::\d+)?$/, '');
+  const match = path.match(
+    /\.(?:rs|c|cpp|cxx|cc|h|hpp|go|java|js|jsx|ts|tsx|py|rb|swift|kt|scala|cs|php|m|mm|vue|svelte)(:\d+(?::\d+)?)$/i
+  );
+  if (match) {
+    return path.slice(0, -match[1].length);
+  }
+  return path;
 }
 
 function isUrlPathAt(text: string, index: number): boolean {
@@ -248,6 +254,10 @@ function isPathTerminator(char: string): boolean {
   return /[.,;:!'"`)\]]/.test(char);
 }
 
+function isPathBoundary(char: string): boolean {
+  return /\s/.test(char) || isPathTerminator(char);
+}
+
 function parsePathAt(text: string, index: number): PathMatch | null {
   let i = index;
   let separator: Separator = '/';
@@ -276,7 +286,7 @@ function parsePathAt(text: string, index: number): PathMatch | null {
     if (!segment) {
       if (segmentCount >= minSegments && i < text.length) {
         const next = text[i];
-        if (next !== separator && next !== ' ' && !isPathTerminator(next)) {
+        if (next !== separator && !isPathBoundary(next)) {
           return null;
         }
       }
@@ -288,7 +298,7 @@ function parsePathAt(text: string, index: number): PathMatch | null {
       i++;
       continue;
     }
-    if (i < text.length && text[i] !== ' ' && !isPathTerminator(text[i])) {
+    if (i < text.length && !isPathBoundary(text[i])) {
       return null;
     }
     break;

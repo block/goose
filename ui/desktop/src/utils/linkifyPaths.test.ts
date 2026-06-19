@@ -100,6 +100,16 @@ describe('path linkification', () => {
 
     it('strips trailing line and column suffixes from paths', () => {
       expect(findPaths('error at /workspace/src/lib.rs:42:7')[0][1]).toBe('/workspace/src/lib.rs');
+      expect(findPaths('error at /workspace/src/lib.rs:42')[0][1]).toBe('/workspace/src/lib.rs');
+    });
+
+    it('preserves colon-number suffixes in filenames', () => {
+      expect(findPaths('Saved /tmp/snapshot:1')[0][1]).toBe('/tmp/snapshot:1');
+      expect(findPaths('Saved /tmp/2026-06-18T18:30:00')[0][1]).toBe('/tmp/2026-06-18T18:30:00');
+    });
+
+    it('detects paths followed by tab-separated text', () => {
+      expect(findPaths('See /tmp/out\tOK')[0][1]).toBe('/tmp/out');
     });
 
     it('detects paths with dots and underscores', () => {
