@@ -69,6 +69,12 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/var/log/app.log');
     });
 
+    it('detects paths wrapped in parentheses or brackets', () => {
+      expect(findPaths('See (/tmp/out)')[0][1]).toBe('/tmp/out');
+      expect(findPaths('See (C:\\Users\\dev\\file.txt)')[0][1]).toBe('C:\\Users\\dev\\file.txt');
+      expect(findPaths('See [/tmp/out]')[0][1]).toBe('/tmp/out');
+    });
+
     it('detects paths with dots and underscores', () => {
       const matches = findPaths('Read /home/user/.env.local');
       expect(matches).toHaveLength(1);
