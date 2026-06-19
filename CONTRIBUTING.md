@@ -25,6 +25,24 @@ is a good start. Linking your fix to an existing issue shows that you are respon
 If your first PR gets closed with a link to this section, please don’t take it personally. 
 It just means the change was too large for a first contribution. Start with something smaller and try again.
 
+## New Contributor Fast Path (30 minutes)
+
+If you are contributing for the first time, this path gets you from clone to a clean, reviewable PR quickly:
+
+1. **Activate dependencies** with `source bin/activate-hermit`.
+2. **Run a smoke test** to verify setup:
+   - CLI: `cargo run -p goose-cli -- --help`
+   - UI (optional): `just run-ui`
+3. **Pick a small issue** and keep scope tight (single bug, doc fix, or focused improvement).
+4. **Run quality checks** before opening PR:
+   - `cargo check`
+   - `cargo test`
+   - `cargo fmt`
+   - `cargo clippy --all-targets -- -D warnings`
+5. **Open PR with context**: link issue, describe behavior change, and note how you tested it.
+
+This fast path is designed to reduce first-PR friction and help maintainers review quickly.
+
 ## Discussions, Issues and PRs
 
 ### Issues
