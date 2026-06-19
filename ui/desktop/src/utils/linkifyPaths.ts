@@ -79,24 +79,31 @@ function isParenthesizedSuffix(token: string): boolean {
   return /^\([^)]+\)$/.test(token);
 }
 
-function isPathLikeSpacedWord(word: string, prevToken: string): boolean {
+function hasFileExtension(word: string): boolean {
+  return /\.[A-Za-z0-9]+$/.test(word);
+}
+
+function canContinueWithNumericWord(word: string, prevToken: string, after: string | undefined): boolean {
+  return (
+    word.length >= 4 &&
+    /^[A-Z]/.test(prevToken) &&
+    (after === undefined || isPathTerminator(after))
+  );
+}
+
+function isPathLikeSpacedWord(word: string, prevToken: string, after: string | undefined): boolean {
   if (isParenthesizedSuffix(prevToken)) return false;
   if (/^\d+$/.test(word)) {
-    return word.length >= 4;
+    return canContinueWithNumericWord(word, prevToken, after);
   }
+  if (hasFileExtension(word)) return true;
   if (/^[A-Z]/.test(word)) {
-    if (/\.[A-Za-z0-9]+$/.test(word)) {
-      return /^[A-Z]/.test(prevToken);
-    }
     return (
       /^[A-Z]/.test(prevToken) &&
       word.length >= 4 &&
       prevToken.length >= 2 &&
       prevToken.length <= 3
     );
-  }
-  if (/\.[A-Za-z0-9]+$/.test(word) && /^[a-z]/.test(prevToken)) {
-    return true;
   }
   return (
     word.length >= 4 &&
@@ -117,7 +124,7 @@ function readExtensionWordAhead(text: string, fromIndex: number): boolean {
     }
     if (j === i) return false;
     const word = text.slice(i, j).replace(TRAILING_PUNCTUATION_RE, '');
-    if (/\.[A-Za-z0-9]+$/.test(word) && /^[a-z]/.test(word)) return true;
+    if (hasFileExtension(word) && /^[a-z]/.test(word)) return true;
     if (!/^[a-z][a-z0-9]*$/.test(word)) return false;
     i = j;
   }
@@ -137,7 +144,7 @@ function isSpacedFilenameContinuation(
       (/^[a-z][a-z0-9]*$/.test(inner) || /^\d+$/.test(inner))
     );
   }
-  if (isPathLikeSpacedWord(word, prevToken)) return true;
+  if (isPathLikeSpacedWord(word, prevToken, text[endIndex])) return true;
   return (
     /^[a-z][a-z0-9]*$/.test(word) &&
     /^[a-z]/.test(prevToken) &&

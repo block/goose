@@ -111,6 +111,18 @@ describe('path linkification', () => {
       expect(findPaths('Saved /tmp/project notes.txt')[0][1]).toBe('/tmp/project notes.txt');
     });
 
+    it('detects extension-bearing spaced filenames after titlecase basenames', () => {
+      expect(findPaths('Saved /tmp/Project notes.txt')[0][1]).toBe('/tmp/Project notes.txt');
+    });
+
+    it('detects extension-bearing spaced filenames after acronym basenames', () => {
+      expect(findPaths('Saved /tmp/API response.json')[0][1]).toBe('/tmp/API response.json');
+    });
+
+    it('detects multi-dot extension-bearing spaced filenames', () => {
+      expect(findPaths('Saved /tmp/My draft.final.md')[0][1]).toBe('/tmp/My draft.final.md');
+    });
+
     it('detects paths with multiple lowercase spaced filename words', () => {
       expect(findPaths('Saved /tmp/project notes draft.txt')[0][1]).toBe(
         '/tmp/project notes draft.txt'
@@ -335,6 +347,14 @@ describe('path linkification', () => {
       const matches = findPaths('Created /tmp/out 2 files');
       expect(matches).toHaveLength(1);
       expect(matches[0][1]).toBe('/tmp/out');
+    });
+
+    it('does not extend paths with bare 4+ digit prose counts', () => {
+      expect(findPaths('Created /tmp/out 2026 files')[0][1]).toBe('/tmp/out');
+    });
+
+    it('does not extend capitalized basenames with bare 4+ digit prose counts', () => {
+      expect(findPaths('Created /tmp/Report 2026 files')[0][1]).toBe('/tmp/Report');
     });
 
     it('does not extend capitalized paths with short numeric counts', () => {
