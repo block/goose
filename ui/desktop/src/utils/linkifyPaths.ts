@@ -182,7 +182,7 @@ function isSpacedFilenameContinuation(
   if (isPathLikeSpacedWord(word, prevToken, text[endIndex])) return true;
   return (
     /^[a-z][a-z0-9]*$/.test(word) &&
-    /^[a-z]/.test(prevToken) &&
+    /^[A-Za-z]/.test(prevToken) &&
     readExtensionWordAhead(text, endIndex)
   );
 }

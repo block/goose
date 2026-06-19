@@ -154,6 +154,30 @@ describe('path linkification', () => {
       );
     });
 
+    it('detects multi-word spaced filenames after titlecase basenames', () => {
+      expect(findPaths('Saved /tmp/Project notes draft.txt')[0][1]).toBe(
+        '/tmp/Project notes draft.txt'
+      );
+      expect(findPaths('Saved /tmp/Project notes draft.txt.')[0][1]).toBe(
+        '/tmp/Project notes draft.txt'
+      );
+      expect(findPaths('Saved /tmp/Project notes Draft.txt')[0][1]).toBe(
+        '/tmp/Project notes Draft.txt'
+      );
+    });
+
+    it('detects multi-word spaced filenames after acronym basenames', () => {
+      expect(findPaths('Saved /tmp/API response data.json')[0][1]).toBe(
+        '/tmp/API response data.json'
+      );
+      expect(findPaths('Saved /tmp/API response data.json.')[0][1]).toBe(
+        '/tmp/API response data.json'
+      );
+      expect(findPaths('Saved /tmp/API response DATA.json')[0][1]).toBe(
+        '/tmp/API response DATA.json'
+      );
+    });
+
     it('detects paths with mixed-case multi-word filenames ending in extension', () => {
       expect(findPaths('Saved /tmp/project notes draft Final.txt')[0][1]).toBe(
         '/tmp/project notes draft Final.txt'
