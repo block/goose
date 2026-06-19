@@ -10,13 +10,15 @@ import ChatInput from './ChatInput';
 import { ChatInputCard } from './ChatInputCard';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { useFileDrop } from '../hooks/useFileDrop';
-import { Message } from '../api';
+import { Message, updateWorkingDir } from '../api';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useNavigationContextSafe } from './Layout/NavigationContext';
 import { cn } from '../utils';
 import { useChatSession } from '../hooks/useChatSession';
+import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
+import { acpUpdateWorkingDir } from '../acp/sessions';
 import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
@@ -122,10 +124,23 @@ export default function BaseChat({
   });
 
   const handleWorkingDirChange = useCallback(
-    (newDir: string) => {
+    async (newDir: string) => {
+      if (USE_ACP_CHAT) {
+        if (!session) {
+          throw new Error('Cannot update working directory before ACP session is loaded');
+        }
+
+        await acpUpdateWorkingDir(session.id, newDir);
+      } else {
+        await updateWorkingDir({
+          body: { session_id: sessionId, working_dir: newDir },
+          throwOnError: true,
+        });
+      }
+
       updateSession((currentSession) => ({ ...currentSession, working_dir: newDir }));
     },
-    [updateSession]
+    [session, sessionId, updateSession]
   );
 
   const recipe = session?.recipe;

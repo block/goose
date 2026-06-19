@@ -207,6 +207,11 @@ export async function acpRenameSession(sessionId: string, title: string): Promis
   await client.goose.sessionRename_unstable({ sessionId, title });
 }
 
+export async function acpUpdateWorkingDir(sessionId: string, workingDir: string): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.sessionWorkingDirUpdate_unstable({ sessionId, workingDir });
+}
+
 export async function acpTruncateSessionConversation(
   sessionId: string,
   truncateFrom: number

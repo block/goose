@@ -9,7 +9,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '../ui/dropdown-menu';
-import { updateWorkingDir } from '../../api';
 import { toast } from 'react-toastify';
 import { defineMessages, useIntl } from '../../i18n';
 
@@ -48,7 +47,7 @@ interface DirSwitcherProps {
   className: string;
   sessionId: string | undefined;
   workingDir: string;
-  onWorkingDirChange?: (newDir: string) => void;
+  onWorkingDirChange?: (newDir: string) => Promise<void> | void;
   onRestartStart?: () => void;
   onRestartEnd?: () => void;
 }
@@ -101,10 +100,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
       onRestartStart?.();
 
       try {
-        await updateWorkingDir({
-          body: { session_id: sessionId, working_dir: newDir },
-        });
-        onWorkingDirChange?.(newDir);
+        await onWorkingDirChange?.(newDir);
       } catch (error) {
         console.error('[DirSwitcher] Failed to update working directory:', error);
         toast.error(intl.formatMessage(i18n.failedToUpdateWorkingDir));
@@ -112,7 +108,7 @@ export const DirSwitcher: React.FC<DirSwitcherProps> = ({
         onRestartEnd?.();
       }
     } else {
-      onWorkingDirChange?.(newDir);
+      await onWorkingDirChange?.(newDir);
     }
   };
 

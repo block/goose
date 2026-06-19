@@ -16,6 +16,7 @@ import { cn } from '../utils';
 import { AlertType, useAlerts } from './alerts';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
+import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
@@ -190,7 +191,7 @@ interface ChatInputProps {
   initialPrompt?: string;
   toolCount: number;
   append?: (message: Message) => void;
-  onWorkingDirChange?: (newDir: string) => void;
+  onWorkingDirChange?: (newDir: string) => Promise<void> | void;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
   sessionModel?: string | null;
   sessionProvider?: string | null;
@@ -1602,14 +1603,14 @@ export default function ChatInput({
             className=""
             sessionId={sessionId ?? undefined}
             workingDir={currentWorkingDir}
-            onWorkingDirChange={(newDir) => {
+            onWorkingDirChange={async (newDir) => {
+              await onWorkingDirChange?.(newDir);
               setWorkingDirOverride(newDir);
-              if (onWorkingDirChange) {
-                onWorkingDirChange(newDir);
-              }
             }}
-            onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
-            onRestartEnd={() => setChatState?.(ChatState.Idle)}
+            onRestartStart={
+              USE_ACP_CHAT ? undefined : () => setChatState?.(ChatState.RestartingAgent)
+            }
+            onRestartEnd={USE_ACP_CHAT ? undefined : () => setChatState?.(ChatState.Idle)}
           />
         )}
 
