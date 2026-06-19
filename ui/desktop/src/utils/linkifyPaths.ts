@@ -280,7 +280,7 @@ function parsePathAt(text: string, index: number): PathMatch | null {
 
   if (text[i] === '/') {
     i++;
-    minSegments = 2;
+    minSegments = 1;
   } else if (text[i] === '~' && text[i + 1] === '/') {
     i += 2;
     minSegments = 1;

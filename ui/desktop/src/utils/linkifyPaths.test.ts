@@ -10,9 +10,14 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/home/user/project/src/main.rs');
     });
 
-    it('does not match single-segment paths', () => {
+    it('does not match bare root path', () => {
       const matches = findPaths('Go to / for root');
       expect(matches).toHaveLength(0);
+    });
+
+    it('detects top-level absolute directories', () => {
+      expect(findPaths('Saved to /tmp')[0][1]).toBe('/tmp');
+      expect(findPaths('Saved to /workspace')[0][1]).toBe('/workspace');
     });
 
     it('detects multiple paths in one line', () => {
