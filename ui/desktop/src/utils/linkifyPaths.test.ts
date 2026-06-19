@@ -268,6 +268,15 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/Users/me/Downloads/report (final).pdf');
     });
 
+    it('detects paths with spaced or hyphenated parenthesized suffixes', () => {
+      expect(findPaths('Saved /Users/me/Downloads/report (final copy).pdf')[0][1]).toBe(
+        '/Users/me/Downloads/report (final copy).pdf'
+      );
+      expect(findPaths('Saved /tmp/report (final-draft).pdf')[0][1]).toBe(
+        '/tmp/report (final-draft).pdf'
+      );
+    });
+
     it('detects paths with alphanumeric parenthesized filename suffixes', () => {
       const matches = findPaths('Saved /Users/me/Downloads/report (v2).pdf');
       expect(matches).toHaveLength(1);

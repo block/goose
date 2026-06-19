@@ -149,6 +149,11 @@ function isLinkLikeParent(parent: Parent | undefined): boolean {
   return parent?.type === 'link' || parent?.type === 'linkReference';
 }
 
+function isParenthesizedFilenameContent(content: string): boolean {
+  if (/^\d+$/.test(content)) return true;
+  return /^[a-zA-Z0-9]+(?:[ -][a-zA-Z0-9]+)*$/.test(content);
+}
+
 function readParenthesizedSuffix(text: string, spaceIndex: number): number {
   if (text[spaceIndex] !== ' ') return spaceIndex;
 
@@ -164,7 +169,7 @@ function readParenthesizedSuffix(text: string, spaceIndex: number): number {
   if (i >= text.length) return spaceIndex;
 
   const content = text.slice(contentStart, i);
-  if (!/^[a-zA-Z0-9]+$/.test(content)) return spaceIndex;
+  if (!isParenthesizedFilenameContent(content)) return spaceIndex;
 
   i++;
   const afterParen = i;
@@ -177,7 +182,7 @@ function readParenthesizedSuffix(text: string, spaceIndex: number): number {
   if (i > afterParen) {
     return i;
   }
-  if (/^[a-zA-Z0-9]{1,4}$/.test(content) && /\d/.test(content)) {
+  if (!/[ -]/.test(content) && /^[a-zA-Z0-9]{1,4}$/.test(content) && /\d/.test(content)) {
     return afterParen;
   }
   return spaceIndex;
