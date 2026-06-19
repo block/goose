@@ -180,16 +180,18 @@ export function isAcpSessionLoadInFlight(sessionId: string): boolean {
 
 async function loadAcpSession(sessionId: string): Promise<AcpLoadSessionResult> {
   const client = await getAcpClient();
-  const sessionInfoResponse = await client.goose.sessionInfo_unstable({ sessionId });
-  const sessionInfo = sessionInfoResponse.session;
+  const initialSessionInfoResponse = await client.goose.sessionInfo_unstable({ sessionId });
+  const initialSessionInfo = initialSessionInfoResponse.session;
   const response = await client.loadSession({
     sessionId,
-    cwd: sessionInfo.cwd,
+    cwd: initialSessionInfo.cwd,
     mcpServers: [],
   });
+  // Loading can populate missing provider/model metadata.
+  const sessionInfoResponse = await client.goose.sessionInfo_unstable({ sessionId });
 
   return {
-    sessionInfo,
+    sessionInfo: sessionInfoResponse.session,
     response,
     meta: parseLoadMeta(response),
   };
