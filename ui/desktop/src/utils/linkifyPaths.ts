@@ -158,7 +158,7 @@ function isLinkLikeParent(parent: Parent | undefined): boolean {
 
 function isParenthesizedFilenameContent(content: string): boolean {
   if (/^\d+$/.test(content)) return true;
-  return /^[a-zA-Z0-9]+(?:[ -][a-zA-Z0-9]+)*$/.test(content);
+  return /^[a-zA-Z0-9._]+(?:[ -][a-zA-Z0-9._]+)*$/.test(content);
 }
 
 function readParenthesizedContent(text: string, openIndex: number): number {

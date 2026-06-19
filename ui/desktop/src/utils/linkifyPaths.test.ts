@@ -305,6 +305,30 @@ describe('path linkification', () => {
       expect(matches[0][1]).toBe('/Users/me/Downloads/report (v2).pdf');
     });
 
+    it('detects paths with dotted version parenthesized suffixes', () => {
+      expect(findPaths('Saved /tmp/report (v1.2).pdf')[0][1]).toBe('/tmp/report (v1.2).pdf');
+      expect(findPaths('Saved /tmp/report (v1.2.3).pdf')[0][1]).toBe('/tmp/report (v1.2.3).pdf');
+      expect(findPaths('Saved /tmp/report(v1.2).pdf')[0][1]).toBe('/tmp/report(v1.2).pdf');
+    });
+
+    it('detects paths with underscored parenthesized suffixes', () => {
+      expect(findPaths('Saved /tmp/report (final_v2).pdf')[0][1]).toBe('/tmp/report (final_v2).pdf');
+      expect(findPaths('Saved /tmp/report (draft_v2).pdf')[0][1]).toBe('/tmp/report (draft_v2).pdf');
+      expect(findPaths('Saved /tmp/report(final_v2).pdf')[0][1]).toBe('/tmp/report(final_v2).pdf');
+    });
+
+    it('detects paths with spaced version parenthesized suffixes', () => {
+      expect(findPaths('Saved /tmp/report (final copy v2).pdf')[0][1]).toBe(
+        '/tmp/report (final copy v2).pdf'
+      );
+    });
+
+    it('does not absorb dotted parenthetical prose without extension', () => {
+      expect(findPaths('Created /tmp/out (temporary) for debugging')[0][1]).toBe('/tmp/out');
+      expect(findPaths('Created /tmp/report (temp) for debugging')[0][1]).toBe('/tmp/report');
+      expect(findPaths('Created /tmp/out(temporary) for debugging')[0][1]).toBe('/tmp/out');
+    });
+
     it('preserves closing parens in parenthesized paths without extension', () => {
       const matches = findPaths('Saved /Users/me/Downloads/report (1)');
       expect(matches).toHaveLength(1);
