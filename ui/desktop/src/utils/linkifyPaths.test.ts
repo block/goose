@@ -155,6 +155,13 @@ describe('path linkification', () => {
       expect(findPaths('error at /workspace/Dockerfile:12')[0][1]).toBe('/workspace/Dockerfile');
       expect(findPaths('error at /workspace/Makefile:8:1')[0][1]).toBe('/workspace/Makefile');
       expect(findPaths('See /project/README:5 for details')[0][1]).toBe('/project/README');
+      expect(findPaths('error at /crates/goose-sdk/justfile:12')[0][1]).toBe(
+        '/crates/goose-sdk/justfile'
+      );
+      expect(findPaths('error at /repo/dockerfile:3:1')[0][1]).toBe('/repo/dockerfile');
+      expect(findPaths('error at /repo/makefile:42')[0][1]).toBe('/repo/makefile');
+      expect(findPaths('error at /ci/Jenkinsfile:7')[0][1]).toBe('/ci/Jenkinsfile');
+      expect(findPaths('error at /app/Procfile:2')[0][1]).toBe('/app/Procfile');
     });
 
     it('preserves colon-number suffixes in filenames', () => {
@@ -252,6 +259,16 @@ describe('path linkification', () => {
     it('does not linkify paths inside URL query values', () => {
       expect(findPaths('See `https://host/download?file=/tmp/out`')).toHaveLength(0);
       expect(findPaths('Visit example.com?file=/tmp/out')).toHaveLength(0);
+      expect(findPaths('Visit example.com?artifact=/tmp/out.log')).toHaveLength(0);
+      expect(findPaths('Visit example.com?path=/tmp/out&other=1')).toHaveLength(0);
+    });
+
+    it('does not linkify paths inside URL fragment or path-parameter values', () => {
+      expect(findPaths('See https://host/page#file=/tmp/out')).toHaveLength(0);
+      expect(findPaths('See https://host/download;file=/tmp/out')).toHaveLength(0);
+      expect(findPaths('See https://host/page#artifact=/tmp/out.log')).toHaveLength(0);
+      expect(findPaths('See https://host/download;output=/tmp/out')).toHaveLength(0);
+      expect(findPaths('See https://host/page#path=/tmp/out&other=1')).toHaveLength(0);
     });
 
     it('does not match URLs', () => {

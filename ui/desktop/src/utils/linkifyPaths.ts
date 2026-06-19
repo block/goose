@@ -6,6 +6,25 @@ const OPEN_FILE_PROTOCOL = 'open-file://';
 
 const TRAILING_PUNCTUATION_RE = /[.,;:!?'"]+$/;
 
+const EXTENSIONLESS_DIAGNOSTIC_FILENAMES = new Set([
+  'dockerfile',
+  'justfile',
+  'makefile',
+  'jenkinsfile',
+  'rakefile',
+  'gemfile',
+  'procfile',
+  'vagrantfile',
+  'brewfile',
+  'fastfile',
+  'containerfile',
+  'snakefile',
+  'cmakelists',
+  'gnumakefile',
+]);
+
+const URL_PARAM_DELIMITERS = new Set(['?', '&', '#', ';']);
+
 type PathMatch = [index: number, path: string];
 type Separator = '/' | '\\';
 
@@ -26,9 +45,13 @@ function stripLineColumnSuffix(path: string): string {
 
   const lastSep = Math.max(path.lastIndexOf('/'), path.lastIndexOf('\\'));
   const basename = path.slice(lastSep + 1);
-  const lineColMatch = basename.match(/^([A-Z][A-Za-z0-9_-]*)(:\d+(?::\d+)?)$/);
+  const lineColMatch = basename.match(/^([A-Za-z][A-Za-z0-9_-]*)(:\d+(?::\d+)?)$/);
   if (lineColMatch) {
-    return path.slice(0, -lineColMatch[2].length);
+    const name = lineColMatch[1];
+    const suffix = lineColMatch[2];
+    if (/^[A-Z]/.test(name) || EXTENSIONLESS_DIAGNOSTIC_FILENAMES.has(name.toLowerCase())) {
+      return path.slice(0, -suffix.length);
+    }
   }
 
   return path;
@@ -60,7 +83,7 @@ function isAssignmentEqualsStart(text: string, index: number): boolean {
   while (i >= 0 && /[a-zA-Z0-9_.$-]/.test(text[i])) {
     i--;
   }
-  return !(i >= 0 && (text[i] === '?' || text[i] === '&'));
+  return !(i >= 0 && URL_PARAM_DELIMITERS.has(text[i]));
 }
 
 function isCandidatePathStart(text: string, index: number, afterBlockComment: boolean): boolean {
