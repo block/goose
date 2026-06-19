@@ -164,7 +164,6 @@ export default function UpdateSection() {
       setIsUsingGitHubFallback(isGitHub);
     });
 
-    // Load auto-download preference and detect env-var override
     window.electron.getSetting('disableAutoDownload').then((stored) => {
       setDisableAutoDownload(!!stored);
     });

@@ -46,7 +46,6 @@ let lastReportedProgress = 0;
 // Track if IPC handlers have been registered
 let ipcUpdateHandlersRegistered = false;
 
-// Whether automatic background downloading is disabled (env var or user setting)
 let autoDownloadDisabled = false;
 
 export function setAutoDownloadDisabled(disabled: boolean) {

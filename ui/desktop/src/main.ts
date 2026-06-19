@@ -1766,7 +1766,6 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
     registerGlobalShortcuts();
   }
 
-  // Apply auto-download preference immediately (env var still takes precedence at startup)
   if (key === 'disableAutoDownload') {
     setAutoDownloadDisabled(value as boolean);
   }
@@ -2308,7 +2307,6 @@ async function appMain() {
     if (shouldSetupUpdater()) {
       log.info('Setting up auto-updater after window creation...');
       try {
-        // Initialize auto-download preference from persisted settings before setup
         const settings = getSettings();
         if (settings.disableAutoDownload) {
           setAutoDownloadDisabled(true);
