@@ -84,6 +84,10 @@ describe('path linkification', () => {
       expect(findPaths('Saved /tmp/report[1]')[0][1]).toBe('/tmp/report[1]');
     });
 
+    it('detects paths with bracketed suffixes after spaced filename segments', () => {
+      expect(findPaths('Saved /tmp/My report[1].pdf')[0][1]).toBe('/tmp/My report[1].pdf');
+    });
+
     it('detects paths with dots and underscores', () => {
       const matches = findPaths('Read /home/user/.env.local');
       expect(matches).toHaveLength(1);

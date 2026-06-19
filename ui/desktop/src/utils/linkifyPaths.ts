@@ -117,6 +117,13 @@ function readSpacedContinuation(
   while (j < text.length && isPathChar(text[j])) {
     j++;
   }
+  const bracketEnd = readBracketedSuffix(text, j);
+  if (bracketEnd > j) {
+    j = bracketEnd;
+    while (j < text.length && isPathChar(text[j])) {
+      j++;
+    }
+  }
   while (j > spaceIndex + 1 && /[.,;:!?)'\]"]/.test(text[j - 1] ?? '')) {
     j--;
   }
