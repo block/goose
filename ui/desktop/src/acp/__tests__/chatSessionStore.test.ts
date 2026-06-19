@@ -3,10 +3,16 @@ import type {
   RequestPermissionRequest,
   SessionNotification,
 } from '@agentclientprotocol/sdk';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Message, Session } from '../../api';
 import { ChatState } from '../../types/chatState';
-import { createAcpChatSessionStore, type AcpChatSessionStore } from '../chatSessionStore';
+import {
+  acpChatSessionStore,
+  createAcpChatSessionStore,
+  type AcpChatSessionStore,
+  useAcpChatSessionSnapshot,
+} from '../chatSessionStore';
 
 function message(id: string, text: string): Message {
   return {
@@ -117,20 +123,22 @@ describe('acpChatSessionStore', () => {
     store = createAcpChatSessionStore();
   });
 
-  it('stores loaded session messages and token state', () => {
+  it('finishes session load with session metadata', () => {
     const initialMessage = message('message-1', 'Hello');
 
-    const snapshot = store.setLoadedSession('session-1', session('session-1', [initialMessage]));
+    store.setMessages('session-1', [initialMessage]);
+
+    const snapshot = store.finishSessionLoad('session-1', session('session-1'));
 
     expect(snapshot.session?.id).toBe('session-1');
     expect(snapshot.messages).toEqual([initialMessage]);
     expect(snapshot.tokenState).toMatchObject({
-      inputTokens: 1,
-      outputTokens: 2,
-      totalTokens: 3,
-      accumulatedInputTokens: 4,
-      accumulatedOutputTokens: 5,
-      accumulatedTotalTokens: 9,
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      accumulatedInputTokens: 0,
+      accumulatedOutputTokens: 0,
+      accumulatedTotalTokens: 0,
     });
     expect(snapshot.chatState).toBe(ChatState.Idle);
     expect(snapshot.sessionLoadError).toBeUndefined();
@@ -150,32 +158,6 @@ describe('acpChatSessionStore', () => {
     store.deleteSnapshot('session-1');
 
     expect(store.getSnapshot('session-1')).toBeUndefined();
-  });
-
-  it('notifies only listeners for the updated session', () => {
-    const sessionOneListener = vi.fn();
-    const sessionTwoListener = vi.fn();
-
-    store.subscribe('session-1', sessionOneListener);
-    store.subscribe('session-2', sessionTwoListener);
-
-    store.setChatState('session-1', ChatState.Streaming);
-
-    expect(sessionOneListener).toHaveBeenCalledTimes(1);
-    expect(sessionOneListener).toHaveBeenCalledWith(
-      expect.objectContaining({ chatState: ChatState.Streaming })
-    );
-    expect(sessionTwoListener).not.toHaveBeenCalled();
-  });
-
-  it('stops notifying after unsubscribe', () => {
-    const listener = vi.fn();
-    const unsubscribe = store.subscribe('session-1', listener);
-
-    unsubscribe();
-    store.setChatState('session-1', ChatState.Streaming);
-
-    expect(listener).not.toHaveBeenCalled();
   });
 
   it('ignores stale prompt attempts and leaves the current attempt active', () => {
@@ -200,7 +182,7 @@ describe('acpChatSessionStore', () => {
   it('keeps loaded sessions streaming when a prompt attempt is active', () => {
     store.startPromptAttempt('session-1', 'attempt-1');
 
-    const snapshot = store.setLoadedSession('session-1', session('session-1'));
+    const snapshot = store.finishSessionLoad('session-1', session('session-1'));
 
     expect(snapshot.activePromptAttemptId).toBe('attempt-1');
     expect(snapshot.chatState).toBe(ChatState.Streaming);
@@ -288,5 +270,26 @@ describe('acpChatSessionStore', () => {
         isCancelled: true,
       },
     });
+  });
+});
+
+describe('useAcpChatSessionSnapshot', () => {
+  const sessionId = 'hook-session-1';
+
+  afterEach(() => {
+    acpChatSessionStore.deleteSnapshot(sessionId);
+  });
+
+  it('subscribes to session store snapshots', () => {
+    const { result } = renderHook(() => useAcpChatSessionSnapshot(sessionId));
+
+    expect(result.current).toBeUndefined();
+
+    const nextMessage = message('message-1', 'Hello from hook');
+    act(() => {
+      acpChatSessionStore.setMessages(sessionId, [nextMessage]);
+    });
+
+    expect(result.current?.messages).toEqual([nextMessage]);
   });
 });

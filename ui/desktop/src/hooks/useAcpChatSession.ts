@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useReducer, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
 import { defineMessages, useIntl } from '../i18n';
 import { v7 as uuidv7 } from 'uuid';
 import { AppEvents } from '../constants/events';
@@ -6,8 +6,6 @@ import { ChatState } from '../types/chatState';
 
 import {
   Message,
-  resumeAgent,
-  Session,
   TokenState,
   updateFromSession,
   updateSessionUserRecipeValues,
@@ -25,29 +23,13 @@ import {
 } from '../acp/elicitationRequests';
 import { parseAcpCreditsExhaustedError, type AcpCreditsExhaustedError } from '../acp/errors';
 import { acpCancelPrompt, acpPromptSession } from '../acp/prompt';
-import { acpForkSession, acpTruncateSessionConversation } from '../acp/sessions';
-import { acpChatSessionStore, type AcpChatSessionSnapshot } from '../acp/chatSessionStore';
-
-interface StreamState {
-  messages: Message[];
-  session: Session | undefined;
-  chatState: ChatState;
-  sessionLoadError: string | undefined;
-  tokenState: TokenState;
-  notifications: NotificationEvent[];
-}
-
-type StreamAction =
-  | { type: 'SET_MESSAGES'; payload: Message[] }
-  | { type: 'SET_SESSION'; payload: Session | undefined }
-  | { type: 'SET_CHAT_STATE'; payload: ChatState }
-  | { type: 'SET_SESSION_LOAD_ERROR'; payload: string | undefined }
-  | { type: 'SET_TOKEN_STATE'; payload: TokenState }
-  | { type: 'SYNC_FROM_ACP_STORE'; payload: AcpChatSessionSnapshot }
-  | { type: 'RESET_FOR_NEW_SESSION' }
-  | { type: 'START_STREAMING' }
-  | { type: 'STREAM_ERROR'; payload: string }
-  | { type: 'STREAM_FINISH'; payload?: string };
+import {
+  acpForkSession,
+  acpLoadSession,
+  acpTruncateSessionConversation,
+  sessionInfoToSession,
+} from '../acp/sessions';
+import { acpChatSessionStore, useAcpChatSessionSnapshot } from '../acp/chatSessionStore';
 
 const initialTokenState: TokenState = {
   inputTokens: 0,
@@ -57,79 +39,6 @@ const initialTokenState: TokenState = {
   accumulatedOutputTokens: 0,
   accumulatedTotalTokens: 0,
 };
-
-const initialState: StreamState = {
-  messages: [],
-  session: undefined,
-  chatState: ChatState.Idle,
-  sessionLoadError: undefined,
-  tokenState: initialTokenState,
-  notifications: [],
-};
-
-function streamReducer(state: StreamState, action: StreamAction): StreamState {
-  switch (action.type) {
-    case 'SET_MESSAGES':
-      return { ...state, messages: action.payload };
-
-    case 'SET_SESSION':
-      return { ...state, session: action.payload };
-
-    case 'SET_CHAT_STATE':
-      return { ...state, chatState: action.payload };
-
-    case 'SET_SESSION_LOAD_ERROR':
-      return { ...state, sessionLoadError: action.payload };
-
-    case 'SET_TOKEN_STATE':
-      return { ...state, tokenState: action.payload };
-
-    case 'SYNC_FROM_ACP_STORE':
-      return {
-        ...state,
-        session: action.payload.session,
-        messages: action.payload.messages,
-        tokenState: action.payload.tokenState,
-        notifications: action.payload.notifications,
-        chatState: action.payload.chatState,
-        sessionLoadError: action.payload.sessionLoadError,
-      };
-
-    case 'RESET_FOR_NEW_SESSION':
-      return {
-        ...state,
-        messages: [],
-        session: undefined,
-        sessionLoadError: undefined,
-        notifications: [],
-        chatState: ChatState.LoadingConversation,
-      };
-
-    case 'START_STREAMING':
-      return {
-        ...state,
-        chatState: ChatState.Streaming,
-        notifications: [],
-      };
-
-    case 'STREAM_ERROR':
-      return {
-        ...state,
-        sessionLoadError: action.payload,
-        chatState: ChatState.Idle,
-      };
-
-    case 'STREAM_FINISH':
-      return {
-        ...state,
-        sessionLoadError: action.payload,
-        chatState: ChatState.Idle,
-      };
-
-    default:
-      return state;
-  }
-}
 
 function isClearCommand(message: string): boolean {
   return message.trim() === '/clear';
@@ -169,26 +78,16 @@ export function useAcpChatSession({
   onSessionLoaded,
 }: UseChatSessionParams): UseChatSessionResult {
   const intl = useIntl();
-  const [state, dispatch] = useReducer(streamReducer, initialState);
+  const acpSnapshot = useAcpChatSessionSnapshot(sessionId);
+  const messages = acpSnapshot?.messages ?? [];
+  const session = acpSnapshot?.session;
+  const chatState = acpSnapshot?.chatState ?? ChatState.LoadingConversation;
+  const sessionLoadError = acpSnapshot?.sessionLoadError;
+  const tokenState = acpSnapshot?.tokenState ?? initialTokenState;
+  const notifications = acpSnapshot?.notifications ?? [];
 
-  // Ref to access latest state in callbacks (avoids stale closures)
-  const stateRef = useRef(state);
-  stateRef.current = state;
-
-  useEffect(() => {
-    if (!sessionId) {
-      return;
-    }
-
-    const snapshot = acpChatSessionStore.getSnapshot(sessionId);
-    if (snapshot) {
-      dispatch({ type: 'SYNC_FROM_ACP_STORE', payload: snapshot });
-    }
-
-    return acpChatSessionStore.subscribe(sessionId, (nextSnapshot) => {
-      dispatch({ type: 'SYNC_FROM_ACP_STORE', payload: nextSnapshot });
-    });
-  }, [sessionId]);
+  const snapshotRef = useRef(acpSnapshot);
+  snapshotRef.current = acpSnapshot;
 
   useEffect(() => {
     const handleSessionRenamed = (event: Event) => {
@@ -200,14 +99,14 @@ export function useAcpChatSession({
         return;
       }
 
-      const currentSession = stateRef.current.session;
+      const currentSession =
+        snapshotRef.current?.session ?? acpChatSessionStore.getSnapshot(sessionId)?.session;
       if (!currentSession || currentSession.name === newName) {
         return;
       }
 
       const updatedSession = { ...currentSession, name: newName };
       acpChatSessionStore.setSessionMetadata(sessionId, updatedSession);
-      dispatch({ type: 'SET_SESSION', payload: updatedSession });
     };
 
     window.addEventListener(AppEvents.SESSION_RENAMED, handleSessionRenamed);
@@ -216,10 +115,6 @@ export function useAcpChatSession({
 
   const onFinish = useCallback(
     async (error?: string): Promise<void> => {
-      acpChatSessionStore.setSessionLoadError(sessionId, error);
-      acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
-      dispatch({ type: 'STREAM_FINISH', payload: error });
-
       if (!error) {
         try {
           const [notificationsEnabled, anyWindowFocused] = await Promise.all([
@@ -265,14 +160,12 @@ export function useAcpChatSession({
           }
 
           const messages = [
-            ...stateRef.current.messages,
+            ...(snapshotRef.current?.messages ??
+              acpChatSessionStore.getSnapshot(targetSessionId)?.messages ??
+              []),
             createAcpCreditsExhaustedMessage(creditsExhaustedError),
           ];
           acpChatSessionStore.setMessages(targetSessionId, messages);
-          dispatch({
-            type: 'SET_MESSAGES',
-            payload: messages,
-          });
           if (acpChatSessionStore.finishPromptAttemptIfCurrent(targetSessionId, promptAttemptId)) {
             onFinish();
           }
@@ -300,7 +193,6 @@ export function useAcpChatSession({
 
     const cached = acpChatSessionStore.getSnapshot(sessionId);
     if (cached?.session) {
-      dispatch({ type: 'SYNC_FROM_ACP_STORE', payload: cached });
       window.dispatchEvent(
         new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
       );
@@ -308,37 +200,28 @@ export function useAcpChatSession({
       return;
     }
 
-    dispatch({ type: 'RESET_FOR_NEW_SESSION' });
+    acpChatSessionStore.startSessionLoad(sessionId);
 
     let cancelled = false;
+    let loadSettled = false;
 
     (async () => {
       try {
-        const response = await resumeAgent({
-          body: {
-            session_id: sessionId,
-            load_model_and_extensions: true,
-          },
-          throwOnError: true,
-        });
+        const { sessionInfo, meta } = await acpLoadSession(sessionId);
 
         if (cancelled) {
           return;
         }
 
-        const resumeData = response.data;
-        const loadedSession = resumeData?.session;
-        const extensionResults = resumeData?.extension_results;
+        const loadedSession = sessionInfoToSession(sessionInfo, meta);
+        const extensionResults = meta.extensionResults;
 
         showExtensionLoadResults(extensionResults);
         window.dispatchEvent(
           new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
         );
 
-        if (loadedSession) {
-          const snapshot = acpChatSessionStore.setLoadedSession(sessionId, loadedSession);
-          dispatch({ type: 'SYNC_FROM_ACP_STORE', payload: snapshot });
-        }
+        acpChatSessionStore.finishSessionLoad(sessionId, loadedSession);
 
         listApps({
           throwOnError: true,
@@ -352,33 +235,37 @@ export function useAcpChatSession({
         if (cancelled) return;
 
         const loadError = errorMessage(error);
-        acpChatSessionStore.setSessionLoadError(sessionId, loadError);
-        acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
-        dispatch({ type: 'STREAM_ERROR', payload: loadError });
+        acpChatSessionStore.failSessionLoad(sessionId, loadError);
+      } finally {
+        loadSettled = true;
       }
     })();
 
     return () => {
       cancelled = true;
+      if (!loadSettled) {
+        acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
+      }
     };
   }, [sessionId, onSessionLoaded]);
 
   const handleSubmit = useCallback(
     async (input: UserInput) => {
       const { msg: userMessage, images } = input;
-      const currentState = stateRef.current;
+      const currentSnapshot = snapshotRef.current ?? acpChatSessionStore.getSnapshot(sessionId);
 
       if (
-        !currentState.session ||
-        currentState.chatState === ChatState.LoadingConversation ||
-        currentState.chatState === ChatState.Streaming ||
-        currentState.chatState === ChatState.Thinking ||
-        currentState.chatState === ChatState.Compacting
+        !currentSnapshot?.session ||
+        currentSnapshot.chatState === ChatState.LoadingConversation ||
+        currentSnapshot.chatState === ChatState.Streaming ||
+        currentSnapshot.chatState === ChatState.Thinking ||
+        currentSnapshot.chatState === ChatState.Compacting
       ) {
         return;
       }
 
-      const hasExistingMessages = currentState.messages.length > 0;
+      const currentMessages = currentSnapshot.messages;
+      const hasExistingMessages = currentMessages.length > 0;
       const hasNewMessage = userMessage.trim().length > 0 || images.length > 0;
       const clearsConversation = hasNewMessage && isClearCommand(userMessage);
 
@@ -393,20 +280,16 @@ export function useAcpChatSession({
 
       const newMessage = hasNewMessage
         ? createUserMessage(userMessage, images)
-        : currentState.messages[currentState.messages.length - 1];
-      const currentMessages = clearsConversation
+        : currentMessages[currentMessages.length - 1];
+      const messagesForStore = clearsConversation
         ? []
         : hasNewMessage
-          ? [...currentState.messages, newMessage]
-          : [...currentState.messages];
+          ? [...currentMessages, newMessage]
+          : [...currentMessages];
 
       if (clearsConversation || hasNewMessage) {
-        acpChatSessionStore.setMessages(sessionId, currentMessages);
-        dispatch({ type: 'SET_MESSAGES', payload: currentMessages });
+        acpChatSessionStore.setMessages(sessionId, messagesForStore);
       }
-
-      acpChatSessionStore.setChatState(sessionId, ChatState.Streaming);
-      dispatch({ type: 'START_STREAMING' });
 
       await submitToAcpSession(sessionId, newMessage);
     },
@@ -415,9 +298,9 @@ export function useAcpChatSession({
 
   const submitElicitationResponse = useCallback(
     async (elicitationId: string, userData: Record<string, unknown>) => {
-      const currentState = stateRef.current;
+      const currentSnapshot = snapshotRef.current ?? acpChatSessionStore.getSnapshot(sessionId);
 
-      if (!currentState.session || currentState.chatState === ChatState.LoadingConversation) {
+      if (!currentSnapshot?.session || currentSnapshot.chatState === ChatState.LoadingConversation) {
         return false;
       }
 
@@ -433,9 +316,10 @@ export function useAcpChatSession({
 
   const setRecipeUserParams = useCallback(
     async (user_recipe_values: Record<string, string>) => {
-      const currentState = stateRef.current;
+      const currentSession =
+        snapshotRef.current?.session ?? acpChatSessionStore.getSnapshot(sessionId)?.session;
 
-      if (currentState.session) {
+      if (currentSession) {
         await updateSessionUserRecipeValues({
           path: {
             session_id: sessionId,
@@ -446,35 +330,30 @@ export function useAcpChatSession({
           throwOnError: true,
         });
         const updatedSession = {
-          ...currentState.session,
+          ...currentSession,
           user_recipe_values,
         };
         acpChatSessionStore.setSessionMetadata(sessionId, updatedSession);
-        dispatch({ type: 'SET_SESSION', payload: updatedSession });
       } else {
         acpChatSessionStore.setSessionLoadError(
           sessionId,
           "can't call setRecipeParams without a session"
         );
-        dispatch({
-          type: 'SET_SESSION_LOAD_ERROR',
-          payload: "can't call setRecipeParams without a session",
-        });
       }
     },
     [sessionId]
   );
 
   useEffect(() => {
-    if (state.session) {
+    if (session) {
       updateFromSession({
         body: {
-          session_id: state.session.id,
+          session_id: session.id,
         },
         throwOnError: true,
       });
     }
-  }, [state.session]);
+  }, [session]);
 
   const stopStreaming = useCallback(() => {
     const storedPromptAttemptId = acpChatSessionStore.getSnapshot(sessionId)?.activePromptAttemptId;
@@ -488,21 +367,21 @@ export function useAcpChatSession({
       acpCancelPrompt(sessionId).catch((e) => {
         console.warn('Failed to cancel ACP prompt:', e);
       });
+      return;
     }
 
     acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
-    dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
   }, [sessionId]);
 
   const onMessageUpdate = useCallback(
     async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
-      const currentState = stateRef.current;
+      const currentSnapshot = snapshotRef.current ?? acpChatSessionStore.getSnapshot(sessionId);
 
       acpChatSessionStore.setChatState(sessionId, ChatState.Thinking);
-      dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Thinking });
 
       try {
-        const message = currentState.messages.find((m) => m.id === messageId);
+        const currentMessages = currentSnapshot?.messages ?? [];
+        const message = currentMessages.find((m) => m.id === messageId);
 
         if (!message) {
           throw new Error(`Message with id ${messageId} not found in current messages`);
@@ -512,7 +391,6 @@ export function useAcpChatSession({
           const targetSessionId = await acpForkSession(sessionId, message.created);
 
           acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
-          dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
           const event = new CustomEvent(AppEvents.SESSION_FORKED, {
             detail: {
               newSessionId: targetSessionId,
@@ -525,9 +403,7 @@ export function useAcpChatSession({
         } else {
           await acpTruncateSessionConversation(sessionId, message.created);
 
-          const truncatedMessages = currentState.messages.filter(
-            (m) => m.created < message.created
-          );
+          const truncatedMessages = currentMessages.filter((m) => m.created < message.created);
           const updatedUserMessage = createUserMessage(newContent);
 
           for (const content of message.content) {
@@ -538,15 +414,11 @@ export function useAcpChatSession({
 
           const messagesForUI = [...truncatedMessages, updatedUserMessage];
           acpChatSessionStore.setMessages(sessionId, messagesForUI);
-          acpChatSessionStore.setChatState(sessionId, ChatState.Streaming);
-          dispatch({ type: 'SET_MESSAGES', payload: messagesForUI });
-          dispatch({ type: 'START_STREAMING' });
 
           await submitToAcpSession(sessionId, updatedUserMessage);
         }
       } catch (error) {
         acpChatSessionStore.setChatState(sessionId, ChatState.Idle);
-        dispatch({ type: 'SET_CHAT_STATE', payload: ChatState.Idle });
         const errorMsg = errorMessage(error);
         console.error('Failed to edit message:', error);
         const { toastError } = await import('../toasts');
@@ -562,17 +434,12 @@ export function useAcpChatSession({
   const setChatState = useCallback(
     (newState: ChatState) => {
       acpChatSessionStore.setChatState(sessionId, newState);
-      dispatch({ type: 'SET_CHAT_STATE', payload: newState });
     },
     [sessionId]
   );
 
-  const cached = acpChatSessionStore.getSnapshot(sessionId);
-  const maybe_cached_messages = state.session ? state.messages : cached?.messages || [];
-  const maybe_cached_session = state.session ?? cached?.session;
-
   const notificationsMap = useMemo(() => {
-    return state.notifications.reduce((map, notification) => {
+    return notifications.reduce((map, notification) => {
       const key = notification.request_id;
       if (!map.has(key)) {
         map.set(key, []);
@@ -580,19 +447,19 @@ export function useAcpChatSession({
       map.get(key)!.push(notification);
       return map;
     }, new Map<string, NotificationEvent[]>());
-  }, [state.notifications]);
+  }, [notifications]);
 
   return {
-    sessionLoadError: state.sessionLoadError,
-    messages: maybe_cached_messages,
-    session: maybe_cached_session,
-    chatState: state.chatState,
+    sessionLoadError,
+    messages,
+    session,
+    chatState,
     setChatState,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,
     setRecipeUserParams,
-    tokenState: state.tokenState,
+    tokenState,
     notifications: notificationsMap,
     pauseQueueOnStop: true,
     onMessageUpdate,

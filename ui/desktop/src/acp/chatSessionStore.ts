@@ -1,3 +1,4 @@
+import { useEffect, useState } from 'react';
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import type { Message, Session, TokenState } from '../api';
@@ -39,16 +40,12 @@ const initialTokenState: TokenState = {
 
 export interface AcpChatSessionStore {
   getSnapshot(sessionId: string): AcpChatSessionSnapshot | undefined;
-  subscribe(sessionId: string, listener: (snapshot: AcpChatSessionSnapshot) => void): () => void;
   deleteSnapshot(sessionId: string): void;
-  setLoadedSession(
-    sessionId: string,
-    session: Session,
-    tokenState?: TokenState
-  ): AcpChatSessionSnapshot;
   setSessionMetadata(sessionId: string, session: Session | undefined): AcpChatSessionSnapshot;
+  startSessionLoad(sessionId: string): AcpChatSessionSnapshot;
+  finishSessionLoad(sessionId: string, session: Session): AcpChatSessionSnapshot;
+  failSessionLoad(sessionId: string, sessionLoadError: string): AcpChatSessionSnapshot;
   setMessages(sessionId: string, messages: Message[]): AcpChatSessionSnapshot;
-  setTokenState(sessionId: string, tokenState: TokenState): AcpChatSessionSnapshot;
   setChatState(sessionId: string, chatState: ChatState): AcpChatSessionSnapshot;
   setSessionLoadError(
     sessionId: string,
@@ -71,7 +68,11 @@ export interface AcpChatSessionStore {
   ): AcpChatSessionSnapshot | undefined;
 }
 
-export function createAcpChatSessionStore(): AcpChatSessionStore {
+interface AcpChatSessionStoreInternal extends AcpChatSessionStore {
+  subscribe(sessionId: string, listener: (snapshot: AcpChatSessionSnapshot) => void): () => void;
+}
+
+function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
   const sessionsById = new Map<string, StoreEntry>();
   const listenersBySessionId = new Map<string, Set<SnapshotListener>>();
 
@@ -80,7 +81,7 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     return entry ? snapshotFromEntry(entry) : undefined;
   };
 
-  const subscribe: AcpChatSessionStore['subscribe'] = (sessionId, listener) => {
+  const subscribe: AcpChatSessionStoreInternal['subscribe'] = (sessionId, listener) => {
     const listeners = listenersBySessionId.get(sessionId) ?? new Set<SnapshotListener>();
     listeners.add(listener);
     listenersBySessionId.set(sessionId, listeners);
@@ -139,24 +140,34 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     return snapshot;
   };
 
-  const setLoadedSession: AcpChatSessionStore['setLoadedSession'] = (
-    sessionId,
-    session,
-    tokenState = tokenStateFromSession(session)
-  ) => {
-    const entry = getOrCreateEntry(sessionId);
-    entry.session = session;
-    entry.messages = cloneMessages(session.conversation ?? []);
-    entry.tokenState = { ...tokenState };
-    entry.chatState = entry.activePromptAttemptId ? ChatState.Streaming : ChatState.Idle;
-    entry.sessionLoadError = undefined;
-    entry.adapter = createAcpSessionNotificationAdapter(entry.messages);
-    return notify(sessionId, entry);
-  };
-
   const setSessionMetadata: AcpChatSessionStore['setSessionMetadata'] = (sessionId, session) => {
     const entry = getOrCreateEntry(sessionId);
     entry.session = session;
+    return notify(sessionId, entry);
+  };
+
+  const startSessionLoad: AcpChatSessionStore['startSessionLoad'] = (sessionId) => {
+    const entry = getOrCreateEntry(sessionId);
+    entry.sessionLoadError = undefined;
+    entry.chatState = ChatState.LoadingConversation;
+    return notify(sessionId, entry);
+  };
+
+  const finishSessionLoad: AcpChatSessionStore['finishSessionLoad'] = (sessionId, session) => {
+    const entry = getOrCreateEntry(sessionId);
+    entry.session = session;
+    entry.sessionLoadError = undefined;
+    entry.chatState = entry.activePromptAttemptId ? ChatState.Streaming : ChatState.Idle;
+    return notify(sessionId, entry);
+  };
+
+  const failSessionLoad: AcpChatSessionStore['failSessionLoad'] = (
+    sessionId,
+    sessionLoadError
+  ) => {
+    const entry = getOrCreateEntry(sessionId);
+    entry.sessionLoadError = sessionLoadError;
+    entry.chatState = ChatState.Idle;
     return notify(sessionId, entry);
   };
 
@@ -164,12 +175,6 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     const entry = getOrCreateEntry(sessionId);
     entry.messages = cloneMessages(messages);
     entry.adapter = createAcpSessionNotificationAdapter(entry.messages);
-    return notify(sessionId, entry);
-  };
-
-  const setTokenState: AcpChatSessionStore['setTokenState'] = (sessionId, tokenState) => {
-    const entry = getOrCreateEntry(sessionId);
-    entry.tokenState = { ...tokenState };
     return notify(sessionId, entry);
   };
 
@@ -289,10 +294,11 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     getSnapshot,
     subscribe,
     deleteSnapshot,
-    setLoadedSession,
     setSessionMetadata,
+    startSessionLoad,
+    finishSessionLoad,
+    failSessionLoad,
     setMessages,
-    setTokenState,
     setChatState,
     setSessionLoadError,
     startPromptAttempt,
@@ -307,19 +313,66 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
   };
 }
 
-export const acpChatSessionStore = createAcpChatSessionStore();
+export function createAcpChatSessionStore(): AcpChatSessionStore {
+  return publicStoreFromInternal(createAcpChatSessionStoreInternal());
+}
 
-export function tokenStateFromSession(session: Session | undefined): TokenState {
+const acpChatSessionStoreInternal = createAcpChatSessionStoreInternal();
+
+export const acpChatSessionStore: AcpChatSessionStore =
+  publicStoreFromInternal(acpChatSessionStoreInternal);
+
+interface AcpChatSessionSnapshotState {
+  sessionId: string;
+  snapshot: AcpChatSessionSnapshot | undefined;
+}
+
+export function useAcpChatSessionSnapshot(
+  sessionId: string
+): AcpChatSessionSnapshot | undefined {
+  const [snapshotState, setSnapshotState] = useState<AcpChatSessionSnapshotState>(() => ({
+    sessionId,
+    snapshot: acpChatSessionStoreInternal.getSnapshot(sessionId),
+  }));
+
+  useEffect(() => {
+    setSnapshotState({
+      sessionId,
+      snapshot: acpChatSessionStoreInternal.getSnapshot(sessionId),
+    });
+
+    return acpChatSessionStoreInternal.subscribe(sessionId, (snapshot) => {
+      setSnapshotState({ sessionId, snapshot });
+    });
+  }, [sessionId]);
+
+  if (snapshotState.sessionId !== sessionId) {
+    return acpChatSessionStoreInternal.getSnapshot(sessionId);
+  }
+
+  return snapshotState.snapshot;
+}
+
+function publicStoreFromInternal(store: AcpChatSessionStoreInternal): AcpChatSessionStore {
   return {
-    inputTokens: session?.input_tokens ?? 0,
-    outputTokens: session?.output_tokens ?? 0,
-    totalTokens: session?.total_tokens ?? 0,
-    accumulatedInputTokens: session?.accumulated_input_tokens ?? 0,
-    accumulatedOutputTokens: session?.accumulated_output_tokens ?? 0,
-    accumulatedTotalTokens: session?.accumulated_total_tokens ?? 0,
-    ...(session?.accumulated_cost !== undefined
-      ? { accumulatedCost: session.accumulated_cost }
-      : {}),
+    getSnapshot: store.getSnapshot,
+    deleteSnapshot: store.deleteSnapshot,
+    setSessionMetadata: store.setSessionMetadata,
+    startSessionLoad: store.startSessionLoad,
+    finishSessionLoad: store.finishSessionLoad,
+    failSessionLoad: store.failSessionLoad,
+    setMessages: store.setMessages,
+    setChatState: store.setChatState,
+    setSessionLoadError: store.setSessionLoadError,
+    startPromptAttempt: store.startPromptAttempt,
+    finishPromptAttemptIfCurrent: store.finishPromptAttemptIfCurrent,
+    clearActivePromptAttempt: store.clearActivePromptAttempt,
+    isCurrentPromptAttempt: store.isCurrentPromptAttempt,
+    applyAcpSessionNotification: store.applyAcpSessionNotification,
+    applyAcpGooseSessionNotification: store.applyAcpGooseSessionNotification,
+    applyPermissionRequest: store.applyPermissionRequest,
+    applyElicitationRequest: store.applyElicitationRequest,
+    setElicitationStatus: store.setElicitationStatus,
   };
 }
 

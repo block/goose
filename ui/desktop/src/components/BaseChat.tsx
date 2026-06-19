@@ -534,6 +534,7 @@ export default function BaseChat({
             sessionModel={sessionModel}
             sessionProvider={sessionProvider}
             sessionLoaded={sessionLoaded}
+            workingDir={session?.working_dir}
             latestInference={latestInference}
             {...customChatInputProps}
           />
