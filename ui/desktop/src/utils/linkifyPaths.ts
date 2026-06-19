@@ -266,7 +266,7 @@ function readSegment(text: string, start: number, separator: Separator): { end: 
 }
 
 function isPathTerminator(char: string): boolean {
-  return /[.,;:!'"`)\]]/.test(char);
+  return /[.,;:!?'"`)\]]/.test(char);
 }
 
 function isPathBoundary(char: string): boolean {
@@ -290,7 +290,7 @@ function parsePathAt(text: string, index: number): PathMatch | null {
       separator = text[i] as Separator;
       i++;
     }
-    minSegments = 2;
+    minSegments = 1;
   } else {
     return null;
   }

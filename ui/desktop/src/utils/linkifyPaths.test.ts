@@ -20,6 +20,15 @@ describe('path linkification', () => {
       expect(findPaths('Saved to /workspace')[0][1]).toBe('/workspace');
     });
 
+    it('detects paths in questions with trailing question marks', () => {
+      expect(findPaths('Can you check /tmp/out?')[0][1]).toBe('/tmp/out');
+    });
+
+    it('detects single-segment Windows absolute directories', () => {
+      expect(findPaths('See C:\\Users for details')[0][1]).toBe('C:\\Users');
+      expect(findPaths('See C:\\Windows for details')[0][1]).toBe('C:\\Windows');
+    });
+
     it('detects multiple paths in one line', () => {
       const matches = findPaths('Compare /etc/hosts and /etc/resolv.conf');
       expect(matches).toHaveLength(2);
