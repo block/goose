@@ -40,21 +40,11 @@ const initialTokenState: TokenState = {
 
 export interface AcpChatSessionStore {
   getSnapshot(sessionId: string): AcpChatSessionSnapshot | undefined;
+}
+
+export interface AcpChatSessionActions {
   deleteSnapshot(sessionId: string): void;
-  setSessionMetadata(sessionId: string, session: Session | undefined): AcpChatSessionSnapshot;
-  startSessionLoad(sessionId: string): AcpChatSessionSnapshot;
-  finishSessionLoad(sessionId: string, session: Session): AcpChatSessionSnapshot;
-  failSessionLoad(sessionId: string, sessionLoadError: string): AcpChatSessionSnapshot;
-  setMessages(sessionId: string, messages: Message[]): AcpChatSessionSnapshot;
-  setChatState(sessionId: string, chatState: ChatState): AcpChatSessionSnapshot;
-  setSessionLoadError(
-    sessionId: string,
-    sessionLoadError: string | undefined
-  ): AcpChatSessionSnapshot;
-  startPromptAttempt(sessionId: string, promptAttemptId: string): AcpChatSessionSnapshot;
-  finishPromptAttemptIfCurrent(sessionId: string, promptAttemptId: string, error?: string): boolean;
-  clearActivePromptAttempt(sessionId: string): AcpChatSessionSnapshot | undefined;
-  isCurrentPromptAttempt(sessionId: string, promptAttemptId: string): boolean;
+
   applyAcpSessionNotification(notification: SessionNotification): AcpChatSessionSnapshot;
   applyAcpGooseSessionNotification(
     notification: GooseSessionNotification_unstable
@@ -66,9 +56,26 @@ export interface AcpChatSessionStore {
     elicitationId: string,
     status: ElicitationStatus
   ): AcpChatSessionSnapshot | undefined;
+
+  setSessionMetadata(sessionId: string, session: Session | undefined): AcpChatSessionSnapshot;
+  startSessionLoad(sessionId: string): AcpChatSessionSnapshot;
+  finishSessionLoad(sessionId: string, session: Session): AcpChatSessionSnapshot;
+  failSessionLoad(sessionId: string, sessionLoadError: string): AcpChatSessionSnapshot;
+  setSessionLoadError(
+    sessionId: string,
+    sessionLoadError: string | undefined
+  ): AcpChatSessionSnapshot;
+
+  setMessages(sessionId: string, messages: Message[]): AcpChatSessionSnapshot;
+  setChatState(sessionId: string, chatState: ChatState): AcpChatSessionSnapshot;
+
+  startPromptAttempt(sessionId: string, promptAttemptId: string): AcpChatSessionSnapshot;
+  finishPromptAttemptIfCurrent(sessionId: string, promptAttemptId: string, error?: string): boolean;
+  clearActivePromptAttempt(sessionId: string): AcpChatSessionSnapshot | undefined;
+  isCurrentPromptAttempt(sessionId: string, promptAttemptId: string): boolean;
 }
 
-interface AcpChatSessionStoreInternal extends AcpChatSessionStore {
+interface AcpChatSessionStoreInternal extends AcpChatSessionStore, AcpChatSessionActions {
   subscribe(sessionId: string, listener: (snapshot: AcpChatSessionSnapshot) => void): () => void;
 }
 
@@ -105,7 +112,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     };
   };
 
-  const deleteSnapshot: AcpChatSessionStore['deleteSnapshot'] = (sessionId) => {
+  const deleteSnapshot: AcpChatSessionActions['deleteSnapshot'] = (sessionId) => {
     sessionsById.delete(sessionId);
   };
 
@@ -140,20 +147,20 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return snapshot;
   };
 
-  const setSessionMetadata: AcpChatSessionStore['setSessionMetadata'] = (sessionId, session) => {
+  const setSessionMetadata: AcpChatSessionActions['setSessionMetadata'] = (sessionId, session) => {
     const entry = getOrCreateEntry(sessionId);
     entry.session = session;
     return notify(sessionId, entry);
   };
 
-  const startSessionLoad: AcpChatSessionStore['startSessionLoad'] = (sessionId) => {
+  const startSessionLoad: AcpChatSessionActions['startSessionLoad'] = (sessionId) => {
     const entry = getOrCreateEntry(sessionId);
     entry.sessionLoadError = undefined;
     entry.chatState = ChatState.LoadingConversation;
     return notify(sessionId, entry);
   };
 
-  const finishSessionLoad: AcpChatSessionStore['finishSessionLoad'] = (sessionId, session) => {
+  const finishSessionLoad: AcpChatSessionActions['finishSessionLoad'] = (sessionId, session) => {
     const entry = getOrCreateEntry(sessionId);
     entry.session = session;
     entry.sessionLoadError = undefined;
@@ -161,7 +168,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(sessionId, entry);
   };
 
-  const failSessionLoad: AcpChatSessionStore['failSessionLoad'] = (
+  const failSessionLoad: AcpChatSessionActions['failSessionLoad'] = (
     sessionId,
     sessionLoadError
   ) => {
@@ -171,20 +178,20 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(sessionId, entry);
   };
 
-  const setMessages: AcpChatSessionStore['setMessages'] = (sessionId, messages) => {
+  const setMessages: AcpChatSessionActions['setMessages'] = (sessionId, messages) => {
     const entry = getOrCreateEntry(sessionId);
     entry.messages = cloneMessages(messages);
     entry.adapter = createAcpSessionNotificationAdapter(entry.messages);
     return notify(sessionId, entry);
   };
 
-  const setChatState: AcpChatSessionStore['setChatState'] = (sessionId, chatState) => {
+  const setChatState: AcpChatSessionActions['setChatState'] = (sessionId, chatState) => {
     const entry = getOrCreateEntry(sessionId);
     entry.chatState = chatState;
     return notify(sessionId, entry);
   };
 
-  const setSessionLoadError: AcpChatSessionStore['setSessionLoadError'] = (
+  const setSessionLoadError: AcpChatSessionActions['setSessionLoadError'] = (
     sessionId,
     sessionLoadError
   ) => {
@@ -193,7 +200,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(sessionId, entry);
   };
 
-  const startPromptAttempt: AcpChatSessionStore['startPromptAttempt'] = (
+  const startPromptAttempt: AcpChatSessionActions['startPromptAttempt'] = (
     sessionId,
     promptAttemptId
   ) => {
@@ -205,7 +212,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(sessionId, entry);
   };
 
-  const finishPromptAttemptIfCurrent: AcpChatSessionStore['finishPromptAttemptIfCurrent'] = (
+  const finishPromptAttemptIfCurrent: AcpChatSessionActions['finishPromptAttemptIfCurrent'] = (
     sessionId,
     promptAttemptId,
     error
@@ -222,7 +229,9 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return true;
   };
 
-  const clearActivePromptAttempt: AcpChatSessionStore['clearActivePromptAttempt'] = (sessionId) => {
+  const clearActivePromptAttempt: AcpChatSessionActions['clearActivePromptAttempt'] = (
+    sessionId
+  ) => {
     const entry = sessionsById.get(sessionId);
     if (!entry) {
       return undefined;
@@ -233,12 +242,12 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(sessionId, entry);
   };
 
-  const isCurrentPromptAttempt: AcpChatSessionStore['isCurrentPromptAttempt'] = (
+  const isCurrentPromptAttempt: AcpChatSessionActions['isCurrentPromptAttempt'] = (
     sessionId,
     promptAttemptId
   ) => sessionsById.get(sessionId)?.activePromptAttemptId === promptAttemptId;
 
-  const applyAcpSessionNotification: AcpChatSessionStore['applyAcpSessionNotification'] = (
+  const applyAcpSessionNotification: AcpChatSessionActions['applyAcpSessionNotification'] = (
     notification
   ) => {
     const entry = getOrCreateEntry(notification.sessionId);
@@ -247,15 +256,16 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(notification.sessionId, entry);
   };
 
-  const applyAcpGooseSessionNotification: AcpChatSessionStore['applyAcpGooseSessionNotification'] =
-    (notification) => {
-      const entry = getOrCreateEntry(notification.sessionId);
-      const changes = entry.adapter.applyGoose(notification);
-      applyChatStateChanges(entry, changes);
-      return notify(notification.sessionId, entry);
-    };
+  const applyAcpGooseSessionNotification: AcpChatSessionActions[
+    'applyAcpGooseSessionNotification'
+  ] = (notification) => {
+    const entry = getOrCreateEntry(notification.sessionId);
+    const changes = entry.adapter.applyGoose(notification);
+    applyChatStateChanges(entry, changes);
+    return notify(notification.sessionId, entry);
+  };
 
-  const applyPermissionRequest: AcpChatSessionStore['applyPermissionRequest'] = (request) => {
+  const applyPermissionRequest: AcpChatSessionActions['applyPermissionRequest'] = (request) => {
     const entry = getOrCreateEntry(request.sessionId);
     const changes = entry.adapter.applyPermissionRequest(request);
     applyChatStateChanges(entry, changes);
@@ -263,7 +273,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(request.sessionId, entry);
   };
 
-  const applyElicitationRequest: AcpChatSessionStore['applyElicitationRequest'] = (request) => {
+  const applyElicitationRequest: AcpChatSessionActions['applyElicitationRequest'] = (request) => {
     const entry = getOrCreateEntry(request.sessionId);
     const changes = entry.adapter.applyElicitationRequest(request);
     applyChatStateChanges(entry, changes);
@@ -271,7 +281,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(request.sessionId, entry);
   };
 
-  const setElicitationStatus: AcpChatSessionStore['setElicitationStatus'] = (
+  const setElicitationStatus: AcpChatSessionActions['setElicitationStatus'] = (
     sessionId,
     elicitationId,
     status
@@ -298,9 +308,9 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     startSessionLoad,
     finishSessionLoad,
     failSessionLoad,
+    setSessionLoadError,
     setMessages,
     setChatState,
-    setSessionLoadError,
     startPromptAttempt,
     finishPromptAttemptIfCurrent,
     clearActivePromptAttempt,
@@ -313,14 +323,13 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
   };
 }
 
-export function createAcpChatSessionStore(): AcpChatSessionStore {
-  return publicStoreFromInternal(createAcpChatSessionStoreInternal());
-}
-
 const acpChatSessionStoreInternal = createAcpChatSessionStoreInternal();
 
 export const acpChatSessionStore: AcpChatSessionStore =
-  publicStoreFromInternal(acpChatSessionStoreInternal);
+  storeFromInternal(acpChatSessionStoreInternal);
+
+export const acpChatSessionActions: AcpChatSessionActions =
+  actionsFromStore(acpChatSessionStoreInternal);
 
 interface AcpChatSessionSnapshotState {
   sessionId: string;
@@ -353,26 +362,31 @@ export function useAcpChatSessionSnapshot(
   return snapshotState.snapshot;
 }
 
-function publicStoreFromInternal(store: AcpChatSessionStoreInternal): AcpChatSessionStore {
+function storeFromInternal(store: AcpChatSessionStoreInternal): AcpChatSessionStore {
   return {
     getSnapshot: store.getSnapshot,
+  };
+}
+
+function actionsFromStore(store: AcpChatSessionStoreInternal): AcpChatSessionActions {
+  return {
     deleteSnapshot: store.deleteSnapshot,
-    setSessionMetadata: store.setSessionMetadata,
-    startSessionLoad: store.startSessionLoad,
-    finishSessionLoad: store.finishSessionLoad,
-    failSessionLoad: store.failSessionLoad,
-    setMessages: store.setMessages,
-    setChatState: store.setChatState,
-    setSessionLoadError: store.setSessionLoadError,
-    startPromptAttempt: store.startPromptAttempt,
-    finishPromptAttemptIfCurrent: store.finishPromptAttemptIfCurrent,
-    clearActivePromptAttempt: store.clearActivePromptAttempt,
-    isCurrentPromptAttempt: store.isCurrentPromptAttempt,
     applyAcpSessionNotification: store.applyAcpSessionNotification,
     applyAcpGooseSessionNotification: store.applyAcpGooseSessionNotification,
     applyPermissionRequest: store.applyPermissionRequest,
     applyElicitationRequest: store.applyElicitationRequest,
     setElicitationStatus: store.setElicitationStatus,
+    setSessionMetadata: store.setSessionMetadata,
+    startSessionLoad: store.startSessionLoad,
+    finishSessionLoad: store.finishSessionLoad,
+    failSessionLoad: store.failSessionLoad,
+    setSessionLoadError: store.setSessionLoadError,
+    setMessages: store.setMessages,
+    setChatState: store.setChatState,
+    startPromptAttempt: store.startPromptAttempt,
+    finishPromptAttemptIfCurrent: store.finishPromptAttemptIfCurrent,
+    clearActivePromptAttempt: store.clearActivePromptAttempt,
+    isCurrentPromptAttempt: store.isCurrentPromptAttempt,
   };
 }
 

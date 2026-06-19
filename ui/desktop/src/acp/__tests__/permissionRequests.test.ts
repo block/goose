@@ -11,7 +11,7 @@ vi.mock('../../acpChatFeatureFlag', () => ({
 }));
 
 vi.mock('../chatSessionStore', () => ({
-  acpChatSessionStore: {
+  acpChatSessionActions: {
     applyPermissionRequest: vi.fn(),
   },
 }));
