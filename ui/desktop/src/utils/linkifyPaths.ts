@@ -142,7 +142,21 @@ function readSpacedContinuation(
 }
 
 function isFilenamePunctuation(char: string): boolean {
-  return char === ',' || char === "'" || char === ':' || char === '[' || char === ']' || char === '?';
+  return char === ',' || char === "'" || char === ':' || char === '?';
+}
+
+function readBracketedSuffix(text: string, bracketIndex: number): number {
+  if (text[bracketIndex] !== '[') return bracketIndex;
+
+  let j = bracketIndex + 1;
+  if (j >= text.length) return bracketIndex;
+
+  while (j < text.length && isPathChar(text[j])) {
+    j++;
+  }
+  if (j >= text.length || text[j] !== ']') return bracketIndex;
+
+  return j + 1;
 }
 
 function readSegment(text: string, start: number, separator: Separator): { end: number } | null {
@@ -152,6 +166,11 @@ function readSegment(text: string, start: number, separator: Separator): { end: 
   while (i < text.length) {
     if (isPathChar(text[i])) {
       i++;
+      continue;
+    }
+    const bracketEnd = readBracketedSuffix(text, i);
+    if (bracketEnd > i) {
+      i = bracketEnd;
       continue;
     }
     if (

@@ -80,6 +80,10 @@ describe('path linkification', () => {
       expect(findPaths('Saved /tmp/what?now.txt')[0][1]).toBe('/tmp/what?now.txt');
     });
 
+    it('detects paths with bracketed suffixes without extension', () => {
+      expect(findPaths('Saved /tmp/report[1]')[0][1]).toBe('/tmp/report[1]');
+    });
+
     it('detects paths with dots and underscores', () => {
       const matches = findPaths('Read /home/user/.env.local');
       expect(matches).toHaveLength(1);
