@@ -34,7 +34,12 @@ const mockedStartAgent = vi.mocked(startAgent);
 describe('createSession extension overrides', () => {
   beforeEach(() => {
     mockedStartAgent.mockReset();
-    mockedStartAgent.mockResolvedValue({ data: testSession });
+    mockedStartAgent.mockResolvedValue({
+      data: testSession,
+      error: undefined,
+      request: new globalThis.Request('http://localhost/sessions'),
+      response: new globalThis.Response(),
+    });
   });
 
   it('sends non-empty extension configs as overrides', async () => {
