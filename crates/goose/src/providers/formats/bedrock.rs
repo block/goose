@@ -17,7 +17,7 @@ use serde_json::Value;
 use crate::conversation::message::{Message, MessageContent};
 use crate::providers::formats::anthropic::{
     adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
-    thinking_type_for_provider, ThinkingType, ANTHROPIC_PROVIDER_NAME,
+    thinking_type_for_provider, ThinkingType, ANTHROPIC_PROVIDER_NAME, MIN_ANSWER_TOKENS,
 };
 use goose_providers::conversation::token_usage::Usage;
 use goose_providers::model::ModelConfig;
@@ -33,13 +33,27 @@ pub fn bedrock_anthropic_thinking_fields(model_config: &ModelConfig) -> Option<D
             "type".to_string(),
             Document::String("adaptive".to_string()),
         )])),
-        ThinkingType::Enabled => Document::Object(HashMap::from([
-            ("type".to_string(), Document::String("enabled".to_string())),
-            (
-                "budget_tokens".to_string(),
-                Document::Number(Number::PosInt(thinking_budget_tokens(model_config) as u64)),
-            ),
-        ])),
+        ThinkingType::Enabled => {
+            // Thinking tokens count against `maxTokens`, which `bedrock_inference_config`
+            // now sends when explicitly configured. Mirror the Anthropic formatter: clamp
+            // the budget to leave room for an answer, and drop thinking entirely when even
+            // a minimal budget wouldn't fit under the cap. When max_tokens is unset, Bedrock
+            // applies its per-model default so there is nothing to clamp against.
+            let mut budget_tokens = thinking_budget_tokens(model_config);
+            if let Some(max_tokens) = model_config.max_tokens {
+                budget_tokens = budget_tokens.min(max_tokens.saturating_sub(MIN_ANSWER_TOKENS));
+                if budget_tokens < MIN_ANSWER_TOKENS {
+                    return None;
+                }
+            }
+            Document::Object(HashMap::from([
+                ("type".to_string(), Document::String("enabled".to_string())),
+                (
+                    "budget_tokens".to_string(),
+                    Document::Number(Number::PosInt(budget_tokens as u64)),
+                ),
+            ]))
+        }
         ThinkingType::Disabled => return None,
     };
 
@@ -598,6 +612,44 @@ mod tests {
                 }
             })
         );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_clamped_to_max_tokens() {
+        // budget (4000) exceeds the room left under an explicit max_tokens, so it
+        // is clamped to max_tokens - MIN_ANSWER_TOKENS, matching the Anthropic
+        // formatter. Without max_tokens set there is nothing to clamp against.
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("low"));
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        config.request_params = Some(params);
+        config.reasoning = Some(true);
+        config.max_tokens = Some(3000);
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 3000 - 1024
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_dropped_when_no_room() {
+        // When even a minimal budget wouldn't leave MIN_ANSWER_TOKENS under the
+        // cap, thinking is dropped rather than emitting an unsatisfiable request.
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("low"));
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        config.request_params = Some(params);
+        config.reasoning = Some(true);
+        config.max_tokens = Some(1500);
+
+        assert!(bedrock_anthropic_thinking_fields(&config).is_none());
     }
 
     #[test]

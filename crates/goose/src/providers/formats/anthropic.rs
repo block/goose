@@ -568,7 +568,8 @@ fn legacy_thinking_budget_tokens() -> Option<i32> {
 // Anthropic counts thinking tokens against max_tokens, so the budget must leave
 // room for a response. Clamp it to preserve at least this many answer tokens, and
 // drop thinking only when even a minimal budget wouldn't fit under the cap.
-const MIN_ANSWER_TOKENS: i32 = 1024;
+// Shared with the Bedrock formatter, which applies the same clamp.
+pub(crate) const MIN_ANSWER_TOKENS: i32 = 1024;
 
 fn apply_thinking_config(
     payload: &mut Value,
