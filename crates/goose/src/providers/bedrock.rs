@@ -27,8 +27,8 @@ use serde_json::Value;
 use smithy_transport_reqwest::ReqwestHttpClient;
 
 use super::formats::bedrock::{
-    bedrock_anthropic_thinking_fields, from_bedrock_message, from_bedrock_usage,
-    to_bedrock_message_with_caching, to_bedrock_tool_config,
+    bedrock_anthropic_thinking_fields, bedrock_inference_config, from_bedrock_message,
+    from_bedrock_usage, to_bedrock_message_with_caching, to_bedrock_tool_config,
 };
 
 pub(crate) const BEDROCK_PROVIDER_NAME: &str = "aws_bedrock";
@@ -76,6 +76,7 @@ struct ConverseRequestParts {
     messages: Vec<bedrock::Message>,
     tool_config: Option<bedrock::ToolConfiguration>,
     thinking_fields: Option<aws_smithy_types::Document>,
+    inference_config: bedrock::InferenceConfiguration,
 }
 
 impl BedrockProvider {
@@ -333,6 +334,7 @@ impl BedrockProvider {
             messages: bedrock_messages,
             tool_config,
             thinking_fields: bedrock_anthropic_thinking_fields(&self.model),
+            inference_config: bedrock_inference_config(&self.model),
         })
     }
 
@@ -352,7 +354,8 @@ impl BedrockProvider {
             .converse()
             .set_system(Some(parts.system_blocks))
             .model_id(model_name.to_string())
-            .set_messages(Some(parts.messages));
+            .set_messages(Some(parts.messages))
+            .inference_config(parts.inference_config);
 
         if let Some(fields) = parts.thinking_fields {
             request = request.additional_model_request_fields(fields);
@@ -448,7 +451,8 @@ impl BedrockProvider {
             .converse_stream()
             .set_system(Some(parts.system_blocks))
             .model_id(model_name.to_string())
-            .set_messages(Some(parts.messages));
+            .set_messages(Some(parts.messages))
+            .inference_config(parts.inference_config);
 
         if let Some(fields) = parts.thinking_fields {
             request = request.additional_model_request_fields(fields);

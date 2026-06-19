@@ -16,8 +16,8 @@ use serde_json::Value;
 
 use crate::conversation::message::{Message, MessageContent};
 use crate::providers::formats::anthropic::{
-    adaptive_output_effort, thinking_budget_tokens, thinking_type_for_provider, ThinkingType,
-    ANTHROPIC_PROVIDER_NAME,
+    adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
+    thinking_type_for_provider, ThinkingType, ANTHROPIC_PROVIDER_NAME,
 };
 use goose_providers::conversation::token_usage::Usage;
 use goose_providers::model::ModelConfig;
@@ -79,6 +79,46 @@ fn strip_bedrock_version_suffix(model_name: &str) -> String {
     BEDROCK_VERSION_SUFFIX_RE
         .replace(model_name, "")
         .into_owned()
+}
+
+/// Build the Bedrock `InferenceConfiguration` (`maxTokens`, `temperature`) for
+/// a request from the active [`ModelConfig`].
+///
+/// Without this the `Converse`/`ConverseStream` APIs fall back to per-model
+/// server defaults, so a configured `max_tokens`/`temperature` is silently
+/// dropped. Mirrors the Anthropic provider, which already sends these fields:
+/// `max_tokens` always (via [`ModelConfig::max_output_tokens`]) and
+/// `temperature` only when the model supports it. Temperature support is
+/// resolved against the Anthropic canonical registry for `anthropic.*` model
+/// ids (the same mapping used for thinking), so reasoning models that reject a
+/// custom temperature keep the server default.
+pub fn bedrock_inference_config(model_config: &ModelConfig) -> bedrock::InferenceConfiguration {
+    let mut builder =
+        bedrock::InferenceConfiguration::builder().max_tokens(model_config.max_output_tokens());
+
+    if let Some(temperature) = model_config.temperature {
+        if bedrock_model_supports_temperature(model_config) {
+            builder = builder.temperature(temperature);
+        }
+    }
+
+    builder.build()
+}
+
+/// Whether `temperature` may be sent for this Bedrock model. For `anthropic.*`
+/// ids we resolve against the Anthropic canonical registry (mapping the model
+/// name the same way [`bedrock_anthropic_thinking_type`] does); other models
+/// default to allowing it, matching [`model_supports_temperature`].
+fn bedrock_model_supports_temperature(model_config: &ModelConfig) -> bool {
+    if let Some((_, anthropic_model)) = model_config.model_name.rsplit_once("anthropic.") {
+        let anthropic_config = ModelConfig {
+            model_name: strip_bedrock_version_suffix(anthropic_model),
+            ..model_config.clone()
+        };
+        model_supports_temperature(ANTHROPIC_PROVIDER_NAME, &anthropic_config)
+    } else {
+        true
+    }
 }
 
 pub fn to_bedrock_message_with_caching(
@@ -1193,5 +1233,52 @@ mod tests {
         ));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_sets_max_tokens_and_temperature() {
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        config.max_tokens = Some(8192);
+        config.temperature = Some(0.5);
+
+        let inference_config = bedrock_inference_config(&config);
+
+        assert_eq!(inference_config.max_tokens(), Some(8192));
+        assert_eq!(inference_config.temperature(), Some(0.5));
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_defaults_max_tokens_without_config() {
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        config.max_tokens = None;
+        config.temperature = None;
+
+        let inference_config = bedrock_inference_config(&config);
+
+        // max_tokens always falls back to the model default so the response is
+        // never silently truncated to the server's per-model default.
+        assert_eq!(
+            inference_config.max_tokens(),
+            Some(config.max_output_tokens())
+        );
+        assert_eq!(inference_config.temperature(), None);
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_omits_temperature_for_unsupported_model() {
+        // The Anthropic canonical registry maps this id and reports whether a
+        // custom temperature may be sent; when it cannot, temperature is left
+        // unset so the server default is used.
+        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        config.temperature = Some(0.5);
+
+        let supported = bedrock_model_supports_temperature(&config);
+        let inference_config = bedrock_inference_config(&config);
+
+        if supported {
+            assert_eq!(inference_config.temperature(), Some(0.5));
+        } else {
+            assert_eq!(inference_config.temperature(), None);
+        }
     }
 }
