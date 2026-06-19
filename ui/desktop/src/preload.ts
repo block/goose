@@ -182,6 +182,7 @@ type ElectronAPI = {
   getUpdateState: () => Promise<{ updateAvailable: boolean; latestVersion?: string } | null>;
   isUsingGitHubFallback: () => Promise<boolean>;
   getAutoDownloadDisabled: () => Promise<boolean>;
+  isAutoDownloadEnvOverride: () => Promise<boolean>;
   // Recipe warning functions
   closeWindow: () => void;
   hasAcceptedRecipeBefore: (recipe: Recipe) => Promise<boolean>;
@@ -341,6 +342,9 @@ const electronAPI: ElectronAPI = {
   },
   getAutoDownloadDisabled: (): Promise<boolean> => {
     return ipcRenderer.invoke('get-auto-download-disabled');
+  },
+  isAutoDownloadEnvOverride: (): Promise<boolean> => {
+    return ipcRenderer.invoke('is-auto-download-env-override');
   },
   closeWindow: () => ipcRenderer.send('close-window'),
   hasAcceptedRecipeBefore: (recipe: Recipe) =>

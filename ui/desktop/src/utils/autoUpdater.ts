@@ -48,6 +48,8 @@ let ipcUpdateHandlersRegistered = false;
 
 // Whether automatic background downloading is disabled (env var or user setting)
 let autoDownloadDisabled = false;
+// Set only when GOOSE_DISABLE_AUTO_DOWNLOAD env var is present; never cleared at runtime
+let autoDownloadForcedByEnv = false;
 
 export function setAutoDownloadDisabled(disabled: boolean) {
   autoDownloadDisabled = disabled;
@@ -57,6 +59,10 @@ export function setAutoDownloadDisabled(disabled: boolean) {
 
 export function getAutoDownloadDisabled(): boolean {
   return autoDownloadDisabled;
+}
+
+export function isAutoDownloadEnvOverride(): boolean {
+  return autoDownloadForcedByEnv;
 }
 
 // Register IPC handlers (only once)
@@ -353,6 +359,10 @@ export function registerUpdateIpcHandlers() {
   ipcMain.handle('get-auto-download-disabled', () => {
     return autoDownloadDisabled;
   });
+
+  ipcMain.handle('is-auto-download-env-override', () => {
+    return autoDownloadForcedByEnv;
+  });
 }
 
 // Configure auto-updater
@@ -393,6 +403,7 @@ export function setupAutoUpdater(tray?: Tray) {
     process.env.GOOSE_DISABLE_AUTO_DOWNLOAD === '1' ||
     process.env.GOOSE_DISABLE_AUTO_DOWNLOAD === 'true';
   if (envDisabled) {
+    autoDownloadForcedByEnv = true;
     autoDownloadDisabled = true;
     log.info('Auto-download disabled via GOOSE_DISABLE_AUTO_DOWNLOAD environment variable');
   }

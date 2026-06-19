@@ -168,11 +168,8 @@ export default function UpdateSection() {
     window.electron.getSetting('disableAutoDownload').then((stored) => {
       setDisableAutoDownload(!!stored);
     });
-    window.electron.getAutoDownloadDisabled().then((effective) => {
-      window.electron.getSetting('disableAutoDownload').then((stored) => {
-        // If effective is true but user setting is false, env var is forcing it
-        setAutoDownloadForcedByEnv(effective && !stored);
-      });
+    window.electron.isAutoDownloadEnvOverride().then((forcedByEnv) => {
+      setAutoDownloadForcedByEnv(forcedByEnv);
     });
 
     // Listen for updater events
