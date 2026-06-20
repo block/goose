@@ -1,6 +1,6 @@
 mod builder;
 mod completion;
-mod editor;
+pub mod editor;
 mod elicitation;
 mod export;
 mod input;

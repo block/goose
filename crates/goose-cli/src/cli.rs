@@ -1522,7 +1522,7 @@ async fn handle_interactive_session(
                 .conversation
                 .ok_or_else(|| anyhow::anyhow!("session has no messages to edit"))?;
 
-            let edited = crate::commands::editor::edit_conversation(&conversation)?;
+            let edited = crate::session::editor::edit_conversation(&conversation)?;
 
             let new_session = session_manager
                 .create_session(
@@ -1545,7 +1545,7 @@ async fn handle_interactive_session(
                 .conversation
                 .ok_or_else(|| anyhow::anyhow!("session has no messages to edit"))?;
 
-            let edited = crate::commands::editor::edit_conversation(&conversation)?;
+            let edited = crate::session::editor::edit_conversation(&conversation)?;
             session_manager.replace_conversation(id, &edited).await?;
         }
     } else if fork {
