@@ -162,10 +162,6 @@ const i18n = defineMessages({
     id: 'chatInput.viewEditRecipe',
     defaultMessage: 'View/Edit Recipe',
   },
-  createRecipeFromSession: {
-    id: 'chatInput.createRecipeFromSession',
-    defaultMessage: 'Create Recipe from Session',
-  },
 });
 
 interface ChatInputProps {
