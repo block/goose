@@ -259,11 +259,27 @@ pub fn format_messages_with_options(
 
                         tool_calls.as_array_mut().unwrap().push(tool_call_json);
                     }
-                    Err(e) => {
-                        output.push(json!({
-                            "role": "tool",
-                            "content": format!("Error: {}", e),
-                            "tool_call_id": request.id
+                    Err(_e) => {
+                        // An unparseable tool call still needs a valid assistant
+                        // `tool_calls` entry. Emitting the error as a bare `role:"tool"`
+                        // message (the old behavior) leaves the paired tool response —
+                        // which carries the parse error — as an orphan `role:"tool"` with
+                        // no preceding assistant `tool_calls`, which strict
+                        // OpenAI-compatible APIs reject. Emit a placeholder call with the
+                        // same id so the history stays well-formed; the error rides on the
+                        // following tool response.
+                        let tool_calls = converted
+                            .as_object_mut()
+                            .unwrap()
+                            .entry("tool_calls")
+                            .or_insert(json!([]));
+                        tool_calls.as_array_mut().unwrap().push(json!({
+                            "id": request.id,
+                            "type": "function",
+                            "function": {
+                                "name": "unparseable_tool_call",
+                                "arguments": "{}",
+                            }
                         }));
                     }
                 },
@@ -3670,5 +3686,49 @@ data: [DONE]"#;
         assert!(is_valid_function_name("hello_world"));
         assert!(!is_valid_function_name("hello world"));
         assert!(!is_valid_function_name("hello@world"));
+    }
+
+    #[test]
+    fn formatter_post_parse_error_history_is_wellformed() {
+        use rmcp::model::{ErrorCode, ErrorData};
+        let err = ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Tool arguments for id call_bad must be a JSON object".to_string(),
+            None,
+        );
+        // Shape the agent loop builds today for a failed parse:
+        let request_msg = Message::assistant().with_tool_request("call_bad", Err(err.clone()));
+        let mut final_resp = Message::user();
+        final_resp.add_tool_response_with_metadata("call_bad", Err(err), None);
+        let messages = vec![
+            Message::user().with_text("do the thing"),
+            request_msg,
+            final_resp,
+        ];
+
+        let spec = format_messages(&messages, &ImageFormat::OpenAi);
+
+        let mut open = std::collections::HashSet::new();
+        for m in &spec {
+            match m.get("role").and_then(|v| v.as_str()) {
+                Some("assistant") => {
+                    for tc in m
+                        .get("tool_calls")
+                        .and_then(|v| v.as_array())
+                        .into_iter()
+                        .flatten()
+                    {
+                        if let Some(id) = tc.get("id").and_then(|v| v.as_str()) {
+                            open.insert(id.to_string());
+                        }
+                    }
+                }
+                Some("tool") => {
+                    let id = m.get("tool_call_id").and_then(|v| v.as_str()).unwrap_or("");
+                    assert!(open.contains(id), "orphan role:tool message for id {id:?}");
+                }
+                _ => {}
+            }
+        }
     }
 }

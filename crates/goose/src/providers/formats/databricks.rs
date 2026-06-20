@@ -190,9 +190,21 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
 
                             tool_calls.push(tool_call_json);
                         }
-                        Err(e) => {
-                            content_array
-                                .push(json!({"type": "text", "text": format!("Error: {}", e)}));
+                        Err(_e) => {
+                            // Mirror the OpenAI formatter: emitting the error as assistant
+                            // text leaves no `tool_calls` entry, so the paired tool response
+                            // orphans (a `role:"tool"` with no preceding assistant
+                            // `tool_calls`) and strict APIs reject it. Emit a placeholder
+                            // call with the same id; the error rides on the tool response.
+                            let tool_calls = converted.tool_calls.get_or_insert_default();
+                            tool_calls.push(json!({
+                                "id": request.id,
+                                "type": "function",
+                                "function": {
+                                    "name": "unparseable_tool_call",
+                                    "arguments": "{}",
+                                }
+                            }));
                         }
                     }
                 }
@@ -1474,6 +1486,51 @@ mod tests {
         // This should be the string "{}", not null
         assert_eq!(tool_call["function"]["arguments"], "{}");
 
+        Ok(())
+    }
+
+    #[test]
+    fn format_messages_post_parse_error_history_is_wellformed() -> anyhow::Result<()> {
+        // An unparseable tool call (ToolRequest(Err)) paired with its error tool
+        // response must not serialize as an orphan role:"tool" message.
+        use rmcp::model::{ErrorCode, ErrorData};
+        let err = ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Tool arguments for id call_bad must be a JSON object".to_string(),
+            None,
+        );
+        let request_msg = Message::assistant().with_tool_request("call_bad", Err(err.clone()));
+        let mut final_resp = Message::user();
+        final_resp.add_tool_response_with_metadata("call_bad", Err(err), None);
+        let messages = vec![
+            Message::user().with_text("do the thing"),
+            request_msg,
+            final_resp,
+        ];
+
+        let spec = serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi))?;
+        let mut open = std::collections::HashSet::new();
+        for m in spec.as_array().unwrap() {
+            match m.get("role").and_then(|v| v.as_str()) {
+                Some("assistant") => {
+                    for tc in m
+                        .get("tool_calls")
+                        .and_then(|v| v.as_array())
+                        .into_iter()
+                        .flatten()
+                    {
+                        if let Some(id) = tc.get("id").and_then(|v| v.as_str()) {
+                            open.insert(id.to_string());
+                        }
+                    }
+                }
+                Some("tool") => {
+                    let id = m.get("tool_call_id").and_then(|v| v.as_str()).unwrap_or("");
+                    assert!(open.contains(id), "orphan role:tool message for id {id:?}");
+                }
+                _ => {}
+            }
+        }
         Ok(())
     }
 
