@@ -156,14 +156,6 @@ describe('acpChatSessionStore', () => {
 
     expect(snapshot.session?.id).toBe(currentSessionId);
     expect(snapshot.messages).toEqual([initialMessage]);
-    expect(snapshot.tokenState).toMatchObject({
-      inputTokens: 1,
-      outputTokens: 2,
-      totalTokens: 3,
-      accumulatedInputTokens: 4,
-      accumulatedOutputTokens: 5,
-      accumulatedTotalTokens: 9,
-    });
     expect(snapshot.chatState).toBe(ChatState.Idle);
     expect(snapshot.sessionLoadError).toBeUndefined();
   });

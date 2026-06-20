@@ -1,6 +1,10 @@
 import type { ExtensionResponse, ExtensionEntry } from '../api';
-import type { GooseExtensionEntry, McpServer } from '@aaif/goose-sdk';
+import type { GooseExtension, GooseExtensionEntry, McpServer } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
+
+export function gooseExtensionName(extension: GooseExtension): string {
+  return extension.type === 'mcp' ? extension.server.name : extension.name;
+}
 
 function headersToRecord(headers: { name: string; value: string }[] = []) {
   return Object.fromEntries(headers.map(({ name, value }) => [name, value]));
@@ -63,6 +67,12 @@ function gooseExtensionEntryToExtensionEntry(entry: GooseExtensionEntry): Extens
   }
 
   return null;
+}
+
+export async function getConfiguredGooseExtensions(): Promise<GooseExtensionEntry[]> {
+  const client = await getAcpClient();
+  const response = await client.goose.configExtensionsList_unstable({});
+  return response.extensions;
 }
 
 export async function getConfiguredExtensions(): Promise<ExtensionResponse> {
