@@ -635,9 +635,6 @@ impl CliSession {
                 history.save(editor);
                 self.handle_recipe(filepath_opt).await;
             }
-            InputResult::Status => {
-                self.handle_status().await?;
-            }
             InputResult::Compact => {
                 history.save(editor);
                 self.handle_compact().await?;
@@ -1576,46 +1573,6 @@ impl CliSession {
     pub async fn get_total_token_usage(&self) -> Result<Option<i32>> {
         let metadata = self.get_session().await?;
         Ok(metadata.accumulated_total_tokens)
-    }
-
-    /// Print a one-shot status readout: model, provider, GOOSE_MODE, token usage, context %
-    async fn handle_status(&self) -> Result<()> {
-        let provider = self.agent.provider().await?;
-        let model_config = provider.get_model_config();
-        let context_limit = model_config.context_limit();
-
-        let config = Config::global();
-        let provider_name = provider.get_name();
-
-        let goose_mode = config
-            .get_param::<GooseMode>("GOOSE_MODE")
-            .unwrap_or_default();
-        let goose_mode_str = goose_mode.to_string();
-
-        let total_tokens = self
-            .get_session()
-            .await
-            .ok()
-            .and_then(|s| s.accumulated_total_tokens)
-            .unwrap_or(0) as usize;
-
-        let context_pct = if context_limit > 0 {
-            let pct = ((total_tokens as f64 / context_limit as f64) * 100.0).round() as usize;
-            format!("{}%", pct.min(100))
-        } else {
-            "N/A".to_string()
-        };
-
-        println!("  Model:    {}", model_config.model_name);
-        println!("  Provider: {}", provider_name);
-        println!("  Mode:     {}", goose_mode_str);
-        println!("  Tokens:   {}", total_tokens);
-        println!(
-            "  Context:  {} / {} tokens ({})",
-            total_tokens, context_limit, context_pct
-        );
-
-        Ok(())
     }
 
     /// Display enhanced context usage with session totals
