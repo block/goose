@@ -317,6 +317,23 @@ fn goose_extension_to_config(
     })
 }
 
+pub(super) fn goose_extensions_to_configs(
+    extensions: Vec<GooseExtension>,
+) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
+    extensions
+        .into_iter()
+        .map(|extension| {
+            let conversion = goose_extension_to_config(extension)?;
+            if !conversion.secret_updates.is_empty() {
+                return Err(agent_client_protocol::Error::invalid_params().data(
+                    "extension env values must be passed via envKeys referencing stored secrets, not inline env",
+                ));
+            }
+            Ok(conversion.config)
+        })
+        .collect()
+}
+
 fn config_entry_to_goose_entry(
     entry: ExtensionEntry,
 ) -> Result<Option<GooseExtensionEntry>, agent_client_protocol::Error> {

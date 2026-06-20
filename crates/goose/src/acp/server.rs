@@ -985,13 +985,18 @@ impl GooseAcpAgent {
         &self,
         config: &Config,
         mcp_servers: Vec<McpServer>,
+        goose_extensions: Option<Vec<GooseExtension>>,
     ) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
         let mut extensions = Vec::new();
         for builtin in &self.builtins {
             push_or_replace_extension(&mut extensions, builtin_to_extension_config(builtin));
         }
 
-        if mcp_servers.is_empty() {
+        if let Some(goose_extensions) = goose_extensions {
+            for extension in extensions::goose_extensions_to_configs(goose_extensions)? {
+                push_or_replace_extension(&mut extensions, extension);
+            }
+        } else if mcp_servers.is_empty() {
             for extension in get_enabled_extensions_with_config(config) {
                 push_or_replace_extension(&mut extensions, extension);
             }
@@ -1113,7 +1118,7 @@ impl GooseAcpAgent {
             || EnabledExtensionsState::from_extension_data(&session.extension_data).is_none()
         {
             let extension_data =
-                self.build_enabled_extensions_data(config, &session, mcp_servers)?;
+                self.build_enabled_extensions_data(config, &session, mcp_servers, None)?;
             builder = builder.extension_data(extension_data);
             session_needs_update = true;
         }
@@ -1142,8 +1147,9 @@ impl GooseAcpAgent {
         config: &Config,
         session: &Session,
         mcp_servers: Vec<McpServer>,
+        goose_extensions: Option<Vec<GooseExtension>>,
     ) -> Result<ExtensionData, agent_client_protocol::Error> {
-        let extensions = self.initial_session_extensions(config, mcp_servers)?;
+        let extensions = self.initial_session_extensions(config, mcp_servers, goose_extensions)?;
         let mut extension_data = session.extension_data.clone();
         EnabledExtensionsState::new(extensions)
             .to_extension_data(&mut extension_data)
