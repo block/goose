@@ -151,7 +151,18 @@ The matcher is a regular expression matched against the most relevant string for
 
 ## Hook Payload
 
-When a hook runs, goose writes a JSON payload to the command's stdin. The payload always includes the event name and session ID, and may include fields such as the tool name, tool input, user message, or working directory.
+When a hook runs, goose writes a JSON payload to the command's stdin. Every payload includes the event name and session ID. The remaining fields are only present when they apply to the event, so a hook should treat them as optional.
+
+| Field | Description |
+|---|---|
+| `event` | Name of the event that fired, such as `PostToolUse` or `UserPromptSubmit`. |
+| `session_id` | ID of the current goose session. |
+| `matcher_context` | String the rule's `matcher` is tested against (for example, the tool name on tool events or the prompt text on `UserPromptSubmit`). |
+| `tool_name` | Name of the tool, on tool events. |
+| `tool_input` | Input arguments passed to the tool, on tool events. |
+| `tool_output` | Result returned by the tool, on tool events that produce output. |
+| `message` | Prompt text the user submitted, on `UserPromptSubmit`. |
+| `working_dir` | Working directory of the session. |
 
 Example payload for a tool event:
 
@@ -162,6 +173,18 @@ Example payload for a tool event:
   "matcher_context": "developer__shell",
   "tool_name": "developer__shell",
   "tool_input": { "command": "rg TODO" },
+  "working_dir": "/Users/you/project"
+}
+```
+
+Example payload for a prompt event, where the submitted prompt is in `message`:
+
+```json
+{
+  "event": "UserPromptSubmit",
+  "session_id": "abc-123",
+  "matcher_context": "summarize this file",
+  "message": "summarize this file",
   "working_dir": "/Users/you/project"
 }
 ```
