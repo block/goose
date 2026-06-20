@@ -105,15 +105,17 @@ fn inferred_adaptive_thinking_mode(model_name: &str) -> Option<ThinkingMode> {
     };
 
     claude_family_version(&name, family)
-        .filter(|&(major, minor)| major <= 9 && (major, minor) >= (4, 6))
+        .filter(|&(major, minor)| major <= 9 && minor < 100 && (major, minor) >= (4, 6))
         .map(|_| ThinkingMode::Adaptive)
 }
 
 /// Parse the `(major, minor)` version that follows the family token in a
 /// 4.x-style Claude model name (e.g. `claude-opus-4-7`, `claude-sonnet-4.6`,
 /// `claude-opus-4.8-fast`). Names that place a date after the family
-/// (`claude-3-opus-20240229`) yield an implausibly large major, which callers
-/// reject. Returns `None` when no version follows the family token.
+/// (`claude-3-opus-20240229`) yield an implausibly large major, and
+/// date-suffixed Claude 4 IDs (`claude-opus-4-20250514`) yield an implausibly
+/// large minor; callers reject both with `major <= 9 && minor < 100`. Returns
+/// `None` when no version follows the family token.
 fn claude_family_version(name: &str, family: &str) -> Option<(u32, u32)> {
     let after = name.split_once(family)?.1.trim_start_matches(['-', '.']);
     let mut parts = after.split(['-', '.']);
@@ -1782,6 +1784,7 @@ mod tests {
             "claude-opus-4.8-fast",
             "claude-sonnet-4-6",
             "claude-opus-4-9",
+            "claude-opus-4-10",
             "claude-opus-5-0",
         ] {
             assert_eq!(
@@ -1800,6 +1803,10 @@ mod tests {
             "claude-opus-4-1",
             "claude-opus-4",
             "claude-sonnet-4-5",
+            "claude-opus-4-20250514",
+            "claude-sonnet-4-20250514",
+            "us.anthropic.claude-sonnet-4-20250514-v1:0",
+            "claude-opus-4-1-20250805",
             "claude-3-7-sonnet-20250219",
             "claude-3-opus-20240229",
             "claude-3-5-sonnet-20241022",
