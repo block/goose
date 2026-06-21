@@ -879,6 +879,22 @@
       "required": false
     }
   ]
-}
-
+},
+  {
+    "id": "piprail",
+    "name": "PipRail",
+    "description": "Autonomously pay any x402 (HTTP 402) endpoint across 29 chains - budget-capped and self-custody, with no facilitator, backend, or fee.",
+    "command": "npx -y @piprail/mcp",
+    "link": "https://github.com/piprail/piprail",
+    "installation_notes": "Install using npx. Optionally set PIPRAIL_PRIVATE_KEY to enable payments; without it the server runs read-only (discover/quote/plan).",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "PIPRAIL_PRIVATE_KEY",
+        "description": "Optional. Wallet private key used to pay x402 endpoints. Without it, the server boots read-only.",
+        "required": false
+      }
+    ]
+  }
 ]
