@@ -109,24 +109,23 @@ Point text2sql at any SQL database — here we use a SQLite copy of the [Chinook
 ### goose Prompt
 
 ```
-What were the top 5 customers by total invoice amount last year?
+Who are the top 5 customers by total invoice amount, all time?
 ```
 
 ### goose Output
 
 ```
 I'll ask the text2sql agent to figure this out. Behind the scenes it explored
-the schema, found the `customers` and `invoices` tables, joined them, and
-filtered by the previous calendar year.
+the schema, found the `Customer` and `Invoice` tables, joined them, and
+aggregated invoice totals per customer.
 
 SQL:
 
   SELECT
     c.FirstName || ' ' || c.LastName AS customer,
     ROUND(SUM(i.Total), 2)            AS total_spent
-  FROM invoices i
-  JOIN customers c ON c.CustomerId = i.CustomerId
-  WHERE strftime('%Y', i.InvoiceDate) = strftime('%Y', date('now', '-1 year'))
+  FROM Invoice i
+  JOIN Customer c ON c.CustomerId = i.CustomerId
   GROUP BY c.CustomerId
   ORDER BY total_spent DESC
   LIMIT 5;
@@ -135,11 +134,11 @@ Top 5 customers:
 
   Helena Holý           49.62
   Richard Cunningham    47.62
-  Luis Rojas            46.62
+  Luís Gonçalves        46.62
   Ladislav Kovács       45.62
   Hugh O'Reilly         45.62
 
-The agent made 6 exploratory SQL calls before writing the final query —
-listing tables, inspecting the `customers` and `invoices` schemas,
-checking the date format, and verifying the join works.
+The agent made 5 exploratory SQL calls before writing the final query —
+listing tables, inspecting the `Customer` and `Invoice` schemas, and
+checking the join columns.
 ```
