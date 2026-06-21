@@ -8,9 +8,11 @@ import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
-This tutorial covers how to add the [text2sql MCP Server](https://github.com/cpenniman12/text2sql-mcp) as a goose extension to ask any SQL database questions in natural language. The agent explores the schema, writes SQL, executes it against the real database, and self-corrects on errors — no RAG layer, no schema descriptions, no embeddings required. Just a connection string and a frontier model.
+This tutorial covers how to add the [text2sql MCP Server](https://github.com/cpenniman12/text2sql-mcp) as a goose extension to ask SQL databases questions in natural language. The agent explores the schema, writes SQL, executes it against the real database, and self-corrects on errors — no RAG layer, no schema descriptions, no embeddings required. Just a connection string and a frontier model.
 
-:::tip Quick Install
+The base install supports **SQLite + Anthropic** out of the box. For other databases or LLM providers, swap the command for the matching install extra — see [Other databases & providers](#other-databases--providers) below.
+
+:::tip Quick Install (SQLite + Anthropic)
 <Tabs groupId="interface">
   <TabItem value="ui" label="goose Desktop" default>
   [Launch the installer](goose://extension?cmd=uvx&arg=text2sql-mcp&id=text2sql&name=text2sql&description=Ask%20your%20SQL%20database%20questions%20in%20natural%20language&env=TEXT2SQL_DATABASE_URL%3DSQLAlchemy%20connection%20string&env=ANTHROPIC_API_KEY%3DAnthropic%20API%20key)
@@ -24,7 +26,7 @@ This tutorial covers how to add the [text2sql MCP Server](https://github.com/cpe
 </Tabs>
   **Environment Variables**
   ```
-  TEXT2SQL_DATABASE_URL: <SQLALCHEMY_CONNECTION_STRING>
+  TEXT2SQL_DATABASE_URL: sqlite:///path/to/mydb.db
   ANTHROPIC_API_KEY: <YOUR_ANTHROPIC_API_KEY>
   ```
 :::
@@ -69,7 +71,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
       ]}
       infoNote={
         <>
-          <code>TEXT2SQL_DATABASE_URL</code> is any SQLAlchemy URL — SQLite, Postgres, MySQL, Snowflake, BigQuery, etc. Get your Anthropic API key from{" "}
+          For SQLite use a <code>sqlite:///path/to/mydb.db</code> URL. For other databases, see <a href="#other-databases--providers">Other databases &amp; providers</a> below. Get your Anthropic API key from{" "}
           <a href="https://console.anthropic.com/settings/keys" target="_blank" rel="noopener noreferrer">
             console.anthropic.com
           </a>.
@@ -80,9 +82,19 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
   </TabItem>
 </Tabs>
 
-:::info
-text2sql defaults to `anthropic:claude-sonnet-4-6`. To use OpenAI instead, set `TEXT2SQL_MODEL=openai:gpt-4.1` and provide `OPENAI_API_KEY`. See the [text2sql-framework README](https://github.com/cpenniman12/text2sql-framework) for the full list of supported options, including custom business-rule instructions and example libraries.
-:::
+## Other databases & providers
+
+The base `text2sql-mcp` package ships only the SQLite driver (via SQLAlchemy core) and Anthropic support. For Postgres, MySQL, Snowflake, BigQuery, or OpenAI, swap the command in the Configuration above for the matching install extra:
+
+| Database / provider | Command | Notes |
+| --- | --- | --- |
+| Postgres | `uvx 'text2sql-mcp[postgres]'` | Installs `psycopg2-binary`. Use `postgresql://...` URLs. |
+| MySQL | `uvx 'text2sql-mcp[mysql]'` | Installs `pymysql`. Use `mysql+pymysql://...` URLs. |
+| Snowflake | `uvx 'text2sql-mcp[snowflake]'` | Installs `snowflake-sqlalchemy`. |
+| BigQuery | `uvx 'text2sql-mcp[bigquery]'` | Installs `sqlalchemy-bigquery`. |
+| OpenAI models | add `openai` to any extra, e.g. `uvx 'text2sql-mcp[postgres,openai]'` | Then set `TEXT2SQL_MODEL=openai:gpt-4.1` and `OPENAI_API_KEY` instead of `ANTHROPIC_API_KEY`. |
+
+Combine extras with commas (e.g. `uvx 'text2sql-mcp[postgres,openai]'`). See the [text2sql-framework README](https://github.com/cpenniman12/text2sql-framework) for the full list of supported options, including custom business-rule instructions and example libraries.
 
 ## Tools
 
