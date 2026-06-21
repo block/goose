@@ -1595,12 +1595,12 @@ mod tests {
 
             run_turn(&agent, &session_id, "Turn 1").await?;
             let after_1 = session_manager.get_session(&session_id, false).await?;
-            assert_eq!(after_1.accumulated_total_tokens, Some(15));
+            assert_eq!(after_1.accumulated_usage.total_tokens, Some(15));
 
             run_turn(&agent, &session_id, "Turn 2").await?;
             let after_2 = session_manager.get_session(&session_id, false).await?;
-            assert_eq!(after_2.accumulated_total_tokens, Some(30));
-            assert_eq!(after_2.total_tokens, Some(15));
+            assert_eq!(after_2.accumulated_usage.total_tokens, Some(30));
+            assert_eq!(after_2.usage.total_tokens, Some(15));
 
             Ok(())
         }

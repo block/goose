@@ -827,6 +827,10 @@ impl Provider for ClaudeCodeProvider {
                                                     let new = extract_usage_tokens(usage_info);
                                                     if let Some(i) = new.input_tokens {
                                                         accumulated_usage.input_tokens = Some(i);
+                                                        accumulated_usage.cache_read_input_tokens =
+                                                            new.cache_read_input_tokens;
+                                                        accumulated_usage.cache_write_input_tokens =
+                                                            new.cache_write_input_tokens;
                                                     }
                                                 }
                                             }
@@ -846,11 +850,37 @@ impl Provider for ClaudeCodeProvider {
                                     process.needs_drain = false;
                                     if let Some(usage_info) = parsed.get("usage") {
                                         let new = extract_usage_tokens(usage_info);
-                                        accumulated_usage = Usage::new(
-                                            new.input_tokens.or(accumulated_usage.input_tokens),
-                                            new.output_tokens.or(accumulated_usage.output_tokens),
-                                            None,
-                                        );
+                                        let reports_own_cache = new.cache_read_input_tokens.is_some()
+                                            || new.cache_write_input_tokens.is_some();
+                                        let cache_read = new
+                                            .cache_read_input_tokens
+                                            .or(accumulated_usage.cache_read_input_tokens);
+                                        let cache_write = new
+                                            .cache_write_input_tokens
+                                            .or(accumulated_usage.cache_write_input_tokens);
+                                        // A result with raw input but no cache breakdown
+                                        // inherits the streamed breakdown; fold it back in
+                                        // so input stays inclusive of cache tokens.
+                                        let output_tokens =
+                                            new.output_tokens.or(accumulated_usage.output_tokens);
+                                        accumulated_usage = if new.input_tokens.is_some()
+                                            && !reports_own_cache
+                                        {
+                                            Usage::from_cache_exclusive_input(
+                                                new.input_tokens,
+                                                output_tokens,
+                                                None,
+                                                cache_read,
+                                                cache_write,
+                                            )
+                                        } else {
+                                            Usage::new(
+                                                new.input_tokens.or(accumulated_usage.input_tokens),
+                                                output_tokens,
+                                                None,
+                                            )
+                                            .with_cache_tokens(cache_read, cache_write)
+                                        };
                                     }
                                     break;
                                 }
@@ -963,6 +993,31 @@ mod tests {
         let usage = extract_usage_tokens(&usage_json);
         assert_eq!(usage.input_tokens, expected_input);
         assert_eq!(usage.output_tokens, expected_output);
+    }
+
+    #[tokio::test]
+    async fn test_result_without_cache_fields_keeps_streamed_cache_coherent() {
+        use futures::StreamExt;
+
+        let (_provider, mut stream, _stdin_reader) = stream_with_canned_stdout(&[
+            r#"{"type":"control_response","response":{"subtype":"success","request_id":"req_0"}}"#,
+            r#"{"type":"stream_event","event":{"type":"message_start","message":{"usage":{"input_tokens":7,"cache_read_input_tokens":5000,"cache_creation_input_tokens":1000,"output_tokens":0}}}}"#,
+            r#"{"type":"result","result":"Done","usage":{"input_tokens":10,"output_tokens":50}}"#,
+        ])
+        .await;
+
+        let mut final_usage = None;
+        while let Some(item) = stream.next().await {
+            if let Ok((_, Some(usage))) = item {
+                final_usage = Some(usage);
+            }
+        }
+
+        let usage = final_usage.expect("stream should yield usage").usage;
+        assert_eq!(usage.cache_read_input_tokens, Some(5000));
+        assert_eq!(usage.cache_write_input_tokens, Some(1000));
+        assert_eq!(usage.input_tokens, Some(6010)); // 10 + 5000 + 1000
+        assert_eq!(usage.output_tokens, Some(50));
     }
 
     #[test_case(

@@ -1,11 +1,6 @@
 import { Session, startAgent, ExtensionConfig } from './api';
 import { DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
 import type { setViewType } from './hooks/useNavigation';
-import {
-  getExtensionConfigsWithOverrides,
-  clearExtensionOverrides,
-  hasExtensionOverrides,
-} from './store/extensionOverrides';
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
 import { decodeRecipe, Recipe } from './recipe';
@@ -72,12 +67,15 @@ export async function createSession(
   if (options?.extensionConfigs && options.extensionConfigs.length > 0) {
     body.extension_overrides = options.extensionConfigs;
   } else if (options?.allExtensions) {
-    const extensionConfigs = getExtensionConfigsWithOverrides(options.allExtensions);
+    const extensionConfigs = options.allExtensions
+      .filter((extension) => extension.enabled)
+      .map((extension) => {
+        const { enabled: _enabled, ...config } = extension;
+        return config as ExtensionConfig;
+      });
+
     if (extensionConfigs.length > 0) {
       body.extension_overrides = extensionConfigs;
-    }
-    if (hasExtensionOverrides()) {
-      clearExtensionOverrides();
     }
   }
 

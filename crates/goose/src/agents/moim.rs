@@ -76,7 +76,9 @@ pub async fn inject_moim(
         .as_ref()
         .map(|session| session.working_dir.clone())
         .unwrap_or_else(|| PathBuf::from("."));
-    let total_tokens = session.as_ref().and_then(|session| session.total_tokens);
+    let total_tokens = session
+        .as_ref()
+        .and_then(|session| session.usage.total_tokens);
     let compaction_threshold = crate::config::Config::global()
         .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
         .unwrap_or(crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD);

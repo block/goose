@@ -13,10 +13,61 @@
 //! `SessionManager::import_session` pipeline.
 
 use anyhow::Result;
+use chrono::{DateTime, Utc};
+use goose_providers::conversation::token_usage::Usage;
+use serde_json::{json, Map, Value};
+
+use crate::conversation::Conversation;
 
 pub mod claude_code;
 pub mod codex;
 pub mod pi;
+
+/// Session-level fields harvested from a foreign transcript, used to build
+/// the goose-native session JSON handed to `SessionManager::import_session`.
+pub(crate) struct ImportedSession<'a> {
+    pub session_id: &'a str,
+    pub working_dir: &'a str,
+    pub name: &'a str,
+    pub created_at: DateTime<Utc>,
+    pub updated_at: DateTime<Utc>,
+    pub usage: Usage,
+    pub accumulated_cost: Option<f64>,
+    pub conversation: Conversation,
+}
+
+pub(crate) fn build_session_json(session: ImportedSession) -> Value {
+    let usage = serde_json::to_value(session.usage).unwrap();
+    let mut obj = Map::new();
+    obj.insert("id".into(), json!(session.session_id));
+    obj.insert("working_dir".into(), json!(session.working_dir));
+    obj.insert("name".into(), json!(session.name));
+    obj.insert("user_set_name".into(), json!(false));
+    obj.insert("session_type".into(), json!("user"));
+    obj.insert("created_at".into(), json!(session.created_at.to_rfc3339()));
+    obj.insert("updated_at".into(), json!(session.updated_at.to_rfc3339()));
+    obj.insert("extension_data".into(), json!({}));
+    obj.insert("usage".into(), usage.clone());
+    obj.insert("accumulated_usage".into(), usage);
+    obj.insert("accumulated_cost".into(), json!(session.accumulated_cost));
+    obj.insert("schedule_id".into(), json!(null));
+    obj.insert("recipe".into(), json!(null));
+    obj.insert("user_recipe_values".into(), json!(null));
+    obj.insert(
+        "conversation".into(),
+        serde_json::to_value(&session.conversation).unwrap(),
+    );
+    obj.insert(
+        "message_count".into(),
+        json!(session.conversation.messages().len()),
+    );
+    obj.insert("provider_name".into(), json!(null));
+    obj.insert("model_config".into(), json!(null));
+    obj.insert("goose_mode".into(), json!("auto"));
+    obj.insert("archived_at".into(), json!(null));
+    obj.insert("project_id".into(), json!(null));
+    Value::Object(obj)
+}
 
 /// Detected import source format.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -96,14 +147,66 @@ pub fn detect_format(content: &str) -> ImportFormat {
 }
 
 /// Convert any supported foreign format to a goose-native session JSON string.
-///
-/// For [`ImportFormat::Goose`] the input is returned unchanged.
 pub fn convert_to_goose_session_json(content: &str) -> Result<String> {
     match detect_format(content) {
-        ImportFormat::Goose => Ok(content.to_string()),
+        ImportFormat::Goose => Ok(upgrade_legacy_token_fields(content)),
         ImportFormat::ClaudeCode => claude_code::convert(content),
         ImportFormat::Codex => codex::convert(content),
         ImportFormat::Pi => pi::convert(content),
+    }
+}
+
+/// Exports from goose versions before `usage`/`accumulated_usage` existed
+/// store token counts as flat fields.
+fn upgrade_legacy_token_fields(content: &str) -> String {
+    let Ok(Value::Object(mut obj)) = serde_json::from_str::<Value>(content) else {
+        return content.to_string();
+    };
+    nest_legacy_token_fields(&mut obj);
+    Value::Object(obj).to_string()
+}
+
+/// Fold pre-`usage` flat token counts into nested `usage`/`accumulated_usage`
+/// objects. Shared by the export-import path and the first-run JSONL migration.
+pub(crate) fn nest_legacy_token_fields(obj: &mut Map<String, Value>) {
+    let nest = |obj: &Map<String, Value>, keys: [(&str, &str); 5]| -> Value {
+        Value::Object(
+            keys.iter()
+                .map(|(from, to)| {
+                    (
+                        to.to_string(),
+                        obj.get(*from).cloned().unwrap_or(Value::Null),
+                    )
+                })
+                .collect(),
+        )
+    };
+
+    if !obj.contains_key("usage") {
+        let usage = nest(
+            obj,
+            [
+                ("input_tokens", "input_tokens"),
+                ("output_tokens", "output_tokens"),
+                ("total_tokens", "total_tokens"),
+                ("cache_read_tokens", "cache_read_input_tokens"),
+                ("cache_write_tokens", "cache_write_input_tokens"),
+            ],
+        );
+        obj.insert("usage".into(), usage);
+    }
+    if !obj.contains_key("accumulated_usage") {
+        let accumulated = nest(
+            obj,
+            [
+                ("accumulated_input_tokens", "input_tokens"),
+                ("accumulated_output_tokens", "output_tokens"),
+                ("accumulated_total_tokens", "total_tokens"),
+                ("accumulated_cache_read_tokens", "cache_read_input_tokens"),
+                ("accumulated_cache_write_tokens", "cache_write_input_tokens"),
+            ],
+        );
+        obj.insert("accumulated_usage".into(), accumulated);
     }
 }
 

@@ -41,6 +41,7 @@ import windowStateKeeper from 'electron-window-state';
 import {
   getUpdateAvailable,
   registerUpdateIpcHandlers,
+  setAutoDownloadDisabled,
   setTrayRef,
   setupAutoUpdater,
   updateTrayMenu,
@@ -1791,6 +1792,7 @@ const validSettingKeys: Set<string> = new Set([
   'showPricing',
   'sessionSharing',
   'seenAnnouncementIds',
+  'disableAutoDownload',
 ]);
 
 ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
@@ -1817,6 +1819,10 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
   // Re-register shortcuts if keyboard shortcuts changed
   if (key === 'keyboardShortcuts') {
     registerGlobalShortcuts();
+  }
+
+  if (key === 'disableAutoDownload') {
+    setAutoDownloadDisabled(value as boolean);
   }
 });
 
@@ -2362,6 +2368,10 @@ async function appMain() {
     if (shouldSetupUpdater()) {
       log.info('Setting up auto-updater after window creation...');
       try {
+        const settings = getSettings();
+        if (settings.disableAutoDownload) {
+          setAutoDownloadDisabled(true);
+        }
         setupAutoUpdater();
       } catch (error) {
         log.error('Error setting up auto-updater:', error);

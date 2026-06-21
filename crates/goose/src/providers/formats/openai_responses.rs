@@ -112,6 +112,30 @@ pub struct ResponseUsage {
     pub input_tokens: i32,
     pub output_tokens: i32,
     pub total_tokens: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_tokens_details: Option<InputTokensDetails>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct InputTokensDetails {
+    #[serde(default)]
+    pub cached_tokens: Option<i32>,
+}
+
+impl ResponseUsage {
+    fn to_usage(&self) -> Usage {
+        // input_tokens already includes cached tokens
+        let cached_tokens = self
+            .input_tokens_details
+            .as_ref()
+            .and_then(|d| d.cached_tokens);
+        Usage::new(
+            Some(self.input_tokens),
+            Some(self.output_tokens),
+            Some(self.total_tokens),
+        )
+        .with_cache_tokens(cached_tokens, None)
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -690,13 +714,10 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
 }
 
 pub fn get_responses_usage(response: &ResponsesApiResponse) -> Usage {
-    response.usage.as_ref().map_or_else(Usage::default, |u| {
-        Usage::new(
-            Some(u.input_tokens),
-            Some(u.output_tokens),
-            Some(u.total_tokens),
-        )
-    })
+    response
+        .usage
+        .as_ref()
+        .map_or_else(Usage::default, ResponseUsage::to_usage)
 }
 
 fn process_streaming_output_items(
@@ -858,11 +879,7 @@ where
                     let model = model_name.as_ref().unwrap_or(&response.model);
                     let usage = response.usage.as_ref().map_or_else(
                         Usage::default,
-                        |u| Usage::new(
-                            Some(u.input_tokens),
-                            Some(u.output_tokens),
-                            Some(u.total_tokens),
-                        ),
+                        ResponseUsage::to_usage,
                     );
                     final_usage = Some(ProviderUsage::new(model.clone(), usage));
 
@@ -957,7 +974,7 @@ mod tests {
             r#"data: {"type":"keepalive"}"#.to_string(),
             r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}"#.to_string(),
             r#"data: {"type":"response.output_text.delta","sequence_number":3,"item_id":"msg_1","output_index":0,"content_index":0,"delta":" world"}"#.to_string(),
-            r#"data: {"type":"response.completed","sequence_number":4,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"completed","model":"gpt-5.2-pro","output":[],"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14}}}"#.to_string(),
+            r#"data: {"type":"response.completed","sequence_number":4,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"completed","model":"gpt-5.2-pro","output":[],"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14,"input_tokens_details":{"cached_tokens":6}}}}"#.to_string(),
             "data: [DONE]".to_string(),
         ];
 
@@ -988,6 +1005,8 @@ mod tests {
         assert_eq!(usage.usage.input_tokens, Some(10));
         assert_eq!(usage.usage.output_tokens, Some(4));
         assert_eq!(usage.usage.total_tokens, Some(14));
+        assert_eq!(usage.usage.cache_read_input_tokens, Some(6));
+        assert_eq!(usage.usage.cache_write_input_tokens, None);
 
         Ok(())
     }

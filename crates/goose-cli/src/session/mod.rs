@@ -909,9 +909,11 @@ impl CliSession {
             .config
             .session_manager
             .update(&self.session_id)
-            .total_tokens(Some(0))
-            .input_tokens(Some(0))
-            .output_tokens(Some(0))
+            .usage(goose_providers::conversation::token_usage::Usage::new(
+                Some(0),
+                Some(0),
+                Some(0),
+            ))
             .apply()
             .await
         {
@@ -1382,9 +1384,18 @@ impl CliSession {
                 .await
             {
                 Ok(session) => JsonMetadata {
-                    total_tokens: session.accumulated_total_tokens.or(session.total_tokens),
-                    input_tokens: session.accumulated_input_tokens.or(session.input_tokens),
-                    output_tokens: session.accumulated_output_tokens.or(session.output_tokens),
+                    total_tokens: session
+                        .accumulated_usage
+                        .total_tokens
+                        .or(session.usage.total_tokens),
+                    input_tokens: session
+                        .accumulated_usage
+                        .input_tokens
+                        .or(session.usage.input_tokens),
+                    output_tokens: session
+                        .accumulated_usage
+                        .output_tokens
+                        .or(session.usage.output_tokens),
                     status: "completed".to_string(),
                 },
                 Err(_) => JsonMetadata {
@@ -1409,9 +1420,9 @@ impl CliSession {
                 .ok();
             let (total_tokens, input_tokens, output_tokens) = match session {
                 Some(s) => (
-                    s.accumulated_total_tokens.or(s.total_tokens),
-                    s.accumulated_input_tokens.or(s.input_tokens),
-                    s.accumulated_output_tokens.or(s.output_tokens),
+                    s.accumulated_usage.total_tokens.or(s.usage.total_tokens),
+                    s.accumulated_usage.input_tokens.or(s.usage.input_tokens),
+                    s.accumulated_usage.output_tokens.or(s.usage.output_tokens),
                 ),
                 None => (None, None, None),
             };
@@ -1579,7 +1590,7 @@ impl CliSession {
 
     pub async fn get_total_token_usage(&self) -> Result<Option<i32>> {
         let metadata = self.get_session().await?;
-        Ok(metadata.accumulated_total_tokens)
+        Ok(metadata.accumulated_usage.total_tokens)
     }
 
     /// Display enhanced context usage with session totals
@@ -1599,18 +1610,15 @@ impl CliSession {
 
         match self.get_session().await {
             Ok(metadata) => {
-                let total_tokens = metadata.total_tokens.unwrap_or(0) as usize;
+                let total_tokens = metadata.usage.total_tokens.unwrap_or(0) as usize;
 
                 output::display_context_usage(total_tokens, context_limit);
 
                 if show_cost {
-                    let input_tokens = metadata.input_tokens.unwrap_or(0) as usize;
-                    let output_tokens = metadata.output_tokens.unwrap_or(0) as usize;
                     output::display_cost_usage(
                         &provider_name,
                         &model_config.model_name,
-                        input_tokens,
-                        output_tokens,
+                        &metadata.usage,
                     );
                 }
             }

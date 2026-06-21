@@ -972,7 +972,7 @@ async fn execute_job(
             .session_manager
             .get_session(&session.id, false)
             .await
-            .map(|s| (s.total_tokens.unwrap_or(0), s.message_count))
+            .map(|s| (s.usage.total_tokens.unwrap_or(0), s.message_count))
             .unwrap_or((0, 0));
 
         tracing::info!(

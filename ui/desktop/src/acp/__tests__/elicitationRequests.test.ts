@@ -6,14 +6,14 @@ import {
   requestAcpElicitation,
   resolveAcpElicitationRequest,
 } from '../elicitationRequests';
-import { acpChatSessionStore } from '../chatSessionStore';
+import { acpChatSessionActions } from '../chatSessionStore';
 
 vi.mock('../../acpChatFeatureFlag', () => ({
   USE_ACP_CHAT: true,
 }));
 
 vi.mock('../chatSessionStore', () => ({
-  acpChatSessionStore: {
+  acpChatSessionActions: {
     applyElicitationRequest: vi.fn(),
     setElicitationStatus: vi.fn(),
   },
@@ -73,7 +73,9 @@ describe('ACP elicitation requests', () => {
 
     await expectStillPending(response);
 
-    const appliedRequest = vi.mocked(acpChatSessionStore.applyElicitationRequest).mock.calls[0][0];
+    const appliedRequest = vi.mocked(
+      acpChatSessionActions.applyElicitationRequest
+    ).mock.calls[0][0];
 
     expect(appliedRequest.id).toMatch(/^acp_elicitation_/);
     expect(appliedRequest.sessionId).toBe('session-1');
@@ -84,7 +86,7 @@ describe('ACP elicitation requests', () => {
         project: 'goose',
       })
     ).toBe(true);
-    expect(acpChatSessionStore.setElicitationStatus).toHaveBeenCalledWith(
+    expect(acpChatSessionActions.setElicitationStatus).toHaveBeenCalledWith(
       'session-1',
       appliedRequest.id,
       'submitted'
@@ -114,13 +116,13 @@ describe('ACP elicitation requests', () => {
     const sessionOneResponse = requestAcpElicitation(formRequest('session-1'));
     const sessionTwoResponse = requestAcpElicitation(formRequest('session-2'));
 
-    const applyElicitationRequest = vi.mocked(acpChatSessionStore.applyElicitationRequest);
+    const applyElicitationRequest = vi.mocked(acpChatSessionActions.applyElicitationRequest);
     const sessionOneRequest = applyElicitationRequest.mock.calls[0][0];
     const sessionTwoRequest = applyElicitationRequest.mock.calls[1][0];
 
     cancelAcpElicitationRequestsForSession('session-1');
 
-    expect(acpChatSessionStore.setElicitationStatus).toHaveBeenCalledWith(
+    expect(acpChatSessionActions.setElicitationStatus).toHaveBeenCalledWith(
       'session-1',
       sessionOneRequest.id,
       'cancelled'
@@ -140,14 +142,15 @@ describe('ACP elicitation requests', () => {
     vi.useFakeTimers();
     try {
       const response = requestAcpElicitation(formRequest('session-1'));
-      const appliedRequest = vi.mocked(acpChatSessionStore.applyElicitationRequest).mock
-        .calls[0][0];
+      const appliedRequest = vi.mocked(
+        acpChatSessionActions.applyElicitationRequest
+      ).mock.calls[0][0];
 
       await expectStillPending(response);
 
       await vi.advanceTimersByTimeAsync(ACP_ELICITATION_TIMEOUT_SECONDS * 1000);
 
-      expect(acpChatSessionStore.setElicitationStatus).toHaveBeenCalledWith(
+      expect(acpChatSessionActions.setElicitationStatus).toHaveBeenCalledWith(
         'session-1',
         appliedRequest.id,
         'cancelled'

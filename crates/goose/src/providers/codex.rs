@@ -291,7 +291,7 @@ impl CodexProvider {
         }
     }
 
-    /// Extract usage information from a JSON object
+    /// Codex `input_tokens` already includes `cached_input_tokens`.
     fn extract_usage(usage_info: &serde_json::Value, usage: &mut Usage) {
         if usage.input_tokens.is_none() {
             usage.input_tokens = usage_info
@@ -302,6 +302,12 @@ impl CodexProvider {
         if usage.output_tokens.is_none() {
             usage.output_tokens = usage_info
                 .get("output_tokens")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32);
+        }
+        if usage.cache_read_input_tokens.is_none() {
+            usage.cache_read_input_tokens = usage_info
+                .get("cached_input_tokens")
                 .and_then(|v| v.as_i64())
                 .map(|v| v as i32);
         }
@@ -981,6 +987,7 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(100));
         assert_eq!(usage.output_tokens, Some(50));
         assert_eq!(usage.total_tokens, Some(150));
+        assert_eq!(usage.cache_read_input_tokens, Some(30));
     }
 
     #[test]
@@ -1081,6 +1088,7 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(5000));
         assert_eq!(usage.output_tokens, Some(100));
         assert_eq!(usage.total_tokens, Some(5100));
+        assert_eq!(usage.cache_read_input_tokens, Some(3000));
     }
 
     #[test_case(

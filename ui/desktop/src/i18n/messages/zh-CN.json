@@ -125,9 +125,6 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "工作流创建成功！"
   },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "扩展开关错误"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "扩展已更新"
   },
@@ -145,9 +142,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "管理扩展"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "未找到活动会话，请先开始一个聊天会话。"
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "暂无可用扩展"
@@ -4760,6 +4754,12 @@
   "updateSection.autoDownload": {
     "defaultMessage": "更新将在后台自动下载。"
   },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "自动下载已通过 GOOSE_DISABLE_AUTO_DOWNLOAD 环境变量禁用。"
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "自动下载已禁用。点击\"立即下载\"以手动下载。"
+  },
   "updateSection.autoInstallNote": {
     "defaultMessage": "退出应用时将自动安装更新。"
   },
@@ -4771,6 +4771,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "当前版本"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "禁用自动更新下载"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "启用后，Goose 会通知你有新版本，但不会自动下载。"
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "立即下载"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "更新已下载，可以安装！"

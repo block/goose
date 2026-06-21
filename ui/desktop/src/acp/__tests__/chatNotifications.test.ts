@@ -5,7 +5,7 @@ import { AppEvents } from '../../constants/events';
 import { ChatState } from '../../types/chatState';
 import { handleAcpSessionNotification } from '../chatNotifications';
 import type { AcpChatSessionSnapshot } from '../chatSessionStore';
-import { acpChatSessionStore } from '../chatSessionStore';
+import { acpChatSessionActions, acpChatSessionStore } from '../chatSessionStore';
 
 vi.mock('../../acpChatFeatureFlag', () => ({
   USE_ACP_CHAT: true,
@@ -14,7 +14,10 @@ vi.mock('../../acpChatFeatureFlag', () => ({
 vi.mock('../chatSessionStore', () => ({
   acpChatSessionStore: {
     getSnapshot: vi.fn(),
+  },
+  acpChatSessionActions: {
     applyAcpSessionNotification: vi.fn(),
+    applyAcpGooseSessionNotification: vi.fn(),
   },
 }));
 
@@ -89,7 +92,7 @@ describe('handleAcpSessionNotification', () => {
   it('dispatches SESSION_RENAMED when a session info notification changes the name', async () => {
     const dispatchEvent = vi.spyOn(window, 'dispatchEvent');
     vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValueOnce(snapshotWithName('Old name'));
-    vi.mocked(acpChatSessionStore.applyAcpSessionNotification).mockReturnValueOnce(
+    vi.mocked(acpChatSessionActions.applyAcpSessionNotification).mockReturnValueOnce(
       snapshotWithName('New name')
     );
 
@@ -106,7 +109,7 @@ describe('handleAcpSessionNotification', () => {
   it('does not dispatch SESSION_RENAMED when the name is unchanged', async () => {
     const dispatchEvent = vi.spyOn(window, 'dispatchEvent');
     vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValueOnce(snapshotWithName('Same name'));
-    vi.mocked(acpChatSessionStore.applyAcpSessionNotification).mockReturnValueOnce(
+    vi.mocked(acpChatSessionActions.applyAcpSessionNotification).mockReturnValueOnce(
       snapshotWithName('Same name')
     );
 
@@ -118,7 +121,7 @@ describe('handleAcpSessionNotification', () => {
   it('dispatches SESSION_RENAMED from the notification title when the session is not loaded', async () => {
     const dispatchEvent = vi.spyOn(window, 'dispatchEvent');
     vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValueOnce(snapshotWithoutSession());
-    vi.mocked(acpChatSessionStore.applyAcpSessionNotification).mockReturnValueOnce(
+    vi.mocked(acpChatSessionActions.applyAcpSessionNotification).mockReturnValueOnce(
       snapshotWithoutSession()
     );
 

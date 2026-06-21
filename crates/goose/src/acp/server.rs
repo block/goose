@@ -796,9 +796,9 @@ fn to_nonnegative_u64(value: Option<i32>) -> Option<u64> {
 }
 
 fn build_prompt_usage(session: &Session) -> Option<Usage> {
-    let total = to_nonnegative_u64(session.total_tokens)?;
-    let input = to_nonnegative_u64(session.input_tokens).unwrap_or(0);
-    let output = to_nonnegative_u64(session.output_tokens).unwrap_or(0);
+    let total = to_nonnegative_u64(session.usage.total_tokens)?;
+    let input = to_nonnegative_u64(session.usage.input_tokens).unwrap_or(0);
+    let output = to_nonnegative_u64(session.usage.output_tokens).unwrap_or(0);
     Some(Usage::new(total, input, output))
 }
 
@@ -808,12 +808,12 @@ pub(super) struct UsageUpdates {
 }
 
 pub(super) fn build_usage_updates(session: &Session) -> Option<UsageUpdates> {
-    let used = session.total_tokens.unwrap_or(0).max(0) as u64;
+    let used = session.usage.total_tokens.unwrap_or(0).max(0) as u64;
     let ctx_limit = session.model_config.as_ref()?.context_limit() as u64;
     let accumulated_input_tokens =
-        to_nonnegative_u64(session.accumulated_input_tokens).unwrap_or(0);
+        to_nonnegative_u64(session.accumulated_usage.input_tokens).unwrap_or(0);
     let accumulated_output_tokens =
-        to_nonnegative_u64(session.accumulated_output_tokens).unwrap_or(0);
+        to_nonnegative_u64(session.accumulated_usage.output_tokens).unwrap_or(0);
     Some(UsageUpdates {
         custom: GooseSessionNotification {
             session_id: session.id.clone(),
@@ -2949,6 +2949,7 @@ mod tests {
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
         PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
     };
+    use goose_providers::conversation::token_usage::Usage as TokenUsage;
     use rmcp::model::{CallToolRequestParams, Content as RmcpContent};
     use std::io::Write;
     use std::path::PathBuf;
@@ -3684,53 +3685,23 @@ print(\"hello, world\")
         );
     }
 
-    fn make_session_with_usage(
-        total_tokens: Option<i32>,
-        input_tokens: Option<i32>,
-        output_tokens: Option<i32>,
-        accumulated_total_tokens: Option<i32>,
-        accumulated_input_tokens: Option<i32>,
-        accumulated_output_tokens: Option<i32>,
-    ) -> Session {
+    fn make_session_with_usage(usage: TokenUsage, accumulated_usage: TokenUsage) -> Session {
         Session {
             id: "session-1".to_string(),
             working_dir: PathBuf::from("/tmp"),
             name: "ACP Session".to_string(),
-            user_set_name: false,
             session_type: SessionType::Acp,
-            created_at: Default::default(),
-            updated_at: Default::default(),
-            extension_data: crate::session::ExtensionData::default(),
-            total_tokens,
-            input_tokens,
-            output_tokens,
-            accumulated_total_tokens,
-            accumulated_input_tokens,
-            accumulated_output_tokens,
-            accumulated_cost: None,
-            schedule_id: None,
-            recipe: None,
-            user_recipe_values: None,
-            conversation: None,
-            message_count: 0,
-            provider_name: None,
-            model_config: None,
-            goose_mode: GooseMode::default(),
-            archived_at: None,
-            project_id: None,
-            last_message_snippet: None,
+            usage,
+            accumulated_usage,
+            ..Default::default()
         }
     }
 
     #[test]
     fn test_build_prompt_usage_uses_current_turn_tokens() {
         let session = make_session_with_usage(
-            Some(120),
-            Some(80),
-            Some(40),
-            Some(360),
-            Some(210),
-            Some(150),
+            TokenUsage::new(Some(80), Some(40), Some(120)),
+            TokenUsage::new(Some(210), Some(150), Some(360)),
         );
         let usage = build_prompt_usage(&session).expect("usage should be present");
         assert_eq!(usage.total_tokens, 120);
@@ -3740,7 +3711,10 @@ print(\"hello, world\")
 
     #[test]
     fn test_build_prompt_usage_falls_back_to_current_tokens() {
-        let session = make_session_with_usage(Some(120), Some(80), Some(40), None, None, None);
+        let session = make_session_with_usage(
+            TokenUsage::new(Some(80), Some(40), Some(120)),
+            TokenUsage::default(),
+        );
         let usage = build_prompt_usage(&session).expect("usage should be present");
         assert_eq!(usage.total_tokens, 120);
         assert_eq!(usage.input_tokens, 80);
@@ -3749,13 +3723,24 @@ print(\"hello, world\")
 
     #[test]
     fn test_build_prompt_usage_requires_total_tokens() {
-        let session = make_session_with_usage(None, Some(80), Some(40), None, None, None);
+        let session = make_session_with_usage(
+            TokenUsage {
+                input_tokens: Some(80),
+                output_tokens: Some(40),
+                total_tokens: None,
+                ..Default::default()
+            },
+            TokenUsage::default(),
+        );
         assert!(build_prompt_usage(&session).is_none());
     }
 
     #[test]
     fn test_build_usage_update_clamps_negative_used_to_zero() {
-        let mut session = make_session_with_usage(Some(-7), Some(0), Some(0), None, None, None);
+        let mut session = make_session_with_usage(
+            TokenUsage::new(Some(0), Some(0), Some(-7)),
+            TokenUsage::default(),
+        );
         session.model_config = Some(
             goose_providers::model::ModelConfig::new("test-model")
                 .unwrap()
@@ -3775,7 +3760,10 @@ print(\"hello, world\")
 
     #[test]
     fn test_build_usage_update_requires_model_config() {
-        let session = make_session_with_usage(Some(120), Some(80), Some(40), None, None, None);
+        let session = make_session_with_usage(
+            TokenUsage::new(Some(80), Some(40), Some(120)),
+            TokenUsage::default(),
+        );
         assert!(build_usage_updates(&session).is_none());
     }
 

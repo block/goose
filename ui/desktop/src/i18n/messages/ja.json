@@ -125,9 +125,6 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "レシピを作成しました！"
   },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "拡張機能の切り替えエラー"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "拡張機能を更新しました"
   },
@@ -145,9 +142,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "拡張機能を管理"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "アクティブなセッションが見つかりません。先にチャットセッションを開始してください。"
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "利用可能な拡張機能はありません"
@@ -4757,6 +4751,12 @@
   "updateSection.autoDownload": {
     "defaultMessage": "アップデートはバックグラウンドで自動的にダウンロードされます。"
   },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "自動ダウンロードは GOOSE_DISABLE_AUTO_DOWNLOAD 環境変数によって無効になっています。"
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "自動ダウンロードは無効です。手動でダウンロードするには「今すぐダウンロード」をクリックしてください。"
+  },
   "updateSection.autoInstallNote": {
     "defaultMessage": "アプリを終了すると、アップデートが自動的にインストールされます。"
   },
@@ -4768,6 +4768,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "現在のバージョン"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "アップデートの自動ダウンロードを無効にする"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "有効にすると、Goose は新しいバージョンを通知しますが、自動的にはダウンロードしません。"
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "今すぐダウンロード"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "アップデートのダウンロードが完了し、インストールの準備ができました！"

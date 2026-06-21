@@ -21,7 +21,7 @@ use crate::providers::toolshim::{
     augment_message_with_selected_tool_interpreter, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, sanitize_residual_markers,
 };
-use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use rmcp::model::Tool;
 use tracing::warn;
 
@@ -523,19 +523,7 @@ impl Agent {
         let manager = self.config.session_manager.clone();
         let session = manager.get_session(session_id, false).await?;
 
-        let accumulate = |a: Option<i32>, b: Option<i32>| -> Option<i32> {
-            match (a, b) {
-                (Some(x), Some(y)) => Some(x + y),
-                _ => a.or(b),
-            }
-        };
-
-        let accumulated_total =
-            accumulate(session.accumulated_total_tokens, usage.usage.total_tokens);
-        let accumulated_input =
-            accumulate(session.accumulated_input_tokens, usage.usage.input_tokens);
-        let accumulated_output =
-            accumulate(session.accumulated_output_tokens, usage.usage.output_tokens);
+        let accumulated_usage = session.accumulated_usage + usage.usage;
 
         let accumulated_cost = session
             .provider_name
@@ -543,27 +531,19 @@ impl Agent {
             .and_then(|pn| self.accumulate_cost(session.accumulated_cost, usage, pn))
             .or(session.accumulated_cost);
 
-        let (current_total, current_input, current_output) = if is_compaction_usage {
+        let current_usage = if is_compaction_usage {
             // After compaction: summary output becomes new input context
             let new_input = usage.usage.output_tokens;
-            (new_input, new_input, None)
+            Usage::new(new_input, None, new_input)
         } else {
-            (
-                usage.usage.total_tokens,
-                usage.usage.input_tokens,
-                usage.usage.output_tokens,
-            )
+            usage.usage
         };
 
         manager
             .update(session_id)
             .schedule_id(schedule_id)
-            .total_tokens(current_total)
-            .input_tokens(current_input)
-            .output_tokens(current_output)
-            .accumulated_total_tokens(accumulated_total)
-            .accumulated_input_tokens(accumulated_input)
-            .accumulated_output_tokens(accumulated_output)
+            .usage(current_usage)
+            .accumulated_usage(accumulated_usage)
             .accumulated_cost(accumulated_cost)
             .apply()
             .await?;
@@ -580,13 +560,7 @@ impl Agent {
         let canonical =
             crate::providers::canonical::maybe_get_canonical_model(provider_name, &usage.model)?;
 
-        let input_price = canonical.cost.input?;
-        let output_price = canonical.cost.output?;
-
-        let input_tokens = usage.usage.input_tokens.unwrap_or(0) as f64;
-        let output_tokens = usage.usage.output_tokens.unwrap_or(0) as f64;
-
-        let chunk_cost = (input_tokens * input_price + output_tokens * output_price) / 1_000_000.0;
+        let chunk_cost = canonical.cost.estimate_cost(&usage.usage)?;
 
         Some(existing.unwrap_or(0.0) + chunk_cost)
     }

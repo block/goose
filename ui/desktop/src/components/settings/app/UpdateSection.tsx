@@ -5,6 +5,28 @@ import { errorMessage } from '../../../utils/conversionUtils';
 import { defineMessages, useIntl } from '../../../i18n';
 
 const i18n = defineMessages({
+  disableAutoDownload: {
+    id: 'updateSection.disableAutoDownload',
+    defaultMessage: 'Disable automatic update downloads',
+  },
+  disableAutoDownloadDesc: {
+    id: 'updateSection.disableAutoDownloadDesc',
+    defaultMessage:
+      'When enabled, Goose will notify you of new versions but will not download them automatically.',
+  },
+  autoDownloadDisabledByEnv: {
+    id: 'updateSection.autoDownloadDisabledByEnv',
+    defaultMessage:
+      'Automatic downloads are disabled via the GOOSE_DISABLE_AUTO_DOWNLOAD environment variable.',
+  },
+  downloadNow: {
+    id: 'updateSection.downloadNow',
+    defaultMessage: 'Download Now',
+  },
+  autoDownloadDisabledNote: {
+    id: 'updateSection.autoDownloadDisabledNote',
+    defaultMessage: 'Automatic download is disabled. Click "Download Now" to download manually.',
+  },
   loading: {
     id: 'updateSection.loading',
     defaultMessage: 'Loading...',
@@ -116,6 +138,8 @@ export default function UpdateSection() {
   });
   const [progress, setProgress] = useState<number>(0);
   const [isUsingGitHubFallback, setIsUsingGitHubFallback] = useState<boolean>(false);
+  const [disableAutoDownload, setDisableAutoDownload] = useState<boolean>(false);
+  const [autoDownloadForcedByEnv, setAutoDownloadForcedByEnv] = useState<boolean>(false);
   const progressTimeoutRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastProgressRef = React.useRef<number>(0); // Track last progress to prevent backward jumps
 
@@ -138,6 +162,16 @@ export default function UpdateSection() {
     // Check if using GitHub fallback
     window.electron.isUsingGitHubFallback().then((isGitHub) => {
       setIsUsingGitHubFallback(isGitHub);
+    });
+
+    window.electron.getSetting('disableAutoDownload').then((stored) => {
+      setDisableAutoDownload(!!stored);
+    });
+    window.electron.getAutoDownloadDisabled().then((effective) => {
+      window.electron.getSetting('disableAutoDownload').then((stored) => {
+        // If effective is true but user setting is false, env var is forcing it
+        setAutoDownloadForcedByEnv(effective && !stored);
+      });
     });
 
     // Listen for updater events
@@ -249,6 +283,30 @@ export default function UpdateSection() {
     window.electron.installUpdate();
   };
 
+  const downloadUpdate = async () => {
+    setUpdateStatus('downloading');
+    setProgress(0);
+    lastProgressRef.current = 0;
+    try {
+      const result = await window.electron.downloadUpdate();
+      if (result.error) {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      setUpdateInfo((prev) => ({
+        ...prev,
+        error: errorMessage(error, 'Failed to download update'),
+      }));
+      setUpdateStatus('error');
+      setTimeout(() => setUpdateStatus('idle'), 5000);
+    }
+  };
+
+  const toggleAutoDownload = async (disabled: boolean) => {
+    setDisableAutoDownload(disabled);
+    await window.electron.setSetting('disableAutoDownload', disabled);
+  };
+
   const getStatusMessage = () => {
     switch (updateStatus) {
       case 'checking':
@@ -287,6 +345,8 @@ export default function UpdateSection() {
     }
   };
 
+  const autoDownloadEffectivelyDisabled = disableAutoDownload || autoDownloadForcedByEnv;
+
   return (
     <div>
       <div className="text-sm text-text-secondary mb-4 flex items-center gap-2">
@@ -314,6 +374,12 @@ export default function UpdateSection() {
           >
             {intl.formatMessage(i18n.checkForUpdates)}
           </Button>
+
+          {updateInfo.isUpdateAvailable && updateStatus === 'idle' && autoDownloadEffectivelyDisabled && (
+            <Button onClick={downloadUpdate} variant="secondary" size="sm">
+              {intl.formatMessage(i18n.downloadNow)}
+            </Button>
+          )}
 
           {updateStatus === 'ready' && (
             <Button onClick={installUpdate} variant="default" size="sm">
@@ -347,15 +413,23 @@ export default function UpdateSection() {
         {/* Update information */}
         {updateInfo.isUpdateAvailable && updateStatus === 'idle' && (
           <div className="text-xs text-text-secondary mt-4 space-y-1">
-            <p>{intl.formatMessage(i18n.autoDownload)}</p>
-            {isUsingGitHubFallback ? (
+            {autoDownloadEffectivelyDisabled ? (
               <p className="text-xs text-amber-600">
-                {intl.formatMessage(i18n.manualInstallNote)}
+                {intl.formatMessage(i18n.autoDownloadDisabledNote)}
               </p>
             ) : (
-              <p className="text-xs text-green-600">
-                {intl.formatMessage(i18n.autoInstallNote)}
-              </p>
+              <>
+                <p>{intl.formatMessage(i18n.autoDownload)}</p>
+                {isUsingGitHubFallback ? (
+                  <p className="text-xs text-amber-600">
+                    {intl.formatMessage(i18n.manualInstallNote)}
+                  </p>
+                ) : (
+                  <p className="text-xs text-green-600">
+                    {intl.formatMessage(i18n.autoInstallNote)}
+                  </p>
+                )}
+              </>
             )}
           </div>
         )}
@@ -382,6 +456,32 @@ export default function UpdateSection() {
               </>
             )}
           </div>
+        )}
+      </div>
+
+      {/* Auto-download toggle */}
+      <div className="mt-6 pt-4 border-t border-borderSubtle">
+        {autoDownloadForcedByEnv ? (
+          <p className="text-xs text-amber-600">
+            {intl.formatMessage(i18n.autoDownloadDisabledByEnv)}
+          </p>
+        ) : (
+          <label className="flex items-start gap-3 cursor-pointer group">
+            <input
+              type="checkbox"
+              className="mt-0.5 cursor-pointer accent-bgApp"
+              checked={disableAutoDownload}
+              onChange={(e) => toggleAutoDownload(e.target.checked)}
+            />
+            <div>
+              <p className="text-sm text-text-primary group-hover:text-text-primary">
+                {intl.formatMessage(i18n.disableAutoDownload)}
+              </p>
+              <p className="text-xs text-text-secondary mt-0.5">
+                {intl.formatMessage(i18n.disableAutoDownloadDesc)}
+              </p>
+            </div>
+          </label>
         )}
       </div>
     </div>

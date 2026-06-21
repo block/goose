@@ -1,6 +1,6 @@
 use crate::config::paths::Paths;
 use crate::config::GooseMode;
-use crate::conversation::message::Message;
+use crate::conversation::message::{Message, TokenState};
 use crate::conversation::Conversation;
 use crate::providers::base::Provider;
 use crate::recipe::Recipe;
@@ -10,6 +10,7 @@ use crate::session::session_naming::{
 };
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use goose_providers::conversation::token_usage::Usage;
 use goose_providers::model::ModelConfig;
 use rmcp::model::Role;
 use serde::{Deserialize, Serialize};
@@ -22,7 +23,7 @@ use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 13;
+pub const CURRENT_SCHEMA_VERSION: i32 = 14;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 
@@ -69,12 +70,10 @@ pub struct Session {
     pub created_at: DateTime<Utc>,
     pub updated_at: DateTime<Utc>,
     pub extension_data: ExtensionData,
-    pub total_tokens: Option<i32>,
-    pub input_tokens: Option<i32>,
-    pub output_tokens: Option<i32>,
-    pub accumulated_total_tokens: Option<i32>,
-    pub accumulated_input_tokens: Option<i32>,
-    pub accumulated_output_tokens: Option<i32>,
+    #[serde(default)]
+    pub usage: Usage,
+    #[serde(default)]
+    pub accumulated_usage: Usage,
     pub accumulated_cost: Option<f64>,
     pub schedule_id: Option<String>,
     pub recipe: Option<Recipe>,
@@ -93,6 +92,30 @@ pub struct Session {
     pub last_message_snippet: Option<String>,
 }
 
+impl From<&Session> for TokenState {
+    fn from(session: &Session) -> Self {
+        Self {
+            input_tokens: session.usage.input_tokens.unwrap_or(0),
+            output_tokens: session.usage.output_tokens.unwrap_or(0),
+            total_tokens: session.usage.total_tokens.unwrap_or(0),
+            cache_read_tokens: session.usage.cache_read_input_tokens.unwrap_or(0),
+            cache_write_tokens: session.usage.cache_write_input_tokens.unwrap_or(0),
+            accumulated_input_tokens: session.accumulated_usage.input_tokens.unwrap_or(0),
+            accumulated_output_tokens: session.accumulated_usage.output_tokens.unwrap_or(0),
+            accumulated_total_tokens: session.accumulated_usage.total_tokens.unwrap_or(0),
+            accumulated_cache_read_tokens: session
+                .accumulated_usage
+                .cache_read_input_tokens
+                .unwrap_or(0),
+            accumulated_cache_write_tokens: session
+                .accumulated_usage
+                .cache_write_input_tokens
+                .unwrap_or(0),
+            accumulated_cost: session.accumulated_cost,
+        }
+    }
+}
+
 pub struct SessionUpdateBuilder<'a> {
     session_manager: &'a SessionManager,
     session_id: String,
@@ -101,12 +124,8 @@ pub struct SessionUpdateBuilder<'a> {
     session_type: Option<SessionType>,
     working_dir: Option<PathBuf>,
     extension_data: Option<ExtensionData>,
-    total_tokens: Option<Option<i32>>,
-    input_tokens: Option<Option<i32>>,
-    output_tokens: Option<Option<i32>>,
-    accumulated_total_tokens: Option<Option<i32>>,
-    accumulated_input_tokens: Option<Option<i32>>,
-    accumulated_output_tokens: Option<Option<i32>>,
+    usage: Option<Usage>,
+    accumulated_usage: Option<Usage>,
     accumulated_cost: Option<Option<f64>>,
     schedule_id: Option<Option<String>>,
     recipe: Option<Option<Recipe>>,
@@ -136,12 +155,8 @@ impl<'a> SessionUpdateBuilder<'a> {
             session_type: None,
             working_dir: None,
             extension_data: None,
-            total_tokens: None,
-            input_tokens: None,
-            output_tokens: None,
-            accumulated_total_tokens: None,
-            accumulated_input_tokens: None,
-            accumulated_output_tokens: None,
+            usage: None,
+            accumulated_usage: None,
             accumulated_cost: None,
             schedule_id: None,
             recipe: None,
@@ -191,33 +206,13 @@ impl<'a> SessionUpdateBuilder<'a> {
         self
     }
 
-    pub fn total_tokens(mut self, tokens: Option<i32>) -> Self {
-        self.total_tokens = Some(tokens);
+    pub fn usage(mut self, usage: Usage) -> Self {
+        self.usage = Some(usage);
         self
     }
 
-    pub fn input_tokens(mut self, tokens: Option<i32>) -> Self {
-        self.input_tokens = Some(tokens);
-        self
-    }
-
-    pub fn output_tokens(mut self, tokens: Option<i32>) -> Self {
-        self.output_tokens = Some(tokens);
-        self
-    }
-
-    pub fn accumulated_total_tokens(mut self, tokens: Option<i32>) -> Self {
-        self.accumulated_total_tokens = Some(tokens);
-        self
-    }
-
-    pub fn accumulated_input_tokens(mut self, tokens: Option<i32>) -> Self {
-        self.accumulated_input_tokens = Some(tokens);
-        self
-    }
-
-    pub fn accumulated_output_tokens(mut self, tokens: Option<i32>) -> Self {
-        self.accumulated_output_tokens = Some(tokens);
+    pub fn accumulated_usage(mut self, usage: Usage) -> Self {
+        self.accumulated_usage = Some(usage);
         self
     }
 
@@ -591,12 +586,8 @@ impl Default for Session {
             created_at: Default::default(),
             updated_at: Default::default(),
             extension_data: ExtensionData::default(),
-            total_tokens: None,
-            input_tokens: None,
-            output_tokens: None,
-            accumulated_total_tokens: None,
-            accumulated_input_tokens: None,
-            accumulated_output_tokens: None,
+            usage: Usage::default(),
+            accumulated_usage: Usage::default(),
             accumulated_cost: None,
             schedule_id: None,
             recipe: None,
@@ -660,12 +651,26 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             updated_at: row.try_get("updated_at")?,
             extension_data: serde_json::from_str(&row.try_get::<String, _>("extension_data")?)
                 .unwrap_or_default(),
-            total_tokens: row.try_get("total_tokens")?,
-            input_tokens: row.try_get("input_tokens")?,
-            output_tokens: row.try_get("output_tokens")?,
-            accumulated_total_tokens: row.try_get("accumulated_total_tokens")?,
-            accumulated_input_tokens: row.try_get("accumulated_input_tokens")?,
-            accumulated_output_tokens: row.try_get("accumulated_output_tokens")?,
+            usage: Usage {
+                input_tokens: row.try_get("input_tokens")?,
+                output_tokens: row.try_get("output_tokens")?,
+                total_tokens: row.try_get("total_tokens")?,
+                cache_read_input_tokens: row.try_get("cache_read_tokens").ok().flatten(),
+                cache_write_input_tokens: row.try_get("cache_write_tokens").ok().flatten(),
+            },
+            accumulated_usage: Usage {
+                input_tokens: row.try_get("accumulated_input_tokens")?,
+                output_tokens: row.try_get("accumulated_output_tokens")?,
+                total_tokens: row.try_get("accumulated_total_tokens")?,
+                cache_read_input_tokens: row
+                    .try_get("accumulated_cache_read_tokens")
+                    .ok()
+                    .flatten(),
+                cache_write_input_tokens: row
+                    .try_get("accumulated_cache_write_tokens")
+                    .ok()
+                    .flatten(),
+            },
             accumulated_cost: row.try_get("accumulated_cost").ok().flatten(),
             schedule_id: row.try_get("schedule_id")?,
             recipe,
@@ -788,9 +793,13 @@ impl SessionStorage {
                 total_tokens INTEGER,
                 input_tokens INTEGER,
                 output_tokens INTEGER,
+                cache_read_tokens INTEGER,
+                cache_write_tokens INTEGER,
                 accumulated_total_tokens INTEGER,
                 accumulated_input_tokens INTEGER,
                 accumulated_output_tokens INTEGER,
+                accumulated_cache_read_tokens INTEGER,
+                accumulated_cache_write_tokens INTEGER,
                 accumulated_cost REAL,
                 schedule_id TEXT,
                 recipe_json TEXT,
@@ -917,11 +926,13 @@ impl SessionStorage {
         INSERT INTO sessions (
             id, name, user_set_name, session_type, working_dir, created_at, updated_at, extension_data,
             total_tokens, input_tokens, output_tokens,
+            cache_read_tokens, cache_write_tokens,
             accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
+            accumulated_cache_read_tokens, accumulated_cache_write_tokens,
             accumulated_cost,
             schedule_id, recipe_json, user_recipe_values_json,
             provider_name, model_config_json, goose_mode
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         "#,
         )
         .bind(&session.id)
@@ -932,12 +943,16 @@ impl SessionStorage {
         .bind(session.created_at)
         .bind(session.updated_at)
         .bind(serde_json::to_string(&session.extension_data)?)
-        .bind(session.total_tokens)
-        .bind(session.input_tokens)
-        .bind(session.output_tokens)
-        .bind(session.accumulated_total_tokens)
-        .bind(session.accumulated_input_tokens)
-        .bind(session.accumulated_output_tokens)
+        .bind(session.usage.total_tokens)
+        .bind(session.usage.input_tokens)
+        .bind(session.usage.output_tokens)
+        .bind(session.usage.cache_read_input_tokens)
+        .bind(session.usage.cache_write_input_tokens)
+        .bind(session.accumulated_usage.total_tokens)
+        .bind(session.accumulated_usage.input_tokens)
+        .bind(session.accumulated_usage.output_tokens)
+        .bind(session.accumulated_usage.cache_read_input_tokens)
+        .bind(session.accumulated_usage.cache_write_input_tokens)
         .bind(session.accumulated_cost)
         .bind(&session.schedule_id)
         .bind(recipe_json)
@@ -1234,6 +1249,27 @@ impl SessionStorage {
                         .await?;
                 }
             }
+            14 => {
+                for column in [
+                    "cache_read_tokens",
+                    "cache_write_tokens",
+                    "accumulated_cache_read_tokens",
+                    "accumulated_cache_write_tokens",
+                ] {
+                    let has_column = sqlx::query_scalar::<_, i32>(
+                        "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = ?",
+                    )
+                    .bind(column)
+                    .fetch_one(&mut **tx)
+                    .await?
+                        > 0;
+                    if !has_column {
+                        sqlx::query(&format!("ALTER TABLE sessions ADD COLUMN {column} INTEGER"))
+                            .execute(&mut **tx)
+                            .await?;
+                    }
+                }
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -1293,7 +1329,9 @@ impl SessionStorage {
             r#"
         SELECT id, working_dir, name, description, user_set_name, session_type, created_at, updated_at, extension_data,
                total_tokens, input_tokens, output_tokens,
+               cache_read_tokens, cache_write_tokens,
                accumulated_total_tokens, accumulated_input_tokens, accumulated_output_tokens,
+               accumulated_cache_read_tokens, accumulated_cache_write_tokens,
                accumulated_cost,
                schedule_id, recipe_json, user_recipe_values_json,
                provider_name, model_config_json, goose_mode,
@@ -1346,15 +1384,16 @@ impl SessionStorage {
         add_update!(builder.session_type, "session_type");
         add_update!(builder.working_dir, "working_dir");
         add_update!(builder.extension_data, "extension_data");
-        add_update!(builder.total_tokens, "total_tokens");
-        add_update!(builder.input_tokens, "input_tokens");
-        add_update!(builder.output_tokens, "output_tokens");
-        add_update!(builder.accumulated_total_tokens, "accumulated_total_tokens");
-        add_update!(builder.accumulated_input_tokens, "accumulated_input_tokens");
-        add_update!(
-            builder.accumulated_output_tokens,
-            "accumulated_output_tokens"
-        );
+        add_update!(builder.usage, "total_tokens");
+        add_update!(builder.usage, "input_tokens");
+        add_update!(builder.usage, "output_tokens");
+        add_update!(builder.usage, "cache_read_tokens");
+        add_update!(builder.usage, "cache_write_tokens");
+        add_update!(builder.accumulated_usage, "accumulated_total_tokens");
+        add_update!(builder.accumulated_usage, "accumulated_input_tokens");
+        add_update!(builder.accumulated_usage, "accumulated_output_tokens");
+        add_update!(builder.accumulated_usage, "accumulated_cache_read_tokens");
+        add_update!(builder.accumulated_usage, "accumulated_cache_write_tokens");
         add_update!(builder.accumulated_cost, "accumulated_cost");
         add_update!(builder.schedule_id, "schedule_id");
         add_update!(builder.recipe, "recipe_json");
@@ -1390,23 +1429,21 @@ impl SessionStorage {
         if let Some(ed) = builder.extension_data {
             q = q.bind(serde_json::to_string(&ed)?);
         }
-        if let Some(tt) = builder.total_tokens {
-            q = q.bind(tt);
+        if let Some(u) = builder.usage {
+            q = q
+                .bind(u.total_tokens)
+                .bind(u.input_tokens)
+                .bind(u.output_tokens)
+                .bind(u.cache_read_input_tokens)
+                .bind(u.cache_write_input_tokens);
         }
-        if let Some(it) = builder.input_tokens {
-            q = q.bind(it);
-        }
-        if let Some(ot) = builder.output_tokens {
-            q = q.bind(ot);
-        }
-        if let Some(att) = builder.accumulated_total_tokens {
-            q = q.bind(att);
-        }
-        if let Some(ait) = builder.accumulated_input_tokens {
-            q = q.bind(ait);
-        }
-        if let Some(aot) = builder.accumulated_output_tokens {
-            q = q.bind(aot);
+        if let Some(u) = builder.accumulated_usage {
+            q = q
+                .bind(u.total_tokens)
+                .bind(u.input_tokens)
+                .bind(u.output_tokens)
+                .bind(u.cache_read_input_tokens)
+                .bind(u.cache_write_input_tokens);
         }
         if let Some(ac) = builder.accumulated_cost {
             q = q.bind(ac);
@@ -1626,7 +1663,9 @@ impl SessionStorage {
             r#"
             SELECT s.id, s.working_dir, s.name, s.description, s.user_set_name, s.session_type, s.created_at, s.updated_at, s.extension_data,
                    s.total_tokens, s.input_tokens, s.output_tokens,
+                   s.cache_read_tokens, s.cache_write_tokens,
                    s.accumulated_total_tokens, s.accumulated_input_tokens, s.accumulated_output_tokens,
+                   s.accumulated_cache_read_tokens, s.accumulated_cache_write_tokens,
                    s.accumulated_cost,
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
@@ -1816,12 +1855,8 @@ impl SessionStorage {
         let mut builder = session_manager
             .update(&session.id)
             .extension_data(import.extension_data)
-            .total_tokens(import.total_tokens)
-            .input_tokens(import.input_tokens)
-            .output_tokens(import.output_tokens)
-            .accumulated_total_tokens(import.accumulated_total_tokens)
-            .accumulated_input_tokens(import.accumulated_input_tokens)
-            .accumulated_output_tokens(import.accumulated_output_tokens)
+            .usage(import.usage)
+            .accumulated_usage(import.accumulated_usage)
             .accumulated_cost(import.accumulated_cost)
             .schedule_id(import.schedule_id)
             .recipe(import.recipe)
@@ -2874,14 +2909,14 @@ mod tests {
 
                 sm.update(&session.id)
                     .user_provided_name(format!("Updated session {}", i))
-                    .total_tokens(Some(100 * i))
+                    .usage(Usage::new(None, None, Some(100 * i)))
                     .apply()
                     .await
                     .unwrap();
 
                 let updated = sm.get_session(&session.id, true).await.unwrap();
                 assert_eq!(updated.message_count, 2);
-                assert_eq!(updated.total_tokens, Some(100 * i));
+                assert_eq!(updated.usage.total_tokens, Some(100 * i));
 
                 session.id
             });
@@ -2915,12 +2950,13 @@ mod tests {
     #[tokio::test]
     async fn test_export_import_roundtrip() {
         const DESCRIPTION: &str = "Original session";
-        const TOTAL_TOKENS: i32 = 500;
-        const INPUT_TOKENS: i32 = 300;
-        const OUTPUT_TOKENS: i32 = 200;
-        const ACCUMULATED_TOKENS: i32 = 1000;
         const USER_MESSAGE: &str = "test message";
         const ASSISTANT_MESSAGE: &str = "test response";
+
+        let usage =
+            Usage::new(Some(300), Some(200), Some(500)).with_cache_tokens(Some(120), Some(80));
+        let accumulated_usage =
+            Usage::new(Some(600), Some(400), Some(1000)).with_cache_tokens(Some(400), Some(150));
 
         let temp_dir = TempDir::new().unwrap();
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
@@ -2936,10 +2972,8 @@ mod tests {
             .unwrap();
 
         sm.update(&original.id)
-            .total_tokens(Some(TOTAL_TOKENS))
-            .input_tokens(Some(INPUT_TOKENS))
-            .output_tokens(Some(OUTPUT_TOKENS))
-            .accumulated_total_tokens(Some(ACCUMULATED_TOKENS))
+            .usage(usage)
+            .accumulated_usage(accumulated_usage)
             .apply()
             .await
             .unwrap();
@@ -2976,10 +3010,8 @@ mod tests {
         assert_ne!(imported.id, original.id);
         assert_eq!(imported.name, DESCRIPTION);
         assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
-        assert_eq!(imported.total_tokens, Some(TOTAL_TOKENS));
-        assert_eq!(imported.input_tokens, Some(INPUT_TOKENS));
-        assert_eq!(imported.output_tokens, Some(OUTPUT_TOKENS));
-        assert_eq!(imported.accumulated_total_tokens, Some(ACCUMULATED_TOKENS));
+        assert_eq!(imported.usage, usage);
+        assert_eq!(imported.accumulated_usage, accumulated_usage);
         assert_eq!(imported.message_count, 2);
 
         let conversation = imported.conversation.unwrap();
@@ -3052,7 +3084,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_import_session_with_description_field() {
+    async fn test_import_session_with_legacy_flat_fields() {
         const OLD_FORMAT_JSON: &str = r#"{
             "id": "20240101_1",
             "description": "Old format session",
@@ -3061,7 +3093,14 @@ mod tests {
             "created_at": "2024-01-01T00:00:00Z",
             "updated_at": "2024-01-01T00:00:00Z",
             "extension_data": {},
-            "message_count": 0
+            "message_count": 0,
+            "total_tokens": 500,
+            "input_tokens": 300,
+            "output_tokens": 200,
+            "cache_read_tokens": 120,
+            "accumulated_total_tokens": 1000,
+            "accumulated_input_tokens": 600,
+            "accumulated_output_tokens": 400
         }"#;
 
         let temp_dir = TempDir::new().unwrap();
@@ -3072,6 +3111,14 @@ mod tests {
         assert_eq!(imported.name, "Old format session");
         assert!(imported.user_set_name);
         assert_eq!(imported.working_dir, PathBuf::from("/tmp/test"));
+        assert_eq!(
+            imported.usage,
+            Usage::new(Some(300), Some(200), Some(500)).with_cache_tokens(Some(120), None)
+        );
+        assert_eq!(
+            imported.accumulated_usage,
+            Usage::new(Some(600), Some(400), Some(1000))
+        );
     }
 
     #[test_case(GooseMode::Approve)]
@@ -3214,5 +3261,79 @@ mod tests {
 
         let acp_session = sm.storage().get_session("acp_id", false).await.unwrap();
         assert_eq!(acp_session.session_type, SessionType::Acp);
+    }
+
+    #[tokio::test]
+    async fn test_cache_token_columns_migration_and_round_trip() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join(SESSIONS_FOLDER).join(DB_NAME);
+
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+
+        let pool = SqlitePoolOptions::new()
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(&db_path)
+                    .create_if_missing(true),
+            )
+            .await
+            .unwrap();
+
+        SessionStorage::create_schema(&pool).await.unwrap();
+
+        // Recreate a v13-shaped database without cache token columns.
+        for column in [
+            "cache_read_tokens",
+            "cache_write_tokens",
+            "accumulated_cache_read_tokens",
+            "accumulated_cache_write_tokens",
+        ] {
+            sqlx::query(&format!("ALTER TABLE sessions DROP COLUMN {column}"))
+                .execute(&pool)
+                .await
+                .unwrap();
+        }
+        sqlx::query("UPDATE schema_version SET version = 13")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data, goose_mode)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind("cache_id")
+        .bind("Cache Session")
+        .bind(false)
+        .bind("user")
+        .bind("/tmp")
+        .bind("{}")
+        .bind("auto")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        pool.close().await;
+
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        sm.storage().pool().await.unwrap(); // Triggers migration
+
+        let usage =
+            Usage::new(Some(8000), Some(500), None).with_cache_tokens(Some(5000), Some(1000));
+        let accumulated_usage =
+            Usage::new(Some(24000), Some(1500), None).with_cache_tokens(Some(15000), Some(3000));
+
+        sm.update("cache_id")
+            .usage(usage)
+            .accumulated_usage(accumulated_usage)
+            .apply()
+            .await
+            .unwrap();
+
+        let loaded = sm.get_session("cache_id", false).await.unwrap();
+        assert_eq!(loaded.usage, usage);
+        assert_eq!(loaded.accumulated_usage, accumulated_usage);
     }
 }

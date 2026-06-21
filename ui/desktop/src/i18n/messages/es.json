@@ -125,9 +125,6 @@
   "baseChat.recipeCreatedTitle": {
     "defaultMessage": "¡Receta creada con éxito!"
   },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "Error al activar/desactivar la extensión"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extensión actualizada"
   },
@@ -145,9 +142,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "administrar extensiones"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "No se encontró ninguna sesión activa. Inicia primero una sesión de chat."
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "no hay extensiones disponibles"
@@ -4757,6 +4751,12 @@
   "updateSection.autoDownload": {
     "defaultMessage": "La actualización se descargará automáticamente en segundo plano."
   },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "Las descargas automáticas están desactivadas mediante la variable de entorno GOOSE_DISABLE_AUTO_DOWNLOAD."
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "La descarga automática está desactivada. Haz clic en «Descargar ahora» para descargar manualmente."
+  },
   "updateSection.autoInstallNote": {
     "defaultMessage": "La actualización se instalará automáticamente cuando cierres la app."
   },
@@ -4768,6 +4768,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "Versión actual"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "Desactivar la descarga automática de actualizaciones"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "Cuando está activado, Goose te avisará de nuevas versiones pero no las descargará automáticamente."
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "Descargar ahora"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "¡Actualización descargada y lista para instalar!"

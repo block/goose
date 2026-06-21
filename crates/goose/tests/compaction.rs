@@ -235,12 +235,8 @@ async fn setup_test_session(
         .config
         .session_manager
         .update(&session.id)
-        .total_tokens(Some(1000))
-        .input_tokens(Some(600))
-        .output_tokens(Some(400))
-        .accumulated_total_tokens(Some(1000))
-        .accumulated_input_tokens(Some(600))
-        .accumulated_output_tokens(Some(400))
+        .usage(Usage::new(Some(600), Some(400), Some(1000)))
+        .accumulated_usage(Usage::new(Some(600), Some(400), Some(1000)))
         .apply()
         .await?;
 
@@ -384,16 +380,16 @@ async fn test_manual_compaction_updates_token_counts_and_conversation() -> Resul
     // After compaction, the current context is ONLY the summary (200 tokens)
     // This is the new agent-visible input context
     assert_eq!(
-        updated_session.input_tokens,
+        updated_session.usage.input_tokens,
         Some(expected_summary_output),
         "Input tokens should be exactly the summary output (200 tokens)"
     );
     assert_eq!(
-        updated_session.output_tokens, None,
+        updated_session.usage.output_tokens, None,
         "Output tokens should be None after compaction (no new assistant output)"
     );
     assert_eq!(
-        updated_session.total_tokens,
+        updated_session.usage.total_tokens,
         Some(expected_summary_output),
         "Total should equal input (200 tokens) after compaction"
     );
@@ -403,7 +399,7 @@ async fn test_manual_compaction_updates_token_counts_and_conversation() -> Resul
     // Compaction input: ~6400 (system 6000 + 4 messages ~400)
     // Compaction output: 200
     // Expected accumulated: 1000 + 6400 + 200 = 7600
-    let accumulated = updated_session.accumulated_total_tokens.unwrap();
+    let accumulated = updated_session.accumulated_usage.total_tokens.unwrap();
     assert!(
         (7300..=7900).contains(&accumulated),
         "Accumulated should be ~7600 (1000 initial + 6400 input + 200 output). Got: {}",
@@ -442,7 +438,7 @@ async fn test_auto_compaction_during_reply() -> Result<()> {
         .session_manager
         .get_session(&session.id, true)
         .await?;
-    let initial_input_tokens = initial_session.input_tokens.unwrap_or(0);
+    let initial_input_tokens = initial_session.usage.input_tokens.unwrap_or(0);
 
     // Setup mock provider (no context limit enforcement)
     let provider = Arc::new(MockCompactionProvider::new());
@@ -479,7 +475,7 @@ async fn test_auto_compaction_during_reply() -> Result<()> {
                     .session_manager
                     .get_session(&session.id, true)
                     .await?;
-                input_tokens_after_compaction = session_after_compact.input_tokens;
+                input_tokens_after_compaction = session_after_compact.usage.input_tokens;
             }
             Ok(_) => {}
             Err(e) => return Err(e),
@@ -515,9 +511,9 @@ async fn test_auto_compaction_during_reply() -> Result<()> {
 
         // After the subsequent reply, the current window includes:
         // - system (6000) + summary (200) + new user message (100) + reply (100) = 6400
-        let final_input = updated_session.input_tokens.unwrap();
-        let final_output = updated_session.output_tokens.unwrap();
-        let final_total = updated_session.total_tokens.unwrap();
+        let final_input = updated_session.usage.input_tokens.unwrap();
+        let final_output = updated_session.usage.output_tokens.unwrap();
+        let final_total = updated_session.usage.total_tokens.unwrap();
 
         assert!(
             final_input >= 6000,
@@ -540,7 +536,7 @@ async fn test_auto_compaction_during_reply() -> Result<()> {
         // - Compaction: ~10,400 input + 200 output = 10,600
         // - Reply: ~6,300 input + 100 output = 6,400
         // Total: 1000 + 10,600 + 6,400 = 18,000
-        let accumulated = updated_session.accumulated_total_tokens.unwrap();
+        let accumulated = updated_session.accumulated_usage.total_tokens.unwrap();
         assert!(
             (17000..=19000).contains(&accumulated),
             "Accumulated should be ~18,000 (initial + compaction + reply). Got: {}",
@@ -552,7 +548,7 @@ async fn test_auto_compaction_during_reply() -> Result<()> {
         // - Reply: system (6000) + 40 messages (4000) + new message (100) = 10,100 input
         // - Reply output: 100
         // Total: 1000 + 10,100 + 100 = 11,200
-        let accumulated = updated_session.accumulated_total_tokens.unwrap();
+        let accumulated = updated_session.accumulated_usage.total_tokens.unwrap();
         assert!(
             (11000..=11500).contains(&accumulated),
             "Accumulated should be ~11,200 (initial + reply). Got: {}",
@@ -560,8 +556,8 @@ async fn test_auto_compaction_during_reply() -> Result<()> {
         );
 
         // Current window should be: 10,100 input + 100 output = 10,200
-        let final_input = updated_session.input_tokens.unwrap();
-        let final_output = updated_session.output_tokens.unwrap();
+        let final_input = updated_session.usage.input_tokens.unwrap();
+        let final_output = updated_session.usage.output_tokens.unwrap();
 
         assert!(
             (10000..=10500).contains(&final_input),
@@ -637,7 +633,7 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
                     .session_manager
                     .get_session(&session.id, true)
                     .await?;
-                input_tokens_after_compaction = session_after_compact.input_tokens;
+                input_tokens_after_compaction = session_after_compact.usage.input_tokens;
             }
             Ok(AgentEvent::Message(msg)) => {
                 // Check if we got a real response (not just a notification)
@@ -704,9 +700,9 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
     // Check the final token state after recovery
     // Note: The session state reflects the RETRY call (after compaction),
     // which only sees agent-visible messages (summary + continuation + user message)
-    let final_input = updated_session.input_tokens.unwrap();
-    let final_output = updated_session.output_tokens;
-    let final_total = updated_session.total_tokens.unwrap();
+    let final_input = updated_session.usage.input_tokens.unwrap();
+    let final_output = updated_session.usage.output_tokens;
+    let final_total = updated_session.usage.total_tokens.unwrap();
 
     // After compaction, the retry only sees agent-visible messages:
     // Input: system (6000) + summary (~100) + continuation (~100) + user message (~100) = ~6300
@@ -736,7 +732,7 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
     // - Compaction: ~6400 input (mock uses system_prompt.len()/4) + 200 output = ~6600
     // - Reply: ~6500 input + 200 output = ~6700
     // Total: 1000 + 6600 + 6700 = ~14300
-    let accumulated = updated_session.accumulated_total_tokens.unwrap();
+    let accumulated = updated_session.accumulated_usage.total_tokens.unwrap();
     assert!(
         (13000..=16000).contains(&accumulated),
         "Accumulated should be ~14300 (initial + compaction + reply). Got: {}",

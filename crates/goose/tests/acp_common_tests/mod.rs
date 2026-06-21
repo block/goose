@@ -83,6 +83,10 @@ pub async fn run_list_sessions<C: Connection>() {
         serde_json::Value::Number(2.into()),
     );
     expected_meta.insert("userSetName".to_string(), serde_json::Value::Bool(false));
+    expected_meta.insert(
+        "sessionType".to_string(),
+        serde_json::Value::String("acp".to_string()),
+    );
     expected_meta.insert("hasRecipe".to_string(), serde_json::Value::Bool(false));
     assert_eq!(
         response,

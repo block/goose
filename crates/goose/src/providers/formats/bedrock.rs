@@ -491,10 +491,12 @@ pub fn from_bedrock_role(role: &bedrock::ConversationRole) -> Result<Role> {
 }
 
 pub fn from_bedrock_usage(usage: &bedrock::TokenUsage) -> Usage {
-    Usage::new(
+    Usage::from_cache_exclusive_input(
         Some(usage.input_tokens),
         Some(usage.output_tokens),
         Some(usage.total_tokens),
+        usage.cache_read_input_tokens,
+        usage.cache_write_input_tokens,
     )
 }
 
@@ -759,6 +761,25 @@ mod tests {
         assert_eq!(empty_msg.content.len(), 0);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_from_bedrock_usage_folds_cache_tokens_into_input() {
+        let usage = bedrock::TokenUsage::builder()
+            .input_tokens(7)
+            .output_tokens(50)
+            .total_tokens(57)
+            .cache_read_input_tokens(5000)
+            .cache_write_input_tokens(1000)
+            .build()
+            .unwrap();
+
+        let converted = from_bedrock_usage(&usage);
+        assert_eq!(converted.input_tokens, Some(6007));
+        assert_eq!(converted.output_tokens, Some(50));
+        assert_eq!(converted.total_tokens, Some(6057));
+        assert_eq!(converted.cache_read_input_tokens, Some(5000));
+        assert_eq!(converted.cache_write_input_tokens, Some(1000));
     }
 
     #[test]
