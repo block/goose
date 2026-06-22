@@ -295,7 +295,6 @@ fn create_codex_request(
         payload_obj.insert("parallel_tool_calls".to_string(), json!(true));
     }
 
-    // ChatGPT Codex does not support temperature and will return an error
     if let Some(reasoning_effort) = reasoning_effort {
         payload_obj.insert(
             "reasoning".to_string(),
@@ -1245,6 +1244,7 @@ mod tests {
         assert!(payload.get("reasoning_effort").is_none());
     }
 
+    // ChatGPT Codex does not support temperature and will return an error
     #[test]
     fn test_create_codex_request_omits_temperature() {
         let config = ModelConfig::new("gpt-5.5")
