@@ -1,0 +1,151 @@
+name: Extension Catalog Audit
+
+# Periodically re-scans every extension in the catalog. Extensions go stale,
+# change behavior, or get hijacked after they're merged, so a one-time gate at
+# submission isn't enough. Findings are surfaced as a tracking issue.
+#
+# Unlike the submission gate, this runs over already-merged (trusted) catalog
+# entries on the default branch, so richer analyzers can be enabled via repo
+# variables/secrets.
+
+on:
+  schedule:
+    - cron: '0 6 * * 1'  # Mondays 06:00 UTC
+  workflow_dispatch:
+    inputs:
+      analyzers:
+        description: 'mcp-scanner analyzers (comma-separated)'
+        required: false
+        default: 'yara'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: extension-catalog-audit
+  cancel-in-progress: false
+
+env:
+  ANALYZERS: ${{ github.event.inputs.analyzers || vars.EXTENSION_AUDIT_ANALYZERS || 'yara' }}
+  BLOCK_SEVERITY: ${{ vars.EXTENSION_AUDIT_BLOCK_SEVERITY || 'MEDIUM' }}
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411  # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+
+      - name: Install MCP scanner
+        run: uv tool install --python 3.13 cisco-ai-mcp-scanner
+
+      - name: Scan entire catalog
+        env:
+          # Optional richer analysis. Only used if the corresponding analyzer is
+          # named in ANALYZERS; safe to leave unset for a YARA-only audit.
+          MCP_SCANNER_LLM_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MCP_SCANNER_API_KEY: ${{ secrets.MCP_SCANNER_API_KEY }}
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          bash extension-scanner/scan-extensions.sh \
+            documentation/static/servers.json \
+            "$RUNNER_TEMP/audit"
+
+      - name: Upload audit results
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: extension-catalog-audit
+          path: ${{ runner.temp }}/audit/**
+          if-no-files-found: warn
+          retention-days: 30
+
+      - name: Open or update tracking issue
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        env:
+          AUDIT_DIR: ${{ runner.temp }}/audit
+        with:
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+
+            const auditDir = process.env.AUDIT_DIR;
+            const summaryPath = path.join(auditDir, 'summary.json');
+            const bodyPath = path.join(auditDir, 'summary.md');
+            if (!fs.existsSync(summaryPath)) {
+              core.warning('No summary.json produced; skipping issue management.');
+              return;
+            }
+
+            const summary = JSON.parse(fs.readFileSync(summaryPath, 'utf8'));
+            const body = fs.existsSync(bodyPath)
+              ? fs.readFileSync(bodyPath, 'utf8')
+              : 'Audit completed.';
+
+            const needsAttention =
+              summary.overall_status === 'BLOCKED' || summary.inconclusive > 0;
+
+            const LABEL = 'extension-security';
+            const TITLE = 'Extension catalog security audit';
+            const runUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`;
+            const issueBody = `${body}\n\n[Full audit run](${runUrl})`;
+
+            // Ensure the label exists.
+            try {
+              await github.rest.issues.getLabel({
+                owner: context.repo.owner, repo: context.repo.repo, name: LABEL,
+              });
+            } catch (e) {
+              await github.rest.issues.createLabel({
+                owner: context.repo.owner, repo: context.repo.repo,
+                name: LABEL, color: 'b60205',
+                description: 'Security findings in catalog extensions',
+              });
+            }
+
+            const { data: open } = await github.rest.issues.listForRepo({
+              owner: context.repo.owner, repo: context.repo.repo,
+              labels: LABEL, state: 'open',
+            });
+            const existing = open.find(i => i.title === TITLE);
+
+            if (needsAttention) {
+              if (existing) {
+                await github.rest.issues.update({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: existing.number, body: issueBody, state: 'open',
+                });
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  issue_number: existing.number,
+                  body: `Re-audited: still needs attention (${summary.blocked} blocked, ${summary.inconclusive} inconclusive).`,
+                });
+              } else {
+                await github.rest.issues.create({
+                  owner: context.repo.owner, repo: context.repo.repo,
+                  title: TITLE, body: issueBody, labels: [LABEL],
+                });
+              }
+              core.setFailed(`Catalog audit needs attention: ${summary.blocked} blocked, ${summary.inconclusive} inconclusive.`);
+            } else if (existing) {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.number,
+                body: 'Latest audit is clean. Closing.',
+              });
+              await github.rest.issues.update({
+                owner: context.repo.owner, repo: context.repo.repo,
+                issue_number: existing.number, state: 'closed',
+              });
+            } else {
+              core.info('Catalog audit clean; no open issue to manage.');
+            }
