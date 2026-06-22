@@ -1,0 +1,89 @@
+name: Extension Security Scan Report
+
+# Posts the results of "Extension Security Scan" back to the PR. Runs in the
+# trusted workflow_run context so it has write access, while the scan itself
+# (which executes untrusted server code) runs without secrets.
+
+on:
+  workflow_run:
+    workflows: ["Extension Security Scan"]
+    types: [completed]
+
+permissions:
+  actions: read
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.event == 'pull_request'
+    steps:
+      - name: Download scan artifact and comment
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3  # v9.0.0
+        with:
+          script: |
+            const fs = require('fs');
+            const os = require('os');
+            const path = require('path');
+
+            const runId = context.payload.workflow_run.id;
+            const { data: artifacts } = await github.rest.actions.listWorkflowRunArtifacts({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: runId,
+            });
+
+            const artifact = artifacts.artifacts.find(a => a.name === 'extension-scan-results');
+            if (!artifact) {
+              core.info('No extension-scan-results artifact; nothing to report.');
+              return;
+            }
+
+            const zip = await github.rest.actions.downloadArtifact({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              artifact_id: artifact.id,
+              archive_format: 'zip',
+            });
+
+            const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'scan-'));
+            const zipPath = path.join(tmp, 'artifact.zip');
+            fs.writeFileSync(zipPath, Buffer.from(zip.data));
+            require('child_process').execFileSync('unzip', ['-o', zipPath, '-d', tmp]);
+
+            const prNumberPath = path.join(tmp, 'pr_number.txt');
+            const summaryPath = path.join(tmp, 'summary.md');
+            if (!fs.existsSync(prNumberPath) || !fs.existsSync(summaryPath)) {
+              core.info('Artifact missing pr_number.txt or summary.md; skipping.');
+              return;
+            }
+
+            const prNumber = parseInt(fs.readFileSync(prNumberPath, 'utf8').trim(), 10);
+            const body = fs.readFileSync(summaryPath, 'utf8');
+            const marker = '<!-- extension-security-scan -->';
+            const commentBody = `${marker}\n${body}`;
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body: commentBody,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body: commentBody,
+              });
+            }

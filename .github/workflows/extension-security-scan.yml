@@ -1,0 +1,135 @@
+name: Extension Security Scan
+
+# Scans new/changed catalog extensions with the Cisco AI Defense MCP Scanner.
+#
+# SECURITY MODEL: scanning a stdio server means launching third-party code
+# (npx/uvx) on the runner. This job therefore runs in the untrusted `pull_request`
+# context with a read-only token and NO repository secrets, so a malicious server
+# has nothing to steal and cannot write to the repo. The job's own pass/fail is
+# the blocking signal (require it in branch protection). A separate
+# `extension-security-scan-report.yml` workflow posts the PR comment with write
+# permissions, after this run completes.
+#
+# Default analyzer is YARA (key-less). Do not add LLM/API analyzers here unless
+# you are comfortable exposing that API key to untrusted server code.
+
+on:
+  pull_request:
+    paths:
+      - 'documentation/static/servers.json'
+      - 'documentation/docs/mcp/**'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ext-security-scan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  ANALYZERS: ${{ vars.EXTENSION_SCAN_ANALYZERS || 'yara' }}
+  BLOCK_SEVERITY: ${{ vars.EXTENSION_SCAN_BLOCK_SEVERITY || 'HIGH' }}
+
+jobs:
+  scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@9af89fc71515a100421586dfdb3dc9c984fbf411  # v2.19.4
+        with:
+          egress-policy: audit
+
+      - name: Checkout PR
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: Determine changed catalog entries
+        id: changed
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -e
+          CATALOG=documentation/static/servers.json
+          git show "$BASE_SHA:$CATALOG" > "$RUNNER_TEMP/base.json" 2>/dev/null || echo '[]' > "$RUNNER_TEMP/base.json"
+          python3 - "$RUNNER_TEMP/base.json" "$CATALOG" "$RUNNER_TEMP/changed_ids.txt" <<'PY'
+          import json, sys
+          base_path, head_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
+          def load(p):
+              try:
+                  with open(p) as fh:
+                      return json.load(fh)
+              except Exception:
+                  return []
+          base = {e.get("id"): json.dumps(e, sort_keys=True) for e in load(base_path) if isinstance(e, dict)}
+          changed = []
+          for e in load(head_path):
+              if not isinstance(e, dict) or e.get("is_builtin") is True:
+                  continue
+              eid = e.get("id")
+              if not eid:
+                  continue
+              if base.get(eid) != json.dumps(e, sort_keys=True):
+                  changed.append(eid)
+          with open(out_path, "w") as fh:
+              fh.write("\n".join(changed))
+          print(f"changed={len(changed)}")
+          PY
+          if [ -s "$RUNNER_TEMP/changed_ids.txt" ]; then
+            echo "has_changes=true" >> "$GITHUB_OUTPUT"
+            echo "Changed entries:"; cat "$RUNNER_TEMP/changed_ids.txt"
+          else
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No new/changed catalog entries to scan."
+          fi
+
+      - name: Set up uv
+        if: steps.changed.outputs.has_changes == 'true'
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
+
+      - name: Install MCP scanner
+        if: steps.changed.outputs.has_changes == 'true'
+        run: uv tool install --python 3.13 cisco-ai-mcp-scanner
+
+      - name: Scan changed extensions
+        if: steps.changed.outputs.has_changes == 'true'
+        run: |
+          export PATH="$HOME/.local/bin:$PATH"
+          bash extension-scanner/scan-extensions.sh \
+            documentation/static/servers.json \
+            "$RUNNER_TEMP/scan" \
+            "$RUNNER_TEMP/changed_ids.txt"
+
+      - name: Save PR metadata for reporter
+        if: steps.changed.outputs.has_changes == 'true'
+        run: |
+          mkdir -p "$RUNNER_TEMP/scan"
+          echo "${{ github.event.pull_request.number }}" > "$RUNNER_TEMP/scan/pr_number.txt"
+
+      - name: Upload scan results
+        if: steps.changed.outputs.has_changes == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
+        with:
+          name: extension-scan-results
+          path: ${{ runner.temp }}/scan/**
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Enforce verdict
+        if: steps.changed.outputs.has_changes == 'true'
+        run: |
+          SUMMARY="$RUNNER_TEMP/scan/summary.json"
+          if [ ! -f "$SUMMARY" ]; then
+            echo "::warning::No scan summary produced; treating as inconclusive."
+            exit 0
+          fi
+          STATUS=$(jq -r .overall_status "$SUMMARY")
+          echo "Overall status: $STATUS"
+          if [ "$STATUS" = "BLOCKED" ]; then
+            echo "::error::One or more extensions have a ${BLOCK_SEVERITY}+ security finding."
+            jq -r '.results[] | select(.status=="scanned" and (.severity=="HIGH" or .severity=="CRITICAL" or .severity=="MEDIUM")) | "  - \(.id): \(.severity)"' "$SUMMARY" || true
+            exit 1
+          fi
+          echo "::notice::Extension security scan passed ($STATUS)."
