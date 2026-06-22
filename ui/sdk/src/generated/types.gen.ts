@@ -1596,6 +1596,30 @@ export type StatusMessageUpdate = {
     status: StatusMessage;
 };
 
+export type RequestRecipeParams_unstable = {
+    sessionId: string;
+    parameters: Array<RecipeParameter>;
+};
+
+export type RecipeParameter = {
+    key: string;
+    input_type: RecipeParameterInputType;
+    requirement: RecipeParameterRequirement;
+    description: string;
+    default?: string | null;
+    options?: Array<string> | null;
+};
+
+export type RecipeParameterInputType = 'string' | 'number' | 'boolean' | 'date' | 'select' | 'file';
+
+export type RecipeParameterRequirement = 'required' | 'optional' | 'user_prompt';
+
+export type RecipeParamsResponse_unstable = {
+    values?: {
+        [key: string]: string;
+    };
+};
+
 export type ExtRequest = {
     id: string;
     method: string;
@@ -1621,4 +1645,24 @@ export type ExtNotification = {
     params?: GooseSessionNotification_unstable | {
         [key: string]: unknown;
     } | null;
+};
+
+export type ExtAgentRequest = {
+    id: string;
+    method: string;
+    params?: RequestRecipeParams_unstable | {
+        [key: string]: unknown;
+    } | null;
+};
+
+export type ExtAgentResponse = {
+    id: string;
+    result?: RecipeParamsResponse_unstable | unknown;
+} | {
+    error: {
+        code: number;
+        message: string;
+        data?: unknown;
+    };
+    id: string;
 };

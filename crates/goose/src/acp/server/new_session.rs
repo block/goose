@@ -1,12 +1,24 @@
 use crate::acp::custom_requests::GooseExtension;
 use crate::acp::server::{meta_string, validate_absolute_cwd, ResultExt};
+use crate::agents::ExtensionLoadResult;
 use crate::config::{Config, GooseMode};
-use crate::session::SessionType;
+use crate::recipe::{Recipe, Settings};
+use crate::session::{ExtensionData, Session, SessionType};
 
 use super::GooseAcpAgent;
 use agent_client_protocol::schema::{Meta, NewSessionRequest, NewSessionResponse, SessionId};
 use agent_client_protocol::{Client, ConnectionTo};
+use goose_providers::model::ModelConfig;
 use std::collections::HashMap;
+
+struct InitialSessionConfig {
+    provider: String,
+    model_config: ModelConfig,
+    extension_data: ExtensionData,
+    recipe: Option<Recipe>,
+    user_recipe_values: Option<HashMap<String, String>>,
+    project_id: Option<String>,
+}
 
 impl GooseAcpAgent {
     pub(super) async fn handle_new_session(
@@ -15,91 +27,176 @@ impl GooseAcpAgent {
         args: NewSessionRequest,
     ) -> Result<NewSessionResponse, agent_client_protocol::Error> {
         validate_absolute_cwd(&args.cwd)?;
+        let config = Config::global();
         let project_id = meta_string(args.meta.as_ref(), "projectId")?;
         let session_type = match meta_string(args.meta.as_ref(), "client")? {
             Some(_) => SessionType::User,
             None => SessionType::Acp,
         };
-        let config = Config::global();
-        let (resolved_provider, resolved_model_config) =
-            match meta_string(args.meta.as_ref(), "provider")? {
-                Some(provider) => {
-                    let model_config =
-                        super::resolve_provider_default_model_config(&provider).await?;
-                    (provider, model_config)
-                }
-                None => super::resolve_default_provider_model_config(config)?,
-            };
-        let goose_extensions = meta_goose_extensions(args.meta.as_ref())?;
         let current_mode: GooseMode = config.get_goose_mode().unwrap_or_default();
-        let mut goose_session = self
+        let recipe = self.resolve_recipe_from_meta(args.meta.as_ref()).await?;
+        let session_name = match recipe.as_ref() {
+            Some(recipe) if !recipe.title.trim().is_empty() => recipe.title.clone(),
+            _ => "New Chat".to_string(),
+        };
+
+        let session = self
             .session_manager
-            .create_session(
-                args.cwd.clone(),
-                "New Chat".to_string(),
-                session_type,
-                current_mode,
-            )
+            .create_session(args.cwd.clone(), session_name, session_type, current_mode)
             .await
             .internal_err_ctx("Failed to create session")?;
-        let mut builder = self.session_manager.update(&goose_session.id);
+        let rendered_recipe = self
+            .configure_new_session(cx, config, &session, args, recipe, project_id)
+            .await?;
+
+        let session = self.reload_session(&session.id).await?;
+        let (agent, extension_results) = self
+            .activate_acp_session(cx, &session, HashMap::new())
+            .await?;
+        if let Some(recipe) = &rendered_recipe {
+            self.apply_recipe(&agent, recipe).await;
+        }
+
+        let session = self.reload_session(&session.id).await?;
+        let response = self
+            .build_new_session_response(&session, &extension_results)
+            .await?;
+        super::send_session_setup_notifications(
+            cx,
+            &session,
+            self.supports_goose_custom_notifications(),
+        )?;
+        Ok(response)
+    }
+
+    async fn configure_new_session(
+        &self,
+        cx: &ConnectionTo<Client>,
+        config: &Config,
+        session: &Session,
+        args: NewSessionRequest,
+        recipe: Option<Recipe>,
+        project_id: Option<String>,
+    ) -> Result<Option<Recipe>, agent_client_protocol::Error> {
+        let (rendered, user_recipe_values) = self
+            .render_recipe_or_cleanup(cx, &session.id, recipe.as_ref())
+            .await?;
+
+        let recipe_settings = rendered.as_ref().and_then(|r| r.settings.as_ref());
+        let (provider, model_config) = self
+            .resolve_provider_and_model(config, args.meta.as_ref(), recipe_settings)
+            .await?;
+
+        let goose_extensions = meta_goose_extensions(args.meta.as_ref())?;
+        let recipe_extensions = rendered.as_ref().and_then(|r| r.extensions.as_deref());
         let extension_data = self.build_enabled_extensions_data(
             config,
-            &goose_session,
+            session,
             args.mcp_servers,
             goose_extensions,
+            recipe_extensions,
         )?;
-        builder = builder
-            .provider_name(resolved_provider)
-            .model_config(resolved_model_config)
-            .extension_data(extension_data);
-        if let Some(pid) = project_id {
-            builder = builder.project_id(Some(pid));
+
+        self.apply_initial_session_config(
+            &session.id,
+            InitialSessionConfig {
+                provider,
+                model_config,
+                extension_data,
+                recipe,
+                user_recipe_values,
+                project_id,
+            },
+        )
+        .await?;
+
+        Ok(rendered)
+    }
+
+    async fn reload_session(
+        &self,
+        session_id: &str,
+    ) -> Result<Session, agent_client_protocol::Error> {
+        self.session_manager
+            .get_session(session_id, false)
+            .await
+            .internal_err_ctx("Failed to reload session")
+    }
+
+    async fn resolve_provider_and_model(
+        &self,
+        config: &Config,
+        meta: Option<&Meta>,
+        recipe_settings: Option<&Settings>,
+    ) -> Result<(String, ModelConfig), agent_client_protocol::Error> {
+        if let Some(provider) = recipe_settings.and_then(|s| s.goose_provider.clone()) {
+            let model_config = match recipe_settings.and_then(|s| s.goose_model.clone()) {
+                Some(model) => {
+                    crate::model_config::model_config_from_user_config(&provider, &model)
+                        .internal_err_ctx("Failed to build model config from recipe settings")?
+                }
+                None => super::resolve_provider_default_model_config(&provider).await?,
+            };
+            return Ok((provider, model_config));
+        }
+
+        match meta_string(meta, "provider")? {
+            Some(provider) => {
+                let model_config = super::resolve_provider_default_model_config(&provider).await?;
+                Ok((provider, model_config))
+            }
+            None => super::resolve_default_provider_model_config(config),
+        }
+    }
+
+    async fn apply_initial_session_config(
+        &self,
+        session_id: &str,
+        config: InitialSessionConfig,
+    ) -> Result<(), agent_client_protocol::Error> {
+        let mut builder = self
+            .session_manager
+            .update(session_id)
+            .provider_name(config.provider)
+            .model_config(config.model_config)
+            .extension_data(config.extension_data);
+        if let Some(recipe) = config.recipe {
+            builder = builder.recipe(Some(recipe));
+        }
+        if config.user_recipe_values.is_some() {
+            builder = builder.user_recipe_values(config.user_recipe_values);
+        }
+        if let Some(project_id) = config.project_id {
+            builder = builder.project_id(Some(project_id));
         }
         builder
             .apply()
             .await
             .internal_err_ctx("Failed to update session")?;
+        Ok(())
+    }
 
-        goose_session = self
-            .session_manager
-            .get_session(&goose_session.id, false)
-            .await
-            .internal_err_ctx("Failed to reload session")?;
-        let session_id_str = goose_session.id.clone();
-
-        let (_agent, extension_results) = self
-            .activate_acp_session(cx, &goose_session, HashMap::new())
-            .await?;
-
-        let goose_session = self
-            .session_manager
-            .get_session(&goose_session.id, false)
-            .await
-            .internal_err_ctx("Failed to reload session")?;
-
-        let acp_session_id = SessionId::new(session_id_str.clone());
-
+    async fn build_new_session_response(
+        &self,
+        session: &Session,
+        extension_results: &[ExtensionLoadResult],
+    ) -> Result<NewSessionResponse, agent_client_protocol::Error> {
         let (mode_state, model_state, config_options) =
-            super::build_session_setup_config(&self.provider_inventory, &goose_session).await?;
+            super::build_session_setup_config(&self.provider_inventory, session).await?;
 
-        let mut response = NewSessionResponse::new(acp_session_id.clone()).modes(mode_state);
+        let mut response =
+            NewSessionResponse::new(SessionId::new(session.id.clone())).modes(mode_state);
         if let Some(ms) = model_state {
             response = response.models(ms);
         }
         if let Some(co) = config_options {
             response = response.config_options(co);
         }
-        if let Ok(extension_results) = serde_json::to_value(&extension_results) {
+        if let Ok(extension_results) = serde_json::to_value(extension_results) {
             let mut meta = serde_json::Map::new();
             meta.insert("extensionResults".to_string(), extension_results);
             response = response.meta(meta);
         }
-        super::send_session_setup_notifications(
-            cx,
-            &goose_session,
-            self.supports_goose_custom_notifications(),
-        )?;
         Ok(response)
     }
 }
