@@ -141,6 +141,10 @@ pub fn truncation_error_message(args: &str) -> Option<String> {
         return None;
     }
 
+    if serde_json::from_str::<serde_json::Value>(args).is_ok() {
+        return None;
+    }
+
     let trimmed = args.trim_end();
     let is_truncated = looks_truncated(trimmed);
 
