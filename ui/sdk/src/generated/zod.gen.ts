@@ -3,11 +3,151 @@
 import { z } from 'zod';
 
 /**
+ * An HTTP header to set when making requests to the MCP server.
+ */
+export const zHttpHeader = z.object({
+    name: z.string(),
+    value: z.string(),
+    _meta: z.union([
+        z.record(z.unknown()),
+        z.null()
+    ]).optional()
+});
+
+/**
+ * HTTP transport configuration for MCP.
+ */
+export const zMcpServerHttp = z.object({
+    name: z.string(),
+    url: z.string(),
+    headers: z.array(zHttpHeader),
+    _meta: z.union([
+        z.record(z.unknown()),
+        z.null()
+    ]).optional(),
+    type: z.literal('http')
+});
+
+/**
+ * SSE transport configuration for MCP.
+ */
+export const zMcpServerSse = z.object({
+    name: z.string(),
+    url: z.string(),
+    headers: z.array(zHttpHeader),
+    _meta: z.union([
+        z.record(z.unknown()),
+        z.null()
+    ]).optional(),
+    type: z.literal('sse')
+});
+
+/**
+ * An environment variable to set when launching an MCP server.
+ */
+export const zEnvVariable = z.object({
+    name: z.string(),
+    value: z.string(),
+    _meta: z.union([
+        z.record(z.unknown()),
+        z.null()
+    ]).optional()
+});
+
+/**
+ * Stdio transport configuration for MCP.
+ */
+export const zMcpServerStdio = z.object({
+    name: z.string(),
+    command: z.string(),
+    args: z.array(z.string()),
+    env: z.array(zEnvVariable),
+    _meta: z.union([
+        z.record(z.unknown()),
+        z.null()
+    ]).optional()
+});
+
+/**
+ * Configuration for connecting to an MCP (Model Context Protocol) server.
+ *
+ * MCP servers provide tools and context that the agent can use when
+ * processing prompts.
+ *
+ * See protocol docs: [MCP Servers](https://agentclientprotocol.com/protocol/session-setup#mcp-servers)
+ */
+export const zMcpServer = z.union([
+    zMcpServerHttp,
+    zMcpServerSse,
+    zMcpServerStdio
+]);
+
+export const zGooseExtension = z.union([
+    z.object({
+        name: z.string(),
+        description: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        display_name: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        timeout: z.union([
+            z.number().int().gte(0),
+            z.null()
+        ]).optional(),
+        bundled: z.union([
+            z.boolean(),
+            z.null()
+        ]).optional(),
+        type: z.literal('builtin')
+    }),
+    z.object({
+        name: z.string(),
+        description: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        display_name: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        bundled: z.union([
+            z.boolean(),
+            z.null()
+        ]).optional(),
+        type: z.literal('platform')
+    }),
+    z.object({
+        server: zMcpServer,
+        envKeys: z.array(z.string()).optional(),
+        description: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        timeout: z.union([
+            z.number().int().gte(0),
+            z.null()
+        ]).optional(),
+        socket: z.union([
+            z.string(),
+            z.null()
+        ]).optional(),
+        bundled: z.union([
+            z.boolean(),
+            z.null()
+        ]).optional(),
+        type: z.literal('mcp')
+    })
+]);
+
+/**
  * Add an extension to an active session.
  */
-export const zAddExtensionRequest_unstable = z.object({
+export const zAddSessionExtensionRequest_unstable = z.object({
     sessionId: z.string(),
-    config: z.unknown().optional().default(null)
+    extension: zGooseExtension
 });
 
 /**
@@ -18,7 +158,7 @@ export const zEmptyResponse = z.record(z.unknown());
 /**
  * Remove an extension from an active session.
  */
-export const zRemoveExtensionRequest_unstable = z.object({
+export const zRemoveSessionExtensionRequest_unstable = z.object({
     sessionId: z.string(),
     name: z.string()
 });
@@ -330,146 +470,6 @@ export const zDeleteSessionRequest = z.object({
  */
 export const zGetConfigExtensionsRequest_unstable = z.record(z.unknown());
 
-/**
- * An HTTP header to set when making requests to the MCP server.
- */
-export const zHttpHeader = z.object({
-    name: z.string(),
-    value: z.string(),
-    _meta: z.union([
-        z.record(z.unknown()),
-        z.null()
-    ]).optional()
-});
-
-/**
- * HTTP transport configuration for MCP.
- */
-export const zMcpServerHttp = z.object({
-    name: z.string(),
-    url: z.string(),
-    headers: z.array(zHttpHeader),
-    _meta: z.union([
-        z.record(z.unknown()),
-        z.null()
-    ]).optional(),
-    type: z.literal('http')
-});
-
-/**
- * SSE transport configuration for MCP.
- */
-export const zMcpServerSse = z.object({
-    name: z.string(),
-    url: z.string(),
-    headers: z.array(zHttpHeader),
-    _meta: z.union([
-        z.record(z.unknown()),
-        z.null()
-    ]).optional(),
-    type: z.literal('sse')
-});
-
-/**
- * An environment variable to set when launching an MCP server.
- */
-export const zEnvVariable = z.object({
-    name: z.string(),
-    value: z.string(),
-    _meta: z.union([
-        z.record(z.unknown()),
-        z.null()
-    ]).optional()
-});
-
-/**
- * Stdio transport configuration for MCP.
- */
-export const zMcpServerStdio = z.object({
-    name: z.string(),
-    command: z.string(),
-    args: z.array(z.string()),
-    env: z.array(zEnvVariable),
-    _meta: z.union([
-        z.record(z.unknown()),
-        z.null()
-    ]).optional()
-});
-
-/**
- * Configuration for connecting to an MCP (Model Context Protocol) server.
- *
- * MCP servers provide tools and context that the agent can use when
- * processing prompts.
- *
- * See protocol docs: [MCP Servers](https://agentclientprotocol.com/protocol/session-setup#mcp-servers)
- */
-export const zMcpServer = z.union([
-    zMcpServerHttp,
-    zMcpServerSse,
-    zMcpServerStdio
-]);
-
-export const zGooseExtension = z.union([
-    z.object({
-        name: z.string(),
-        description: z.union([
-            z.string(),
-            z.null()
-        ]).optional(),
-        display_name: z.union([
-            z.string(),
-            z.null()
-        ]).optional(),
-        timeout: z.union([
-            z.number().int().gte(0),
-            z.null()
-        ]).optional(),
-        bundled: z.union([
-            z.boolean(),
-            z.null()
-        ]).optional(),
-        type: z.literal('builtin')
-    }),
-    z.object({
-        name: z.string(),
-        description: z.union([
-            z.string(),
-            z.null()
-        ]).optional(),
-        display_name: z.union([
-            z.string(),
-            z.null()
-        ]).optional(),
-        bundled: z.union([
-            z.boolean(),
-            z.null()
-        ]).optional(),
-        type: z.literal('platform')
-    }),
-    z.object({
-        server: zMcpServer,
-        envKeys: z.array(z.string()).optional(),
-        description: z.union([
-            z.string(),
-            z.null()
-        ]).optional(),
-        timeout: z.union([
-            z.number().int().gte(0),
-            z.null()
-        ]).optional(),
-        socket: z.union([
-            z.string(),
-            z.null()
-        ]).optional(),
-        bundled: z.union([
-            z.boolean(),
-            z.null()
-        ]).optional(),
-        type: z.literal('mcp')
-    })
-]);
-
 export const zGooseExtensionEntry = z.object({
     extension: zGooseExtension,
     enabled: z.boolean(),
@@ -524,7 +524,7 @@ export const zGetSessionExtensionsRequest_unstable = z.object({
 });
 
 export const zGetSessionExtensionsResponse_unstable = z.object({
-    extensions: z.array(z.unknown())
+    extensions: z.array(zGooseExtension)
 });
 
 /**
@@ -1573,8 +1573,8 @@ export const zExtRequest = z.object({
     method: z.string(),
     params: z.union([
         z.union([
-            zAddExtensionRequest_unstable,
-            zRemoveExtensionRequest_unstable,
+            zAddSessionExtensionRequest_unstable,
+            zRemoveSessionExtensionRequest_unstable,
             zGetToolsRequest_unstable,
             zGooseToolCallRequest_unstable,
             zReadResourceRequest_unstable,

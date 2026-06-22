@@ -1,5 +1,6 @@
 import { v7 as uuidv7 } from 'uuid';
-import { updateSessionUserRecipeValues, type Message } from '../api';
+import { updateSessionUserRecipeValues, type Message, type Session } from '../api';
+import type { GooseExtension } from '@aaif/goose-sdk';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 import { errorMessage } from '../utils/conversionUtils';
@@ -17,6 +18,7 @@ import { acpCancelPrompt, acpPromptSession } from './prompt';
 import {
   acpForkSession,
   acpLoadSession,
+  acpNewSession,
   acpTruncateSessionConversation,
   isAcpSessionLoadInFlight,
   sessionInfoToSession,
@@ -35,6 +37,7 @@ export interface AcpSubmitMessageOptions extends AcpSnapshotOptions {
 }
 
 export interface AcpChatSessionController {
+  createSession(cwd: string, gooseExtensions: GooseExtension[]): Promise<Session>;
   loadSession(sessionId: string, options?: AcpLoadSessionOptions): Promise<void>;
   submitMessage(
     sessionId: string,
@@ -73,6 +76,19 @@ function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Mess
   };
 }
 
+async function createSession(cwd: string, gooseExtensions: GooseExtension[]): Promise<Session> {
+  const { sessionId, sessionInfo, meta } = await acpNewSession(cwd, gooseExtensions);
+  const session = sessionInfoToSession(sessionInfo, meta);
+
+  showExtensionLoadResults(meta.extensionResults);
+  window.dispatchEvent(
+    new CustomEvent(AppEvents.SESSION_EXTENSIONS_LOADED, { detail: { sessionId } })
+  );
+  acpChatSessionActions.finishSessionLoad(sessionId, session);
+
+  return session;
+}
+
 async function loadSession(sessionId: string, options: AcpLoadSessionOptions = {}): Promise<void> {
   const cached = acpChatSessionStore.getSnapshot(sessionId);
   if (cached?.session) {
@@ -106,6 +122,10 @@ async function submitMessage(
   userMessage: Message,
   options: AcpSubmitMessageOptions
 ): Promise<void> {
+  if (acpChatSessionStore.getSnapshot(sessionId)?.activePromptAttemptId) {
+    return;
+  }
+
   const promptAttemptId = uuidv7();
   acpChatSessionActions.startPromptAttempt(sessionId, promptAttemptId);
 
@@ -247,6 +267,7 @@ async function setRecipeUserParams(
 }
 
 export const acpChatSessionController: AcpChatSessionController = {
+  createSession,
   loadSession,
   submitMessage,
   stop,

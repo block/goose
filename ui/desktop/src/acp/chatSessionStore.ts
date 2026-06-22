@@ -38,22 +38,6 @@ const initialTokenState: TokenState = {
   accumulatedTotalTokens: 0,
 };
 
-function tokenStateFromSession(session: Session | undefined): Partial<TokenState> {
-  return {
-    inputTokens: session?.usage?.input_tokens ?? 0,
-    outputTokens: session?.usage?.output_tokens ?? 0,
-    totalTokens: session?.usage?.total_tokens ?? 0,
-    cacheReadTokens: session?.usage?.cache_read_input_tokens ?? 0,
-    cacheWriteTokens: session?.usage?.cache_write_input_tokens ?? 0,
-    accumulatedInputTokens: session?.accumulated_usage?.input_tokens ?? 0,
-    accumulatedOutputTokens: session?.accumulated_usage?.output_tokens ?? 0,
-    accumulatedTotalTokens: session?.accumulated_usage?.total_tokens ?? 0,
-    accumulatedCacheReadTokens: session?.accumulated_usage?.cache_read_input_tokens ?? 0,
-    accumulatedCacheWriteTokens: session?.accumulated_usage?.cache_write_input_tokens ?? 0,
-    ...(session?.accumulated_cost != null ? { accumulatedCost: session.accumulated_cost } : {}),
-  };
-}
-
 export interface AcpChatSessionStore {
   getSnapshot(sessionId: string): AcpChatSessionSnapshot | undefined;
 }
@@ -180,7 +164,6 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
   const finishSessionLoad: AcpChatSessionActions['finishSessionLoad'] = (sessionId, session) => {
     const entry = getOrCreateEntry(sessionId);
     entry.session = session;
-    entry.tokenState = { ...entry.tokenState, ...tokenStateFromSession(session) };
     entry.sessionLoadError = undefined;
     entry.chatState = entry.activePromptAttemptId ? ChatState.Streaming : ChatState.Idle;
     return notify(sessionId, entry);

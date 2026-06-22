@@ -116,15 +116,6 @@
   "baseChat.goHome": {
     "defaultMessage": "홈으로 이동"
   },
-  "baseChat.noSession": {
-    "defaultMessage": "세션 없음"
-  },
-  "baseChat.recipeCreatedMessage": {
-    "defaultMessage": "\"{title}\"이 저장되어 사용할 수 있습니다."
-  },
-  "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "레시피가 성공적으로 생성되었습니다!"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "익스텐션이 업데이트되었습니다."
   },
@@ -166,9 +157,6 @@
   },
   "chatInput.contextWindow": {
     "defaultMessage": "컨텍스트 창"
-  },
-  "chatInput.createRecipeFromSession": {
-    "defaultMessage": "세션에서 레시피 생성"
   },
   "chatInput.dictationError": {
     "defaultMessage": "받아쓰기 오류"
@@ -400,54 +388,6 @@
   },
   "createEditRecipe.viewEditRecipeTitle": {
     "defaultMessage": "레시피 보기/수정"
-  },
-  "createRecipeFromSession.analyzingTitle": {
-    "defaultMessage": "대화 분석 중"
-  },
-  "createRecipeFromSession.cancel": {
-    "defaultMessage": "취소"
-  },
-  "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "레시피 생성 및 실행"
-  },
-  "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "레시피 생성"
-  },
-  "createRecipeFromSession.creating": {
-    "defaultMessage": "생성 중..."
-  },
-  "createRecipeFromSession.extractingInsights": {
-    "defaultMessage": "채팅에서 통찰력 추출"
-  },
-  "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "레시피를 생성하는 중에 예상치 못한 오류가 발생했습니다. 다시 시도해 주세요."
-  },
-  "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "레시피를 생성하지 못했습니다."
-  },
-  "createRecipeFromSession.stageComplete": {
-    "defaultMessage": "완료!"
-  },
-  "createRecipeFromSession.stageExtracting": {
-    "defaultMessage": "주요 주제 추출 중..."
-  },
-  "createRecipeFromSession.stageFinalizing": {
-    "defaultMessage": "세부정보를 마무리하는 중..."
-  },
-  "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "레시피 구조 생성 중..."
-  },
-  "createRecipeFromSession.stageIdentifying": {
-    "defaultMessage": "주요 패턴 식별 중..."
-  },
-  "createRecipeFromSession.stageReading": {
-    "defaultMessage": "대화를 읽는 중..."
-  },
-  "createRecipeFromSession.subtitle": {
-    "defaultMessage": "현재 대화를 기반으로 재사용 가능한 레시피를 만드세요."
-  },
-  "createRecipeFromSession.title": {
-    "defaultMessage": "세션에서 레시피 생성"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "취소"

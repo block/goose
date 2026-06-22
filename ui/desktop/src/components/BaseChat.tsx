@@ -29,9 +29,6 @@ import { useToolCount } from './alerts/useToolCount';
 import { getThinkingMessage, getTextAndImageContent } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
 import { substituteParameters } from '../utils/parameterSubstitution';
-import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
-import { toastSuccess } from '../toasts';
-import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
 import apeCloudLogo from '../images/logo.png';
@@ -47,18 +44,6 @@ const i18n = defineMessages({
   goHome: {
     id: 'baseChat.goHome',
     defaultMessage: 'Go home',
-  },
-  noSession: {
-    id: 'baseChat.noSession',
-    defaultMessage: 'No Session',
-  },
-  recipeCreatedTitle: {
-    id: 'baseChat.recipeCreatedTitle',
-    defaultMessage: 'Workflow created successfully!',
-  },
-  recipeCreatedMessage: {
-    id: 'baseChat.recipeCreatedMessage',
-    defaultMessage: '"{title}" has been saved and is ready to use.',
   },
 });
 
@@ -103,7 +88,6 @@ export default function BaseChat({
   const contentClassName = cn('pr-1 pb-10 pt-12', (isMobile || isNavCollapsed) && 'pt-16');
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
   const onStreamFinish = useCallback(() => {}, []);
-  const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
 
   const {
     session,
@@ -324,15 +308,6 @@ export default function BaseChat({
   }, [isActiveSession, sessionId, chatState]);
 
   useEffect(() => {
-    const handleMakeAgent = () => {
-      setIsCreateRecipeModalOpen(true);
-    };
-
-    window.addEventListener('make-agent-from-chat', handleMakeAgent);
-    return () => window.removeEventListener('make-agent-from-chat', handleMakeAgent);
-  }, []);
-
-  useEffect(() => {
     const handleSessionForked = (event: Event) => {
       const customEvent = event as CustomEvent<{
         newSessionId: string;
@@ -362,20 +337,6 @@ export default function BaseChat({
       window.removeEventListener(AppEvents.SESSION_FORKED, handleSessionForked);
     };
   }, [location.pathname, navigate]);
-
-  const handleRecipeCreated = (recipe: Recipe) => {
-    toastSuccess({
-      title: intl.formatMessage(i18n.recipeCreatedTitle),
-      msg: intl.formatMessage(i18n.recipeCreatedMessage, { title: recipe.title }),
-    });
-  };
-
-  const chat: ChatType = {
-    messages,
-    recipe,
-    sessionId,
-    name: session?.name || intl.formatMessage(i18n.noSession),
-  };
 
   const lastSetNameRef = useRef<string>('');
 
@@ -606,13 +567,6 @@ export default function BaseChat({
             }
           />
         )}
-
-      <CreateRecipeFromSessionModal
-        isOpen={isCreateRecipeModalOpen}
-        onClose={() => setIsCreateRecipeModalOpen(false)}
-        sessionId={chat.sessionId}
-        onRecipeCreated={handleRecipeCreated}
-      />
     </div>
   );
 }

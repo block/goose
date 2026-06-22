@@ -116,15 +116,6 @@
   "baseChat.goHome": {
     "defaultMessage": "ホームへ"
   },
-  "baseChat.noSession": {
-    "defaultMessage": "セッションなし"
-  },
-  "baseChat.recipeCreatedMessage": {
-    "defaultMessage": "\"{title}\" を保存しました。使用できます。"
-  },
-  "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "レシピを作成しました！"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "拡張機能を更新しました"
   },
@@ -166,9 +157,6 @@
   },
   "chatInput.contextWindow": {
     "defaultMessage": "コンテキストウィンドウ"
-  },
-  "chatInput.createRecipeFromSession": {
-    "defaultMessage": "セッションからレシピを作成"
   },
   "chatInput.dictationError": {
     "defaultMessage": "音声入力エラー"
@@ -400,54 +388,6 @@
   },
   "createEditRecipe.viewEditRecipeTitle": {
     "defaultMessage": "レシピを表示/編集"
-  },
-  "createRecipeFromSession.analyzingTitle": {
-    "defaultMessage": "会話を分析中"
-  },
-  "createRecipeFromSession.cancel": {
-    "defaultMessage": "キャンセル"
-  },
-  "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "レシピを作成して実行"
-  },
-  "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "レシピを作成"
-  },
-  "createRecipeFromSession.creating": {
-    "defaultMessage": "作成中..."
-  },
-  "createRecipeFromSession.extractingInsights": {
-    "defaultMessage": "チャットからインサイトを抽出中"
-  },
-  "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "レシピの作成中に予期しないエラーが発生しました。もう一度お試しください。"
-  },
-  "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "レシピの作成に失敗しました"
-  },
-  "createRecipeFromSession.stageComplete": {
-    "defaultMessage": "完了！"
-  },
-  "createRecipeFromSession.stageExtracting": {
-    "defaultMessage": "主要トピックを抽出中..."
-  },
-  "createRecipeFromSession.stageFinalizing": {
-    "defaultMessage": "詳細を仕上げ中..."
-  },
-  "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "レシピ構造を生成中..."
-  },
-  "createRecipeFromSession.stageIdentifying": {
-    "defaultMessage": "主要なパターンを特定中..."
-  },
-  "createRecipeFromSession.stageReading": {
-    "defaultMessage": "会話を読み込み中..."
-  },
-  "createRecipeFromSession.subtitle": {
-    "defaultMessage": "現在の会話に基づいて、再利用可能なレシピを作成します。"
-  },
-  "createRecipeFromSession.title": {
-    "defaultMessage": "セッションからレシピを作成"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "キャンセル"
