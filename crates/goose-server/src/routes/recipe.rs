@@ -44,27 +44,6 @@ use crate::routes::recipe_utils::{
 use crate::state::AppState;
 
 #[derive(Debug, Deserialize, ToSchema)]
-pub struct CreateRecipeRequest {
-    session_id: String,
-    #[serde(default)]
-    author: Option<AuthorRequest>,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
-pub struct AuthorRequest {
-    #[serde(default)]
-    contact: Option<String>,
-    #[serde(default)]
-    metadata: Option<String>,
-}
-
-#[derive(Debug, Serialize, ToSchema)]
-pub struct CreateRecipeResponse {
-    recipe: Option<Recipe>,
-    error: Option<String>,
-}
-
-#[derive(Debug, Deserialize, ToSchema)]
 pub struct EncodeRecipeRequest {
     recipe: Recipe,
 }
@@ -146,82 +125,6 @@ pub struct RecipeToYamlRequest {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct RecipeToYamlResponse {
     yaml: String,
-}
-
-#[utoipa::path(
-    post,
-    path = "/recipes/create",
-    request_body = CreateRecipeRequest,
-    responses(
-        (status = 200, description = "Recipe created successfully", body = CreateRecipeResponse),
-        (status = 400, description = "Bad request"),
-        (status = 412, description = "Precondition failed - Agent not available"),
-        (status = 500, description = "Internal server error")
-    ),
-    tag = "Recipe Management"
-)]
-async fn create_recipe(
-    State(state): State<Arc<AppState>>,
-    Json(request): Json<CreateRecipeRequest>,
-) -> Result<Json<CreateRecipeResponse>, StatusCode> {
-    tracing::info!(
-        "Recipe creation request received for session_id: {}",
-        request.session_id
-    );
-
-    let session = match state
-        .session_manager()
-        .get_session(&request.session_id, true)
-        .await
-    {
-        Ok(session) => session,
-        Err(e) => {
-            tracing::error!("Failed to get session: {}", e);
-            return Err(StatusCode::INTERNAL_SERVER_ERROR);
-        }
-    };
-
-    let conversation = match session.conversation.clone() {
-        Some(conversation) => conversation,
-        None => {
-            let error_message = "Session has no conversation".to_string();
-            let error_response = CreateRecipeResponse {
-                recipe: None,
-                error: Some(error_message),
-            };
-            return Ok(Json(error_response));
-        }
-    };
-
-    let agent = state.get_agent_for_route(request.session_id).await?;
-
-    let recipe_result = agent.create_recipe(&session.id, conversation).await;
-
-    match recipe_result {
-        Ok(mut recipe) => {
-            if let Some(author_req) = request.author {
-                recipe.author = Some(goose::recipe::Author {
-                    contact: author_req.contact,
-                    metadata: author_req.metadata,
-                });
-            }
-
-            Ok(Json(CreateRecipeResponse {
-                recipe: Some(recipe),
-                error: None,
-            }))
-        }
-        Err(e) => {
-            tracing::error!("Error details: {:?}", e);
-            #[cfg(feature = "telemetry")]
-            goose::posthog::emit_error("recipe_create_failed", &e.to_string());
-            let error_response = CreateRecipeResponse {
-                recipe: None,
-                error: Some(format!("Failed to create recipe: {}", e)),
-            };
-            Ok(Json(error_response))
-        }
-    }
 }
 
 #[utoipa::path(
@@ -571,7 +474,6 @@ async fn recipe_to_yaml(
 
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
-        .route("/recipes/create", post(create_recipe))
         .route("/recipes/encode", post(encode_recipe))
         .route("/recipes/decode", post(decode_recipe))
         .route("/recipes/scan", post(scan_recipe))

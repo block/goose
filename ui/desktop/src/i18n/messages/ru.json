@@ -116,15 +116,6 @@
   "baseChat.goHome": {
     "defaultMessage": "На главную"
   },
-  "baseChat.noSession": {
-    "defaultMessage": "Нет сеанса"
-  },
-  "baseChat.recipeCreatedMessage": {
-    "defaultMessage": "«{title}» сохранено и готово к использованию."
-  },
-  "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "Рецепт успешно создан!"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Расширение обновлено"
   },
@@ -166,9 +157,6 @@
   },
   "chatInput.contextWindow": {
     "defaultMessage": "Контекстное окно"
-  },
-  "chatInput.createRecipeFromSession": {
-    "defaultMessage": "Создать рецепт из сеанса"
   },
   "chatInput.dictationError": {
     "defaultMessage": "Ошибка диктовки"
@@ -400,54 +388,6 @@
   },
   "createEditRecipe.viewEditRecipeTitle": {
     "defaultMessage": "Просмотреть/изменить рецепт"
-  },
-  "createRecipeFromSession.analyzingTitle": {
-    "defaultMessage": "Анализ вашего разговора"
-  },
-  "createRecipeFromSession.cancel": {
-    "defaultMessage": "Отмена"
-  },
-  "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "Создать и запустить рецепт"
-  },
-  "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "Создать рецепт"
-  },
-  "createRecipeFromSession.creating": {
-    "defaultMessage": "Создание..."
-  },
-  "createRecipeFromSession.extractingInsights": {
-    "defaultMessage": "Извлечение сведений из вашего чата"
-  },
-  "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "При создании рецепта произошла непредвиденная ошибка. Повторите попытку."
-  },
-  "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "Не удалось создать рецепт"
-  },
-  "createRecipeFromSession.stageComplete": {
-    "defaultMessage": "Готово!"
-  },
-  "createRecipeFromSession.stageExtracting": {
-    "defaultMessage": "Извлечение основных тем..."
-  },
-  "createRecipeFromSession.stageFinalizing": {
-    "defaultMessage": "Завершение деталей..."
-  },
-  "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "Создание структуры рецепта..."
-  },
-  "createRecipeFromSession.stageIdentifying": {
-    "defaultMessage": "Определение ключевых шаблонов..."
-  },
-  "createRecipeFromSession.stageReading": {
-    "defaultMessage": "Чтение вашего разговора..."
-  },
-  "createRecipeFromSession.subtitle": {
-    "defaultMessage": "Создайте повторно используемый рецепт на основе текущего разговора."
-  },
-  "createRecipeFromSession.title": {
-    "defaultMessage": "Создать рецепт из сеанса"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "Отмена"

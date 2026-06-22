@@ -991,13 +991,18 @@ impl GooseAcpAgent {
         &self,
         config: &Config,
         mcp_servers: Vec<McpServer>,
+        goose_extensions: Option<Vec<GooseExtension>>,
     ) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
         let mut extensions = Vec::new();
         for builtin in &self.builtins {
             push_or_replace_extension(&mut extensions, builtin_to_extension_config(builtin));
         }
 
-        if mcp_servers.is_empty() {
+        if let Some(goose_extensions) = goose_extensions {
+            for extension in extensions::goose_extensions_to_configs(goose_extensions)? {
+                push_or_replace_extension(&mut extensions, extension);
+            }
+        } else if mcp_servers.is_empty() {
             for extension in get_enabled_extensions_with_config(config) {
                 push_or_replace_extension(&mut extensions, extension);
             }
@@ -1119,7 +1124,7 @@ impl GooseAcpAgent {
             || EnabledExtensionsState::from_extension_data(&session.extension_data).is_none()
         {
             let extension_data =
-                self.build_enabled_extensions_data(config, &session, mcp_servers)?;
+                self.build_enabled_extensions_data(config, &session, mcp_servers, None)?;
             builder = builder.extension_data(extension_data);
             session_needs_update = true;
         }
@@ -1148,8 +1153,9 @@ impl GooseAcpAgent {
         config: &Config,
         session: &Session,
         mcp_servers: Vec<McpServer>,
+        goose_extensions: Option<Vec<GooseExtension>>,
     ) -> Result<ExtensionData, agent_client_protocol::Error> {
-        let extensions = self.initial_session_extensions(config, mcp_servers)?;
+        let extensions = self.initial_session_extensions(config, mcp_servers, goose_extensions)?;
         let mut extension_data = session.extension_data.clone();
         EnabledExtensionsState::new(extensions)
             .to_extension_data(&mut extension_data)
@@ -2314,43 +2320,6 @@ impl GooseAcpAgent {
             session_id.clone(),
             SessionUpdate::SessionInfoUpdate(SessionInfoUpdate::new().meta(meta)),
         ))
-    }
-
-    #[allow(dead_code)]
-    async fn add_mcp_extensions(
-        agent: &Arc<Agent>,
-        mcp_servers: Vec<McpServer>,
-        session_id: &str,
-    ) -> Result<(), agent_client_protocol::Error> {
-        let mut configs = Vec::with_capacity(mcp_servers.len());
-        for mcp_server in mcp_servers {
-            let config = match mcp_server_to_extension_config(mcp_server) {
-                Ok(c) => c,
-                Err(msg) => {
-                    return Err(agent_client_protocol::Error::invalid_params().data(msg));
-                }
-            };
-            configs.push(config);
-        }
-
-        if configs.is_empty() {
-            return Ok(());
-        }
-
-        let results = agent
-            .add_extensions_bulk(configs, session_id)
-            .await
-            .internal_err()?;
-        for result in &results {
-            if !result.success {
-                let error_msg = result.error.as_deref().unwrap_or("unknown error");
-                return Err(agent_client_protocol::Error::internal_error().data(format!(
-                    "Failed to add MCP server '{}': {}",
-                    result.name, error_msg
-                )));
-            }
-        }
-        Ok(())
     }
 
     async fn on_load_session(

@@ -116,15 +116,6 @@
   "baseChat.goHome": {
     "defaultMessage": "Go home"
   },
-  "baseChat.noSession": {
-    "defaultMessage": "No Session"
-  },
-  "baseChat.recipeCreatedMessage": {
-    "defaultMessage": "\"{title}\" has been saved and is ready to use."
-  },
-  "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "Recipe created successfully!"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension Updated"
   },
@@ -166,9 +157,6 @@
   },
   "chatInput.contextWindow": {
     "defaultMessage": "Context window"
-  },
-  "chatInput.createRecipeFromSession": {
-    "defaultMessage": "Create Recipe from Session"
   },
   "chatInput.dictationError": {
     "defaultMessage": "Dictation Error"
@@ -400,54 +388,6 @@
   },
   "createEditRecipe.viewEditRecipeTitle": {
     "defaultMessage": "View/edit recipe"
-  },
-  "createRecipeFromSession.analyzingTitle": {
-    "defaultMessage": "Analyzing your conversation"
-  },
-  "createRecipeFromSession.cancel": {
-    "defaultMessage": "Cancel"
-  },
-  "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "Create & Run Recipe"
-  },
-  "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "Create Recipe"
-  },
-  "createRecipeFromSession.creating": {
-    "defaultMessage": "Creating..."
-  },
-  "createRecipeFromSession.extractingInsights": {
-    "defaultMessage": "Extracting insights from your chat"
-  },
-  "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "An unexpected error occurred while creating the recipe. Please try again."
-  },
-  "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "Failed to create recipe"
-  },
-  "createRecipeFromSession.stageComplete": {
-    "defaultMessage": "Complete!"
-  },
-  "createRecipeFromSession.stageExtracting": {
-    "defaultMessage": "Extracting main topics..."
-  },
-  "createRecipeFromSession.stageFinalizing": {
-    "defaultMessage": "Finalizing details..."
-  },
-  "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "Generating recipe structure..."
-  },
-  "createRecipeFromSession.stageIdentifying": {
-    "defaultMessage": "Identifying key patterns..."
-  },
-  "createRecipeFromSession.stageReading": {
-    "defaultMessage": "Reading your conversation..."
-  },
-  "createRecipeFromSession.subtitle": {
-    "defaultMessage": "Create a reusable recipe based on your current conversation."
-  },
-  "createRecipeFromSession.title": {
-    "defaultMessage": "Create Recipe from Session"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "Cancel"

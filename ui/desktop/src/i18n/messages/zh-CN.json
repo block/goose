@@ -116,15 +116,6 @@
   "baseChat.goHome": {
     "defaultMessage": "回到首页"
   },
-  "baseChat.noSession": {
-    "defaultMessage": "无会话"
-  },
-  "baseChat.recipeCreatedMessage": {
-    "defaultMessage": "“{title}”已保存，可以使用了。"
-  },
-  "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "配方创建成功！"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "扩展已更新"
   },
@@ -166,9 +157,6 @@
   },
   "chatInput.contextWindow": {
     "defaultMessage": "上下文窗口"
-  },
-  "chatInput.createRecipeFromSession": {
-    "defaultMessage": "从会话创建配方"
   },
   "chatInput.dictationError": {
     "defaultMessage": "语音输入错误"
@@ -400,54 +388,6 @@
   },
   "createEditRecipe.viewEditRecipeTitle": {
     "defaultMessage": "查看/编辑配方"
-  },
-  "createRecipeFromSession.analyzingTitle": {
-    "defaultMessage": "正在分析你的对话"
-  },
-  "createRecipeFromSession.cancel": {
-    "defaultMessage": "取消"
-  },
-  "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "创建并运行配方"
-  },
-  "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "创建配方"
-  },
-  "createRecipeFromSession.creating": {
-    "defaultMessage": "创建中…"
-  },
-  "createRecipeFromSession.extractingInsights": {
-    "defaultMessage": "正在从你的聊天中提取要点"
-  },
-  "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "创建配方时发生意外错误，请重试。"
-  },
-  "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "创建配方失败"
-  },
-  "createRecipeFromSession.stageComplete": {
-    "defaultMessage": "完成！"
-  },
-  "createRecipeFromSession.stageExtracting": {
-    "defaultMessage": "正在提取主要话题…"
-  },
-  "createRecipeFromSession.stageFinalizing": {
-    "defaultMessage": "正在敲定细节…"
-  },
-  "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "正在生成配方结构…"
-  },
-  "createRecipeFromSession.stageIdentifying": {
-    "defaultMessage": "正在识别关键模式…"
-  },
-  "createRecipeFromSession.stageReading": {
-    "defaultMessage": "正在阅读你的对话…"
-  },
-  "createRecipeFromSession.subtitle": {
-    "defaultMessage": "基于当前对话创建一份可复用的配方。"
-  },
-  "createRecipeFromSession.title": {
-    "defaultMessage": "从会话创建配方"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "取消"

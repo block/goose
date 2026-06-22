@@ -116,15 +116,6 @@
   "baseChat.goHome": {
     "defaultMessage": "घर जाओ"
   },
-  "baseChat.noSession": {
-    "defaultMessage": "कोई सत्र नहीं"
-  },
-  "baseChat.recipeCreatedMessage": {
-    "defaultMessage": "\"{title}\" सहेजा गया है और उपयोग के लिए तैयार है।"
-  },
-  "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "रेसिपी सफलतापूर्वक बनाई गई!"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "एक्सटेंशन अपडेट किया गया"
   },
@@ -166,9 +157,6 @@
   },
   "chatInput.contextWindow": {
     "defaultMessage": "प्रसंग विंडो"
-  },
-  "chatInput.createRecipeFromSession": {
-    "defaultMessage": "सत्र से रेसिपी बनाएं"
   },
   "chatInput.dictationError": {
     "defaultMessage": "श्रुतलेख त्रुटि"
@@ -400,54 +388,6 @@
   },
   "createEditRecipe.viewEditRecipeTitle": {
     "defaultMessage": "रेसिपी देखें/संपादित करें"
-  },
-  "createRecipeFromSession.analyzingTitle": {
-    "defaultMessage": "आपकी बातचीत का विश्लेषण"
-  },
-  "createRecipeFromSession.cancel": {
-    "defaultMessage": "रद्द करें"
-  },
-  "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "रेसिपी बनाएं और चलाएं"
-  },
-  "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "रेसिपी बनाएं"
-  },
-  "createRecipeFromSession.creating": {
-    "defaultMessage": "बनाया जा रहा है..."
-  },
-  "createRecipeFromSession.extractingInsights": {
-    "defaultMessage": "आपकी चैट से अंतर्दृष्टि निकालना"
-  },
-  "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "रेसिपी बनाते समय एक अप्रत्याशित त्रुटि उत्पन्न हुई. कृपया पुन: प्रयास करें।"
-  },
-  "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "रेसिपी बनाने में विफल"
-  },
-  "createRecipeFromSession.stageComplete": {
-    "defaultMessage": "पूरा!"
-  },
-  "createRecipeFromSession.stageExtracting": {
-    "defaultMessage": "मुख्य विषय निकाले जा रहे हैं..."
-  },
-  "createRecipeFromSession.stageFinalizing": {
-    "defaultMessage": "विवरण को अंतिम रूप दिया जा रहा है..."
-  },
-  "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "रेसिपी संरचना तैयार की जा रही है..."
-  },
-  "createRecipeFromSession.stageIdentifying": {
-    "defaultMessage": "प्रमुख पैटर्न की पहचान..."
-  },
-  "createRecipeFromSession.stageReading": {
-    "defaultMessage": "आपकी बातचीत पढ़ रहा हूँ..."
-  },
-  "createRecipeFromSession.subtitle": {
-    "defaultMessage": "अपनी मौजूदा बातचीत के आधार पर दोबारा इस्तेमाल होने वाली रेसिपी बनाएं।"
-  },
-  "createRecipeFromSession.title": {
-    "defaultMessage": "सत्र से रेसिपी बनाएं"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "रद्द करें"
