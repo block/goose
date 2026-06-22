@@ -1,5 +1,4 @@
 use crate::routes::errors::ErrorResponse;
-use crate::routes::utils::check_provider_configured;
 use crate::state::AppState;
 use axum::routing::put;
 use axum::{
@@ -19,6 +18,7 @@ use goose::providers::catalog::{
     get_provider_template, get_providers_by_format, ProviderCatalogEntry, ProviderFormat,
     ProviderTemplate,
 };
+use goose::providers::check_provider_configured;
 use goose::providers::create_with_default_model;
 use goose::providers::huggingface_auth;
 use goose::providers::providers as get_providers;

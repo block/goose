@@ -23,6 +23,7 @@ pub mod claude_code;
 pub(crate) mod cli_common;
 pub mod codex;
 pub mod codex_acp;
+pub mod configured;
 pub mod copilot_acp;
 pub mod cursor_agent;
 pub mod databricks;
@@ -69,6 +70,7 @@ pub mod utils;
 pub mod xai;
 pub mod xai_oauth;
 
+pub use configured::check_provider_configured;
 pub use init::{
     cleanup_provider, create, create_with_default_model, create_with_named_model,
     create_with_working_dir, get_from_registry, inventory_identity, providers,
