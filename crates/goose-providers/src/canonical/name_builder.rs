@@ -92,19 +92,6 @@ pub fn map_to_canonical_model(
         // If direct lookup failed, fall through to inference logic below
     }
 
-    // For meta-providers, the catalog may key native aliases under the meta-provider
-    // itself (e.g. "databricks/databricks-gpt-oss-120b"). Try a direct lookup on the
-    // mapped provider + full/normalized model id before falling back to inference.
-    if is_meta_provider(provider) {
-        if let Some(canonical) = registry.get(registry_provider, model) {
-            return Some(canonical.id.clone());
-        }
-        let normalized_model = strip_version_suffix(model);
-        if let Some(canonical) = registry.get(registry_provider, &normalized_model) {
-            return Some(canonical.id.clone());
-        }
-    }
-
     // For hosting/meta-providers (or unknown providers), do string matching magic to figure out the real provider and model
     let model_stripped = strip_common_prefixes(model);
 
@@ -134,6 +121,21 @@ pub fn map_to_canonical_model(
     if let Some((extracted_provider, extracted_model)) = extract_provider_prefix(&model_stripped) {
         let normalized = strip_version_suffix(extracted_model);
         if let Some(canonical) = registry.get(extracted_provider, &normalized) {
+            return Some(canonical.id.clone());
+        }
+    }
+
+    // Fallback for meta-providers: some native aliases are keyed under the
+    // meta-provider itself (e.g. "databricks/databricks-gpt-oss-120b") and do
+    // not infer back to a first-party provider. Only try this after inference,
+    // so models that DO infer (e.g. databricks-claude-* -> anthropic/*) keep
+    // resolving to the richer first-party catalog entry.
+    if is_meta_provider(provider) {
+        if let Some(canonical) = registry.get(registry_provider, model) {
+            return Some(canonical.id.clone());
+        }
+        let normalized_model = strip_version_suffix(model);
+        if let Some(canonical) = registry.get(registry_provider, &normalized_model) {
             return Some(canonical.id.clone());
         }
     }
@@ -575,6 +577,15 @@ mod tests {
         assert_eq!(
             map_to_canonical_model("databricks", "databricks-gpt-oss-120b", r),
             Some("databricks/databricks-gpt-oss-120b".to_string())
+        );
+
+        // Regression guard: the meta-provider lookup must remain a *fallback*
+        // after inference. databricks-claude-* aliases infer back to the richer
+        // first-party "anthropic/*" entry (which carries thinking_mode used for
+        // adaptive thinking), not the metadata-poor "databricks/databricks-*" one.
+        assert_eq!(
+            map_to_canonical_model("databricks", "databricks-claude-opus-4-7", r),
+            Some("anthropic/claude-opus-4.7".to_string())
         );
     }
 }
