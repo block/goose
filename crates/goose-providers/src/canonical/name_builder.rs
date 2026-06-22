@@ -49,6 +49,7 @@ pub fn map_provider_name(provider: &str) -> &str {
         "aws_bedrock" => "amazon-bedrock",
         "gcp_vertex_ai" => "google-vertex",
         "gemini_oauth" => "google",
+        "databricks_v2" => "databricks",
         "zhipu" => "zhipuai",
         "novita" => "novita-ai",
         "opencode_go" => "opencode-go",
@@ -89,6 +90,19 @@ pub fn map_to_canonical_model(
             return Some(canonical.id.clone());
         }
         // If direct lookup failed, fall through to inference logic below
+    }
+
+    // For meta-providers, the catalog may key native aliases under the meta-provider
+    // itself (e.g. "databricks/databricks-gpt-oss-120b"). Try a direct lookup on the
+    // mapped provider + full/normalized model id before falling back to inference.
+    if is_meta_provider(provider) {
+        if let Some(canonical) = registry.get(registry_provider, model) {
+            return Some(canonical.id.clone());
+        }
+        let normalized_model = strip_version_suffix(model);
+        if let Some(canonical) = registry.get(registry_provider, &normalized_model) {
+            return Some(canonical.id.clone());
+        }
     }
 
     // For hosting/meta-providers (or unknown providers), do string matching magic to figure out the real provider and model
@@ -538,6 +552,29 @@ mod tests {
         assert_eq!(
             map_to_canonical_model("gcp_vertex_ai", "claude-haiku-4-5@20251001", r),
             Some("google-vertex/claude-haiku-4.5".to_string())
+        );
+    }
+
+    // Databricks-native open-weight ids are keyed under the meta-provider itself
+    // (e.g. "databricks/databricks-gpt-oss-120b") and do not infer back to another
+    // provider, so they must resolve via the direct meta-provider lookup. These
+    // particular ids are unversioned, so the assertions are not catalog-version brittle.
+    #[test]
+    fn test_databricks_native_open_weight_ids_resolve() {
+        let r = super::super::CanonicalModelRegistry::bundled().unwrap();
+
+        assert_eq!(
+            map_to_canonical_model("databricks_v2", "databricks-gpt-oss-120b", r),
+            Some("databricks/databricks-gpt-oss-120b".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("databricks_v2", "databricks-gpt-oss-20b", r),
+            Some("databricks/databricks-gpt-oss-20b".to_string())
+        );
+        // Legacy provider name resolves identically.
+        assert_eq!(
+            map_to_canonical_model("databricks", "databricks-gpt-oss-120b", r),
+            Some("databricks/databricks-gpt-oss-120b".to_string())
         );
     }
 }
