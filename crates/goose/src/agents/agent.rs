@@ -2023,6 +2023,13 @@ impl Agent {
                                 }
                                 if goose_mode == GooseMode::Chat {
                                     for request in remaining_requests.iter() {
+                                        // An unparseable tool call should surface the parse error
+                                        // (added in the Err branch below), not a successful skip —
+                                        // otherwise the model sees a malformed call as "skipped OK"
+                                        // and can't correct the arguments.
+                                        if request.tool_call.is_err() {
+                                            continue;
+                                        }
                                         if let Some(response) = request_to_response_map.get_mut(&request.id) {
                                             response.add_tool_response_with_metadata(
                                                 request.id.clone(),
