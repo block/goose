@@ -127,6 +127,20 @@ impl GooseAcpAgent {
             model_id,
         })
     }
+
+    pub(super) async fn on_defaults_clear(
+        &self,
+        _req: DefaultsClearRequest,
+    ) -> Result<DefaultsReadResponse, agent_client_protocol::Error> {
+        let config = self.config()?;
+        crate::config::clear_active_provider(config)
+            .internal_err_ctx("Failed to clear default provider")?;
+
+        Ok(DefaultsReadResponse {
+            provider_id: None,
+            model_id: None,
+        })
+    }
 }
 
 struct PreferenceDef {

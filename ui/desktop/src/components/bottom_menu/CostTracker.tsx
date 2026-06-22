@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CoinIcon } from '../icons';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../ui/Tooltip';
-import { fetchCanonicalModelInfo } from '../../utils/canonical';
-import type { ModelInfoData } from '../../api';
+import { fetchCanonicalModelInfo, type CanonicalModelInfo } from '../../utils/canonical';
 import { defineMessages, useIntl } from '../../i18n';
 
 const i18n = defineMessages({
@@ -40,7 +39,7 @@ export function CostTracker({
   provider: currentProvider,
 }: CostTrackerProps) {
   const intl = useIntl();
-  const [costInfo, setCostInfo] = useState<ModelInfoData | null>(null);
+  const [costInfo, setCostInfo] = useState<CanonicalModelInfo | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showPricing, setShowPricing] = useState(true);
   const [pricingFailed, setPricingFailed] = useState(false);
@@ -118,7 +117,7 @@ export function CostTracker({
   if (
     accumulatedCost == null &&
     (!costInfo ||
-      (costInfo.input_token_cost === undefined && costInfo.output_token_cost === undefined))
+      (costInfo.inputTokenCost === undefined && costInfo.outputTokenCost === undefined))
   ) {
     const freeProviders = ['ollama', 'local', 'localhost'];
     if (freeProviders.includes(currentProvider.toLowerCase())) {
@@ -170,14 +169,14 @@ export function CostTracker({
       return intl.formatMessage(i18n.totalSessionCost, { cost: `${currency}${totalCost.toFixed(4)}` })
         + `\n` + intl.formatMessage(i18n.inputOutputTooltip, {
           inputTokens: inputTokens.toLocaleString(),
-          inputCost: `${currency}${((inputTokens * (costInfo?.input_token_cost || 0)) / 1_000_000).toFixed(6)}`,
+          inputCost: `${currency}${((inputTokens * (costInfo?.inputTokenCost || 0)) / 1_000_000).toFixed(6)}`,
           outputTokens: outputTokens.toLocaleString(),
-          outputCost: `${currency}${((outputTokens * (costInfo?.output_token_cost || 0)) / 1_000_000).toFixed(6)}`,
+          outputCost: `${currency}${((outputTokens * (costInfo?.outputTokenCost || 0)) / 1_000_000).toFixed(6)}`,
         });
     }
 
-    const inputCostStr = `${currency}${((inputTokens * (costInfo?.input_token_cost || 0)) / 1_000_000).toFixed(6)}`;
-    const outputCostStr = `${currency}${((outputTokens * (costInfo?.output_token_cost || 0)) / 1_000_000).toFixed(6)}`;
+    const inputCostStr = `${currency}${((inputTokens * (costInfo?.inputTokenCost || 0)) / 1_000_000).toFixed(6)}`;
+    const outputCostStr = `${currency}${((outputTokens * (costInfo?.outputTokenCost || 0)) / 1_000_000).toFixed(6)}`;
     return intl.formatMessage(i18n.inputOutputTooltip, {
       inputTokens: inputTokens.toLocaleString(),
       inputCost: inputCostStr,

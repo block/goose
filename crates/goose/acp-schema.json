@@ -2668,6 +2668,214 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/providers/config/authenticate"
     },
+    "ProviderSecretsListRequest_unstable": {
+      "type": "object",
+      "description": "List provider credentials stored locally by Goose.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/secrets/list"
+    },
+    "ProviderSecretsListResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "secrets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProviderSecretDto"
+          }
+        }
+      },
+      "required": [
+        "secrets"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/secrets/list"
+    },
+    "ProviderSecretDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "providerDisplayName": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "storage": {
+          "$ref": "#/$defs/ProviderSecretStorageDto"
+        },
+        "expiresAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/ProviderSecretStatusDto"
+        },
+        "configured": {
+          "type": "boolean"
+        },
+        "hasSecret": {
+          "type": "boolean"
+        },
+        "canDelete": {
+          "type": "boolean"
+        },
+        "canConfigure": {
+          "type": "boolean"
+        },
+        "configureProvider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "provider",
+        "providerDisplayName",
+        "name",
+        "storage",
+        "status",
+        "configured",
+        "hasSecret",
+        "canDelete",
+        "canConfigure"
+      ]
+    },
+    "ProviderSecretStorageDto": {
+      "type": "string",
+      "enum": [
+        "secret_store",
+        "provider_cache"
+      ]
+    },
+    "ProviderSecretStatusDto": {
+      "type": "string",
+      "enum": [
+        "valid",
+        "expired",
+        "unknown"
+      ]
+    },
+    "ProviderSecretDeleteRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "description": "Delete a locally stored provider credential by id.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/secrets/delete"
+    },
+    "CanonicalModelInfoRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model"
+      ],
+      "description": "Look up canonical (bundled-registry) model info for a provider/model pair.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/canonical-model-info"
+    },
+    "CanonicalModelInfoResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "modelInfo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CanonicalModelInfoDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/canonical-model-info"
+    },
+    "CanonicalModelInfoDto": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "contextLimit": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxOutputTokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reasoning": {
+          "type": "boolean"
+        },
+        "inputTokenCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "outputTokenCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "cacheReadTokenCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "cacheWriteTokenCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "currency": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "contextLimit",
+        "reasoning",
+        "currency"
+      ]
+    },
     "PreferencesReadRequest_unstable": {
       "type": "object",
       "properties": {
@@ -2796,6 +3004,12 @@
       "description": "Save Goose default provider and model configuration.",
       "x-side": "agent",
       "x-method": "_goose/unstable/defaults/save"
+    },
+    "DefaultsClearRequest_unstable": {
+      "type": "object",
+      "description": "Clear Goose default provider and model configuration.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/defaults/clear"
     },
     "OnboardingImportScanRequest_unstable": {
       "type": "object",
@@ -5778,6 +5992,33 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/ProviderSecretsListRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/secrets/list",
+                  "title": "ProviderSecretsListRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ProviderSecretDeleteRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/secrets/delete",
+                  "title": "ProviderSecretDeleteRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/CanonicalModelInfoRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/canonical-model-info",
+                  "title": "CanonicalModelInfoRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/PreferencesReadRequest_unstable"
                     }
                   ],
@@ -5819,6 +6060,15 @@
                   ],
                   "description": "Params for _goose/unstable/defaults/save",
                   "title": "DefaultsSaveRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DefaultsClearRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/defaults/clear",
+                  "title": "DefaultsClearRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -6522,6 +6772,22 @@
                         }
                       ],
                       "title": "ProviderConfigChangeResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ProviderSecretsListResponse_unstable"
+                        }
+                      ],
+                      "title": "ProviderSecretsListResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/CanonicalModelInfoResponse_unstable"
+                        }
+                      ],
+                      "title": "CanonicalModelInfoResponse_unstable"
                     },
                     {
                       "allOf": [

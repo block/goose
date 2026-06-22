@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
-import { readAllConfig, readConfig, removeConfig, upsertConfig, providers } from '../api';
+import { readAllConfig, readConfig, removeConfig, upsertConfig } from '../api';
+import { acpListProviderDetails } from '../acp/providers';
 import {
   getConfiguredExtensions,
   addConfigExtension,
@@ -150,8 +151,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   const getProviders = useCallback(async (forceRefresh = false): Promise<ProviderDetails[]> => {
     if (forceRefresh || providersListRef.current.length === 0) {
       try {
-        const response = await providers();
-        const providersData = response.data || [];
+        const providersData = await acpListProviderDetails();
         providersListRef.current = providersData;
         setProvidersList(providersData);
         return providersData;
@@ -172,8 +172,7 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
       // Load providers
       try {
-        const providersResponse = await providers();
-        const providersData = providersResponse.data || [];
+        const providersData = await acpListProviderDetails();
         providersListRef.current = providersData;
         setProvidersList(providersData);
       } catch (error) {

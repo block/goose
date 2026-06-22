@@ -196,6 +196,21 @@
       "responseType": "ProviderConfigChangeResponse_unstable"
     },
     {
+      "method": "_goose/unstable/providers/secrets/list",
+      "requestType": "ProviderSecretsListRequest_unstable",
+      "responseType": "ProviderSecretsListResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/providers/secrets/delete",
+      "requestType": "ProviderSecretDeleteRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/providers/canonical-model-info",
+      "requestType": "CanonicalModelInfoRequest_unstable",
+      "responseType": "CanonicalModelInfoResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/preferences/read",
       "requestType": "PreferencesReadRequest_unstable",
       "responseType": "PreferencesReadResponse_unstable"
@@ -218,6 +233,11 @@
     {
       "method": "_goose/unstable/defaults/save",
       "requestType": "DefaultsSaveRequest_unstable",
+      "responseType": "DefaultsReadResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/defaults/clear",
+      "requestType": "DefaultsClearRequest_unstable",
       "responseType": "DefaultsReadResponse_unstable"
     },
     {

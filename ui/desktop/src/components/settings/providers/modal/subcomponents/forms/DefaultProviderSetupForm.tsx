@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Input } from '../../../../../ui/input';
-import { useConfig } from '../../../../../ConfigContext';
+import { acpReadProviderConfig } from '../../../../../../acp/providers';
 import { ProviderDetails, ConfigKey } from '../../../../../../api';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../../../ui/collapsible';
 import { configLabels, configPlaceholders } from '../../../../../../utils/configUtils';
@@ -95,19 +95,30 @@ export default function DefaultProviderSetupForm({
   const intl = useIntl();
   const [isLoading, setIsLoading] = useState(true);
   const [optionalExpanded, setOptionalExpanded] = useState(false);
-  const { read } = useConfig();
 
   const loadConfigValues = useCallback(async () => {
     setIsLoading(true);
     try {
       const values: { [k: string]: ConfigInput } = {};
 
-      for (const parameter of parameters) {
-        const configKey = `${parameter.name}`;
-        const configValue = (await read(configKey, parameter.secret || false)) as ConfigValue;
+      let fields: Awaited<ReturnType<typeof acpReadProviderConfig>> = [];
+      try {
+        fields = await acpReadProviderConfig(provider.name);
+      } catch {
+        // Provider may not be in the registry yet; fall back to defaults below.
+      }
+      const fieldByKey = new Map(fields.map((field) => [field.key, field]));
 
-        if (configValue !== undefined && configValue !== null) {
-          values[parameter.name] = { serverValue: configValue };
+      for (const parameter of parameters) {
+        const field = fieldByKey.get(parameter.name);
+
+        if (field?.isSet && field.value != null) {
+          // Secrets come back masked from the server; preserve the masked shape
+          // so the form renders a placeholder rather than the raw value.
+          const serverValue: ConfigValue = parameter.secret
+            ? { maskedValue: field.value }
+            : field.value;
+          values[parameter.name] = { serverValue };
         } else if (parameter.default !== undefined && parameter.default !== null) {
           values[parameter.name] = { value: parameter.default };
         }
@@ -120,7 +131,7 @@ export default function DefaultProviderSetupForm({
     } finally {
       setIsLoading(false);
     }
-  }, [parameters, read, setConfigValues]);
+  }, [parameters, provider.name, setConfigValues]);
 
   useEffect(() => {
     loadConfigValues();

@@ -1,7 +1,38 @@
 use super::*;
 use crate::config::declarative_providers;
 use crate::providers::inventory::ensure_refresh_identity_current;
+use crate::providers::provider_secrets;
 use std::str::FromStr;
+
+fn provider_secret_to_dto(secret: provider_secrets::ProviderSecret) -> ProviderSecretDto {
+    let storage = match secret.storage {
+        provider_secrets::ProviderSecretStorage::SecretStore => {
+            ProviderSecretStorageDto::SecretStore
+        }
+        provider_secrets::ProviderSecretStorage::ProviderCache => {
+            ProviderSecretStorageDto::ProviderCache
+        }
+    };
+    let status = match secret.status {
+        provider_secrets::ProviderSecretStatus::Valid => ProviderSecretStatusDto::Valid,
+        provider_secrets::ProviderSecretStatus::Expired => ProviderSecretStatusDto::Expired,
+        provider_secrets::ProviderSecretStatus::Unknown => ProviderSecretStatusDto::Unknown,
+    };
+    ProviderSecretDto {
+        id: secret.id,
+        provider: secret.provider,
+        provider_display_name: secret.provider_display_name,
+        name: secret.name,
+        storage,
+        expires_at: secret.expires_at.map(|value| value.to_rfc3339()),
+        status,
+        configured: secret.configured,
+        has_secret: secret.has_secret,
+        can_delete: secret.can_delete,
+        can_configure: secret.can_configure,
+        configure_provider: secret.configure_provider,
+    }
+}
 
 fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEntryDto {
     let stale = ProviderInventoryService::is_stale(&entry);
@@ -949,5 +980,59 @@ impl GooseAcpAgent {
         let status = Self::provider_config_status(req.provider_id.clone()).await;
         let refresh = self.start_provider_inventory_refresh(&provider_ids).await?;
         Ok(ProviderConfigChangeResponse { status, refresh })
+    }
+
+    pub(super) async fn on_list_provider_secrets(
+        &self,
+        _req: ProviderSecretsListRequest,
+    ) -> Result<ProviderSecretsListResponse, agent_client_protocol::Error> {
+        let secrets = provider_secrets::list_provider_secrets()
+            .await
+            .internal_err_ctx("Failed to list provider secrets")?
+            .into_iter()
+            .map(provider_secret_to_dto)
+            .collect();
+        Ok(ProviderSecretsListResponse { secrets })
+    }
+
+    pub(super) async fn on_delete_provider_secret(
+        &self,
+        req: ProviderSecretDeleteRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        match provider_secrets::delete_provider_secret(&req.id).await {
+            Ok(()) => Ok(EmptyResponse {}),
+            Err(provider_secrets::DeleteProviderSecretError::InvalidId(id)) => {
+                Err(agent_client_protocol::Error::invalid_params()
+                    .data(format!("Invalid provider secret id: '{}'", id)))
+            }
+            Err(e) => Err(agent_client_protocol::Error::internal_error().data(e.to_string())),
+        }
+    }
+
+    pub(super) async fn on_canonical_model_info(
+        &self,
+        req: CanonicalModelInfoRequest,
+    ) -> Result<CanonicalModelInfoResponse, agent_client_protocol::Error> {
+        use goose_providers::model::ModelConfig;
+
+        let model_info =
+            crate::providers::canonical::maybe_get_canonical_model(&req.provider, &req.model).map(
+                |canonical_model| CanonicalModelInfoDto {
+                    provider: req.provider.clone(),
+                    model: req.model.clone(),
+                    context_limit: canonical_model.limit.context,
+                    max_output_tokens: canonical_model.limit.output,
+                    reasoning: canonical_model
+                        .reasoning
+                        .unwrap_or_else(|| ModelConfig::new(&req.model).is_reasoning_model()),
+                    input_token_cost: canonical_model.cost.input,
+                    output_token_cost: canonical_model.cost.output,
+                    cache_read_token_cost: canonical_model.cost.cache_read,
+                    cache_write_token_cost: canonical_model.cost.cache_write,
+                    currency: "$".to_string(),
+                },
+            );
+
+        Ok(CanonicalModelInfoResponse { model_info })
     }
 }

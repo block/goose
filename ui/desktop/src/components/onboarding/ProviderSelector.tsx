@@ -1,10 +1,9 @@
 import { useState, useEffect, useMemo } from 'react';
+import { ProviderDetails, UpdateCustomProviderRequest } from '../../api';
 import {
-  providers as fetchProviders,
-  createCustomProvider,
-  ProviderDetails,
-  UpdateCustomProviderRequest,
-} from '../../api';
+  acpCreateCustomProviderFromRequest,
+  acpListProviderDetails,
+} from '../../acp/providers';
 import { Select } from '../ui/Select';
 import ProviderConfigForm from './ProviderConfigForm';
 import FreeOptionCards from './FreeOptionCards';
@@ -73,13 +72,8 @@ export default function ProviderSelector({
   useEffect(() => {
     const load = async () => {
       try {
-        const response = await fetchProviders({ throwOnError: true });
-        if (response.data) {
-          const list = Array.isArray(response.data)
-            ? response.data
-            : (response.data as { providers: ProviderDetails[] }).providers || [];
-          setProviderList(list);
-        }
+        const list = await acpListProviderDetails();
+        setProviderList(list);
       } catch (err) {
         console.error('Failed to fetch providers:', err);
       }
@@ -127,10 +121,10 @@ export default function ProviderSelector({
   };
 
   const handleCreateCustomProvider = async (data: UpdateCustomProviderRequest) => {
-    const result = await createCustomProvider({ body: data, throwOnError: true });
+    const result = await acpCreateCustomProviderFromRequest(data);
     setShowCustomModal(false);
-    if (result.data?.provider_name) {
-      onConfigured(result.data.provider_name);
+    if (result.provider_name) {
+      onConfigured(result.provider_name);
     }
   };
 

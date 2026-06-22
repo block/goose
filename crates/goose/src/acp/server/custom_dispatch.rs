@@ -328,6 +328,30 @@ impl GooseAcpAgent {
         self.on_authenticate_provider_config(req).await
     }
 
+    #[custom_method(ProviderSecretsListRequest)]
+    async fn dispatch_list_provider_secrets(
+        &self,
+        req: ProviderSecretsListRequest,
+    ) -> Result<ProviderSecretsListResponse, agent_client_protocol::Error> {
+        self.on_list_provider_secrets(req).await
+    }
+
+    #[custom_method(ProviderSecretDeleteRequest)]
+    async fn dispatch_delete_provider_secret(
+        &self,
+        req: ProviderSecretDeleteRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_delete_provider_secret(req).await
+    }
+
+    #[custom_method(CanonicalModelInfoRequest)]
+    async fn dispatch_canonical_model_info(
+        &self,
+        req: CanonicalModelInfoRequest,
+    ) -> Result<CanonicalModelInfoResponse, agent_client_protocol::Error> {
+        self.on_canonical_model_info(req).await
+    }
+
     #[custom_method(PreferencesReadRequest)]
     async fn dispatch_preferences_read(
         &self,
@@ -366,6 +390,14 @@ impl GooseAcpAgent {
         req: DefaultsSaveRequest,
     ) -> Result<DefaultsReadResponse, agent_client_protocol::Error> {
         self.on_defaults_save(req).await
+    }
+
+    #[custom_method(DefaultsClearRequest)]
+    async fn dispatch_defaults_clear(
+        &self,
+        req: DefaultsClearRequest,
+    ) -> Result<DefaultsReadResponse, agent_client_protocol::Error> {
+        self.on_defaults_clear(req).await
     }
 
     #[custom_method(OnboardingImportScanRequest)]

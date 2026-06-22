@@ -19,7 +19,6 @@ import {
   getLocalModelDownloadProgress,
   cancelLocalModelDownload,
   deleteLocalModel,
-  setConfigProvider,
   type DownloadProgress,
   type DownloadModelRequest,
   type LocalModelResponse,
@@ -28,6 +27,7 @@ import { HuggingFaceModelSearch } from './HuggingFaceModelSearch';
 import { ModelSettingsPanel } from './ModelSettingsPanel';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import HuggingFaceSignInPrompt from '../auth/HuggingFaceSignInPrompt';
+import { acpSaveDefaults } from '../../../acp/providers';
 
 const i18n = defineMessages({
   title: {
@@ -247,10 +247,7 @@ export const LocalInferenceSettings = () => {
 
   const selectModel = async (modelId: string) => {
     try {
-      await setConfigProvider({
-        body: { provider: 'local', model: modelId },
-        throwOnError: true,
-      });
+      await acpSaveDefaults('local', modelId);
       await refreshCurrentModelAndProvider();
     } catch (error) {
       console.error('Failed to select model:', error);

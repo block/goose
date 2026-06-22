@@ -18,6 +18,8 @@ import type {
   AppsListRequest_unstable,
   AppsListResponse_unstable,
   ArchiveSessionRequest_unstable,
+  CanonicalModelInfoRequest_unstable,
+  CanonicalModelInfoResponse_unstable,
   CreateScheduleRequest_unstable,
   CreateScheduleResponse_unstable,
   CreateSourceRequest_unstable,
@@ -32,6 +34,7 @@ import type {
   CustomProviderUpdateResponse_unstable,
   DecodeRecipeRequest_unstable,
   DecodeRecipeResponse_unstable,
+  DefaultsClearRequest_unstable,
   DefaultsReadRequest_unstable,
   DefaultsReadResponse_unstable,
   DefaultsSaveRequest_unstable,
@@ -124,6 +127,9 @@ import type {
   ProviderConfigSaveRequest_unstable,
   ProviderConfigStatusRequest_unstable,
   ProviderConfigStatusResponse_unstable,
+  ProviderSecretDeleteRequest_unstable,
+  ProviderSecretsListRequest_unstable,
+  ProviderSecretsListResponse_unstable,
   ProviderSetupCatalogListRequest_unstable,
   ProviderSetupCatalogListResponse_unstable,
   ProviderSupportedModelsListRequest_unstable,
@@ -171,6 +177,7 @@ import {
   zAppsExportResponse_unstable,
   zAppsImportResponse_unstable,
   zAppsListResponse_unstable,
+  zCanonicalModelInfoResponse_unstable,
   zCreateScheduleResponse_unstable,
   zCreateSourceResponse_unstable,
   zCustomProviderCreateResponse_unstable,
@@ -217,6 +224,7 @@ import {
   zProviderConfigChangeResponse_unstable,
   zProviderConfigReadResponse_unstable,
   zProviderConfigStatusResponse_unstable,
+  zProviderSecretsListResponse_unstable,
   zProviderSetupCatalogListResponse_unstable,
   zProviderSupportedModelsListResponse_unstable,
   zReadResourceResponse_unstable,
@@ -654,6 +662,39 @@ export class GooseExtClient {
     ) as ProviderConfigChangeResponse_unstable;
   }
 
+  async providersSecretsList_unstable(
+    params: ProviderSecretsListRequest_unstable,
+  ): Promise<ProviderSecretsListResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/providers/secrets/list",
+      params,
+    );
+    return zProviderSecretsListResponse_unstable.parse(
+      raw,
+    ) as ProviderSecretsListResponse_unstable;
+  }
+
+  async providersSecretsDelete_unstable(
+    params: ProviderSecretDeleteRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod(
+      "_goose/unstable/providers/secrets/delete",
+      params,
+    );
+  }
+
+  async providersCanonicalModelInfo_unstable(
+    params: CanonicalModelInfoRequest_unstable,
+  ): Promise<CanonicalModelInfoResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/providers/canonical-model-info",
+      params,
+    );
+    return zCanonicalModelInfoResponse_unstable.parse(
+      raw,
+    ) as CanonicalModelInfoResponse_unstable;
+  }
+
   async preferencesRead_unstable(
     params: PreferencesReadRequest_unstable,
   ): Promise<PreferencesReadResponse_unstable> {
@@ -695,6 +736,18 @@ export class GooseExtClient {
   ): Promise<DefaultsReadResponse_unstable> {
     const raw = await this.conn.extMethod(
       "_goose/unstable/defaults/save",
+      params,
+    );
+    return zDefaultsReadResponse_unstable.parse(
+      raw,
+    ) as DefaultsReadResponse_unstable;
+  }
+
+  async defaultsClear_unstable(
+    params: DefaultsClearRequest_unstable,
+  ): Promise<DefaultsReadResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/defaults/clear",
       params,
     );
     return zDefaultsReadResponse_unstable.parse(

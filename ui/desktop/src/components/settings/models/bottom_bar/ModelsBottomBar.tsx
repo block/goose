@@ -9,7 +9,6 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '../../../ui/dropdown-menu';
-import { useConfig } from '../../../ConfigContext';
 import { getProviderMetadata } from '../modelInterface';
 import { getModelDisplayName } from '../predefinedModelsUtils';
 
@@ -77,9 +76,10 @@ export default function ModelsBottomBar({
   const currentProvider = sessionProvider ?? configProvider;
 
   const intl = useIntl();
-  const { getProviders } = useConfig();
   const [displayProvider, setDisplayProvider] = useState<string | null>(null);
-  const [displayModelName, setDisplayModelName] = useState<string>(intl.formatMessage(i18n.selectModel));
+  const [displayModelName, setDisplayModelName] = useState<string>(
+    intl.formatMessage(i18n.selectModel)
+  );
   const [isAddModelModalOpen, setIsAddModelModalOpen] = useState(false);
   const [isLocalModelSettingsOpen, setIsLocalModelSettingsOpen] = useState(false);
   const [providerDefaultModel, setProviderDefaultModel] = useState<string | null>(null);
@@ -91,10 +91,10 @@ export default function ModelsBottomBar({
   const resolvedModel = latestInference?.resolvedModel ?? null;
   const shouldShowResolvedModel = Boolean(
     !isModelLoading &&
-      resolvedModel &&
-      latestInference?.provider === currentProvider &&
-      latestInference?.requestedModel === currentModel &&
-      resolvedModel !== currentModel
+    resolvedModel &&
+    latestInference?.provider === currentProvider &&
+    latestInference?.requestedModel === currentModel &&
+    resolvedModel !== currentModel
   );
   const loadingModelLabel = intl.formatMessage(i18n.loadingModel);
   const triggerLabel = isModelLoading ? loadingModelLabel : displayModel;
@@ -102,21 +102,21 @@ export default function ModelsBottomBar({
 
   useEffect(() => {
     if (!currentProvider) return;
-    getProviderMetadata(currentProvider, getProviders)
+    getProviderMetadata(currentProvider)
       .then((metadata) => {
         setDisplayProvider(metadata.display_name || currentProvider);
       })
       .catch(() => {
         setDisplayProvider(currentProvider);
       });
-  }, [currentProvider, currentModel, getProviders]);
+  }, [currentProvider, currentModel]);
 
   // Fetch provider default model when provider changes and no current model
   useEffect(() => {
     if (currentProvider && !currentModel) {
       (async () => {
         try {
-          const metadata = await getProviderMetadata(currentProvider, getProviders);
+          const metadata = await getProviderMetadata(currentProvider);
           setProviderDefaultModel(metadata.default_model);
         } catch (error) {
           console.error('Failed to get provider default model:', error);
@@ -126,7 +126,7 @@ export default function ModelsBottomBar({
     } else if (currentModel) {
       setProviderDefaultModel(null);
     }
-  }, [currentProvider, currentModel, getProviders]);
+  }, [currentProvider, currentModel]);
 
   useEffect(() => {
     if (!currentModel) return;
@@ -162,14 +162,18 @@ export default function ModelsBottomBar({
           </div>
         </DropdownMenuTrigger>
         <DropdownMenuContent side="top" align="center" className="w-64 text-sm">
-          <h6 className="text-xs text-text-primary mt-2 ml-2">{intl.formatMessage(i18n.currentModel)}</h6>
+          <h6 className="text-xs text-text-primary mt-2 ml-2">
+            {intl.formatMessage(i18n.currentModel)}
+          </h6>
           <p className="flex items-center justify-between text-sm mx-2 pb-2 border-b mb-2">
             {menuModelLabel}
             {!isModelLoading && displayProvider && ` — ${displayProvider}`}
           </p>
           {shouldShowResolvedModel && resolvedDisplayModelName && (
             <div className="mx-2 pb-2 border-b mb-2">
-              <h6 className="text-xs text-text-primary">{intl.formatMessage(i18n.resolvedModel)}</h6>
+              <h6 className="text-xs text-text-primary">
+                {intl.formatMessage(i18n.resolvedModel)}
+              </h6>
               <p className="text-xs text-text-primary truncate" title={resolvedModel ?? undefined}>
                 {resolvedDisplayModelName}
               </p>
@@ -204,7 +208,9 @@ export default function ModelsBottomBar({
           <div className="bg-background-primary border border-border-primary rounded-lg shadow-lg w-[480px] max-h-[80vh] flex flex-col">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle">
               <h3 className="text-sm font-medium text-text-default">
-                {intl.formatMessage(i18n.localModelSettingsTitle, { modelName: getModelDisplayName(currentModel) })}
+                {intl.formatMessage(i18n.localModelSettingsTitle, {
+                  modelName: getModelDisplayName(currentModel),
+                })}
               </h3>
               <button
                 onClick={() => setIsLocalModelSettingsOpen(false)}
