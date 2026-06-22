@@ -150,8 +150,14 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     .input(to_bedrock_json(&args_to_value(call.arguments.clone())))
                     .build()
             } else {
+                // Unparseable tool call: emit a placeholder tool_use so the paired
+                // tool_result isn't orphaned — Bedrock rejects a tool_use with no name
+                // and a tool_result with no matching tool_use. Mirrors the
+                // OpenAI/Databricks/Anthropic formatters.
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
+                    .name("unparseable_tool_call")
+                    .input(to_bedrock_json(&args_to_value(None)))
                     .build()
             }?;
             bedrock::ContentBlock::ToolUse(tool_use)
@@ -165,8 +171,14 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     .input(to_bedrock_json(&args_to_value(call.arguments.clone())))
                     .build()
             } else {
+                // Unparseable tool call: emit a placeholder tool_use so the paired
+                // tool_result isn't orphaned — Bedrock rejects a tool_use with no name
+                // and a tool_result with no matching tool_use. Mirrors the
+                // OpenAI/Databricks/Anthropic formatters.
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
+                    .name("unparseable_tool_call")
+                    .input(to_bedrock_json(&args_to_value(None)))
                     .build()
             }?;
             bedrock::ContentBlock::ToolUse(tool_use)
@@ -1112,6 +1124,28 @@ mod tests {
             bedrock::ContentBlock::CachePoint(_)
         ));
 
+        Ok(())
+    }
+
+    #[test]
+    fn tool_request_parse_error_gets_placeholder_name() -> Result<()> {
+        use rmcp::model::{ErrorCode, ErrorData};
+        // An unparseable tool call (ToolRequest(Err)) must still produce a tool_use
+        // with a non-empty name; otherwise Bedrock rejects the tool_use / orphans the
+        // paired tool_result. Mirrors the OpenAI/Databricks/Anthropic formatters.
+        let err = ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Tool arguments must be a JSON object".to_string(),
+            None,
+        );
+        let content = MessageContent::tool_request("call_bad".to_string(), Err(err));
+        match to_bedrock_message_content(&content)? {
+            bedrock::ContentBlock::ToolUse(tu) => {
+                assert_eq!(tu.tool_use_id, "call_bad");
+                assert_eq!(tu.name, "unparseable_tool_call");
+            }
+            other => panic!("expected ToolUse, got {other:?}"),
+        }
         Ok(())
     }
 
