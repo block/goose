@@ -640,6 +640,7 @@ impl Agent {
     async fn drain_elicitation_messages(&self, session_id: &str) -> Vec<Message> {
         let mut messages = Vec::new();
         let manager = self.config.session_manager.clone();
+        let mut failed_messages = Vec::new();
         for mut elicitation_message in ActionRequiredManager::global()
             .drain_requests_for_session(session_id)
             .await
@@ -649,9 +650,14 @@ impl Agent {
             }
             if let Err(e) = manager.add_message(session_id, &elicitation_message).await {
                 warn!("Failed to save elicitation message to session: {}", e);
+                failed_messages.push(elicitation_message);
+                continue;
             }
             messages.push(elicitation_message);
         }
+        ActionRequiredManager::global()
+            .requeue_requests_front(session_id, failed_messages)
+            .await;
         messages
     }
 

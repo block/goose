@@ -8,7 +8,7 @@ use tokio::time::timeout;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ElicitationOutcome {
@@ -90,7 +90,7 @@ impl ActionRequiredManager {
         self.queued_requests
             .lock()
             .await
-            .entry(session_id)
+            .entry(session_id.clone())
             .or_default()
             .push_back(action_required_message);
 
@@ -98,6 +98,9 @@ impl ActionRequiredManager {
             .wait_for_response(&id, pending_request, rx, timeout_duration)
             .await;
 
+        if result.is_err() {
+            self.remove_queued_request(&session_id, &id).await;
+        }
         self.pending.write().await.remove(&id);
 
         result
@@ -186,6 +189,42 @@ impl ActionRequiredManager {
             .remove(session_id)
             .map(|queue| queue.into_iter().collect())
             .unwrap_or_default()
+    }
+
+    async fn remove_queued_request(&self, session_id: &str, request_id: &str) {
+        let mut queued_requests = self.queued_requests.lock().await;
+        let Some(queue) = queued_requests.get_mut(session_id) else {
+            return;
+        };
+
+        queue.retain(|message| {
+            !message.content.iter().any(|content| {
+                matches!(
+                    content,
+                    MessageContent::ActionRequired(action_required)
+                        if matches!(
+                            &action_required.data,
+                            ActionRequiredData::Elicitation { id, .. } if id == request_id
+                        )
+                )
+            })
+        });
+
+        if queue.is_empty() {
+            queued_requests.remove(session_id);
+        }
+    }
+
+    pub(crate) async fn requeue_requests_front(&self, session_id: &str, messages: Vec<Message>) {
+        if messages.is_empty() {
+            return;
+        }
+
+        let mut queued_requests = self.queued_requests.lock().await;
+        let queue = queued_requests.entry(session_id.to_string()).or_default();
+        for message in messages.into_iter().rev() {
+            queue.push_front(message);
+        }
     }
 }
 
@@ -420,6 +459,64 @@ mod tests {
         assert_eq!(
             cancel_waiter.await.unwrap().unwrap(),
             ElicitationOutcome::Cancel
+        );
+    }
+
+    #[tokio::test]
+    async fn timeout_removes_undrained_request() {
+        let manager = Arc::new(ActionRequiredManager::new());
+
+        let result = manager
+            .request_and_wait(
+                "session-a".to_string(),
+                "Need input".to_string(),
+                json!({ "type": "object" }),
+                Duration::from_millis(1),
+            )
+            .await;
+
+        assert!(result.is_err());
+        assert!(manager
+            .drain_requests_for_session("session-a")
+            .await
+            .is_empty());
+    }
+
+    #[tokio::test]
+    async fn can_requeue_drained_messages() {
+        let manager = Arc::new(ActionRequiredManager::new());
+        let waiter = {
+            let manager = manager.clone();
+            tokio::spawn(async move {
+                manager
+                    .request_and_wait(
+                        "session-a".to_string(),
+                        "Need input".to_string(),
+                        json!({ "type": "object" }),
+                        Duration::from_secs(5),
+                    )
+                    .await
+            })
+        };
+
+        let messages = wait_for_elicitation_messages(&manager, "session-a").await;
+        let request_id = elicitation_id(&messages[0]);
+        manager.requeue_requests_front("session-a", messages).await;
+
+        let redrained = manager.drain_requests_for_session("session-a").await;
+        assert_eq!(redrained.len(), 1);
+        assert_eq!(elicitation_id(&redrained[0]), request_id);
+
+        manager
+            .claim_response("session-a", &request_id)
+            .await
+            .unwrap()
+            .submit(ElicitationOutcome::Accept(json!({ "answer": "right" })))
+            .unwrap();
+
+        assert_eq!(
+            waiter.await.unwrap().unwrap(),
+            ElicitationOutcome::Accept(json!({ "answer": "right" }))
         );
     }
 }
