@@ -98,7 +98,7 @@ const PairRouteWrapper = ({
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
   const [searchParams, setSearchParams] = useSearchParams();
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const isCreatingSessionRef = useRef(false);
   const navigate = useNavigate();
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
@@ -112,9 +112,9 @@ const PairRouteWrapper = ({
     if (
       (initialMessage || recipeDeeplinkFromConfig || recipeIdFromConfig) &&
       !resumeSessionId &&
-      !isCreatingSession
+      !isCreatingSessionRef.current
     ) {
-      setIsCreatingSession(true);
+      isCreatingSessionRef.current = true;
 
       (async () => {
         try {
@@ -153,12 +153,10 @@ const PairRouteWrapper = ({
             recoverable: true,
           });
         } finally {
-          setIsCreatingSession(false);
+          isCreatingSessionRef.current = false;
         }
       })();
     }
-    // Note: isCreatingSession is intentionally NOT in the dependency array
-    // It's only used as a guard to prevent concurrent session creation
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     initialMessage,
