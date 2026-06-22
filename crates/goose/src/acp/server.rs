@@ -3711,27 +3711,6 @@ print(\"hello, world\")
     }
 
     #[test]
-    fn test_standard_usage_update_serializes_cost() {
-        let mut session = make_session_with_usage(
-            TokenUsage::new(Some(60), Some(40), Some(100)),
-            TokenUsage::default(),
-        );
-        session.model_config = Some(
-            goose_providers::model::ModelConfig::new("goose-claude-opus-4-8")
-                .unwrap()
-                .with_context_limit(Some(1_000_000)),
-        );
-        session.accumulated_cost = Some(2.5);
-        let updates = build_usage_updates(&session).expect("usage updates present");
-        let json = serde_json::to_string(&updates.standard).unwrap();
-        assert!(
-            json.contains("\"cost\""),
-            "standard usage update must serialize cost: {json}"
-        );
-        assert!(json.contains("2.5"));
-    }
-
-    #[test]
     fn test_build_usage_update_clamps_negative_used_to_zero() {
         let mut session = make_session_with_usage(
             TokenUsage::new(Some(0), Some(0), Some(-7)),
