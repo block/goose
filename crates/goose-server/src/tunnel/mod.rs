@@ -337,25 +337,6 @@ impl TunnelManager {
             guard.take();
         }
     }
-
-    pub async fn stop(&self, clear_auto_start: bool) {
-        if let Some(handle) = self.watchdog_handle.write().await.take() {
-            handle.abort();
-        }
-
-        *self.restart_tx.write().await = None;
-
-        lapstone::stop(self.lapstone_handle.clone()).await;
-
-        self.release_lock();
-
-        *self.state.write().await = TunnelState::Idle;
-        *self.info.write().await = None;
-
-        if clear_auto_start {
-            let _ = Self::set_auto_start(false);
-        }
-    }
 }
 
 fn generate_secret() -> String {
