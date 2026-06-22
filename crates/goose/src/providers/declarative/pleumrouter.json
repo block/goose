@@ -1,0 +1,27 @@
+{
+  "name": "pleumrouter",
+  "engine": "openai",
+  "display_name": "PleumRouter",
+  "description": "Korea-region OpenAI-compatible multi-provider LLM gateway — one key for OpenAI, Anthropic, Google, and more.",
+  "api_key_env": "PLEUMROUTER_API_KEY",
+  "base_url": "https://router.pleum.ai/v1",
+  "headers": {
+    "http-referer": "https://goose-docs.ai",
+    "x-title": "goose"
+  },
+  "models": [
+    { "name": "claude-sonnet-4-6", "context_limit": 1000000 },
+    { "name": "claude-opus-4-8", "context_limit": 1000000 },
+    { "name": "gpt-5.5", "context_limit": 1050000 },
+    { "name": "gemini-2.5-pro", "context_limit": 1000000 }
+  ],
+  "dynamic_models": true,
+  "supports_streaming": true,
+  "preserves_thinking": true,
+  "model_doc_link": "https://router.pleum.ai/docs",
+  "setup_steps": [
+    "Sign up at https://router.pleum.ai",
+    "Create an API key (starts with plm_)",
+    "Paste the key above as PLEUMROUTER_API_KEY"
+  ]
+}
