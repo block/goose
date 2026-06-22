@@ -123,12 +123,49 @@ pub fn json_escape_control_chars_in_string(s: &str) -> String {
 }
 
 /// Detect whether a raw tool-arguments string looks truncated (the model hit
-/// its output-token limit mid-JSON). A truncated JSON object/array typically
-/// does not end with a structural closer because the model was cut off
-/// mid-value before emitting the closing delimiter.
+/// its output-token limit mid-JSON). Returns true when the string has
+/// unbalanced or unclosed structural delimiters — whether the cut-off happened
+/// mid-value (e.g. `{"path":"/a` with no closing quote) or after a nested
+/// closer but before the outer object closed (e.g. `{"items":[1,2]` where the
+/// outer `{` is still open).
 pub fn looks_truncated(args: &str) -> bool {
     let trimmed = args.trim_end();
-    !trimmed.is_empty() && !trimmed.ends_with('}') && !trimmed.ends_with(']')
+    if trimmed.is_empty() {
+        return false;
+    }
+
+    let mut in_string = false;
+    let mut escape_next = false;
+    let mut depth = Vec::new();
+
+    for c in trimmed.chars() {
+        if in_string {
+            if escape_next {
+                escape_next = false;
+            } else if c == '\\' {
+                escape_next = true;
+            } else if c == '"' {
+                in_string = false;
+            }
+            continue;
+        }
+
+        match c {
+            '"' => in_string = true,
+            '{' => depth.push('}'),
+            '[' => depth.push(']'),
+            '}' | ']' => {
+                if depth.last() == Some(&c) {
+                    depth.pop();
+                } else {
+                    return true;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    in_string || escape_next || !depth.is_empty()
 }
 
 /// Build an actionable error message for tool arguments that could not be
@@ -310,7 +347,44 @@ mod tests {
     fn test_truncation_error_message_valid_json() {
         assert!(truncation_error_message(r#"{"key":"value"}"#).is_none());
         assert!(truncation_error_message(r#"{}"#).is_none());
+        assert!(truncation_error_message(r#"{"a":[1,2],"b":{"c":3}}"#).is_none());
+        assert!(truncation_error_message(r#"[1,2,3]"#).is_none());
+        assert!(truncation_error_message(r#"{"a":{"b":"c"}}"#).is_none());
         assert!(truncation_error_message("").is_none());
+    }
+
+    #[test]
+    fn test_looks_truncated_nested_closers() {
+        // Truncated after inner array closes, but outer object still open.
+        assert!(looks_truncated(r#"{"items":[1,2]"#));
+        // Truncated after inner object closes, but outer object still open.
+        assert!(looks_truncated(r#"{"patch":{"path":"x"}"#));
+        // Truncated mid-string.
+        assert!(looks_truncated(
+            r##"{"path":"/report.md","content":"# cut"##
+        ));
+        // Truncated mid-key.
+        assert!(looks_truncated(r#"{"key":"val"#));
+
+        // Well-formed JSON is NOT truncated.
+        assert!(!looks_truncated(r#"{"key":"value"}"#));
+        assert!(!looks_truncated(r#"{"a":[1,2],"b":{"c":3}}"#));
+        assert!(!looks_truncated(r#"[1,2,3]"#));
+        assert!(!looks_truncated(r#"{"a":{"b":"c"}}"#));
+        assert!(!looks_truncated(r#"{}"#));
+        assert!(!looks_truncated(""));
+    }
+
+    #[test]
+    fn test_parse_tool_arguments_nested_closers_truncated() {
+        // These end with ] or } so the old check passed, but the outer object
+        // is still open — silently repairing these would invoke tools with
+        // incomplete arguments.
+        let case1 = r#"{"items":[1,2]"#;
+        assert!(parse_tool_arguments(case1).is_none());
+
+        let case2 = r#"{"patch":{"path":"x"}"#;
+        assert!(parse_tool_arguments(case2).is_none());
     }
 
     #[test]
