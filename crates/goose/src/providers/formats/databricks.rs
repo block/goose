@@ -1,9 +1,9 @@
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::providers::formats::anthropic::{
     adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
     thinking_type_for_provider, ThinkingType,
 };
+use goose_providers::model::ModelConfig;
 
 use anyhow::{anyhow, Error};
 use goose_providers::formats::openai::{

@@ -260,4 +260,33 @@ mod tests {
             other => panic!("unexpected extension variant: {:?}", other),
         }
     }
+
+    #[test]
+    fn recipe_stdio_envs_deserialization_filters_disallowed_keys() {
+        let wrapper: Wrapper = serde_json::from_value(json!({
+            "extensions": [{
+                "type": "stdio",
+                "name": "test-stdio",
+                "cmd": "echo",
+                "args": [],
+                "envs": {
+                    "LD_PRELOAD": "/tmp/injected.so",
+                    "SAFE_VAR": "ok"
+                }
+            }]
+        }))
+        .expect("failed to deserialize extensions");
+
+        let extensions = wrapper.extensions.expect("expected extensions");
+        assert_eq!(extensions.len(), 1);
+
+        match &extensions[0] {
+            ExtensionConfig::Stdio { envs, .. } => {
+                let map = envs.get_env();
+                assert!(!map.contains_key("LD_PRELOAD"));
+                assert_eq!(map.get("SAFE_VAR"), Some(&"ok".to_string()));
+            }
+            other => panic!("unexpected extension variant: {:?}", other),
+        }
+    }
 }

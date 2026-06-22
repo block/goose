@@ -476,10 +476,16 @@ export function useChatStream({
               throwOnError: true,
             });
             if (response.data?.name) {
+              const nextMessageCount =
+                response.data.message_count ?? currentState.session?.message_count;
               dispatch({
                 type: 'SET_SESSION',
                 payload: currentState.session
-                  ? { ...currentState.session, name: response.data.name }
+                  ? {
+                      ...currentState.session,
+                      name: response.data.name,
+                      ...(nextMessageCount !== undefined && { message_count: nextMessageCount }),
+                    }
                   : undefined,
               });
               window.dispatchEvent(
@@ -716,12 +722,12 @@ export function useChatStream({
           session: cached.session,
           messages: cached.messages,
           tokenState: {
-            inputTokens: cached.session?.input_tokens ?? 0,
-            outputTokens: cached.session?.output_tokens ?? 0,
-            totalTokens: cached.session?.total_tokens ?? 0,
-            accumulatedInputTokens: cached.session?.accumulated_input_tokens ?? 0,
-            accumulatedOutputTokens: cached.session?.accumulated_output_tokens ?? 0,
-            accumulatedTotalTokens: cached.session?.accumulated_total_tokens ?? 0,
+            inputTokens: cached.session?.usage?.input_tokens ?? 0,
+            outputTokens: cached.session?.usage?.output_tokens ?? 0,
+            totalTokens: cached.session?.usage?.total_tokens ?? 0,
+            accumulatedInputTokens: cached.session?.accumulated_usage?.input_tokens ?? 0,
+            accumulatedOutputTokens: cached.session?.accumulated_usage?.output_tokens ?? 0,
+            accumulatedTotalTokens: cached.session?.accumulated_usage?.total_tokens ?? 0,
           },
         },
       });
@@ -772,12 +778,12 @@ export function useChatStream({
               session: loadedSession!,
               messages: loadedSession?.conversation || [],
               tokenState: {
-                inputTokens: loadedSession?.input_tokens ?? 0,
-                outputTokens: loadedSession?.output_tokens ?? 0,
-                totalTokens: loadedSession?.total_tokens ?? 0,
-                accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-                accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-                accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
+                inputTokens: loadedSession?.usage?.input_tokens ?? 0,
+                outputTokens: loadedSession?.usage?.output_tokens ?? 0,
+                totalTokens: loadedSession?.usage?.total_tokens ?? 0,
+                accumulatedInputTokens: loadedSession?.accumulated_usage?.input_tokens ?? 0,
+                accumulatedOutputTokens: loadedSession?.accumulated_usage?.output_tokens ?? 0,
+                accumulatedTotalTokens: loadedSession?.accumulated_usage?.total_tokens ?? 0,
               },
             },
           });
@@ -791,12 +797,12 @@ export function useChatStream({
           dispatch({
             type: 'SET_TOKEN_STATE',
             payload: {
-              inputTokens: loadedSession?.input_tokens ?? 0,
-              outputTokens: loadedSession?.output_tokens ?? 0,
-              totalTokens: loadedSession?.total_tokens ?? 0,
-              accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-              accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-              accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
+              inputTokens: loadedSession?.usage?.input_tokens ?? 0,
+              outputTokens: loadedSession?.usage?.output_tokens ?? 0,
+              totalTokens: loadedSession?.usage?.total_tokens ?? 0,
+              accumulatedInputTokens: loadedSession?.accumulated_usage?.input_tokens ?? 0,
+              accumulatedOutputTokens: loadedSession?.accumulated_usage?.output_tokens ?? 0,
+              accumulatedTotalTokens: loadedSession?.accumulated_usage?.total_tokens ?? 0,
             },
           });
         } else {
@@ -806,12 +812,12 @@ export function useChatStream({
               session: loadedSession!,
               messages: loadedSession?.conversation || [],
               tokenState: {
-                inputTokens: loadedSession?.input_tokens ?? 0,
-                outputTokens: loadedSession?.output_tokens ?? 0,
-                totalTokens: loadedSession?.total_tokens ?? 0,
-                accumulatedInputTokens: loadedSession?.accumulated_input_tokens ?? 0,
-                accumulatedOutputTokens: loadedSession?.accumulated_output_tokens ?? 0,
-                accumulatedTotalTokens: loadedSession?.accumulated_total_tokens ?? 0,
+                inputTokens: loadedSession?.usage?.input_tokens ?? 0,
+                outputTokens: loadedSession?.usage?.output_tokens ?? 0,
+                totalTokens: loadedSession?.usage?.total_tokens ?? 0,
+                accumulatedInputTokens: loadedSession?.accumulated_usage?.input_tokens ?? 0,
+                accumulatedOutputTokens: loadedSession?.accumulated_usage?.output_tokens ?? 0,
+                accumulatedTotalTokens: loadedSession?.accumulated_usage?.total_tokens ?? 0,
               },
             },
           });
@@ -873,21 +879,32 @@ export function useChatStream({
             });
             const currentState = stateRef.current;
             const currentName = currentState.session?.name;
+            const currentMessageCount = currentState.session?.message_count;
             const newName = response.data?.name;
+            const newMessageCount = response.data?.message_count;
+            const hasNameChange = Boolean(newName && newName !== currentName);
+            const hasMessageCountChange =
+              newMessageCount !== undefined && newMessageCount !== currentMessageCount;
 
-            if (newName && newName !== currentName) {
+            if (newName && (hasNameChange || hasMessageCountChange)) {
               dispatch({
                 type: 'SET_SESSION',
                 payload: currentState.session
-                  ? { ...currentState.session, name: newName }
+                  ? {
+                      ...currentState.session,
+                      name: newName,
+                      ...(newMessageCount !== undefined && { message_count: newMessageCount }),
+                    }
                   : undefined,
               });
-              window.dispatchEvent(
-                new CustomEvent(AppEvents.SESSION_RENAMED, {
-                  detail: { sessionId, newName },
-                })
-              );
-              return;
+              if (hasNameChange) {
+                window.dispatchEvent(
+                  new CustomEvent(AppEvents.SESSION_RENAMED, {
+                    detail: { sessionId, newName },
+                  })
+                );
+                return;
+              }
             }
           } catch {
             // Silently continue polling
@@ -1116,6 +1133,24 @@ export function useChatStream({
     dispatch({ type: 'SET_CHAT_STATE', payload: newState });
   }, []);
 
+  const updateSession = useCallback(
+    (updater: (session: Session) => Session) => {
+      const cached = resultsCache.get(sessionId);
+      const currentSession = stateRef.current.session ?? cached?.session;
+      if (!currentSession) return;
+
+      const nextSession = updater(currentSession);
+      dispatch({ type: 'SET_SESSION', payload: nextSession });
+      resultsCache.set(sessionId, {
+        session: nextSession,
+        messages: stateRef.current.messages.length
+          ? stateRef.current.messages
+          : cached?.messages || [],
+      });
+    },
+    [sessionId]
+  );
+
   const cached = resultsCache.get(sessionId);
   const maybe_cached_messages = state.session ? state.messages : cached?.messages || [];
   const maybe_cached_session = state.session ?? cached?.session;
@@ -1137,6 +1172,7 @@ export function useChatStream({
     session: maybe_cached_session,
     chatState: state.chatState,
     setChatState,
+    updateSession,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,

@@ -1,6 +1,5 @@
 use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
 use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
@@ -16,6 +15,7 @@ use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
 use reqwest::header::{HeaderName, HeaderValue};
@@ -293,10 +293,6 @@ fn create_codex_request(
         payload_obj.insert("tools".to_string(), json!(tools_spec));
         payload_obj.insert("tool_choice".to_string(), json!("auto"));
         payload_obj.insert("parallel_tool_calls".to_string(), json!(true));
-    }
-
-    if let Some(temp) = model_config.temperature {
-        payload_obj.insert("temperature".to_string(), json!(temp));
     }
 
     if let Some(reasoning_effort) = reasoning_effort {
@@ -894,7 +890,10 @@ impl ChatGptCodexProvider {
         Ok(())
     }
 
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let auth_provider = Arc::new(ChatGptCodexAuthProvider::new(
             ChatGptCodexAuthState::instance(),
         ));
@@ -976,8 +975,9 @@ impl ProviderDef for ChatGptCodexProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 
@@ -1242,6 +1242,17 @@ mod tests {
         let payload = create_codex_request(&config, "sys", &[], &[]).unwrap();
         assert!(payload.get("reasoning").is_none());
         assert!(payload.get("reasoning_effort").is_none());
+    }
+
+    // ChatGPT Codex does not support temperature and will return an error
+    #[test]
+    fn test_create_codex_request_omits_temperature() {
+        let config = ModelConfig::new("gpt-5.5")
+            .unwrap()
+            .with_temperature(Some(0.2));
+
+        let payload = create_codex_request(&config, "sys", &[], &[]).unwrap();
+        assert!(payload.get("temperature").is_none());
     }
 
     #[test_case(

@@ -6,7 +6,7 @@ import type {
 } from '@agentclientprotocol/sdk';
 import { v7 as uuidv7 } from 'uuid';
 import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
-import { acpChatSessionStore } from './chatSessionStore';
+import { acpChatSessionActions } from './chatSessionStore';
 
 type SessionScopedFormElicitationRequest = CreateElicitationRequest & {
   mode: 'form';
@@ -51,7 +51,7 @@ export async function requestAcpElicitation(
       }
 
       pendingRequests.delete(key);
-      acpChatSessionStore.setElicitationStatus(
+      acpChatSessionActions.setElicitationStatus(
         elicitationRequest.sessionId,
         elicitationRequest.id,
         'cancelled'
@@ -60,7 +60,7 @@ export async function requestAcpElicitation(
     }, ACP_ELICITATION_TIMEOUT_SECONDS * 1000);
 
     pendingRequests.set(key, { request: elicitationRequest, resolve, timeoutId });
-    acpChatSessionStore.applyElicitationRequest(elicitationRequest);
+    acpChatSessionActions.applyElicitationRequest(elicitationRequest);
   });
 }
 
@@ -77,7 +77,7 @@ export function resolveAcpElicitationRequest(
 
   pendingRequests.delete(key);
   clearTimeout(pending.timeoutId);
-  acpChatSessionStore.setElicitationStatus(sessionId, elicitationId, 'submitted');
+  acpChatSessionActions.setElicitationStatus(sessionId, elicitationId, 'submitted');
   pending.resolve(acceptedElicitationResponse(userData));
   return true;
 }
@@ -87,7 +87,7 @@ export function cancelAcpElicitationRequestsForSession(sessionId: string): void 
     if (pending.request.sessionId === sessionId) {
       pendingRequests.delete(key);
       clearTimeout(pending.timeoutId);
-      acpChatSessionStore.setElicitationStatus(sessionId, pending.request.id, 'cancelled');
+      acpChatSessionActions.setElicitationStatus(sessionId, pending.request.id, 'cancelled');
       pending.resolve(cancelledElicitationResponse());
     }
   }

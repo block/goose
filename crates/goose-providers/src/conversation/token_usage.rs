@@ -1,6 +1,7 @@
 use std::ops::{Add, AddAssign};
 
 use serde::{Deserialize, Serialize};
+use utoipa::ToSchema;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderUsage {
@@ -53,8 +54,14 @@ impl ProviderUsage {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default, Copy)]
+/// `input_tokens` is the total input including cache read/write tokens;
+/// the cache fields are breakdown subsets of it. Parsers for providers
+/// that report cache tokens separately from input (e.g. Anthropic,
+/// Bedrock) must fold them into `input_tokens`.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, Copy, PartialEq, Eq, ToSchema)]
 pub struct Usage {
+    /// All prompt tokens, including any served from or written to cache.
+    /// `cache_read_input_tokens` and `cache_write_input_tokens` are subsets of this.
     pub input_tokens: Option<i32>,
     pub output_tokens: Option<i32>,
     pub total_tokens: Option<i32>,
@@ -64,12 +71,12 @@ pub struct Usage {
 
 fn sum_optionals<T>(a: Option<T>, b: Option<T>) -> Option<T>
 where
-    T: Add<Output = T> + Default,
+    T: Add<Output = T>,
 {
     match (a, b) {
         (Some(x), Some(y)) => Some(x + y),
-        (Some(x), None) => Some(x + T::default()),
-        (None, Some(y)) => Some(T::default() + y),
+        (Some(x), None) => Some(x),
+        (None, Some(y)) => Some(y),
         (None, None) => None,
     }
 }
@@ -107,7 +114,7 @@ impl Usage {
     ) -> Self {
         let calculated_total = if total_tokens.is_none() {
             match (input_tokens, output_tokens) {
-                (Some(input), Some(output)) => Some(input + output),
+                (Some(input), Some(output)) => Some(input.saturating_add(output)),
                 (Some(input), None) => Some(input),
                 (None, Some(output)) => Some(output),
                 (None, None) => None,
@@ -134,6 +141,26 @@ impl Usage {
         self.cache_write_input_tokens = cache_write_input_tokens;
         self
     }
+
+    /// For providers whose reported `input_tokens`/`total_tokens` exclude
+    /// cache tokens (e.g. Anthropic, Bedrock): folds the cache breakdown in.
+    pub fn from_cache_exclusive_input(
+        input_tokens: Option<i32>,
+        output_tokens: Option<i32>,
+        total_tokens: Option<i32>,
+        cache_read_input_tokens: Option<i32>,
+        cache_write_input_tokens: Option<i32>,
+    ) -> Self {
+        let cache_tokens = cache_read_input_tokens
+            .unwrap_or(0)
+            .saturating_add(cache_write_input_tokens.unwrap_or(0));
+        Self::new(
+            input_tokens.map(|v| v.saturating_add(cache_tokens)),
+            output_tokens,
+            total_tokens.map(|v| v.saturating_add(cache_tokens)),
+        )
+        .with_cache_tokens(cache_read_input_tokens, cache_write_input_tokens)
+    }
 }
 
 #[cfg(test)]
@@ -159,6 +186,18 @@ mod tests {
         assert_eq!(json_value["total_tokens"], json!(30));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_from_cache_exclusive_input_folds_cache_into_input_and_total() {
+        let usage =
+            Usage::from_cache_exclusive_input(Some(10), Some(50), Some(60), Some(5000), Some(1000));
+
+        assert_eq!(usage.input_tokens, Some(6010));
+        assert_eq!(usage.output_tokens, Some(50));
+        assert_eq!(usage.total_tokens, Some(6060));
+        assert_eq!(usage.cache_read_input_tokens, Some(5000));
+        assert_eq!(usage.cache_write_input_tokens, Some(1000));
     }
 
     #[test]

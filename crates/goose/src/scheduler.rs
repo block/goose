@@ -835,7 +835,7 @@ async fn execute_job(
     let provider_name = config.get_goose_provider()?;
     let model_name = config.get_goose_model()?;
     let model_config =
-        crate::model::ModelConfig::new(&model_name)?.with_canonical_limits(&provider_name);
+        crate::model_config::model_config_from_user_config(&provider_name, &model_name)?;
 
     let session = agent
         .config
@@ -972,7 +972,7 @@ async fn execute_job(
             .session_manager
             .get_session(&session.id, false)
             .await
-            .map(|s| (s.total_tokens.unwrap_or(0), s.message_count))
+            .map(|s| (s.usage.total_tokens.unwrap_or(0), s.message_count))
             .unwrap_or((0, 0));
 
         tracing::info!(

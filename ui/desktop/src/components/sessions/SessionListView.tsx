@@ -45,7 +45,7 @@ import {
   acpRenameSession,
   type SessionListItem,
 } from '../../acp/sessions';
-import { acpChatSessionStore } from '../../acp/chatSessionStore';
+import { acpChatSessionActions } from '../../acp/chatSessionStore';
 import { cancelAcpPermissionRequestsForSession } from '../../acp/permissionRequests';
 import { cancelAcpElicitationRequestsForSession } from '../../acp/elicitationRequests';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
@@ -514,7 +514,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         clearSessionCache(sessionToDeleteId);
         cancelAcpPermissionRequestsForSession(sessionToDeleteId);
         cancelAcpElicitationRequestsForSession(sessionToDeleteId);
-        acpChatSessionStore.deleteSnapshot(sessionToDeleteId);
+        acpChatSessionActions.deleteSnapshot(sessionToDeleteId);
       } catch (error) {
         console.error('Error deleting session:', error);
         toast.error(intl.formatMessage(i18n.deleteFailed, { name: sessionName, error: errorMessage(error, 'Unknown error') }));

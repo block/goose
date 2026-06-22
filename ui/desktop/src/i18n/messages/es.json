@@ -11,6 +11,9 @@
   "announcementModal.gotIt": {
     "defaultMessage": "¡Entendido!"
   },
+  "appLayout.collapseNavigation": {
+    "defaultMessage": "Contraer navegación"
+  },
   "appLayout.openNavigation": {
     "defaultMessage": "Abrir navegación"
   },
@@ -113,18 +116,6 @@
   "baseChat.goHome": {
     "defaultMessage": "Ir al inicio"
   },
-  "baseChat.noSession": {
-    "defaultMessage": "Sin sesión"
-  },
-  "baseChat.recipeCreatedMessage": {
-    "defaultMessage": "\"{title}\" se guardó y está lista para usar."
-  },
-  "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "¡Receta creada con éxito!"
-  },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "Error al activar/desactivar la extensión"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extensión actualizada"
   },
@@ -142,9 +133,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "administrar extensiones"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "No se encontró ninguna sesión activa. Inicia primero una sesión de chat."
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "no hay extensiones disponibles"
@@ -169,9 +157,6 @@
   },
   "chatInput.contextWindow": {
     "defaultMessage": "Ventana de contexto"
-  },
-  "chatInput.createRecipeFromSession": {
-    "defaultMessage": "Crear Receta desde la sesión"
   },
   "chatInput.dictationError": {
     "defaultMessage": "Error de dictado"
@@ -403,54 +388,6 @@
   },
   "createEditRecipe.viewEditRecipeTitle": {
     "defaultMessage": "Ver/editar receta"
-  },
-  "createRecipeFromSession.analyzingTitle": {
-    "defaultMessage": "Analizando tu conversación"
-  },
-  "createRecipeFromSession.cancel": {
-    "defaultMessage": "Cancelar"
-  },
-  "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "Crear y ejecutar Receta"
-  },
-  "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "Crear Receta"
-  },
-  "createRecipeFromSession.creating": {
-    "defaultMessage": "Creando..."
-  },
-  "createRecipeFromSession.extractingInsights": {
-    "defaultMessage": "Extrayendo ideas de tu chat"
-  },
-  "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "Ocurrió un error inesperado al crear la receta. Inténtalo de nuevo."
-  },
-  "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "No se pudo crear la receta"
-  },
-  "createRecipeFromSession.stageComplete": {
-    "defaultMessage": "¡Completado!"
-  },
-  "createRecipeFromSession.stageExtracting": {
-    "defaultMessage": "Extrayendo los temas principales..."
-  },
-  "createRecipeFromSession.stageFinalizing": {
-    "defaultMessage": "Finalizando los detalles..."
-  },
-  "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "Generando la estructura de la receta..."
-  },
-  "createRecipeFromSession.stageIdentifying": {
-    "defaultMessage": "Identificando patrones clave..."
-  },
-  "createRecipeFromSession.stageReading": {
-    "defaultMessage": "Leyendo tu conversación..."
-  },
-  "createRecipeFromSession.subtitle": {
-    "defaultMessage": "Crea una receta reutilizable a partir de tu conversación actual."
-  },
-  "createRecipeFromSession.title": {
-    "defaultMessage": "Crear Receta desde la sesión"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "Cancelar"
@@ -2465,9 +2402,6 @@
   "navigationPanel.chats": {
     "defaultMessage": "Chats"
   },
-  "navigationPanel.collapseSidebar": {
-    "defaultMessage": "Contraer barra lateral"
-  },
   "navigationPanel.noChats": {
     "defaultMessage": "No hay chats recientes"
   },
@@ -3758,6 +3692,12 @@
   "securityToggle.warpNotice": {
     "defaultMessage": "La detección de inyección de comandos funciona mejor cuando estás conectado a WARP (necesario para llegar al servicio de clasificación)."
   },
+  "sessionActionsHeader.actionsLabel": {
+    "defaultMessage": "Acciones de la sesión"
+  },
+  "sessionActionsHeader.cancel": {
+    "defaultMessage": "Cancelar"
+  },
   "sessionActionsHeader.close": {
     "defaultMessage": "Cerrar"
   },
@@ -3773,6 +3713,15 @@
   "sessionActionsHeader.copyText": {
     "defaultMessage": "Copiar texto"
   },
+  "sessionActionsHeader.duplicateFailed": {
+    "defaultMessage": "No se pudo duplicar la sesión: {error}"
+  },
+  "sessionActionsHeader.duplicateSession": {
+    "defaultMessage": "Duplicar sesión"
+  },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "Sesión duplicada"
+  },
   "sessionActionsHeader.fullTextTitle": {
     "defaultMessage": "Valor del texto"
   },
@@ -3784,6 +3733,27 @@
   },
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Cargando JSON..."
+  },
+  "sessionActionsHeader.renameFailed": {
+    "defaultMessage": "No se pudo renombrar la sesión: {error}"
+  },
+  "sessionActionsHeader.renamePlaceholder": {
+    "defaultMessage": "Introduce el nombre de la sesión"
+  },
+  "sessionActionsHeader.renameSession": {
+    "defaultMessage": "Renombrar sesión"
+  },
+  "sessionActionsHeader.renameTitle": {
+    "defaultMessage": "Renombrar sesión"
+  },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "Sesión renombrada"
+  },
+  "sessionActionsHeader.save": {
+    "defaultMessage": "Guardar"
+  },
+  "sessionActionsHeader.saving": {
+    "defaultMessage": "Guardando..."
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Ver el JSON de la sesión"
@@ -4099,6 +4069,9 @@
   },
   "settings.language.japanese": {
     "defaultMessage": "Japonés"
+  },
+  "settings.language.korean": {
+    "defaultMessage": "Coreano"
   },
   "settings.language.russian": {
     "defaultMessage": "Ruso"
@@ -4727,6 +4700,12 @@
   "updateSection.autoDownload": {
     "defaultMessage": "La actualización se descargará automáticamente en segundo plano."
   },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "Las descargas automáticas están desactivadas mediante la variable de entorno GOOSE_DISABLE_AUTO_DOWNLOAD."
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "La descarga automática está desactivada. Haz clic en «Descargar ahora» para descargar manualmente."
+  },
   "updateSection.autoInstallNote": {
     "defaultMessage": "La actualización se instalará automáticamente cuando cierres la app."
   },
@@ -4738,6 +4717,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "Versión actual"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "Desactivar la descarga automática de actualizaciones"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "Cuando está activado, Goose te avisará de nuevas versiones pero no las descargará automáticamente."
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "Descargar ahora"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "¡Actualización descargada y lista para instalar!"

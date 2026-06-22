@@ -2,7 +2,7 @@ import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { SessionNotification } from '@agentclientprotocol/sdk';
 import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 import { AppEvents } from '../constants/events';
-import { acpChatSessionStore } from './chatSessionStore';
+import { acpChatSessionActions, acpChatSessionStore } from './chatSessionStore';
 
 export function handleAcpSessionNotification(notification: SessionNotification): Promise<void> {
   if (USE_ACP_CHAT) {
@@ -13,7 +13,7 @@ export function handleAcpSessionNotification(notification: SessionNotification):
       notification.update.sessionUpdate === 'session_info_update'
         ? notification.update.title
         : undefined;
-    acpChatSessionStore.applyAcpSessionNotification(notification);
+    acpChatSessionActions.applyAcpSessionNotification(notification);
 
     if (updatedName && updatedName !== sessionNameBeforeNotification) {
       window.dispatchEvent(
@@ -30,7 +30,7 @@ export function handleAcpGooseSessionNotification(
   notification: GooseSessionNotification_unstable
 ): Promise<void> {
   if (USE_ACP_CHAT) {
-    acpChatSessionStore.applyAcpGooseSessionNotification(notification);
+    acpChatSessionActions.applyAcpGooseSessionNotification(notification);
   }
   return Promise.resolve();
 }

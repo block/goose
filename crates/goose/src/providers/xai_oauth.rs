@@ -4,7 +4,6 @@ use super::openai_compatible::OpenAiCompatibleProvider;
 use super::xai::{XAI_API_HOST, XAI_DEFAULT_MODEL, XAI_KNOWN_MODELS};
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use axum::{extract::Query, response::Html, routing::get, Router};
@@ -12,6 +11,7 @@ use base64::Engine;
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -781,6 +781,7 @@ impl ProviderDef for XaiOAuthProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();
@@ -790,9 +791,10 @@ impl ProviderDef for XaiOAuthProvider {
 
             let auth_provider = Arc::new(XaiOAuthAuthProvider::new(XaiAuthState::instance()));
             let auth_for_client = Arc::clone(&auth_provider);
-            let api_client = ApiClient::new(
+            let api_client = ApiClient::new_with_tls(
                 host,
                 AuthMethod::Custom(Box::new(SharedAuthProvider(auth_for_client))),
+                tls_config,
             )?;
 
             let inner = OpenAiCompatibleProvider::new(

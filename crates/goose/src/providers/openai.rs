@@ -2,7 +2,6 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
     ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::embedding::{EmbeddingCapable, EmbeddingRequest, EmbeddingResponse};
 use super::formats::openai_responses::{
     create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
 };
@@ -17,17 +16,17 @@ use async_trait::async_trait;
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::is_openai_responses_model;
 use goose_providers::formats::openai::{
     create_request_with_options, get_usage, response_to_message, OpenAiFormatOptions,
 };
-use goose_providers::formats::openai::{is_openai_responses_model, ModelConfigParams};
 use goose_providers::images::ImageFormat;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use reqwest::StatusCode;
 use std::collections::HashMap;
 
-use crate::model::ModelConfig;
 use crate::providers::base::MessageStream;
-use crate::providers::utils::RequestLog;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub(crate) const OPEN_AI_PROVIDER_NAME: &str = "openai";
@@ -35,7 +34,6 @@ pub(crate) const OPEN_AI_DEFAULT_BASE_PATH: &str = "v1/chat/completions";
 const OPEN_AI_VERSIONLESS_BASE_PATH: &str = "chat/completions";
 const OPEN_AI_DEFAULT_RESPONSES_PATH: &str = "v1/responses";
 const OPEN_AI_DEFAULT_MODELS_PATH: &str = "v1/models";
-const OPEN_AI_DEFAULT_EMBEDDINGS_PATH: &str = "v1/embeddings";
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
 pub const OPEN_AI_DEFAULT_FAST_MODEL: &str = "gpt-4o-mini";
 pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
@@ -157,7 +155,10 @@ pub struct OpenAiProvider {
 }
 
 impl OpenAiProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
 
         // Resolve host and base_path.
@@ -243,7 +244,11 @@ impl OpenAiProvider {
             .map(|h| h == "api.openai.com" || h.ends_with(".api.openai.com"))
             .unwrap_or(false);
         let model = if is_openai {
-            model.with_fast(OPEN_AI_DEFAULT_FAST_MODEL, OPEN_AI_PROVIDER_NAME)?
+            crate::model_config::with_configured_fast_model(
+                model,
+                OPEN_AI_PROVIDER_NAME,
+                OPEN_AI_DEFAULT_FAST_MODEL,
+            )?
         } else {
             model
         };
@@ -267,10 +272,11 @@ impl OpenAiProvider {
             Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
             _ => AuthMethod::NoAuth,
         };
-        let mut api_client = ApiClient::with_timeout(
+        let mut api_client = ApiClient::with_timeout_and_tls(
             parsed.host,
             auth,
             std::time::Duration::from_secs(timeout_secs),
+            tls_config,
         )?;
 
         if !parsed.query_params.is_empty() {
@@ -402,6 +408,7 @@ impl OpenAiProvider {
     pub fn from_custom_config(
         model: ModelConfig,
         config: DeclarativeProviderConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let custom_models = if !config.models.is_empty() {
             Some(
@@ -454,8 +461,12 @@ impl OpenAiProvider {
             Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
             _ => AuthMethod::NoAuth,
         };
-        let mut api_client =
-            ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
+        let mut api_client = ApiClient::with_timeout_and_tls(
+            host,
+            auth,
+            std::time::Duration::from_secs(timeout_secs),
+            tls_config,
+        )?;
 
         // Add custom headers if present
         if let Some(headers) = &config.headers {
@@ -469,7 +480,7 @@ impl OpenAiProvider {
         }
 
         let model = if let Some(ref fast_model_name) = config.fast_model {
-            model.with_fast(fast_model_name, &config.name)?
+            crate::model_config::with_configured_fast_model(model, &config.name, fast_model_name)?
         } else {
             model
         };
@@ -768,8 +779,9 @@ impl ProviderDef for OpenAiProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 
@@ -809,20 +821,6 @@ impl Provider for OpenAiProvider {
         self.fetch_models_from_api().await
     }
 
-    fn supports_embeddings(&self) -> bool {
-        true
-    }
-
-    async fn create_embeddings(
-        &self,
-        session_id: &str,
-        texts: Vec<String>,
-    ) -> Result<Vec<Vec<f32>>, ProviderError> {
-        EmbeddingCapable::create_embeddings(self, session_id, texts)
-            .await
-            .map_err(|e| ProviderError::ExecutionError(e.to_string()))
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -835,7 +833,7 @@ impl Provider for OpenAiProvider {
             let mut payload = create_responses_request(model_config, system, messages, tools)?;
             payload["stream"] = serde_json::Value::Bool(self.supports_streaming);
 
-            let mut log = RequestLog::start(model_config, &payload)?;
+            let mut log = start_log(model_config, &payload)?;
 
             let response = self
                 .with_retry(|| async {
@@ -887,13 +885,7 @@ impl Provider for OpenAiProvider {
             }
         } else {
             let payload = create_request_with_options(
-                ModelConfigParams {
-                    model_name: model_config.model_name.as_str(),
-                    thinking_effort: model_config.thinking_effort(),
-                    temperature: model_config.temperature,
-                    max_tokens: model_config.max_tokens,
-                    request_params: model_config.request_params.as_ref(),
-                },
+                model_config,
                 system,
                 messages,
                 tools,
@@ -904,7 +896,7 @@ impl Provider for OpenAiProvider {
                 },
             )?;
             let payload = self.sanitize_request_for_compat(payload);
-            let mut log = RequestLog::start(model_config, &payload)?;
+            let mut log = start_log(model_config, &payload)?;
 
             let response = self
                 .with_retry(|| async {
@@ -955,68 +947,6 @@ fn parse_custom_headers(s: String) -> HashMap<String, String> {
         .collect()
 }
 
-#[async_trait]
-impl EmbeddingCapable for OpenAiProvider {
-    async fn create_embeddings(
-        &self,
-        session_id: &str,
-        texts: Vec<String>,
-    ) -> Result<Vec<Vec<f32>>> {
-        if texts.is_empty() {
-            return Ok(vec![]);
-        }
-
-        let embedding_model = std::env::var("GOOSE_EMBEDDING_MODEL")
-            .unwrap_or_else(|_| "text-embedding-3-small".to_string());
-
-        let request = EmbeddingRequest {
-            input: texts,
-            model: embedding_model,
-        };
-
-        let response = self
-            .with_retry(|| async {
-                let request_clone = EmbeddingRequest {
-                    input: request.input.clone(),
-                    model: request.model.clone(),
-                };
-                let request_value = serde_json::to_value(request_clone)
-                    .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
-                let embeddings_path = Self::map_base_path(
-                    &self.base_path,
-                    "embeddings",
-                    OPEN_AI_DEFAULT_EMBEDDINGS_PATH,
-                );
-                self.api_client
-                    .api_post(Some(session_id), &embeddings_path, &request_value)
-                    .await
-                    .map_err(|e| ProviderError::ExecutionError(e.to_string()))
-            })
-            .await?;
-
-        if response.status != StatusCode::OK {
-            let error_text = response
-                .payload
-                .as_ref()
-                .and_then(|p| p.as_str())
-                .unwrap_or("Unknown error");
-            return Err(anyhow::anyhow!("Embedding API error: {}", error_text));
-        }
-
-        let embedding_response: EmbeddingResponse = serde_json::from_value(
-            response
-                .payload
-                .ok_or_else(|| anyhow::anyhow!("Empty response body"))?,
-        )?;
-
-        Ok(embedding_response
-            .data
-            .into_iter()
-            .map(|d| d.embedding)
-            .collect())
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1024,7 +954,12 @@ mod tests {
 
     fn make_provider(name: &str) -> OpenAiProvider {
         OpenAiProvider {
-            api_client: ApiClient::new("http://localhost".to_string(), AuthMethod::NoAuth).unwrap(),
+            api_client: ApiClient::new_with_tls(
+                "http://localhost".to_string(),
+                AuthMethod::NoAuth,
+                None,
+            )
+            .unwrap(),
             base_path: "v1/chat/completions".to_string(),
             organization: None,
             project: None,
@@ -1356,7 +1291,8 @@ mod tests {
         dynamic_models: Option<bool>,
     ) -> OpenAiProvider {
         OpenAiProvider {
-            api_client: ApiClient::new(server_uri.to_string(), AuthMethod::NoAuth).unwrap(),
+            api_client: ApiClient::new_with_tls(server_uri.to_string(), AuthMethod::NoAuth, None)
+                .unwrap(),
             base_path: "v1/chat/completions".to_string(),
             organization: None,
             project: None,
@@ -1438,7 +1374,8 @@ mod tests {
         config.base_url = "localhost:1234".to_string();
 
         let provider =
-            OpenAiProvider::from_custom_config(ModelConfig::new_or_fail("m1"), config).unwrap();
+            OpenAiProvider::from_custom_config(ModelConfig::new_or_fail("m1"), config, None)
+                .unwrap();
 
         assert_eq!(provider.api_client.host(), "http://localhost:1234");
         assert_eq!(provider.base_path, "v1/chat/completions");
@@ -1466,11 +1403,12 @@ mod tests {
     #[test]
     fn from_custom_config_rejects_static_only_without_models() {
         let config = base_declarative_config(vec![], Some(false));
-        let err =
-            OpenAiProvider::from_custom_config(ModelConfig::new_or_fail("test-model"), config)
-                .expect_err(
-                    "expected construction error for dynamic_models: false with empty models",
-                );
+        let err = OpenAiProvider::from_custom_config(
+            ModelConfig::new_or_fail("test-model"),
+            config,
+            None,
+        )
+        .expect_err("expected construction error for dynamic_models: false with empty models");
         let msg = err.to_string();
         assert!(
             msg.contains("dynamic_models: false"),

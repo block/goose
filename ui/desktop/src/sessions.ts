@@ -1,17 +1,28 @@
 import { Session, startAgent, ExtensionConfig } from './api';
 import { DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
 import type { setViewType } from './hooks/useNavigation';
-import {
-  getExtensionConfigsWithOverrides,
-  clearExtensionOverrides,
-  hasExtensionOverrides,
-} from './store/extensionOverrides';
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
 import { decodeRecipe, Recipe } from './recipe';
+import { USE_ACP_CHAT } from './acpChatFeatureFlag';
+import { acpChatSessionController } from './acp/chatSessionController';
+import { getConfiguredGooseExtensions, gooseExtensionName } from './acp/extensions';
 
 export function getSessionDisplayName(session: Session): string {
-  return session.name || DEFAULT_CHAT_TITLE;
+  if (session.user_set_name) {
+    return session.name;
+  }
+  if (session.recipe?.title) {
+    return session.recipe.title;
+  }
+  if (shouldShowNewChatTitle(session)) {
+    return DEFAULT_CHAT_TITLE;
+  }
+  return session.name;
+}
+
+export function shouldShowNewChatTitle(session: Session): boolean {
+  return !session.user_set_name && session.message_count === 0 && !session.recipe?.title;
 }
 
 export function resumeSession(session: Session, setView: setViewType) {
@@ -32,15 +43,51 @@ export function resumeSession(session: Session, setView: setViewType) {
   });
 }
 
+interface CreateSessionOptions {
+  recipeDeeplink?: string;
+  recipeId?: string;
+  extensionConfigs?: ExtensionConfig[];
+  allExtensions?: FixedExtensionEntry[];
+}
+
+function selectedExtensionConfigs(options?: CreateSessionOptions): ExtensionConfig[] {
+  if (options?.extensionConfigs && options.extensionConfigs.length > 0) {
+    return options.extensionConfigs;
+  }
+  if (options?.allExtensions) {
+    return options.allExtensions
+      .filter((extension) => extension.enabled)
+      .map((extension) => {
+        const { enabled: _enabled, ...config } = extension;
+        return config as ExtensionConfig;
+      });
+  }
+  return [];
+}
+
+async function createAcpSession(
+  workingDir: string,
+  options?: CreateSessionOptions
+): Promise<Session> {
+  const selectedNames = new Set(selectedExtensionConfigs(options).map((config) => config.name));
+  const gooseExtensions =
+    selectedNames.size > 0
+      ? (await getConfiguredGooseExtensions())
+          .filter((entry) => selectedNames.has(gooseExtensionName(entry.extension)))
+          .map((entry) => entry.extension)
+      : [];
+  return acpChatSessionController.createSession(workingDir, gooseExtensions);
+}
+
 export async function createSession(
   workingDir: string,
-  options?: {
-    recipeDeeplink?: string;
-    recipeId?: string;
-    extensionConfigs?: ExtensionConfig[];
-    allExtensions?: FixedExtensionEntry[];
-  }
+  options?: CreateSessionOptions
 ): Promise<Session> {
+  const hasRecipe = Boolean(options?.recipeId || options?.recipeDeeplink);
+  if (USE_ACP_CHAT && !hasRecipe) {
+    return createAcpSession(workingDir, options);
+  }
+
   const body: {
     working_dir: string;
     recipe?: Recipe;
@@ -56,16 +103,9 @@ export async function createSession(
     body.recipe = await decodeRecipe(options.recipeDeeplink);
   }
 
-  if (options?.extensionConfigs && options.extensionConfigs.length > 0) {
-    body.extension_overrides = options.extensionConfigs;
-  } else if (options?.allExtensions) {
-    const extensionConfigs = getExtensionConfigsWithOverrides(options.allExtensions);
-    if (extensionConfigs.length > 0) {
-      body.extension_overrides = extensionConfigs;
-    }
-    if (hasExtensionOverrides()) {
-      clearExtensionOverrides();
-    }
+  const extensionConfigs = selectedExtensionConfigs(options);
+  if (extensionConfigs.length > 0) {
+    body.extension_overrides = extensionConfigs;
   }
 
   const newAgent = await startAgent({

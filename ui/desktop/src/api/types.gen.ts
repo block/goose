@@ -42,11 +42,6 @@ export type Author = {
     metadata?: string | null;
 };
 
-export type AuthorRequest = {
-    contact?: string | null;
-    metadata?: string | null;
-};
-
 export type CallToolRequest = {
     arguments: unknown;
     name: string;
@@ -176,16 +171,6 @@ export type Conversation = Array<Message>;
 
 export type CreateCustomProviderResponse = {
     provider_name: string;
-};
-
-export type CreateRecipeRequest = {
-    author?: AuthorRequest | null;
-    session_id: string;
-};
-
-export type CreateRecipeResponse = {
-    error?: string | null;
-    recipe?: Recipe | null;
 };
 
 export type CreateScheduleRequest = {
@@ -1364,28 +1349,24 @@ export type ScheduledJob = {
 
 export type Session = {
     accumulated_cost?: number | null;
-    accumulated_input_tokens?: number | null;
-    accumulated_output_tokens?: number | null;
-    accumulated_total_tokens?: number | null;
+    accumulated_usage?: Usage;
     archived_at?: string | null;
     conversation?: Conversation | null;
     created_at: string;
     extension_data: ExtensionData;
     goose_mode?: GooseMode;
     id: string;
-    input_tokens?: number | null;
     last_message_snippet?: string | null;
     message_count: number;
     model_config?: ModelConfig | null;
     name: string;
-    output_tokens?: number | null;
     project_id?: string | null;
     provider_name?: string | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
     session_type?: SessionType;
-    total_tokens?: number | null;
     updated_at: string;
+    usage?: Usage;
     user_recipe_values?: {
         [key: string]: string;
     } | null;
@@ -1563,10 +1544,14 @@ export type ThinkingContent = {
 export type ThinkingEffort = 'off' | 'low' | 'medium' | 'high' | 'max';
 
 export type TokenState = {
+    accumulatedCacheReadTokens?: number;
+    accumulatedCacheWriteTokens?: number;
     accumulatedCost?: number | null;
     accumulatedInputTokens: number;
     accumulatedOutputTokens: number;
     accumulatedTotalTokens: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
@@ -1774,6 +1759,24 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+/**
+ * `input_tokens` is the total input including cache read/write tokens;
+ * the cache fields are breakdown subsets of it. Parsers for providers
+ * that report cache tokens separately from input (e.g. Anthropic,
+ * Bedrock) must fold them into `input_tokens`.
+ */
+export type Usage = {
+    cache_read_input_tokens?: number | null;
+    cache_write_input_tokens?: number | null;
+    /**
+     * All prompt tokens, including any served from or written to cache.
+     * `cache_read_input_tokens` and `cache_write_input_tokens` are subsets of this.
+     */
+    input_tokens?: number | null;
+    output_tokens?: number | null;
+    total_tokens?: number | null;
 };
 
 export type WhisperModelResponse = {
@@ -3626,37 +3629,6 @@ export type McpUiProxyResponses = {
      */
     200: unknown;
 };
-
-export type CreateRecipeData = {
-    body: CreateRecipeRequest;
-    path?: never;
-    query?: never;
-    url: '/recipes/create';
-};
-
-export type CreateRecipeErrors = {
-    /**
-     * Bad request
-     */
-    400: unknown;
-    /**
-     * Precondition failed - Agent not available
-     */
-    412: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type CreateRecipeResponses = {
-    /**
-     * Recipe created successfully
-     */
-    200: CreateRecipeResponse;
-};
-
-export type CreateRecipeResponse2 = CreateRecipeResponses[keyof CreateRecipeResponses];
 
 export type DecodeRecipeData = {
     body: DecodeRecipeRequest;

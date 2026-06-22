@@ -12,13 +12,12 @@ use super::base::{
     ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::embedding::EmbeddingCapable;
 use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, RequestLog};
+use super::utils::get_model;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
-use goose_providers::formats::openai::ModelConfigParams;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 
 const LITELLM_PROVIDER_NAME: &str = "litellm";
@@ -38,7 +37,10 @@ pub struct LiteLLMProvider {
 }
 
 impl LiteLLMProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
         let secrets = config
             .get_secrets("LITELLM_API_KEY", &["LITELLM_CUSTOM_HEADERS"])
@@ -64,8 +66,12 @@ impl LiteLLMProvider {
             AuthMethod::BearerToken(api_key)
         };
 
-        let mut api_client =
-            ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
+        let mut api_client = ApiClient::with_timeout_and_tls(
+            host,
+            auth,
+            std::time::Duration::from_secs(timeout_secs),
+            tls_config,
+        )?;
 
         if let Some(headers) = custom_headers {
             let mut header_map = reqwest::header::HeaderMap::new();
@@ -185,8 +191,9 @@ impl ProviderDef for LiteLLMProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 
@@ -229,13 +236,7 @@ impl Provider for LiteLLMProvider {
             Some(session_id)
         };
         let mut payload = goose_providers::formats::openai::create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            model_config,
             system,
             messages,
             tools,
@@ -257,17 +258,13 @@ impl Provider for LiteLLMProvider {
         let message = goose_providers::formats::openai::response_to_message(&response)?;
         let usage = goose_providers::formats::openai::get_usage(&response);
         let response_model = get_model(&response);
-        let mut log = RequestLog::start(model_config, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
         log.write(&response, Some(&usage))?;
         let provider_usage = ProviderUsage::new(response_model, usage);
         Ok(super::base::stream_from_single_message(
             message,
             provider_usage,
         ))
-    }
-
-    fn supports_embeddings(&self) -> bool {
-        true
     }
 
     async fn supports_cache_control(&self) -> bool {
@@ -283,48 +280,6 @@ impl Provider for LiteLLMProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let models = self.get_or_fetch_models().await?;
         Ok(models.iter().map(|m| m.name.clone()).collect())
-    }
-}
-
-#[async_trait]
-impl EmbeddingCapable for LiteLLMProvider {
-    async fn create_embeddings(
-        &self,
-        session_id: &str,
-        texts: Vec<String>,
-    ) -> Result<Vec<Vec<f32>>, anyhow::Error> {
-        let embedding_model = std::env::var("GOOSE_EMBEDDING_MODEL")
-            .unwrap_or_else(|_| "text-embedding-3-small".to_string());
-
-        let payload = json!({
-            "input": texts,
-            "model": embedding_model,
-            "encoding_format": "float"
-        });
-
-        let response = self
-            .api_client
-            .response_post(Some(session_id), "v1/embeddings", &payload)
-            .await?;
-        let response_text = response.text().await?;
-        let response_json: Value = serde_json::from_str(&response_text)?;
-
-        let data = response_json["data"]
-            .as_array()
-            .ok_or_else(|| anyhow::anyhow!("Missing data field"))?;
-
-        let mut embeddings = Vec::new();
-        for item in data {
-            let embedding: Vec<f32> = item["embedding"]
-                .as_array()
-                .ok_or_else(|| anyhow::anyhow!("Missing embedding field"))?
-                .iter()
-                .map(|v| v.as_f64().unwrap_or(0.0) as f32)
-                .collect();
-            embeddings.push(embedding);
-        }
-
-        Ok(embeddings)
     }
 }
 

@@ -3,9 +3,7 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
-use goose_providers::formats::openai::{
-    self, extract_reasoning_effort, is_openai_responses_model, ModelConfigParams,
-};
+use goose_providers::formats::openai::{self, extract_reasoning_effort, is_openai_responses_model};
 use goose_providers::images::ImageFormat;
 use serde::Serialize;
 use serde_json::Value;
@@ -24,15 +22,15 @@ use super::databricks_auth::{DatabricksAuth, DatabricksAuthProvider};
 use super::formats::{anthropic, openai_responses};
 use super::openai_compatible::{handle_status, stream_openai_compat, stream_responses_compat};
 use super::retry::ProviderRetry;
-use super::utils::RequestLog;
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use crate::providers::retry::{
     RetryConfig, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS,
     DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
 };
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 
 const DATABRICKS_V2_PROVIDER_NAME: &str = "databricks_v2";
@@ -69,7 +67,10 @@ impl DatabricksV2Provider {
         super::oauth::cleanup_oauth_cache()
     }
 
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
 
         let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
@@ -93,16 +94,7 @@ impl DatabricksV2Provider {
             DatabricksAuth::oauth(host.clone())
         };
 
-        Self::new(host, auth, model, retry_config)
-    }
-
-    pub fn from_params(host: String, api_key: String, model: ModelConfig) -> Result<Self> {
-        Self::new(
-            host,
-            DatabricksAuth::token(api_key),
-            model,
-            RetryConfig::default(),
-        )
+        Self::new(host, auth, model, retry_config, tls_config)
     }
 
     fn new(
@@ -110,6 +102,7 @@ impl DatabricksV2Provider {
         auth: DatabricksAuth,
         model: ModelConfig,
         retry_config: RetryConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let token_cache = Arc::new(Mutex::new(match &auth {
             DatabricksAuth::Token(t) => Some(t.clone()),
@@ -121,10 +114,11 @@ impl DatabricksV2Provider {
             token_cache: token_cache.clone(),
         }));
 
-        let api_client = ApiClient::with_timeout(
+        let api_client = ApiClient::with_timeout_and_tls(
             host,
             auth_method,
             Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+            tls_config,
         )?;
 
         Ok(Self {
@@ -233,7 +227,7 @@ impl DatabricksV2Provider {
         let mut payload =
             openai_responses::create_responses_request(model_config, system, messages, tools)?;
         payload["stream"] = Value::Bool(true);
-        let mut log = RequestLog::start(model_config, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
@@ -260,13 +254,7 @@ impl DatabricksV2Provider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let mut payload = openai::create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            model_config,
             system,
             messages,
             tools,
@@ -276,7 +264,7 @@ impl DatabricksV2Provider {
         if payload.get("max_tokens").is_none() {
             payload["max_tokens"] = Value::from(model_config.max_output_tokens());
         }
-        let mut log = RequestLog::start(model_config, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
@@ -308,7 +296,7 @@ impl DatabricksV2Provider {
     ) -> Result<MessageStream, ProviderError> {
         let mut payload = anthropic::create_request(model_config, system, messages, tools)?;
         payload["stream"] = Value::Bool(true);
-        let mut log = RequestLog::start(model_config, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
@@ -366,8 +354,9 @@ impl ProviderDef for DatabricksV2Provider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 

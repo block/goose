@@ -100,7 +100,7 @@ mod tools;
 pub type AcpProviderFactory = Arc<
     dyn Fn(
             String,
-            crate::model::ModelConfig,
+            goose_providers::model::ModelConfig,
             Vec<ExtensionConfig>,
             Option<PathBuf>,
         ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
@@ -399,7 +399,7 @@ fn push_or_replace_extension(extensions: &mut Vec<ExtensionConfig>, extension: E
 
 fn resolve_default_provider_model_config(
     config: &Config,
-) -> Result<(String, crate::model::ModelConfig), agent_client_protocol::Error> {
+) -> Result<(String, goose_providers::model::ModelConfig), agent_client_protocol::Error> {
     let resolved_provider = config.get_goose_provider().map_err(|error| {
         agent_client_protocol::Error::internal_error()
             .data(format!("Failed to resolve provider: {}", error))
@@ -408,30 +408,32 @@ fn resolve_default_provider_model_config(
         agent_client_protocol::Error::internal_error()
             .data(format!("Failed to resolve model: {}", error))
     })?;
-    let resolved_model_config = crate::model::ModelConfig::new(&resolved_model)
-        .map(|model_config| model_config.with_canonical_limits(&resolved_provider))
-        .map_err(|error| {
-            agent_client_protocol::Error::internal_error()
-                .data(format!("Failed to resolve model: {}", error))
-        })?;
+    let resolved_model_config =
+        crate::model_config::model_config_from_user_config(&resolved_provider, &resolved_model)
+            .map_err(|error| {
+                agent_client_protocol::Error::internal_error()
+                    .data(format!("Failed to resolve model: {}", error))
+            })?;
     Ok((resolved_provider, resolved_model_config))
 }
 
 async fn resolve_provider_default_model_config(
     provider_name: &str,
-) -> Result<crate::model::ModelConfig, agent_client_protocol::Error> {
+) -> Result<goose_providers::model::ModelConfig, agent_client_protocol::Error> {
     let entry = crate::providers::get_from_registry(provider_name)
         .await
         .map_err(|error| {
             agent_client_protocol::Error::invalid_params()
                 .data(format!("Unknown provider '{}': {}", provider_name, error))
         })?;
-    crate::model::ModelConfig::new(&entry.metadata().default_model)
-        .map(|model_config| model_config.with_canonical_limits(provider_name))
-        .map_err(|error| {
-            agent_client_protocol::Error::internal_error()
-                .data(format!("Failed to resolve model: {}", error))
-        })
+    crate::model_config::model_config_from_user_config(
+        provider_name,
+        &entry.metadata().default_model,
+    )
+    .map_err(|error| {
+        agent_client_protocol::Error::internal_error()
+            .data(format!("Failed to resolve model: {}", error))
+    })
 }
 
 fn get_requested_line(arguments: Option<&rmcp::model::JsonObject>) -> Option<u32> {
@@ -794,9 +796,9 @@ fn to_nonnegative_u64(value: Option<i32>) -> Option<u64> {
 }
 
 fn build_prompt_usage(session: &Session) -> Option<Usage> {
-    let total = to_nonnegative_u64(session.total_tokens)?;
-    let input = to_nonnegative_u64(session.input_tokens).unwrap_or(0);
-    let output = to_nonnegative_u64(session.output_tokens).unwrap_or(0);
+    let total = to_nonnegative_u64(session.usage.total_tokens)?;
+    let input = to_nonnegative_u64(session.usage.input_tokens).unwrap_or(0);
+    let output = to_nonnegative_u64(session.usage.output_tokens).unwrap_or(0);
     Some(Usage::new(total, input, output))
 }
 
@@ -806,12 +808,12 @@ pub(super) struct UsageUpdates {
 }
 
 pub(super) fn build_usage_updates(session: &Session) -> Option<UsageUpdates> {
-    let used = session.total_tokens.unwrap_or(0).max(0) as u64;
+    let used = session.usage.total_tokens.unwrap_or(0).max(0) as u64;
     let ctx_limit = session.model_config.as_ref()?.context_limit() as u64;
     let accumulated_input_tokens =
-        to_nonnegative_u64(session.accumulated_input_tokens).unwrap_or(0);
+        to_nonnegative_u64(session.accumulated_usage.input_tokens).unwrap_or(0);
     let accumulated_output_tokens =
-        to_nonnegative_u64(session.accumulated_output_tokens).unwrap_or(0);
+        to_nonnegative_u64(session.accumulated_usage.output_tokens).unwrap_or(0);
     Some(UsageUpdates {
         custom: GooseSessionNotification {
             session_id: session.id.clone(),
@@ -912,7 +914,7 @@ impl GooseAcpAgent {
     async fn create_provider(
         &self,
         provider_name: &str,
-        model_config: crate::model::ModelConfig,
+        model_config: goose_providers::model::ModelConfig,
         extensions: Vec<ExtensionConfig>,
         working_dir: Option<PathBuf>,
     ) -> Result<Arc<dyn Provider>> {
@@ -983,13 +985,18 @@ impl GooseAcpAgent {
         &self,
         config: &Config,
         mcp_servers: Vec<McpServer>,
+        goose_extensions: Option<Vec<GooseExtension>>,
     ) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
         let mut extensions = Vec::new();
         for builtin in &self.builtins {
             push_or_replace_extension(&mut extensions, builtin_to_extension_config(builtin));
         }
 
-        if mcp_servers.is_empty() {
+        if let Some(goose_extensions) = goose_extensions {
+            for extension in extensions::goose_extensions_to_configs(goose_extensions)? {
+                push_or_replace_extension(&mut extensions, extension);
+            }
+        } else if mcp_servers.is_empty() {
             for extension in get_enabled_extensions_with_config(config) {
                 push_or_replace_extension(&mut extensions, extension);
             }
@@ -1111,7 +1118,7 @@ impl GooseAcpAgent {
             || EnabledExtensionsState::from_extension_data(&session.extension_data).is_none()
         {
             let extension_data =
-                self.build_enabled_extensions_data(config, &session, mcp_servers)?;
+                self.build_enabled_extensions_data(config, &session, mcp_servers, None)?;
             builder = builder.extension_data(extension_data);
             session_needs_update = true;
         }
@@ -1140,8 +1147,9 @@ impl GooseAcpAgent {
         config: &Config,
         session: &Session,
         mcp_servers: Vec<McpServer>,
+        goose_extensions: Option<Vec<GooseExtension>>,
     ) -> Result<ExtensionData, agent_client_protocol::Error> {
-        let extensions = self.initial_session_extensions(config, mcp_servers)?;
+        let extensions = self.initial_session_extensions(config, mcp_servers, goose_extensions)?;
         let mut extension_data = session.extension_data.clone();
         EnabledExtensionsState::new(extensions)
             .to_extension_data(&mut extension_data)
@@ -2308,43 +2316,6 @@ impl GooseAcpAgent {
         ))
     }
 
-    #[allow(dead_code)]
-    async fn add_mcp_extensions(
-        agent: &Arc<Agent>,
-        mcp_servers: Vec<McpServer>,
-        session_id: &str,
-    ) -> Result<(), agent_client_protocol::Error> {
-        let mut configs = Vec::with_capacity(mcp_servers.len());
-        for mcp_server in mcp_servers {
-            let config = match mcp_server_to_extension_config(mcp_server) {
-                Ok(c) => c,
-                Err(msg) => {
-                    return Err(agent_client_protocol::Error::invalid_params().data(msg));
-                }
-            };
-            configs.push(config);
-        }
-
-        if configs.is_empty() {
-            return Ok(());
-        }
-
-        let results = agent
-            .add_extensions_bulk(configs, session_id)
-            .await
-            .internal_err()?;
-        for result in &results {
-            if !result.success {
-                let error_msg = result.error.as_deref().unwrap_or("unknown error");
-                return Err(agent_client_protocol::Error::internal_error().data(format!(
-                    "Failed to add MCP server '{}': {}",
-                    result.name, error_msg
-                )));
-            }
-        }
-        Ok(())
-    }
-
     async fn on_load_session(
         &self,
         cx: &ConnectionTo<Client>,
@@ -2694,11 +2665,15 @@ impl GooseAcpAgent {
             .internal_err_ctx("Failed to get provider")?;
         let provider_name = current_provider.get_name().to_string();
         let current_model_config = current_provider.get_model_config();
-        let model_config = crate::model::ModelConfig::new(model_id)
-            .invalid_params_err_ctx("Invalid model config")?
-            .with_canonical_limits(&provider_name);
         let model_config =
-            model_config.with_inherited_session_settings_from(Some(&current_model_config), None);
+            crate::model_config::model_config_from_user_config_with_session_settings(
+                &provider_name,
+                model_id,
+                Some(&current_model_config),
+                None,
+                None,
+            )
+            .invalid_params_err_ctx("Invalid model config")?;
         agent
             .recreate_provider_for_session(session_id, &provider_name, model_config)
             .await
@@ -2830,12 +2805,15 @@ impl GooseAcpAgent {
             current_model
         };
         let model = model_name.unwrap_or(&default_model);
-        let mut model_config = crate::model::ModelConfig::new(model)
-            .invalid_params_err_ctx("Invalid model config")?
-            .with_canonical_limits(&resolved_provider_name)
-            .with_context_limit(context_limit);
-        model_config = model_config
-            .with_inherited_session_settings_from(Some(&current_model_config), request_params);
+        let model_config =
+            crate::model_config::model_config_from_user_config_with_session_settings(
+                &resolved_provider_name,
+                model,
+                Some(&current_model_config),
+                request_params,
+                context_limit,
+            )
+            .invalid_params_err_ctx("Invalid model config")?;
 
         agent
             .recreate_provider_for_session(session_id, &resolved_provider_name, model_config)
@@ -2940,6 +2918,7 @@ mod tests {
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
         PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
     };
+    use goose_providers::conversation::token_usage::Usage as TokenUsage;
     use rmcp::model::{CallToolRequestParams, Content as RmcpContent};
     use std::io::Write;
     use std::path::PathBuf;
@@ -3675,53 +3654,23 @@ print(\"hello, world\")
         );
     }
 
-    fn make_session_with_usage(
-        total_tokens: Option<i32>,
-        input_tokens: Option<i32>,
-        output_tokens: Option<i32>,
-        accumulated_total_tokens: Option<i32>,
-        accumulated_input_tokens: Option<i32>,
-        accumulated_output_tokens: Option<i32>,
-    ) -> Session {
+    fn make_session_with_usage(usage: TokenUsage, accumulated_usage: TokenUsage) -> Session {
         Session {
             id: "session-1".to_string(),
             working_dir: PathBuf::from("/tmp"),
             name: "ACP Session".to_string(),
-            user_set_name: false,
             session_type: SessionType::Acp,
-            created_at: Default::default(),
-            updated_at: Default::default(),
-            extension_data: crate::session::ExtensionData::default(),
-            total_tokens,
-            input_tokens,
-            output_tokens,
-            accumulated_total_tokens,
-            accumulated_input_tokens,
-            accumulated_output_tokens,
-            accumulated_cost: None,
-            schedule_id: None,
-            recipe: None,
-            user_recipe_values: None,
-            conversation: None,
-            message_count: 0,
-            provider_name: None,
-            model_config: None,
-            goose_mode: GooseMode::default(),
-            archived_at: None,
-            project_id: None,
-            last_message_snippet: None,
+            usage,
+            accumulated_usage,
+            ..Default::default()
         }
     }
 
     #[test]
     fn test_build_prompt_usage_uses_current_turn_tokens() {
         let session = make_session_with_usage(
-            Some(120),
-            Some(80),
-            Some(40),
-            Some(360),
-            Some(210),
-            Some(150),
+            TokenUsage::new(Some(80), Some(40), Some(120)),
+            TokenUsage::new(Some(210), Some(150), Some(360)),
         );
         let usage = build_prompt_usage(&session).expect("usage should be present");
         assert_eq!(usage.total_tokens, 120);
@@ -3731,7 +3680,10 @@ print(\"hello, world\")
 
     #[test]
     fn test_build_prompt_usage_falls_back_to_current_tokens() {
-        let session = make_session_with_usage(Some(120), Some(80), Some(40), None, None, None);
+        let session = make_session_with_usage(
+            TokenUsage::new(Some(80), Some(40), Some(120)),
+            TokenUsage::default(),
+        );
         let usage = build_prompt_usage(&session).expect("usage should be present");
         assert_eq!(usage.total_tokens, 120);
         assert_eq!(usage.input_tokens, 80);
@@ -3740,15 +3692,26 @@ print(\"hello, world\")
 
     #[test]
     fn test_build_prompt_usage_requires_total_tokens() {
-        let session = make_session_with_usage(None, Some(80), Some(40), None, None, None);
+        let session = make_session_with_usage(
+            TokenUsage {
+                input_tokens: Some(80),
+                output_tokens: Some(40),
+                total_tokens: None,
+                ..Default::default()
+            },
+            TokenUsage::default(),
+        );
         assert!(build_prompt_usage(&session).is_none());
     }
 
     #[test]
     fn test_build_usage_update_clamps_negative_used_to_zero() {
-        let mut session = make_session_with_usage(Some(-7), Some(0), Some(0), None, None, None);
+        let mut session = make_session_with_usage(
+            TokenUsage::new(Some(0), Some(0), Some(-7)),
+            TokenUsage::default(),
+        );
         session.model_config = Some(
-            crate::model::ModelConfig::new("test-model")
+            goose_providers::model::ModelConfig::new("test-model")
                 .unwrap()
                 .with_context_limit(Some(258_000)),
         );
@@ -3766,7 +3729,10 @@ print(\"hello, world\")
 
     #[test]
     fn test_build_usage_update_requires_model_config() {
-        let session = make_session_with_usage(Some(120), Some(80), Some(40), None, None, None);
+        let session = make_session_with_usage(
+            TokenUsage::new(Some(80), Some(40), Some(120)),
+            TokenUsage::default(),
+        );
         assert!(build_usage_updates(&session).is_none());
     }
 

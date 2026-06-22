@@ -13,6 +13,7 @@ export interface UseChatSessionResult {
   messages: Message[];
   chatState: ChatState;
   setChatState: (state: ChatState) => void;
+  updateSession: (updater: (session: Session) => Session) => void;
   handleSubmit: (input: UserInput) => Promise<void>;
   submitElicitationResponse: (
     elicitationId: string,
