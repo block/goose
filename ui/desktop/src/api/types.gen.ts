@@ -42,11 +42,6 @@ export type Author = {
     metadata?: string | null;
 };
 
-export type AuthorRequest = {
-    contact?: string | null;
-    metadata?: string | null;
-};
-
 export type CallToolRequest = {
     arguments: unknown;
     name: string;
@@ -176,16 +171,6 @@ export type Conversation = Array<Message>;
 
 export type CreateCustomProviderResponse = {
     provider_name: string;
-};
-
-export type CreateRecipeRequest = {
-    author?: AuthorRequest | null;
-    session_id: string;
-};
-
-export type CreateRecipeResponse = {
-    error?: string | null;
-    recipe?: Recipe | null;
 };
 
 export type CreateScheduleRequest = {
@@ -3644,37 +3629,6 @@ export type McpUiProxyResponses = {
      */
     200: unknown;
 };
-
-export type CreateRecipeData = {
-    body: CreateRecipeRequest;
-    path?: never;
-    query?: never;
-    url: '/recipes/create';
-};
-
-export type CreateRecipeErrors = {
-    /**
-     * Bad request
-     */
-    400: unknown;
-    /**
-     * Precondition failed - Agent not available
-     */
-    412: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type CreateRecipeResponses = {
-    /**
-     * Recipe created successfully
-     */
-    200: CreateRecipeResponse;
-};
-
-export type CreateRecipeResponse2 = CreateRecipeResponses[keyof CreateRecipeResponses];
 
 export type DecodeRecipeData = {
     body: DecodeRecipeRequest;

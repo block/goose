@@ -317,6 +317,90 @@ fn test_custom_get_extensions() {
 
 #[test]
 #[serial]
+fn test_custom_session_extensions_add_list_remove() {
+    let extension_name = "summarize";
+    let _guard = env_lock::lock_env([("EXTENSIONS", None::<&str>)]);
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let SessionData { session, .. } = conn.new_session().await.unwrap();
+        let session_id = session.session_id().0.clone();
+
+        let list_extension = || async {
+            let result = send_custom(
+                conn.cx(),
+                "_goose/unstable/session/extensions/list",
+                serde_json::json!({ "sessionId": session_id.clone() }),
+            )
+            .await;
+            assert!(result.is_ok(), "expected ok, got: {:?}", result);
+
+            let response = result.unwrap();
+            let extensions = response
+                .get("extensions")
+                .and_then(|extensions| extensions.as_array())
+                .expect("extensions should be an array");
+            extensions
+                .iter()
+                .find(|extension| extension["name"] == extension_name)
+                .cloned()
+        };
+
+        assert!(
+            list_extension().await.is_none(),
+            "{extension_name} should not be enabled before add"
+        );
+
+        let add_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/session/extensions/add",
+            serde_json::json!({
+                "sessionId": session_id.clone(),
+                "extension": {
+                    "type": "platform",
+                    "name": extension_name,
+                    "description": "Load files/directories and get an LLM summary in a single call",
+                    "displayName": "Summarize",
+                    "bundled": true
+                }
+            }),
+        )
+        .await;
+        assert!(add_result.is_ok(), "expected ok, got: {:?}", add_result);
+
+        let extension = list_extension()
+            .await
+            .unwrap_or_else(|| panic!("missing added session extension"));
+        assert_eq!(extension["type"], "platform");
+        assert_eq!(extension["name"], extension_name);
+
+        let remove_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/session/extensions/remove",
+            serde_json::json!({
+                "sessionId": session_id.clone(),
+                "name": extension_name,
+            }),
+        )
+        .await;
+        assert!(
+            remove_result.is_ok(),
+            "expected ok, got: {:?}",
+            remove_result
+        );
+
+        assert!(
+            list_extension().await.is_none(),
+            "removed session extension should not be listed"
+        );
+    });
+}
+
+#[test]
+#[serial]
 fn test_custom_get_available_extensions() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
