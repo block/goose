@@ -44,8 +44,8 @@ impl GooseAcpAgent {
             None
         };
 
-        if let Some((ref recipe, _)) = resolved {
-            validate_recipe(recipe)?;
+        if let Some((ref recipe, ref recipe_dir)) = resolved {
+            validate_recipe(recipe, recipe_dir)?;
         }
         Ok(resolved)
     }
@@ -182,11 +182,11 @@ fn recipe_params_cancelled_error() -> agent_client_protocol::Error {
     }))
 }
 
-fn validate_recipe(recipe: &Recipe) -> Result<(), agent_client_protocol::Error> {
+fn validate_recipe(recipe: &Recipe, recipe_dir: &Path) -> Result<(), agent_client_protocol::Error> {
     let yaml = recipe
         .to_yaml()
         .map_err(|e| agent_client_protocol::Error::invalid_params().data(format!("recipe: {e}")))?;
-    validate_recipe_template_from_content(&yaml, None)
+    validate_recipe_template_from_content(&yaml, Some(recipe_dir.to_string_lossy().to_string()))
         .map_err(|e| agent_client_protocol::Error::invalid_params().data(format!("recipe: {e}")))?;
     Ok(())
 }
