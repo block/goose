@@ -9,7 +9,7 @@ impl GooseAcpAgent {
         req: AddSessionExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         let session_id = &req.session_id;
-        let config = goose_extension_to_session_config(req.extension)?;
+        let config = goose_extension_to_config_without_secrets(req.extension)?;
         let agent = self.get_session_agent(&req.session_id).await?;
         agent
             .add_extension(config, session_id)
@@ -315,34 +315,25 @@ fn goose_extension_to_config(
     })
 }
 
-pub(super) fn goose_extensions_to_configs(
-    extensions: Vec<GooseExtension>,
-) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
-    extensions
-        .into_iter()
-        .map(|extension| {
-            let conversion = goose_extension_to_config(extension)?;
-            if !conversion.secret_updates.is_empty() {
-                return Err(agent_client_protocol::Error::invalid_params().data(
-                    "extension env values must be passed via envKeys referencing stored secrets, not inline env",
-                ));
-            }
-            Ok(conversion.config)
-        })
-        .collect()
-}
-
-fn goose_extension_to_session_config(
+fn goose_extension_to_config_without_secrets(
     extension: GooseExtension,
 ) -> Result<ExtensionConfig, agent_client_protocol::Error> {
     let conversion = goose_extension_to_config(extension)?;
     if !conversion.secret_updates.is_empty() {
         return Err(agent_client_protocol::Error::invalid_params().data(
-            "literal environment values are not supported for session extensions; use envKeys",
+            "extension env values must be passed via envKeys referencing stored secrets, not inline env",
         ));
     }
-
     Ok(conversion.config)
+}
+
+pub(super) fn goose_extensions_to_configs(
+    extensions: Vec<GooseExtension>,
+) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
+    extensions
+        .into_iter()
+        .map(goose_extension_to_config_without_secrets)
+        .collect()
 }
 
 fn config_entry_to_goose_entry(
