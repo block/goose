@@ -221,18 +221,18 @@ impl Agent {
             .await
             .ok();
 
-        // `total_tokens` is the current context-window usage (reset by /compact);
-        // `accumulated_total_tokens` is the lifetime sum across all responses. The
-        // context percentage must use the former, or it inflates and pegs at 100%
-        // in any long or post-compaction session.
+        // `usage` is the current context-window usage (reset by /compact);
+        // `accumulated_usage` is the lifetime sum across all responses. The context
+        // percentage must use the former, or it inflates and pegs at 100% in any
+        // long or post-compaction session.
         let context_tokens = metadata
             .as_ref()
-            .and_then(|s| s.total_tokens)
+            .and_then(|s| s.usage.total_tokens)
             .unwrap_or(0)
             .max(0) as usize;
         let lifetime_tokens = metadata
             .as_ref()
-            .and_then(|s| s.accumulated_total_tokens)
+            .and_then(|s| s.accumulated_usage.total_tokens)
             .unwrap_or(0)
             .max(0) as usize;
 
