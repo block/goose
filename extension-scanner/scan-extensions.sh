@@ -13,9 +13,10 @@
 #
 # Environment:
 #   ANALYZERS        Comma-separated mcp-scanner analyzers (default: yara).
-#                    YARA needs no API keys. Only enable LLM/API analyzers in a
-#                    context where no untrusted code runs with the API key in
-#                    scope, since stdio servers execute on this machine.
+#                    Used for remote URL scans.
+#   STDIO_ANALYZERS  Analyzers for stdio scans (default: yara). Stdio servers
+#                    execute third-party code locally, so their scanner process
+#                    runs with scanner API keys removed from the environment.
 #   SCAN_TIMEOUT     Per-entry timeout in seconds (default: 180).
 #   STDIO_TIMEOUT    mcp-scanner stdio startup timeout (default: 120).
 #
@@ -29,6 +30,7 @@ OUT_DIR="${2:?output directory required}"
 IDS_FILE="${3:-}"
 
 ANALYZERS="${ANALYZERS:-yara}"
+STDIO_ANALYZERS="${STDIO_ANALYZERS:-yara}"
 SCAN_TIMEOUT="${SCAN_TIMEOUT:-180}"
 STDIO_TIMEOUT="${STDIO_TIMEOUT:-120}"
 
@@ -53,7 +55,7 @@ jq -c --argjson ids "$SELECT_IDS_JSON" '
 ' "$CATALOG" > "$OUT_DIR/entries.jsonl"
 
 ENTRY_COUNT=$(wc -l < "$OUT_DIR/entries.jsonl" | tr -d ' ')
-echo "Scanning $ENTRY_COUNT extension(s) with analyzers: $ANALYZERS"
+echo "Scanning $ENTRY_COUNT extension(s) with remote analyzers: $ANALYZERS; stdio analyzers: $STDIO_ANALYZERS"
 
 while IFS= read -r entry; do
   [ -z "$entry" ] && continue
@@ -72,17 +74,49 @@ while IFS= read -r entry; do
     rc=$?
   elif [ -n "$command" ]; then
     echo "-> stdio: $command"
-    # Split the command string into launcher + args for mcp-scanner.
-    launcher=$(echo "$command" | awk '{print $1}')
-    args=()
-    for a in $(echo "$command" | cut -s -d' ' -f2-); do
-      args+=(--stdio-arg="$a")
-    done
-    timeout "$SCAN_TIMEOUT" mcp-scanner \
-      --log-level error --analyzers "$ANALYZERS" --format raw \
-      --stdio-timeout "$STDIO_TIMEOUT" \
-      stdio --stdio-command "$launcher" "${args[@]}" > "$raw" 2>"$OUT_DIR/raw/$id.err"
-    rc=$?
+    argv_file="$OUT_DIR/raw/$id.argv"
+    if ! python3 - "$command" > "$argv_file" <<'PY'
+import shlex
+import sys
+
+try:
+    parts = shlex.split(sys.argv[1])
+except ValueError as exc:
+    print(f"invalid command syntax: {exc}", file=sys.stderr)
+    sys.exit(2)
+
+if not parts:
+    print("empty command", file=sys.stderr)
+    sys.exit(2)
+
+for part in parts:
+    sys.stdout.buffer.write(part.encode())
+    sys.stdout.buffer.write(b"\0")
+PY
+    then
+      echo '{"_scan_status":"error","_reason":"invalid command syntax"}' > "$raw"
+      echo "WARNING:  invalid stdio command syntax"
+      rc=0
+    else
+      command_parts=()
+      while IFS= read -r -d '' part; do
+        command_parts+=("$part")
+      done < "$argv_file"
+      launcher="${command_parts[0]}"
+      args=()
+      for a in "${command_parts[@]:1}"; do
+        args+=(--stdio-arg="$a")
+      done
+      timeout "$SCAN_TIMEOUT" env \
+        -u MCP_SCANNER_LLM_API_KEY \
+        -u MCP_SCANNER_API_KEY \
+        -u OPENAI_API_KEY \
+        mcp-scanner \
+        --log-level error --analyzers "$STDIO_ANALYZERS" --format raw \
+        --stdio-timeout "$STDIO_TIMEOUT" \
+        stdio --stdio-command "$launcher" "${args[@]}" > "$raw" 2>"$OUT_DIR/raw/$id.err"
+      rc=$?
+    fi
   else
     echo "-> no command or url; skipping"
     echo '{"_scan_status":"skipped","_reason":"no command or url"}' > "$raw"

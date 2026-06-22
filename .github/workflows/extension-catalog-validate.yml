@@ -17,6 +17,8 @@ on:
       - 'documentation/static/servers.schema.json'
       - 'documentation/scripts/validate-servers.js'
       - 'documentation/scripts/validate-servers.test.js'
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read

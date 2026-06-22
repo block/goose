@@ -105,7 +105,7 @@ def main():
                and r["status"] == "scanned"]
     inconclusive = [r for r in results if r["status"] in ("error", "timeout")]
 
-    if blocked:
+    if blocked or inconclusive:
         overall = "BLOCKED"
     elif results and all(r["status"] == "skipped" for r in results):
         overall = "SKIPPED"
@@ -160,14 +160,23 @@ def write_markdown(out_dir, summary):
         lines.append("")
 
     if summary["overall_status"] == "BLOCKED":
-        lines.append("> One or more extensions returned a "
-                     f"{summary['block_severity']}+ finding. This must be resolved "
-                     "before merge. Maintainers may override after review.")
+        if summary["blocked"] and summary["inconclusive"]:
+            lines.append("> One or more extensions returned a "
+                         f"{summary['block_severity']}+ finding, and one or more "
+                         "extensions could not be scanned. These must be resolved "
+                         "before merge. Maintainers may override after review.")
+        elif summary["blocked"]:
+            lines.append("> One or more extensions returned a "
+                         f"{summary['block_severity']}+ finding. This must be resolved "
+                         "before merge. Maintainers may override after review.")
+        else:
+            lines.append("> One or more extensions could not be scanned. This must be "
+                         "resolved before merge. Maintainers may override after review.")
     lines.append("")
     lines.append("_Scanned with the "
                  "[Cisco AI Defense MCP Scanner](https://github.com/cisco-ai-defense/mcp-scanner). "
                  "Inconclusive results often mean the server needs real credentials to start "
-                 "and were not auto-blocked._")
+                 "and now block the PR gate until reviewed._")
 
     with open(os.path.join(out_dir, "summary.md"), "w") as fh:
         fh.write("\n".join(lines) + "\n")

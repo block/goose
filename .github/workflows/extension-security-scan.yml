@@ -18,12 +18,14 @@ on:
     paths:
       - 'documentation/static/servers.json'
       - 'documentation/docs/mcp/**'
+  merge_group:
+    types: [checks_requested]
 
 permissions:
   contents: read
 
 concurrency:
-  group: ext-security-scan-${{ github.event.pull_request.number }}
+  group: ext-security-scan-${{ github.event.pull_request.number || github.event.merge_group.head_sha || github.ref }}
   cancel-in-progress: true
 
 env:
@@ -43,29 +45,51 @@ jobs:
       - name: Checkout PR
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
+          ref: ${{ github.event.pull_request.head.sha || github.event.merge_group.head_sha || github.sha }}
           fetch-depth: 0
 
       - name: Determine changed catalog entries
         id: changed
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          BASE_REF: ${{ github.event.merge_group.base_ref }}
         run: |
           set -e
           CATALOG=documentation/static/servers.json
-          git show "$BASE_SHA:$CATALOG" > "$RUNNER_TEMP/base.json" 2>/dev/null || echo '[]' > "$RUNNER_TEMP/base.json"
+          if [ -n "$BASE_SHA" ]; then
+            git show "$BASE_SHA:$CATALOG" > "$RUNNER_TEMP/base.json" 2>/dev/null || echo '[]' > "$RUNNER_TEMP/base.json"
+          elif [ -n "$BASE_REF" ]; then
+            BASE_BRANCH="${BASE_REF#refs/heads/}"
+            git fetch --no-tags --depth=1 origin "$BASE_BRANCH"
+            git show "origin/$BASE_BRANCH:$CATALOG" > "$RUNNER_TEMP/base.json" 2>/dev/null || echo '[]' > "$RUNNER_TEMP/base.json"
+          else
+            echo '[]' > "$RUNNER_TEMP/base.json"
+          fi
           python3 - "$RUNNER_TEMP/base.json" "$CATALOG" "$RUNNER_TEMP/changed_ids.txt" <<'PY'
           import json, sys
           base_path, head_path, out_path = sys.argv[1], sys.argv[2], sys.argv[3]
-          def load(p):
+          def load_base(p):
               try:
                   with open(p) as fh:
                       return json.load(fh)
               except Exception:
                   return []
-          base = {e.get("id"): json.dumps(e, sort_keys=True) for e in load(base_path) if isinstance(e, dict)}
+
+          def load_head(p):
+              try:
+                  with open(p) as fh:
+                      data = json.load(fh)
+              except Exception as exc:
+                  print(f"failed to read PR catalog: {exc}", file=sys.stderr)
+                  sys.exit(1)
+              if not isinstance(data, list):
+                  print("PR catalog must be a JSON array", file=sys.stderr)
+                  sys.exit(1)
+              return data
+
+          base = {e.get("id"): json.dumps(e, sort_keys=True) for e in load_base(base_path) if isinstance(e, dict)}
           changed = []
-          for e in load(head_path):
+          for e in load_head(head_path):
               if not isinstance(e, dict) or e.get("is_builtin") is True:
                   continue
               eid = e.get("id")
@@ -93,11 +117,20 @@ jobs:
         if: steps.changed.outputs.has_changes == 'true'
         run: uv tool install --python 3.13 cisco-ai-mcp-scanner
 
+      - name: Checkout trusted scanner harness
+        if: steps.changed.outputs.has_changes == 'true'
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        with:
+          ref: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_ref || github.sha }}
+          path: trusted-goose
+          sparse-checkout: extension-scanner
+          sparse-checkout-cone-mode: true
+
       - name: Scan changed extensions
         if: steps.changed.outputs.has_changes == 'true'
         run: |
           export PATH="$HOME/.local/bin:$PATH"
-          bash extension-scanner/scan-extensions.sh \
+          bash trusted-goose/extension-scanner/scan-extensions.sh \
             documentation/static/servers.json \
             "$RUNNER_TEMP/scan" \
             "$RUNNER_TEMP/changed_ids.txt"
@@ -122,14 +155,15 @@ jobs:
         run: |
           SUMMARY="$RUNNER_TEMP/scan/summary.json"
           if [ ! -f "$SUMMARY" ]; then
-            echo "::warning::No scan summary produced; treating as inconclusive."
-            exit 0
+            echo "::error::No scan summary produced; failing closed."
+            exit 1
           fi
           STATUS=$(jq -r .overall_status "$SUMMARY")
           echo "Overall status: $STATUS"
           if [ "$STATUS" = "BLOCKED" ]; then
-            echo "::error::One or more extensions have a ${BLOCK_SEVERITY}+ security finding."
+            echo "::error::One or more extensions have a ${BLOCK_SEVERITY}+ security finding or could not be scanned."
             jq -r '.results[] | select(.status=="scanned" and (.severity=="HIGH" or .severity=="CRITICAL" or .severity=="MEDIUM")) | "  - \(.id): \(.severity)"' "$SUMMARY" || true
+            jq -r '.results[] | select(.status=="error" or .status=="timeout") | "  - \(.id): \(.status) \(.detail // "")"' "$SUMMARY" || true
             exit 1
           fi
           echo "::notice::Extension security scan passed ($STATUS)."

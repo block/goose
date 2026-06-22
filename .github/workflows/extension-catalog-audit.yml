@@ -28,6 +28,7 @@ concurrency:
 
 env:
   ANALYZERS: ${{ github.event.inputs.analyzers || vars.EXTENSION_AUDIT_ANALYZERS || 'yara' }}
+  STDIO_ANALYZERS: yara
   BLOCK_SEVERITY: ${{ vars.EXTENSION_AUDIT_BLOCK_SEVERITY || 'MEDIUM' }}
 
 jobs:
@@ -51,8 +52,9 @@ jobs:
 
       - name: Scan entire catalog
         env:
-          # Optional richer analysis. Only used if the corresponding analyzer is
-          # named in ANALYZERS; safe to leave unset for a YARA-only audit.
+          # Optional richer analysis for remote URL scans. Stdio scans run with
+          # STDIO_ANALYZERS and with these keys removed from the scanner process
+          # environment so launched catalog servers cannot read them.
           MCP_SCANNER_LLM_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           MCP_SCANNER_API_KEY: ${{ secrets.MCP_SCANNER_API_KEY }}
         run: |
@@ -82,7 +84,7 @@ jobs:
             const summaryPath = path.join(auditDir, 'summary.json');
             const bodyPath = path.join(auditDir, 'summary.md');
             if (!fs.existsSync(summaryPath)) {
-              core.warning('No summary.json produced; skipping issue management.');
+              core.setFailed('No summary.json produced; failing closed.');
               return;
             }
 
