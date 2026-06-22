@@ -6,6 +6,7 @@ use console::style;
 use goose::agents::{Agent, Container, ExtensionError};
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, ExtensionConfig, GooseMode};
+use goose::model_config::model_config_from_user_config;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
@@ -229,14 +230,14 @@ async fn load_extensions(
 struct ResolvedProviderConfig {
     provider_name: String,
     model_name: String,
-    model_config: goose::model::ModelConfig,
+    model_config: goose_providers::model::ModelConfig,
 }
 
 fn resolve_provider_and_model(
     session_config: &SessionBuilderConfig,
     config: &Config,
     saved_provider: Option<String>,
-    saved_model_config: Option<goose::model::ModelConfig>,
+    saved_model_config: Option<goose_providers::model::ModelConfig>,
 ) -> ResolvedProviderConfig {
     let recipe_settings = session_config
         .recipe
@@ -277,14 +278,16 @@ fn resolve_provider_and_model(
         }
         config
     } else {
-        let temperature = recipe_settings.and_then(|s| s.temperature);
-        goose::model::ModelConfig::new(&model_name)
-            .unwrap_or_else(|e| {
-                output::render_error(&format!("Failed to create model configuration: {}", e));
-                process::exit(1);
-            })
-            .with_canonical_limits(&provider_name)
-            .with_temperature(temperature)
+        let mut config =
+            goose::model_config::model_config_from_user_config(&provider_name, &model_name)
+                .unwrap_or_else(|e| {
+                    output::render_error(&format!("Failed to create model configuration: {}", e));
+                    process::exit(1);
+                });
+        if let Some(temp) = recipe_settings.and_then(|s| s.temperature) {
+            config = config.with_temperature(Some(temp));
+        }
+        config
     };
 
     ResolvedProviderConfig {
@@ -411,6 +414,7 @@ async fn collect_extension_configs(
     recipe: Option<&Recipe>,
     session_id: &str,
 ) -> Result<Vec<ExtensionConfig>, ExtensionError> {
+    let recipe_extensions = recipe.and_then(|r| r.extensions.as_deref());
     let configured_extensions: Vec<ExtensionConfig> = if session_config.resume {
         EnabledExtensionsState::for_session(
             &agent.config.session_manager,
@@ -421,7 +425,7 @@ async fn collect_extension_configs(
     } else if session_config.no_profile {
         Vec::new()
     } else {
-        resolve_extensions_for_new_session(recipe.and_then(|r| r.extensions.as_deref()), None)
+        resolve_extensions_for_new_session(recipe_extensions, None)
     };
 
     let cli_flag_extensions = parse_cli_flag_extensions(
@@ -431,6 +435,12 @@ async fn collect_extension_configs(
     );
 
     let mut all: Vec<ExtensionConfig> = configured_extensions;
+    if !session_config.no_profile && !session_config.resume && recipe_extensions.is_none() {
+        let project_root = std::env::current_dir().ok();
+        all.extend(goose::plugins::mcp_servers::enabled_plugin_mcp_servers(
+            project_root.as_deref(),
+        ));
+    }
     all.extend(cli_flag_extensions.into_iter().map(|(_, cfg)| cfg));
 
     Ok(all)
@@ -568,12 +578,15 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 ))
                 .yellow()
             );
-            let fallback_model_config = goose::model::ModelConfig::new(&fallback_model)
-                .unwrap_or_else(|e| {
-                    output::render_error(&format!("Failed to create model configuration: {}", e));
-                    process::exit(1);
-                })
-                .with_canonical_limits(&fallback_provider);
+            let fallback_model_config =
+                model_config_from_user_config(fallback_provider.as_str(), &fallback_model)
+                    .unwrap_or_else(|e| {
+                        output::render_error(&format!(
+                            "Failed to create model configuration: {}",
+                            e
+                        ));
+                        process::exit(1);
+                    });
             match create(
                 &fallback_provider,
                 fallback_model_config,

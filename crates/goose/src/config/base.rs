@@ -1,6 +1,7 @@
 use crate::config::paths::Paths;
 use crate::config::GooseMode;
 use fs2::FileExt;
+use goose_providers::thinking::ThinkingEffort;
 #[cfg(feature = "system-keyring")]
 use keyring::Entry;
 use once_cell::sync::OnceCell;
@@ -1136,7 +1137,78 @@ config_value!(GOOSE_PROMPT_EDITOR_ALWAYS, Option<bool>);
 config_value!(GOOSE_MAX_ACTIVE_AGENTS, usize);
 config_value!(GOOSE_DISABLE_SESSION_NAMING, bool);
 config_value!(GOOSE_DISABLE_TOOL_CALL_SUMMARY, bool);
-config_value!(GOOSE_THINKING_EFFORT, String);
+
+impl Config {
+    pub fn get_goose_context_limit(&self) -> Result<Option<usize>, ConfigError> {
+        match self.get_param::<usize>("GOOSE_CONTEXT_LIMIT") {
+            Ok(0) => Err(ConfigError::DeserializeError(
+                "GOOSE_CONTEXT_LIMIT must be greater than 0".to_string(),
+            )),
+            Ok(limit) => Ok(Some(limit)),
+            Err(ConfigError::NotFound(_)) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn get_goose_max_tokens(&self) -> Result<Option<i32>, ConfigError> {
+        match self.get_param::<i32>("GOOSE_MAX_TOKENS") {
+            Ok(tokens) if tokens <= 0 => Err(ConfigError::DeserializeError(
+                "GOOSE_MAX_TOKENS must be greater than 0".to_string(),
+            )),
+            Ok(tokens) => Ok(Some(tokens)),
+            Err(ConfigError::NotFound(_)) => Ok(None),
+            Err(e) => Err(e),
+        }
+    }
+
+    pub fn get_goose_thinking_effort(&self) -> Option<ThinkingEffort> {
+        self.get_param::<String>("GOOSE_THINKING_EFFORT")
+            .ok()
+            .and_then(|e| e.parse().ok())
+            .or_else(|| self.legacy_thinking_effort())
+    }
+
+    pub fn set_goose_thinking_effort(&self, v: ThinkingEffort) -> Result<(), ConfigError> {
+        self.set_param("GOOSE_THINKING_EFFORT", v)
+    }
+
+    fn legacy_thinking_effort(&self) -> Option<ThinkingEffort> {
+        if let Ok(value) = self.get_param::<String>("CLAUDE_THINKING_TYPE") {
+            if let Some(effort) = match value.to_lowercase().as_str() {
+                "adaptive" | "enabled" => Some(ThinkingEffort::High),
+                "disabled" => Some(ThinkingEffort::Off),
+                _ => None,
+            } {
+                return Some(effort);
+            }
+        }
+
+        if let Ok(enabled) = self.get_param::<bool>("CLAUDE_THINKING_ENABLED") {
+            return Some(if enabled {
+                ThinkingEffort::High
+            } else {
+                ThinkingEffort::Off
+            });
+        }
+
+        if let Ok(value) = self.get_param::<String>("GEMINI3_THINKING_LEVEL") {
+            if let Some(effort) = Self::legacy_gemini3_thinking_effort(&value) {
+                return Some(effort);
+            }
+        }
+
+        None
+    }
+
+    fn legacy_gemini3_thinking_effort(value: &str) -> Option<ThinkingEffort> {
+        match value.to_lowercase().as_str() {
+            "low" => Some(ThinkingEffort::Low),
+            "high" => Some(ThinkingEffort::High),
+            _ => None,
+        }
+    }
+}
+
 config_value!(GOOSE_DEFAULT_EXTENSION_TIMEOUT, u64);
 
 fn find_workspace_or_exe_root() -> Option<PathBuf> {
@@ -2397,5 +2469,133 @@ extensions:
         // Other fields should be preserved
         assert!(openai.get("enabled").unwrap().as_bool().unwrap());
         assert!(openai.get("configured").unwrap().as_bool().unwrap());
+    }
+
+    #[test]
+    fn get_goose_context_limit_reads_env() {
+        let _guard = env_lock::lock_env([("GOOSE_CONTEXT_LIMIT", Some("4096"))]);
+        let config = new_test_config();
+
+        assert_eq!(config.get_goose_context_limit().unwrap(), Some(4096));
+    }
+
+    #[test]
+    fn get_goose_context_limit_reads_quoted_yaml_value() {
+        let _guard = env_lock::lock_env([("GOOSE_CONTEXT_LIMIT", None::<&str>)]);
+        let config = new_test_config();
+        config.set_param("GOOSE_CONTEXT_LIMIT", "200000").unwrap();
+
+        assert_eq!(config.get_goose_context_limit().unwrap(), Some(200_000));
+    }
+
+    #[test]
+    fn get_goose_context_limit_returns_none_when_not_set() {
+        let _guard = env_lock::lock_env([("GOOSE_CONTEXT_LIMIT", None::<&str>)]);
+        let config = new_test_config();
+
+        assert_eq!(config.get_goose_context_limit().unwrap(), None);
+    }
+
+    #[test]
+    fn get_goose_context_limit_rejects_zero() {
+        let _guard = env_lock::lock_env([("GOOSE_CONTEXT_LIMIT", Some("0"))]);
+        let config = new_test_config();
+
+        assert!(matches!(
+            config.get_goose_context_limit().unwrap_err(),
+            ConfigError::DeserializeError(_)
+        ));
+    }
+
+    #[test]
+    fn get_goose_max_tokens_reads_env() {
+        let _guard = env_lock::lock_env([("GOOSE_MAX_TOKENS", Some("4096"))]);
+        let config = new_test_config();
+
+        assert_eq!(config.get_goose_max_tokens().unwrap(), Some(4096));
+    }
+
+    #[test]
+    fn get_goose_max_tokens_returns_none_when_not_set() {
+        let _guard = env_lock::lock_env([("GOOSE_MAX_TOKENS", None::<&str>)]);
+        let config = new_test_config();
+
+        assert_eq!(config.get_goose_max_tokens().unwrap(), None);
+    }
+
+    #[test]
+    fn get_goose_max_tokens_rejects_invalid_values() {
+        for value in ["not_a_number", "0", "-100"] {
+            let _guard = env_lock::lock_env([("GOOSE_MAX_TOKENS", Some(value))]);
+            let config = new_test_config();
+
+            assert!(matches!(
+                config.get_goose_max_tokens().unwrap_err(),
+                ConfigError::DeserializeError(_)
+            ));
+        }
+    }
+
+    #[test]
+    fn get_goose_thinking_effort_reads_env() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_THINKING_EFFORT", Some("high")),
+            ("CLAUDE_THINKING_TYPE", None::<&str>),
+            ("CLAUDE_THINKING_ENABLED", None::<&str>),
+            ("GEMINI3_THINKING_LEVEL", None::<&str>),
+        ]);
+        let config = new_test_config();
+
+        assert_eq!(
+            config.get_goose_thinking_effort(),
+            Some(ThinkingEffort::High)
+        );
+    }
+
+    #[test]
+    fn get_goose_thinking_effort_uses_legacy_claude_fallback() {
+        for value in ["enabled", "adaptive"] {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_THINKING_EFFORT", None::<&str>),
+                ("CLAUDE_THINKING_TYPE", Some(value)),
+                ("CLAUDE_THINKING_ENABLED", None::<&str>),
+                ("GEMINI3_THINKING_LEVEL", None::<&str>),
+            ]);
+            let config = new_test_config();
+
+            assert_eq!(
+                config.get_goose_thinking_effort(),
+                Some(ThinkingEffort::High)
+            );
+        }
+    }
+
+    #[test]
+    fn get_goose_thinking_effort_uses_legacy_gemini3_fallback() {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_THINKING_EFFORT", None::<&str>),
+            ("CLAUDE_THINKING_TYPE", None::<&str>),
+            ("CLAUDE_THINKING_ENABLED", None::<&str>),
+            ("GEMINI3_THINKING_LEVEL", Some("high")),
+        ]);
+        let config = new_test_config();
+
+        assert_eq!(
+            config.get_goose_thinking_effort(),
+            Some(ThinkingEffort::High)
+        );
+    }
+
+    #[test]
+    fn legacy_gemini3_thinking_level_mapping() {
+        assert_eq!(
+            Config::legacy_gemini3_thinking_effort("low"),
+            Some(ThinkingEffort::Low)
+        );
+        assert_eq!(
+            Config::legacy_gemini3_thinking_effort("high"),
+            Some(ThinkingEffort::High)
+        );
+        assert_eq!(Config::legacy_gemini3_thinking_effort("auto"), None);
     }
 }

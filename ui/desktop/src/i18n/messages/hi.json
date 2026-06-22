@@ -11,6 +11,9 @@
   "announcementModal.gotIt": {
     "defaultMessage": "समझ गया!"
   },
+  "appLayout.collapseNavigation": {
+    "defaultMessage": "Collapse navigation"
+  },
   "appLayout.openNavigation": {
     "defaultMessage": "नेविगेशन खोलें"
   },
@@ -113,18 +116,6 @@
   "baseChat.goHome": {
     "defaultMessage": "घर जाओ"
   },
-  "baseChat.noSession": {
-    "defaultMessage": "कोई सत्र नहीं"
-  },
-  "baseChat.recipeCreatedMessage": {
-    "defaultMessage": "\"{title}\" सहेजा गया है और उपयोग के लिए तैयार है।"
-  },
-  "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "रेसिपी सफलतापूर्वक बनाई गई!"
-  },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "एक्सटेंशन टॉगल त्रुटि"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "एक्सटेंशन अपडेट किया गया"
   },
@@ -142,9 +133,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "एक्सटेंशन प्रबंधित करें"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "कोई सक्रिय सत्र नहीं मिला. कृपया पहले एक चैट सत्र प्रारंभ करें."
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "कोई एक्सटेंशन उपलब्ध नहीं है"
@@ -169,9 +157,6 @@
   },
   "chatInput.contextWindow": {
     "defaultMessage": "प्रसंग विंडो"
-  },
-  "chatInput.createRecipeFromSession": {
-    "defaultMessage": "सत्र से रेसिपी बनाएं"
   },
   "chatInput.dictationError": {
     "defaultMessage": "श्रुतलेख त्रुटि"
@@ -403,54 +388,6 @@
   },
   "createEditRecipe.viewEditRecipeTitle": {
     "defaultMessage": "रेसिपी देखें/संपादित करें"
-  },
-  "createRecipeFromSession.analyzingTitle": {
-    "defaultMessage": "आपकी बातचीत का विश्लेषण"
-  },
-  "createRecipeFromSession.cancel": {
-    "defaultMessage": "रद्द करें"
-  },
-  "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "रेसिपी बनाएं और चलाएं"
-  },
-  "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "रेसिपी बनाएं"
-  },
-  "createRecipeFromSession.creating": {
-    "defaultMessage": "बनाया जा रहा है..."
-  },
-  "createRecipeFromSession.extractingInsights": {
-    "defaultMessage": "आपकी चैट से अंतर्दृष्टि निकालना"
-  },
-  "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "रेसिपी बनाते समय एक अप्रत्याशित त्रुटि उत्पन्न हुई. कृपया पुन: प्रयास करें।"
-  },
-  "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "रेसिपी बनाने में विफल"
-  },
-  "createRecipeFromSession.stageComplete": {
-    "defaultMessage": "पूरा!"
-  },
-  "createRecipeFromSession.stageExtracting": {
-    "defaultMessage": "मुख्य विषय निकाले जा रहे हैं..."
-  },
-  "createRecipeFromSession.stageFinalizing": {
-    "defaultMessage": "विवरण को अंतिम रूप दिया जा रहा है..."
-  },
-  "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "रेसिपी संरचना तैयार की जा रही है..."
-  },
-  "createRecipeFromSession.stageIdentifying": {
-    "defaultMessage": "प्रमुख पैटर्न की पहचान..."
-  },
-  "createRecipeFromSession.stageReading": {
-    "defaultMessage": "आपकी बातचीत पढ़ रहा हूँ..."
-  },
-  "createRecipeFromSession.subtitle": {
-    "defaultMessage": "अपनी मौजूदा बातचीत के आधार पर दोबारा इस्तेमाल होने वाली रेसिपी बनाएं।"
-  },
-  "createRecipeFromSession.title": {
-    "defaultMessage": "सत्र से रेसिपी बनाएं"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "रद्द करें"
@@ -991,6 +928,9 @@
   },
   "elicitationRequest.submit": {
     "defaultMessage": "सबमिट करें"
+  },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
   },
   "elicitationRequest.submitted": {
     "defaultMessage": "जानकारी प्रस्तुत की गई"
@@ -2462,9 +2402,6 @@
   "navigationPanel.chats": {
     "defaultMessage": "चैट"
   },
-  "navigationPanel.collapseSidebar": {
-    "defaultMessage": "साइडबार को संक्षिप्त करें"
-  },
   "navigationPanel.noChats": {
     "defaultMessage": "कोई हालिया चैट नहीं"
   },
@@ -3755,6 +3692,12 @@
   "securityToggle.warpNotice": {
     "defaultMessage": "WARP से कनेक्ट होने पर कमांड इंजेक्शन डिटेक्शन सबसे अच्छा काम करता है (वर्गीकरण सेवा तक पहुंचने के लिए आवश्यक)।"
   },
+  "sessionActionsHeader.actionsLabel": {
+    "defaultMessage": "Session actions"
+  },
+  "sessionActionsHeader.cancel": {
+    "defaultMessage": "Cancel"
+  },
   "sessionActionsHeader.close": {
     "defaultMessage": "Close"
   },
@@ -3770,6 +3713,15 @@
   "sessionActionsHeader.copyText": {
     "defaultMessage": "Copy text"
   },
+  "sessionActionsHeader.duplicateFailed": {
+    "defaultMessage": "Failed to duplicate session: {error}"
+  },
+  "sessionActionsHeader.duplicateSession": {
+    "defaultMessage": "Duplicate session"
+  },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "Session duplicated"
+  },
   "sessionActionsHeader.fullTextTitle": {
     "defaultMessage": "Text value"
   },
@@ -3781,6 +3733,27 @@
   },
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Loading JSON..."
+  },
+  "sessionActionsHeader.renameFailed": {
+    "defaultMessage": "Failed to rename session: {error}"
+  },
+  "sessionActionsHeader.renamePlaceholder": {
+    "defaultMessage": "Enter session name"
+  },
+  "sessionActionsHeader.renameSession": {
+    "defaultMessage": "Rename session"
+  },
+  "sessionActionsHeader.renameTitle": {
+    "defaultMessage": "Rename Session"
+  },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "Session renamed"
+  },
+  "sessionActionsHeader.save": {
+    "defaultMessage": "Save"
+  },
+  "sessionActionsHeader.saving": {
+    "defaultMessage": "Saving..."
   },
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"
@@ -4096,6 +4069,9 @@
   },
   "settings.language.japanese": {
     "defaultMessage": "जापानी"
+  },
+  "settings.language.korean": {
+    "defaultMessage": "कोरियाई"
   },
   "settings.language.russian": {
     "defaultMessage": "रूसी"
@@ -4724,6 +4700,12 @@
   "updateSection.autoDownload": {
     "defaultMessage": "अपडेट बैकग्राउंड में अपने आप डाउनलोड हो जाएगा."
   },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "स्वचालित डाउनलोड GOOSE_DISABLE_AUTO_DOWNLOAD पर्यावरण चर के माध्यम से अक्षम हैं।"
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "स्वचालित डाउनलोड अक्षम है। मैन्युअल रूप से डाउनलोड करने के लिए \"अभी डाउनलोड करें\" पर क्लिक करें।"
+  },
   "updateSection.autoInstallNote": {
     "defaultMessage": "जब आप ऐप छोड़ देंगे तो अपडेट अपने आप इंस्टॉल हो जाएगा।"
   },
@@ -4735,6 +4717,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "वर्तमान संस्करण"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "स्वचालित अपडेट डाउनलोड अक्षम करें"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "सक्षम होने पर, Goose आपको नई संस्करणों की सूचना देगा लेकिन उन्हें स्वचालित रूप से डाउनलोड नहीं करेगा।"
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "अभी डाउनलोड करें"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "अपडेट डाउनलोड हो गया है और इंस्टॉल करने के लिए तैयार है!"

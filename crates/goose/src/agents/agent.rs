@@ -707,7 +707,7 @@ impl Agent {
                     .provider()
                     .await
                     .map(|p| p.get_model_config().context_limit())
-                    .unwrap_or(crate::model::DEFAULT_CONTEXT_LIMIT);
+                    .unwrap_or(goose_providers::model::DEFAULT_CONTEXT_LIMIT);
                 let compaction_threshold = Config::global()
                     .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
                     .unwrap_or(crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD);
@@ -1516,6 +1516,8 @@ impl Agent {
             .execute_command(&message_text, &session_config.id)
             .await;
 
+        let mut command_preamble: Vec<AgentEvent> = Vec::new();
+
         match command_result {
             Err(e) => {
                 let error_message = Message::assistant()
@@ -1524,6 +1526,44 @@ impl Agent {
                 return Ok(Box::pin(stream::once(async move {
                     Ok(AgentEvent::Message(error_message))
                 })));
+            }
+            Ok(Some(response))
+                if response.role == rmcp::model::Role::Assistant
+                    && crate::agents::execute_commands::command_starts_turn(&message_text) =>
+            {
+                // Setting a goal/grind should immediately start a turn so the
+                // agent begins pursuing it, rather than waiting for the next
+                // user prompt. Record the command and its confirmation as
+                // user-visible only, then inject an agent-visible kickoff and
+                // fall through into the reply loop.
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &user_message.clone().with_visibility(true, false),
+                    )
+                    .await?;
+                session_manager
+                    .add_message(
+                        &session_config.id,
+                        &response.clone().with_visibility(true, false),
+                    )
+                    .await?;
+                let goal_text = crate::agents::execute_commands::parse_slash_command(&message_text)
+                    .map(|parsed| parsed.params_str.to_string())
+                    .unwrap_or_default();
+                let kickoff = Message::user()
+                    .with_text(format!(
+                        "Start working toward this goal now:\n\n**Goal:** {goal_text}"
+                    ))
+                    .with_visibility(false, true);
+                session_manager
+                    .add_message(&session_config.id, &kickoff)
+                    .await?;
+
+                command_preamble = vec![
+                    AgentEvent::Message(user_message.clone()),
+                    AgentEvent::Message(response.clone()),
+                ];
             }
             Ok(Some(response)) if response.role == rmcp::model::Role::Assistant => {
                 session_manager
@@ -1599,6 +1639,10 @@ impl Agent {
         let conversation_to_compact = conversation.clone();
 
         Ok(Box::pin(async_stream::try_stream! {
+            for event in command_preamble {
+                yield event;
+            }
+
             let final_conversation = if !needs_auto_compact {
                 conversation
             } else {
@@ -1854,7 +1898,8 @@ impl Agent {
                     &session_config.id,
                     conversation.clone(),
                     &self.extension_manager,
-                    &working_dir,
+                    turns_taken,
+                    max_turns,
                 ).await;
 
                 let mut stream = Self::stream_response_from_provider(
@@ -2607,7 +2652,7 @@ impl Agent {
         &self,
         session_id: &str,
         provider_name: &str,
-        model_config: crate::model::ModelConfig,
+        model_config: goose_providers::model::ModelConfig,
     ) -> Result<()> {
         let session = self
             .config
@@ -2670,9 +2715,8 @@ impl Agent {
                     .get_goose_model()
                     .ok()
                     .ok_or_else(|| anyhow!("Could not configure agent: missing model"))?;
-                crate::model::ModelConfig::new(&model_name)
+                crate::model_config::model_config_from_user_config(&provider_name, &model_name)
                     .map_err(|e| anyhow!("Could not configure agent: invalid model {}", e))?
-                    .with_canonical_limits(&provider_name)
             }
         };
 
@@ -2714,9 +2758,11 @@ impl Agent {
                 .get_goose_model()
                 .ok()
                 .ok_or_else(|| anyhow!("Could not configure fallback provider: missing model"))?;
-            let fallback_model_config = crate::model::ModelConfig::new(&fallback_model_name)
-                .map_err(|e| anyhow!("Could not configure fallback provider: invalid model {}", e))?
-                .with_canonical_limits(&fallback_provider_name);
+            let fallback_model_config = crate::model_config::model_config_from_user_config(
+                &fallback_provider_name,
+                &fallback_model_name,
+            )
+            .map_err(|e| anyhow!("Could not configure fallback provider: invalid model {}", e))?;
 
             let fallback_provider = crate::providers::create_with_working_dir(
                 &fallback_provider_name,
@@ -3145,12 +3191,12 @@ mod tests {
         fn get_name(&self) -> &str {
             "test-action-required"
         }
-        fn get_model_config(&self) -> crate::model::ModelConfig {
-            crate::model::ModelConfig::new("test").unwrap()
+        fn get_model_config(&self) -> goose_providers::model::ModelConfig {
+            goose_providers::model::ModelConfig::new("test").unwrap()
         }
         async fn stream(
             &self,
-            _: &crate::model::ModelConfig,
+            _: &goose_providers::model::ModelConfig,
             _: &str,
             _: &str,
             _: &[crate::conversation::message::Message],
@@ -3332,7 +3378,7 @@ exit 0
     impl crate::providers::base::Provider for CountingTextProvider {
         async fn stream(
             &self,
-            _model_config: &crate::model::ModelConfig,
+            _model_config: &goose_providers::model::ModelConfig,
             _session_id: &str,
             _system_prompt: &str,
             _messages: &[Message],
@@ -3344,8 +3390,8 @@ exit 0
             Ok(stream_from_single_message(message, usage))
         }
 
-        fn get_model_config(&self) -> crate::model::ModelConfig {
-            crate::model::ModelConfig::new("mock-model").unwrap()
+        fn get_model_config(&self) -> goose_providers::model::ModelConfig {
+            goose_providers::model::ModelConfig::new("mock-model").unwrap()
         }
 
         fn get_name(&self) -> &str {
@@ -3361,7 +3407,7 @@ exit 0
     impl crate::providers::base::Provider for RefusingProvider {
         async fn stream(
             &self,
-            _model_config: &crate::model::ModelConfig,
+            _model_config: &goose_providers::model::ModelConfig,
             _session_id: &str,
             _system_prompt: &str,
             _messages: &[Message],
@@ -3376,8 +3422,8 @@ exit 0
             })))
         }
 
-        fn get_model_config(&self) -> crate::model::ModelConfig {
-            crate::model::ModelConfig::new("mock-model").unwrap()
+        fn get_model_config(&self) -> goose_providers::model::ModelConfig {
+            goose_providers::model::ModelConfig::new("mock-model").unwrap()
         }
 
         fn get_name(&self) -> &str {

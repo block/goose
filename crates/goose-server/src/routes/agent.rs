@@ -19,7 +19,6 @@ use goose::agents::reply_parts::is_tool_visible_to_app;
 use goose::agents::ExtensionConfig;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
-use goose::model::ModelConfig;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
@@ -267,8 +266,14 @@ async fn start_agent(
     let recipe_extensions = original_recipe
         .as_ref()
         .and_then(|r| r.extensions.as_deref());
-    let extensions_to_use =
+    let has_extension_overrides = extension_overrides.is_some();
+    let mut extensions_to_use =
         resolve_extensions_for_new_session(recipe_extensions, extension_overrides);
+    if recipe_extensions.is_none() && !has_extension_overrides {
+        extensions_to_use.extend(goose::plugins::mcp_servers::enabled_plugin_mcp_servers(
+            Some(&PathBuf::from(&working_dir)),
+        ));
+    }
 
     let mut extension_data = session.extension_data.clone();
     let extensions_state = EnabledExtensionsState::new(extensions_to_use);
@@ -297,7 +302,9 @@ async fn start_agent(
                 update = update.provider_name(provider);
 
                 if let Some(ref model) = settings.goose_model {
-                    if let Ok(model_config) = ModelConfig::new(model) {
+                    if let Ok(model_config) =
+                        goose::model_config::model_config_from_user_config(provider, model)
+                    {
                         update = update.model_config(model_config);
                     }
                 }
@@ -631,15 +638,15 @@ async fn update_agent_provider(
         }
     };
 
-    let mut model_config = ModelConfig::new(&model)
-        .map_err(|e| {
-            (
-                StatusCode::BAD_REQUEST,
-                format!("Invalid model config: {}", e),
-            )
-        })?
-        .with_canonical_limits(&payload.provider)
-        .with_context_limit(payload.context_limit);
+    let mut model_config =
+        goose::model_config::model_config_from_user_config(&payload.provider, &model)
+            .map_err(|e| {
+                (
+                    StatusCode::BAD_REQUEST,
+                    format!("Invalid model config: {}", e),
+                )
+            })?
+            .with_context_limit(payload.context_limit);
 
     if let Some(request_params) = payload.request_params {
         model_config = model_config.with_merged_request_params(request_params);

@@ -1,5 +1,3 @@
-use crate::providers::base::DEFAULT_PROVIDER_TIMEOUT_SECS;
-use crate::session_context::SESSION_ID_HEADER;
 use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::{
@@ -15,6 +13,9 @@ use std::fs::read_to_string;
 use std::path::PathBuf;
 use std::time::Duration;
 
+const DEFAULT_PROVIDER_TIMEOUT_SECS: u64 = 600;
+const SESSION_ID_HEADER: &str = "agent-session-id";
+
 pub struct ApiClient {
     client: Client,
     host: String,
@@ -28,12 +29,7 @@ pub struct ApiClient {
 pub enum AuthMethod {
     NoAuth,
     BearerToken(String),
-    ApiKey {
-        header_name: String,
-        key: String,
-    },
-    #[allow(dead_code)]
-    OAuth(OAuthConfig),
+    ApiKey { header_name: String, key: String },
     Custom(Box<dyn AuthProvider>),
 }
 
@@ -54,48 +50,6 @@ impl TlsConfig {
         Self {
             client_identity: None,
             ca_cert_path: None,
-        }
-    }
-
-    pub fn from_config() -> Result<Option<Self>> {
-        let config = crate::config::Config::global();
-        let mut tls_config = TlsConfig::new();
-        let mut has_tls_config = false;
-
-        let client_cert_path = config.get_param::<String>("GOOSE_CLIENT_CERT_PATH").ok();
-        let client_key_path = config.get_param::<String>("GOOSE_CLIENT_KEY_PATH").ok();
-
-        // Validate that both cert and key are provided if either is provided
-        match (client_cert_path, client_key_path) {
-            (Some(cert_path), Some(key_path)) => {
-                tls_config = tls_config.with_client_cert_and_key(
-                    std::path::PathBuf::from(cert_path),
-                    std::path::PathBuf::from(key_path),
-                );
-                has_tls_config = true;
-            }
-            (Some(_), None) => {
-                return Err(anyhow::anyhow!(
-                    "Client certificate provided (GOOSE_CLIENT_CERT_PATH) but no private key (GOOSE_CLIENT_KEY_PATH)"
-                ));
-            }
-            (None, Some(_)) => {
-                return Err(anyhow::anyhow!(
-                    "Client private key provided (GOOSE_CLIENT_KEY_PATH) but no certificate (GOOSE_CLIENT_CERT_PATH)"
-                ));
-            }
-            (None, None) => {}
-        }
-
-        if let Ok(ca_cert_path) = config.get_param::<String>("GOOSE_CA_CERT_PATH") {
-            tls_config = tls_config.with_ca_cert(std::path::PathBuf::from(ca_cert_path));
-            has_tls_config = true;
-        }
-
-        if has_tls_config {
-            Ok(Some(tls_config))
-        } else {
-            Ok(None)
         }
     }
 
@@ -234,13 +188,6 @@ fn convert_key_to_pkcs8_pem(key_pem_str: &str) -> Result<String> {
     }
 }
 
-pub struct OAuthConfig {
-    pub host: String,
-    pub client_id: String,
-    pub redirect_url: String,
-    pub scopes: Vec<String>,
-}
-
 #[async_trait]
 pub trait AuthProvider: Send + Sync {
     async fn get_auth_header(&self) -> Result<(String, String)>;
@@ -261,7 +208,6 @@ impl fmt::Debug for AuthMethod {
                 .field("header_name", header_name)
                 .field("key", &"[hidden]")
                 .finish(),
-            AuthMethod::OAuth(_) => f.debug_tuple("OAuth").field(&"[config]").finish(),
             AuthMethod::Custom(_) => f.debug_tuple("Custom").field(&"[provider]").finish(),
         }
     }
@@ -283,19 +229,27 @@ pub struct ApiRequestBuilder<'a> {
 }
 
 impl ApiClient {
-    pub fn new(host: String, auth: AuthMethod) -> Result<Self> {
-        Self::with_timeout(
+    pub fn new_with_tls(
+        host: String,
+        auth: AuthMethod,
+        tls_config: Option<TlsConfig>,
+    ) -> Result<Self> {
+        Self::with_timeout_and_tls(
             host,
             auth,
             Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
+            tls_config,
         )
     }
 
-    pub fn with_timeout(host: String, auth: AuthMethod, timeout: Duration) -> Result<Self> {
+    pub fn with_timeout_and_tls(
+        host: String,
+        auth: AuthMethod,
+        timeout: Duration,
+        tls_config: Option<TlsConfig>,
+    ) -> Result<Self> {
         let mut client_builder = Client::builder().timeout(timeout);
 
-        // Configure TLS if needed
-        let tls_config = TlsConfig::from_config()?;
         if let Some(ref config) = tls_config {
             client_builder = Self::configure_tls(client_builder, config)?;
         }
@@ -445,16 +399,6 @@ impl ApiClient {
 
         Ok(url)
     }
-
-    async fn get_oauth_token(&self, config: &OAuthConfig) -> Result<String> {
-        super::oauth::get_oauth_token_async(
-            &config.host,
-            &config.client_id,
-            &config.redirect_url,
-            &config.scopes,
-        )
-        .await
-    }
 }
 
 impl<'a> ApiRequestBuilder<'a> {
@@ -518,10 +462,6 @@ impl<'a> ApiRequestBuilder<'a> {
                 request.header("Authorization", format!("Bearer {}", token))
             }
             AuthMethod::ApiKey { header_name, key } => request.header(header_name.as_str(), key),
-            AuthMethod::OAuth(config) => {
-                let token = self.client.get_oauth_token(config).await?;
-                request.header("Authorization", format!("Bearer {}", token))
-            }
             AuthMethod::Custom(provider) => {
                 let (header_name, header_value) = provider.get_auth_header().await?;
                 request.header(header_name, header_value)
@@ -680,9 +620,10 @@ mod tests {
     ) {
         let runtime = tokio::runtime::Runtime::new().unwrap();
         runtime.block_on(async {
-            let client = ApiClient::new(
+            let client = ApiClient::new_with_tls(
                 "http://localhost:8080".to_string(),
                 AuthMethod::BearerToken("test-token".to_string()),
+                None,
             )
             .unwrap();
 

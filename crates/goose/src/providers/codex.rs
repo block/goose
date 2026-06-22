@@ -14,15 +14,16 @@ use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
-use super::utils::{filter_extensions_from_system_prompt, RequestLog};
+use super::utils::filter_extensions_from_system_prompt;
 use crate::config::base::{CodexCommand, CodexSkipGitCheck};
 use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::subprocess::configure_subprocess;
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
@@ -290,7 +291,7 @@ impl CodexProvider {
         }
     }
 
-    /// Extract usage information from a JSON object
+    /// Codex `input_tokens` already includes `cached_input_tokens`.
     fn extract_usage(usage_info: &serde_json::Value, usage: &mut Usage) {
         if usage.input_tokens.is_none() {
             usage.input_tokens = usage_info
@@ -301,6 +302,12 @@ impl CodexProvider {
         if usage.output_tokens.is_none() {
             usage.output_tokens = usage_info
                 .get("output_tokens")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32);
+        }
+        if usage.cache_read_input_tokens.is_none() {
+            usage.cache_read_input_tokens = usage_info
+                .get("cached_input_tokens")
                 .and_then(|v| v.as_i64())
                 .map(|v| v as i32);
         }
@@ -636,6 +643,7 @@ impl ProviderDef for CodexProvider {
     fn from_env(
         model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = Config::global();
@@ -717,9 +725,7 @@ impl Provider for CodexProvider {
             "messages_count": messages.len()
         });
 
-        let mut log = RequestLog::start(model_config, &payload).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to start request log: {}", e))
-        })?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = json!({
             "lines": lines.len(),
@@ -780,6 +786,7 @@ mod tests {
             env_keys: vec![],
             description: "Lookup".into(),
             timeout: Some(30),
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -836,6 +843,7 @@ mod tests {
             env_keys: vec![],
             description: String::new(),
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -979,6 +987,7 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(100));
         assert_eq!(usage.output_tokens, Some(50));
         assert_eq!(usage.total_tokens, Some(150));
+        assert_eq!(usage.cache_read_input_tokens, Some(30));
     }
 
     #[test]
@@ -1079,6 +1088,7 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(5000));
         assert_eq!(usage.output_tokens, Some(100));
         assert_eq!(usage.total_tokens, Some(5100));
+        assert_eq!(usage.cache_read_input_tokens, Some(3000));
     }
 
     #[test_case(

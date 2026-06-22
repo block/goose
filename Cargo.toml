@@ -113,3 +113,12 @@ icu_locale = { version = "=2.1.1", default-features = false }
 [patch.crates-io]
 v8 = { path = "vendor/v8" }
 cudaforge = { git = "https://github.com/jbg/cudaforge", rev = "e7c1967340e40673db98dc9e17da0f04834a456f" }
+
+# Dependencies don't need debug info. You rarely step-debug into third-party
+# crates, but their DWARF dominates `target/debug` — roughly 50-70% of each
+# dependency rlib in this workspace is debug info. Dropping it for dependencies
+# only shrinks the debug build substantially and speeds linking. The "*" spec
+# matches all dependencies but NOT workspace members, so first-party crates keep
+# full debug info and stay fully debuggable; release builds are unaffected.
+[profile.dev.package."*"]
+debug = false

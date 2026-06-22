@@ -1459,7 +1459,7 @@ When thinking is enabled, you can view the model's reasoning process. See [Viewi
 
 :::info Priority Order
 The thinking level is determined in this order (highest to lowest priority):
-1. `request_params.thinking_level` in model configuration (via `GOOSE_PREDEFINED_MODELS`)
+1. `request_params.thinking_level` in model configuration
 2. `GEMINI3_THINKING_LEVEL` environment variable
 3. Default value: `low`
 :::

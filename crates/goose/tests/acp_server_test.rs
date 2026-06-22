@@ -455,6 +455,7 @@ fn test_get_session_info() {
         assert!(meta.get("createdAt").and_then(|v| v.as_str()).is_some());
         assert_eq!(meta.get("messageCount"), Some(&serde_json::json!(1)));
         assert_eq!(meta.get("userSetName"), Some(&serde_json::json!(false)));
+        assert_eq!(meta.get("sessionType"), Some(&serde_json::json!("acp")));
         assert_eq!(meta.get("hasRecipe"), Some(&serde_json::json!(false)));
     });
 }

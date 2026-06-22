@@ -2,6 +2,8 @@ use reqwest::StatusCode;
 use std::time::Duration;
 use thiserror::Error;
 
+use crate::request_log::LogError;
+
 #[derive(Error, Debug, Clone, PartialEq)]
 pub enum ProviderError {
     #[error("Authentication error: {0}")]
@@ -139,6 +141,12 @@ impl From<anyhow::Error> for ProviderError {
 impl From<reqwest::Error> for ProviderError {
     fn from(error: reqwest::Error) -> Self {
         provider_error_from_reqwest(&error)
+    }
+}
+
+impl From<LogError> for ProviderError {
+    fn from(value: LogError) -> Self {
+        ProviderError::ExecutionError(value.to_string())
     }
 }
 

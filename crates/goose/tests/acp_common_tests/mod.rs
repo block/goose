@@ -22,6 +22,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 const SHELL_TEST_CONTENT: &str = "test-shell-content-98765";
+const TURN_CONTEXT_CLOSE: &str = r#"</turn-context>\n"#;
 const OPENAI_SESSION_NAME_RESPONSE: &str = r#"data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1766229303,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"role":"assistant","content":""},"finish_reason":null}]}
 
 data: {"id":"chatcmpl-test","object":"chat.completion.chunk","created":1766229303,"model":"gpt-5-nano","choices":[{"index":0,"delta":{"content":"Generated Test Title"},"finish_reason":null}]}
@@ -41,7 +42,7 @@ async fn new_basic_session<C: Connection>(config: TestConnectionConfig) -> Basic
     let expected_session_id = C::expected_session_id();
     let openai = OpenAiFixture::new(
         vec![(
-            r#"</info-msg>\nwhat is 1+1""#.into(),
+            format!("{TURN_CONTEXT_CLOSE}what is 1+1"),
             include_str!("../acp_test_data/openai_basic.txt"),
         )],
         expected_session_id.clone(),
@@ -82,6 +83,10 @@ pub async fn run_list_sessions<C: Connection>() {
         serde_json::Value::Number(2.into()),
     );
     expected_meta.insert("userSetName".to_string(), serde_json::Value::Bool(false));
+    expected_meta.insert(
+        "sessionType".to_string(),
+        serde_json::Value::String("acp".to_string()),
+    );
     expected_meta.insert("hasRecipe".to_string(), serde_json::Value::Bool(false));
     assert_eq!(
         response,
@@ -99,7 +104,7 @@ pub async fn run_session_name_update_notification<C: Connection>() {
     let openai = OpenAiFixture::new(
         vec![
             (
-                r#"</info-msg>\nwhat should we call this conversation?""#.into(),
+                format!("{TURN_CONTEXT_CLOSE}what should we call this conversation?"),
                 include_str!("../acp_test_data/openai_basic.txt"),
             ),
             (
@@ -1140,7 +1145,7 @@ pub async fn run_prompt_basic<C: Connection>() {
     let expected_session_id = C::expected_session_id();
     let openai = OpenAiFixture::new(
         vec![(
-            r#"</info-msg>\nwhat is 1+1""#.into(),
+            format!("{TURN_CONTEXT_CLOSE}what is 1+1"),
             include_str!("../acp_test_data/openai_basic.txt"),
         )],
         expected_session_id.clone(),
@@ -1168,7 +1173,7 @@ pub async fn run_prompt_codemode<C: Connection>() {
     let openai = OpenAiFixture::new(
         vec![
             (
-                format!(r#"</info-msg>\n{prompt}""#),
+                format!("{TURN_CONTEXT_CLOSE}{prompt}"),
                 include_str!("../acp_test_data/openai_builtin_search.txt"),
             ),
             (
@@ -1215,8 +1220,9 @@ pub async fn run_prompt_image<C: Connection>() {
     let openai = OpenAiFixture::new(
         vec![
             (
-                r#"</info-msg>\nUse the get_image tool and describe what you see in its result.""#
-                    .into(),
+                format!(
+                    "{TURN_CONTEXT_CLOSE}Use the get_image tool and describe what you see in its result."
+                ),
                 include_str!("../acp_test_data/openai_image_tool_call.txt"),
             ),
             (
@@ -1291,7 +1297,7 @@ pub async fn run_prompt_mcp<C: Connection>() {
     let openai = OpenAiFixture::new(
         vec![
             (
-                r#"</info-msg>\nUse the get_code tool and output only its result.""#.into(),
+                format!("{TURN_CONTEXT_CLOSE}Use the get_code tool and output only its result."),
                 include_str!("../acp_test_data/openai_tool_call.txt"),
             ),
             (

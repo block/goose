@@ -2,12 +2,12 @@
   "methods": [
     {
       "method": "_goose/unstable/session/extensions/add",
-      "requestType": "AddExtensionRequest_unstable",
+      "requestType": "AddSessionExtensionRequest_unstable",
       "responseType": "EmptyResponse"
     },
     {
       "method": "_goose/unstable/session/extensions/remove",
-      "requestType": "RemoveExtensionRequest_unstable",
+      "requestType": "RemoveSessionExtensionRequest_unstable",
       "responseType": "EmptyResponse"
     },
     {
@@ -199,6 +199,11 @@
       "method": "_goose/unstable/session/info",
       "requestType": "GetSessionInfoRequest_unstable",
       "responseType": "GetSessionInfoResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/session/conversation/truncate",
+      "requestType": "TruncateSessionConversationRequest_unstable",
+      "responseType": "EmptyResponse"
     },
     {
       "method": "_goose/unstable/session/project/update",
