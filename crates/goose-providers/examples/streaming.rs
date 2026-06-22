@@ -24,12 +24,20 @@ async fn main() -> Result<()> {
     let system = "You are a knowledgable geography expert";
     let messages = [Message::user().with_text("what is the capital of France?")];
 
-    let mut stream = provider.stream(&model, "", system, &messages, &[]).await?;
+    let mut stream = provider
+        .stream(
+            &model,
+            "", // session-id
+            system,
+            &messages,
+            &[],
+        )
+        .await?;
 
     while let Some((Some(msg), _)) = stream.next().await.transpose()? {
         print!("{}", msg.as_concat_text());
     }
-    print!("\n");
+    println!();
 
     Ok(())
 }
