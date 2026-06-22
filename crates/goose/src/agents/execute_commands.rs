@@ -194,9 +194,7 @@ impl Agent {
         let model_config = provider.get_model_config();
         let context_limit = model_config.context_limit();
 
-        let goose_mode = crate::config::Config::global()
-            .get_goose_mode()
-            .unwrap_or_default();
+        let goose_mode = self.goose_mode().await;
 
         let metadata = self
             .config
