@@ -2235,11 +2235,21 @@ impl Agent {
                                             let mut response = request_to_response_map
                                                 .remove(&request.id)
                                                 .unwrap_or_else(|| Message::user().with_generated_id());
-                                            response.add_tool_response_with_metadata(
-                                                request.id.clone(),
-                                                Err(error.clone()),
-                                                request.metadata.as_ref(),
-                                            );
+                                            // Only feed the parse error back if this id isn't
+                                            // already answered. In Chat mode the skip branch above
+                                            // already added a tool response for it; adding another
+                                            // here would duplicate the tool_call_id (which strict
+                                            // providers reject).
+                                            let already_answered = response.content.iter().any(|c| {
+                                                matches!(c, MessageContent::ToolResponse(r) if r.id == request.id)
+                                            });
+                                            if !already_answered {
+                                                response.add_tool_response_with_metadata(
+                                                    request.id.clone(),
+                                                    Err(error.clone()),
+                                                    request.metadata.as_ref(),
+                                                );
+                                            }
                                             response
                                         }
                                     };
