@@ -305,8 +305,14 @@ async function generateClient(meta: {
 
     agentRequestDispatchCases.push(
       `      case "${r.method}": {
-        ${parseLine}
-        return (await callbacks.${handlerName}?.(parsed)) ?? {};
+        if (callbacks.${handlerName}) {
+          ${parseLine}
+          return await callbacks.${handlerName}(parsed);
+        }
+        if (callbacks.extMethod) {
+          return await callbacks.extMethod(method, params);
+        }
+        throw new Error(\`unhandled ext method: \${method}\`);
       }`,
     );
   }

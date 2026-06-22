@@ -836,13 +836,16 @@ export function installGooseExtAgentRequestDispatcher(
     extMethod: async (method, params) => {
       switch (method) {
         case "_goose/unstable/session/recipe/request-params": {
-          const parsed = zRequestRecipeParams_unstable.parse(
-            params,
-          ) as RequestRecipeParams_unstable;
-          return (
-            (await callbacks.unstable_sessionRecipeRequestParams?.(parsed)) ??
-            {}
-          );
+          if (callbacks.unstable_sessionRecipeRequestParams) {
+            const parsed = zRequestRecipeParams_unstable.parse(
+              params,
+            ) as RequestRecipeParams_unstable;
+            return await callbacks.unstable_sessionRecipeRequestParams(parsed);
+          }
+          if (callbacks.extMethod) {
+            return await callbacks.extMethod(method, params);
+          }
+          throw new Error(`unhandled ext method: ${method}`);
         }
         default:
           if (callbacks.extMethod) {
