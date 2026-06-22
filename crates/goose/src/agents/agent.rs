@@ -2111,9 +2111,8 @@ impl Agent {
                                                                 }
                                                                 if let Err(e) = session_manager.add_message(&session_config.id, &msg).await {
                                                                     warn!("Failed to save elicitation message to session: {}", e);
-                                                                } else {
-                                                                    yield AgentEvent::Message(msg);
                                                                 }
+                                                                yield AgentEvent::Message(msg);
                                                             }
                                                             ToolStreamItem::Result(output) => {
                                                                 if let Ok(ref call_result) = output {
