@@ -1,5 +1,5 @@
 import type { ExtensionConfig, ExtensionEntry } from '../api';
-import type { GooseExtension, GooseExtensionEntry, McpServer } from '@aaif/goose-sdk';
+import type { GooseExtension, GooseExtensionEntry } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
 
 export type ConfiguredExtensionEntry = ExtensionEntry & { configKey?: string };
@@ -17,69 +17,54 @@ function headersToRecord(headers: { name: string; value: string }[] = []) {
   return Object.fromEntries(headers.map(({ name, value }) => [name, value]));
 }
 
-function mcpServerToExtension(
-  server: McpServer,
-  entry: GooseExtensionEntry
-): ExtensionEntry | null {
-  const extension = entry.extension;
-  if (extension.type !== 'mcp') {
-    return null;
-  }
-
-  if ('command' in server) {
-    return {
-      type: 'stdio',
-      enabled: entry.enabled,
-      name: server.name,
-      description: extension.description ?? '',
-      cmd: server.command,
-      args: server.args,
-      env_keys: extension.envKeys ?? [],
-      timeout: extension.timeout,
-      bundled: extension.bundled,
-    };
-  }
-
-  if ('url' in server) {
-    return {
-      type: 'streamable_http',
-      enabled: entry.enabled,
-      name: server.name,
-      description: extension.description ?? '',
-      uri: server.url,
-      headers: headersToRecord(server.headers),
-      env_keys: extension.envKeys ?? [],
-      timeout: extension.timeout,
-      socket: extension.socket,
-      bundled: extension.bundled,
-    };
-  }
-
-  return null;
-}
-
-function gooseExtensionEntryToExtensionEntry(
-  entry: GooseExtensionEntry
-): ConfiguredExtensionEntry | null {
-  const configKey = entry.configKey ?? undefined;
-  const extension = entry.extension;
-
+export function gooseExtensionToExtensionConfig(extension: GooseExtension): ExtensionConfig | null {
   switch (extension.type) {
     case 'builtin':
     case 'platform':
       return {
         ...extension,
         description: extension.description ?? '',
-        enabled: entry.enabled,
-        configKey,
       };
     case 'mcp': {
-      const base = mcpServerToExtension(extension.server, entry);
-      return base ? { ...base, configKey } : null;
+      const server = extension.server;
+      if ('command' in server) {
+        return {
+          type: 'stdio',
+          name: server.name,
+          description: extension.description ?? '',
+          cmd: server.command,
+          args: server.args,
+          env_keys: extension.envKeys ?? [],
+          timeout: extension.timeout,
+          bundled: extension.bundled,
+        };
+      }
+      if ('url' in server) {
+        return {
+          type: 'streamable_http',
+          name: server.name,
+          description: extension.description ?? '',
+          uri: server.url,
+          headers: headersToRecord(server.headers),
+          env_keys: extension.envKeys ?? [],
+          timeout: extension.timeout,
+          socket: extension.socket,
+          bundled: extension.bundled,
+        };
+      }
+      return null;
     }
   }
+}
 
-  return null;
+function gooseExtensionEntryToExtensionEntry(
+  entry: GooseExtensionEntry
+): ConfiguredExtensionEntry | null {
+  const config = gooseExtensionToExtensionConfig(entry.extension);
+  if (!config) {
+    return null;
+  }
+  return { ...config, enabled: entry.enabled, configKey: entry.configKey ?? undefined };
 }
 
 export async function getConfiguredGooseExtensions(): Promise<GooseExtensionEntry[]> {
@@ -99,7 +84,7 @@ export async function getConfiguredExtensions(): Promise<ConfiguredExtensionsRes
   };
 }
 
-function extensionConfigToGooseExtension(config: ExtensionConfig): GooseExtension | null {
+export function extensionConfigToGooseExtension(config: ExtensionConfig): GooseExtension | null {
   switch (config.type) {
     case 'builtin':
       return {

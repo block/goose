@@ -1,5 +1,7 @@
 import { toastService } from '../../../toasts';
 import { agentAddExtension, ExtensionConfig, agentRemoveExtension } from '../../../api';
+import { USE_ACP_CHAT } from '../../../acpChatFeatureFlag';
+import { addSessionExtension, removeSessionExtension } from '../../../acp/session-extensions';
 import { errorMessage } from '../../../utils/conversionUtils';
 import {
   createExtensionRecoverHints,
@@ -20,10 +22,14 @@ export async function addToAgent(
     : 0;
 
   try {
-    await agentAddExtension({
-      body: { session_id: sessionId, config: extensionConfig },
-      throwOnError: true,
-    });
+    if (USE_ACP_CHAT) {
+      await addSessionExtension(sessionId, extensionConfig);
+    } else {
+      await agentAddExtension({
+        body: { session_id: sessionId, config: extensionConfig },
+        throwOnError: true,
+      });
+    }
     if (showToast) {
       toastService.dismiss(toastId);
       toastService.success({
@@ -61,10 +67,14 @@ export async function removeFromAgent(
     : 0;
 
   try {
-    await agentRemoveExtension({
-      body: { session_id: sessionId, name: extensionName },
-      throwOnError: true,
-    });
+    if (USE_ACP_CHAT) {
+      await removeSessionExtension(sessionId, extensionName);
+    } else {
+      await agentRemoveExtension({
+        body: { session_id: sessionId, name: extensionName },
+        throwOnError: true,
+      });
+    }
     if (showToast) {
       toastService.dismiss(toastId);
       toastService.success({
