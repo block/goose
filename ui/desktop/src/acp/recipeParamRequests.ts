@@ -47,12 +47,16 @@ function configuredParameterValues(): Record<string, string> {
   return configured ?? {};
 }
 
-function missingRequiredKeys(
+function needsUserValue(parameter: RecipeParameter): boolean {
+  return parameter.requirement === 'required' || parameter.requirement === 'user_prompt';
+}
+
+function missingUserValueKeys(
   parameters: RecipeParameter[],
   values: Record<string, string>
 ): string[] {
   return parameters
-    .filter((parameter) => parameter.requirement === 'required')
+    .filter(needsUserValue)
     .filter((parameter) => !values[parameter.key]?.trim())
     .map((parameter) => parameter.key);
 }
@@ -65,7 +69,7 @@ export async function requestAcpRecipeParams(
   }
 
   const initialValues = configuredParameterValues();
-  if (missingRequiredKeys(request.parameters, initialValues).length === 0) {
+  if (missingUserValueKeys(request.parameters, initialValues).length === 0) {
     return { action: 'submit', values: initialValues };
   }
 
@@ -82,10 +86,7 @@ export async function requestAcpRecipeParams(
   });
 }
 
-export function resolveAcpRecipeParamRequest(
-  id: string,
-  values: Record<string, string>
-): boolean {
+export function resolveAcpRecipeParamRequest(id: string, values: Record<string, string>): boolean {
   const pending = pendingRequests.get(id);
   if (!pending) {
     return false;
