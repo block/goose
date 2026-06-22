@@ -4,6 +4,7 @@ import {
   cancelAcpRecipeParamRequest,
   getAcpRecipeParamRequestsSnapshot,
   requestAcpRecipeParams,
+  resolveAcpRecipeParamRequest,
 } from '../recipeParamRequests';
 
 vi.mock('../../acpChatFeatureFlag', () => ({
@@ -19,6 +20,21 @@ function recipeParamRequest(): RequestRecipeParams_unstable {
         description: 'Topic',
         input_type: 'string',
         requirement: 'user_prompt',
+      },
+    ],
+  };
+}
+
+function optionalRecipeParamRequest(): RequestRecipeParams_unstable {
+  return {
+    sessionId: 'session-1',
+    parameters: [
+      {
+        key: 'tone',
+        description: 'Tone',
+        input_type: 'string',
+        requirement: 'optional',
+        default: 'concise',
       },
     ],
   };
@@ -70,13 +86,52 @@ describe('ACP recipe param requests', () => {
     await expect(response).resolves.toEqual({ action: 'cancel' });
   });
 
-  it('auto-submits when user_prompt parameters already have configured values', async () => {
+  it('keeps user_prompt parameters pending when configured values are available', async () => {
     setRecipeParameters({ topic: 'release notes' });
 
-    await expect(requestAcpRecipeParams(recipeParamRequest())).resolves.toEqual({
+    const response = requestAcpRecipeParams(recipeParamRequest());
+    const [pendingRequest] = getAcpRecipeParamRequestsSnapshot();
+
+    expect(pendingRequest).toMatchObject({
+      sessionId: 'session-1',
+      parameters: [
+        {
+          key: 'topic',
+          requirement: 'user_prompt',
+        },
+      ],
+      initialValues: { topic: 'release notes' },
+    });
+
+    resolveAcpRecipeParamRequest(pendingRequest.id, { topic: 'release notes' });
+    await expect(response).resolves.toEqual({
       action: 'submit',
       values: { topic: 'release notes' },
     });
-    expect(getAcpRecipeParamRequestsSnapshot()).toEqual([]);
+  });
+
+  it('keeps optional-only parameters pending for user confirmation', async () => {
+    setRecipeParameters({});
+
+    const response = requestAcpRecipeParams(optionalRecipeParamRequest());
+    const [pendingRequest] = getAcpRecipeParamRequestsSnapshot();
+
+    expect(pendingRequest).toMatchObject({
+      sessionId: 'session-1',
+      parameters: [
+        {
+          key: 'tone',
+          requirement: 'optional',
+          default: 'concise',
+        },
+      ],
+      initialValues: {},
+    });
+
+    resolveAcpRecipeParamRequest(pendingRequest.id, { tone: 'detailed' });
+    await expect(response).resolves.toEqual({
+      action: 'submit',
+      values: { tone: 'detailed' },
+    });
   });
 });

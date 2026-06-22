@@ -47,20 +47,6 @@ function configuredParameterValues(): Record<string, string> {
   return configured ?? {};
 }
 
-function needsUserValue(parameter: RecipeParameter): boolean {
-  return parameter.requirement === 'required' || parameter.requirement === 'user_prompt';
-}
-
-function missingUserValueKeys(
-  parameters: RecipeParameter[],
-  values: Record<string, string>
-): string[] {
-  return parameters
-    .filter(needsUserValue)
-    .filter((parameter) => !values[parameter.key]?.trim())
-    .map((parameter) => parameter.key);
-}
-
 export async function requestAcpRecipeParams(
   request: RequestRecipeParams_unstable
 ): Promise<RecipeParamsResponse_unstable> {
@@ -69,10 +55,6 @@ export async function requestAcpRecipeParams(
   }
 
   const initialValues = configuredParameterValues();
-  if (missingUserValueKeys(request.parameters, initialValues).length === 0) {
-    return { action: 'submit', values: initialValues };
-  }
-
   const paramRequest: AcpRecipeParamRequest = {
     id: `acp_recipe_params_${uuidv7()}`,
     sessionId: request.sessionId,
