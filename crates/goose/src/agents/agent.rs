@@ -2203,10 +2203,25 @@ impl Agent {
                                         request_msg = request_msg.with_content(rc.clone());
                                     }
 
+                                    // For an unparseable tool call (Err), store a valid
+                                    // placeholder Ok tool-call in history instead of the Err. This
+                                    // keeps the conversation well-formed through EVERY provider
+                                    // formatter's normal Ok path — so we don't have to special-case
+                                    // each formatter's Err arm — and preserves provider metadata
+                                    // (e.g. thought signatures), which is passed through below and
+                                    // copied by the Ok path. The actual parse error rides on the
+                                    // paired tool response.
+                                    let history_tool_call = match &request.tool_call {
+                                        Ok(_) => request.tool_call.clone(),
+                                        Err(_) => Ok(CallToolRequestParams::new(
+                                            "unparseable_tool_call",
+                                        )
+                                        .with_arguments(serde_json::Map::new())),
+                                    };
                                     request_msg = request_msg
                                         .with_tool_request_with_metadata(
                                             request.id.clone(),
-                                            request.tool_call.clone(),
+                                            history_tool_call,
                                             request.metadata.as_ref(),
                                             request.tool_meta.clone(),
                                         );
