@@ -752,6 +752,7 @@ where
         let mut final_usage: Option<ProviderUsage> = None;
         let mut message_id: Option<String> = None;
         let mut thinking: Option<ThinkingState> = None;
+        let mut stop_reason: Option<String> = None;
 
         while let Some(line_result) = stream.next().await {
             let line = line_result?;
@@ -883,13 +884,16 @@ where
                             let parsed_args = if args.is_empty() {
                                 json!({})
                             } else {
-                                match serde_json::from_str::<Value>(&args) {
-                                    Ok(parsed) => parsed,
-                                    Err(_) => {
-                                        // If parsing fails, create an error tool request
+                                match goose_providers::json::parse_tool_arguments(&args) {
+                                    Some(parsed) => parsed,
+                                    None => {
+                                        let message_text = goose_providers::json::truncation_error_message(&args)
+                                            .unwrap_or_else(|| {
+                                                format!("Could not parse tool arguments: {args}")
+                                            });
                                         let error = ErrorData::new(
                                             ErrorCode::INVALID_PARAMS,
-                                            format!("Could not parse tool arguments: {}", args),
+                                            message_text,
                                             None,
                                         );
                                         let mut message = Message::new(
@@ -934,6 +938,11 @@ where
                     }
                     if let Some(delta) = event.data.get("delta") {
                         let stop_details = delta.get("stop_details").filter(|d| !d.is_null());
+                        if stop_reason.is_none() {
+                            if let Some(sr) = delta.get("stop_reason").and_then(|v| v.as_str()) {
+                                stop_reason = Some(sr.to_string());
+                            }
+                        }
                         if delta.get("stop_reason").and_then(|v| v.as_str()) == Some(STOP_REASON_REFUSAL) {
                             let str_field = |key: &str| stop_details
                                 .and_then(|d| d.get(key))
@@ -976,6 +985,40 @@ where
                     // Unknown event type, log and continue
                     tracing::debug!("Unknown streaming event type: {}", event.event_type);
                     continue;
+                }
+            }
+        }
+
+        // Guard: if the stream ended while a tool_use block was still open
+        // (i.e. its content_block_stop never arrived because the model hit the
+        // output-token limit), the accumulated args are truncated. Surface them
+        // as actionable errors instead of silently dropping the tool call.
+        if !accumulated_tool_calls.is_empty() {
+            let truncated_by_limit = stop_reason.as_deref() == Some("max_tokens");
+            let mut ids: Vec<String> = accumulated_tool_calls.keys().cloned().collect();
+            ids.sort();
+            for id in ids {
+                if let Some((_name, args)) = accumulated_tool_calls.remove(&id) {
+                    let guidance = if truncated_by_limit {
+                        "The model's response was truncated — it hit the output token limit while generating this tool call. \
+                         Try increasing max_tokens for this provider or breaking the task into smaller steps."
+                    } else {
+                        "A tool call was not completed before the stream ended. \
+                         Try resending your message or breaking the task into smaller steps."
+                    };
+                    let snippet_len = args.chars().count();
+                    let tail: String = args.chars().rev().take(80).collect::<Vec<_>>().into_iter().rev().collect();
+                    let message_text = format!(
+                        "{guidance}\nReceived {snippet_len} characters of arguments; cut off at: …{tail}"
+                    );
+                    let error = ErrorData::new(ErrorCode::INVALID_PARAMS, message_text, None);
+                    let mut message = Message::new(
+                        Role::Assistant,
+                        chrono::Utc::now().timestamp(),
+                        vec![MessageContent::tool_request(id, Err(error))],
+                    );
+                    message.id = message_id.clone();
+                    yield (Some(message), None);
                 }
             }
         }
@@ -1720,6 +1763,7 @@ mod tests {
         redacted_thinking: Vec<String>,
         text: Vec<String>,
         tool_calls: Vec<String>,
+        tool_errors: Vec<String>,
     }
 
     async fn collect_stream(events: &str) -> StreamedParts {
@@ -1740,11 +1784,10 @@ mod tests {
                         MessageContent::Text(t) => {
                             parts.text.push(t.text.clone());
                         }
-                        MessageContent::ToolRequest(req) => {
-                            if let Ok(call) = &req.tool_call {
-                                parts.tool_calls.push(call.name.to_string());
-                            }
-                        }
+                        MessageContent::ToolRequest(req) => match &req.tool_call {
+                            Ok(call) => parts.tool_calls.push(call.name.to_string()),
+                            Err(e) => parts.tool_errors.push(e.message.to_string()),
+                        },
                         _ => {}
                     }
                 }
@@ -2033,5 +2076,105 @@ mod tests {
             parts.text[0]
         );
         assert!(parts.text[0].contains("context_window"));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_truncated_tool_args_in_content_block_stop() {
+        // A tool_use block that the provider closes (content_block_stop) but whose
+        // accumulated input_json_delta is truncated mid-content-word because the
+        // model hit the output-token limit mid-JSON. Each delta is a valid JSON
+        // fragment; their concatenation is truncated, unterminated JSON.
+        let events = concat!(
+            r##"data: {"type":"message_start","message":{"id":"msg_t","role":"assistant","content":[],"model":"glm-4.7","usage":{"input_tokens":10,"output_tokens":0}}}"##,
+            "\n",
+            r##"data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"tool_t","name":"write","input":{}}}"##,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"/some/path.md\","}}"#,
+            "\n",
+            r##"data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"content\":\"# Very long markdown"}}"##,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"},"usage":{"output_tokens":4096}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let parts = collect_stream(events).await;
+        assert_eq!(
+            parts.tool_errors.len(),
+            1,
+            "expected one tool error, got: {:?}",
+            parts.tool_errors
+        );
+        let msg = &parts.tool_errors[0];
+        assert!(
+            msg.contains("truncated") || msg.contains("output token limit"),
+            "expected actionable truncation message, got: {}",
+            msg
+        );
+        assert!(
+            msg.contains("max_tokens") || msg.contains("smaller steps"),
+            "expected guidance to increase max_tokens or break up the task, got: {}",
+            msg
+        );
+    }
+
+    #[tokio::test]
+    async fn test_streaming_truncated_tool_args_no_content_block_stop() {
+        // The realistic truncation scenario: the model hits the output-token limit
+        // mid-tool-call and the stream ends WITHOUT a content_block_stop for the
+        // open tool_use block. The provider signals stop_reason: "max_tokens".
+        // Each delta is a valid fragment; concatenation is truncated JSON.
+        let events = concat!(
+            r##"data: {"type":"message_start","message":{"id":"msg_t2","role":"assistant","content":[],"model":"glm-4.7","usage":{"input_tokens":10,"output_tokens":0}}}"##,
+            "\n",
+            r##"data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"tool_t2","name":"write","input":{}}}"##,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"/report.md\","}}"#,
+            "\n",
+            r##"data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"content\":\"# Big report that got cut off mid"}}"##,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"},"usage":{"output_tokens":8192}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let parts = collect_stream(events).await;
+        assert_eq!(
+            parts.tool_errors.len(),
+            1,
+            "expected one tool error for the dropped/truncated tool call, got: {:?}",
+            parts.tool_errors
+        );
+        let msg = &parts.tool_errors[0];
+        assert!(
+            msg.contains("truncated") || msg.contains("output token limit"),
+            "expected actionable truncation message, got: {}",
+            msg
+        );
+    }
+
+    #[tokio::test]
+    async fn test_streaming_complete_tool_call_unaffected() {
+        // Regression guard: a normal, complete tool call must still parse and
+        // produce no error even though stop_reason handling is added.
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_ok","role":"assistant","content":[],"model":"glm-4.7","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"tool_ok","name":"write","input":{}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"/ok.md\",\"content\":\"hello\"}"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":15}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let parts = collect_stream(events).await;
+        assert_eq!(parts.tool_calls, vec!["write"]);
+        assert!(parts.tool_errors.is_empty());
     }
 }

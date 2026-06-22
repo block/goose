@@ -2,7 +2,7 @@ use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
 use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
-use crate::json::safely_parse_json;
+use crate::json::{parse_tool_arguments, truncation_error_message};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::{
@@ -653,8 +653,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         metadata.as_ref(),
                     ));
                 } else {
-                    match safely_parse_json(&arguments_str) {
-                        Ok(params) => {
+                    match parse_tool_arguments(&arguments_str) {
+                        Some(params) => {
                             content.push(MessageContent::tool_request_with_metadata(
                                 id,
                                 Ok(CallToolRequestParams::new(function_name)
@@ -662,13 +662,14 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                 metadata.as_ref(),
                             ));
                         }
-                        Err(e) => {
+                        None => {
+                            let message_text = truncation_error_message(&arguments_str)
+                                .unwrap_or_else(|| {
+                                    format!("Could not interpret tool use parameters for id {id}")
+                                });
                             let error = ErrorData {
                                 code: ErrorCode::INVALID_PARAMS,
-                                message: Cow::from(format!(
-                                    "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
-                                    id, e, arguments_str
-                                )),
+                                message: Cow::from(message_text),
                                 data: None,
                             };
                             content.push(MessageContent::tool_request_with_metadata(
@@ -1085,12 +1086,6 @@ where
 
                 for index in sorted_indices {
                     if let Some((id, function_name, arguments, extra_fields)) = tool_call_data.get(&index) {
-                        let parsed = if arguments.is_empty() {
-                            Ok(json!({}))
-                        } else {
-                            safely_parse_json(arguments)
-                        };
-
                         let metadata = if let Some(sig) = &last_signature {
                             let mut combined = extra_fields.clone().unwrap_or_default();
                             combined.insert(
@@ -1102,26 +1097,34 @@ where
                             extra_fields.as_ref().filter(|m| !m.is_empty()).cloned()
                         };
 
-                        let content = match parsed {
-                            Ok(params) => {
-                                MessageContent::tool_request_with_metadata(
+                        let content = if arguments.is_empty() {
+                            MessageContent::tool_request_with_metadata(
+                                id.clone(),
+                                Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(json!({})))),
+                                metadata.as_ref(),
+                            )
+                        } else {
+                            match parse_tool_arguments(arguments) {
+                                Some(params) => MessageContent::tool_request_with_metadata(
                                     id.clone(),
                                     Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(params))),
                                     metadata.as_ref(),
-                                )
-                            },
-                            Err(e) => {
-                                let error = ErrorData {
-                                    code: ErrorCode::INVALID_PARAMS,
-                                    message: Cow::from(format!(
-                                        "Could not interpret tool use parameters for id {}: {}",
-                                        id, e
-                                    )),
-                                    data: None,
-                                };
-                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                                ),
+                                None => {
+                                    let message_text = truncation_error_message(arguments)
+                                        .unwrap_or_else(|| {
+                                            format!("Could not interpret tool use parameters for id {id}")
+                                        });
+                                    let error = ErrorData {
+                                        code: ErrorCode::INVALID_PARAMS,
+                                        message: Cow::from(message_text),
+                                        data: None,
+                                    };
+                                    MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                                }
                             }
                         };
+
                         contents.push(content);
                     }
                 }
@@ -1934,7 +1937,7 @@ mod tests {
                     message: msg,
                     data: None,
                 }) => {
-                    assert!(msg.starts_with("Could not interpret tool use parameters"));
+                    assert!(msg.contains("tool arguments") || msg.contains("truncated"));
                 }
                 _ => panic!("Expected InvalidParameters error"),
             }

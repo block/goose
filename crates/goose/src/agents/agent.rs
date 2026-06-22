@@ -2222,14 +2222,15 @@ impl Agent {
                                         yield AgentEvent::Message(final_response.clone());
                                         messages_to_add.push(final_response);
                                     } else {
-                                        error!(
-                                            "Tool call could not be parsed: {}",
-                                            request.tool_call.as_ref().unwrap_err(),
-                                        );
+                                        let err_msg = request
+                                            .tool_call
+                                            .as_ref()
+                                            .unwrap_err()
+                                            .message
+                                            .to_string();
+                                        error!("Tool call could not be parsed: {}", err_msg);
                                         yield AgentEvent::Message(
-                                            Message::assistant().with_text(
-                                                "A tool call could not be parsed — the response may have been truncated. Try breaking the task into smaller steps or resending your message."
-                                            )
+                                            Message::assistant().with_text(err_msg)
                                         );
                                         exit_chat = true;
                                         break;

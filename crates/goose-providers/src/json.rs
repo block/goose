@@ -122,6 +122,89 @@ pub fn json_escape_control_chars_in_string(s: &str) -> String {
     r
 }
 
+/// Detect whether a raw tool-arguments string looks truncated (the model hit
+/// its output-token limit mid-JSON). A truncated JSON object/array typically
+/// does not end with a structural closer because the model was cut off
+/// mid-value before emitting the closing delimiter.
+pub fn looks_truncated(args: &str) -> bool {
+    let trimmed = args.trim_end();
+    !trimmed.is_empty() && !trimmed.ends_with('}') && !trimmed.ends_with(']')
+}
+
+/// Build an actionable error message for tool arguments that could not be
+/// parsed. `args` is the raw, accumulated arguments string from the provider.
+///
+/// The message distinguishes truncation (likely from the output token limit)
+/// from other malformation, and includes a snippet of where parsing broke.
+pub fn truncation_error_message(args: &str) -> Option<String> {
+    if args.is_empty() {
+        return None;
+    }
+
+    let trimmed = args.trim_end();
+    let is_truncated = looks_truncated(trimmed);
+
+    let snippet = {
+        let len = trimmed.chars().count();
+        if len > 80 {
+            let s: String = trimmed
+                .chars()
+                .rev()
+                .take(80)
+                .collect::<Vec<_>>()
+                .into_iter()
+                .rev()
+                .collect();
+            format!("…{s}")
+        } else {
+            trimmed.to_string()
+        }
+    };
+
+    let guidance = if is_truncated {
+        "The model's response was truncated — it hit the output token limit while generating this tool call. \
+         Try increasing max_tokens for this provider or breaking the task into smaller steps."
+    } else {
+        "The model produced malformed tool arguments. Try resending your message or breaking the task into smaller steps."
+    };
+
+    Some(format!(
+        "{guidance}\nReceived {} characters; cut off at: {snippet}",
+        trimmed.chars().count()
+    ))
+}
+
+/// Parse tool-call arguments with a tiered strategy that avoids silent data
+/// loss from truncation while still tolerating common model quirks like
+/// unescaped control characters.
+///
+/// 1. Strict parse — handles the common case and is the only path that
+///    guarantees the arguments are complete and well-formed.
+/// 2. If strict fails and the string does NOT look truncated, try
+///    [`safely_parse_json`] — this repairs unescaped control characters (e.g.
+///    raw newlines) that some models emit inside string values, without the
+///    data-loss risk of repairing truncation.
+/// 3. If the string looks truncated (or both parses fail), return `None` so
+///    the caller can surface an actionable error via
+///    [`truncation_error_message`].
+pub fn parse_tool_arguments(args: &str) -> Option<serde_json::Value> {
+    if args.is_empty() {
+        return Some(serde_json::Value::Object(serde_json::Map::new()));
+    }
+
+    if let Ok(value) = serde_json::from_str::<serde_json::Value>(args) {
+        return Some(value);
+    }
+
+    if !looks_truncated(args) {
+        if let Ok(value) = safely_parse_json(args) {
+            return Some(value);
+        }
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -217,5 +300,60 @@ mod tests {
             json_escape_control_chars_in_string("Hello\u{0001}World"),
             "Hello\\u0001World"
         );
+    }
+
+    #[test]
+    fn test_truncation_error_message_valid_json() {
+        assert!(truncation_error_message(r#"{"key":"value"}"#).is_none());
+        assert!(truncation_error_message(r#"{}"#).is_none());
+        assert!(truncation_error_message("").is_none());
+    }
+
+    #[test]
+    fn test_parse_tool_arguments_control_char_recovery() {
+        // Unescaped control chars (raw newline) inside a string value should
+        // still parse successfully via safely_parse_json fallback.
+        let args = "{\"key\": \"value\nwith newline\"}";
+        let parsed = parse_tool_arguments(args).expect("control-char JSON should parse");
+        assert_eq!(parsed["key"], "value\nwith newline");
+    }
+
+    #[test]
+    fn test_parse_tool_arguments_truncated_fails() {
+        let truncated = r##"{"path":"/report.md","content":"# Big report that got cut"##;
+        assert!(
+            parse_tool_arguments(truncated).is_none(),
+            "truncated JSON should NOT parse (would silently invoke tool with truncated content)"
+        );
+    }
+
+    #[test]
+    fn test_parse_tool_arguments_strict_json() {
+        let valid = r#"{"key":"value"}"#;
+        assert!(parse_tool_arguments(valid).is_some());
+        assert!(parse_tool_arguments("").is_some());
+    }
+
+    #[test]
+    fn test_truncation_error_message_truncated() {
+        let truncated = r##"{"path":"/report.md","content":"# Big report that got cut"##;
+        let msg =
+            truncation_error_message(truncated).expect("truncated args should produce an error");
+        assert!(msg.contains("truncated"), "msg: {msg}");
+        assert!(
+            msg.contains("max_tokens") || msg.contains("smaller steps"),
+            "msg: {msg}"
+        );
+        assert!(msg.contains("cut off at:"), "msg: {msg}");
+    }
+
+    #[test]
+    fn test_truncation_error_message_malformed() {
+        // Malformed JSON that ends with } (not truncated, just broken).
+        // safely_parse_json should fail too, so truncation_error_message fires.
+        let malformed = r##"{"key": }"##;
+        let msg =
+            truncation_error_message(malformed).expect("malformed args should produce an error");
+        assert!(msg.contains("malformed"), "msg: {msg}");
     }
 }
