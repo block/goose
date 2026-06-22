@@ -451,8 +451,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                             let error = ErrorData {
                                 code: ErrorCode::INVALID_PARAMS,
                                 message: Cow::from(format!(
-                                    "Tool arguments for id {} must be a JSON object. Raw arguments: '{}'",
-                                    id, arguments_str
+                                    "Tool arguments for {} (id {}) must be a JSON object. Raw arguments: '{}'",
+                                    function_name, id, arguments_str
                                 )),
                                 data: None,
                             };
@@ -1082,6 +1082,10 @@ mod tests {
                     data: None,
                 }) => {
                     assert!(msg.contains("must be a JSON object"));
+                    assert!(
+                        msg.contains("example_fn"),
+                        "error must name the original tool so the model can retry it: {msg}"
+                    );
                 }
                 _ => panic!("Expected InvalidParameters error for non-object args"),
             }

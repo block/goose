@@ -687,7 +687,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                             let error = ErrorData {
                                 code: ErrorCode::INVALID_PARAMS,
                                 message: Cow::from(format!(
-                                    "Tool arguments for id {} must be a JSON object, got {}. Raw arguments: '{}'",
+                                    "Tool arguments for {} (id {}) must be a JSON object, got {}. Raw arguments: '{}'",
+                                    function_name,
                                     id,
                                     match other {
                                         Value::Array(_) => "an array",
@@ -1164,8 +1165,8 @@ where
                                 let error = ErrorData {
                                     code: ErrorCode::INVALID_PARAMS,
                                     message: Cow::from(format!(
-                                        "Tool arguments for id {} must be a JSON object. Raw arguments: '{}'",
-                                        id, arguments
+                                        "Tool arguments for {} (id {}) must be a JSON object. Raw arguments: '{}'",
+                                        function_name, id, arguments
                                     )),
                                     data: None,
                                 };
@@ -2026,6 +2027,10 @@ mod tests {
                 }) => {
                     assert!(msg.contains("must be a JSON object"));
                     assert!(msg.contains("an array"));
+                    assert!(
+                        msg.contains("example_fn"),
+                        "error must name the original tool so the model can retry it: {msg}"
+                    );
                 }
                 _ => panic!("Expected InvalidParameters error for non-object args"),
             }
@@ -2846,6 +2851,10 @@ data: [DONE]"#;
                             ..
                         }) => {
                             assert!(m.contains("must be a JSON object"));
+                            assert!(
+                                m.contains("test_tool"),
+                                "error must name the original tool so the model can retry it: {m}"
+                            );
                             return Ok(());
                         }
                         _ => panic!("expected INVALID_PARAMS for non-object streamed args"),
