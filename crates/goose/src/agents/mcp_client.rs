@@ -1,7 +1,7 @@
 use crate::action_required_manager::{ActionRequiredManager, ElicitationOutcome};
 use crate::agents::tool_execution::ToolCallContext;
 use crate::agents::types::SharedProvider;
-use crate::session_context::{SESSION_ID_HEADER, WORKING_DIR_HEADER};
+use crate::session_context::{SESSION_ID_HEADER, TOOL_CALL_REQUEST_ID_HEADER, WORKING_DIR_HEADER};
 use rmcp::model::{
     CreateElicitationRequestParams, CreateElicitationResult, ElicitationAction, ErrorCode,
     ExtensionCapabilities, Extensions, JsonObject, ListRootsResult, LoggingMessageNotification,
@@ -200,6 +200,15 @@ impl GooseClient {
             .map(|value| value.to_string())
     }
 
+    fn tool_call_request_id_from_extensions(extensions: &Extensions) -> Option<String> {
+        let meta = extensions.get::<Meta>()?;
+        meta.0
+            .iter()
+            .find(|(key, _)| key.eq_ignore_ascii_case(TOOL_CALL_REQUEST_ID_HEADER))
+            .and_then(|(_, value)| value.as_str())
+            .map(|value| value.to_string())
+    }
+
     fn resolved_extensions(&self) -> ExtensionCapabilities {
         if let Some(host_info) = &self.capabilities.host_info {
             if host_info.explicit_extensions {
@@ -383,6 +392,14 @@ impl ClientHandler for GooseClient {
                     None,
                 )
             })?;
+        let tool_call_request_id = Self::tool_call_request_id_from_extensions(&context.extensions)
+            .ok_or_else(|| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "Could not resolve tool call request id for elicitation request",
+                    None,
+                )
+            })?;
 
         let (message, schema_value) = match &request {
             CreateElicitationRequestParams::FormElicitationParams {
@@ -405,7 +422,13 @@ impl ClientHandler for GooseClient {
         };
 
         ActionRequiredManager::global()
-            .request_and_wait(session_id, message, schema_value, Duration::from_secs(300))
+            .request_and_wait(
+                session_id,
+                tool_call_request_id,
+                message,
+                schema_value,
+                Duration::from_secs(300),
+            )
             .await
             .map(|response| match response {
                 ElicitationOutcome::Accept(user_data) => {
@@ -535,10 +558,16 @@ impl McpClient {
         &self,
         session_id: &str,
         working_dir: Option<&str>,
+        tool_call_request_id: Option<&str>,
         request: ClientRequest,
         cancel_token: CancellationToken,
     ) -> Result<ServerResult, Error> {
-        let request = inject_session_context_into_request(request, Some(session_id), working_dir);
+        let request = inject_session_context_into_request(
+            request,
+            Some(session_id),
+            working_dir,
+            tool_call_request_id,
+        );
         // The inner mutex is held only for the send; the actual response wait
         // happens outside the lock so concurrent calls can overlap.
         let handle = {
@@ -603,6 +632,7 @@ impl McpClientTrait for McpClient {
             .send_request_with_context(
                 session_id,
                 None,
+                None,
                 ClientRequest::ListResourcesRequest(RequestOptionalParam::with_param(
                     PaginatedRequestParams::default().with_cursor(cursor),
                 )),
@@ -626,6 +656,7 @@ impl McpClientTrait for McpClient {
             .send_request_with_context(
                 session_id,
                 None,
+                None,
                 ClientRequest::ReadResourceRequest(Request::new(ReadResourceRequestParams::new(
                     uri.to_string(),
                 ))),
@@ -648,6 +679,7 @@ impl McpClientTrait for McpClient {
         let res = self
             .send_request_with_context(
                 session_id,
+                None,
                 None,
                 ClientRequest::ListToolsRequest(RequestOptionalParam::with_param(
                     PaginatedRequestParams::default().with_cursor(cursor),
@@ -679,6 +711,7 @@ impl McpClientTrait for McpClient {
             .send_request_with_context(
                 &ctx.session_id,
                 ctx.working_dir_str(),
+                ctx.tool_call_request_id.as_deref(),
                 request,
                 cancel_token,
             )
@@ -699,6 +732,7 @@ impl McpClientTrait for McpClient {
         let res = self
             .send_request_with_context(
                 session_id,
+                None,
                 None,
                 ClientRequest::ListPromptsRequest(RequestOptionalParam::with_param(
                     PaginatedRequestParams::default().with_cursor(cursor),
@@ -732,6 +766,7 @@ impl McpClientTrait for McpClient {
             .send_request_with_context(
                 session_id,
                 None,
+                None,
                 ClientRequest::GetPromptRequest(Request::new(params)),
                 cancel_token,
             )
@@ -760,9 +795,11 @@ fn inject_session_context_into_extensions(
     mut extensions: Extensions,
     session_id: Option<&str>,
     working_dir: Option<&str>,
+    tool_call_request_id: Option<&str>,
 ) -> Extensions {
     let session_id = session_id.filter(|id| !id.is_empty());
     let working_dir = working_dir.filter(|dir| !dir.is_empty());
+    let tool_call_request_id = tool_call_request_id.filter(|id| !id.is_empty());
     let mut meta_map = extensions
         .get::<Meta>()
         .map(|meta| meta.0.clone())
@@ -770,7 +807,9 @@ fn inject_session_context_into_extensions(
 
     // JsonObject is case-sensitive, so we use retain for case-insensitive removal
     meta_map.retain(|k, _| {
-        !k.eq_ignore_ascii_case(SESSION_ID_HEADER) && !k.eq_ignore_ascii_case(WORKING_DIR_HEADER)
+        !k.eq_ignore_ascii_case(SESSION_ID_HEADER)
+            && !k.eq_ignore_ascii_case(WORKING_DIR_HEADER)
+            && !k.eq_ignore_ascii_case(TOOL_CALL_REQUEST_ID_HEADER)
     });
 
     if let Some(session_id) = session_id {
@@ -787,6 +826,13 @@ fn inject_session_context_into_extensions(
         );
     }
 
+    if let Some(tool_call_request_id) = tool_call_request_id {
+        meta_map.insert(
+            TOOL_CALL_REQUEST_ID_HEADER.to_string(),
+            Value::String(tool_call_request_id.to_string()),
+        );
+    }
+
     extensions.insert(Meta(meta_map));
     extensions
 }
@@ -795,36 +841,61 @@ fn inject_session_context_into_request(
     request: ClientRequest,
     session_id: Option<&str>,
     working_dir: Option<&str>,
+    tool_call_request_id: Option<&str>,
 ) -> ClientRequest {
     match request {
         ClientRequest::ListResourcesRequest(mut req) => {
-            req.extensions =
-                inject_session_context_into_extensions(req.extensions, session_id, working_dir);
+            req.extensions = inject_session_context_into_extensions(
+                req.extensions,
+                session_id,
+                working_dir,
+                None,
+            );
             ClientRequest::ListResourcesRequest(req)
         }
         ClientRequest::ReadResourceRequest(mut req) => {
-            req.extensions =
-                inject_session_context_into_extensions(req.extensions, session_id, working_dir);
+            req.extensions = inject_session_context_into_extensions(
+                req.extensions,
+                session_id,
+                working_dir,
+                None,
+            );
             ClientRequest::ReadResourceRequest(req)
         }
         ClientRequest::ListToolsRequest(mut req) => {
-            req.extensions =
-                inject_session_context_into_extensions(req.extensions, session_id, working_dir);
+            req.extensions = inject_session_context_into_extensions(
+                req.extensions,
+                session_id,
+                working_dir,
+                None,
+            );
             ClientRequest::ListToolsRequest(req)
         }
         ClientRequest::CallToolRequest(mut req) => {
-            req.extensions =
-                inject_session_context_into_extensions(req.extensions, session_id, working_dir);
+            req.extensions = inject_session_context_into_extensions(
+                req.extensions,
+                session_id,
+                working_dir,
+                tool_call_request_id,
+            );
             ClientRequest::CallToolRequest(req)
         }
         ClientRequest::ListPromptsRequest(mut req) => {
-            req.extensions =
-                inject_session_context_into_extensions(req.extensions, session_id, working_dir);
+            req.extensions = inject_session_context_into_extensions(
+                req.extensions,
+                session_id,
+                working_dir,
+                None,
+            );
             ClientRequest::ListPromptsRequest(req)
         }
         ClientRequest::GetPromptRequest(mut req) => {
-            req.extensions =
-                inject_session_context_into_extensions(req.extensions, session_id, working_dir);
+            req.extensions = inject_session_context_into_extensions(
+                req.extensions,
+                session_id,
+                working_dir,
+                None,
+            );
             ClientRequest::GetPromptRequest(req)
         }
         other => other,
@@ -940,7 +1011,7 @@ mod tests {
             }
 
             let extensions =
-                inject_session_context_into_extensions(Extensions::new(), ext_session, None);
+                inject_session_context_into_extensions(Extensions::new(), ext_session, None, None);
 
             let resolved = client.resolve_session_id(&extensions).await;
 
@@ -967,7 +1038,7 @@ mod tests {
         );
 
         let request = request_builder(extensions);
-        let request = inject_session_context_into_request(request, Some(session_id), None);
+        let request = inject_session_context_into_request(request, Some(session_id), None, None);
         let extensions = request_extensions(&request).expect("request should have extensions");
         let meta = extensions
             .get::<Meta>()
@@ -981,13 +1052,20 @@ mod tests {
             meta.0.get("other-key"),
             Some(&Value::String("preserve-me".to_string()))
         );
+        if matches!(request, ClientRequest::CallToolRequest(_)) {
+            assert!(!meta.0.contains_key(TOOL_CALL_REQUEST_ID_HEADER));
+        }
     }
 
     #[test]
     fn test_session_id_in_mcp_meta() {
         let session_id = "test-session-789";
-        let extensions =
-            inject_session_context_into_extensions(Default::default(), Some(session_id), None);
+        let extensions = inject_session_context_into_extensions(
+            Default::default(),
+            Some(session_id),
+            None,
+            None,
+        );
         let mcp_meta = extensions.get::<Meta>().unwrap();
 
         assert_eq!(
@@ -1039,10 +1117,41 @@ mod tests {
             .unwrap(),
         );
 
-        let extensions = inject_session_context_into_extensions(extensions, session_id, None);
+        let extensions = inject_session_context_into_extensions(extensions, session_id, None, None);
         let mcp_meta = extensions.get::<Meta>().unwrap();
 
         assert_eq!(&mcp_meta.0, expected_meta.as_object().unwrap());
+    }
+
+    #[test]
+    fn test_tool_call_request_id_injected_only_for_call_tool() {
+        let session_id = "test-session-id";
+        let tool_call_request_id = "tool-request-1";
+
+        let call_request = inject_session_context_into_request(
+            call_tool_request(Extensions::new()),
+            Some(session_id),
+            None,
+            Some(tool_call_request_id),
+        );
+        let call_meta = request_extensions(&call_request)
+            .and_then(|extensions| extensions.get::<Meta>())
+            .expect("call request should have meta");
+        assert_eq!(
+            call_meta.0.get(TOOL_CALL_REQUEST_ID_HEADER),
+            Some(&Value::String(tool_call_request_id.to_string()))
+        );
+
+        let tools_request = inject_session_context_into_request(
+            list_tools_request(Extensions::new()),
+            Some(session_id),
+            None,
+            Some(tool_call_request_id),
+        );
+        let tools_meta = request_extensions(&tools_request)
+            .and_then(|extensions| extensions.get::<Meta>())
+            .expect("list tools request should have meta");
+        assert!(!tools_meta.0.contains_key(TOOL_CALL_REQUEST_ID_HEADER));
     }
 
     #[test]

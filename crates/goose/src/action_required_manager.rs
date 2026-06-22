@@ -1,14 +1,14 @@
 use anyhow::Result;
 use serde_json::Value;
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use tokio::sync::{Mutex, OwnedMutexGuard, RwLock};
+use tokio::sync::{mpsc, Mutex, OwnedMutexGuard, RwLock};
 use tokio::time::timeout;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::conversation::message::{ActionRequiredData, Message, MessageContent};
+use crate::conversation::message::{Message, MessageContent};
 
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) enum ElicitationOutcome {
@@ -46,14 +46,14 @@ impl PendingResponseClaim {
 
 pub(crate) struct ActionRequiredManager {
     pending: Arc<RwLock<HashMap<String, Arc<Mutex<PendingRequest>>>>>,
-    queued_requests: Mutex<HashMap<String, VecDeque<Message>>>,
+    action_required_senders: Mutex<HashMap<String, mpsc::Sender<Message>>>,
 }
 
 impl ActionRequiredManager {
     fn new() -> Self {
         Self {
             pending: Arc::new(RwLock::new(HashMap::new())),
-            queued_requests: Mutex::new(HashMap::new()),
+            action_required_senders: Mutex::new(HashMap::new()),
         }
     }
 
@@ -66,6 +66,7 @@ impl ActionRequiredManager {
     pub(crate) async fn request_and_wait(
         &self,
         session_id: String,
+        tool_call_request_id: String,
         message: String,
         schema: Value,
         timeout_duration: Duration,
@@ -87,20 +88,33 @@ impl ActionRequiredManager {
             MessageContent::action_required_elicitation(id.clone(), message, schema),
         );
 
-        self.queued_requests
+        let sender = self
+            .action_required_senders
             .lock()
             .await
-            .entry(session_id.clone())
-            .or_default()
-            .push_back(action_required_message);
+            .get(&tool_call_request_id)
+            .cloned();
+
+        let Some(sender) = sender else {
+            self.pending.write().await.remove(&id);
+            return Err(anyhow::anyhow!(
+                "Tool call request not found for elicitation: {}",
+                tool_call_request_id
+            ));
+        };
+
+        if sender.send(action_required_message).await.is_err() {
+            self.pending.write().await.remove(&id);
+            return Err(anyhow::anyhow!(
+                "Tool call action-required stream closed: {}",
+                tool_call_request_id
+            ));
+        }
 
         let result = self
             .wait_for_response(&id, pending_request, rx, timeout_duration)
             .await;
 
-        if result.is_err() {
-            self.remove_queued_request(&session_id, &id).await;
-        }
         self.pending.write().await.remove(&id);
 
         result
@@ -182,49 +196,23 @@ impl ActionRequiredManager {
         }
     }
 
-    pub(crate) async fn drain_requests_for_session(&self, session_id: &str) -> Vec<Message> {
-        self.queued_requests
+    pub(crate) async fn register_action_required_stream(
+        &self,
+        tool_call_request_id: String,
+    ) -> mpsc::Receiver<Message> {
+        let (tx, rx) = mpsc::channel(8);
+        self.action_required_senders
             .lock()
             .await
-            .remove(session_id)
-            .map(|queue| queue.into_iter().collect())
-            .unwrap_or_default()
+            .insert(tool_call_request_id, tx);
+        rx
     }
 
-    async fn remove_queued_request(&self, session_id: &str, request_id: &str) {
-        let mut queued_requests = self.queued_requests.lock().await;
-        let Some(queue) = queued_requests.get_mut(session_id) else {
-            return;
-        };
-
-        queue.retain(|message| {
-            !message.content.iter().any(|content| {
-                matches!(
-                    content,
-                    MessageContent::ActionRequired(action_required)
-                        if matches!(
-                            &action_required.data,
-                            ActionRequiredData::Elicitation { id, .. } if id == request_id
-                        )
-                )
-            })
-        });
-
-        if queue.is_empty() {
-            queued_requests.remove(session_id);
-        }
-    }
-
-    pub(crate) async fn requeue_requests_front(&self, session_id: &str, messages: Vec<Message>) {
-        if messages.is_empty() {
-            return;
-        }
-
-        let mut queued_requests = self.queued_requests.lock().await;
-        let queue = queued_requests.entry(session_id.to_string()).or_default();
-        for message in messages.into_iter().rev() {
-            queue.push_front(message);
-        }
+    pub(crate) async fn unregister_action_required_stream(&self, tool_call_request_id: &str) {
+        self.action_required_senders
+            .lock()
+            .await
+            .remove(tool_call_request_id);
     }
 }
 
@@ -244,32 +232,26 @@ mod tests {
         }
     }
 
-    async fn wait_for_elicitation_messages(
-        manager: &ActionRequiredManager,
-        session_id: &str,
-    ) -> Vec<Message> {
-        tokio::time::timeout(Duration::from_secs(1), async {
-            loop {
-                let messages = manager.drain_requests_for_session(session_id).await;
-                if !messages.is_empty() {
-                    return messages;
-                }
-                tokio::task::yield_now().await;
-            }
-        })
-        .await
-        .unwrap_or_else(|_| panic!("timed out waiting for elicitation message for {session_id}"))
+    async fn recv_elicitation_message(rx: &mut mpsc::Receiver<Message>) -> Message {
+        tokio::time::timeout(Duration::from_secs(1), rx.recv())
+            .await
+            .expect("timed out waiting for elicitation message")
+            .expect("action-required stream closed")
     }
 
     #[tokio::test]
     async fn wrong_session_does_not_consume_pending_response() {
         let manager = Arc::new(ActionRequiredManager::new());
+        let mut action_required_rx = manager
+            .register_action_required_stream("tool-call-a".to_string())
+            .await;
         let waiter = {
             let manager = manager.clone();
             tokio::spawn(async move {
                 manager
                     .request_and_wait(
                         "session-a".to_string(),
+                        "tool-call-a".to_string(),
                         "Need input".to_string(),
                         json!({ "type": "object" }),
                         Duration::from_secs(5),
@@ -278,9 +260,8 @@ mod tests {
             })
         };
 
-        let messages = wait_for_elicitation_messages(&manager, "session-a").await;
-        assert_eq!(messages.len(), 1);
-        let request_id = elicitation_id(&messages[0]);
+        let message = recv_elicitation_message(&mut action_required_rx).await;
+        let request_id = elicitation_id(&message);
 
         let err = match manager.claim_response("session-b", &request_id).await {
             Ok(_) => panic!("wrong session should not claim pending response"),
@@ -303,14 +284,21 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn drains_only_requested_session() {
+    async fn streams_only_requested_tool_call() {
         let manager = Arc::new(ActionRequiredManager::new());
+        let mut stream_a = manager
+            .register_action_required_stream("tool-call-a".to_string())
+            .await;
+        let mut stream_b = manager
+            .register_action_required_stream("tool-call-b".to_string())
+            .await;
         let waiter_a = {
             let manager = manager.clone();
             tokio::spawn(async move {
                 manager
                     .request_and_wait(
                         "session-a".to_string(),
+                        "tool-call-a".to_string(),
                         "Need input A".to_string(),
                         json!({ "type": "object" }),
                         Duration::from_secs(5),
@@ -324,6 +312,7 @@ mod tests {
                 manager
                     .request_and_wait(
                         "session-b".to_string(),
+                        "tool-call-b".to_string(),
                         "Need input B".to_string(),
                         json!({ "type": "object" }),
                         Duration::from_secs(5),
@@ -332,16 +321,12 @@ mod tests {
             })
         };
 
-        let session_a_messages = wait_for_elicitation_messages(&manager, "session-a").await;
-        assert_eq!(session_a_messages.len(), 1);
-        let request_id_a = elicitation_id(&session_a_messages[0]);
+        let message_a = recv_elicitation_message(&mut stream_a).await;
+        let request_id_a = elicitation_id(&message_a);
+        assert!(stream_a.try_recv().is_err());
 
-        let empty_messages = manager.drain_requests_for_session("session-a").await;
-        assert!(empty_messages.is_empty());
-
-        let session_b_messages = wait_for_elicitation_messages(&manager, "session-b").await;
-        assert_eq!(session_b_messages.len(), 1);
-        let request_id_b = elicitation_id(&session_b_messages[0]);
+        let message_b = recv_elicitation_message(&mut stream_b).await;
+        let request_id_b = elicitation_id(&message_b);
 
         manager
             .claim_response("session-a", &request_id_a)
@@ -369,12 +354,16 @@ mod tests {
     #[tokio::test]
     async fn claimed_response_can_complete_after_timeout_deadline() {
         let manager = Arc::new(ActionRequiredManager::new());
+        let mut action_required_rx = manager
+            .register_action_required_stream("tool-call-a".to_string())
+            .await;
         let waiter = {
             let manager = manager.clone();
             tokio::spawn(async move {
                 manager
                     .request_and_wait(
                         "session-a".to_string(),
+                        "tool-call-a".to_string(),
                         "Need input".to_string(),
                         json!({ "type": "object" }),
                         Duration::from_millis(25),
@@ -383,9 +372,8 @@ mod tests {
             })
         };
 
-        let messages = wait_for_elicitation_messages(&manager, "session-a").await;
-        assert_eq!(messages.len(), 1);
-        let request_id = elicitation_id(&messages[0]);
+        let message = recv_elicitation_message(&mut action_required_rx).await;
+        let request_id = elicitation_id(&message);
 
         let claim = manager
             .claim_response("session-a", &request_id)
@@ -407,12 +395,19 @@ mod tests {
     #[tokio::test]
     async fn request_and_wait_returns_decline_and_cancel_actions() {
         let manager = Arc::new(ActionRequiredManager::new());
+        let mut decline_rx = manager
+            .register_action_required_stream("tool-call-a".to_string())
+            .await;
+        let mut cancel_rx = manager
+            .register_action_required_stream("tool-call-b".to_string())
+            .await;
         let decline_waiter = {
             let manager = manager.clone();
             tokio::spawn(async move {
                 manager
                     .request_and_wait(
                         "session-a".to_string(),
+                        "tool-call-a".to_string(),
                         "Need input A".to_string(),
                         json!({ "type": "object" }),
                         Duration::from_secs(5),
@@ -426,6 +421,7 @@ mod tests {
                 manager
                     .request_and_wait(
                         "session-b".to_string(),
+                        "tool-call-b".to_string(),
                         "Need input B".to_string(),
                         json!({ "type": "object" }),
                         Duration::from_secs(5),
@@ -434,10 +430,10 @@ mod tests {
             })
         };
 
-        let decline_messages = wait_for_elicitation_messages(&manager, "session-a").await;
-        let decline_request_id = elicitation_id(&decline_messages[0]);
-        let cancel_messages = wait_for_elicitation_messages(&manager, "session-b").await;
-        let cancel_request_id = elicitation_id(&cancel_messages[0]);
+        let decline_message = recv_elicitation_message(&mut decline_rx).await;
+        let decline_request_id = elicitation_id(&decline_message);
+        let cancel_message = recv_elicitation_message(&mut cancel_rx).await;
+        let cancel_request_id = elicitation_id(&cancel_message);
 
         manager
             .claim_response("session-a", &decline_request_id)
@@ -463,60 +459,46 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn timeout_removes_undrained_request() {
+    async fn missing_tool_call_stream_errors() {
         let manager = Arc::new(ActionRequiredManager::new());
 
         let result = manager
             .request_and_wait(
                 "session-a".to_string(),
+                "missing-tool-call".to_string(),
                 "Need input".to_string(),
                 json!({ "type": "object" }),
-                Duration::from_millis(1),
+                Duration::from_secs(5),
             )
             .await;
 
-        assert!(result.is_err());
-        assert!(manager
-            .drain_requests_for_session("session-a")
-            .await
-            .is_empty());
+        let err = result.expect_err("request should fail without a registered stream");
+        assert!(err
+            .to_string()
+            .contains("Tool call request not found for elicitation"));
     }
 
     #[tokio::test]
-    async fn can_requeue_drained_messages() {
+    async fn closed_tool_call_stream_errors() {
         let manager = Arc::new(ActionRequiredManager::new());
-        let waiter = {
-            let manager = manager.clone();
-            tokio::spawn(async move {
-                manager
-                    .request_and_wait(
-                        "session-a".to_string(),
-                        "Need input".to_string(),
-                        json!({ "type": "object" }),
-                        Duration::from_secs(5),
-                    )
-                    .await
-            })
-        };
+        let rx = manager
+            .register_action_required_stream("tool-call-a".to_string())
+            .await;
+        drop(rx);
 
-        let messages = wait_for_elicitation_messages(&manager, "session-a").await;
-        let request_id = elicitation_id(&messages[0]);
-        manager.requeue_requests_front("session-a", messages).await;
+        let result = manager
+            .request_and_wait(
+                "session-a".to_string(),
+                "tool-call-a".to_string(),
+                "Need input".to_string(),
+                json!({ "type": "object" }),
+                Duration::from_secs(5),
+            )
+            .await;
 
-        let redrained = manager.drain_requests_for_session("session-a").await;
-        assert_eq!(redrained.len(), 1);
-        assert_eq!(elicitation_id(&redrained[0]), request_id);
-
-        manager
-            .claim_response("session-a", &request_id)
-            .await
-            .unwrap()
-            .submit(ElicitationOutcome::Accept(json!({ "answer": "right" })))
-            .unwrap();
-
-        assert_eq!(
-            waiter.await.unwrap().unwrap(),
-            ElicitationOutcome::Accept(json!({ "answer": "right" }))
-        );
+        let err = result.expect_err("request should fail when stream is closed");
+        assert!(err
+            .to_string()
+            .contains("Tool call action-required stream closed"));
     }
 }

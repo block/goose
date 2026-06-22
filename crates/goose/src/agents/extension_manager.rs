@@ -32,6 +32,7 @@ use super::extension::{
 };
 use super::tool_execution::{ToolCallContext, ToolCallResult};
 use super::types::SharedProvider;
+use crate::action_required_manager::ActionRequiredManager;
 use crate::agents::extension::{Envs, ProcessExit};
 use crate::agents::extension_malware_check;
 use crate::agents::mcp_client::{
@@ -1733,11 +1734,22 @@ impl ExtensionManager {
         let client = resolved.client.clone();
         let hydration_client = client.clone();
         let notifications_receiver = client.subscribe().await;
+        let action_required_receiver =
+            if let Some(tool_call_request_id) = ctx.tool_call_request_id.clone() {
+                Some(
+                    ActionRequiredManager::global()
+                        .register_action_required_stream(tool_call_request_id)
+                        .await,
+                )
+            } else {
+                None
+            };
         let actual_tool_name = resolved.actual_tool_name.clone();
         let resolved_tool = resolved;
         let should_hydrate_mcp_app = self.host_supports_mcp_apps();
         let read_cancellation_token = cancellation_token.clone();
         let session_id = ctx.session_id.clone();
+        let action_required_tool_call_request_id = ctx.tool_call_request_id.clone();
         let owned_ctx = ToolCallContext::new(
             ctx.session_id.clone(),
             ctx.working_dir.clone(),
@@ -1751,7 +1763,7 @@ impl ExtensionManager {
                 owned_ctx.session_id,
                 owned_ctx.working_dir,
             );
-            let mut result = client
+            let call_result = client
                 .call_tool(&owned_ctx, &actual_tool_name, arguments, cancellation_token)
                 .await
                 .map_err(|e| match e {
@@ -1759,7 +1771,15 @@ impl ExtensionManager {
                     _ => {
                         ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), e.maybe_to_value())
                     }
-                })?;
+                });
+
+            if let Some(tool_call_request_id) = &action_required_tool_call_request_id {
+                ActionRequiredManager::global()
+                    .unregister_action_required_stream(tool_call_request_id)
+                    .await;
+            }
+
+            let mut result = call_result?;
 
             remove_untrusted_mcp_app_meta(&mut result);
 
@@ -1782,6 +1802,8 @@ impl ExtensionManager {
         Ok(ToolCallResult {
             result: Box::new(fut.boxed()),
             notification_stream: Some(Box::new(ReceiverStream::new(notifications_receiver))),
+            action_required_stream: action_required_receiver
+                .map(|rx| Box::new(ReceiverStream::new(rx)) as _),
         })
     }
 

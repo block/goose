@@ -16,7 +16,7 @@ use super::mcp_client::GooseMcpHostInfo;
 use super::platform_tools;
 use super::tool_confirmation_router::ToolConfirmationRouter;
 use super::tool_execution::{ToolCallResult, CHAT_MODE_TOOL_SKIPPED_RESPONSE, DECLINED_RESPONSE};
-use crate::action_required_manager::{ActionRequiredManager, ElicitationOutcome};
+use crate::action_required_manager::ElicitationOutcome;
 use crate::agents::extension::{ExtensionConfig, ExtensionResult, ToolInfo};
 use crate::agents::extension_manager::{
     get_parameter_names, ExtensionManager, ExtensionManagerCapabilities,
@@ -273,6 +273,7 @@ impl Default for Agent {
 }
 
 pub enum ToolStreamItem<T> {
+    ActionRequired(Message),
     Message(ServerNotification),
     Result(T),
 }
@@ -284,17 +285,22 @@ pub type ToolStream =
 // final result of the tool call. MCP notifications are not request-scoped, but
 // this lets us capture all notifications emitted during the tool call for
 // simpler consumption
-pub fn tool_stream<S, F>(rx: S, done: F) -> ToolStream
+pub fn tool_stream<S, A, F>(rx: S, action_required_rx: A, done: F) -> ToolStream
 where
     S: Stream<Item = ServerNotification> + Send + Unpin + 'static,
+    A: Stream<Item = Message> + Send + Unpin + 'static,
     F: Future<Output = ToolResult<CallToolResult>> + Send + 'static,
 {
     Box::pin(async_stream::stream! {
         tokio::pin!(done);
         let mut rx = rx;
+        let mut action_required_rx = action_required_rx;
 
         loop {
             tokio::select! {
+                Some(msg) = action_required_rx.next() => {
+                    yield ToolStreamItem::ActionRequired(msg);
+                }
                 Some(msg) = rx.next() => {
                     yield ToolStreamItem::Message(msg);
                 }
@@ -569,6 +575,7 @@ impl Agent {
 
         ToolCallResult {
             notification_stream: result.notification_stream,
+            action_required_stream: result.action_required_stream,
             result: Box::new(fut.boxed()),
         }
     }
@@ -637,30 +644,6 @@ impl Agent {
             | RetryResult::SuccessChecksPassed => Ok(false),
         }
     }
-    async fn drain_elicitation_messages(&self, session_id: &str) -> Vec<Message> {
-        let mut messages = Vec::new();
-        let manager = self.config.session_manager.clone();
-        let mut failed_messages = Vec::new();
-        for mut elicitation_message in ActionRequiredManager::global()
-            .drain_requests_for_session(session_id)
-            .await
-        {
-            if elicitation_message.id.is_none() {
-                elicitation_message = elicitation_message.with_generated_id();
-            }
-            if let Err(e) = manager.add_message(session_id, &elicitation_message).await {
-                warn!("Failed to save elicitation message to session: {}", e);
-                failed_messages.push(elicitation_message);
-                continue;
-            }
-            messages.push(elicitation_message);
-        }
-        ActionRequiredManager::global()
-            .requeue_requests_front(session_id, failed_messages)
-            .await;
-        messages
-    }
-
     async fn load_project_instructions(&self, session: &Session) -> Option<String> {
         let project_id = session.project_id.as_deref()?;
         let entry = crate::sources::read_project(project_id).ok()?;
@@ -778,11 +761,16 @@ impl Agent {
                             result
                                 .notification_stream
                                 .unwrap_or_else(|| Box::new(stream::empty())),
+                            result
+                                .action_required_stream
+                                .unwrap_or_else(|| Box::new(stream::empty())),
                             result.result,
                         ),
-                        Err(e) => {
-                            tool_stream(Box::new(stream::empty()), futures::future::ready(Err(e)))
-                        }
+                        Err(e) => tool_stream(
+                            Box::new(stream::empty()),
+                            Box::new(stream::empty()),
+                            futures::future::ready(Err(e)),
+                        ),
                     },
                 ));
             }
@@ -2110,10 +2098,6 @@ impl Agent {
                                             break;
                                         }
 
-                                        for msg in self.drain_elicitation_messages(&session_config.id).await {
-                                            yield AgentEvent::Message(msg);
-                                        }
-
                                         tokio::select! {
                                             biased;
 
@@ -2121,6 +2105,16 @@ impl Agent {
                                                 match tool_item {
                                                     Some((request_id, item)) => {
                                                         match item {
+                                                            ToolStreamItem::ActionRequired(mut msg) => {
+                                                                if msg.id.is_none() {
+                                                                    msg = msg.with_generated_id();
+                                                                }
+                                                                if let Err(e) = session_manager.add_message(&session_config.id, &msg).await {
+                                                                    warn!("Failed to save elicitation message to session: {}", e);
+                                                                } else {
+                                                                    yield AgentEvent::Message(msg);
+                                                                }
+                                                            }
                                                             ToolStreamItem::Result(output) => {
                                                                 if let Ok(ref call_result) = output {
                                                                     if let Some(ref meta) = call_result.meta {
@@ -2158,15 +2152,8 @@ impl Agent {
                                                 }
                                             }
 
-                                            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {
-                                                // Continue loop to drain elicitation messages
-                                            }
+                                            _ = tokio::time::sleep(std::time::Duration::from_millis(100)) => {}
                                         }
-                                    }
-
-                                    // check for remaining elicitation messages after all tools complete
-                                    for msg in self.drain_elicitation_messages(&session_config.id).await {
-                                        yield AgentEvent::Message(msg);
                                     }
 
                                     if all_install_successful && !enable_extension_request_ids.is_empty() {
