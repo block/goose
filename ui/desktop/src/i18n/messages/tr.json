@@ -4622,12 +4622,6 @@
   "tunnelSection.failedToLoadStatus": {
     "defaultMessage": "Tünel durumu yüklenemedi"
   },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "Tünel başlatılamadı"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "Tünel durdurulamadı"
-  },
   "tunnelSection.getIosApp": {
     "defaultMessage": "iOS uygulamasını edinin"
   },
@@ -4652,9 +4646,6 @@
   "tunnelSection.qrCodeInstructions": {
     "defaultMessage": "Bu QR kodunu goose mobil uygulamasıyla tarayın. Bu kodu kişisel erişiminiz için olduğundan başkasıyla paylaşmayınız."
   },
-  "tunnelSection.retry": {
-    "defaultMessage": "Yeniden dene"
-  },
   "tunnelSection.scanQrCode": {
     "defaultMessage": "QR kodunu tara"
   },
@@ -4663,9 +4654,6 @@
   },
   "tunnelSection.showQrCode": {
     "defaultMessage": "QR Kodunu Göster"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Tüneli Başlat"
   },
   "tunnelSection.starting": {
     "defaultMessage": "Başlıyor..."
@@ -4684,9 +4672,6 @@
   },
   "tunnelSection.statusStarting": {
     "defaultMessage": "Tünel başlatılıyor..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "Tüneli Durdur"
   },
   "tunnelSection.tunnelStatus": {
     "defaultMessage": "Tünel Durumu"

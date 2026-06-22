@@ -4622,12 +4622,6 @@
   "tunnelSection.failedToLoadStatus": {
     "defaultMessage": "Не удалось загрузить статус туннеля"
   },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "Не удалось запустить туннель"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "Не удалось остановить туннель"
-  },
   "tunnelSection.getIosApp": {
     "defaultMessage": "Получить приложение iOS"
   },
@@ -4652,9 +4646,6 @@
   "tunnelSection.qrCodeInstructions": {
     "defaultMessage": "Отсканируйте этот QR-код мобильным приложением goose. Не делитесь этим кодом: он предназначен для вашего личного доступа."
   },
-  "tunnelSection.retry": {
-    "defaultMessage": "Повторить"
-  },
   "tunnelSection.scanQrCode": {
     "defaultMessage": "сканировать QR-код"
   },
@@ -4663,9 +4654,6 @@
   },
   "tunnelSection.showQrCode": {
     "defaultMessage": "Показать QR-код"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Запустить туннель"
   },
   "tunnelSection.starting": {
     "defaultMessage": "Запуск..."
@@ -4684,9 +4672,6 @@
   },
   "tunnelSection.statusStarting": {
     "defaultMessage": "Запуск туннеля..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "Остановить туннель"
   },
   "tunnelSection.tunnelStatus": {
     "defaultMessage": "Статус туннеля"

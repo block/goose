@@ -4622,12 +4622,6 @@
   "tunnelSection.failedToLoadStatus": {
     "defaultMessage": "सुरंग स्थिति लोड करने में विफल"
   },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "सुरंग प्रारंभ करने में विफल"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "सुरंग रोकने में विफल"
-  },
   "tunnelSection.getIosApp": {
     "defaultMessage": "आईओएस ऐप प्राप्त करें"
   },
@@ -4652,9 +4646,6 @@
   "tunnelSection.qrCodeInstructions": {
     "defaultMessage": "इस QR कोड को goose मोबाइल ऐप से स्कैन करें। इस कोड को किसी और के साथ साझा न करें क्योंकि यह आपकी व्यक्तिगत पहुंच के लिए है।"
   },
-  "tunnelSection.retry": {
-    "defaultMessage": "पुनः प्रयास करें"
-  },
   "tunnelSection.scanQrCode": {
     "defaultMessage": "QR कोड स्कैन करें"
   },
@@ -4663,9 +4654,6 @@
   },
   "tunnelSection.showQrCode": {
     "defaultMessage": "QR कोड दिखाएँ"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "सुरंग प्रारंभ करें"
   },
   "tunnelSection.starting": {
     "defaultMessage": "प्रारंभ..."
@@ -4684,9 +4672,6 @@
   },
   "tunnelSection.statusStarting": {
     "defaultMessage": "सुरंग शुरू हो रही है..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "सुरंग बंद करो"
   },
   "tunnelSection.tunnelStatus": {
     "defaultMessage": "सुरंग की स्थिति"

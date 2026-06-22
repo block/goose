@@ -4622,12 +4622,6 @@
   "tunnelSection.failedToLoadStatus": {
     "defaultMessage": "No se pudo cargar el estado del túnel"
   },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "No se pudo iniciar el túnel"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "No se pudo detener el túnel"
-  },
   "tunnelSection.getIosApp": {
     "defaultMessage": "Obtén la app para iOS"
   },
@@ -4652,9 +4646,6 @@
   "tunnelSection.qrCodeInstructions": {
     "defaultMessage": "Escanea este código QR con la app móvil de goose. No compartas este código con nadie, ya que es para tu acceso personal."
   },
-  "tunnelSection.retry": {
-    "defaultMessage": "Reintentar"
-  },
   "tunnelSection.scanQrCode": {
     "defaultMessage": "escanear código QR"
   },
@@ -4663,9 +4654,6 @@
   },
   "tunnelSection.showQrCode": {
     "defaultMessage": "Mostrar código QR"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Iniciar túnel"
   },
   "tunnelSection.starting": {
     "defaultMessage": "Iniciando..."
@@ -4684,9 +4672,6 @@
   },
   "tunnelSection.statusStarting": {
     "defaultMessage": "Iniciando el túnel..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "Detener túnel"
   },
   "tunnelSection.tunnelStatus": {
     "defaultMessage": "Estado del túnel"

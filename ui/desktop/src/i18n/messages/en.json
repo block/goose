@@ -4622,12 +4622,6 @@
   "tunnelSection.failedToLoadStatus": {
     "defaultMessage": "Failed to load tunnel status"
   },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "Failed to start tunnel"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "Failed to stop tunnel"
-  },
   "tunnelSection.getIosApp": {
     "defaultMessage": "Get the iOS app"
   },
@@ -4652,9 +4646,6 @@
   "tunnelSection.qrCodeInstructions": {
     "defaultMessage": "Scan this QR code with the goose mobile app. Do not share this code with anyone else as it is for your personal access."
   },
-  "tunnelSection.retry": {
-    "defaultMessage": "Retry"
-  },
   "tunnelSection.scanQrCode": {
     "defaultMessage": "scan QR code"
   },
@@ -4663,9 +4654,6 @@
   },
   "tunnelSection.showQrCode": {
     "defaultMessage": "Show QR Code"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Start Tunnel"
   },
   "tunnelSection.starting": {
     "defaultMessage": "Starting..."
@@ -4684,9 +4672,6 @@
   },
   "tunnelSection.statusStarting": {
     "defaultMessage": "Starting tunnel..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "Stop Tunnel"
   },
   "tunnelSection.tunnelStatus": {
     "defaultMessage": "Tunnel Status"

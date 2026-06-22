@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Button } from '../../ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '../../ui/dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
@@ -14,7 +14,7 @@ import {
   QrCode,
 } from 'lucide-react';
 import { errorMessage } from '../../../utils/conversionUtils';
-import { startTunnel, stopTunnel, getTunnelStatus } from '../../../api/sdk.gen';
+import { getTunnelStatus } from '../../../api/sdk.gen';
 import type { TunnelInfo } from '../../../api/types.gen';
 import { defineMessages, useIntl } from '../../../i18n';
 
@@ -75,18 +75,6 @@ const i18n = defineMessages({
     id: 'tunnelSection.showQrCode',
     defaultMessage: 'Show QR Code',
   },
-  stopTunnel: {
-    id: 'tunnelSection.stopTunnel',
-    defaultMessage: 'Stop Tunnel',
-  },
-  retry: {
-    id: 'tunnelSection.retry',
-    defaultMessage: 'Retry',
-  },
-  startTunnel: {
-    id: 'tunnelSection.startTunnel',
-    defaultMessage: 'Start Tunnel',
-  },
   url: {
     id: 'tunnelSection.url',
     defaultMessage: 'URL:',
@@ -131,14 +119,6 @@ const i18n = defineMessages({
     id: 'tunnelSection.failedToLoadStatus',
     defaultMessage: 'Failed to load tunnel status',
   },
-  failedToStopTunnel: {
-    id: 'tunnelSection.failedToStopTunnel',
-    defaultMessage: 'Failed to stop tunnel',
-  },
-  failedToStartTunnel: {
-    id: 'tunnelSection.failedToStartTunnel',
-    defaultMessage: 'Failed to start tunnel',
-  },
 });
 
 const IOS_APP_STORE_URL = 'https://apps.apple.com/us/app/goose-ai/id6752889295';
@@ -166,57 +146,25 @@ export default function TunnelSection() {
   const [copiedSecret, setCopiedSecret] = useState(false);
   const [showDetails, setShowDetails] = useState(false);
 
-  useEffect(() => {
-    const loadTunnelInfo = async () => {
-      try {
-        const { data } = await getTunnelStatus();
-        if (data) {
-          setTunnelInfo(data);
-        }
-      } catch (err) {
-        const errorMsg = errorMessage(err, intl.formatMessage(i18n.failedToLoadStatus));
-        setError(errorMsg);
-        setTunnelInfo({ state: 'error', url: '', hostname: '', secret: '' });
+  const loadTunnelInfo = useCallback(async () => {
+    try {
+      const { data } = await getTunnelStatus();
+      if (data) {
+        setError(null);
+        setTunnelInfo(data);
       }
-    };
-
-    loadTunnelInfo();
+    } catch (err) {
+      const errorMsg = errorMessage(err, intl.formatMessage(i18n.failedToLoadStatus));
+      setError(errorMsg);
+      setTunnelInfo({ state: 'error', url: '', hostname: '', secret: '' });
+    }
   }, [intl]);
 
-  const handleToggleTunnel = async () => {
-    if (tunnelInfo.state === 'running') {
-      try {
-        await stopTunnel();
-        setTunnelInfo({ state: 'idle', url: '', hostname: '', secret: '' });
-        setShowQRModal(false);
-      } catch (err) {
-        setError(errorMessage(err, intl.formatMessage(i18n.failedToStopTunnel)));
-        try {
-          const { data } = await getTunnelStatus();
-          if (data) {
-            setTunnelInfo(data);
-          }
-        } catch (statusErr) {
-          console.error('Failed to fetch tunnel status after stop error:', statusErr);
-        }
-      }
-    } else {
-      setError(null);
-      setTunnelInfo({ state: 'starting', url: '', hostname: '', secret: '' });
-
-      try {
-        const { data } = await startTunnel();
-        if (data) {
-          setTunnelInfo(data);
-          setShowQRModal(true);
-        }
-      } catch (err) {
-        const errorMsg = errorMessage(err, intl.formatMessage(i18n.failedToStartTunnel));
-        setError(errorMsg);
-        setTunnelInfo({ state: 'error', url: '', hostname: '', secret: '' });
-      }
-    }
-  };
+  useEffect(() => {
+    loadTunnelInfo();
+    const interval = setInterval(loadTunnelInfo, 10000);
+    return () => clearInterval(interval);
+  }, [loadTunnelInfo]);
 
   const copyToClipboard = async (text: string, type: 'url' | 'secret') => {
     try {
@@ -300,19 +248,10 @@ export default function TunnelSection() {
                   {intl.formatMessage(i18n.starting)}
                 </Button>
               ) : tunnelInfo.state === 'running' ? (
-                <>
-                  <Button onClick={() => setShowQRModal(true)} variant="default" size="sm">
-                    {intl.formatMessage(i18n.showQrCode)}
-                  </Button>
-                  <Button onClick={handleToggleTunnel} variant="destructive" size="sm">
-                    {intl.formatMessage(i18n.stopTunnel)}
-                  </Button>
-                </>
-              ) : (
-                <Button onClick={handleToggleTunnel} variant="default" size="sm">
-                  {tunnelInfo.state === 'error' ? intl.formatMessage(i18n.retry) : intl.formatMessage(i18n.startTunnel)}
+                <Button onClick={() => setShowQRModal(true)} variant="default" size="sm">
+                  {intl.formatMessage(i18n.showQrCode)}
                 </Button>
-              )}
+              ) : null}
             </div>
           </div>
 
@@ -407,9 +346,6 @@ export default function TunnelSection() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowQRModal(false)}>
               {intl.formatMessage(i18n.close)}
-            </Button>
-            <Button variant="destructive" onClick={handleToggleTunnel}>
-              {intl.formatMessage(i18n.stopTunnel)}
             </Button>
           </DialogFooter>
         </DialogContent>

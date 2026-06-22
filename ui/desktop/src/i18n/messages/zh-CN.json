@@ -4622,12 +4622,6 @@
   "tunnelSection.failedToLoadStatus": {
     "defaultMessage": "加载通道状态失败"
   },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "启动通道失败"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "停止通道失败"
-  },
   "tunnelSection.getIosApp": {
     "defaultMessage": "获取 iOS 应用"
   },
@@ -4652,9 +4646,6 @@
   "tunnelSection.qrCodeInstructions": {
     "defaultMessage": "用 goose 手机应用扫描此二维码。请不要把此码分享给任何人，它仅用于你的个人访问。"
   },
-  "tunnelSection.retry": {
-    "defaultMessage": "重试"
-  },
   "tunnelSection.scanQrCode": {
     "defaultMessage": "扫描二维码"
   },
@@ -4663,9 +4654,6 @@
   },
   "tunnelSection.showQrCode": {
     "defaultMessage": "显示二维码"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "启动通道"
   },
   "tunnelSection.starting": {
     "defaultMessage": "启动中…"
@@ -4684,9 +4672,6 @@
   },
   "tunnelSection.statusStarting": {
     "defaultMessage": "正在启动通道…"
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "停止通道"
   },
   "tunnelSection.tunnelStatus": {
     "defaultMessage": "通道状态"

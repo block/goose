@@ -4622,12 +4622,6 @@
   "tunnelSection.failedToLoadStatus": {
     "defaultMessage": "トンネルステータスの読み込みに失敗しました"
   },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "トンネルの開始に失敗しました"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "トンネルの停止に失敗しました"
-  },
   "tunnelSection.getIosApp": {
     "defaultMessage": "iOSアプリを入手"
   },
@@ -4652,9 +4646,6 @@
   "tunnelSection.qrCodeInstructions": {
     "defaultMessage": "このQRコードをgooseモバイルアプリでスキャンしてください。このコードは個人アクセス用です。他人と共有しないでください。"
   },
-  "tunnelSection.retry": {
-    "defaultMessage": "再試行"
-  },
   "tunnelSection.scanQrCode": {
     "defaultMessage": "QRコードをスキャン"
   },
@@ -4663,9 +4654,6 @@
   },
   "tunnelSection.showQrCode": {
     "defaultMessage": "QRコードを表示"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "トンネルを開始"
   },
   "tunnelSection.starting": {
     "defaultMessage": "開始中..."
@@ -4684,9 +4672,6 @@
   },
   "tunnelSection.statusStarting": {
     "defaultMessage": "トンネルを開始中..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "トンネルを停止"
   },
   "tunnelSection.tunnelStatus": {
     "defaultMessage": "トンネルステータス"

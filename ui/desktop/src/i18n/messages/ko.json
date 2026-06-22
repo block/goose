@@ -4622,12 +4622,6 @@
   "tunnelSection.failedToLoadStatus": {
     "defaultMessage": "터널 상태를 로드하지 못했습니다."
   },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "터널을 시작하지 못했습니다."
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "터널을 중지하지 못했습니다."
-  },
   "tunnelSection.getIosApp": {
     "defaultMessage": "iOS 앱 받기"
   },
@@ -4652,9 +4646,6 @@
   "tunnelSection.qrCodeInstructions": {
     "defaultMessage": "QR 코드를 goose 모바일 앱으로 스캔하세요. 이 코드는 개인 액세스용이므로 다른 사람과 공유하지 마세요."
   },
-  "tunnelSection.retry": {
-    "defaultMessage": "다시 시도"
-  },
   "tunnelSection.scanQrCode": {
     "defaultMessage": "QR 코드 스캔"
   },
@@ -4663,9 +4654,6 @@
   },
   "tunnelSection.showQrCode": {
     "defaultMessage": "QR 코드 표시"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "터널 시작"
   },
   "tunnelSection.starting": {
     "defaultMessage": "시작 중..."
@@ -4684,9 +4672,6 @@
   },
   "tunnelSection.statusStarting": {
     "defaultMessage": "터널 시작 중..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "터널 중지"
   },
   "tunnelSection.tunnelStatus": {
     "defaultMessage": "터널 상태"
