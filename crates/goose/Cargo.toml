@@ -24,6 +24,7 @@ local-inference = [
     "dep:candle-core",
     "dep:candle-nn",
     "dep:candle-transformers",
+    "dep:hf-hub",
     "dep:llama-cpp-2",
     "dep:llama-cpp-sys-2",
     "dep:tokenizers",
@@ -40,6 +41,7 @@ aws-providers = [
 ]
 cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
 vulkan = ["local-inference", "llama-cpp-2/vulkan"]
+mlx = ["local-inference", "dep:mlx-rs", "dep:mlx-lm", "dep:mlx-lm-utils"]
 rustls-tls = [
     "dep:rustls",
     "reqwest/rustls",
@@ -49,12 +51,10 @@ rustls-tls = [
     "jsonwebtoken/aws_lc_rs",
     "oauth2/reqwest",
     "oauth2/rustls-tls",
+    "hf-hub/rustls-tls",
+    "goose-providers/rustls-tls",
 ]
 native-tls = [
-    "dep:pem",
-    "dep:pkcs1",
-    "dep:pkcs8",
-    "dep:sec1",
     "reqwest/native-tls",
     "rmcp/reqwest-native-tls",
     "smithy-transport-reqwest?/native-tls",
@@ -62,6 +62,7 @@ native-tls = [
     "jsonwebtoken/rust_crypto",
     "oauth2/reqwest",
     "oauth2/native-tls",
+    "goose-providers/native-tls",
 ]
 system-keyring = ["dep:keyring"]
 portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel"]
@@ -193,10 +194,6 @@ pulldown-cmark = { version = "0.13", default-features = false }
 encoding_rs = { version = "0.8.35", default-features = false }
 pastey = { version = "0.2", default-features = false }
 shell-words = { workspace = true }
-pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
-pkcs1 = { version = "0.7.5", default-features = false, features = ["pkcs8", "std"], optional = true }
-pkcs8 = { version = "0.11.0", default-features = false, features = ["alloc", "std"], optional = true }
-sec1 = { version = "0.7", default-features = false, features = ["der", "pkcs8", "std"], optional = true }
 goose-acp-macros = { path = "../goose-acp-macros", default-features = false }
 tower-http = { workspace = true, features = ["cors"] }
 http-body-util = { version = "0.1.2", default-features = false }
@@ -205,6 +202,10 @@ process-wrap = { version = "9", default-features = false, features = ["std"] }
 nostr = { version = "0.44", default-features = false, features = ["nip44", "std"], optional = true }
 nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"], optional = true }
 rustls = { workspace = true, optional = true }
+hf-hub = { version = "1.0.0-rc.1", default-features = false, optional = true }
+mlx-rs = { version = "0.25.3", default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true }
+mlx-lm = { git = "https://github.com/jh-block/mlx-lm", optional = true }
+mlx-lm-utils = { git = "https://github.com/jh-block/mlx-lm", optional = true }
 
 pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 

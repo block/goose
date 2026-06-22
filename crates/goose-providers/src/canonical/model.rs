@@ -1,5 +1,7 @@
 use serde::{Deserialize, Serialize};
 
+use crate::conversation::token_usage::Usage;
+
 /// Modality types for model input/output
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -50,6 +52,30 @@ pub struct Pricing {
     /// Cost per million cached write tokens
     #[serde(skip_serializing_if = "Option::is_none")]
     pub cache_write: Option<f64>,
+}
+
+impl Pricing {
+    pub fn estimate_cost(&self, usage: &Usage) -> Option<f64> {
+        let input_price = self.input?;
+        let output_price = self.output?;
+        let cache_read_price = self.cache_read.unwrap_or(input_price);
+        let cache_write_price = self.cache_write.unwrap_or(input_price);
+
+        let input_tokens = usage.input_tokens.unwrap_or(0).max(0) as f64;
+        let output_tokens = usage.output_tokens.unwrap_or(0).max(0) as f64;
+        let cache_read_tokens = usage.cache_read_input_tokens.unwrap_or(0).max(0) as f64;
+        let cache_write_tokens = usage.cache_write_input_tokens.unwrap_or(0).max(0) as f64;
+        let uncached_input_tokens =
+            (input_tokens - cache_read_tokens - cache_write_tokens).max(0.0);
+
+        Some(
+            (uncached_input_tokens * input_price
+                + cache_read_tokens * cache_read_price
+                + cache_write_tokens * cache_write_price
+                + output_tokens * output_price)
+                / 1_000_000.0,
+        )
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -129,4 +155,65 @@ pub struct CanonicalModel {
     /// Token limits
     #[serde(default)]
     pub limit: Limit,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn pricing(
+        input: Option<f64>,
+        output: Option<f64>,
+        cache_read: Option<f64>,
+        cache_write: Option<f64>,
+    ) -> Pricing {
+        Pricing {
+            input,
+            output,
+            cache_read,
+            cache_write,
+        }
+    }
+
+    #[test]
+    fn estimate_cost_prices_cache_tokens_at_cache_rates() {
+        let pricing = pricing(Some(5.0), Some(25.0), Some(0.5), Some(6.25));
+        let usage =
+            Usage::new(Some(10_000), Some(1_000), None).with_cache_tokens(Some(8_000), Some(1_000));
+
+        let cost = pricing.estimate_cost(&usage).unwrap();
+        let expected =
+            (1_000.0 * 5.0 + 8_000.0 * 0.5 + 1_000.0 * 6.25 + 1_000.0 * 25.0) / 1_000_000.0;
+        assert!((cost - expected).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn estimate_cost_handles_missing_prices() {
+        let usage =
+            Usage::new(Some(1_000), Some(100), None).with_cache_tokens(Some(600), Some(200));
+
+        // Unpriced cache tokens fall back to the input rate.
+        let cost = pricing(Some(2.0), Some(10.0), None, None)
+            .estimate_cost(&usage)
+            .unwrap();
+        assert_eq!(cost, (1_000.0 * 2.0 + 100.0 * 10.0) / 1_000_000.0);
+
+        // Missing input or output pricing means no estimate at all.
+        assert!(pricing(None, Some(10.0), None, None)
+            .estimate_cost(&usage)
+            .is_none());
+        assert!(pricing(Some(2.0), None, None, None)
+            .estimate_cost(&usage)
+            .is_none());
+    }
+
+    #[test]
+    fn estimate_cost_clamps_cache_tokens_exceeding_input() {
+        let pricing = pricing(Some(5.0), Some(25.0), Some(0.5), Some(6.25));
+        let usage = Usage::new(Some(100), Some(10), None).with_cache_tokens(Some(150), Some(50));
+
+        let cost = pricing.estimate_cost(&usage).unwrap();
+        let expected = (150.0 * 0.5 + 50.0 * 6.25 + 10.0 * 25.0) / 1_000_000.0;
+        assert!((cost - expected).abs() < f64::EPSILON);
+    }
 }

@@ -11,6 +11,9 @@
   "announcementModal.gotIt": {
     "defaultMessage": "了解しました"
   },
+  "appLayout.collapseNavigation": {
+    "defaultMessage": "ナビを折りたたむ"
+  },
   "appLayout.openNavigation": {
     "defaultMessage": "ナビゲーションを開く"
   },
@@ -113,18 +116,6 @@
   "baseChat.goHome": {
     "defaultMessage": "ホームへ"
   },
-  "baseChat.noSession": {
-    "defaultMessage": "セッションなし"
-  },
-  "baseChat.recipeCreatedMessage": {
-    "defaultMessage": "\"{title}\" を保存しました。使用できます。"
-  },
-  "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "レシピを作成しました！"
-  },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "拡張機能の切り替えエラー"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "拡張機能を更新しました"
   },
@@ -142,9 +133,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "拡張機能を管理"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "アクティブなセッションが見つかりません。先にチャットセッションを開始してください。"
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "利用可能な拡張機能はありません"
@@ -169,9 +157,6 @@
   },
   "chatInput.contextWindow": {
     "defaultMessage": "コンテキストウィンドウ"
-  },
-  "chatInput.createRecipeFromSession": {
-    "defaultMessage": "セッションからレシピを作成"
   },
   "chatInput.dictationError": {
     "defaultMessage": "音声入力エラー"
@@ -403,54 +388,6 @@
   },
   "createEditRecipe.viewEditRecipeTitle": {
     "defaultMessage": "レシピを表示/編集"
-  },
-  "createRecipeFromSession.analyzingTitle": {
-    "defaultMessage": "会話を分析中"
-  },
-  "createRecipeFromSession.cancel": {
-    "defaultMessage": "キャンセル"
-  },
-  "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "レシピを作成して実行"
-  },
-  "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "レシピを作成"
-  },
-  "createRecipeFromSession.creating": {
-    "defaultMessage": "作成中..."
-  },
-  "createRecipeFromSession.extractingInsights": {
-    "defaultMessage": "チャットからインサイトを抽出中"
-  },
-  "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "レシピの作成中に予期しないエラーが発生しました。もう一度お試しください。"
-  },
-  "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "レシピの作成に失敗しました"
-  },
-  "createRecipeFromSession.stageComplete": {
-    "defaultMessage": "完了！"
-  },
-  "createRecipeFromSession.stageExtracting": {
-    "defaultMessage": "主要トピックを抽出中..."
-  },
-  "createRecipeFromSession.stageFinalizing": {
-    "defaultMessage": "詳細を仕上げ中..."
-  },
-  "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "レシピ構造を生成中..."
-  },
-  "createRecipeFromSession.stageIdentifying": {
-    "defaultMessage": "主要なパターンを特定中..."
-  },
-  "createRecipeFromSession.stageReading": {
-    "defaultMessage": "会話を読み込み中..."
-  },
-  "createRecipeFromSession.subtitle": {
-    "defaultMessage": "現在の会話に基づいて、再利用可能なレシピを作成します。"
-  },
-  "createRecipeFromSession.title": {
-    "defaultMessage": "セッションからレシピを作成"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "キャンセル"
@@ -991,6 +928,9 @@
   },
   "elicitationRequest.submit": {
     "defaultMessage": "送信"
+  },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
   },
   "elicitationRequest.submitted": {
     "defaultMessage": "情報を送信しました"
@@ -1853,8 +1793,14 @@
   "localInferenceSettings.description": {
     "defaultMessage": "APIキーなしで推論できるローカルLLMモデルをダウンロード・管理します。Hugging Faceで任意のGGUFモデルを検索するか、以下の注目モデルを使用できます。"
   },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "閉じる"
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "ダウンロード"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "ダウンロードがキャンセルされました"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "ダウンロードに失敗しました"
@@ -1888,6 +1834,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "残り{time}"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "再試行"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "注目モデルをすべて表示（あと{count}件）"
@@ -2452,9 +2401,6 @@
   },
   "navigationPanel.chats": {
     "defaultMessage": "チャット"
-  },
-  "navigationPanel.collapseSidebar": {
-    "defaultMessage": "サイドバーを折りたたむ"
   },
   "navigationPanel.noChats": {
     "defaultMessage": "最近のチャットはありません"
@@ -3746,35 +3692,71 @@
   "securityToggle.warpNotice": {
     "defaultMessage": "コマンドインジェクション検出は、WARPに接続していると最も効果的です（分類サービスに到達するために必要です）。"
   },
+  "sessionActionsHeader.actionsLabel": {
+    "defaultMessage": "セッションの操作"
+  },
+  "sessionActionsHeader.cancel": {
+    "defaultMessage": "キャンセル"
+  },
   "sessionActionsHeader.close": {
-    "defaultMessage": "Close"
+    "defaultMessage": "閉じる"
   },
   "sessionActionsHeader.copiedJson": {
-    "defaultMessage": "Session JSON copied"
+    "defaultMessage": "セッションJSONをコピーしました"
   },
   "sessionActionsHeader.copiedText": {
-    "defaultMessage": "Text copied"
+    "defaultMessage": "テキストをコピーしました"
   },
   "sessionActionsHeader.copyJson": {
-    "defaultMessage": "Copy JSON"
+    "defaultMessage": "JSONをコピー"
   },
   "sessionActionsHeader.copyText": {
-    "defaultMessage": "Copy text"
+    "defaultMessage": "テキストをコピー"
+  },
+  "sessionActionsHeader.duplicateFailed": {
+    "defaultMessage": "セッションを複製できませんでした: {error}"
+  },
+  "sessionActionsHeader.duplicateSession": {
+    "defaultMessage": "セッションを複製"
+  },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "セッションを複製しました"
   },
   "sessionActionsHeader.fullTextTitle": {
-    "defaultMessage": "Text value"
+    "defaultMessage": "テキスト値"
   },
   "sessionActionsHeader.jsonFailed": {
-    "defaultMessage": "Failed to load session JSON: {error}"
+    "defaultMessage": "セッションJSONを読み込めませんでした: {error}"
   },
   "sessionActionsHeader.jsonTitle": {
-    "defaultMessage": "Session JSON"
+    "defaultMessage": "セッションJSON"
   },
   "sessionActionsHeader.loadingJson": {
-    "defaultMessage": "Loading JSON..."
+    "defaultMessage": "JSONを読み込み中..."
+  },
+  "sessionActionsHeader.renameFailed": {
+    "defaultMessage": "セッションの名前を変更できませんでした: {error}"
+  },
+  "sessionActionsHeader.renamePlaceholder": {
+    "defaultMessage": "セッション名を入力"
+  },
+  "sessionActionsHeader.renameSession": {
+    "defaultMessage": "セッションの名前を変更"
+  },
+  "sessionActionsHeader.renameTitle": {
+    "defaultMessage": "セッションの名前を変更"
+  },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "セッションの名前を変更しました"
+  },
+  "sessionActionsHeader.save": {
+    "defaultMessage": "保存"
+  },
+  "sessionActionsHeader.saving": {
+    "defaultMessage": "保存中..."
   },
   "sessionActionsHeader.viewJson": {
-    "defaultMessage": "View session JSON"
+    "defaultMessage": "セッションJSONを表示"
   },
   "sessionHistory.cancel": {
     "defaultMessage": "キャンセル"
@@ -4088,8 +4070,14 @@
   "settings.language.japanese": {
     "defaultMessage": "日本語"
   },
+  "settings.language.korean": {
+    "defaultMessage": "韓国語"
+  },
   "settings.language.russian": {
     "defaultMessage": "ロシア語"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "スペイン語"
   },
   "settings.language.systemDefault": {
     "defaultMessage": "システムデフォルト"
@@ -4712,6 +4700,12 @@
   "updateSection.autoDownload": {
     "defaultMessage": "アップデートはバックグラウンドで自動的にダウンロードされます。"
   },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "自動ダウンロードは GOOSE_DISABLE_AUTO_DOWNLOAD 環境変数によって無効になっています。"
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "自動ダウンロードは無効です。手動でダウンロードするには「今すぐダウンロード」をクリックしてください。"
+  },
   "updateSection.autoInstallNote": {
     "defaultMessage": "アプリを終了すると、アップデートが自動的にインストールされます。"
   },
@@ -4723,6 +4717,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "現在のバージョン"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "アップデートの自動ダウンロードを無効にする"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "有効にすると、Goose は新しいバージョンを通知しますが、自動的にはダウンロードしません。"
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "今すぐダウンロード"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "アップデートのダウンロードが完了し、インストールの準備ができました！"

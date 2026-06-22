@@ -41,6 +41,7 @@ import windowStateKeeper from 'electron-window-state';
 import {
   getUpdateAvailable,
   registerUpdateIpcHandlers,
+  setAutoDownloadDisabled,
   setTrayRef,
   setupAutoUpdater,
   updateTrayMenu,
@@ -171,8 +172,10 @@ const STARTUP_LOGS_DIR = path.join(app.getPath('userData'), 'logs', 'startup');
 const validLanguageSettings = new Set<Settings['language']>([
   'system',
   'en',
+  'es',
   'hi',
   'ja',
+  'ko',
   'ru',
   'tr',
   'zh-CN',
@@ -428,7 +431,12 @@ if (process.platform !== 'darwin') {
           app.whenReady().then(async () => {
             const recentDirs = loadRecentDirs();
             const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
-            await createChat(app, { dir: openDir || undefined });
+            const prompt = parsedUrl.searchParams.get('prompt') || undefined;
+            await createChat(app, {
+              dir: openDir || undefined,
+              initialMessage: prompt,
+              initialMessageNoAutoSubmit: prompt !== undefined,
+            });
           });
           return;
         }
@@ -513,7 +521,12 @@ async function handleProtocolUrl(url: string, parsedUrl: URL) {
   const openDir = recentDirs.length > 0 ? recentDirs[0] : null;
 
   if (parsedUrl.hostname === 'new-session') {
-    await createChat(app, { dir: openDir || undefined });
+    const prompt = parsedUrl.searchParams.get('prompt') || undefined;
+    await createChat(app, {
+      dir: openDir || undefined,
+      initialMessage: prompt,
+      initialMessageNoAutoSubmit: prompt !== undefined,
+    });
     return;
   } else if (parsedUrl.hostname === 'resume') {
     await createResumeChatWindow(parsedUrl, openDir || undefined);
@@ -587,7 +600,12 @@ app.on('open-url', async (_event, url) => {
     if (parsedUrl.hostname === 'new-session') {
       log.info('[Main] Detected new-session URL, creating new chat window');
       openUrlHandledLaunch = true;
-      await createChat(app, { dir: openDir || undefined });
+      const prompt = parsedUrl.searchParams.get('prompt') || undefined;
+      await createChat(app, {
+        dir: openDir || undefined,
+        initialMessage: prompt,
+        initialMessageNoAutoSubmit: prompt !== undefined,
+      });
       return;
     }
 
@@ -854,9 +872,11 @@ const releaseWindowGoosedLease = async (windowId: number) => {
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 // Track pending initial messages per window
 const pendingInitialMessages = new Map<number, string>(); // windowId -> initialMessage
+const pendingInitialMessageNoAutoSubmit = new Set<number>(); // windowIds whose initialMessage should NOT auto-submit
 
 interface CreateChatOptions {
   initialMessage?: string;
+  initialMessageNoAutoSubmit?: boolean;
   dir?: string;
   resumeSessionId?: string;
   viewType?: string;
@@ -869,6 +889,7 @@ interface CreateChatOptions {
 const createChat = async (app: App, options: CreateChatOptions = {}) => {
   const {
     initialMessage,
+    initialMessageNoAutoSubmit,
     dir,
     resumeSessionId,
     viewType,
@@ -1225,6 +1246,9 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   // If we have an initial message, store it to send after React is ready
   if (initialMessage) {
     pendingInitialMessages.set(mainWindow.id, initialMessage);
+    if (initialMessageNoAutoSubmit) {
+      pendingInitialMessageNoAutoSubmit.add(mainWindow.id);
+    }
   }
 
   // Set up local keyboard shortcuts that only work when the window is focused
@@ -1635,9 +1659,11 @@ ipcMain.on('react-ready', (event) => {
   // Send any pending initial message for this window
   if (windowId && pendingInitialMessages.has(windowId)) {
     const initialMessage = pendingInitialMessages.get(windowId)!;
+    const noAutoSubmit = pendingInitialMessageNoAutoSubmit.has(windowId);
     log.info('Sending pending initial message to window:', initialMessage);
-    window.webContents.send('set-initial-message', initialMessage);
+    window.webContents.send('set-initial-message', initialMessage, { noAutoSubmit });
     pendingInitialMessages.delete(windowId);
+    pendingInitialMessageNoAutoSubmit.delete(windowId);
   }
 
   if (windowId && pendingDeepLinks.has(windowId) && window) {
@@ -1711,6 +1737,7 @@ const validSettingKeys: Set<string> = new Set([
   'showPricing',
   'sessionSharing',
   'seenAnnouncementIds',
+  'disableAutoDownload',
 ]);
 
 ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
@@ -1737,6 +1764,10 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
   // Re-register shortcuts if keyboard shortcuts changed
   if (key === 'keyboardShortcuts') {
     registerGlobalShortcuts();
+  }
+
+  if (key === 'disableAutoDownload') {
+    setAutoDownloadDisabled(value as boolean);
   }
 });
 
@@ -2276,6 +2307,10 @@ async function appMain() {
     if (shouldSetupUpdater()) {
       log.info('Setting up auto-updater after window creation...');
       try {
+        const settings = getSettings();
+        if (settings.disableAutoDownload) {
+          setAutoDownloadDisabled(true);
+        }
         setupAutoUpdater();
       } catch (error) {
         log.error('Error setting up auto-updater:', error);

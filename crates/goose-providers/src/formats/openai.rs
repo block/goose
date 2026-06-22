@@ -4,6 +4,7 @@ use crate::errors::ProviderError;
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
 use crate::json::safely_parse_json;
 use crate::mcp_utils::extract_text_from_resource;
+use crate::model::ModelConfig;
 use crate::thinking::{
     split_think_blocks, ThinkFilter, ThinkingEffort, GEMINI_THOUGHT_SIGNATURE_KEY,
 };
@@ -753,10 +754,7 @@ fn extract_usage_with_output_tokens(
                 .model
                 .as_deref()
                 .or(fallback_model)
-                .map(|model| ProviderUsage {
-                    usage: get_usage(u),
-                    model: model.to_string(),
-                })
+                .map(|model| ProviderUsage::new(model.to_string(), get_usage(u)))
         })
         .filter(|u| u.usage.output_tokens.is_some())
 }
@@ -1229,7 +1227,7 @@ where
 }
 
 pub fn create_request(
-    model_config: ModelConfigParams,
+    model_config: &ModelConfig,
     system: &str,
     messages: &[Message],
     tools: &[Tool],
@@ -1249,16 +1247,8 @@ pub fn create_request(
     )
 }
 
-pub struct ModelConfigParams<'a> {
-    pub model_name: &'a str,
-    pub thinking_effort: Option<ThinkingEffort>,
-    pub temperature: Option<f32>,
-    pub max_tokens: Option<i32>,
-    pub request_params: Option<&'a HashMap<String, Value>>,
-}
-
 pub fn create_request_with_options(
-    model_config: ModelConfigParams,
+    model_config: &ModelConfig,
     system: &str,
     messages: &[Message],
     tools: &[Tool],
@@ -1272,11 +1262,11 @@ pub fn create_request_with_options(
         ));
     }
 
-    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(model_config.model_name);
+    let (model_name, legacy_reasoning_effort) = extract_reasoning_effort(&model_config.model_name);
     let is_reasoning_model = is_openai_responses_model(&model_name);
     let reasoning_effort = if is_reasoning_model {
         model_config
-            .thinking_effort
+            .thinking_effort()
             .map_or(legacy_reasoning_effort, |effort| {
                 openai_reasoning_effort_for_thinking(&model_name, effort)
             })
@@ -1338,7 +1328,7 @@ pub fn create_request_with_options(
         payload["stream_options"] = json!({"include_usage": true});
     }
 
-    if let Some(params) = model_config.request_params {
+    if let Some(params) = &model_config.request_params {
         if let Some(obj) = payload.as_object_mut() {
             for (key, value) in params {
                 if key != "thinking_effort" && !is_reserved_request_param_key(key) {
@@ -1460,6 +1450,13 @@ mod tests {
     use test_case::test_case;
     use tokio::pin;
     use tokio_stream::{self, StreamExt};
+
+    fn test_model_config(model_name: &str) -> ModelConfig {
+        ModelConfig {
+            model_name: model_name.to_string(),
+            ..Default::default()
+        }
+    }
 
     #[test]
     fn test_validate_tool_schemas() {
@@ -2144,15 +2141,9 @@ mod tests {
     #[test]
     fn test_create_request_gpt_4o() -> anyhow::Result<()> {
         // Test default medium reasoning effort for O3 model
-        let model_config = ModelConfigParams {
-            model_name: "gpt-4o",
-            thinking_effort: None,
-            temperature: None,
-            max_tokens: Some(1024),
-            request_params: None,
-        };
+        let model_config = test_model_config("gpt-4o").with_max_tokens(Some(1024));
         let request = create_request(
-            model_config,
+            &model_config,
             "system",
             &[],
             &[],
@@ -2183,15 +2174,9 @@ mod tests {
         // Unknown models on OpenAI-compatible local providers (llama_swap,
         // lmstudio) have no canonical record and no GOOSE_MAX_TOKENS, so the
         // request must not pin the legacy 4096 default. See issue #9007.
-        let model_config = ModelConfigParams {
-            model_name: "some-unknown-local-model",
-            thinking_effort: None,
-            temperature: None,
-            max_tokens: None,
-            request_params: None,
-        };
+        let model_config = test_model_config("some-unknown-local-model");
         let request = create_request(
-            model_config,
+            &model_config,
             "system",
             &[],
             &[],
@@ -2231,15 +2216,18 @@ mod tests {
             ("temperature".to_string(), json!(2.0)),
             ("provider_custom".to_string(), json!("allowed")),
         ]);
-        let model_config = ModelConfigParams {
-            model_name: "glm-4.7",
-            thinking_effort: None,
-            temperature: None,
-            max_tokens: Some(4096),
-            request_params: Some(&params),
-        };
+        let model_config = test_model_config("glm-4.7")
+            .with_max_tokens(Some(4096))
+            .with_merged_request_params(params);
 
-        let request = create_request(model_config, "system", &[], &[], &ImageFormat::OpenAi, true)?;
+        let request = create_request(
+            &model_config,
+            "system",
+            &[],
+            &[],
+            &ImageFormat::OpenAi,
+            true,
+        )?;
 
         assert_eq!(
             request["thinking"],
@@ -2261,15 +2249,9 @@ mod tests {
 
     #[test]
     fn test_create_request_o1_default() -> anyhow::Result<()> {
-        let model_config = ModelConfigParams {
-            model_name: "o1",
-            thinking_effort: None,
-            temperature: None,
-            max_tokens: Some(1024),
-            request_params: None,
-        };
+        let model_config = test_model_config("o1").with_max_tokens(Some(1024));
         let request = create_request(
-            model_config,
+            &model_config,
             "system",
             &[],
             &[],
@@ -2301,17 +2283,11 @@ mod tests {
 
     #[test]
     fn test_create_request_o1_medium_effort() -> anyhow::Result<()> {
-        let mut params = std::collections::HashMap::new();
-        params.insert("thinking_effort".to_string(), json!("medium"));
-        let model_config = ModelConfigParams {
-            model_name: "o1",
-            thinking_effort: Some(ThinkingEffort::Medium),
-            temperature: None,
-            max_tokens: Some(1024),
-            request_params: Some(&params),
-        };
+        let model_config = test_model_config("o1")
+            .with_max_tokens(Some(1024))
+            .with_thinking_effort(ThinkingEffort::Medium);
         let request = create_request(
-            model_config,
+            &model_config,
             "system",
             &[],
             &[],
@@ -2328,17 +2304,11 @@ mod tests {
 
     #[test]
     fn test_create_request_o3_off_effort_preserves_none() -> anyhow::Result<()> {
-        let mut params = std::collections::HashMap::new();
-        params.insert("thinking_effort".to_string(), json!("off"));
-        let model_config = ModelConfigParams {
-            model_name: "o3",
-            thinking_effort: Some(ThinkingEffort::Off),
-            temperature: None,
-            max_tokens: Some(1024),
-            request_params: Some(&params),
-        };
+        let model_config = test_model_config("o3")
+            .with_max_tokens(Some(1024))
+            .with_thinking_effort(ThinkingEffort::Off);
         let request = create_request(
-            model_config,
+            &model_config,
             "system",
             &[],
             &[],
@@ -2355,17 +2325,11 @@ mod tests {
 
     #[test]
     fn test_create_request_gpt5_pro_max_effort_uses_supported_level() -> anyhow::Result<()> {
-        let mut params = std::collections::HashMap::new();
-        params.insert("thinking_effort".to_string(), json!("max"));
-        let model_config = ModelConfigParams {
-            model_name: "gpt-5.2-pro-2025-12-11",
-            thinking_effort: Some(ThinkingEffort::Max),
-            temperature: None,
-            max_tokens: Some(1024),
-            request_params: Some(&params),
-        };
+        let model_config = test_model_config("gpt-5.2-pro-2025-12-11")
+            .with_max_tokens(Some(1024))
+            .with_thinking_effort(ThinkingEffort::Max);
         let request = create_request(
-            model_config,
+            &model_config,
             "system",
             &[],
             &[],
@@ -2382,17 +2346,11 @@ mod tests {
 
     #[test]
     fn test_create_request_o3_custom_reasoning_effort() -> anyhow::Result<()> {
-        let mut params = std::collections::HashMap::new();
-        params.insert("thinking_effort".to_string(), json!("high"));
-        let model_config = ModelConfigParams {
-            model_name: "o3-mini",
-            thinking_effort: Some(ThinkingEffort::High),
-            temperature: None,
-            max_tokens: Some(1024),
-            request_params: Some(&params),
-        };
+        let model_config = test_model_config("o3-mini")
+            .with_max_tokens(Some(1024))
+            .with_thinking_effort(ThinkingEffort::High);
         let request = create_request(
-            model_config,
+            &model_config,
             "system",
             &[],
             &[],
@@ -2481,6 +2439,41 @@ mod tests {
         assert_eq!(usage.usage.input_tokens, Some(expected_input));
         assert_eq!(usage.usage.output_tokens, Some(expected_output));
         assert_eq!(usage.usage.total_tokens, Some(expected_total));
+    }
+
+    #[test]
+    fn test_get_usage_preserves_provider_totals_with_cache_fields() {
+        let usage = get_usage(&json!({
+            "prompt_tokens": 120,
+            "completion_tokens": 30,
+            "total_tokens": 150,
+            "cache_read_input_tokens": 80,
+            "cache_creation_input_tokens": 20
+        }));
+
+        assert_eq!(usage.input_tokens, Some(120));
+        assert_eq!(usage.output_tokens, Some(30));
+        assert_eq!(usage.total_tokens, Some(150));
+        assert_eq!(usage.cache_read_input_tokens, Some(80));
+        assert_eq!(usage.cache_write_input_tokens, Some(20));
+    }
+
+    #[test]
+    fn test_get_usage_reads_openai_prompt_tokens_details() {
+        let usage = get_usage(&json!({
+            "prompt_tokens": 120,
+            "completion_tokens": 30,
+            "total_tokens": 150,
+            "prompt_tokens_details": {
+                "cached_tokens": 80
+            }
+        }));
+
+        assert_eq!(usage.input_tokens, Some(120));
+        assert_eq!(usage.output_tokens, Some(30));
+        assert_eq!(usage.total_tokens, Some(150));
+        assert_eq!(usage.cache_read_input_tokens, Some(80));
+        assert_eq!(usage.cache_write_input_tokens, None);
     }
 
     #[test]
@@ -3009,13 +3002,7 @@ data: [DONE]"#;
 
     #[test]
     fn test_create_request_preserves_reasoning_content_for_legacy_compat() -> anyhow::Result<()> {
-        let model_config = ModelConfigParams {
-            model_name: "deepseek-reasoner",
-            thinking_effort: None,
-            temperature: None,
-            max_tokens: Some(1024),
-            request_params: None,
-        };
+        let model_config = test_model_config("deepseek-reasoner").with_max_tokens(Some(1024));
         let message = Message::assistant()
             .with_content(MessageContent::thinking("preserve this", ""))
             .with_tool_request(
@@ -3025,7 +3012,7 @@ data: [DONE]"#;
             );
 
         let request = create_request(
-            model_config,
+            &model_config,
             "system",
             &[message],
             &[],

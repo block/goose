@@ -1,7 +1,9 @@
 mod acp_tooling;
 pub mod amp_acp;
 pub mod anthropic;
-pub mod api_client;
+pub mod api_client {
+    pub use goose_providers::api_client::*;
+}
 pub mod avian;
 pub mod azure;
 pub mod azureauth;
@@ -26,7 +28,6 @@ pub mod cursor_agent;
 pub mod databricks;
 pub mod databricks_auth;
 pub mod databricks_v2;
-pub mod embedding;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
@@ -53,7 +54,9 @@ pub mod openrouter;
 pub mod pi_acp;
 pub mod provider_registry;
 pub mod provider_test;
-mod retry;
+mod retry {
+    pub use goose_providers::retry::*;
+}
 #[cfg(feature = "aws-providers")]
 pub mod sagemaker_tgi;
 pub mod snowflake;

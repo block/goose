@@ -178,6 +178,7 @@ mod tests {
                     envs: Envs::new(HashMap::new()),
                     env_keys: vec!["SLACK_TOKEN".to_string()],
                     timeout: None,
+                    cwd: None,
                     description: "slack-mcp".to_string(),
                     bundled: None,
                     available_tools: Vec::new(),
@@ -275,6 +276,7 @@ mod tests {
                     envs: Envs::new(HashMap::new()),
                     env_keys: vec!["API_KEY".to_string()], // Same original key, different extension
                     timeout: None,
+                    cwd: None,
                     description: "service-b".to_string(),
                     bundled: None,
                     available_tools: Vec::new(),

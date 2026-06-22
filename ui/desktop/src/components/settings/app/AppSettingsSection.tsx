@@ -81,6 +81,8 @@ const i18n = defineMessages({
   languageTurkish: { id: 'settings.language.turkish', defaultMessage: 'Turkish' },
   languageHindi: { id: 'settings.language.hindi', defaultMessage: 'Hindi' },
   languageJapanese: { id: 'settings.language.japanese', defaultMessage: 'Japanese' },
+  languageSpanish: { id: 'settings.language.spanish', defaultMessage: 'Spanish' },
+  languageKorean: { id: 'settings.language.korean', defaultMessage: 'Korean' },
   helpTitle: { id: 'settings.help.title', defaultMessage: 'Help & feedback' },
   helpDesc: {
     id: 'settings.help.description',
@@ -144,8 +146,10 @@ const i18n = defineMessages({
 const LANGUAGE_OPTIONS: Array<{ value: LanguageSetting; message: keyof typeof i18n }> = [
   { value: 'system', message: 'languageSystem' },
   { value: 'en', message: 'languageEnglish' },
+  { value: 'es', message: 'languageSpanish' },
   { value: 'hi', message: 'languageHindi' },
   { value: 'ja', message: 'languageJapanese' },
+  { value: 'ko', message: 'languageKorean' },
   { value: 'ru', message: 'languageRussian' },
   { value: 'tr', message: 'languageTurkish' },
   { value: 'zh-CN', message: 'languageChineseSimplified' },

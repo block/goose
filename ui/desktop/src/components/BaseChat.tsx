@@ -1,11 +1,5 @@
 import { AppEvents } from '../constants/events';
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
@@ -16,13 +10,15 @@ import ChatInput from './ChatInput';
 import { ChatInputCard } from './ChatInputCard';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { useFileDrop } from '../hooks/useFileDrop';
-import { Message } from '../api';
+import { Message, updateWorkingDir } from '../api';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useNavigationContextSafe } from './Layout/NavigationContext';
 import { cn } from '../utils';
-import { useChatStream } from '../hooks/useChatStream';
+import { useChatSession } from '../hooks/useChatSession';
+import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
+import { acpUpdateWorkingDir } from '../acp/sessions';
 import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
@@ -33,9 +29,6 @@ import { useToolCount } from './alerts/useToolCount';
 import { getThinkingMessage, getTextAndImageContent } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
 import { substituteParameters } from '../utils/parameterSubstitution';
-import CreateRecipeFromSessionModal from './recipes/CreateRecipeFromSessionModal';
-import { toastSuccess } from '../toasts';
-import { Recipe } from '../recipe';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
 import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
@@ -49,18 +42,6 @@ const i18n = defineMessages({
   goHome: {
     id: 'baseChat.goHome',
     defaultMessage: 'Go home',
-  },
-  noSession: {
-    id: 'baseChat.noSession',
-    defaultMessage: 'No Session',
-  },
-  recipeCreatedTitle: {
-    id: 'baseChat.recipeCreatedTitle',
-    defaultMessage: 'Recipe created successfully!',
-  },
-  recipeCreatedMessage: {
-    id: 'baseChat.recipeCreatedMessage',
-    defaultMessage: '"{title}" has been saved and is ready to use.',
   },
 });
 
@@ -76,6 +57,7 @@ interface BaseChatProps {
   sessionId: string;
   isActiveSession: boolean;
   initialMessage?: UserInput;
+  noAutoSubmit?: boolean;
 }
 
 export default function BaseChat({
@@ -85,6 +67,7 @@ export default function BaseChat({
   customMainLayoutProps = {},
   sessionId,
   initialMessage,
+  noAutoSubmit,
   isActiveSession,
 }: BaseChatProps) {
   const intl = useIntl();
@@ -103,13 +86,13 @@ export default function BaseChat({
   const contentClassName = cn('pr-1 pb-10 pt-12', (isMobile || isNavCollapsed) && 'pt-16');
   const { droppedFiles, setDroppedFiles, handleDrop, handleDragOver } = useFileDrop();
   const onStreamFinish = useCallback(() => {}, []);
-  const [isCreateRecipeModalOpen, setIsCreateRecipeModalOpen] = useState(false);
 
   const {
     session,
     messages,
     chatState,
     setChatState,
+    updateSession,
     handleSubmit,
     submitElicitationResponse,
     stopStreaming,
@@ -117,11 +100,32 @@ export default function BaseChat({
     setRecipeUserParams,
     tokenState,
     notifications: toolCallNotifications,
+    pauseQueueOnStop,
     onMessageUpdate,
-  } = useChatStream({
+  } = useChatSession({
     sessionId,
     onStreamFinish,
   });
+
+  const handleWorkingDirChange = useCallback(
+    async (newDir: string) => {
+      if (USE_ACP_CHAT) {
+        if (!session) {
+          throw new Error('Cannot update working directory before ACP session is loaded');
+        }
+
+        await acpUpdateWorkingDir(session.id, newDir);
+      } else {
+        await updateWorkingDir({
+          body: { session_id: sessionId, working_dir: newDir },
+          throwOnError: true,
+        });
+      }
+
+      updateSession((currentSession) => ({ ...currentSession, working_dir: newDir }));
+    },
+    [session, sessionId, updateSession]
+  );
 
   const recipe = session?.recipe;
 
@@ -136,7 +140,13 @@ export default function BaseChat({
     return initialMessage;
   }, [initialMessage, recipe?.prompt, session?.user_recipe_values]);
 
-  const canAutoSubmit = session?.session_type === 'scheduled' || !recipe || hasNotAcceptedRecipe === false;
+  // noAutoSubmit only suppresses auto-submitting the initial prompt of a fresh session
+  // (goose://new-session?prompt=...). Once the conversation has messages, later flows
+  // such as forks or resumes should auto-submit normally.
+  const suppressInitialAutoSubmit = noAutoSubmit && messages.length === 0;
+  const canAutoSubmit =
+    !suppressInitialAutoSubmit &&
+    (session?.session_type === 'scheduled' || !recipe || hasNotAcceptedRecipe === false);
 
   useAutoSubmit({
     sessionId,
@@ -201,7 +211,11 @@ export default function BaseChat({
   const latestInference = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const message = messages[i];
-      if (message.role === 'assistant' && message.metadata.userVisible && message.metadata.inference) {
+      if (
+        message.role === 'assistant' &&
+        message.metadata.userVisible &&
+        message.metadata.inference
+      ) {
         return message.metadata.inference;
       }
     }
@@ -283,15 +297,6 @@ export default function BaseChat({
   }, [isActiveSession, sessionId, chatState]);
 
   useEffect(() => {
-    const handleMakeAgent = () => {
-      setIsCreateRecipeModalOpen(true);
-    };
-
-    window.addEventListener('make-agent-from-chat', handleMakeAgent);
-    return () => window.removeEventListener('make-agent-from-chat', handleMakeAgent);
-  }, []);
-
-  useEffect(() => {
     const handleSessionForked = (event: Event) => {
       const customEvent = event as CustomEvent<{
         newSessionId: string;
@@ -322,20 +327,6 @@ export default function BaseChat({
     };
   }, [location.pathname, navigate]);
 
-  const handleRecipeCreated = (recipe: Recipe) => {
-    toastSuccess({
-      title: intl.formatMessage(i18n.recipeCreatedTitle),
-      msg: intl.formatMessage(i18n.recipeCreatedMessage, { title: recipe.title }),
-    });
-  };
-
-  const chat: ChatType = {
-    messages,
-    recipe,
-    sessionId,
-    name: session?.name || intl.formatMessage(i18n.noSession),
-  };
-
   const lastSetNameRef = useRef<string>('');
 
   useEffect(() => {
@@ -360,7 +351,10 @@ export default function BaseChat({
       : recipe.prompt;
   }
 
-  const initialPrompt = recipePrompt;
+  const initialPrompt =
+    noAutoSubmit && messages.length === 0 && resolvedInitialMessage?.msg
+      ? resolvedInitialMessage.msg
+      : recipePrompt;
 
   if (sessionLoadError) {
     return (
@@ -375,7 +369,9 @@ export default function BaseChat({
             <div className="flex-1 flex items-center justify-center">
               <div className="flex flex-col items-center justify-center p-8">
                 <div className="text-red-700 dark:text-red-300 bg-red-400/50 p-4 rounded-lg mb-4 max-w-md">
-                  <h3 className="font-semibold mb-2">{intl.formatMessage(i18n.failedToLoadSession)}</h3>
+                  <h3 className="font-semibold mb-2">
+                    {intl.formatMessage(i18n.failedToLoadSession)}
+                  </h3>
                   <p className="text-sm">{sessionLoadError}</p>
                 </div>
                 <button
@@ -422,7 +418,7 @@ export default function BaseChat({
             <EnvironmentBadge className="translate-y-px" />
           </div>
 
-          <SessionActionsHeader session={session} />
+          <SessionActionsHeader session={session} onSessionChange={updateSession} />
 
           <ScrollArea
             ref={scrollRef}
@@ -499,24 +495,26 @@ export default function BaseChat({
             chatState={chatState}
             setChatState={setChatState}
             onStop={stopStreaming}
+            pauseQueueOnStop={pauseQueueOnStop}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
-            totalTokens={tokenState?.totalTokens ?? session?.total_tokens ?? undefined}
+            totalTokens={tokenState?.totalTokens ?? session?.usage?.total_tokens ?? undefined}
             accumulatedInputTokens={
-              tokenState?.accumulatedInputTokens ?? session?.accumulated_input_tokens ?? undefined
+              tokenState?.accumulatedInputTokens ??
+              session?.accumulated_usage?.input_tokens ??
+              undefined
             }
             accumulatedOutputTokens={
-              tokenState?.accumulatedOutputTokens ?? session?.accumulated_output_tokens ?? undefined
+              tokenState?.accumulatedOutputTokens ??
+              session?.accumulated_usage?.output_tokens ??
+              undefined
             }
-            accumulatedCost={
-              tokenState?.accumulatedCost ?? session?.accumulated_cost ?? undefined
-            }
+            accumulatedCost={tokenState?.accumulatedCost ?? session?.accumulated_cost ?? undefined}
             droppedFiles={droppedFiles}
             onFilesProcessed={() => setDroppedFiles([])} // Clear dropped files after processing
             messages={messages}
             disableAnimation={disableAnimation}
-
             recipe={recipe}
             recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
@@ -524,6 +522,8 @@ export default function BaseChat({
             sessionModel={sessionModel}
             sessionProvider={sessionProvider}
             sessionLoaded={sessionLoaded}
+            workingDir={session?.working_dir}
+            onWorkingDirChange={handleWorkingDirChange}
             latestInference={latestInference}
             {...customChatInputProps}
           />
@@ -548,23 +548,16 @@ export default function BaseChat({
         recipe.parameters.length > 0 &&
         !session?.user_recipe_values &&
         session?.session_type !== 'scheduled' && (
-        <ParameterInputModal
-          parameters={recipe.parameters}
-          onSubmit={setRecipeUserParams}
-          onClose={() => setView('chat')}
-          initialValues={
-            (window.appConfig?.get('recipeParameters') as Record<string, string> | undefined) ||
-            undefined
-          }
-        />
-      )}
-
-      <CreateRecipeFromSessionModal
-        isOpen={isCreateRecipeModalOpen}
-        onClose={() => setIsCreateRecipeModalOpen(false)}
-        sessionId={chat.sessionId}
-        onRecipeCreated={handleRecipeCreated}
-      />
+          <ParameterInputModal
+            parameters={recipe.parameters}
+            onSubmit={setRecipeUserParams}
+            onClose={() => setView('chat')}
+            initialValues={
+              (window.appConfig?.get('recipeParameters') as Record<string, string> | undefined) ||
+              undefined
+            }
+          />
+        )}
     </div>
   );
 }

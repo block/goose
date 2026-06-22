@@ -15,11 +15,11 @@ use tokio_util::io::StreamReader;
 use url::Url;
 
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use crate::providers::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
+use goose_providers::model::ModelConfig;
 
 use crate::providers::formats::gcpvertexai::{
     create_request, response_to_streaming_message, GcpLocation, ModelProvider, RequestContext,
@@ -28,9 +28,9 @@ use crate::providers::formats::gcpvertexai::{
 use crate::providers::gcpauth::GcpAuth;
 use crate::providers::openai_compatible::{map_http_error_to_provider_error, sanitize_url};
 use crate::providers::retry::RetryConfig;
-use crate::providers::utils::RequestLog;
 use crate::session_context::SESSION_ID_HEADER;
 use goose_providers::errors::ProviderError;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 
 const GCP_VERTEX_AI_PROVIDER_NAME: &str = "gcp_vertex_ai";
@@ -165,7 +165,10 @@ impl GcpVertexAIProvider {
     ///
     /// # Arguments
     /// * `model` - Configuration for the model to be used
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        model: ModelConfig,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
         let project_id = config.get_param("GCP_PROJECT_ID")?;
         let location = Self::determine_location(config)?;
@@ -284,6 +287,7 @@ impl GcpVertexAIProvider {
         let mut overloaded_attempts = 0;
         let mut last_error = None;
         let max_retries = self.retry_config.max_retries;
+        let mut retried_auth = false;
 
         loop {
             if rate_limit_attempts > max_retries && overloaded_attempts > max_retries {
@@ -295,10 +299,21 @@ impl GcpVertexAIProvider {
                 );
             }
 
-            let auth_header = self
-                .get_auth_header()
-                .await
-                .map_err(|e| ProviderError::Authentication(e.to_string()))?;
+            let auth_header = match self.get_auth_header().await {
+                Ok(header) => header,
+                Err(e) => {
+                    if !retried_auth {
+                        retried_auth = true;
+                        if self.auth.refresh_credentials().await.is_ok() {
+                            tracing::info!(
+                                "gcloud token exchange failed ({e}); reloaded credentials and retrying"
+                            );
+                            continue;
+                        }
+                    }
+                    return Err(ProviderError::Authentication(e.to_string()));
+                }
+            };
 
             let mut request = self
                 .client
@@ -355,6 +370,17 @@ impl GcpVertexAIProvider {
             } else if status == StatusCode::OK {
                 return Ok(response);
             } else if status == StatusCode::UNAUTHORIZED || status == StatusCode::FORBIDDEN {
+                if !retried_auth {
+                    retried_auth = true;
+                    if let Err(e) = self.auth.refresh_credentials().await {
+                        tracing::warn!("Failed to reload gcloud credentials after {status}: {e}");
+                    } else {
+                        tracing::info!(
+                            "Vertex AI returned {status}; reloaded gcloud credentials and retrying"
+                        );
+                        continue;
+                    }
+                }
                 return Err(ProviderError::Authentication(format!(
                     "Authentication failed with status: {status}"
                 )));
@@ -557,8 +583,9 @@ impl ProviderDef for GcpVertexAIProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 
@@ -595,7 +622,7 @@ impl Provider for GcpVertexAIProvider {
             }
         }
 
-        let mut log = RequestLog::start(model_config, &request)?;
+        let mut log = start_log(model_config, &request)?;
 
         let response = self
             .post_stream(Some(session_id), &request, &context)

@@ -3,12 +3,14 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
+use goose::conversation::token_usage::Usage;
 use goose::conversation::Conversation;
 use goose::download_manager::{DownloadProgress, DownloadStatus};
-use goose::model::ModelConfig;
-use goose::permission::permission_confirmation::{Permission, PrincipalType};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{Session, SessionType, SystemInfo};
+use goose_providers::model::ModelConfig;
+use goose_providers::permission::Permission;
+use goose_providers::permission::PrincipalType;
 use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, IconTheme, ImageContent, JsonObject,
@@ -457,7 +459,6 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::schedule::kill_running_job,
         super::routes::schedule::inspect_running_job,
         super::routes::schedule::sessions_handler,
-        super::routes::recipe::create_recipe,
         super::routes::recipe::encode_recipe,
         super::routes::recipe::decode_recipe,
         super::routes::recipe::scan_recipe,
@@ -530,6 +531,7 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         MessageMetadata,
         InferenceMetadata,
         TokenState,
+        Usage,
         ContentSchema,
         EmbeddedResourceSchema,
         ImageContentSchema,
@@ -578,7 +580,7 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         ThinkingEffort,
         super::routes::config_management::ProviderModelInfoQuery,
         Session,
-        goose::config::goose_mode::GooseMode,
+        goose_providers::goose_mode::GooseMode,
         SessionType,
         SystemInfo,
         Conversation,
@@ -594,9 +596,6 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::schedule::ListSchedulesResponse,
         super::routes::schedule::SessionsQuery,
         super::routes::schedule::SessionDisplayInfo,
-        super::routes::recipe::CreateRecipeRequest,
-        super::routes::recipe::AuthorRequest,
-        super::routes::recipe::CreateRecipeResponse,
         super::routes::recipe::EncodeRecipeRequest,
         super::routes::recipe::EncodeRecipeResponse,
         super::routes::recipe::DecodeRecipeRequest,
@@ -696,6 +695,7 @@ pub struct ApiDoc;
         super::routes::local_inference::ModelDownloadStatus,
         super::routes::local_inference::DownloadModelRequest,
         goose::providers::local_inference::hf_models::HfModelInfo,
+        goose::providers::local_inference::hf_models::HfModelVariant,
         goose::providers::local_inference::hf_models::HfGgufFile,
         goose::providers::local_inference::hf_models::HfQuantVariant,
         super::routes::local_inference::RepoVariantsResponse,

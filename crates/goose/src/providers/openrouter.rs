@@ -8,12 +8,12 @@ use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::openai_compatible::{handle_status, stream_openai_compat};
 use super::retry::ProviderRetry;
-use super::utils::RequestLog;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use crate::providers::formats::openrouter as openrouter_format;
 use goose_providers::errors::ProviderError;
-use goose_providers::formats::openai::{create_request, ModelConfigParams};
+use goose_providers::formats::openai::create_request;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 
 pub const OPENROUTER_PROVIDER_NAME: &str = "openrouter";
@@ -47,8 +47,15 @@ pub struct OpenRouterProvider {
 }
 
 impl OpenRouterProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(OPENROUTER_DEFAULT_FAST_MODEL, OPENROUTER_PROVIDER_NAME)?;
+    pub async fn from_env(
+        model: ModelConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
+        let model = crate::model_config::with_configured_fast_model(
+            model,
+            OPENROUTER_PROVIDER_NAME,
+            OPENROUTER_DEFAULT_FAST_MODEL,
+        )?;
 
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
@@ -57,7 +64,7 @@ impl OpenRouterProvider {
             .unwrap_or_else(|_| "https://openrouter.ai".to_string());
 
         let auth = AuthMethod::BearerToken(api_key);
-        let api_client = ApiClient::new(host, auth)?
+        let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
             .with_header("HTTP-Referer", "https://goose-docs.ai")?
             .with_header("X-Title", "goose")?;
 
@@ -179,8 +186,9 @@ impl ProviderDef for OpenRouterProvider {
     fn from_env(
         model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(model, tls_config))
     }
 }
 
@@ -257,13 +265,7 @@ impl Provider for OpenRouterProvider {
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let mut payload = create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            model_config,
             system,
             messages,
             tools,
@@ -291,7 +293,7 @@ impl Provider for OpenRouterProvider {
             obj.insert("transforms".to_string(), json!(["middle-out"]));
         }
 
-        let mut log = RequestLog::start(model_config, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {

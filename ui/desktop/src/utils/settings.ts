@@ -28,11 +28,12 @@ export interface SessionSharingConfig {
   baseUrl: string;
 }
 
-export type LanguageSetting = 'system' | 'en' | 'hi' | 'ja' | 'ru' | 'tr' | 'zh-CN';
+export type LanguageSetting = 'system' | 'en' | 'es' | 'hi' | 'ja' | 'ko' | 'ru' | 'tr' | 'zh-CN';
 
 export interface Settings {
   // Desktop app settings
   showMenuBarIcon: boolean;
+  disableAutoDownload: boolean;
   showDockIcon: boolean;
   enableWakelock: boolean;
   enableNotifications: boolean;
@@ -70,6 +71,7 @@ export const defaultKeyboardShortcuts: DefaultKeyboardShortcuts = {
 export const defaultSettings: Settings = {
   // Desktop app settings
   showMenuBarIcon: true,
+  disableAutoDownload: false,
   showDockIcon: true,
   enableWakelock: false,
   enableNotifications: true,

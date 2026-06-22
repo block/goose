@@ -568,6 +568,18 @@
     ]
   },
   {
+    "id": "ophis",
+    "name": "Ophis",
+    "description": "Natural-language intent DEX aggregator with a keyless MCP server for AI agents",
+    "type": "streamable-http",
+    "url": "https://mcp.ophis.fi/mcp",
+    "link": "https://github.com/ophis-fi/ophis",
+    "installation_notes": "Streamable HTTP extension. No API key or environment variables required.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  },
+  {
     "id": "pdf_read",
     "name": "PDF Reader",
     "description": "Read large and complex PDF documents",

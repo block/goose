@@ -13,10 +13,12 @@ pub(crate) fn extract_usage_tokens(usage_info: &Value) -> Usage {
             .and_then(|v| v.as_i64())
             .and_then(|v| i32::try_from(v).ok())
     };
-    Usage::new(
+    Usage::from_cache_exclusive_input(
         get("input_tokens"),
         get("output_tokens"),
         get("total_tokens"),
+        get("cache_read_input_tokens"),
+        get("cache_creation_input_tokens"),
     )
 }
 
