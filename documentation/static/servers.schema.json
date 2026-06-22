@@ -1,0 +1,77 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://block.github.io/goose/servers.schema.json",
+  "title": "goose extension catalog",
+  "description": "Schema for documentation/static/servers.json. Note: scripts/validate-servers.js is the enforced source of truth and adds cross-field and uniqueness checks on top of this schema.",
+  "type": "array",
+  "items": { "$ref": "#/$defs/server" },
+  "$defs": {
+    "envVar": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "description", "required"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "required": { "type": "boolean" }
+      }
+    },
+    "server": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "name",
+        "description",
+        "link",
+        "is_builtin",
+        "endorsed",
+        "environmentVariables"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$",
+          "description": "Unique, lowercase, kebab/dot/underscore-cased identifier."
+        },
+        "name": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "command": {
+          "type": "string",
+          "description": "Launch command for stdio servers (e.g. 'npx -y @scope/pkg' or 'uvx pkg')."
+        },
+        "url": {
+          "type": "string",
+          "description": "Endpoint URL for remote (http/streamable-http) servers."
+        },
+        "type": {
+          "type": "string",
+          "enum": ["local", "remote", "streamable-http"]
+        },
+        "link": {
+          "type": "string",
+          "pattern": "^https?://",
+          "description": "Canonical source/repository URL for the server."
+        },
+        "documentation": {
+          "type": "string",
+          "pattern": "^https?://",
+          "description": "Optional secondary documentation link (e.g. env var reference)."
+        },
+        "installation_notes": { "type": "string" },
+        "is_builtin": { "type": "boolean" },
+        "endorsed": { "type": "boolean" },
+        "show_install_link": { "type": "boolean" },
+        "show_install_command": { "type": "boolean" },
+        "environmentVariables": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/envVar" }
+        },
+        "headers": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/envVar" }
+        }
+      }
+    }
+  }
+}
