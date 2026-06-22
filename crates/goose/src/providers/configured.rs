@@ -135,14 +135,18 @@ fn check_provider_configured_with_huggingface_oauth(
         .cloned()
         .collect();
 
-    // If there are no non-default keys, this provider needs at least one key explicitly set
+    // Every required key resolves via its default here. The provider is
+    // configured if a required key is explicitly set, or if any secret key holds
+    // a real value: a present optional secret (e.g. OPENAI_API_KEY, when HOST and
+    // BASE_PATH are defaulted) is a usable credential on its own.
     if required_non_default_keys.is_empty() {
-        return required_keys.iter().any(|key| {
-            let is_set_in_env = env::var(&key.name).is_ok();
-            let is_set_in_config = config.get(&key.name, key.secret).is_ok();
-
-            is_set_in_env || is_set_in_config
+        let any_required_set = required_keys
+            .iter()
+            .any(|key| env::var(&key.name).is_ok() || config.get(&key.name, key.secret).is_ok());
+        let any_secret_set = metadata.config_keys.iter().any(|key| {
+            key.secret && (env::var(&key.name).is_ok() || config.get(&key.name, key.secret).is_ok())
         });
+        return any_required_set || any_secret_set;
     }
 
     // Otherwise, all non-default keys must be set
