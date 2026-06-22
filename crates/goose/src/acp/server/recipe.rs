@@ -133,15 +133,17 @@ impl GooseAcpAgent {
         recipe: &Recipe,
         recipe_dir: &Path,
     ) -> Result<(Recipe, Option<HashMap<String, String>>), agent_client_protocol::Error> {
-        if let Some(rendered) = self.render_recipe(recipe, recipe_dir, HashMap::new())? {
-            return Ok((rendered, None));
-        }
-        if !self.supports_recipe_param_requests() {
-            return Err(agent_client_protocol::Error::invalid_params().data(
-                "recipe requires parameters but the client does not support recipeParameterRequests",
-            ));
-        }
         let parameters = recipe.parameters.clone().unwrap_or_default();
+
+        if parameters.is_empty() || !self.supports_recipe_param_requests() {
+            return match self.render_recipe(recipe, recipe_dir, HashMap::new())? {
+                Some(rendered) => Ok((rendered, None)),
+                None => Err(agent_client_protocol::Error::invalid_params().data(
+                    "recipe requires parameters but the client does not support recipeParameterRequests",
+                )),
+            };
+        }
+
         let response = self
             .request_recipe_params(cx, session_id, parameters)
             .await?;
