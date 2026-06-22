@@ -58,6 +58,10 @@ sec1 = { version = "0.7", default-features = false, features = ["der", "pkcs8", 
 [dev-dependencies]
 test-case = { workspace = true }
 tempfile = { workspace = true }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true }
 env-lock = { workspace = true }
+
+[[example]]
+name = "streaming"
+required-features = ["rustls-tls"]
