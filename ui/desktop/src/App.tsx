@@ -141,8 +141,6 @@ const PairRouteWrapper = ({
           });
         } catch (error) {
           if (isRecipeParamsCancelled(error)) {
-            // User chose "Start New Chat (No Recipe)": recipe session aborted server-side, so
-            // land them on a fresh chat instead of an empty pair view.
             navigate('/');
             return;
           }

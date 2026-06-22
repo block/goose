@@ -130,24 +130,34 @@ impl GooseAcpAgent {
         meta: Option<&Meta>,
         recipe_settings: Option<&Settings>,
     ) -> Result<(String, ModelConfig), agent_client_protocol::Error> {
-        if let Some(provider) = recipe_settings.and_then(|s| s.goose_provider.clone()) {
-            let model_config = match recipe_settings.and_then(|s| s.goose_model.clone()) {
-                Some(model) => {
-                    crate::model_config::model_config_from_user_config(&provider, &model)
-                        .internal_err_ctx("Failed to build model config from recipe settings")?
-                }
-                None => super::resolve_provider_default_model_config(&provider).await?,
-            };
-            return Ok((provider, model_config));
-        }
+        let recipe_provider = recipe_settings.and_then(|s| s.goose_provider.clone());
+        let recipe_model = recipe_settings.and_then(|s| s.goose_model.clone());
 
-        match meta_string(meta, "provider")? {
-            Some(provider) => {
-                let model_config = super::resolve_provider_default_model_config(&provider).await?;
-                Ok((provider, model_config))
-            }
-            None => super::resolve_default_provider_model_config(config),
-        }
+        let provider = match recipe_provider {
+            Some(provider) => provider,
+            None => match meta_string(meta, "provider")? {
+                Some(provider) => provider,
+                None => {
+                    if let Some(model) = recipe_model.as_deref() {
+                        let provider = config.get_goose_provider().map_err(|error| {
+                            agent_client_protocol::Error::internal_error()
+                                .data(format!("Failed to resolve provider: {}", error))
+                        })?;
+                        let model_config = model_config_from_recipe_settings(&provider, model)?;
+                        return Ok((provider, model_config));
+                    }
+
+                    return super::resolve_default_provider_model_config(config);
+                }
+            },
+        };
+
+        let model_config = match recipe_model {
+            Some(model) => model_config_from_recipe_settings(&provider, &model)?,
+            None => super::resolve_provider_default_model_config(&provider).await?,
+        };
+
+        Ok((provider, model_config))
     }
 
     async fn apply_initial_session_config(
@@ -196,6 +206,14 @@ impl GooseAcpAgent {
         response = response.meta(super::session_response_meta(session, extension_results));
         Ok(response)
     }
+}
+
+fn model_config_from_recipe_settings(
+    provider: &str,
+    model: &str,
+) -> Result<ModelConfig, agent_client_protocol::Error> {
+    crate::model_config::model_config_from_user_config(provider, model)
+        .internal_err_ctx("Failed to build model config from recipe settings")
 }
 
 fn meta_goose_extensions(

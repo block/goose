@@ -3,9 +3,9 @@
 //! fire-and-forget). This module aggregates their JSON schemas for the ACP
 //! schema generator, parallel to `custom_notification_schemas`.
 //!
-//! To register a new agent → client request, define its params/response types
-//! (deriving `JsonSchema`) next to the feature that sends it, then add one line
-//! to [`agent_request_schemas`].
+//! To expose a new agent → client request in the generated schema, define its
+//! params/response types (deriving `JsonSchema`) next to the feature that sends
+//! it, then add one line to [`agent_request_schemas`].
 
 use schemars::{JsonSchema, SchemaGenerator};
 
@@ -18,8 +18,8 @@ fn short_type_name<T>() -> String {
     full.rsplit("::").next().unwrap_or(full).to_string()
 }
 
-/// Schema descriptor for a single agent → client request. Unlike a notification,
-/// a request fills both `params` and `response`.
+/// Schema descriptor for a single agent → client request. Unlike notification
+/// descriptors, request descriptors include both params and response types.
 fn agent_request_schema<Req, Resp>(
     generator: &mut SchemaGenerator,
     method: &str,

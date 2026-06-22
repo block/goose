@@ -393,8 +393,6 @@ export default function RecipesView() {
       });
     } catch (error) {
       if (isRecipeParamsCancelled(error)) {
-        // User chose "Start New Chat (No Recipe)" in the parameter modal: the recipe session was
-        // aborted server-side, so drop them on a fresh chat (matches the REST flow's setView).
         setView('chat');
         return;
       }
