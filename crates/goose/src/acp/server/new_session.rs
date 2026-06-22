@@ -46,28 +46,55 @@ impl GooseAcpAgent {
             .create_session(args.cwd.clone(), session_name, session_type, current_mode)
             .await
             .internal_err_ctx("Failed to create session")?;
+        match self
+            .finish_new_session_setup(cx, config, &session, args, recipe, project_id)
+            .await
+        {
+            Ok(response) => Ok(response),
+            Err(error) => {
+                self.cleanup_failed_new_session(&session.id).await;
+                Err(error)
+            }
+        }
+    }
+
+    async fn finish_new_session_setup(
+        &self,
+        cx: &ConnectionTo<Client>,
+        config: &Config,
+        session: &Session,
+        args: NewSessionRequest,
+        recipe: Option<(Recipe, PathBuf)>,
+        project_id: Option<String>,
+    ) -> Result<NewSessionResponse, agent_client_protocol::Error> {
         let rendered_recipe = self
-            .configure_new_session(cx, config, &session, args, recipe, project_id)
+            .configure_new_session(cx, config, session, args, recipe, project_id)
             .await?;
 
-        let session = self.reload_session(&session.id).await?;
+        let reloaded_session = self.reload_session(&session.id).await?;
         let (agent, extension_results) = self
-            .activate_acp_session(cx, &session, HashMap::new())
+            .activate_acp_session(cx, &reloaded_session, HashMap::new())
             .await?;
         if let Some(recipe) = &rendered_recipe {
             self.apply_recipe(&agent, recipe).await;
         }
 
-        let session = self.reload_session(&session.id).await?;
+        let reloaded_session = self.reload_session(&session.id).await?;
         let response = self
-            .build_new_session_response(&session, &extension_results)
+            .build_new_session_response(&reloaded_session, &extension_results)
             .await?;
         super::send_session_setup_notifications(
             cx,
-            &session,
+            &reloaded_session,
             self.supports_goose_custom_notifications(),
         )?;
         Ok(response)
+    }
+
+    async fn cleanup_failed_new_session(&self, session_id: &str) {
+        let _ = self.session_manager.delete_session(session_id).await;
+        self.sessions.lock().await.remove(session_id);
+        let _ = self.agent_manager.remove_session(session_id).await;
     }
 
     async fn configure_new_session(
@@ -80,7 +107,7 @@ impl GooseAcpAgent {
         project_id: Option<String>,
     ) -> Result<Option<Recipe>, agent_client_protocol::Error> {
         let (rendered, user_recipe_values) = self
-            .render_recipe_or_cleanup(cx, &session.id, recipe.as_ref())
+            .render_recipe_for_session(cx, &session.id, recipe.as_ref())
             .await?;
 
         let recipe_settings = rendered.as_ref().and_then(|r| r.settings.as_ref());

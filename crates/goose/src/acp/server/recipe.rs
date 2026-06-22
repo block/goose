@@ -104,7 +104,7 @@ impl GooseAcpAgent {
         }
     }
 
-    pub(super) async fn render_recipe_or_cleanup(
+    pub(super) async fn render_recipe_for_session(
         &self,
         cx: &ConnectionTo<Client>,
         session_id: &str,
@@ -114,16 +114,10 @@ impl GooseAcpAgent {
         let Some((recipe, recipe_dir)) = recipe else {
             return Ok((None, None));
         };
-        match self
+        let (rendered, values) = self
             .render_recipe_with_params(cx, session_id, recipe, recipe_dir)
-            .await
-        {
-            Ok((rendered, values)) => Ok((Some(rendered), values)),
-            Err(e) => {
-                let _ = self.session_manager.delete_session(session_id).await;
-                Err(e)
-            }
-        }
+            .await?;
+        Ok((Some(rendered), values))
     }
 
     async fn render_recipe_with_params(

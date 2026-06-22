@@ -651,6 +651,36 @@ fn test_new_session_honors_recipe_model_without_recipe_provider() {
 }
 
 #[test]
+fn test_new_session_cleans_up_when_config_fails() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let conn = new_connection(data_root.path()).await;
+        let work_dir = tempfile::tempdir().unwrap();
+        let mut meta = serde_json::Map::new();
+        meta.insert(
+            "enabledExtensions".to_string(),
+            serde_json::Value::String("invalid".to_string()),
+        );
+
+        let error: anyhow::Error = conn
+            .cx()
+            .send_request(NewSessionRequest::new(work_dir.path()).meta(meta))
+            .block_task()
+            .await
+            .unwrap_err()
+            .into();
+
+        assert_invalid_params(error);
+
+        let sessions = SessionManager::new(data_root.path().to_path_buf())
+            .list_all_sessions()
+            .await
+            .unwrap();
+        assert!(sessions.is_empty());
+    });
+}
+
+#[test]
 fn test_model_set() {
     run_test(async { run_model_set::<AcpServerConnection>().await });
 }
