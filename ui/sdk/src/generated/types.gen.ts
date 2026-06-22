@@ -1615,10 +1615,13 @@ export type RecipeParameterInputType = 'string' | 'number' | 'boolean' | 'date' 
 export type RecipeParameterRequirement = 'required' | 'optional' | 'user_prompt';
 
 export type RecipeParamsResponse_unstable = {
+    action?: RecipeParamsAction;
     values?: {
         [key: string]: string;
     };
 };
+
+export type RecipeParamsAction = 'submit' | 'cancel';
 
 export type ExtRequest = {
     id: string;

@@ -192,11 +192,7 @@ impl GooseAcpAgent {
         if let Some(co) = config_options {
             response = response.config_options(co);
         }
-        if let Ok(extension_results) = serde_json::to_value(extension_results) {
-            let mut meta = serde_json::Map::new();
-            meta.insert("extensionResults".to_string(), extension_results);
-            response = response.meta(meta);
-        }
+        response = response.meta(super::session_response_meta(session, extension_results));
         Ok(response)
     }
 }

@@ -20,6 +20,8 @@ use crate::recipe_deeplink;
 
 pub(super) const RECIPE_PARAMS_METHOD: &str = "_goose/unstable/session/recipe/request-params";
 
+pub(super) const RECIPE_PARAMS_CANCELLED_REASON: &str = "recipe_params_cancelled";
+
 impl GooseAcpAgent {
     pub(super) async fn resolve_recipe_from_meta(
         &self,
@@ -61,7 +63,7 @@ impl GooseAcpAgent {
         })
     }
 
-    pub(super) fn render_recipe(
+    fn render_recipe(
         &self,
         recipe: &Recipe,
         values: HashMap<String, String>,
@@ -115,7 +117,7 @@ impl GooseAcpAgent {
         }
     }
 
-    pub(super) async fn render_recipe_with_params(
+    async fn render_recipe_with_params(
         &self,
         cx: &ConnectionTo<Client>,
         session_id: &str,
@@ -130,9 +132,13 @@ impl GooseAcpAgent {
             ));
         }
         let parameters = recipe.parameters.clone().unwrap_or_default();
-        let values = self
+        let response = self
             .request_recipe_params(cx, session_id, parameters)
             .await?;
+        if matches!(response.action, RecipeParamsAction::Cancel) {
+            return Err(recipe_params_cancelled_error());
+        }
+        let values = response.values;
         match self.render_recipe(recipe, values.clone())? {
             Some(rendered) => Ok((rendered, Some(values))),
             None => Err(agent_client_protocol::Error::invalid_params()
@@ -140,12 +146,12 @@ impl GooseAcpAgent {
         }
     }
 
-    pub(super) async fn request_recipe_params(
+    async fn request_recipe_params(
         &self,
         cx: &ConnectionTo<Client>,
         session_id: &str,
         parameters: Vec<RecipeParameter>,
-    ) -> Result<HashMap<String, String>, agent_client_protocol::Error> {
+    ) -> Result<RecipeParamsResponse, agent_client_protocol::Error> {
         let request = RequestRecipeParams {
             session_id: session_id.to_string(),
             parameters,
@@ -153,15 +159,21 @@ impl GooseAcpAgent {
         let (tx, rx) = oneshot::channel();
         cx.send_request(RequestRecipeParamsMessage(request))
             .on_receiving_result(move |result| async move {
-                let _ = tx.send(result.map(|response| response.0.values));
+                let _ = tx.send(result.map(|response| response.0));
                 Ok(())
             })?;
         match rx.await {
-            Ok(values) => values,
+            Ok(response) => response,
             Err(_) => Err(agent_client_protocol::Error::internal_error()
                 .data("recipe params request was dropped")),
         }
     }
+}
+
+fn recipe_params_cancelled_error() -> agent_client_protocol::Error {
+    agent_client_protocol::Error::invalid_params().data(serde_json::json!({
+        "reason": RECIPE_PARAMS_CANCELLED_REASON,
+    }))
 }
 
 fn validate_recipe(recipe: &Recipe) -> Result<(), agent_client_protocol::Error> {
@@ -180,9 +192,19 @@ pub(super) struct RequestRecipeParams {
     parameters: Vec<RecipeParameter>,
 }
 
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, schemars::JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub(super) enum RecipeParamsAction {
+    #[default]
+    Submit,
+    Cancel,
+}
+
 #[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub(super) struct RecipeParamsResponse {
+    #[serde(default)]
+    action: RecipeParamsAction,
     #[serde(default)]
     values: HashMap<String, String>,
 }

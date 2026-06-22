@@ -3779,6 +3779,10 @@
     "RecipeParamsResponse_unstable": {
       "type": "object",
       "properties": {
+        "action": {
+          "$ref": "#/$defs/RecipeParamsAction",
+          "default": "submit"
+        },
         "values": {
           "type": "object",
           "additionalProperties": {
@@ -3789,6 +3793,13 @@
       },
       "x-side": "client",
       "x-method": "_goose/unstable/session/recipe/request-params"
+    },
+    "RecipeParamsAction": {
+      "type": "string",
+      "enum": [
+        "submit",
+        "cancel"
+      ]
     },
     "ExtRequest": {
       "properties": {

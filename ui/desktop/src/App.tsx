@@ -12,6 +12,8 @@ import { openSharedSessionFromDeepLink, importNostrSessionFromDeepLink } from '.
 import { type SharedSessionDetails } from './sharedSessions';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
+import RecipeParamsModalContainer from './components/RecipeParamsModalContainer';
+import { isRecipeParamsCancelled } from './acp/errors';
 import { toast, ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
@@ -97,6 +99,7 @@ const PairRouteWrapper = ({
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
   const [searchParams, setSearchParams] = useSearchParams();
   const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const navigate = useNavigate();
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const recipeDeeplinkFromConfig = window.appConfig?.get('recipeDeeplink') as string | undefined;
@@ -137,6 +140,12 @@ const PairRouteWrapper = ({
             return prev;
           });
         } catch (error) {
+          if (isRecipeParamsCancelled(error)) {
+            // User chose "Start New Chat (No Recipe)": recipe session aborted server-side, so
+            // land them on a fresh chat instead of an empty pair view.
+            navigate('/');
+            return;
+          }
           console.error('Failed to create session:', error);
           trackErrorWithContext(error, {
             component: 'PairRouteWrapper',
@@ -668,6 +677,7 @@ export function AppInner() {
         pauseOnHover
       />
       <ExtensionInstallModal addExtension={addExtension} setView={setView} />
+      <RecipeParamsModalContainer />
       <div className="relative w-screen h-screen overflow-hidden bg-background-secondary flex flex-col">
         <div className="titlebar-drag-region" />
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>

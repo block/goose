@@ -1603,7 +1603,10 @@ export const zRequestRecipeParams_unstable = z.object({
     parameters: z.array(zRecipeParameter)
 });
 
+export const zRecipeParamsAction = z.enum(['submit', 'cancel']);
+
 export const zRecipeParamsResponse_unstable = z.object({
+    action: zRecipeParamsAction.optional().default('submit'),
     values: z.record(z.string()).optional().default({})
 });
 

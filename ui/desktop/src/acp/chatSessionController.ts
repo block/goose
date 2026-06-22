@@ -22,6 +22,7 @@ import {
   acpTruncateSessionConversation,
   isAcpSessionLoadInFlight,
   sessionInfoToSession,
+  type AcpRecipeOptions,
 } from './sessions';
 
 export interface AcpLoadSessionOptions {
@@ -37,7 +38,11 @@ export interface AcpSubmitMessageOptions extends AcpSnapshotOptions {
 }
 
 export interface AcpChatSessionController {
-  createSession(cwd: string, gooseExtensions: GooseExtension[]): Promise<Session>;
+  createSession(
+    cwd: string,
+    gooseExtensions: GooseExtension[],
+    recipe?: AcpRecipeOptions
+  ): Promise<Session>;
   loadSession(sessionId: string, options?: AcpLoadSessionOptions): Promise<void>;
   submitMessage(
     sessionId: string,
@@ -76,8 +81,12 @@ function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Mess
   };
 }
 
-async function createSession(cwd: string, gooseExtensions: GooseExtension[]): Promise<Session> {
-  const { sessionId, sessionInfo, meta } = await acpNewSession(cwd, gooseExtensions);
+async function createSession(
+  cwd: string,
+  gooseExtensions: GooseExtension[],
+  recipe?: AcpRecipeOptions
+): Promise<Session> {
+  const { sessionId, sessionInfo, meta } = await acpNewSession(cwd, gooseExtensions, recipe);
   const session = sessionInfoToSession(sessionInfo, meta);
 
   showExtensionLoadResults(meta.extensionResults);
