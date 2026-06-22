@@ -324,7 +324,10 @@ pub async fn handle_term_info() -> Result<()> {
 
     let session_manager = SessionManager::instance();
     let session = session_manager.get_session(&session_id, false).await.ok();
-    let total_tokens = session.as_ref().and_then(|s| s.total_tokens).unwrap_or(0) as usize;
+    let total_tokens = session
+        .as_ref()
+        .and_then(|s| s.usage.total_tokens)
+        .unwrap_or(0) as usize;
 
     let config = goose::config::Config::global();
     let model_name = config

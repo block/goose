@@ -532,7 +532,7 @@ pub async fn session_reply(
             .get_session(&task_session_id, true)
             .await
         {
-            let total_tokens = session.total_tokens.unwrap_or(0);
+            let total_tokens = session.usage.total_tokens.unwrap_or(0);
             tracing::info!(
                 monotonic_counter.goose.session_completions = 1,
                 session_type = "app",

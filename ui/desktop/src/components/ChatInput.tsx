@@ -16,6 +16,7 @@ import { cn } from '../utils';
 import { AlertType, useAlerts } from './alerts';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
+import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
@@ -27,7 +28,7 @@ import { Recipe } from '../recipe';
 import { MessageQueue, QueuedMessage } from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/Diagnostics';
-import { getSession, Message } from '../api';
+import { Message } from '../api';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { getPredefinedModelsFromEnv } from './settings/models/predefinedModelsUtils';
 import { trackFileAttached, trackVoiceDictation, trackDiagnosticsOpened } from '../utils/analytics';
@@ -37,6 +38,7 @@ import { compressImageDataUrl } from '../utils/conversionUtils';
 import { fetchCanonicalModelInfo } from '../utils/canonical';
 import { defineMessages, useIntl } from '../i18n';
 import TurndownService from 'turndown';
+import type { NextChatExtensionDraft } from '../utils/nextChatExtensions';
 
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -160,10 +162,6 @@ const i18n = defineMessages({
     id: 'chatInput.viewEditRecipe',
     defaultMessage: 'View/Edit Recipe',
   },
-  createRecipeFromSession: {
-    id: 'chatInput.createRecipeFromSession',
-    defaultMessage: 'Create Recipe from Session',
-  },
 });
 
 interface ChatInputProps {
@@ -190,12 +188,15 @@ interface ChatInputProps {
   initialPrompt?: string;
   toolCount: number;
   append?: (message: Message) => void;
-  onWorkingDirChange?: (newDir: string) => void;
+  onWorkingDirChange?: (newDir: string) => Promise<void> | void;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
   sessionModel?: string | null;
   sessionProvider?: string | null;
   sessionLoaded?: boolean;
+  workingDir?: string | null;
   latestInference?: Message['metadata']['inference'] | null;
+  nextChatExtensionDraft?: NextChatExtensionDraft;
+  onNextChatExtensionDraftChange?: (draft: NextChatExtensionDraft) => void;
 }
 
 export default function ChatInput({
@@ -227,7 +228,10 @@ export default function ChatInput({
   sessionModel,
   sessionProvider,
   sessionLoaded,
+  workingDir,
   latestInference,
+  nextChatExtensionDraft,
+  onNextChatExtensionDraftChange,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -299,7 +303,8 @@ export default function ChatInput({
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
-  const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
+  const [workingDirOverride, setWorkingDirOverride] = useState<string | null>(null);
+  const currentWorkingDir = workingDirOverride ?? workingDir ?? getInitialWorkingDir();
 
   // Hide non-essential bottom-bar controls when the chat input is narrow.
   // Only the model selector, mic, and send button remain visible.
@@ -317,23 +322,8 @@ export default function ChatInput({
   }, []);
 
   useEffect(() => {
-    if (!sessionId) {
-      return;
-    }
-
-    const fetchSessionWorkingDir = async () => {
-      try {
-        const response = await getSession({ path: { session_id: sessionId } });
-        if (response.data?.working_dir) {
-          setSessionWorkingDir(response.data.working_dir);
-        }
-      } catch (error) {
-        console.error('[ChatInput] Failed to fetch session working dir:', error);
-      }
-    };
-
-    fetchSessionWorkingDir();
-  }, [sessionId]);
+    setWorkingDirOverride(null);
+  }, [sessionId, workingDir]);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -1613,15 +1603,15 @@ export default function ChatInput({
           <DirSwitcher
             className=""
             sessionId={sessionId ?? undefined}
-            workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
-            onWorkingDirChange={(newDir) => {
-              setSessionWorkingDir(newDir);
-              if (onWorkingDirChange) {
-                onWorkingDirChange(newDir);
-              }
+            workingDir={currentWorkingDir}
+            onWorkingDirChange={async (newDir) => {
+              await onWorkingDirChange?.(newDir);
+              setWorkingDirOverride(newDir);
             }}
-            onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
-            onRestartEnd={() => setChatState?.(ChatState.Idle)}
+            onRestartStart={
+              USE_ACP_CHAT ? undefined : () => setChatState?.(ChatState.RestartingAgent)
+            }
+            onRestartEnd={USE_ACP_CHAT ? undefined : () => setChatState?.(ChatState.Idle)}
           />
         )}
 
@@ -1649,7 +1639,11 @@ export default function ChatInput({
             />
 
             {/* Right: extension selector */}
-            <BottomMenuExtensionSelection sessionId={sessionId} />
+            <BottomMenuExtensionSelection
+              sessionId={sessionId}
+              nextChatExtensionDraft={nextChatExtensionDraft}
+              onNextChatExtensionDraftChange={onNextChatExtensionDraftChange}
+            />
 
             {/* Right: diagnostics */}
             {sessionId && (
@@ -1802,7 +1796,7 @@ export default function ChatInput({
           onSelectedIndexChange={(index) =>
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
-          workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
+          workingDir={currentWorkingDir}
         />
       </div>
     </div>

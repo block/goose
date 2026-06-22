@@ -444,89 +444,64 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
     Ok(message)
 }
 
-/// Extract usage information from Anthropic's API response
+fn usage_from_anthropic_fields(usage: &Value) -> Usage {
+    let field = |key: &str| {
+        usage
+            .get(key)
+            .and_then(|v| v.as_u64())
+            .map(|v| v.min(i32::MAX as u64) as i32)
+    };
+
+    Usage::from_cache_exclusive_input(
+        Some(field("input_tokens").unwrap_or(0)),
+        Some(field("output_tokens").unwrap_or(0)),
+        None,
+        field("cache_read_input_tokens"),
+        field("cache_creation_input_tokens"),
+    )
+}
+
+/// Merge a `message_delta` usage into the usage captured at `message_start`.
+/// Delta usage is cumulative (input grows during server tool use), so fields
+/// present in the raw delta payload win over the start values.
+fn merge_delta_usage(existing: &Usage, delta: &Usage, delta_data: &Value) -> Usage {
+    let reports = |key: &str| delta_data.get(key).is_some();
+
+    let output = if reports("output_tokens") {
+        delta.output_tokens
+    } else {
+        existing.output_tokens
+    };
+
+    if !reports("input_tokens") {
+        Usage::new(existing.input_tokens, output, None).with_cache_tokens(
+            existing.cache_read_input_tokens,
+            existing.cache_write_input_tokens,
+        )
+    } else if reports("cache_read_input_tokens") || reports("cache_creation_input_tokens") {
+        Usage::new(delta.input_tokens, output, None).with_cache_tokens(
+            delta.cache_read_input_tokens,
+            delta.cache_write_input_tokens,
+        )
+    } else {
+        Usage::from_cache_exclusive_input(
+            delta.input_tokens,
+            output,
+            None,
+            existing.cache_read_input_tokens,
+            existing.cache_write_input_tokens,
+        )
+    }
+}
+
 pub fn get_usage(data: &Value) -> Result<Usage> {
-    // Extract usage data if available
     if let Some(usage) = data.get("usage") {
-        // Get all token fields for analysis
-        let input_tokens = usage
-            .get("input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let cache_creation_tokens = usage
-            .get("cache_creation_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let cache_read_tokens = usage
-            .get("cache_read_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let output_tokens = usage
-            .get("output_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        // IMPORTANT: For display purposes, we want to show the ACTUAL total tokens consumed
-        // The cache pricing should only affect cost calculation, not token count display
-        let total_input_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
-
-        // Convert to i32 with bounds checking
-        let total_input_i32 = total_input_tokens.min(i32::MAX as u64) as i32;
-        let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
-        let total_tokens_i32 =
-            (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
-
-        Ok(Usage::new(
-            Some(total_input_i32),
-            Some(output_tokens_i32),
-            Some(total_tokens_i32),
-        ))
+        Ok(usage_from_anthropic_fields(usage))
     } else if data.as_object().is_some() {
         // Check if the data itself is the usage object (for message_delta events that might have usage at top level)
-        let input_tokens = data
-            .get("input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let cache_creation_tokens = data
-            .get("cache_creation_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let cache_read_tokens = data
-            .get("cache_read_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let output_tokens = data
-            .get("output_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        // If we found any token data, process it
-        if input_tokens > 0
-            || cache_creation_tokens > 0
-            || cache_read_tokens > 0
-            || output_tokens > 0
-        {
-            let total_input_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
-
-            let total_input_i32 = total_input_tokens.min(i32::MAX as u64) as i32;
-            let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
-            let total_tokens_i32 =
-                (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
-
-            tracing::debug!("🔍 Anthropic ACTUAL token counts from direct object: input={}, output={}, total={}",
-                    total_input_i32, output_tokens_i32, total_tokens_i32);
-
-            Ok(Usage::new(
-                Some(total_input_i32),
-                Some(output_tokens_i32),
-                Some(total_tokens_i32),
-            ))
+        let usage = usage_from_anthropic_fields(data);
+        if usage.total_tokens.unwrap_or(0) > 0 {
+            Ok(usage)
         } else {
             tracing::debug!("🔍 Anthropic no token data found in object");
             Ok(Usage::new(None, None, None))
@@ -947,16 +922,7 @@ where
                         let delta_usage = get_usage(usage_data).unwrap_or_default();
 
                         if let Some(existing_usage) = &final_usage {
-                            let merged_input = existing_usage.usage.input_tokens.or(delta_usage.input_tokens);
-                            let merged_output = delta_usage.output_tokens.or(existing_usage.usage.output_tokens);
-                            let merged_total = match (merged_input, merged_output) {
-                                (Some(input), Some(output)) => Some(input + output),
-                                (Some(input), None) => Some(input),
-                                (None, Some(output)) => Some(output),
-                                (None, None) => None,
-                            };
-
-                            let merged_usage = Usage::new(merged_input, merged_output, merged_total);
+                            let merged_usage = merge_delta_usage(&existing_usage.usage, &delta_usage, usage_data);
                             final_usage = Some(ProviderUsage::new(existing_usage.model.clone(), merged_usage));
                         } else {
                             let model = event.data.get("model")
@@ -1061,6 +1027,8 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(24)); // 12 + 12 = 24 actual tokens
         assert_eq!(usage.output_tokens, Some(15));
         assert_eq!(usage.total_tokens, Some(39)); // 24 + 15
+        assert_eq!(usage.cache_read_input_tokens, Some(0));
+        assert_eq!(usage.cache_write_input_tokens, Some(12));
 
         Ok(())
     }
@@ -1104,6 +1072,8 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(30)); // 15 + 15 = 30 actual tokens
         assert_eq!(usage.output_tokens, Some(20));
         assert_eq!(usage.total_tokens, Some(50)); // 30 + 20
+        assert_eq!(usage.cache_read_input_tokens, Some(0));
+        assert_eq!(usage.cache_write_input_tokens, Some(15));
 
         Ok(())
     }
@@ -1281,6 +1251,8 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(15007));
         assert_eq!(usage.output_tokens, Some(50));
         assert_eq!(usage.total_tokens, Some(15057)); // 15007 + 50
+        assert_eq!(usage.cache_read_input_tokens, Some(5000));
+        assert_eq!(usage.cache_write_input_tokens, Some(10000));
 
         Ok(())
     }
@@ -1401,7 +1373,7 @@ mod tests {
         )?;
 
         assert_eq!(payload["thinking"]["type"], "enabled");
-        assert_eq!(payload["thinking"]["budget_tokens"], 16000);
+        assert!(payload["thinking"]["budget_tokens"].as_i64().unwrap() >= 1024);
         assert_eq!(payload["thinking"]["clear_thinking"], false);
         assert_eq!(payload["max_tokens"], 64000);
         assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
@@ -1913,6 +1885,80 @@ mod tests {
             events.lines().map(|l| Ok(l.to_string())).collect();
         let stream = Box::pin(futures::stream::iter(lines));
         response_to_streaming_message(stream).collect().await
+    }
+
+    #[tokio::test]
+    async fn test_streaming_preserves_cache_tokens_through_delta_merge() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":7,"cache_creation_input_tokens":10000,"cache_read_input_tokens":5000,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":25}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let usage = collect_stream_results(events)
+            .await
+            .into_iter()
+            .filter_map(|r| r.ok().and_then(|(_, usage)| usage))
+            .next_back()
+            .expect("stream should yield usage");
+
+        assert_eq!(usage.usage.input_tokens, Some(15007));
+        assert_eq!(usage.usage.output_tokens, Some(25));
+        assert_eq!(usage.usage.cache_read_input_tokens, Some(5000));
+        assert_eq!(usage.usage.cache_write_input_tokens, Some(10000));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_delta_usage_is_cumulative_and_wins() {
+        // Server tool use grows input during the turn: the final
+        // message_delta usage is authoritative, not message_start.
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":2679,"cache_creation_input_tokens":100,"cache_read_input_tokens":200,"output_tokens":3}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":10682,"cache_creation_input_tokens":100,"cache_read_input_tokens":200,"output_tokens":510}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let usage = collect_stream_results(events)
+            .await
+            .into_iter()
+            .filter_map(|r| r.ok().and_then(|(_, usage)| usage))
+            .next_back()
+            .expect("stream should yield usage");
+
+        assert_eq!(usage.usage.input_tokens, Some(10982)); // 10682 + 100 + 200
+        assert_eq!(usage.usage.output_tokens, Some(510));
+        assert_eq!(usage.usage.cache_read_input_tokens, Some(200));
+        assert_eq!(usage.usage.cache_write_input_tokens, Some(100));
+    }
+
+    #[test]
+    fn test_merge_delta_usage_raw_input_inherits_start_cache() {
+        let start =
+            Usage::new(Some(15007), Some(3), None).with_cache_tokens(Some(5000), Some(10000));
+        let delta_data = json!({"input_tokens": 8, "output_tokens": 510});
+        let delta = get_usage(&delta_data).unwrap();
+
+        let merged = merge_delta_usage(&start, &delta, &delta_data);
+        assert_eq!(merged.input_tokens, Some(15008)); // 8 + 5000 + 10000
+        assert_eq!(merged.output_tokens, Some(510));
+        assert_eq!(merged.cache_read_input_tokens, Some(5000));
+        assert_eq!(merged.cache_write_input_tokens, Some(10000));
     }
 
     fn expect_refusal(

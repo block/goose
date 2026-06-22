@@ -1559,7 +1559,7 @@ async fn log_session_completion(
     let (total_tokens, message_count) = session
         .get_session()
         .await
-        .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
+        .map(|m| (m.usage.total_tokens.unwrap_or(0), m.message_count))
         .unwrap_or((0, 0));
 
     tracing::info!(

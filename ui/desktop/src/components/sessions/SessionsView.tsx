@@ -94,7 +94,7 @@ const SessionsView: React.FC = () => {
           name: intl.formatMessage(i18n.loading),
           working_dir: '',
           message_count: 0,
-          total_tokens: 0,
+          usage: {},
           created_at: '',
           updated_at: '',
           extension_data: {},

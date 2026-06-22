@@ -58,12 +58,22 @@ pub enum ExtensionError {
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default, ToSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Default, ToSchema, PartialEq)]
 pub struct Envs {
     /// A map of environment variables to set, e.g. API_KEY -> some_secret, HOST -> host
     #[serde(default)]
     #[serde(flatten)]
     map: HashMap<String, String>,
+}
+
+impl<'de> Deserialize<'de> for Envs {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let map = HashMap::<String, String>::deserialize(deserializer)?;
+        Ok(Self::new(map))
+    }
 }
 
 impl Envs {
@@ -663,6 +673,16 @@ available_tools: []
         } else {
             panic!("unexpected result of deserialization: {}", config)
         }
+    }
+
+    #[test]
+    fn envs_deserialization_filters_disallowed_keys() {
+        let envs: extension::Envs =
+            serde_yaml::from_str("LD_PRELOAD: /tmp/injected.so\nSAFE_VAR: ok\n").unwrap();
+        let map = envs.get_env();
+
+        assert!(!map.contains_key("LD_PRELOAD"));
+        assert_eq!(map.get("SAFE_VAR"), Some(&"ok".to_string()));
     }
 
     #[test_case(

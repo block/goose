@@ -2418,45 +2418,6 @@
         }
       }
     },
-    "/recipes/create": {
-      "post": {
-        "tags": [
-          "Recipe Management"
-        ],
-        "operationId": "create_recipe",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateRecipeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Recipe created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateRecipeResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "412": {
-            "description": "Precondition failed - Agent not available"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
     "/recipes/decode": {
       "post": {
         "tags": [
@@ -3984,19 +3945,6 @@
           }
         }
       },
-      "AuthorRequest": {
-        "type": "object",
-        "properties": {
-          "contact": {
-            "type": "string",
-            "nullable": true
-          },
-          "metadata": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
       "CallToolRequest": {
         "type": "object",
         "required": [
@@ -4479,42 +4427,6 @@
         "properties": {
           "provider_name": {
             "type": "string"
-          }
-        }
-      },
-      "CreateRecipeRequest": {
-        "type": "object",
-        "required": [
-          "session_id"
-        ],
-        "properties": {
-          "author": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AuthorRequest"
-              }
-            ],
-            "nullable": true
-          },
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
-      "CreateRecipeResponse": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string",
-            "nullable": true
-          },
-          "recipe": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Recipe"
-              }
-            ],
-            "nullable": true
           }
         }
       },
@@ -8037,20 +7949,8 @@
             "format": "double",
             "nullable": true
           },
-          "accumulated_input_tokens": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "accumulated_output_tokens": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "accumulated_total_tokens": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
+          "accumulated_usage": {
+            "$ref": "#/components/schemas/Usage"
           },
           "archived_at": {
             "type": "string",
@@ -8078,11 +7978,6 @@
           "id": {
             "type": "string"
           },
-          "input_tokens": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
           "last_message_snippet": {
             "type": "string",
             "nullable": true
@@ -8101,11 +7996,6 @@
           },
           "name": {
             "type": "string"
-          },
-          "output_tokens": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
           },
           "project_id": {
             "type": "string",
@@ -8130,14 +8020,12 @@
           "session_type": {
             "$ref": "#/components/schemas/SessionType"
           },
-          "total_tokens": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
           },
           "user_recipe_values": {
             "type": "object",
@@ -8718,6 +8606,14 @@
           "accumulatedTotalTokens"
         ],
         "properties": {
+          "accumulatedCacheReadTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accumulatedCacheWriteTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
           "accumulatedCost": {
             "type": "number",
             "format": "double",
@@ -8732,6 +8628,14 @@
             "format": "int32"
           },
           "accumulatedTotalTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cacheReadTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cacheWriteTokens": {
             "type": "integer",
             "format": "int32"
           },
@@ -9255,6 +9159,38 @@
             "items": {
               "$ref": "#/components/schemas/ToolPermission"
             }
+          }
+        }
+      },
+      "Usage": {
+        "type": "object",
+        "description": "`input_tokens` is the total input including cache read/write tokens;\nthe cache fields are breakdown subsets of it. Parsers for providers\nthat report cache tokens separately from input (e.g. Anthropic,\nBedrock) must fold them into `input_tokens`.",
+        "properties": {
+          "cache_read_input_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cache_write_input_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "input_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "All prompt tokens, including any served from or written to cache.\n`cache_read_input_tokens` and `cache_write_input_tokens` are subsets of this.",
+            "nullable": true
+          },
+          "output_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "total_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         }
       },

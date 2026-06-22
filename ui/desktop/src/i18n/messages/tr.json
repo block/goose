@@ -116,18 +116,6 @@
   "baseChat.goHome": {
     "defaultMessage": "Ana sayfaya git"
   },
-  "baseChat.noSession": {
-    "defaultMessage": "Oturum Yok"
-  },
-  "baseChat.recipeCreatedMessage": {
-    "defaultMessage": "\"{title}\" kaydedildi ve kullanıma hazır."
-  },
-  "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "Tarif başarıyla oluşturuldu!"
-  },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "Uzantı Geçiş Hatası"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Uzantı Güncellendi"
   },
@@ -145,9 +133,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "uzantıları yönet"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "Aktif oturum bulunamadı. Lütfen önce bir sohbet oturumu başlatın."
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "Uzantı yok"
@@ -172,9 +157,6 @@
   },
   "chatInput.contextWindow": {
     "defaultMessage": "Bağlam penceresi"
-  },
-  "chatInput.createRecipeFromSession": {
-    "defaultMessage": "Oturumdan Tarif Oluştur"
   },
   "chatInput.dictationError": {
     "defaultMessage": "Dikte Hatası"
@@ -406,54 +388,6 @@
   },
   "createEditRecipe.viewEditRecipeTitle": {
     "defaultMessage": "Tarifi görüntüle/düzenle"
-  },
-  "createRecipeFromSession.analyzingTitle": {
-    "defaultMessage": "Konuşmanızı analiz etme"
-  },
-  "createRecipeFromSession.cancel": {
-    "defaultMessage": "İptal"
-  },
-  "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "Tarif Oluştur ve Çalıştır"
-  },
-  "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "Tarif Oluştur"
-  },
-  "createRecipeFromSession.creating": {
-    "defaultMessage": "Oluşturuluyor..."
-  },
-  "createRecipeFromSession.extractingInsights": {
-    "defaultMessage": "Sohbetinizden içgörüler çıkarma"
-  },
-  "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "Tarif oluşturulurken beklenmeyen bir hata oluştu. Lütfen tekrar deneyin."
-  },
-  "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "Tarif oluşturulamadı"
-  },
-  "createRecipeFromSession.stageComplete": {
-    "defaultMessage": "Tamamla!"
-  },
-  "createRecipeFromSession.stageExtracting": {
-    "defaultMessage": "Ana konular çıkarılıyor..."
-  },
-  "createRecipeFromSession.stageFinalizing": {
-    "defaultMessage": "Ayrıntılar tamamlanıyor..."
-  },
-  "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "Tarif yapısı oluşturuluyor..."
-  },
-  "createRecipeFromSession.stageIdentifying": {
-    "defaultMessage": "Anahtar kalıpları belirlemek..."
-  },
-  "createRecipeFromSession.stageReading": {
-    "defaultMessage": "Konuşmanızı okuyorum..."
-  },
-  "createRecipeFromSession.subtitle": {
-    "defaultMessage": "Mevcut konuşmanıza göre yeniden kullanılabilir bir tarif oluşturun."
-  },
-  "createRecipeFromSession.title": {
-    "defaultMessage": "Oturumdan Tarif Oluştur"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "İptal"
@@ -4766,6 +4700,12 @@
   "updateSection.autoDownload": {
     "defaultMessage": "Güncelleme arka planda otomatik olarak indirilecektir."
   },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "Otomatik indirmeler GOOSE_DISABLE_AUTO_DOWNLOAD ortam değişkeni aracılığıyla devre dışı bırakılmıştır."
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "Otomatik indirme devre dışı. Manuel olarak indirmek için \"Şimdi İndir\"e tıklayın."
+  },
   "updateSection.autoInstallNote": {
     "defaultMessage": "Uygulamadan çıktığınızda güncelleme otomatik olarak yüklenecektir."
   },
@@ -4777,6 +4717,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "Güncel sürüm"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "Otomatik güncelleme indirmelerini devre dışı bırak"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "Etkinleştirildiğinde, Goose yeni sürümleri bildirir ancak bunları otomatik olarak indirmez."
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "Şimdi İndir"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "Güncelleme indirildi ve kuruluma hazır!"

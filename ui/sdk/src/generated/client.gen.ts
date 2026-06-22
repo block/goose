@@ -10,7 +10,7 @@ export interface ExtMethodProvider {
 import type { Client } from "@agentclientprotocol/sdk";
 import type {
   AddConfigExtensionRequest_unstable,
-  AddExtensionRequest_unstable,
+  AddSessionExtensionRequest_unstable,
   ArchiveSessionRequest_unstable,
   CreateSourceRequest_unstable,
   CreateSourceResponse_unstable,
@@ -95,7 +95,7 @@ import type {
   RefreshProviderInventoryRequest_unstable,
   RefreshProviderInventoryResponse_unstable,
   RemoveConfigExtensionRequest_unstable,
-  RemoveExtensionRequest_unstable,
+  RemoveSessionExtensionRequest_unstable,
   RenameSessionRequest_unstable,
   SetConfigExtensionEnabledRequest_unstable,
   SetSessionSystemPromptRequest_unstable,
@@ -152,13 +152,13 @@ export class GooseExtClient {
   constructor(private conn: ExtMethodProvider) {}
 
   async sessionExtensionsAdd_unstable(
-    params: AddExtensionRequest_unstable,
+    params: AddSessionExtensionRequest_unstable,
   ): Promise<void> {
     await this.conn.extMethod("_goose/unstable/session/extensions/add", params);
   }
 
   async sessionExtensionsRemove_unstable(
-    params: RemoveExtensionRequest_unstable,
+    params: RemoveSessionExtensionRequest_unstable,
   ): Promise<void> {
     await this.conn.extMethod(
       "_goose/unstable/session/extensions/remove",

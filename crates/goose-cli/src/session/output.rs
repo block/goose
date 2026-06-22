@@ -10,6 +10,7 @@ use goose::providers::canonical::maybe_get_canonical_model;
 #[cfg(target_os = "windows")]
 use goose::subprocess::SubprocessExt;
 use goose::utils::safe_truncate;
+use goose_providers::conversation::token_usage::Usage;
 use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
 use rmcp::model::{CallToolRequestParams, JsonObject, PromptArgument};
 use serde_json::Value;
@@ -1414,31 +1415,33 @@ pub fn display_context_usage(total_tokens: usize, context_limit: usize) {
     );
 }
 
-fn estimate_cost_usd(
-    provider: &str,
-    model: &str,
-    input_tokens: usize,
-    output_tokens: usize,
-) -> Option<f64> {
+fn estimate_cost_usd(provider: &str, model: &str, usage: &Usage) -> Option<f64> {
     let canonical_model = maybe_get_canonical_model(provider, model)?;
-
-    let input_cost_per_token = canonical_model.cost.input? / 1_000_000.0;
-    let output_cost_per_token = canonical_model.cost.output? / 1_000_000.0;
-
-    let input_cost = input_cost_per_token * input_tokens as f64;
-    let output_cost = output_cost_per_token * output_tokens as f64;
-    Some(input_cost + output_cost)
+    canonical_model.cost.estimate_cost(usage)
 }
 
 /// Display cost information, if price data is available.
-pub fn display_cost_usage(provider: &str, model: &str, input_tokens: usize, output_tokens: usize) {
-    if let Some(cost) = estimate_cost_usd(provider, model, input_tokens, output_tokens) {
+pub fn display_cost_usage(provider: &str, model: &str, usage: &Usage) {
+    if let Some(cost) = estimate_cost_usd(provider, model, usage) {
         use console::style;
+        let input_tokens = usage.input_tokens.unwrap_or(0);
+        let output_tokens = usage.output_tokens.unwrap_or(0);
+        let cache_read = usage.cache_read_input_tokens.unwrap_or(0);
+        let cache_write = usage.cache_write_input_tokens.unwrap_or(0);
+
+        let cache_breakdown = match (cache_read, cache_write) {
+            (0, 0) => String::new(),
+            (read, 0) => format!(" ({} cache read)", read),
+            (0, write) => format!(" ({} cache write)", write),
+            (read, write) => format!(" ({} cache read, {} cache write)", read, write),
+        };
+
         eprintln!(
-            "Cost: {} USD ({} tokens: in {}, out {})",
+            "Cost: {} USD ({} tokens: in {}{}, out {})",
             style(format!("${:.4}", cost)).cyan(),
             input_tokens + output_tokens,
             input_tokens,
+            cache_breakdown,
             output_tokens
         );
     }

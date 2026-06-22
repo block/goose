@@ -3,10 +3,15 @@ import type {
   RequestPermissionRequest,
   SessionNotification,
 } from '@agentclientprotocol/sdk';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { act, renderHook } from '@testing-library/react';
+import { afterEach, describe, expect, it } from 'vitest';
 import type { Message, Session } from '../../api';
 import { ChatState } from '../../types/chatState';
-import { createAcpChatSessionStore, type AcpChatSessionStore } from '../chatSessionStore';
+import {
+  acpChatSessionActions,
+  acpChatSessionStore,
+  useAcpChatSessionSnapshot,
+} from '../chatSessionStore';
 
 function message(id: string, text: string): Message {
   return {
@@ -29,12 +34,8 @@ function session(id: string, conversation: Message[] = []): Session {
     extension_data: {},
     source: 'test',
     conversation,
-    input_tokens: 1,
-    output_tokens: 2,
-    total_tokens: 3,
-    accumulated_input_tokens: 4,
-    accumulated_output_tokens: 5,
-    accumulated_total_tokens: 9,
+    usage: { input_tokens: 1, output_tokens: 2, total_tokens: 3 },
+    accumulated_usage: { input_tokens: 4, output_tokens: 5, total_tokens: 9 },
   } as Session;
 }
 
@@ -110,104 +111,125 @@ function toolProgressNotification(sessionId: string): SessionNotification {
   };
 }
 
-describe('acpChatSessionStore', () => {
-  let store: AcpChatSessionStore;
+function agentMessageChunkNotification(
+  sessionId: string,
+  messageId: string,
+  text: string
+): SessionNotification {
+  return {
+    sessionId,
+    update: {
+      sessionUpdate: 'agent_message_chunk',
+      messageId,
+      content: {
+        type: 'text',
+        text,
+      },
+    },
+  };
+}
 
-  beforeEach(() => {
-    store = createAcpChatSessionStore();
+describe('acpChatSessionStore', () => {
+  const sessionIds = new Set<string>();
+  const sessionId = (id: string): string => {
+    sessionIds.add(id);
+    return id;
+  };
+
+  afterEach(() => {
+    for (const id of sessionIds) {
+      acpChatSessionActions.deleteSnapshot(id);
+    }
+    sessionIds.clear();
   });
 
-  it('stores loaded session messages and token state', () => {
+  it('finishes session load with session metadata', () => {
+    const currentSessionId = sessionId('session-1');
     const initialMessage = message('message-1', 'Hello');
 
-    const snapshot = store.setLoadedSession('session-1', session('session-1', [initialMessage]));
+    acpChatSessionActions.setMessages(currentSessionId, [initialMessage]);
 
-    expect(snapshot.session?.id).toBe('session-1');
+    const snapshot = acpChatSessionActions.finishSessionLoad(
+      currentSessionId,
+      session(currentSessionId)
+    );
+
+    expect(snapshot.session?.id).toBe(currentSessionId);
     expect(snapshot.messages).toEqual([initialMessage]);
-    expect(snapshot.tokenState).toMatchObject({
-      inputTokens: 1,
-      outputTokens: 2,
-      totalTokens: 3,
-      accumulatedInputTokens: 4,
-      accumulatedOutputTokens: 5,
-      accumulatedTotalTokens: 9,
-    });
     expect(snapshot.chatState).toBe(ChatState.Idle);
     expect(snapshot.sessionLoadError).toBeUndefined();
   });
 
   it('keeps multiple session snapshots isolated', () => {
-    store.setMessages('session-1', [message('message-1', 'One')]);
-    store.setMessages('session-2', [message('message-2', 'Two')]);
+    const firstSessionId = sessionId('session-1');
+    const secondSessionId = sessionId('session-2');
 
-    expect(store.getSnapshot('session-1')?.messages[0].id).toBe('message-1');
-    expect(store.getSnapshot('session-2')?.messages[0].id).toBe('message-2');
+    acpChatSessionActions.setMessages(firstSessionId, [message('message-1', 'One')]);
+    acpChatSessionActions.setMessages(secondSessionId, [message('message-2', 'Two')]);
+
+    expect(acpChatSessionStore.getSnapshot(firstSessionId)?.messages[0].id).toBe('message-1');
+    expect(acpChatSessionStore.getSnapshot(secondSessionId)?.messages[0].id).toBe('message-2');
   });
 
   it('deletes session snapshots', () => {
-    store.setMessages('session-1', [message('message-1', 'One')]);
+    const currentSessionId = sessionId('session-1');
 
-    store.deleteSnapshot('session-1');
+    acpChatSessionActions.setMessages(currentSessionId, [message('message-1', 'One')]);
 
-    expect(store.getSnapshot('session-1')).toBeUndefined();
-  });
+    acpChatSessionActions.deleteSnapshot(currentSessionId);
 
-  it('notifies only listeners for the updated session', () => {
-    const sessionOneListener = vi.fn();
-    const sessionTwoListener = vi.fn();
-
-    store.subscribe('session-1', sessionOneListener);
-    store.subscribe('session-2', sessionTwoListener);
-
-    store.setChatState('session-1', ChatState.Streaming);
-
-    expect(sessionOneListener).toHaveBeenCalledTimes(1);
-    expect(sessionOneListener).toHaveBeenCalledWith(
-      expect.objectContaining({ chatState: ChatState.Streaming })
-    );
-    expect(sessionTwoListener).not.toHaveBeenCalled();
-  });
-
-  it('stops notifying after unsubscribe', () => {
-    const listener = vi.fn();
-    const unsubscribe = store.subscribe('session-1', listener);
-
-    unsubscribe();
-    store.setChatState('session-1', ChatState.Streaming);
-
-    expect(listener).not.toHaveBeenCalled();
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)).toBeUndefined();
   });
 
   it('ignores stale prompt attempts and leaves the current attempt active', () => {
-    store.startPromptAttempt('session-1', 'attempt-a');
-    store.startPromptAttempt('session-1', 'attempt-b');
+    const currentSessionId = sessionId('session-1');
 
-    expect(store.finishPromptAttemptIfCurrent('session-1', 'attempt-a', 'late error')).toBe(false);
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-a');
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-b');
 
-    expect(store.getSnapshot('session-1')).toMatchObject({
+    expect(
+      acpChatSessionActions.finishPromptAttemptIfCurrent(
+        currentSessionId,
+        'attempt-a',
+        'late error'
+      )
+    ).toBe(false);
+
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)).toMatchObject({
       activePromptAttemptId: 'attempt-b',
       chatState: ChatState.Streaming,
       sessionLoadError: undefined,
     });
 
-    expect(store.finishPromptAttemptIfCurrent('session-1', 'attempt-b')).toBe(true);
-    expect(store.getSnapshot('session-1')).toMatchObject({
+    expect(acpChatSessionActions.finishPromptAttemptIfCurrent(currentSessionId, 'attempt-b')).toBe(
+      true
+    );
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)).toMatchObject({
       activePromptAttemptId: null,
       chatState: ChatState.Idle,
     });
   });
 
   it('keeps loaded sessions streaming when a prompt attempt is active', () => {
-    store.startPromptAttempt('session-1', 'attempt-1');
+    const currentSessionId = sessionId('session-1');
 
-    const snapshot = store.setLoadedSession('session-1', session('session-1'));
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+
+    const snapshot = acpChatSessionActions.finishSessionLoad(
+      currentSessionId,
+      session(currentSessionId)
+    );
 
     expect(snapshot.activePromptAttemptId).toBe('attempt-1');
     expect(snapshot.chatState).toBe(ChatState.Streaming);
   });
 
   it('stores ACP tool notifications and clears them for a new prompt attempt', () => {
-    const snapshot = store.applyAcpSessionNotification(toolProgressNotification('session-1'));
+    const currentSessionId = sessionId('session-1');
+
+    const snapshot = acpChatSessionActions.applyAcpSessionNotification(
+      toolProgressNotification(currentSessionId)
+    );
 
     expect(snapshot.notifications).toHaveLength(1);
     expect(snapshot.notifications[0]).toMatchObject({
@@ -222,13 +244,33 @@ describe('acpChatSessionStore', () => {
       },
     });
 
-    const nextSnapshot = store.startPromptAttempt('session-1', 'attempt-1');
+    const nextSnapshot = acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
 
     expect(nextSnapshot.notifications).toEqual([]);
   });
 
+  it('resets replayed messages before starting an unloaded session load', () => {
+    const currentSessionId = sessionId('session-1');
+    const replayedChunk = agentMessageChunkNotification(currentSessionId, 'message-1', 'Hello');
+
+    acpChatSessionActions.startSessionLoad(currentSessionId);
+    acpChatSessionActions.applyAcpSessionNotification(replayedChunk);
+
+    const loadingSnapshot = acpChatSessionActions.startSessionLoad(currentSessionId);
+    expect(loadingSnapshot.messages).toEqual([]);
+
+    const replayedSnapshot = acpChatSessionActions.applyAcpSessionNotification(replayedChunk);
+
+    expect(replayedSnapshot.messages).toHaveLength(1);
+    expect(replayedSnapshot.messages[0].content).toEqual([{ type: 'text', text: 'Hello' }]);
+  });
+
   it('applies permission requests as waiting action-required messages', () => {
-    const snapshot = store.applyPermissionRequest(permissionRequest('session-1', 'tool-1'));
+    const currentSessionId = sessionId('session-1');
+
+    const snapshot = acpChatSessionActions.applyPermissionRequest(
+      permissionRequest(currentSessionId, 'tool-1')
+    );
 
     expect(snapshot.chatState).toBe(ChatState.WaitingForUserInput);
     expect(snapshot.messages).toHaveLength(1);
@@ -243,7 +285,11 @@ describe('acpChatSessionStore', () => {
   });
 
   it('applies elicitation requests as waiting action-required messages', () => {
-    const snapshot = store.applyElicitationRequest(elicitationRequest('session-1'));
+    const currentSessionId = sessionId('session-1');
+
+    const snapshot = acpChatSessionActions.applyElicitationRequest(
+      elicitationRequest(currentSessionId)
+    );
 
     expect(snapshot.chatState).toBe(ChatState.WaitingForUserInput);
     expect(snapshot.messages).toHaveLength(1);
@@ -259,9 +305,15 @@ describe('acpChatSessionStore', () => {
   });
 
   it('stores submitted elicitation status', () => {
-    store.applyElicitationRequest(elicitationRequest('session-1'));
+    const currentSessionId = sessionId('session-1');
 
-    const snapshot = store.setElicitationStatus('session-1', 'acp_elicitation_1', 'submitted');
+    acpChatSessionActions.applyElicitationRequest(elicitationRequest(currentSessionId));
+
+    const snapshot = acpChatSessionActions.setElicitationStatus(
+      currentSessionId,
+      'acp_elicitation_1',
+      'submitted'
+    );
 
     expect(snapshot?.messages[0].content[0]).toMatchObject({
       type: 'actionRequired',
@@ -275,9 +327,15 @@ describe('acpChatSessionStore', () => {
   });
 
   it('stores cancelled elicitation status', () => {
-    store.applyElicitationRequest(elicitationRequest('session-1'));
+    const currentSessionId = sessionId('session-1');
 
-    const snapshot = store.setElicitationStatus('session-1', 'acp_elicitation_1', 'cancelled');
+    acpChatSessionActions.applyElicitationRequest(elicitationRequest(currentSessionId));
+
+    const snapshot = acpChatSessionActions.setElicitationStatus(
+      currentSessionId,
+      'acp_elicitation_1',
+      'cancelled'
+    );
 
     expect(snapshot?.messages[0].content[0]).toMatchObject({
       type: 'actionRequired',
@@ -288,5 +346,26 @@ describe('acpChatSessionStore', () => {
         isCancelled: true,
       },
     });
+  });
+});
+
+describe('useAcpChatSessionSnapshot', () => {
+  const sessionId = 'hook-session-1';
+
+  afterEach(() => {
+    acpChatSessionActions.deleteSnapshot(sessionId);
+  });
+
+  it('subscribes to session store snapshots', () => {
+    const { result } = renderHook(() => useAcpChatSessionSnapshot(sessionId));
+
+    expect(result.current).toBeUndefined();
+
+    const nextMessage = message('message-1', 'Hello from hook');
+    act(() => {
+      acpChatSessionActions.setMessages(sessionId, [nextMessage]);
+    });
+
+    expect(result.current?.messages).toEqual([nextMessage]);
   });
 });
