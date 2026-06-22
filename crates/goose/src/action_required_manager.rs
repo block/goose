@@ -46,7 +46,7 @@ impl PendingResponseClaim {
 
 pub(crate) struct ActionRequiredManager {
     pending: Arc<RwLock<HashMap<String, Arc<Mutex<PendingRequest>>>>>,
-    action_required_senders: Mutex<HashMap<String, mpsc::Sender<Message>>>,
+    action_required_senders: Mutex<HashMap<(String, String), mpsc::Sender<Message>>>,
 }
 
 impl ActionRequiredManager {
@@ -92,7 +92,7 @@ impl ActionRequiredManager {
             .action_required_senders
             .lock()
             .await
-            .get(&tool_call_request_id)
+            .get(&(session_id.clone(), tool_call_request_id.clone()))
             .cloned();
 
         let Some(sender) = sender else {
@@ -198,21 +198,26 @@ impl ActionRequiredManager {
 
     pub(crate) async fn register_action_required_stream(
         &self,
+        session_id: String,
         tool_call_request_id: String,
     ) -> mpsc::Receiver<Message> {
         let (tx, rx) = mpsc::channel(8);
         self.action_required_senders
             .lock()
             .await
-            .insert(tool_call_request_id, tx);
+            .insert((session_id, tool_call_request_id), tx);
         rx
     }
 
-    pub(crate) async fn unregister_action_required_stream(&self, tool_call_request_id: &str) {
+    pub(crate) async fn unregister_action_required_stream(
+        &self,
+        session_id: &str,
+        tool_call_request_id: &str,
+    ) {
         self.action_required_senders
             .lock()
             .await
-            .remove(tool_call_request_id);
+            .remove(&(session_id.to_string(), tool_call_request_id.to_string()));
     }
 }
 
@@ -243,7 +248,7 @@ mod tests {
     async fn wrong_session_does_not_consume_pending_response() {
         let manager = Arc::new(ActionRequiredManager::new());
         let mut action_required_rx = manager
-            .register_action_required_stream("tool-call-a".to_string())
+            .register_action_required_stream("session-a".to_string(), "tool-call-a".to_string())
             .await;
         let waiter = {
             let manager = manager.clone();
@@ -287,10 +292,10 @@ mod tests {
     async fn streams_only_requested_tool_call() {
         let manager = Arc::new(ActionRequiredManager::new());
         let mut stream_a = manager
-            .register_action_required_stream("tool-call-a".to_string())
+            .register_action_required_stream("session-a".to_string(), "tool-call-a".to_string())
             .await;
         let mut stream_b = manager
-            .register_action_required_stream("tool-call-b".to_string())
+            .register_action_required_stream("session-b".to_string(), "tool-call-b".to_string())
             .await;
         let waiter_a = {
             let manager = manager.clone();
@@ -352,10 +357,76 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn streams_are_namespaced_by_session() {
+        let manager = Arc::new(ActionRequiredManager::new());
+        let mut stream_a = manager
+            .register_action_required_stream("session-a".to_string(), "tool-call-a".to_string())
+            .await;
+        let mut stream_b = manager
+            .register_action_required_stream("session-b".to_string(), "tool-call-a".to_string())
+            .await;
+        let waiter_a = {
+            let manager = manager.clone();
+            tokio::spawn(async move {
+                manager
+                    .request_and_wait(
+                        "session-a".to_string(),
+                        "tool-call-a".to_string(),
+                        "Need input A".to_string(),
+                        json!({ "type": "object" }),
+                        Duration::from_secs(5),
+                    )
+                    .await
+            })
+        };
+        let waiter_b = {
+            let manager = manager.clone();
+            tokio::spawn(async move {
+                manager
+                    .request_and_wait(
+                        "session-b".to_string(),
+                        "tool-call-a".to_string(),
+                        "Need input B".to_string(),
+                        json!({ "type": "object" }),
+                        Duration::from_secs(5),
+                    )
+                    .await
+            })
+        };
+
+        let message_a = recv_elicitation_message(&mut stream_a).await;
+        let request_id_a = elicitation_id(&message_a);
+        let message_b = recv_elicitation_message(&mut stream_b).await;
+        let request_id_b = elicitation_id(&message_b);
+
+        manager
+            .claim_response("session-a", &request_id_a)
+            .await
+            .unwrap()
+            .submit(ElicitationOutcome::Accept(json!({ "answer": "a" })))
+            .unwrap();
+        manager
+            .claim_response("session-b", &request_id_b)
+            .await
+            .unwrap()
+            .submit(ElicitationOutcome::Accept(json!({ "answer": "b" })))
+            .unwrap();
+
+        assert_eq!(
+            waiter_a.await.unwrap().unwrap(),
+            ElicitationOutcome::Accept(json!({ "answer": "a" }))
+        );
+        assert_eq!(
+            waiter_b.await.unwrap().unwrap(),
+            ElicitationOutcome::Accept(json!({ "answer": "b" }))
+        );
+    }
+
+    #[tokio::test]
     async fn claimed_response_can_complete_after_timeout_deadline() {
         let manager = Arc::new(ActionRequiredManager::new());
         let mut action_required_rx = manager
-            .register_action_required_stream("tool-call-a".to_string())
+            .register_action_required_stream("session-a".to_string(), "tool-call-a".to_string())
             .await;
         let waiter = {
             let manager = manager.clone();
@@ -396,10 +467,10 @@ mod tests {
     async fn request_and_wait_returns_decline_and_cancel_actions() {
         let manager = Arc::new(ActionRequiredManager::new());
         let mut decline_rx = manager
-            .register_action_required_stream("tool-call-a".to_string())
+            .register_action_required_stream("session-a".to_string(), "tool-call-a".to_string())
             .await;
         let mut cancel_rx = manager
-            .register_action_required_stream("tool-call-b".to_string())
+            .register_action_required_stream("session-b".to_string(), "tool-call-b".to_string())
             .await;
         let decline_waiter = {
             let manager = manager.clone();
@@ -482,7 +553,7 @@ mod tests {
     async fn closed_tool_call_stream_errors() {
         let manager = Arc::new(ActionRequiredManager::new());
         let rx = manager
-            .register_action_required_stream("tool-call-a".to_string())
+            .register_action_required_stream("session-a".to_string(), "tool-call-a".to_string())
             .await;
         drop(rx);
 

@@ -1734,11 +1734,12 @@ impl ExtensionManager {
         let client = resolved.client.clone();
         let hydration_client = client.clone();
         let notifications_receiver = client.subscribe().await;
+        let session_id = ctx.session_id.clone();
         let action_required_receiver =
             if let Some(tool_call_request_id) = ctx.tool_call_request_id.clone() {
                 Some(
                     ActionRequiredManager::global()
-                        .register_action_required_stream(tool_call_request_id)
+                        .register_action_required_stream(session_id.clone(), tool_call_request_id)
                         .await,
                 )
             } else {
@@ -1748,7 +1749,7 @@ impl ExtensionManager {
         let resolved_tool = resolved;
         let should_hydrate_mcp_app = self.host_supports_mcp_apps();
         let read_cancellation_token = cancellation_token.clone();
-        let session_id = ctx.session_id.clone();
+        let action_required_session_id = session_id.clone();
         let action_required_tool_call_request_id = ctx.tool_call_request_id.clone();
         let owned_ctx = ToolCallContext::new(
             ctx.session_id.clone(),
@@ -1775,7 +1776,10 @@ impl ExtensionManager {
 
             if let Some(tool_call_request_id) = &action_required_tool_call_request_id {
                 ActionRequiredManager::global()
-                    .unregister_action_required_stream(tool_call_request_id)
+                    .unregister_action_required_stream(
+                        &action_required_session_id,
+                        tool_call_request_id,
+                    )
                     .await;
             }
 
