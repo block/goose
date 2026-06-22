@@ -153,6 +153,29 @@ The matcher is a regular expression matched against the most relevant string for
 
 When a hook runs, goose writes a JSON payload to the command's stdin. The payload always includes the event name and session ID, and may include fields such as the tool name, tool input, user message, or working directory.
 
+| Field | Description |
+|---|---|
+| `event` | The hook event name. |
+| `session_id` | The goose session ID. |
+| `matcher_context` | The string tested against the rule's `matcher`, such as a prompt, tool name, file path, or shell command. |
+| `tool_name` | The tool name for tool events. |
+| `tool_input` | The tool input for tool events. |
+| `tool_output` | The tool output for successful tool events. |
+| `message` | The submitted user prompt for `UserPromptSubmit` events. |
+| `working_dir` | The working directory when goose includes one for the event. |
+
+Example payload for a prompt event:
+
+```json
+{
+  "event": "UserPromptSubmit",
+  "session_id": "abc-123",
+  "matcher_context": "summarize this file",
+  "message": "summarize this file",
+  "working_dir": "/Users/you/project"
+}
+```
+
 Example payload for a tool event:
 
 ```json
