@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use agent_client_protocol::schema::Meta;
@@ -26,22 +26,28 @@ impl GooseAcpAgent {
     pub(super) async fn resolve_recipe_from_meta(
         &self,
         meta: Option<&Meta>,
-    ) -> Result<Option<Recipe>, agent_client_protocol::Error> {
-        let recipe = if let Some(deeplink) = meta_string(meta, "recipeDeeplink")? {
-            Some(recipe_deeplink::decode(&deeplink).map_err(|e| {
+    ) -> Result<Option<(Recipe, PathBuf)>, agent_client_protocol::Error> {
+        let resolved = if let Some(deeplink) = meta_string(meta, "recipeDeeplink")? {
+            let recipe = recipe_deeplink::decode(&deeplink).map_err(|e| {
                 agent_client_protocol::Error::invalid_params().data(format!("recipeDeeplink: {e}"))
-            })?)
+            })?;
+            Some((recipe, get_recipe_library_dir(true)))
         } else if let Some(id) = meta_string(meta, "recipeId")? {
             let path = self.resolve_recipe_path_by_id(&id).await?;
-            Some(load_recipe_from_path(&path).internal_err_ctx("Failed to load recipe")?)
+            let recipe = load_recipe_from_path(&path).internal_err_ctx("Failed to load recipe")?;
+            let recipe_dir = path
+                .parent()
+                .map(Path::to_path_buf)
+                .unwrap_or_else(|| get_recipe_library_dir(true));
+            Some((recipe, recipe_dir))
         } else {
             None
         };
 
-        if let Some(ref recipe) = recipe {
+        if let Some((ref recipe, _)) = resolved {
             validate_recipe(recipe)?;
         }
-        Ok(recipe)
+        Ok(resolved)
     }
 
     async fn resolve_recipe_path_by_id(
@@ -66,16 +72,16 @@ impl GooseAcpAgent {
     fn render_recipe(
         &self,
         recipe: &Recipe,
+        recipe_dir: &Path,
         values: HashMap<String, String>,
     ) -> Result<Option<Recipe>, agent_client_protocol::Error> {
         let content = recipe.to_yaml().map_err(|e| {
             agent_client_protocol::Error::invalid_params().data(format!("recipe: {e}"))
         })?;
-        let recipe_dir = get_recipe_library_dir(true);
         let params: Vec<(String, String)> = values.into_iter().collect();
         match build_recipe_from_template(
             content,
-            &recipe_dir,
+            recipe_dir,
             params,
             None::<fn(&str, &str) -> Result<String, anyhow::Error>>,
         ) {
@@ -102,13 +108,16 @@ impl GooseAcpAgent {
         &self,
         cx: &ConnectionTo<Client>,
         session_id: &str,
-        recipe: Option<&Recipe>,
+        recipe: Option<&(Recipe, PathBuf)>,
     ) -> Result<(Option<Recipe>, Option<HashMap<String, String>>), agent_client_protocol::Error>
     {
-        let Some(recipe) = recipe else {
+        let Some((recipe, recipe_dir)) = recipe else {
             return Ok((None, None));
         };
-        match self.render_recipe_with_params(cx, session_id, recipe).await {
+        match self
+            .render_recipe_with_params(cx, session_id, recipe, recipe_dir)
+            .await
+        {
             Ok((rendered, values)) => Ok((Some(rendered), values)),
             Err(e) => {
                 let _ = self.session_manager.delete_session(session_id).await;
@@ -122,8 +131,9 @@ impl GooseAcpAgent {
         cx: &ConnectionTo<Client>,
         session_id: &str,
         recipe: &Recipe,
+        recipe_dir: &Path,
     ) -> Result<(Recipe, Option<HashMap<String, String>>), agent_client_protocol::Error> {
-        if let Some(rendered) = self.render_recipe(recipe, HashMap::new())? {
+        if let Some(rendered) = self.render_recipe(recipe, recipe_dir, HashMap::new())? {
             return Ok((rendered, None));
         }
         if !self.supports_recipe_param_requests() {
@@ -139,7 +149,7 @@ impl GooseAcpAgent {
             return Err(recipe_params_cancelled_error());
         }
         let values = response.values;
-        match self.render_recipe(recipe, values.clone())? {
+        match self.render_recipe(recipe, recipe_dir, values.clone())? {
             Some(rendered) => Ok((rendered, Some(values))),
             None => Err(agent_client_protocol::Error::invalid_params()
                 .data("recipe still missing required parameters")),

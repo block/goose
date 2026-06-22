@@ -10,6 +10,7 @@ use agent_client_protocol::schema::{Meta, NewSessionRequest, NewSessionResponse,
 use agent_client_protocol::{Client, ConnectionTo};
 use goose_providers::model::ModelConfig;
 use std::collections::HashMap;
+use std::path::PathBuf;
 
 struct InitialSessionConfig {
     provider: String,
@@ -36,7 +37,7 @@ impl GooseAcpAgent {
         let current_mode: GooseMode = config.get_goose_mode().unwrap_or_default();
         let recipe = self.resolve_recipe_from_meta(args.meta.as_ref()).await?;
         let session_name = match recipe.as_ref() {
-            Some(recipe) if !recipe.title.trim().is_empty() => recipe.title.clone(),
+            Some((recipe, _)) if !recipe.title.trim().is_empty() => recipe.title.clone(),
             _ => "New Chat".to_string(),
         };
 
@@ -75,7 +76,7 @@ impl GooseAcpAgent {
         config: &Config,
         session: &Session,
         args: NewSessionRequest,
-        recipe: Option<Recipe>,
+        recipe: Option<(Recipe, PathBuf)>,
         project_id: Option<String>,
     ) -> Result<Option<Recipe>, agent_client_protocol::Error> {
         let (rendered, user_recipe_values) = self
@@ -103,7 +104,7 @@ impl GooseAcpAgent {
                 provider,
                 model_config,
                 extension_data,
-                recipe,
+                recipe: recipe.map(|(recipe, _)| recipe),
                 user_recipe_values,
                 project_id,
             },
