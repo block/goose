@@ -160,9 +160,8 @@ When a hook runs, goose writes a JSON payload to the command's stdin. Every payl
 | `matcher_context` | String the rule's `matcher` is tested against (for example, the tool name on tool events or the prompt text on `UserPromptSubmit`). |
 | `tool_name` | Name of the tool, on tool events. |
 | `tool_input` | Input arguments passed to the tool, on tool events. |
-| `tool_output` | Result returned by the tool, on tool events that produce output. |
 | `message` | Prompt text the user submitted, on `UserPromptSubmit`. |
-| `working_dir` | Working directory of the session. |
+| `working_dir` | Working directory of the session, on tool events. |
 
 Example payload for a tool event:
 
@@ -184,8 +183,7 @@ Example payload for a prompt event, where the submitted prompt is in `message`:
   "event": "UserPromptSubmit",
   "session_id": "abc-123",
   "matcher_context": "summarize this file",
-  "message": "summarize this file",
-  "working_dir": "/Users/you/project"
+  "message": "summarize this file"
 }
 ```
 
