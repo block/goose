@@ -1,6 +1,13 @@
-import type { ExtensionResponse, ExtensionEntry } from '../api';
+import type { ExtensionConfig, ExtensionEntry } from '../api';
 import type { GooseExtension, GooseExtensionEntry, McpServer } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
+
+export type ConfiguredExtensionEntry = ExtensionEntry & { configKey?: string };
+
+export interface ConfiguredExtensionsResponse {
+  extensions: ConfiguredExtensionEntry[];
+  warnings: string[];
+}
 
 export function gooseExtensionName(extension: GooseExtension): string {
   return extension.type === 'mcp' ? extension.server.name : extension.name;
@@ -51,7 +58,10 @@ function mcpServerToExtension(
   return null;
 }
 
-function gooseExtensionEntryToExtensionEntry(entry: GooseExtensionEntry): ExtensionEntry | null {
+function gooseExtensionEntryToExtensionEntry(
+  entry: GooseExtensionEntry
+): ConfiguredExtensionEntry | null {
+  const configKey = entry.configKey ?? undefined;
   const extension = entry.extension;
 
   switch (extension.type) {
@@ -61,9 +71,12 @@ function gooseExtensionEntryToExtensionEntry(entry: GooseExtensionEntry): Extens
         ...extension,
         description: extension.description ?? '',
         enabled: entry.enabled,
+        configKey,
       };
-    case 'mcp':
-      return mcpServerToExtension(extension.server, entry);
+    case 'mcp': {
+      const base = mcpServerToExtension(extension.server, entry);
+      return base ? { ...base, configKey } : null;
+    }
   }
 
   return null;
@@ -75,13 +88,85 @@ export async function getConfiguredGooseExtensions(): Promise<GooseExtensionEntr
   return response.extensions;
 }
 
-export async function getConfiguredExtensions(): Promise<ExtensionResponse> {
+export async function getConfiguredExtensions(): Promise<ConfiguredExtensionsResponse> {
   const client = await getAcpClient();
   const response = await client.goose.configExtensionsList_unstable({});
   return {
     extensions: response.extensions
       .map(gooseExtensionEntryToExtensionEntry)
-      .filter((entry): entry is ExtensionEntry => entry !== null),
+      .filter((entry): entry is ConfiguredExtensionEntry => entry !== null),
     warnings: response.warnings ?? [],
   };
+}
+
+function extensionConfigToGooseExtension(config: ExtensionConfig): GooseExtension | null {
+  switch (config.type) {
+    case 'builtin':
+      return {
+        type: 'builtin',
+        name: config.name,
+        description: config.description,
+        display_name: config.display_name,
+        timeout: config.timeout,
+        bundled: config.bundled,
+      };
+    case 'platform':
+      return {
+        type: 'platform',
+        name: config.name,
+        description: config.description,
+        display_name: config.display_name,
+        bundled: config.bundled,
+      };
+    case 'stdio':
+      return {
+        type: 'mcp',
+        server: { name: config.name, command: config.cmd, args: config.args, env: [] },
+        envKeys: config.env_keys ?? [],
+        description: config.description,
+        timeout: config.timeout,
+        bundled: config.bundled,
+      };
+    case 'streamable_http':
+      return {
+        type: 'mcp',
+        server: {
+          type: 'http',
+          name: config.name,
+          url: config.uri,
+          headers: Object.entries(config.headers ?? {}).map(([name, value]) => ({ name, value })),
+        },
+        envKeys: config.env_keys ?? [],
+        description: config.description,
+        timeout: config.timeout,
+        socket: config.socket,
+        bundled: config.bundled,
+      };
+    case 'sse':
+    case 'frontend':
+    case 'inline_python':
+      return null;
+  }
+}
+
+export async function addConfigExtension(config: ExtensionConfig, enabled: boolean): Promise<void> {
+  const extension = extensionConfigToGooseExtension(config);
+  if (!extension) {
+    throw new Error(`Unsupported extension type for ACP: ${config.type}`);
+  }
+  const client = await getAcpClient();
+  await client.goose.configExtensionsAdd_unstable({ extension, enabled });
+}
+
+export async function removeConfigExtension(configKey: string): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.configExtensionsRemove_unstable({ configKey });
+}
+
+export async function setConfigExtensionEnabled(
+  configKey: string,
+  enabled: boolean
+): Promise<void> {
+  const client = await getAcpClient();
+  await client.goose.configExtensionsSetEnabled_unstable({ configKey, enabled });
 }
