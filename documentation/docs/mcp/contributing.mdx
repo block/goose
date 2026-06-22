@@ -1,0 +1,131 @@
+---
+title: Submitting an Extension
+description: Standards and review process for adding an MCP server to the goose extension catalog
+sidebar_position: 0
+---
+
+This page describes what we look for when adding a new MCP server (extension) to
+the goose extension catalog, and what happens to your pull request after you
+open it. The catalog lives in
+[`documentation/static/servers.json`](https://github.com/aaif-goose/goose/blob/main/documentation/static/servers.json),
+with a tutorial page per extension under `documentation/docs/mcp/`.
+
+If your extension is narrow, personal, or experimental, you don't need to submit
+it here at all - anyone can add it locally as a
+[custom extension](/docs/getting-started/using-extensions#adding-extensions). The
+catalog is curated for servers that are useful to a broad set of users or
+organizations.
+
+## What we accept
+
+We favor extensions that are **high quality, broadly useful, and safe**. There is
+no rigid quota, but a good submission generally satisfies the criteria below.
+Reviewers use these as a checklist; not every item is a hard requirement, but
+each weakness should be a deliberate, explained trade-off.
+
+### 1. Provenance & trust
+
+- **Inspectable source.** The server is open source and auditable, not a closed
+  binary or opaque remote endpoint. Closed/remote servers can still be listed,
+  but they get more scrutiny and should be clearly marked.
+- **Official vs third-party.** State whether this is published by the vendor
+  (e.g. the company behind the API) or a community reimplementation. Official
+  integrations are preferred and are marked as endorsed.
+- **Repo health.** Recent commits, a real release history, responsive
+  maintainers, and triaged issues - not a one-off project.
+- **Identity.** A known org or maintainer is preferred over an anonymous account.
+
+### 2. Security
+
+- **Auth model.** Prefer OAuth or scoped tokens over long-lived API keys.
+- **Secrets handling.** Credentials are read from environment variables or the
+  keychain. They must **never** be inlined in `goose://` deep links or example
+  configs.
+- **Least privilege.** The server requests the narrowest scopes it needs, not
+  "full account access" by default.
+- **Local vs remote execution.** Be explicit about whether the server runs
+  locally (`npx`/`uvx`) or as a remote endpoint - this changes the data-egress
+  and trust profile.
+- **Destructive actions.** Tools that delete, modify, or spend money are called
+  out so users know to review agent-requested actions.
+- **Data egress & privacy.** Document what leaves the machine, where it goes, and
+  link a privacy policy for remote servers.
+- **Prompt-injection resistance.** The server should not return untrusted content
+  in a way designed to hijack the agent.
+
+All submissions are also scanned automatically - see
+[Security review](#security-review) below.
+
+### 3. Quality
+
+- **Follows the template.** Your tutorial page is based on
+  [`_template_.mdx`](https://github.com/aaif-goose/goose/blob/main/documentation/docs/mcp/_template_.mdx)
+  and has working install instructions for **both** goose Desktop and the CLI.
+- **Install actually works.** The deep link and the CLI command have been
+  verified, not copied stale.
+- **Bounded tool surface.** Keep the number of tools focused. A server that dumps
+  dozens of tools degrades the whole agent's performance; split or scope it down.
+- **Error handling & timeouts.** Failures are sane and timeouts are configurable.
+- **Maintained dependencies.** Dependencies are pinned and not abandoned.
+
+### 4. Transparency (especially for commercial servers)
+
+- **Pricing disclosure.** Free tier, paid-only, or freemium - state it so users
+  aren't surprised.
+- **Sandbox / test mode.** Ideally a user can try it without production
+  credentials or a paid account.
+- **Licensing.** A clear open-source license or clear commercial terms.
+
+### 5. Maintenance & lifecycle
+
+- **Versioning.** Semver and a changelog where possible.
+- **Deprecation path.** What happens when the upstream API changes.
+- **Last verified.** Listings carry a verification date so stale entries are
+  visible.
+
+## Catalog entry requirements
+
+Every entry in `servers.json` is validated automatically in CI
+(`documentation/scripts/validate-servers.js`). Your entry must:
+
+- Have a unique, lowercase `id` (no spaces or slashes).
+- Include `name`, `description`, a source `link` (http/https), `is_builtin`,
+  `endorsed`, and `environmentVariables`.
+- Provide an install method: a non-empty `command` (for stdio servers) or a `url`
+  (for remote servers). Manual-only setups must set `"show_install_command": false`.
+- Use a known launcher for `command` (`npx`, `uvx`, `uv`, `node`, `docker`, ...).
+- Set `type` to `local`, `remote`, or `streamable-http` for remote servers.
+
+See [`servers.schema.json`](https://github.com/aaif-goose/goose/blob/main/documentation/static/servers.schema.json)
+for the full field reference. You can validate locally:
+
+```sh
+cd documentation && npm run validate:servers
+```
+
+## Security review
+
+Security is enforced automatically, not just at review time:
+
+- **At submission.** When a pull request changes `servers.json` or a
+  `docs/mcp/` page, CI scans the new or changed servers with the
+  [Cisco AI Defense MCP Scanner](https://github.com/cisco-ai-defense/mcp-scanner).
+  High-severity findings block the merge until they're addressed (maintainers can
+  override when appropriate).
+- **Periodically.** A scheduled job re-scans every server already in the catalog,
+  because servers go stale, get hijacked, or change behavior after they're merged.
+  Findings open a tracking issue so we can update or remove the listing.
+
+This is why we're comfortable accepting a wider range of extensions: anything we
+recommend is continuously monitored.
+
+## The submission process
+
+1. Fork the repo and add your server to `documentation/static/servers.json`.
+2. Add a tutorial page under `documentation/docs/mcp/` based on `_template_.mdx`.
+3. Verify install on both goose Desktop and the CLI.
+4. Open a pull request using the **Extension submission** template and complete
+   the checklist.
+5. CI runs catalog validation and the security scan. Address any failures.
+6. A maintainer reviews against the criteria above and merges, requests changes,
+   or suggests using a custom extension instead.
