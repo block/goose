@@ -40,28 +40,19 @@ pub type Error = rmcp::ServiceError;
 const MCP_APPS_UI_EXTENSION_ID: &str = "io.modelcontextprotocol/ui";
 const MCP_APPS_UI_MIME_TYPE: &str = "text/html;profile=mcp-app";
 
-async fn resolve_sampling_model_config(
-    session_id: Option<&str>,
-) -> anyhow::Result<goose_providers::model::ModelConfig> {
-    if let Some(session_id) = session_id {
-        if let Ok(session) = crate::session::SessionManager::instance()
-            .get_session(session_id, false)
-            .await
+fn resolve_sampling_model_config() -> goose_providers::model::ModelConfig {
+    let config = crate::config::Config::global();
+    if let (Ok(provider_name), Ok(model_name)) =
+        (config.get_goose_provider(), config.get_goose_model())
+    {
+        if let Ok(model_config) =
+            crate::model_config::model_config_from_user_config(&provider_name, &model_name)
         {
-            if let Some(model_config) = session.model_config {
-                return Ok(model_config);
-            }
+            return model_config;
         }
     }
 
-    let config = crate::config::Config::global();
-    let provider_name = config
-        .get_goose_provider()
-        .map_err(|_| anyhow::anyhow!("missing provider"))?;
-    let model_name = config
-        .get_goose_model()
-        .map_err(|_| anyhow::anyhow!("missing model"))?;
-    crate::model_config::model_config_from_user_config(&provider_name, &model_name)
+    goose_providers::model::ModelConfig::default()
 }
 
 fn default_mcp_apps_ui_extensions() -> ExtensionCapabilities {
@@ -348,15 +339,7 @@ impl ClientHandler for GooseClient {
             .as_deref()
             .unwrap_or("You are a general-purpose AI agent called goose");
 
-        let model_config = resolve_sampling_model_config(session_id.as_deref())
-            .await
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    "Could not resolve model config",
-                    Some(Value::from(e.to_string())),
-                )
-            })?;
+        let model_config = resolve_sampling_model_config();
         let (response, usage) = provider
             .complete(
                 &model_config,
