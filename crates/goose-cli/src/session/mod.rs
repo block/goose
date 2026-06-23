@@ -2447,7 +2447,6 @@ mod tests {
             max_tokens: Some(16_384),
             toolshim: true,
             toolshim_model: Some("qwen2.5-coder".to_string()),
-            fast_model_config: None,
             request_params: Some(HashMap::from([(
                 "anthropic_beta".to_string(),
                 serde_json::json!(["output-128k-2025-02-19"]),

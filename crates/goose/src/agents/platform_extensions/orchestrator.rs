@@ -353,8 +353,12 @@ impl OrchestratorClient {
         ));
 
         let model_config = self.parent_model_config(provider.get_name()).await?;
+        let fast_model_config =
+            crate::model_config::get_fast_model(provider.get_name(), &model_config)
+                .await
+                .map_err(|e| format!("Failed to resolve fast model: {}", e))?;
         let (response, _usage) = provider
-            .complete_fast(&model_config, session_id, system, &[user_message], &[])
+            .complete(&fast_model_config, session_id, system, &[user_message], &[])
             .await
             .map_err(|e| format!("LLM summarization failed: {}", e))?;
 

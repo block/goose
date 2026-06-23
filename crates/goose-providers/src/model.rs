@@ -16,8 +16,6 @@ pub struct ModelConfig {
     pub max_tokens: Option<i32>,
     pub toolshim: bool,
     pub toolshim_model: Option<String>,
-    #[serde(skip)]
-    pub fast_model_config: Option<Box<ModelConfig>>,
     /// Provider-specific request parameters (e.g., anthropic_beta headers)
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub request_params: Option<HashMap<String, Value>>,
@@ -38,8 +36,6 @@ impl<'de> Deserialize<'de> for ModelConfig {
             max_tokens: Option<i32>,
             toolshim: bool,
             toolshim_model: Option<String>,
-            #[serde(default)]
-            fast_model_config: Option<Box<ModelConfig>>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
             request_params: Option<HashMap<String, Value>>,
             #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -54,7 +50,6 @@ impl<'de> Deserialize<'de> for ModelConfig {
             max_tokens: raw.max_tokens,
             toolshim: raw.toolshim,
             toolshim_model: raw.toolshim_model,
-            fast_model_config: raw.fast_model_config,
             request_params: raw.request_params,
             reasoning: raw.reasoning,
         };
@@ -72,7 +67,6 @@ impl ModelConfig {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -136,11 +130,6 @@ impl ModelConfig {
         if self.context_limit.is_none() {
             self.context_limit = limit;
         }
-
-        if let Some(fast_config) = self.fast_model_config.take() {
-            self.fast_model_config = Some(Box::new(fast_config.with_default_context_limit(limit)));
-        }
-
         self
     }
 
@@ -148,11 +137,6 @@ impl ModelConfig {
         if self.max_tokens.is_none() {
             self.max_tokens = tokens;
         }
-
-        if let Some(fast_config) = self.fast_model_config.take() {
-            self.fast_model_config = Some(Box::new(fast_config.with_default_max_tokens(tokens)));
-        }
-
         self
     }
 
@@ -163,17 +147,6 @@ impl ModelConfig {
 
     pub fn with_toolshim_model(mut self, model: Option<String>) -> Self {
         self.toolshim_model = model;
-        self
-    }
-
-    pub fn with_fast(mut self, fast_model_name: &str, provider_name: &str) -> Self {
-        let fast_config = ModelConfig::new(fast_model_name).with_canonical_limits(provider_name);
-        self.fast_model_config = Some(Box::new(fast_config));
-        self
-    }
-
-    pub fn with_fast_model_config(mut self, fast_model_config: ModelConfig) -> Self {
-        self.fast_model_config = Some(Box::new(fast_model_config));
         self
     }
 
@@ -206,12 +179,6 @@ impl ModelConfig {
                 self = self.with_thinking_effort(effort);
             }
         }
-
-        if let Some(fast_config) = self.fast_model_config.take() {
-            self.fast_model_config =
-                Some(Box::new(fast_config.with_default_thinking_effort(effort)));
-        }
-
         self
     }
 
@@ -245,14 +212,6 @@ impl ModelConfig {
         }
 
         self
-    }
-
-    pub fn use_fast_model(&self) -> Self {
-        if let Some(fast_config) = &self.fast_model_config {
-            *fast_config.clone()
-        } else {
-            self.clone()
-        }
     }
 
     pub fn context_limit(&self) -> usize {
@@ -337,33 +296,6 @@ impl ModelConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn test_deserialize_preserves_fast_model_config() {
-        let config: ModelConfig = serde_json::from_value(serde_json::json!({
-            "model_name": "primary-model",
-            "context_limit": null,
-            "temperature": null,
-            "max_tokens": null,
-            "toolshim": false,
-            "toolshim_model": null,
-            "fast_model_config": {
-                "model_name": "fast-model",
-                "context_limit": 4096,
-                "temperature": null,
-                "max_tokens": 1024,
-                "toolshim": false,
-                "toolshim_model": null
-            }
-        }))
-        .unwrap();
-
-        let fast_config = config.fast_model_config.as_ref().unwrap();
-        assert_eq!(fast_config.model_name, "fast-model");
-        assert_eq!(fast_config.context_limit, Some(4096));
-        assert_eq!(fast_config.max_tokens, Some(1024));
-        assert_eq!(config.use_fast_model().model_name, "fast-model");
-    }
 
     mod thinking_effort_tests {
         use super::*;

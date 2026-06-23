@@ -1429,6 +1429,15 @@ impl GooseAcpAgent {
                             Ok(config) => config,
                             Err(_) => return,
                         };
+                        let fast_model_config = match crate::model_config::get_fast_model(
+                            provider.get_name(),
+                            &model_config,
+                        )
+                        .await
+                        {
+                            Ok(config) => config,
+                            Err(_) => return,
+                        };
                         // The fast model occasionally returns an empty response
                         // under load (rate limiting, transient network). One
                         // retry with a short backoff is enough to recover the
@@ -1436,8 +1445,8 @@ impl GooseAcpAgent {
                         let mut llm_outcome: Option<String> = None;
                         for attempt in 0..2 {
                             match provider
-                                .complete_fast(
-                                    &model_config,
+                                .complete(
+                                    &fast_model_config,
                                     &sid.0,
                                     system,
                                     std::slice::from_ref(&message),
@@ -1713,6 +1722,12 @@ impl GooseAcpAgent {
                 Ok(config) => config,
                 Err(_) => return,
             };
+            let fast_model_config =
+                match crate::model_config::get_fast_model(provider.get_name(), &model_config).await
+                {
+                    Ok(config) => config,
+                    Err(_) => return,
+                };
 
             // Match the per-tool retry policy: one retry on empty/error keeps
             // the chain header reliable when the fast model is rate-limited or
@@ -1720,8 +1735,8 @@ impl GooseAcpAgent {
             let mut summary: Option<String> = None;
             for attempt in 0..2 {
                 match provider
-                    .complete_fast(
-                        &model_config,
+                    .complete(
+                        &fast_model_config,
                         &sid.0,
                         system,
                         std::slice::from_ref(&message),

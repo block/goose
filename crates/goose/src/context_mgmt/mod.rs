@@ -301,6 +301,9 @@ async fn do_compact(
         .map(|msg| msg.agent_visible_content())
         .collect();
 
+    let fast_model_config =
+        crate::model_config::get_fast_model(provider.get_name(), model_config).await?;
+
     // Try progressively removing more tool response messages from the middle to reduce context length
     let removal_percentages = [0, 10, 20, 50, 100];
 
@@ -324,8 +327,8 @@ async fn do_compact(
         let summarization_request = vec![user_message];
 
         match provider
-            .complete_fast(
-                model_config,
+            .complete(
+                &fast_model_config,
                 session_id,
                 &system_prompt,
                 &summarization_request,
@@ -539,9 +542,11 @@ pub async fn summarize_tool_call(
                 if that is what it was.
             "#};
 
+    let fast_model_config =
+        crate::model_config::get_fast_model(provider.get_name(), model_config).await?;
     let (mut response, _) = provider
-        .complete_fast(
-            model_config,
+        .complete(
+            &fast_model_config,
             session_id,
             system_prompt,
             &summarization_request,
@@ -643,7 +648,6 @@ mod tests {
                     max_tokens: None,
                     toolshim: false,
                     toolshim_model: None,
-                    fast_model_config: None,
                     request_params: None,
                     reasoning: None,
                 },

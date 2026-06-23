@@ -495,10 +495,21 @@ impl SessionManager {
             return Ok(Some(self.system_generated_name_update(id, name).await?));
         }
 
-        let model_config = session
-            .model_config
-            .clone()
-            .unwrap_or_else(|| goose_providers::model::ModelConfig::new("unknown"));
+        let model_config = match session.model_config.clone() {
+            Some(model_config) => model_config,
+            None => {
+                let model_name =
+                    crate::config::Config::global()
+                        .get_goose_model()
+                        .map_err(|_| {
+                            anyhow::anyhow!("Could not resolve model config: missing model")
+                        })?;
+                crate::model_config::model_config_from_user_config(
+                    provider.get_name(),
+                    &model_name,
+                )?
+            }
+        };
         let conversation = session
             .conversation
             .ok_or_else(|| anyhow::anyhow!("No messages found"))?;
@@ -2110,10 +2121,10 @@ mod tests {
             _messages: &[Message],
             _tools: &[rmcp::model::Tool],
         ) -> std::result::Result<MessageStream, goose_providers::errors::ProviderError> {
-            unimplemented!("session naming calls complete_fast")
+            unimplemented!("session naming calls complete")
         }
 
-        async fn complete_fast(
+        async fn complete(
             &self,
             _model_config: &ModelConfig,
             _session_id: &str,

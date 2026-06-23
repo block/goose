@@ -42,7 +42,7 @@ pub struct ProviderMetadata {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_selection_hint: Option<String>,
     /// The name of a fast/cheap model to use for lightweight tasks (e.g. session naming,
-    /// compaction). When set, `complete_fast` will prefer this model over the main model.
+    /// compaction). When set, fast-path callers prefer this model over the main model.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub fast_model: Option<String>,
 }
@@ -413,40 +413,6 @@ pub trait Provider: Send + Sync {
             .stream(model_config, session_id, system, messages, tools)
             .await?;
         collect_stream(stream).await
-    }
-
-    /// Try fast model first, fall back to regular model on failure.
-    async fn complete_fast(
-        &self,
-        model_config: &ModelConfig,
-        session_id: &str,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let fast_config = model_config.use_fast_model();
-
-        let result = self
-            .complete(&fast_config, session_id, system, messages, tools)
-            .await;
-
-        match result {
-            Ok(response) => Ok(response),
-            Err(e) => {
-                if fast_config.model_name != model_config.model_name {
-                    tracing::warn!(
-                        "Fast model {} failed with error: {}. Falling back to regular model {}",
-                        fast_config.model_name,
-                        e,
-                        model_config.model_name
-                    );
-                    self.complete(model_config, session_id, system, messages, tools)
-                        .await
-                } else {
-                    Err(e)
-                }
-            }
-        }
     }
 
     /// Resolve the effective context limit for a model config.

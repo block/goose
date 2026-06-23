@@ -6912,7 +6912,7 @@
           },
           "fast_model": {
             "type": "string",
-            "description": "The name of a fast/cheap model to use for lightweight tasks (e.g. session naming,\ncompaction). When set, `complete_fast` will prefer this model over the main model.",
+            "description": "The name of a fast/cheap model to use for lightweight tasks (e.g. session naming,\ncompaction). When set, fast-path callers prefer this model over the main model.",
             "nullable": true
           },
           "known_models": {

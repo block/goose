@@ -59,23 +59,40 @@ fn materialize_model_config_inner(
     Ok(model)
 }
 
-pub fn configured_fast_model_name(default_model: &str) -> String {
+fn configured_fast_model_name() -> Option<String> {
     Config::global()
         .get_param::<String>("GOOSE_FAST_MODEL")
         .ok()
         .map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| default_model.to_string())
 }
 
-pub fn with_configured_fast_model(
-    model: ModelConfig,
+/// Resolve the model config to use for lightweight "fast" tasks (session
+/// naming, compaction, summarization). Resolution order:
+///   1. `GOOSE_FAST_MODEL` (user override)
+///   2. the provider's declared default fast model
+///   3. the supplied `model_config` (i.e. the main model)
+///
+/// The resulting config is materialized against the same provider so it picks
+/// up context limits, temperature, and other provider defaults.
+pub async fn get_fast_model(
     provider_name: &str,
-    default_fast_model_name: &str,
+    model_config: &ModelConfig,
 ) -> Result<ModelConfig> {
-    let fast_model_name = configured_fast_model_name(default_fast_model_name);
-    let fast_model_config = model_config_from_user_config(provider_name, fast_model_name)?;
-    Ok(model.with_fast_model_config(fast_model_config))
+    let fast_model_name = match configured_fast_model_name() {
+        Some(name) => Some(name),
+        None => crate::providers::get_from_registry(provider_name)
+            .await
+            .ok()
+            .and_then(|entry| entry.metadata().fast_model.clone()),
+    };
+
+    match fast_model_name {
+        Some(name) if name != model_config.model_name => {
+            model_config_from_user_config(provider_name, name)
+        }
+        _ => Ok(model_config.clone()),
+    }
 }
 
 fn base_model_config_from_user_config(model_name: &str) -> Result<ModelConfig> {
@@ -87,7 +104,6 @@ fn base_model_config_from_user_config(model_name: &str) -> Result<ModelConfig> {
         max_tokens: None,
         toolshim: get_goose_toolshim(config)?.unwrap_or(false),
         toolshim_model: get_goose_toolshim_model(config)?,
-        fast_model_config: None,
         request_params: None,
         reasoning: None,
     };

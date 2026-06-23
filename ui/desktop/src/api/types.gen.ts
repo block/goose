@@ -1026,7 +1026,7 @@ export type ProviderMetadata = {
     display_name: string;
     /**
      * The name of a fast/cheap model to use for lightweight tasks (e.g. session naming,
-     * compaction). When set, `complete_fast` will prefer this model over the main model.
+     * compaction). When set, fast-path callers prefer this model over the main model.
      */
     fast_model?: string | null;
     /**
