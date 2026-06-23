@@ -19,7 +19,7 @@ async fn main() -> Result<()> {
         AuthMethod::BearerToken(key),
         Some(Default::default()),
     )?;
-    let provider = OpenAiProvider::new(api_client, model.clone());
+    let provider = OpenAiProvider::new(api_client);
 
     let system = "You are a knowledgable geography expert";
     let messages = [Message::user().with_text("what is the capital of France?")];

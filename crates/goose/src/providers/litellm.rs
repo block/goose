@@ -29,7 +29,6 @@ pub struct LiteLLMProvider {
     #[serde(skip)]
     api_client: ApiClient,
     base_path: String,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
     #[serde(skip)]
@@ -38,7 +37,7 @@ pub struct LiteLLMProvider {
 
 impl LiteLLMProvider {
     pub async fn from_env(
-        model: ModelConfig,
+        _model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -86,7 +85,6 @@ impl LiteLLMProvider {
         Ok(Self {
             api_client,
             base_path,
-            model,
             name: LITELLM_PROVIDER_NAME.to_string(),
             cached_model_info: tokio::sync::OnceCell::new(),
         })
@@ -152,6 +150,16 @@ impl LiteLLMProvider {
             .response_post(session_id, &self.base_path, payload)
             .await?;
         handle_response_openai_compat(response).await
+    }
+
+    async fn supports_cache_control(&self, model: &ModelConfig) -> bool {
+        if let Ok(models) = self.get_or_fetch_models().await {
+            if let Some(model_info) = models.iter().find(|m| m.name == model.model_name) {
+                return model_info.supports_cache_control.unwrap_or(false);
+            }
+        }
+
+        model.model_name.to_lowercase().contains("claude")
     }
 }
 
@@ -248,7 +256,7 @@ impl Provider for LiteLLMProvider {
             false,
         )?;
 
-        if self.supports_cache_control().await {
+        if self.supports_cache_control(model_config).await {
             payload = update_request_for_cache_control(&payload);
         }
 
@@ -269,16 +277,6 @@ impl Provider for LiteLLMProvider {
             message,
             provider_usage,
         ))
-    }
-
-    async fn supports_cache_control(&self) -> bool {
-        if let Ok(models) = self.get_or_fetch_models().await {
-            if let Some(model_info) = models.iter().find(|m| m.name == self.model.model_name) {
-                return model_info.supports_cache_control.unwrap_or(false);
-            }
-        }
-
-        self.model.model_name.to_lowercase().contains("claude")
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {

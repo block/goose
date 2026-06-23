@@ -14,8 +14,8 @@ use tokio_util::io::StreamReader;
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata};
 use super::formats::anthropic::{
-    create_request_with_options_for_provider, response_to_streaming_message, thinking_type,
-    AnthropicFormatOptions, ThinkingType, ANTHROPIC_PROVIDER_NAME,
+    create_request_with_options_for_provider, response_to_streaming_message,
+    AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME,
 };
 use super::openai_compatible::handle_status;
 use super::openai_compatible::map_http_error_to_provider_error;
@@ -27,7 +27,6 @@ use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
-const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     // Claude 4.6 models
     "claude-opus-4-6",
@@ -64,15 +63,9 @@ pub struct AnthropicProvider {
 
 impl AnthropicProvider {
     pub async fn from_env(
-        model: ModelConfig,
+        _model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
-        let model = crate::model_config::with_configured_fast_model(
-            model,
-            ANTHROPIC_PROVIDER_NAME,
-            ANTHROPIC_DEFAULT_FAST_MODEL,
-        )?;
-
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
         let host: String = config
@@ -99,7 +92,7 @@ impl AnthropicProvider {
     }
 
     pub fn from_custom_config(
-        model: ModelConfig,
+        _model: ModelConfig,
         config: DeclarativeProviderConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
@@ -156,12 +149,6 @@ impl AnthropicProvider {
                 Please remove 'supports_streaming: false' from your provider configuration."
             ));
         }
-
-        let model = if let Some(ref fast_model_name) = config.fast_model {
-            crate::model_config::with_configured_fast_model(model, &config.name, fast_model_name)?
-        } else {
-            model
-        };
 
         Ok(Self {
             api_client,

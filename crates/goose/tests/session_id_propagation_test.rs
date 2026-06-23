@@ -42,8 +42,7 @@ fn create_test_provider(mock_server_url: &str) -> Box<dyn Provider> {
         None,
     )
     .unwrap();
-    let model = ModelConfig::new_or_fail("gpt-5-nano");
-    Box::new(OpenAiProvider::new(api_client, model))
+    Box::new(OpenAiProvider::new(api_client))
 }
 
 async fn setup_mock_server() -> (MockServer, HeaderCapture, Box<dyn Provider>) {

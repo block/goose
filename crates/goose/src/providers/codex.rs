@@ -46,7 +46,6 @@ pub const CODEX_REASONING_LEVELS: &[&str] = &["none", "low", "medium", "high", "
 #[derive(Debug, serde::Serialize)]
 pub struct CodexProvider {
     command: PathBuf,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
     /// Reasoning effort level (none, low, medium, high, xhigh)
@@ -126,6 +125,7 @@ impl CodexProvider {
     /// Execute codex CLI command
     async fn execute_command(
         &self,
+        model: &ModelConfig,
         system: &str,
         messages: &[Message],
         _tools: &[Tool],
@@ -139,7 +139,7 @@ impl CodexProvider {
         if std::env::var("GOOSE_CODEX_DEBUG").is_ok() {
             println!("=== CODEX PROVIDER DEBUG ===");
             println!("Command: {:?}", self.command);
-            println!("Model: {}", self.model.model_name);
+            println!("Model: {}", model.model_name);
             println!("Reasoning effort: {:?}", self.reasoning_effort);
             println!("Skip git check: {}", self.skip_git_check);
             println!("Prompt length: {} chars", prompt.len());
@@ -163,8 +163,8 @@ impl CodexProvider {
 
         // Only pass model parameter if it's in the known models list
         // This allows users to set GOOSE_PROVIDER=codex without needing to specify a model
-        if CODEX_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
-            cmd.arg("-m").arg(&self.model.model_name);
+        if CODEX_KNOWN_MODELS.contains(&model.model_name.as_str()) {
+            cmd.arg("-m").arg(&model.model_name);
         }
 
         if let Some(reasoning_effort) = &self.reasoning_effort {
@@ -667,7 +667,6 @@ impl ProviderDef for CodexProvider {
 
             Ok(Self {
                 command: resolved_command,
-                model,
                 name: CODEX_PROVIDER_NAME.to_string(),
                 reasoning_effort,
                 skip_git_check,
@@ -708,7 +707,7 @@ impl Provider for CodexProvider {
             map.get(session_id).copied().unwrap_or_default()
         };
         let lines = self
-            .execute_command(system, messages, tools, goose_mode)
+            .execute_command(model_config, system, messages, tools, goose_mode)
             .await?;
 
         let (message, usage) = self.parse_response(&lines)?;
@@ -936,7 +935,6 @@ mod tests {
     fn test_parse_response_plain_text() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
@@ -957,7 +955,6 @@ mod tests {
     fn test_parse_response_json_events() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
@@ -992,7 +989,6 @@ mod tests {
     fn test_parse_response_empty() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
@@ -1041,7 +1037,6 @@ mod tests {
     fn test_parse_response_item_completed() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
@@ -1067,7 +1062,6 @@ mod tests {
     fn test_parse_response_turn_completed_usage() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
@@ -1141,7 +1135,6 @@ mod tests {
     fn test_parse_response_error_event(lines: &[&str], expected: ProviderError) {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
@@ -1158,7 +1151,6 @@ mod tests {
     fn test_parse_response_skips_reasoning() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
@@ -1285,7 +1277,6 @@ mod tests {
     fn test_parse_response_multiple_agent_messages() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
             reasoning_effort: Some("high".to_string()),
             skip_git_check: false,

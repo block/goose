@@ -570,10 +570,6 @@ pub trait Provider: Send + Sync {
         false
     }
 
-    async fn supports_cache_control(&self) -> bool {
-        false
-    }
-
     /// Configure OAuth authentication for this provider
     ///
     /// This method is called when a provider has configuration keys marked with oauth_flow = true.

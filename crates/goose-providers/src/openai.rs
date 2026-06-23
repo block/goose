@@ -125,7 +125,6 @@ pub struct OpenAiProvider {
     base_path: String,
     organization: Option<String>,
     project: Option<String>,
-    model: ModelConfig,
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
@@ -145,7 +144,6 @@ pub struct OpenAiProviderBuilder {
     base_path: String,
     organization: Option<String>,
     project: Option<String>,
-    model: ModelConfig,
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
@@ -156,13 +154,12 @@ pub struct OpenAiProviderBuilder {
 }
 
 impl OpenAiProviderBuilder {
-    pub fn new(api_client: ApiClient, model: ModelConfig) -> Self {
+    pub fn new(api_client: ApiClient) -> Self {
         Self {
             api_client,
             base_path: OPEN_AI_DEFAULT_BASE_PATH.to_string(),
             organization: None,
             project: None,
-            model,
             custom_headers: None,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
@@ -190,11 +187,6 @@ impl OpenAiProviderBuilder {
 
     pub fn project(mut self, project: Option<String>) -> Self {
         self.project = project;
-        self
-    }
-
-    pub fn model(mut self, model: ModelConfig) -> Self {
-        self.model = model;
         self
     }
 
@@ -239,7 +231,6 @@ impl OpenAiProviderBuilder {
             base_path: self.base_path,
             organization: self.organization,
             project: self.project,
-            model: self.model,
             custom_headers: self.custom_headers,
             supports_streaming: self.supports_streaming,
             name: self.name,
@@ -253,13 +244,12 @@ impl OpenAiProviderBuilder {
 
 impl OpenAiProvider {
     #[doc(hidden)]
-    pub fn new(api_client: ApiClient, model: ModelConfig) -> Self {
+    pub fn new(api_client: ApiClient) -> Self {
         Self {
             api_client,
             base_path: OPEN_AI_DEFAULT_BASE_PATH.to_string(),
             organization: None,
             project: None,
-            model,
             custom_headers: None,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
@@ -390,6 +380,7 @@ impl OpenAiProvider {
         }
     }
 
+    /// TODO(jack): replace this
     /// Fill the model's context limit from the API when it isn't already set.
     ///
     /// An existing value may be an explicit GOOSE_CONTEXT_LIMIT, an ACP/server
@@ -399,18 +390,18 @@ impl OpenAiProvider {
     /// servers that would otherwise fall back to DEFAULT_CONTEXT_LIMIT. The probe is
     /// bounded by a short timeout so a hung /v1/models can't stall provider
     /// construction (the shared ApiClient uses OPENAI_TIMEOUT, up to 600s).
-    pub async fn probe_context_limit_if_unset(&mut self) {
-        if self.model.context_limit.is_some() {
-            return;
-        }
-        const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
-        let model_name = self.model.model_name.clone();
-        if let Ok(Some(n_ctx)) =
-            tokio::time::timeout(N_CTX_PROBE_TIMEOUT, self.fetch_n_ctx_from_api(&model_name)).await
-        {
-            self.model.context_limit = Some(n_ctx);
-        }
-    }
+    // pub async fn probe_context_limit_if_unset(&self, model: &mut ModelConfig) {
+    //     if model.context_limit.is_some() {
+    //         return;
+    //     }
+    //     const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+    //     let model_name = model.model_name.clone();
+    //     if let Ok(Some(n_ctx)) =
+    //         tokio::time::timeout(N_CTX_PROBE_TIMEOUT, self.fetch_n_ctx_from_api(&model_name)).await
+    //     {
+    //         model.context_limit = Some(n_ctx);
+    //     }
+    // }
 
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
         let models_path =
@@ -711,7 +702,6 @@ mod tests {
             base_path: "v1/chat/completions".to_string(),
             organization: None,
             project: None,
-            model: ModelConfig::new_or_fail("test-model"),
             custom_headers: None,
             supports_streaming: true,
             name: name.to_string(),

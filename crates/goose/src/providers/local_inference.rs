@@ -478,16 +478,14 @@ type StreamSender =
 
 pub struct LocalInferenceProvider {
     runtime: Arc<InferenceRuntime>,
-    model_config: ModelConfig,
     name: String,
 }
 
 impl LocalInferenceProvider {
-    pub async fn from_env(model: ModelConfig, _extensions: Vec<ExtensionConfig>) -> Result<Self> {
+    pub async fn from_env(_model: ModelConfig, _extensions: Vec<ExtensionConfig>) -> Result<Self> {
         let runtime = InferenceRuntime::get_or_init()?;
         Ok(Self {
             runtime,
-            model_config: model,
             name: PROVIDER_NAME.to_string(),
         })
     }
@@ -650,7 +648,7 @@ impl Provider for LocalInferenceProvider {
             },
         });
 
-        let mut log = start_log(&self.model_config, &log_payload)?;
+        let mut log = start_log(model_config, &log_payload)?;
 
         let (tx, mut rx) = tokio::sync::mpsc::channel::<
             Result<(Option<Message>, Option<ProviderUsage>), ProviderError>,

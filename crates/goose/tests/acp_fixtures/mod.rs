@@ -196,7 +196,7 @@ pub async fn spawn_acp_server_in_process(
     let provider_factory = provider_factory.unwrap_or_else(|| {
         let base_url = openai_base_url.to_string();
         Arc::new(
-            move |_provider_name, model_config, _extensions, _working_dir| {
+            move |_provider_name, _model_config, _extensions, _working_dir| {
                 let base_url = base_url.clone();
                 Box::pin(async move {
                     let api_client = ApiClient::new_with_tls(
@@ -205,8 +205,7 @@ pub async fn spawn_acp_server_in_process(
                         None,
                     )
                     .unwrap();
-                    let provider: Arc<dyn Provider> =
-                        Arc::new(OpenAiProvider::new(api_client, model_config));
+                    let provider: Arc<dyn Provider> = Arc::new(OpenAiProvider::new(api_client));
                     Ok(provider)
                 })
             },

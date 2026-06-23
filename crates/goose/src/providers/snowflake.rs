@@ -52,7 +52,6 @@ impl SnowflakeAuth {
 pub struct SnowflakeProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     image_format: ImageFormat,
     #[serde(skip)]
     name: String,
@@ -60,7 +59,7 @@ pub struct SnowflakeProvider {
 
 impl SnowflakeProvider {
     pub async fn from_env(
-        model: ModelConfig,
+        _model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -111,7 +110,6 @@ impl SnowflakeProvider {
 
         Ok(Self {
             api_client,
-            model,
             image_format: ImageFormat::OpenAi,
             name: SNOWFLAKE_PROVIDER_NAME.to_string(),
         })
@@ -360,7 +358,7 @@ impl Provider for SnowflakeProvider {
         };
         let payload = create_request(model_config, system, messages, tools)?;
 
-        let mut log = start_log(&self.model, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {

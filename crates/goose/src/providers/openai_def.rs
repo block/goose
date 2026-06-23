@@ -9,8 +9,7 @@ use goose_providers::api_client::{ApiClient, AuthMethod};
 use goose_providers::model::ModelConfig;
 use goose_providers::openai::{
     ensure_url_scheme, parse_custom_headers, parse_openai_base_url, OpenAiProvider,
-    OpenAiProviderBuilder, OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_DEFAULT_FAST_MODEL,
-    OPEN_AI_PROVIDER_NAME, OPEN_AI_VERSIONLESS_BASE_PATH,
+    OpenAiProviderBuilder, OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_VERSIONLESS_BASE_PATH,
 };
 
 pub struct OpenAiProviderDef;
@@ -34,7 +33,7 @@ impl ProviderDef for OpenAiProviderDef {
 }
 
 pub async fn from_env(
-    model: ModelConfig,
+    _model: ModelConfig,
     tls_config: Option<goose_providers::api_client::TlsConfig>,
 ) -> Result<OpenAiProvider> {
     let config = crate::config::Config::global();
@@ -116,16 +115,6 @@ pub async fn from_env(
         .and_then(|u| u.host_str().map(|h| h.to_ascii_lowercase()))
         .map(|h| h == "api.openai.com" || h.ends_with(".api.openai.com"))
         .unwrap_or(false);
-    let model = if is_openai {
-        crate::model_config::with_configured_fast_model(
-            model,
-            OPEN_AI_PROVIDER_NAME,
-            OPEN_AI_DEFAULT_FAST_MODEL,
-        )?
-    } else {
-        model
-    };
-
     let secrets = config
         .get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])
         .unwrap_or_default();
@@ -174,7 +163,7 @@ pub async fn from_env(
         api_client = api_client.with_headers(header_map)?;
     }
 
-    let mut provider = OpenAiProviderBuilder::new(api_client, model)
+    let provider = OpenAiProviderBuilder::new(api_client)
         .base_path(base_path)
         .organization(organization)
         .project(project)
@@ -182,7 +171,8 @@ pub async fn from_env(
         .preserve_thinking_context(!is_openai)
         .build();
 
-    provider.probe_context_limit_if_unset().await;
+    // TODO(jack): replace this
+    // provider.probe_context_limit_if_unset(&mut model).await;
 
     Ok(provider)
 }
@@ -235,7 +225,7 @@ pub fn resolve_api_key(
 }
 
 pub fn from_custom_config(
-    model: ModelConfig,
+    _model: ModelConfig,
     config: DeclarativeProviderConfig,
     tls_config: Option<goose_providers::api_client::TlsConfig>,
 ) -> Result<OpenAiProvider> {
@@ -307,13 +297,7 @@ pub fn from_custom_config(
         api_client = api_client.with_headers(header_map)?;
     }
 
-    let model = if let Some(ref fast_model_name) = config.fast_model {
-        crate::model_config::with_configured_fast_model(model, &config.name, fast_model_name)?
-    } else {
-        model
-    };
-
-    Ok(OpenAiProviderBuilder::new(api_client, model)
+    Ok(OpenAiProviderBuilder::new(api_client)
         .base_path(base_path)
         .custom_headers(config.headers)
         .supports_streaming(config.supports_streaming.unwrap_or(true))
