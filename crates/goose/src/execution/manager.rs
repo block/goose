@@ -250,7 +250,7 @@ impl AgentManager {
                         )
                         .ok()
                     })
-                    .unwrap_or_else(|| goose_providers::model::ModelConfig::new_or_fail("unknown"));
+                    .unwrap_or_else(|| goose_providers::model::ModelConfig::new("unknown"));
                 agent
                     .update_provider(Arc::clone(provider), model_config, session_id)
                     .await?;

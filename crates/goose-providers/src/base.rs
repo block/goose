@@ -291,12 +291,12 @@ pub fn model_info_for_provider_model(provider_name: &str, model_name: &str) -> M
     let reasoning = canonical
         .as_ref()
         .and_then(|model| model.reasoning)
-        .unwrap_or_else(|| ModelConfig::new_or_fail(model_name).is_reasoning_model());
+        .unwrap_or_else(|| ModelConfig::new(model_name).is_reasoning_model());
 
     ModelInfo {
         name: model_name.to_string(),
         resolved_model: None,
-        context_limit: ModelConfig::new_or_fail(model_name)
+        context_limit: ModelConfig::new(model_name)
             .with_canonical_limits(provider_name)
             .context_limit(),
         input_token_cost: None,

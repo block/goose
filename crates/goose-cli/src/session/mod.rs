@@ -2457,7 +2457,7 @@ mod tests {
 
         let switched =
             build_switched_model_config("openai", "gpt-5.4", &current_model_config).unwrap();
-        let expected = goose_providers::model::ModelConfig::new_or_fail("gpt-5.4")
+        let expected = goose_providers::model::ModelConfig::new("gpt-5.4")
             .with_canonical_limits("openai")
             .with_temperature(Some(0.25))
             .with_toolshim(true)
@@ -2484,7 +2484,7 @@ mod tests {
             ("GOOSE_THINKING_EFFORT", None::<&str>),
         ]);
 
-        let current = goose_providers::model::ModelConfig::new_or_fail("gpt-5.4-high")
+        let current = goose_providers::model::ModelConfig::new("gpt-5.4-high")
             .with_canonical_limits("openai");
         assert_eq!(current.model_name, "gpt-5.4");
         assert_eq!(

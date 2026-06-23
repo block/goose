@@ -76,7 +76,7 @@ impl AcpProviderSession {
             .unwrap()
             .get(session_id.as_ref())
             .cloned()
-            .unwrap_or_else(|| ModelConfig::new(TEST_MODEL).unwrap());
+            .unwrap_or_else(|| ModelConfig::new(TEST_MODEL));
         let mut stream = provider
             .stream(&model_config, &session_id, "", &[message], &[])
             .await?;

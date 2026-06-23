@@ -789,9 +789,7 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     {
         let supports_thinking = match temp_provider.fetch_model_info(&model).await {
             Ok(model_info) => model_info.reasoning,
-            Err(_) => goose_providers::model::ModelConfig::new(&model)
-                .map(|c| c.is_reasoning_model())
-                .unwrap_or(false),
+            Err(_) => goose_providers::model::ModelConfig::new(&model).is_reasoning_model(),
         };
 
         if supports_thinking {

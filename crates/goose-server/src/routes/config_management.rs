@@ -1124,7 +1124,7 @@ pub async fn get_canonical_model_info(
         max_output_tokens: canonical_model.limit.output,
         reasoning: canonical_model
             .reasoning
-            .unwrap_or_else(|| ModelConfig::new_or_fail(&query.model).is_reasoning_model()),
+            .unwrap_or_else(|| ModelConfig::new(&query.model).is_reasoning_model()),
         // Costs are per million tokens - client handles division for display
         input_token_cost: canonical_model.cost.input,
         output_token_cost: canonical_model.cost.output,

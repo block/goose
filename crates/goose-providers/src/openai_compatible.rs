@@ -305,7 +305,7 @@ mod tests {
         )
         .with_supports_streaming(false);
 
-        let model = ModelConfig::new_or_fail("test-model");
+        let model = ModelConfig::new("test-model");
         let payload = provider
             .build_request(&model, "", &[], &[], provider.supports_streaming)
             .unwrap();

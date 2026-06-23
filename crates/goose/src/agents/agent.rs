@@ -3530,7 +3530,7 @@ exit 0
         agent
             .update_provider(
                 provider,
-                goose_providers::model::ModelConfig::new("mock-model").unwrap(),
+                goose_providers::model::ModelConfig::new("mock-model"),
                 &session.id,
             )
             .await?;

@@ -433,11 +433,7 @@ mod tests {
                 .await?;
 
             agent
-                .update_provider(
-                    provider,
-                    ModelConfig::new("mock-model").unwrap(),
-                    &session.id,
-                )
+                .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
                 .await?;
 
             let session_config = SessionConfig {
@@ -621,11 +617,7 @@ mod tests {
                 .await?;
 
             agent
-                .update_provider(
-                    provider,
-                    ModelConfig::new("mock-model").unwrap(),
-                    &session.id,
-                )
+                .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
                 .await?;
 
             // Pre-populate 13 tool pairs (need > cutoff + batch_size = 12 to trigger).
@@ -1011,11 +1003,7 @@ mod tests {
 
             let session_id = session.id.clone();
             agent
-                .update_provider(
-                    provider,
-                    ModelConfig::new("mock-model").unwrap(),
-                    &session_id,
-                )
+                .update_provider(provider, ModelConfig::new("mock-model"), &session_id)
                 .await?;
 
             // ── Single reply: tool call (call 0) → text stream (call 1) → cancelled text (call 2)
@@ -1250,7 +1238,7 @@ mod tests {
             agent
                 .update_provider(
                     provider.clone(),
-                    ModelConfig::new("mock-model").unwrap(),
+                    ModelConfig::new("mock-model"),
                     &session.id,
                 )
                 .await?;
@@ -1332,7 +1320,7 @@ mod tests {
             agent
                 .update_provider(
                     provider.clone(),
-                    ModelConfig::new("mock-model").unwrap(),
+                    ModelConfig::new("mock-model"),
                     &session.id,
                 )
                 .await?;
@@ -1428,7 +1416,7 @@ mod tests {
             agent
                 .update_provider(
                     provider.clone(),
-                    ModelConfig::new("mock-model").unwrap(),
+                    ModelConfig::new("mock-model"),
                     &session.id,
                 )
                 .await?;
@@ -1492,7 +1480,7 @@ mod tests {
             agent
                 .update_provider(
                     provider.clone(),
-                    ModelConfig::new("mock-model").unwrap(),
+                    ModelConfig::new("mock-model"),
                     &session.id,
                 )
                 .await?;
@@ -1620,7 +1608,7 @@ mod tests {
             agent
                 .update_provider(
                     provider.clone(),
-                    ModelConfig::new("mock-model").unwrap(),
+                    ModelConfig::new("mock-model"),
                     &session_id,
                 )
                 .await?;

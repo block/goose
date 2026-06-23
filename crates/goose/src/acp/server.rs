@@ -3733,7 +3733,6 @@ print(\"hello, world\")
         );
         session.model_config = Some(
             goose_providers::model::ModelConfig::new("test-model")
-                .unwrap()
                 .with_context_limit(Some(258_000)),
         );
         let updates = build_usage_updates(&session).expect("usage updates should be present");

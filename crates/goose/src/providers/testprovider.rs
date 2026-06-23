@@ -278,7 +278,7 @@ mod tests {
 
         {
             let test_provider = TestProvider::new_recording(mock, &temp_file);
-            let model_config = ModelConfig::new_or_fail("test-model");
+            let model_config = ModelConfig::new("test-model");
 
             let result = test_provider
                 .complete(
@@ -303,7 +303,7 @@ mod tests {
 
         {
             let replay_provider = TestProvider::new_replaying(&temp_file).unwrap();
-            let model_config = ModelConfig::new_or_fail("test-model");
+            let model_config = ModelConfig::new("test-model");
 
             let result = replay_provider
                 .complete(
@@ -335,7 +335,7 @@ mod tests {
         );
 
         let replay_provider = TestProvider::new_replaying(&temp_file).unwrap();
-        let model_config = ModelConfig::new_or_fail("test-model");
+        let model_config = ModelConfig::new("test-model");
 
         let result = replay_provider
             .complete(

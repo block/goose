@@ -1314,7 +1314,7 @@ mod tests {
         provider.cli_process.set(process_arc).unwrap();
 
         let messages = vec![Message::user().with_text("test")];
-        let model = ModelConfig::new_or_fail(CLAUDE_CODE_DEFAULT_MODEL)
+        let model = ModelConfig::new(CLAUDE_CODE_DEFAULT_MODEL)
             .with_canonical_limits(CLAUDE_CODE_PROVIDER_NAME);
         let stream = provider
             .stream(&model, "test-session", "", &messages, &[])
@@ -1524,7 +1524,7 @@ mod tests {
             .insert("stale_1".to_string(), tx);
 
         let messages = vec![Message::user().with_text("test")];
-        let model = ModelConfig::new_or_fail(CLAUDE_CODE_DEFAULT_MODEL)
+        let model = ModelConfig::new(CLAUDE_CODE_DEFAULT_MODEL)
             .with_canonical_limits(CLAUDE_CODE_PROVIDER_NAME);
         let mut stream = provider
             .stream(&model, "test-session", "", &messages, &[])

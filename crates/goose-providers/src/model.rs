@@ -4,22 +4,11 @@ use serde::de::Deserializer;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use thiserror::Error;
 use utoipa::ToSchema;
 
 pub const DEFAULT_CONTEXT_LIMIT: usize = 128_000;
 
-#[derive(Error, Debug)]
-pub enum ConfigError {
-    #[error("Environment variable '{0}' not found")]
-    EnvVarMissing(String),
-    #[error("Invalid value for '{0}': '{1}' - {2}")]
-    InvalidValue(String, String, String),
-    #[error("Value for '{0}' is out of valid range: {1}")]
-    InvalidRange(String, String),
-}
-
-#[derive(Debug, Clone, Default, Serialize, ToSchema)]
+#[derive(Debug, Clone, Serialize, ToSchema)]
 pub struct ModelConfig {
     pub model_name: String,
     pub context_limit: Option<usize>,
@@ -75,7 +64,7 @@ impl<'de> Deserialize<'de> for ModelConfig {
 }
 
 impl ModelConfig {
-    pub fn new(model_name: impl AsRef<str>) -> Result<Self, ConfigError> {
+    pub fn new(model_name: impl AsRef<str>) -> Self {
         let mut config = Self {
             model_name: model_name.as_ref().to_string(),
             context_limit: None,
@@ -88,7 +77,7 @@ impl ModelConfig {
             reasoning: None,
         };
         config.normalize_effort_suffix();
-        Ok(config)
+        config
     }
 
     pub fn with_canonical_limits(mut self, provider_name: &str) -> Self {
@@ -177,14 +166,10 @@ impl ModelConfig {
         self
     }
 
-    pub fn with_fast(
-        mut self,
-        fast_model_name: &str,
-        provider_name: &str,
-    ) -> Result<Self, ConfigError> {
-        let fast_config = ModelConfig::new(fast_model_name)?.with_canonical_limits(provider_name);
+    pub fn with_fast(mut self, fast_model_name: &str, provider_name: &str) -> Self {
+        let fast_config = ModelConfig::new(fast_model_name).with_canonical_limits(provider_name);
         self.fast_model_config = Some(Box::new(fast_config));
-        Ok(self)
+        self
     }
 
     pub fn with_fast_model_config(mut self, fast_model_config: ModelConfig) -> Self {
@@ -347,11 +332,6 @@ impl ModelConfig {
             .and_then(|params| params.get(request_key))
             .and_then(|v| serde_json::from_value(v.clone()).ok())
     }
-
-    pub fn new_or_fail(model_name: &str) -> ModelConfig {
-        ModelConfig::new(model_name)
-            .unwrap_or_else(|_| panic!("Failed to create model config for {}", model_name))
-    }
 }
 
 #[cfg(test)]
@@ -388,25 +368,21 @@ mod tests {
     mod thinking_effort_tests {
         use super::*;
 
+        fn config_with_params(model_name: &str, params: HashMap<String, Value>) -> ModelConfig {
+            ModelConfig::new(model_name).with_merged_request_params(params)
+        }
+
         #[test]
         fn from_request_params() {
             let mut params = HashMap::new();
             params.insert("thinking_effort".to_string(), serde_json::json!("medium"));
-            let config = ModelConfig {
-                model_name: "test".to_string(),
-                request_params: Some(params),
-                ..Default::default()
-            };
+            let config = config_with_params("test", params);
             assert_eq!(config.thinking_effort(), Some(ThinkingEffort::Medium));
         }
 
         #[test]
         fn with_thinking_effort_sets_request_param() {
-            let config = ModelConfig {
-                model_name: "test".to_string(),
-                ..Default::default()
-            }
-            .with_thinking_effort(ThinkingEffort::High);
+            let config = ModelConfig::new("test").with_thinking_effort(ThinkingEffort::High);
 
             assert_eq!(
                 config
@@ -419,19 +395,12 @@ mod tests {
 
         #[test]
         fn preserves_explicit_thinking_effort() {
-            let previous = ModelConfig {
-                model_name: "previous".to_string(),
-                request_params: Some(HashMap::from([(
-                    "thinking_effort".to_string(),
-                    serde_json::json!("high"),
-                )])),
-                ..Default::default()
-            };
-            let config = ModelConfig {
-                model_name: "next".to_string(),
-                ..Default::default()
-            }
-            .with_inherited_session_settings_from(Some(&previous), None);
+            let previous = config_with_params(
+                "previous",
+                HashMap::from([("thinking_effort".to_string(), serde_json::json!("high"))]),
+            );
+            let config = ModelConfig::new("next")
+                .with_inherited_session_settings_from(Some(&previous), None);
 
             assert_eq!(
                 config
@@ -444,22 +413,14 @@ mod tests {
 
         #[test]
         fn does_not_override_existing_thinking_effort() {
-            let previous = ModelConfig {
-                model_name: "previous".to_string(),
-                request_params: Some(HashMap::from([(
-                    "thinking_effort".to_string(),
-                    serde_json::json!("high"),
-                )])),
-                ..Default::default()
-            };
-            let config = ModelConfig {
-                model_name: "next".to_string(),
-                request_params: Some(HashMap::from([(
-                    "thinking_effort".to_string(),
-                    serde_json::json!("low"),
-                )])),
-                ..Default::default()
-            }
+            let previous = config_with_params(
+                "previous",
+                HashMap::from([("thinking_effort".to_string(), serde_json::json!("high"))]),
+            );
+            let config = config_with_params(
+                "next",
+                HashMap::from([("thinking_effort".to_string(), serde_json::json!("low"))]),
+            )
             .with_inherited_session_settings_from(Some(&previous), None);
 
             assert_eq!(
@@ -473,38 +434,23 @@ mod tests {
 
         #[test]
         fn does_not_preserve_unrelated_request_params() {
-            let previous = ModelConfig {
-                model_name: "previous".to_string(),
-                request_params: Some(HashMap::from([(
-                    "provider_specific".to_string(),
-                    serde_json::json!("old"),
-                )])),
-                ..Default::default()
-            };
-            let config = ModelConfig {
-                model_name: "next".to_string(),
-                ..Default::default()
-            }
-            .with_inherited_session_settings_from(Some(&previous), None);
+            let previous = config_with_params(
+                "previous",
+                HashMap::from([("provider_specific".to_string(), serde_json::json!("old"))]),
+            );
+            let config = ModelConfig::new("next")
+                .with_inherited_session_settings_from(Some(&previous), None);
 
             assert!(config.request_params.is_none());
         }
 
         #[test]
         fn explicit_request_params_override_preserved_session_settings() {
-            let previous = ModelConfig {
-                model_name: "previous".to_string(),
-                request_params: Some(HashMap::from([(
-                    "thinking_effort".to_string(),
-                    serde_json::json!("high"),
-                )])),
-                ..Default::default()
-            };
-            let config = ModelConfig {
-                model_name: "next".to_string(),
-                ..Default::default()
-            }
-            .with_inherited_session_settings_from(
+            let previous = config_with_params(
+                "previous",
+                HashMap::from([("thinking_effort".to_string(), serde_json::json!("high"))]),
+            );
+            let config = ModelConfig::new("next").with_inherited_session_settings_from(
                 Some(&previous),
                 Some(HashMap::from([(
                     "thinking_effort".to_string(),
@@ -531,7 +477,7 @@ mod tests {
                 ("GOOSE_TOOLSHIM", None::<&str>),
                 ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
             ]);
-            let config = ModelConfig::new("o3-mini-high").unwrap();
+            let config = ModelConfig::new("o3-mini-high");
             assert_eq!(config.model_name, "o3-mini");
             assert_eq!(config.thinking_effort(), Some(ThinkingEffort::High));
         }
@@ -546,7 +492,7 @@ mod tests {
                 ("GOOSE_TOOLSHIM", None::<&str>),
                 ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
             ]);
-            let config = ModelConfig::new("o3-mini-none").unwrap();
+            let config = ModelConfig::new("o3-mini-none");
             assert_eq!(config.model_name, "o3-mini");
             assert_eq!(config.thinking_effort(), Some(ThinkingEffort::Off));
         }
@@ -561,7 +507,7 @@ mod tests {
                 ("GOOSE_TOOLSHIM", None::<&str>),
                 ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
             ]);
-            let config = ModelConfig::new("gpt-5.4-xhigh").unwrap();
+            let config = ModelConfig::new("gpt-5.4-xhigh");
             assert_eq!(config.model_name, "gpt-5.4");
             assert_eq!(config.thinking_effort(), Some(ThinkingEffort::Max));
         }
@@ -578,7 +524,7 @@ mod tests {
             ]);
             let mut params = HashMap::new();
             params.insert("thinking_effort".to_string(), serde_json::json!("low"));
-            let mut config = ModelConfig::new("o3-mini-high").unwrap();
+            let mut config = ModelConfig::new("o3-mini-high");
             // Suffix was already normalized during new(), but if request_params
             // were set before construction, the suffix would not be stripped.
             // Verify the normalized state:
@@ -599,7 +545,7 @@ mod tests {
                 ("GOOSE_TOOLSHIM", None::<&str>),
                 ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
             ]);
-            let config = ModelConfig::new("o3-mini").unwrap();
+            let config = ModelConfig::new("o3-mini");
             assert_eq!(config.model_name, "o3-mini");
         }
 
@@ -613,7 +559,7 @@ mod tests {
                 ("GOOSE_TOOLSHIM", None::<&str>),
                 ("GOOSE_TOOLSHIM_OLLAMA_MODEL", None::<&str>),
             ]);
-            let config = ModelConfig::new("claude-sonnet-4-high").unwrap();
+            let config = ModelConfig::new("claude-sonnet-4-high");
             assert_eq!(config.model_name, "claude-sonnet-4-high");
         }
 
@@ -640,7 +586,7 @@ mod tests {
                 ("GOOSE_MAX_TOKENS", None::<&str>),
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
-            let config = ModelConfig::new_or_fail("gpt-4o").with_canonical_limits("openai");
+            let config = ModelConfig::new("gpt-4o").with_canonical_limits("openai");
 
             assert_eq!(config.context_limit, Some(128_000));
             assert_eq!(config.max_tokens, Some(16_384));
@@ -653,7 +599,7 @@ mod tests {
                 ("GOOSE_MAX_TOKENS", None::<&str>),
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
-            let mut config = ModelConfig::new_or_fail("gpt-4o");
+            let mut config = ModelConfig::new("gpt-4o");
             config.context_limit = Some(64_000);
             let config = config.with_canonical_limits("openai");
 
@@ -666,7 +612,7 @@ mod tests {
                 ("GOOSE_MAX_TOKENS", None::<&str>),
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
-            let mut config = ModelConfig::new_or_fail("gpt-4o");
+            let mut config = ModelConfig::new("gpt-4o");
             config.max_tokens = Some(1_000);
             let config = config.with_canonical_limits("openai");
 
@@ -679,8 +625,7 @@ mod tests {
                 ("GOOSE_MAX_TOKENS", None::<&str>),
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
-            let config =
-                ModelConfig::new_or_fail("moonshotai/kimi-k2.6").with_canonical_limits("nvidia");
+            let config = ModelConfig::new("moonshotai/kimi-k2.6").with_canonical_limits("nvidia");
 
             assert_eq!(config.context_limit, Some(262_144));
             assert_eq!(config.max_tokens, None);
@@ -693,8 +638,7 @@ mod tests {
                 ("GOOSE_MAX_TOKENS", None::<&str>),
                 ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ]);
-            let config =
-                ModelConfig::new_or_fail("totally-unknown-model").with_canonical_limits("openai");
+            let config = ModelConfig::new("totally-unknown-model").with_canonical_limits("openai");
 
             assert_eq!(config.context_limit, None);
             assert_eq!(config.max_tokens, None);
@@ -709,17 +653,16 @@ mod tests {
             ]);
 
             // "databricks-gpt-5.4-high" should resolve via "databricks-gpt-5.4"
-            let config = ModelConfig::new_or_fail("databricks-gpt-5.4-high")
-                .with_canonical_limits("databricks");
+            let config =
+                ModelConfig::new("databricks-gpt-5.4-high").with_canonical_limits("databricks");
             assert_eq!(config.context_limit, Some(1_050_000));
 
             // "gpt-5.4-xhigh" should resolve via "gpt-5.4"
-            let config = ModelConfig::new_or_fail("gpt-5.4-xhigh").with_canonical_limits("openai");
+            let config = ModelConfig::new("gpt-5.4-xhigh").with_canonical_limits("openai");
             assert_eq!(config.context_limit, Some(1_050_000));
 
             // "gpt-5.4-nano-low" should resolve via "gpt-5.4-nano"
-            let config =
-                ModelConfig::new_or_fail("gpt-5.4-nano-low").with_canonical_limits("openai");
+            let config = ModelConfig::new("gpt-5.4-nano-low").with_canonical_limits("openai");
             assert_eq!(config.context_limit, Some(400_000));
         }
     }
@@ -738,41 +681,39 @@ mod tests {
         #[test]
         fn bare_reasoning_models() {
             let _guard = env_lock::lock_env(ENV_LOCK_KEYS);
-            assert!(ModelConfig::new_or_fail("o1").is_openai_reasoning_model());
-            assert!(ModelConfig::new_or_fail("o1-preview").is_openai_reasoning_model());
-            assert!(ModelConfig::new_or_fail("o3").is_openai_reasoning_model());
-            assert!(ModelConfig::new_or_fail("o3-mini").is_openai_reasoning_model());
-            assert!(ModelConfig::new_or_fail("o4-mini").is_openai_reasoning_model());
-            assert!(ModelConfig::new_or_fail("gpt-5").is_openai_reasoning_model());
-            assert!(ModelConfig::new_or_fail("gpt-5-3-codex").is_openai_reasoning_model());
+            assert!(ModelConfig::new("o1").is_openai_reasoning_model());
+            assert!(ModelConfig::new("o1-preview").is_openai_reasoning_model());
+            assert!(ModelConfig::new("o3").is_openai_reasoning_model());
+            assert!(ModelConfig::new("o3-mini").is_openai_reasoning_model());
+            assert!(ModelConfig::new("o4-mini").is_openai_reasoning_model());
+            assert!(ModelConfig::new("gpt-5").is_openai_reasoning_model());
+            assert!(ModelConfig::new("gpt-5-3-codex").is_openai_reasoning_model());
         }
 
         #[test]
         fn goose_prefixed_reasoning_models() {
             let _guard = env_lock::lock_env(ENV_LOCK_KEYS);
-            assert!(ModelConfig::new_or_fail("goose-o3-mini").is_openai_reasoning_model());
-            assert!(ModelConfig::new_or_fail("goose-o4-mini").is_openai_reasoning_model());
-            assert!(ModelConfig::new_or_fail("goose-gpt-5").is_openai_reasoning_model());
+            assert!(ModelConfig::new("goose-o3-mini").is_openai_reasoning_model());
+            assert!(ModelConfig::new("goose-o4-mini").is_openai_reasoning_model());
+            assert!(ModelConfig::new("goose-gpt-5").is_openai_reasoning_model());
         }
 
         #[test]
         fn databricks_prefixed_reasoning_models() {
             let _guard = env_lock::lock_env(ENV_LOCK_KEYS);
-            assert!(ModelConfig::new_or_fail("databricks-o3-mini").is_openai_reasoning_model());
-            assert!(ModelConfig::new_or_fail("databricks-o4-mini").is_openai_reasoning_model());
-            assert!(ModelConfig::new_or_fail("databricks-gpt-5").is_openai_reasoning_model());
+            assert!(ModelConfig::new("databricks-o3-mini").is_openai_reasoning_model());
+            assert!(ModelConfig::new("databricks-o4-mini").is_openai_reasoning_model());
+            assert!(ModelConfig::new("databricks-gpt-5").is_openai_reasoning_model());
         }
 
         #[test]
         fn non_reasoning_models() {
             let _guard = env_lock::lock_env(ENV_LOCK_KEYS);
-            assert!(!ModelConfig::new_or_fail("claude-sonnet-4").is_openai_reasoning_model());
-            assert!(!ModelConfig::new_or_fail("gpt-4o").is_openai_reasoning_model());
-            assert!(
-                !ModelConfig::new_or_fail("databricks-claude-sonnet-4").is_openai_reasoning_model()
-            );
-            assert!(!ModelConfig::new_or_fail("goose-claude-sonnet-4").is_openai_reasoning_model());
-            assert!(!ModelConfig::new_or_fail("llama-3-70b").is_openai_reasoning_model());
+            assert!(!ModelConfig::new("claude-sonnet-4").is_openai_reasoning_model());
+            assert!(!ModelConfig::new("gpt-4o").is_openai_reasoning_model());
+            assert!(!ModelConfig::new("databricks-claude-sonnet-4").is_openai_reasoning_model());
+            assert!(!ModelConfig::new("goose-claude-sonnet-4").is_openai_reasoning_model());
+            assert!(!ModelConfig::new("llama-3-70b").is_openai_reasoning_model());
         }
     }
 
@@ -790,19 +731,19 @@ mod tests {
         #[test]
         fn includes_reasoning_model_families() {
             let _guard = env_lock::lock_env(ENV_LOCK_KEYS);
-            assert!(ModelConfig::new_or_fail("o3-mini").is_reasoning_model());
-            assert!(ModelConfig::new_or_fail("claude-sonnet-4").is_reasoning_model());
-            assert!(ModelConfig::new_or_fail("gemini-3-pro").is_reasoning_model());
+            assert!(ModelConfig::new("o3-mini").is_reasoning_model());
+            assert!(ModelConfig::new("claude-sonnet-4").is_reasoning_model());
+            assert!(ModelConfig::new("gemini-3-pro").is_reasoning_model());
         }
 
         #[test]
         fn uses_explicit_metadata_first() {
             let _guard = env_lock::lock_env(ENV_LOCK_KEYS);
-            let mut config = ModelConfig::new_or_fail("provider-alias");
+            let mut config = ModelConfig::new("provider-alias");
             config.reasoning = Some(true);
             assert!(config.is_reasoning_model());
 
-            let mut config = ModelConfig::new_or_fail("claude-sonnet-4");
+            let mut config = ModelConfig::new("claude-sonnet-4");
             config.reasoning = Some(false);
             assert!(!config.is_reasoning_model());
         }

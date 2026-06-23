@@ -506,9 +506,7 @@ mod tests {
     #[test]
     fn test_apply_ollama_options_uses_input_limit() {
         let _guard = env_lock::lock_env([("GOOSE_INPUT_LIMIT", Some("8192"))]);
-        let model_config = ModelConfig::new("qwen3")
-            .unwrap()
-            .with_context_limit(Some(16_000));
+        let model_config = ModelConfig::new("qwen3").with_context_limit(Some(16_000));
         let mut payload = json!({});
         apply_ollama_options(&mut payload, &model_config);
         assert_eq!(payload["options"]["num_ctx"], 8192);
@@ -517,9 +515,7 @@ mod tests {
     #[test]
     fn test_apply_ollama_options_falls_back_to_context_limit() {
         let _guard = env_lock::lock_env([("GOOSE_INPUT_LIMIT", None::<&str>)]);
-        let model_config = ModelConfig::new("qwen3")
-            .unwrap()
-            .with_context_limit(Some(12_000));
+        let model_config = ModelConfig::new("qwen3").with_context_limit(Some(12_000));
         let mut payload = json!({});
         apply_ollama_options(&mut payload, &model_config);
         assert_eq!(payload["options"]["num_ctx"], 12_000);
@@ -528,7 +524,7 @@ mod tests {
     #[test]
     fn test_apply_ollama_options_skips_when_no_limit() {
         let _guard = env_lock::lock_env([("GOOSE_INPUT_LIMIT", None::<&str>)]);
-        let mut model_config = ModelConfig::new("qwen3").unwrap();
+        let mut model_config = ModelConfig::new("qwen3");
         model_config.context_limit = None;
         let mut payload = json!({});
         apply_ollama_options(&mut payload, &model_config);
@@ -539,9 +535,7 @@ mod tests {
     fn test_raw_create_request_contains_unsupported_ollama_fields() {
         use crate::providers::formats::ollama::create_request;
 
-        let model_config = ModelConfig::new("llama3.1")
-            .unwrap()
-            .with_max_tokens(Some(4096));
+        let model_config = ModelConfig::new("llama3.1").with_max_tokens(Some(4096));
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let payload = create_request(
@@ -572,9 +566,7 @@ mod tests {
             ("GOOSE_INPUT_LIMIT", None::<&str>),
             ("OLLAMA_STREAM_USAGE", None::<&str>),
         ]);
-        let model_config = ModelConfig::new("llama3.1")
-            .unwrap()
-            .with_max_tokens(Some(4096));
+        let model_config = ModelConfig::new("llama3.1").with_max_tokens(Some(4096));
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let mut payload = create_request(
@@ -616,9 +608,7 @@ mod tests {
             ("GOOSE_INPUT_LIMIT", None::<&str>),
             ("OLLAMA_STREAM_USAGE", Some("false")),
         ]);
-        let model_config = ModelConfig::new("llama3.1")
-            .unwrap()
-            .with_max_tokens(Some(4096));
+        let model_config = ModelConfig::new("llama3.1").with_max_tokens(Some(4096));
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let mut payload = create_request(

@@ -177,7 +177,11 @@ async fn test_replayed_session(
     tool_calls: Vec<CallToolRequestParams>,
     required_envs: Vec<&str>,
 ) {
-    std::env::set_var("GOOSE_MCP_CLIENT_VERSION", "0.0.0");
+    let _env = env_lock::lock_env([
+        ("GOOSE_MCP_CLIENT_VERSION", Some("0.0.0")),
+        ("GOOSE_PROVIDER", Some("openai")),
+        ("GOOSE_MODEL", Some("gpt-4o")),
+    ]);
 
     // Setup test file for developer extension tests
     let test_file_path = "/tmp/goose_test/goose.txt";

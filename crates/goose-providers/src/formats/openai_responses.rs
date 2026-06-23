@@ -1358,7 +1358,7 @@ mod tests {
 
     #[test]
     fn test_responses_request_with_normalized_effort_suffix() {
-        let model_config = ModelConfig::new("o3-mini-high").unwrap();
+        let model_config = ModelConfig::new("o3-mini-high");
 
         let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
 

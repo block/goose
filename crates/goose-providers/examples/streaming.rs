@@ -23,7 +23,7 @@ async fn main() -> Result<()> {
     let system = "You are a knowledgable geography expert";
     let messages = [Message::user().with_text("what is the capital of France?")];
 
-    let model = ModelConfig::new("gpt-5.4-mini")?;
+    let model = ModelConfig::new("gpt-5.4-mini");
     let mut stream = provider
         .stream(
             &model,

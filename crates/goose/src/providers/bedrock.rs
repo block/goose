@@ -1090,7 +1090,7 @@ mod tests {
             .region(aws_config::Region::new("us-east-1"))
             .build();
 
-        let model = ModelConfig::new("openai.gpt-5.5").unwrap();
+        let model = ModelConfig::new("openai.gpt-5.5");
         let provider = BedrockProvider {
             client: Client::new(&sdk_config),
             retry_config: RetryConfig::default(),

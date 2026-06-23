@@ -1530,10 +1530,7 @@ mod tests {
                 tx,
                 loop_thread: None,
             },
-            ModelConfig {
-                model_name: "test-model".to_string(),
-                ..Default::default()
-            },
+            ModelConfig::new("test-model"),
         )
     }
 

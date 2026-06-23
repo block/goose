@@ -2589,9 +2589,7 @@ You review code."#;
     }
 
     fn parent_config() -> goose_providers::model::ModelConfig {
-        goose_providers::model::ModelConfig::new(PARENT_MODEL)
-            .unwrap()
-            .with_canonical_limits(PROVIDER)
+        goose_providers::model::ModelConfig::new(PARENT_MODEL).with_canonical_limits(PROVIDER)
     }
 
     #[tokio::test]
@@ -2605,7 +2603,6 @@ You review code."#;
 
         let parent = parent_config();
         let overridden = goose_providers::model::ModelConfig::new(OVERRIDE_MODEL)
-            .unwrap()
             .with_canonical_limits(PROVIDER);
         assert_ne!(parent.context_limit, overridden.context_limit);
         assert_ne!(parent.reasoning, overridden.reasoning);

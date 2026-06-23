@@ -451,12 +451,9 @@ impl ProviderFixture {
     }
 
     async fn test_image_content_support(&self) -> Result<()> {
-        let image_config = match &self.image_model {
-            Some(model) => Some(
-                goose_providers::model::ModelConfig::new(model)?.with_canonical_limits(&self.name),
-            ),
-            None => None,
-        };
+        let image_config = self.image_model.as_ref().map(|model| {
+            goose_providers::model::ModelConfig::new(model).with_canonical_limits(&self.name)
+        });
         let response = self
             .tool_roundtrip(
                 "Use the get_image tool and describe what you see in its result.",
@@ -476,7 +473,7 @@ impl ProviderFixture {
         let default = &self.model_config.model_name;
         let alt = self.model_switch_name.as_deref().unwrap();
         let alt_config =
-            goose_providers::model::ModelConfig::new(alt)?.with_canonical_limits(&self.name);
+            goose_providers::model::ModelConfig::new(alt).with_canonical_limits(&self.name);
 
         let message = Message::user().with_text("Just say hello!");
         let (response, _) = self

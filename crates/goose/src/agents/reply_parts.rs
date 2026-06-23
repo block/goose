@@ -661,7 +661,7 @@ mod tests {
             )
             .await?;
 
-        let model_config = ModelConfig::new("test-model").unwrap();
+        let model_config = ModelConfig::new("test-model");
         let provider = std::sync::Arc::new(MockProvider);
         agent
             .update_provider(provider, model_config, &session.id)

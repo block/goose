@@ -498,7 +498,7 @@ impl SessionManager {
         let model_config = session
             .model_config
             .clone()
-            .unwrap_or_else(|| goose_providers::model::ModelConfig::new_or_fail("unknown"));
+            .unwrap_or_else(|| goose_providers::model::ModelConfig::new("unknown"));
         let conversation = session
             .conversation
             .ok_or_else(|| anyhow::anyhow!("No messages found"))?;

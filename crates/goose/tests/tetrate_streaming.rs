@@ -25,7 +25,7 @@ mod tetrate_streaming_tests {
 
         let messages = vec![Message::user().with_text("Count from 1 to 5, one number at a time.")];
         let model_config =
-            ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
+            ModelConfig::new("claude-3-5-sonnet-latest").with_canonical_limits("tetrate");
 
         let mut stream = provider
             .stream(
@@ -100,7 +100,7 @@ mod tetrate_streaming_tests {
 
         let messages = vec![Message::user().with_text("What's the weather in San Francisco?")];
         let model_config =
-            ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
+            ModelConfig::new("claude-3-5-sonnet-latest").with_canonical_limits("tetrate");
 
         let mut stream = provider
             .stream(
@@ -151,7 +151,7 @@ mod tetrate_streaming_tests {
         // This might result in a very short or empty response
         let messages = vec![Message::user().with_text("")];
         let model_config =
-            ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
+            ModelConfig::new("claude-3-5-sonnet-latest").with_canonical_limits("tetrate");
 
         let mut stream = provider
             .stream(
@@ -189,7 +189,7 @@ mod tetrate_streaming_tests {
             "Write a detailed 3-paragraph essay about the importance of streaming in modern APIs.",
         )];
         let model_config =
-            ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
+            ModelConfig::new("claude-3-5-sonnet-latest").with_canonical_limits("tetrate");
 
         let mut stream = provider
             .stream(
@@ -251,7 +251,7 @@ mod tetrate_streaming_tests {
 
         let messages = vec![Message::user().with_text("Hello")];
         let model_config =
-            ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
+            ModelConfig::new("claude-3-5-sonnet-latest").with_canonical_limits("tetrate");
 
         let result = provider
             .stream(
@@ -282,7 +282,7 @@ mod tetrate_streaming_tests {
         let messages1 = vec![Message::user().with_text("Say 'Stream 1'")];
         let messages2 = vec![Message::user().with_text("Say 'Stream 2'")];
         let model_config =
-            ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
+            ModelConfig::new("claude-3-5-sonnet-latest").with_canonical_limits("tetrate");
 
         let stream1 = provider
             .stream(

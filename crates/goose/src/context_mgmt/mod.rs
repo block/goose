@@ -206,7 +206,7 @@ pub async fn check_if_compaction_needed(
     let model_config = session
         .model_config
         .clone()
-        .unwrap_or_else(|| ModelConfig::new_or_fail("unknown"));
+        .unwrap_or_else(|| ModelConfig::new("unknown"));
     let context_limit = provider
         .get_context_limit(&model_config)
         .await
