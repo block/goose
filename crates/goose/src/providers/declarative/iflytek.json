@@ -2,7 +2,7 @@
   "name": "iflytek",
   "engine": "openai",
   "display_name": "iFlytek Spark",
-  "description": "iFlytek Spark (讯飞星火) models via the OpenAI-compatible HTTP API. Authenticate with your Spark HTTP API password (APIPassword).",
+  "description": "iFlytek Spark (讯飞星火) models via the OpenAI-compatible HTTP API. Authenticate with your Spark HTTP API password (APIPassword). Only the 4.0Ultra and Max model families are listed, since per the Spark HTTP docs they are the versions that accept system messages and Function Call (tools) — which goose always sends.",
   "api_key_env": "SPARK_API_PASSWORD",
   "base_url": "https://spark-api-open.xf-yun.com/v1",
   "dynamic_models": false,
@@ -10,10 +10,7 @@
   "models": [
     {"name": "4.0Ultra", "context_limit": 8192},
     {"name": "generalv3.5", "context_limit": 8192},
-    {"name": "max-32k", "context_limit": 32768},
-    {"name": "generalv3", "context_limit": 8192},
-    {"name": "pro-128k", "context_limit": 131072},
-    {"name": "lite", "context_limit": 4096}
+    {"name": "max-32k", "context_limit": 32768}
   ],
   "supports_streaming": true,
   "model_doc_link": "https://www.xfyun.cn/doc/spark/HTTP%E8%B0%83%E7%94%A8%E6%96%87%E6%A1%A3.html",
