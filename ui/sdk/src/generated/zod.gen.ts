@@ -1176,6 +1176,7 @@ export const zRecipeExtensionDto = z.union([
         ]).optional(),
         cmd: z.string(),
         args: z.array(z.string()).optional(),
+        envs: z.record(z.string()).optional(),
         env_keys: z.array(z.string()).optional(),
         timeout: z.union([
             z.number().int().gte(0),
@@ -1198,6 +1199,7 @@ export const zRecipeExtensionDto = z.union([
             z.null()
         ]).optional(),
         uri: z.string(),
+        envs: z.record(z.string()).optional(),
         env_keys: z.array(z.string()).optional(),
         headers: z.record(z.string()).optional(),
         timeout: z.union([

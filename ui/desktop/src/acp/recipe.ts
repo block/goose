@@ -12,7 +12,13 @@ function acpErrorMessage(error: unknown): string | null {
   }
 
   const candidate = 'error' in error && isRecord(error.error) ? error.error : error;
-  return isRecord(candidate) && typeof candidate.message === 'string' ? candidate.message : null;
+  if (!isRecord(candidate)) {
+    return null;
+  }
+  if (typeof candidate.data === 'string') {
+    return candidate.data;
+  }
+  return typeof candidate.message === 'string' ? candidate.message : null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

@@ -1169,6 +1169,9 @@ export type RecipeExtensionDto = {
     description?: string | null;
     cmd: string;
     args?: Array<string>;
+    envs?: {
+        [key: string]: string;
+    };
     env_keys?: Array<string>;
     timeout?: number | null;
     cwd?: string | null;
@@ -1178,6 +1181,9 @@ export type RecipeExtensionDto = {
     name: string;
     description?: string | null;
     uri: string;
+    envs?: {
+        [key: string]: string;
+    };
     env_keys?: Array<string>;
     headers?: {
         [key: string]: string;

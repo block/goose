@@ -159,4 +159,17 @@ describe('ACP recipe helpers', () => {
 
     await expect(encodeRecipe(recipe)).rejects.toThrow('recipe is invalid');
   });
+
+  it('prefers ACP JSON-RPC error data over generic messages', async () => {
+    client.goose.recipesSave_unstable.mockRejectedValue({
+      error: {
+        message: 'Invalid params',
+        data: 'save recipe validation failed at recipe.extensions[0]: missing field `cmd`',
+      },
+    });
+
+    await expect(saveRecipe(recipe)).rejects.toThrow(
+      'save recipe validation failed at recipe.extensions[0]: missing field `cmd`'
+    );
+  });
 });

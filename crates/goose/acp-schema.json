@@ -2910,6 +2910,12 @@
                 "type": "string"
               }
             },
+            "envs": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
             "env_keys": {
               "type": "array",
               "items": {
@@ -2960,6 +2966,12 @@
             },
             "uri": {
               "type": "string"
+            },
+            "envs": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
             },
             "env_keys": {
               "type": "array",

@@ -315,6 +315,7 @@ impl TryFrom<RecipeExtensionDto> for ExtensionConfig {
                 description,
                 cmd,
                 args,
+                envs,
                 env_keys,
                 timeout,
                 cwd,
@@ -324,7 +325,7 @@ impl TryFrom<RecipeExtensionDto> for ExtensionConfig {
                 description: description.unwrap_or_default(),
                 cmd,
                 args,
-                envs: Envs::default(),
+                envs: Envs::new(envs),
                 env_keys,
                 timeout,
                 cwd,
@@ -335,6 +336,7 @@ impl TryFrom<RecipeExtensionDto> for ExtensionConfig {
                 name,
                 description,
                 uri,
+                envs,
                 env_keys,
                 headers,
                 timeout,
@@ -344,7 +346,7 @@ impl TryFrom<RecipeExtensionDto> for ExtensionConfig {
                 name,
                 description: description.unwrap_or_default(),
                 uri,
-                envs: Envs::default(),
+                envs: Envs::new(envs),
                 env_keys,
                 headers,
                 timeout,
@@ -392,6 +394,7 @@ impl TryFrom<ExtensionConfig> for RecipeExtensionDto {
                 description,
                 cmd,
                 args,
+                envs,
                 env_keys,
                 timeout,
                 cwd,
@@ -402,6 +405,7 @@ impl TryFrom<ExtensionConfig> for RecipeExtensionDto {
                 description: Some(description),
                 cmd,
                 args,
+                envs: envs.get_env(),
                 env_keys,
                 timeout,
                 cwd,
@@ -411,6 +415,7 @@ impl TryFrom<ExtensionConfig> for RecipeExtensionDto {
                 name,
                 description,
                 uri,
+                envs,
                 env_keys,
                 headers,
                 timeout,
@@ -421,6 +426,7 @@ impl TryFrom<ExtensionConfig> for RecipeExtensionDto {
                 name,
                 description: Some(description),
                 uri,
+                envs: envs.get_env(),
                 env_keys,
                 headers,
                 timeout,
@@ -484,6 +490,7 @@ mod tests {
                     description: Some("Local tool".to_string()),
                     cmd: "goose-mcp".to_string(),
                     args: vec!["run".to_string()],
+                    envs: HashMap::from([("LOCAL_MODE".to_string(), "true".to_string())]),
                     env_keys: vec!["API_KEY".to_string()],
                     timeout: Some(60),
                     cwd: Some("/tmp".to_string()),
@@ -493,6 +500,7 @@ mod tests {
                     name: "remote".to_string(),
                     description: Some("Remote tool".to_string()),
                     uri: "http://localhost:3000/mcp".to_string(),
+                    envs: HashMap::from([("REMOTE_MODE".to_string(), "true".to_string())]),
                     env_keys: vec!["TOKEN".to_string()],
                     headers: HashMap::from([("X-Test".to_string(), "true".to_string())]),
                     timeout: Some(30),
@@ -550,6 +558,18 @@ mod tests {
         assert_eq!(recipe.version, "1.0.0");
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.extensions.as_ref().unwrap().len(), 3);
+        match &recipe.extensions.as_ref().unwrap()[1] {
+            ExtensionConfig::Stdio { envs, .. } => {
+                assert_eq!(envs.get_env()["LOCAL_MODE"], "true");
+            }
+            extension => panic!("expected stdio extension, got {extension:?}"),
+        }
+        match &recipe.extensions.as_ref().unwrap()[2] {
+            ExtensionConfig::StreamableHttp { envs, .. } => {
+                assert_eq!(envs.get_env()["REMOTE_MODE"], "true");
+            }
+            extension => panic!("expected streamable_http extension, got {extension:?}"),
+        }
         assert_eq!(
             recipe.sub_recipes.as_ref().unwrap()[0].values,
             Some(HashMap::from([("target".to_string(), "dev".to_string())]))
@@ -562,6 +582,8 @@ mod tests {
         assert!(serialized.get("subRecipes").is_none());
         assert_eq!(serialized["parameters"][0]["input_type"], json!("select"));
         assert_eq!(serialized["retry"]["checks"][0]["type"], json!("shell"));
+        assert_eq!(serialized["extensions"][1]["envs"]["LOCAL_MODE"], "true");
+        assert_eq!(serialized["extensions"][2]["envs"]["REMOTE_MODE"], "true");
     }
 
     #[test]

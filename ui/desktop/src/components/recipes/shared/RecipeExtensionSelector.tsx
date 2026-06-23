@@ -53,16 +53,18 @@ function toRecipeExtension(
       return { name, description, display_name, bundled, type, enabled };
     }
     case 'stdio': {
-      const { name, description, cmd, args, env_keys, timeout, cwd, bundled, type } = extension;
-      return { name, description, cmd, args, env_keys, timeout, cwd, bundled, type, enabled };
+      const { name, description, cmd, args, envs, env_keys, timeout, cwd, bundled, type } =
+        extension;
+      return { name, description, cmd, args, envs, env_keys, timeout, cwd, bundled, type, enabled };
     }
     case 'streamable_http': {
-      const { name, description, uri, env_keys, headers, timeout, socket, bundled, type } =
+      const { name, description, uri, envs, env_keys, headers, timeout, socket, bundled, type } =
         extension;
       return {
         name,
         description,
         uri,
+        envs,
         env_keys,
         headers,
         timeout,
@@ -106,8 +108,9 @@ export const RecipeExtensionSelector = ({
   });
 
   selectedExtensions.forEach((ext) => {
-    if (!extensionMap.has(ext.name)) {
-      extensionMap.set(ext.name, { ...ext, enabled: true });
+    const recipeExtension = toRecipeExtension({ ...ext, enabled: true });
+    if (recipeExtension) {
+      extensionMap.set(recipeExtension.name, recipeExtension);
     }
   });
 

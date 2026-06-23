@@ -188,6 +188,8 @@ pub enum RecipeExtensionDto {
         cmd: String,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         args: Vec<String>,
+        #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+        envs: HashMap<String, String>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         env_keys: Vec<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -202,6 +204,8 @@ pub enum RecipeExtensionDto {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         description: Option<String>,
         uri: String,
+        #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
+        envs: HashMap<String, String>,
         #[serde(default, skip_serializing_if = "Vec::is_empty")]
         env_keys: Vec<String>,
         #[serde(default, skip_serializing_if = "std::collections::HashMap::is_empty")]
