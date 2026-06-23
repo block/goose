@@ -39,6 +39,7 @@ import { fetchCanonicalModelInfo } from '../utils/canonical';
 import { defineMessages, useIntl } from '../i18n';
 import TurndownService from 'turndown';
 import type { NextChatExtensionDraft } from '../utils/nextChatExtensions';
+import type { SteerQueuedMessageResult } from '../hooks/useChatSessionTypes';
 
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -170,6 +171,7 @@ interface ChatInputProps {
   chatState: ChatState;
   setChatState?: (state: ChatState) => void;
   onStop?: () => void;
+  onSteerQueuedMessage?: (input: UserInput) => Promise<SteerQueuedMessageResult | null>;
   pauseQueueOnStop?: boolean;
   commandHistory?: string[];
   initialValue?: string;
@@ -205,6 +207,7 @@ export default function ChatInput({
   chatState = ChatState.Idle,
   setChatState,
   onStop,
+  onSteerQueuedMessage,
   pauseQueueOnStop = false,
   commandHistory = [],
   initialValue = '',
@@ -1347,7 +1350,7 @@ export default function ChatInput({
     );
   };
 
-  const handleStopAndSend = (messageId: string) => {
+  const handleStopAndSend = async (messageId: string) => {
     const messageToSend = queuedMessages.find((msg) => msg.id === messageId);
     if (!messageToSend) return;
 
@@ -1356,6 +1359,28 @@ export default function ChatInput({
       LocalMessageStorage.addMessage(messageToSend.content);
       handleSubmit({ msg: messageToSend.content, images: messageToSend.images });
       return;
+    }
+
+    if (onSteerQueuedMessage) {
+      const steerResult = await onSteerQueuedMessage({
+        msg: messageToSend.content,
+        images: messageToSend.images,
+      });
+
+      if (steerResult) {
+        LocalMessageStorage.addMessage(messageToSend.content);
+        clearPendingSendAfterStop(messageId);
+        setQueuedMessages((prev) => {
+          const newQueue = removeQueuedMessage(prev, messageId);
+          if (newQueue.length === 0) {
+            clearQueueState();
+          } else {
+            pauseRemainingQueue();
+          }
+          return newQueue;
+        });
+        return;
+      }
     }
 
     sendAfterStopMessageIdRef.current = messageId;

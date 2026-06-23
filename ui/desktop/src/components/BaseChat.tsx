@@ -94,6 +94,7 @@ export default function BaseChat({
     setChatState,
     updateSession,
     handleSubmit,
+    onSteerQueuedMessage,
     submitElicitationResponse,
     stopStreaming,
     sessionLoadError,
@@ -246,9 +247,7 @@ export default function BaseChat({
     if (sessionId) {
       try {
         await acpDeleteSession(sessionId);
-        window.dispatchEvent(
-          new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId } })
-        );
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId } }));
       } catch (error) {
         console.error('Failed to delete declined recipe session:', error);
       }
@@ -506,6 +505,7 @@ export default function BaseChat({
             chatState={chatState}
             setChatState={setChatState}
             onStop={stopStreaming}
+            onSteerQueuedMessage={onSteerQueuedMessage}
             pauseQueueOnStop={pauseQueueOnStop}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
