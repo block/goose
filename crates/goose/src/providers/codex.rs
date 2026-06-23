@@ -48,8 +48,6 @@ pub struct CodexProvider {
     command: PathBuf,
     #[serde(skip)]
     name: String,
-    /// Reasoning effort level (none, low, medium, high, xhigh)
-    reasoning_effort: Option<String>,
     /// Whether to skip git repo check
     skip_git_check: bool,
     /// CLI config overrides for MCP servers
@@ -137,10 +135,12 @@ impl CodexProvider {
         let (prompt, temp_files) = prepare_input(system, messages, &image_dir)?;
 
         if std::env::var("GOOSE_CODEX_DEBUG").is_ok() {
+            let reasoning_effort =
+                Self::map_thinking_effort(&model.model_name, model.thinking_effort());
             println!("=== CODEX PROVIDER DEBUG ===");
             println!("Command: {:?}", self.command);
             println!("Model: {}", model.model_name);
-            println!("Reasoning effort: {:?}", self.reasoning_effort);
+            println!("Reasoning effort: {:?}", reasoning_effort);
             println!("Skip git check: {}", self.skip_git_check);
             println!("Prompt length: {} chars", prompt.len());
             println!("Prompt: {}", prompt);
@@ -167,7 +167,9 @@ impl CodexProvider {
             cmd.arg("-m").arg(&model.model_name);
         }
 
-        if let Some(reasoning_effort) = &self.reasoning_effort {
+        if let Some(reasoning_effort) =
+            Self::map_thinking_effort(&model.model_name, model.thinking_effort())
+        {
             cmd.arg("-c")
                 .arg(format!("model_reasoning_effort=\"{}\"", reasoning_effort));
         }
@@ -650,13 +652,6 @@ impl ProviderDef for CodexProvider {
             let command: String = config.get_codex_command().unwrap_or_default().into();
             let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
 
-            let model = crate::model_config::model_config_from_user_config(
-                CODEX_PROVIDER_NAME,
-                config.get_goose_model().unwrap_or_default(),
-            )?;
-            let reasoning_effort =
-                Self::map_thinking_effort(&model.model_name, model.thinking_effort());
-
             // Get skip_git_check from config, default to false
             let skip_git_check = config
                 .get_codex_skip_git_check()
@@ -671,7 +666,6 @@ impl ProviderDef for CodexProvider {
             Ok(Self {
                 command: resolved_command,
                 name: CODEX_PROVIDER_NAME.to_string(),
-                reasoning_effort,
                 skip_git_check,
                 mcp_config_overrides: codex_mcp_config_overrides(&resolved),
                 mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -719,7 +713,7 @@ impl Provider for CodexProvider {
         let payload = json!({
             "command": self.command,
             "model": model_config.model_name,
-            "reasoning_effort": self.reasoning_effort,
+            "reasoning_effort": Self::map_thinking_effort(&model_config.model_name, model_config.thinking_effort()),
             "system_length": system.len(),
             "messages_count": messages.len()
         });
@@ -939,7 +933,6 @@ mod tests {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -959,7 +952,6 @@ mod tests {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -993,7 +985,6 @@ mod tests {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -1041,7 +1032,6 @@ mod tests {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -1066,7 +1056,6 @@ mod tests {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -1139,7 +1128,6 @@ mod tests {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -1155,7 +1143,6 @@ mod tests {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -1281,7 +1268,6 @@ mod tests {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),

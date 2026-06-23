@@ -47,6 +47,7 @@ const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
 
 const ANTHROPIC_DOC_URL: &str = "https://docs.anthropic.com/en/docs/about-claude/models";
 const ANTHROPIC_API_VERSION: &str = "2023-06-01";
+const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 
 #[derive(serde::Serialize)]
 pub struct AnthropicProvider {
@@ -234,6 +235,7 @@ impl ProviderDescriptor for AnthropicProvider {
             "Click 'Create Key'",
             "Copy the key and paste it above",
         ])
+        .with_fast_model(ANTHROPIC_DEFAULT_FAST_MODEL)
     }
 }
 
