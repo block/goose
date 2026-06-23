@@ -83,3 +83,6 @@ result
 # Goose self-test artifacts
 gooseselftest/
 .tasks/
+
+# Snapcraft build output
+/*.snap

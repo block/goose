@@ -1,0 +1,23 @@
+#!/bin/bash
+###############################################################################
+# Launcher wrapper for the goose desktop (Electron) app inside a classic snap.
+#
+# Classic confinement gives the app full host access, so Electron's own
+# chrome-sandbox (which relies on a SUID helper) cannot be used and must be
+# disabled with --no-sandbox. We also point the dynamic linker at the bundled
+# Electron/GTK libraries staged into the snap before launching.
+###############################################################################
+set -euo pipefail
+
+APP_ROOT="$SNAP/opt/goose-desktop"
+
+# Prefer the bundled runtime libraries (libnss3, libgtk-3, etc.) staged into the
+# snap, falling back to the host libraries the classic confinement exposes.
+export LD_LIBRARY_PATH="$SNAP/usr/lib/x86_64-linux-gnu:$SNAP/lib/x86_64-linux-gnu:$APP_ROOT:${LD_LIBRARY_PATH:-}"
+
+# Make host toolchains the agent shells out to (cargo, node, docker, uvx, ...)
+# resolvable, while still preferring anything the snap ships.
+export PATH="$SNAP/usr/bin:$SNAP/bin:$PATH"
+
+# The packaged Electron executable is named after productName ("Goose").
+exec "$APP_ROOT/Goose" --no-sandbox "$@"

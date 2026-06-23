@@ -171,7 +171,22 @@ pnpm run make --targets=@electron-forge/maker-flatpak
 Output: `out/make/flatpak/x86_64/*.flatpak`
 
 #### Snap
-Building as Snap packages is not currently supported but may be added in the future.
+Snap builds bundle both the desktop app and the `goose` CLI into a single
+classic-confinement snap (apps `goose` and `goose.cli`). To build
+locally:
+```bash
+# Install snapcraft (requires LXD or Multipass for the build VM)
+sudo snap install snapcraft --classic
+
+# Build from the repo root (uses snap/snapcraft.yaml)
+snapcraft pack
+
+# Install the resulting snap
+sudo snap install ./goose_*.snap --classic --dangerous
+```
+
+The recipe builds the Rust binaries and the Electron app from source inside the
+snap build environment, so no prior `cargo build`/`pnpm run package` is needed.
 
 ## Development Workflow
 

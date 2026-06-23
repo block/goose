@@ -1,0 +1,12 @@
+[Desktop Entry]
+Name=Goose
+GenericName=AI Agent
+Comment=An open source, extensible AI agent that automates engineering tasks
+Exec=goose %U
+Icon=${SNAP}/meta/gui/icon.png
+Terminal=false
+Type=Application
+Categories=Development;
+MimeType=x-scheme-handler/goose;
+StartupNotify=true
+StartupWMClass=Goose

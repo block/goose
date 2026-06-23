@@ -1,0 +1,153 @@
+# Snapcraft recipe for goose: bundles both the desktop (Electron) app and the
+# goose CLI into a single classic-confinement snap with two apps.
+name: goose
+adopt-info: goose-binaries # version is set dynamically from Cargo.toml
+summary: An open source, extensible AI agent that automates engineering tasks
+description: |
+  goose is an open source, extensible AI agent that goes beyond code
+  suggestions - it installs, executes, edits, and tests with any LLM.
+
+  This snap bundles both interfaces from the same release:
+    * goose     - the Electron desktop application
+    * goose.cli - the goose command line interface
+
+  Because goose runs host toolchains and arbitrary developer commands, this
+  snap uses classic confinement to operate with full host access.
+
+grade: stable
+confinement: classic
+base: core24
+license: Apache-2.0
+website: https://goose-docs.ai/
+source-code: https://github.com/aaif-goose/goose
+contact: https://github.com/aaif-goose/goose/issues
+
+platforms:
+  amd64:
+
+apps:
+  cli:
+    command: bin/goose
+  goose:
+    command: bin/desktop-launch
+    desktop: meta/gui/goose.desktop
+
+parts:
+  # Builds the Rust binaries (goose CLI + goosed server), sets the snap version
+  # from the workspace Cargo.toml, installs the goose CLI as the snap's `cli`
+  # app, and stages goosed under share/goose-bin/ for the goose-desktop part.
+  goose-binaries:
+    plugin: rust
+    source: .
+    rust-channel: stable
+    override-pull: |
+      craftctl default
+      version="$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -n1)"
+      craftctl set version="$version"
+    override-build: |
+      cargo build --release -p goose-cli -p goose-server
+      # Install the goose CLI as the snap's `cli` app command.
+      install -Dm755 target/release/goose "$CRAFT_PART_INSTALL/bin/goose"
+      # Also stage goosed + goose under a private prefix so the goose-desktop
+      # part can copy them into ui/desktop/src/bin before packaging (the forge
+      # extraResource config bundles whatever is there; mirrors `just copy-binary`).
+      install -Dm755 target/release/goosed "$CRAFT_PART_INSTALL/share/goose-bin/goosed"
+      install -Dm755 target/release/goose  "$CRAFT_PART_INSTALL/share/goose-bin/goose"
+    build-packages:
+      - build-essential
+      - pkg-config
+      - libssl-dev
+      - libdbus-1-dev
+      - libxcb1-dev
+      - libxcb-util-dev
+      - protobuf-compiler
+      - cmake
+      - clang
+      - libclang-dev
+      - git
+    # The share/goose-bin/ binaries exist only to hand off to the goose-desktop
+    # part at build time; keep them out of the final snap payload.
+    prime:
+      - -share/goose-bin
+
+  # Packages the Electron desktop app from source with electron-forge and stages
+  # the unpacked app tree under /opt/goose-desktop. Runs after goose-binaries so
+  # that src/bin/goosed exists and gets bundled.
+  goose-desktop:
+    after: [goose-binaries]
+    plugin: nil
+    source: .
+    build-packages:
+      - curl
+      - ca-certificates
+      - xz-utils
+      - python3
+      - make
+      - g++
+    build-environment:
+      # Pinned to match the project's Hermit toolchain (bin/node, bin/pnpm).
+      - NODE_VERSION: 24.10.0
+      - PNPM_VERSION: 10.30.3
+    override-build: |
+      # Ubuntu's apt nodejs is too old and lacks corepack, so fetch the official
+      # Node.js build (which bundles corepack) and pin pnpm to match Hermit.
+      node_dir="$CRAFT_PART_BUILD/node-v${NODE_VERSION}-linux-x64"
+      if [ ! -x "$node_dir/bin/node" ]; then
+        curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
+          | tar -xJ -C "$CRAFT_PART_BUILD"
+      fi
+      export PATH="$node_dir/bin:$PATH"
+      corepack enable
+      corepack prepare "pnpm@${PNPM_VERSION}" --activate
+
+      # Bundle the goosed server (and goose CLI) built by the goose-binaries
+      # part. They are in $CRAFT_STAGE because goose-desktop runs after it.
+      mkdir -p ui/desktop/src/bin
+      cp -p "$CRAFT_STAGE/share/goose-bin/goosed" ui/desktop/src/bin/
+      cp -p "$CRAFT_STAGE/share/goose-bin/goose"  ui/desktop/src/bin/
+      cd ui/desktop
+      pnpm install --frozen-lockfile
+      pnpm run package
+      # electron-forge writes the unpacked app to out/<ProductName>-linux-x64.
+      app_dir="$(find out -maxdepth 1 -type d -iname '*-linux-x64' | head -n1)"
+      if [ -z "$app_dir" ]; then
+        echo "could not locate packaged Electron output under ui/desktop/out" >&2
+        exit 1
+      fi
+      mkdir -p "$CRAFT_PART_INSTALL/opt/goose-desktop"
+      cp -a "$app_dir/." "$CRAFT_PART_INSTALL/opt/goose-desktop/"
+      # electron-forge can emit the app directory as 0700; snaps run apps as the
+      # invoking user, so the installed tree must be world-readable/traversable.
+      dest="$CRAFT_PART_INSTALL/opt/goose-desktop"
+      chmod -R a+rX "$dest"
+      chmod +x "$dest/Goose"
+      [ -f "$dest/chrome-sandbox" ] && chmod 4755 "$dest/chrome-sandbox" || true
+      [ -f "$dest/chrome_crashpad_handler" ] && chmod +x "$dest/chrome_crashpad_handler" || true
+    stage-packages:
+      - libnss3
+      - libatk-bridge2.0-0
+      - libatk1.0-0
+      - libdrm2
+      - libxcomposite1
+      - libxdamage1
+      - libxrandr2
+      - libxfixes3
+      - libgbm1
+      - libxss1
+      - libasound2t64
+      - libnotify4
+      - libxtst6
+      - libxkbcommon0
+      - libgtk-3-0t64
+      - libcups2t64
+      - libpango-1.0-0
+      - libcairo2
+      - libsecret-1-0
+
+  # The classic-confinement Electron launcher wrapper (sets library paths and
+  # runs Electron with --no-sandbox).
+  launcher:
+    plugin: dump
+    source: snap/local
+    organize:
+      desktop-launch: bin/desktop-launch
