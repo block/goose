@@ -1514,54 +1514,38 @@ async fn handle_interactive_session(
     let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
     let mut session_id = get_or_create_session_id(identifier, resume, false, goose_mode).await?;
 
-    if edit && fork {
+    if edit || fork {
         if let Some(ref id) = session_id {
             let session_manager = SessionManager::instance();
             let original = session_manager.get_session(id, true).await?;
-            let conversation = original
-                .conversation
-                .ok_or_else(|| anyhow::anyhow!("session has no messages to edit"))?;
 
-            let edited = crate::session::editor::edit_conversation(&conversation)?;
+            let target_id = if fork {
+                let copied = session_manager
+                    .copy_session(id, original.name.clone())
+                    .await?;
+                let copied_id = copied.id.clone();
+                session_id = Some(copied.id);
+                copied_id
+            } else {
+                id.clone()
+            };
 
-            let new_session = session_manager
-                .create_session(
-                    original.working_dir,
-                    original.name,
-                    original.session_type,
-                    original.goose_mode,
-                )
-                .await?;
-            session_manager
-                .replace_conversation(&new_session.id, &edited)
-                .await?;
-            session_id = Some(new_session.id);
-        }
-    } else if edit {
-        if let Some(ref id) = session_id {
-            let session_manager = SessionManager::instance();
-            let original = session_manager.get_session(id, true).await?;
-            let conversation = original
-                .conversation
-                .ok_or_else(|| anyhow::anyhow!("session has no messages to edit"))?;
-
-            let edited = crate::session::editor::edit_conversation(&conversation)?;
-            session_manager.replace_conversation(id, &edited).await?;
-        }
-    } else if fork {
-        if let Some(id) = session_id {
-            let session_manager = SessionManager::instance();
-            let original = session_manager.get_session(&id, false).await?;
-            let copied = session_manager.copy_session(&id, original.name).await?;
-            session_id = Some(copied.id);
+            if edit {
+                let conversation = original
+                    .conversation
+                    .ok_or_else(|| anyhow::anyhow!("session has no messages to edit"))?;
+                let edited = crate::session::editor::edit_conversation(&conversation)?;
+                session_manager
+                    .replace_conversation(&target_id, &edited)
+                    .await?;
+            }
         }
     }
 
-    let is_fork = fork;
     let mut session: crate::CliSession = build_session(SessionBuilderConfig {
         session_id,
         resume,
-        fork: is_fork,
+        fork,
         no_session: false,
         extensions: extension_opts.extensions,
         streamable_http_extensions: extension_opts.streamable_http_extensions,
@@ -1583,7 +1567,7 @@ async fn handle_interactive_session(
     })
     .await;
 
-    if (resume || is_fork) && history {
+    if (resume || fork) && history {
         session.render_message_history();
     }
 

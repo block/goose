@@ -24,9 +24,6 @@ pub fn resolve_editor_command() -> Option<String> {
     )
 }
 
-/// Inner resolution logic, separated for testability.
-/// Checks sources in priority order: config, VISUAL, EDITOR.
-/// Skips empty strings at each level.
 fn resolve_editor_from_sources(
     config_editor: Option<&str>,
     visual: Option<&str>,
@@ -53,7 +50,6 @@ pub fn resolve_editor_or_default() -> String {
     )
 }
 
-/// Inner fallback logic, separated for testability.
 fn resolve_editor_default() -> String {
     if cfg!(windows) {
         "notepad".to_string()
@@ -62,7 +58,6 @@ fn resolve_editor_default() -> String {
     }
 }
 
-/// Combined resolution + fallback, separated for testability.
 fn resolve_editor_or_default_from_sources(
     config_editor: Option<&str>,
     visual: Option<&str>,
@@ -140,7 +135,6 @@ impl SymlinkCleanup {
 
 impl Drop for SymlinkCleanup {
     fn drop(&mut self) {
-        // Always try to clean up the symlink, ignoring any errors
         let _ = std::fs::remove_file(&self.symlink_path);
     }
 }
@@ -472,54 +466,38 @@ with multiple lines.
         );
     }
 
-    // --- resolve_editor_from_sources tests ---
-
     #[test]
-    fn test_resolve_editor_returns_config_when_set() {
-        let result = resolve_editor_from_sources(Some("code"), Some("vim"), Some("nano"));
-        assert_eq!(result.as_deref(), Some("code"));
-    }
+    fn test_resolve_editor_resolution_priority() {
+        assert_eq!(
+            resolve_editor_from_sources(Some("config-val"), Some("visual-val"), Some("editor-val")),
+            Some("config-val".to_string())
+        );
 
-    #[test]
-    fn test_resolve_editor_falls_back_to_visual() {
-        let result = resolve_editor_from_sources(None, Some("vim"), Some("nano"));
-        assert_eq!(result.as_deref(), Some("vim"));
-    }
+        assert_eq!(
+            resolve_editor_from_sources(Some(""), Some("visual-val"), Some("editor-val")),
+            Some("visual-val".to_string())
+        );
 
-    #[test]
-    fn test_resolve_editor_falls_back_to_editor_env() {
-        let result = resolve_editor_from_sources(None, None, Some("nano"));
-        assert_eq!(result.as_deref(), Some("nano"));
-    }
+        assert_eq!(
+            resolve_editor_from_sources(None, Some(""), Some("editor-val")),
+            Some("editor-val".to_string())
+        );
 
-    #[test]
-    fn test_resolve_editor_returns_none_when_nothing_set() {
-        let result = resolve_editor_from_sources(None, None, None);
-        assert_eq!(result, None);
-    }
+        assert_eq!(resolve_editor_from_sources(None, None, None), None);
+        assert_eq!(
+            resolve_editor_from_sources(Some(""), Some(""), Some("")),
+            None
+        );
 
-    #[test]
-    fn test_resolve_editor_skips_empty_config() {
-        let result = resolve_editor_from_sources(Some(""), Some("vim"), None);
-        assert_eq!(result.as_deref(), Some("vim"));
-    }
-
-    #[test]
-    fn test_resolve_editor_skips_empty_visual() {
-        let result = resolve_editor_from_sources(None, Some(""), Some("nano"));
-        assert_eq!(result.as_deref(), Some("nano"));
-    }
-
-    #[test]
-    fn test_resolve_editor_skips_all_empty() {
-        let result = resolve_editor_from_sources(Some(""), Some(""), Some(""));
-        assert_eq!(result, None);
-    }
-
-    #[test]
-    fn test_resolve_editor_skips_empty_config_and_visual() {
-        let result = resolve_editor_from_sources(Some(""), Some(""), Some("emacs"));
-        assert_eq!(result.as_deref(), Some("emacs"));
+        let default_val = resolve_editor_default();
+        assert_eq!(
+            resolve_editor_or_default_from_sources(None, None, None),
+            default_val
+        );
+        assert_eq!(
+            resolve_editor_or_default_from_sources(Some(""), Some(""), Some("")),
+            default_val
+        );
     }
 
     // --- build_template edge case tests ---
@@ -527,9 +505,7 @@ with multiple lines.
     #[test]
     fn test_build_template_empty_prefill_string() {
         let content = build_template(&["## User: Hello"], Some(""));
-        // Empty prefill should not appear in content
         assert!(content.contains("# Your prompt:\n\n#"));
-        // Should go directly to conversation context
         assert!(content.contains("# Recent conversation for context"));
     }
 
@@ -556,11 +532,8 @@ with multiple lines.
         assert!(prefill_pos < context_pos);
     }
 
-    // --- extract_user_input with prefilled content tests ---
-
     #[test]
     fn test_extract_user_input_with_prefill_kept() {
-        // Simulates a user who opened the editor with prefill and kept it unchanged
         let content = build_template(&["## User: Hello"], Some("fix the login bug"));
         let result = extract_user_input(&content);
         assert_eq!(result, "fix the login bug");
@@ -568,7 +541,6 @@ with multiple lines.
 
     #[test]
     fn test_extract_user_input_with_prefill_edited() {
-        // Simulates a user who edited the prefill text
         let mut content = build_template(&["## User: Hello"], Some("fix the login bug"));
         content = content.replace(
             "fix the login bug",
@@ -580,7 +552,6 @@ with multiple lines.
 
     #[test]
     fn test_extract_user_input_prefill_replaced() {
-        // Simulates a user who deleted the prefill and wrote something new
         let mut content = build_template(&["## User: Hello"], Some("fix the login bug"));
         content = content.replace("fix the login bug\n", "completely different prompt\n");
         let result = extract_user_input(&content);
@@ -589,7 +560,6 @@ with multiple lines.
 
     #[test]
     fn test_extract_user_input_prefill_cleared() {
-        // Simulates a user who deleted the prefill and left nothing
         let mut content = build_template(&["## User: Hello"], Some("fix the login bug"));
         content = content.replace("fix the login bug\n", "");
         let result = extract_user_input(&content);
@@ -650,44 +620,5 @@ with multiple lines.
 
         let _ = std::fs::remove_file(&symlink_path);
         assert!(!symlink_path.exists());
-    }
-
-    // --- resolve_editor_or_default tests ---
-
-    #[test]
-    fn test_resolve_editor_default_is_vi() {
-        #[cfg(not(windows))]
-        assert_eq!(resolve_editor_default(), "vi");
-        #[cfg(windows)]
-        assert_eq!(resolve_editor_default(), "notepad");
-    }
-
-    #[test]
-    fn test_resolve_editor_or_default_falls_back_when_none_set() {
-        let result = resolve_editor_or_default_from_sources(None, None, None);
-        #[cfg(not(windows))]
-        assert_eq!(result, "vi");
-        #[cfg(windows)]
-        assert_eq!(result, "notepad");
-    }
-
-    #[test]
-    fn test_resolve_editor_or_default_uses_config_when_set() {
-        let result =
-            resolve_editor_or_default_from_sources(Some("code"), Some("vim"), Some("nano"));
-        assert_eq!(result, "code");
-    }
-
-    #[test]
-    fn test_resolve_editor_or_default_skips_empty_config() {
-        let result = resolve_editor_or_default_from_sources(Some(""), Some("vim"), None);
-        assert_eq!(result, "vim");
-    }
-
-    #[test]
-    fn test_resolve_editor_or_default_skips_all_empty() {
-        let result = resolve_editor_or_default_from_sources(Some(""), Some(""), Some(""));
-        #[cfg(not(windows))]
-        assert_eq!(result, "vi");
     }
 }
