@@ -40,7 +40,20 @@ pub type Error = rmcp::ServiceError;
 const MCP_APPS_UI_EXTENSION_ID: &str = "io.modelcontextprotocol/ui";
 const MCP_APPS_UI_MIME_TYPE: &str = "text/html;profile=mcp-app";
 
-fn resolve_sampling_model_config() -> anyhow::Result<goose_providers::model::ModelConfig> {
+async fn resolve_sampling_model_config(
+    session_id: Option<&str>,
+) -> anyhow::Result<goose_providers::model::ModelConfig> {
+    if let Some(session_id) = session_id {
+        if let Ok(session) = crate::session::SessionManager::instance()
+            .get_session(session_id, false)
+            .await
+        {
+            if let Some(model_config) = session.model_config {
+                return Ok(model_config);
+            }
+        }
+    }
+
     let config = crate::config::Config::global();
     let provider_name = config
         .get_goose_provider()
@@ -335,13 +348,15 @@ impl ClientHandler for GooseClient {
             .as_deref()
             .unwrap_or("You are a general-purpose AI agent called goose");
 
-        let model_config = resolve_sampling_model_config().map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "Could not resolve model config",
-                Some(Value::from(e.to_string())),
-            )
-        })?;
+        let model_config = resolve_sampling_model_config(session_id.as_deref())
+            .await
+            .map_err(|e| {
+                ErrorData::new(
+                    ErrorCode::INTERNAL_ERROR,
+                    "Could not resolve model config",
+                    Some(Value::from(e.to_string())),
+                )
+            })?;
         let (response, usage) = provider
             .complete(
                 &model_config,

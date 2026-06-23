@@ -13,7 +13,18 @@ use crate::utils::safe_truncate;
 
 const DEFAULT_TOOLS: &[&str] = &["shell", "computercontroller__automation_script"];
 
-fn resolve_model_config() -> Result<goose_providers::model::ModelConfig> {
+async fn resolve_model_config(session_id: &str) -> Result<goose_providers::model::ModelConfig> {
+    if !session_id.is_empty() {
+        if let Ok(session) = crate::session::SessionManager::instance()
+            .get_session(session_id, false)
+            .await
+        {
+            if let Some(model_config) = session.model_config {
+                return Ok(model_config);
+            }
+        }
+    }
+
     let config = crate::config::Config::global();
     let provider_name = config
         .get_goose_provider()
@@ -251,6 +262,7 @@ impl AdversaryInspector {
 
     async fn consult_llm(
         &self,
+        session_id: &str,
         tool_description: &str,
         original_task: &str,
         recent_messages: &[String],
@@ -301,12 +313,13 @@ impl AdversaryInspector {
         )];
         let conversation = Conversation::new_unvalidated(check_messages);
 
-        let model_config = resolve_model_config()
+        let model_config = resolve_model_config(session_id)
+            .await
             .map_err(|e| anyhow::anyhow!("Could not resolve model config: {}", e))?;
         let (response, _usage) = provider
             .complete(
                 &model_config,
-                "",
+                session_id,
                 system_prompt,
                 conversation.messages(),
                 &[],
@@ -370,7 +383,7 @@ impl ToolInspector for AdversaryInspector {
 
     async fn inspect(
         &self,
-        _session_id: &str,
+        session_id: &str,
         tool_requests: &[ToolRequest],
         messages: &[Message],
         _goose_mode: GooseMode,
@@ -404,6 +417,7 @@ impl ToolInspector for AdversaryInspector {
 
             match self
                 .consult_llm(
+                    session_id,
                     &tool_description,
                     &original_task,
                     &recent_messages,
