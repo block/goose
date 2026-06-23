@@ -145,7 +145,7 @@ pub struct GooseClient {
     notification_handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
     provider: SharedProvider,
     session_id: Mutex<Option<String>>,
-    active_tool_calls: Mutex<HashMap<String, String>>,
+    active_tool_calls: Mutex<HashMap<String, Vec<String>>>,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     working_dir: Arc<tokio::sync::RwLock<PathBuf>>,
@@ -215,16 +215,20 @@ impl GooseClient {
         self.active_tool_calls
             .lock()
             .await
-            .insert(session_id.to_string(), tool_call_request_id.to_string());
+            .entry(session_id.to_string())
+            .or_default()
+            .push(tool_call_request_id.to_string());
     }
 
     async fn unregister_active_tool_call(&self, session_id: &str, tool_call_request_id: &str) {
         let mut active_tool_calls = self.active_tool_calls.lock().await;
-        if active_tool_calls
-            .get(session_id)
-            .is_some_and(|id| id == tool_call_request_id)
-        {
-            active_tool_calls.remove(session_id);
+        if let Some(calls) = active_tool_calls.get_mut(session_id) {
+            if let Some(pos) = calls.iter().position(|id| id == tool_call_request_id) {
+                calls.remove(pos);
+            }
+            if calls.is_empty() {
+                active_tool_calls.remove(session_id);
+            }
         }
     }
 
@@ -238,13 +242,20 @@ impl GooseClient {
         }
 
         let active_tool_calls = self.active_tool_calls.lock().await;
-        active_tool_calls.get(session_id).cloned().ok_or_else(|| {
-            ErrorData::new(
+        match active_tool_calls.get(session_id).map(Vec::as_slice) {
+            Some([tool_call_request_id]) => Ok(tool_call_request_id.clone()),
+            Some(calls) if calls.len() > 1 => Err(ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "Cannot correlate elicitation request: multiple tool calls are active and the \
+                 server did not echo the tool call request id",
+                None,
+            )),
+            _ => Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 "Could not resolve tool call request id for elicitation request",
                 None,
-            )
-        })
+            )),
+        }
     }
 
     fn resolved_extensions(&self) -> ExtensionCapabilities {
@@ -508,7 +519,6 @@ pub struct GooseMcpClientCapabilities {
 /// The MCP client is the interface for MCP operations.
 pub struct McpClient {
     client: Mutex<RunningService<RoleClient, GooseClient>>,
-    tool_call_lock: Mutex<()>,
     notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
     server_info: Option<InitializeResult>,
     timeout: std::time::Duration,
@@ -569,7 +579,6 @@ impl McpClient {
 
         Ok(Self {
             client: Mutex::new(client),
-            tool_call_lock: Mutex::new(()),
             notification_subscribers,
             server_info,
             timeout,
@@ -606,7 +615,7 @@ impl McpClient {
         let active_tool_call = tool_call_request_id.filter(|id| !id.is_empty());
         // The inner mutex is held only for the send; the actual response wait
         // happens outside the lock so concurrent calls can overlap.
-        let handle = match {
+        let send_result = {
             let client = self.client.lock().await;
             client.service().set_session_id(session_id).await;
             if let Some(tool_call_request_id) = active_tool_call {
@@ -618,7 +627,8 @@ impl McpClient {
             client
                 .send_cancellable_request(request, PeerRequestOptions::no_options())
                 .await
-        } {
+        };
+        let handle = match send_result {
             Ok(handle) => handle,
             Err(error) => {
                 if let Some(tool_call_request_id) = active_tool_call {
@@ -763,7 +773,6 @@ impl McpClientTrait for McpClient {
         arguments: Option<JsonObject>,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
-        let _tool_call_guard = self.tool_call_lock.lock().await;
         let mut params = CallToolRequestParams::new(name.to_string());
         if let Some(args) = arguments {
             params = params.with_arguments(args);
@@ -1120,7 +1129,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_resolve_tool_call_request_id_uses_current_active_call() {
+    async fn test_resolve_tool_call_request_id_errors_when_calls_overlap() {
         let client = new_client(GoosePlatform::GooseCli);
         client
             .register_active_tool_call("session-a", "active-tool-call-a")
@@ -1129,12 +1138,36 @@ mod tests {
             .register_active_tool_call("session-a", "active-tool-call-b")
             .await;
 
-        let resolved = client
+        let error = client
             .resolve_tool_call_request_id("session-a", &Extensions::new())
+            .await
+            .expect_err("ambiguous elicitation should not resolve to an arbitrary call");
+
+        assert_eq!(error.code, ErrorCode::INTERNAL_ERROR);
+    }
+
+    #[tokio::test]
+    async fn test_resolve_tool_call_request_id_prefers_echoed_id_while_calls_overlap() {
+        let client = new_client(GoosePlatform::GooseCli);
+        client
+            .register_active_tool_call("session-a", "active-tool-call-a")
+            .await;
+        client
+            .register_active_tool_call("session-a", "active-tool-call-b")
+            .await;
+        let extensions = inject_session_context_into_extensions(
+            Extensions::new(),
+            Some("session-a"),
+            None,
+            Some("active-tool-call-a"),
+        );
+
+        let resolved = client
+            .resolve_tool_call_request_id("session-a", &extensions)
             .await
             .unwrap();
 
-        assert_eq!(resolved, "active-tool-call-b");
+        assert_eq!(resolved, "active-tool-call-a");
     }
 
     #[tokio::test]
