@@ -1358,6 +1358,7 @@ async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) ->
         config_dir: Paths::config_dir(),
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots,
+        scheduler: None,
     }));
     let env_secret = std::env::var(GOOSE_SERVER_SECRET_KEY_ENV)
         .ok()
