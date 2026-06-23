@@ -2211,9 +2211,9 @@ impl Agent {
                                     }
                                 }
 
-                                // When reasoning arrives in the same streamed chunk as tool
-                                // calls there is no prior thinking-only message for the
-                                // formatter to buffer, so attach it to the first request_msg.
+                                // Preserve thinking/reasoning content from the original response.
+                                // Gemini (and other thinking models) require thinking to be echoed back.
+                                // Kimi/DeepSeek require reasoning_content on assistant tool call messages.
                                 let response_thinking: Vec<MessageContent> = response
                                     .content
                                     .iter()
@@ -2226,18 +2226,23 @@ impl Agent {
                                     })
                                     .cloned()
                                     .collect();
-                                let mut first_tool_msg = true;
+                                if !response_thinking.is_empty() {
+                                    let thinking_msg = Message::new(
+                                        response.role.clone(),
+                                        response.created,
+                                        response_thinking.clone(),
+                                    )
+                                    .with_id(format!("msg_{}", Uuid::new_v4()));
+                                    messages_to_add.push(thinking_msg);
+                                }
 
                                 for request in frontend_requests.iter().chain(remaining_requests.iter()) {
                                     if request.tool_call.is_ok() {
                                         let mut request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()));
 
-                                        if first_tool_msg {
-                                            for thinking in &response_thinking {
-                                                request_msg = request_msg.with_content(thinking.clone());
-                                            }
-                                            first_tool_msg = false;
+                                        for thinking in &response_thinking {
+                                            request_msg = request_msg.with_content(thinking.clone());
                                         }
 
                                         request_msg = request_msg
