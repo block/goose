@@ -1457,10 +1457,6 @@ impl Agent {
     ) -> Result<BoxStream<'_, Result<AgentEvent>>> {
         let session_manager = self.config.session_manager.clone();
 
-        let message_text_for_trace = user_message.as_concat_text();
-        tracing::Span::current().record("user_message", message_text_for_trace.as_str());
-        tracing::Span::current().record("trace_input", message_text_for_trace.as_str());
-
         for content in &user_message.content {
             if let MessageContent::ActionRequired(action_required) = content {
                 if let ActionRequiredData::ElicitationResponse {
@@ -1480,12 +1476,17 @@ impl Agent {
                         ElicitationAction::Decline => ElicitationOutcome::Decline,
                         ElicitationAction::Cancel => ElicitationOutcome::Cancel,
                     };
+                    let stored_message = if Redactor::is_enabled() {
+                        Redactor::from_config().redact_message(&user_message)
+                    } else {
+                        user_message.clone()
+                    };
                     crate::elicitation::complete_elicitation_with_message(
                         &session_manager,
                         &session_config.id,
                         id,
                         response,
-                        &user_message,
+                        &stored_message,
                     )
                     .await
                     .map_err(|e| {
@@ -1504,6 +1505,12 @@ impl Agent {
         } else {
             user_message
         };
+
+        {
+            let trace_text = user_message.as_concat_text();
+            tracing::Span::current().record("user_message", trace_text.as_str());
+            tracing::Span::current().record("trace_input", trace_text.as_str());
+        }
 
         if self
             .hook_manager

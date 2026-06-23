@@ -322,6 +322,26 @@ impl Redactor {
         );
     }
 
+    fn redact_json_value(&self, value: &serde_json::Value) -> serde_json::Value {
+        match value {
+            serde_json::Value::String(s) => {
+                let (redacted, _) = self.redact_text(s);
+                serde_json::Value::String(redacted)
+            }
+            serde_json::Value::Object(map) => {
+                let redacted = map
+                    .iter()
+                    .map(|(k, v)| (k.clone(), self.redact_json_value(v)))
+                    .collect();
+                serde_json::Value::Object(redacted)
+            }
+            serde_json::Value::Array(arr) => {
+                serde_json::Value::Array(arr.iter().map(|v| self.redact_json_value(v)).collect())
+            }
+            other => other.clone(),
+        }
+    }
+
     /// Redact a single message — returns a new message with sensitive data replaced.
     pub fn redact_message(
         &self,
@@ -349,9 +369,9 @@ impl Redactor {
                 MessageContent::Text(
                     RawTextContent {
                         text: redacted_text,
-                        meta: None,
+                        meta: text.raw.meta.clone(),
                     }
-                    .no_annotation(),
+                    .optional_annotate(text.annotations.clone()),
                 )
             }
             MessageContent::ToolResponse(tool_response) => {
@@ -368,9 +388,9 @@ impl Redactor {
                                 }
                                 RawContent::Text(RawTextContent {
                                     text: redacted,
-                                    meta: None,
+                                    meta: text_content.meta.clone(),
                                 })
-                                .no_annotation()
+                                .optional_annotate(c.annotations.clone())
                             } else {
                                 c.clone()
                             }
@@ -378,6 +398,17 @@ impl Redactor {
                         .collect();
                 }
                 MessageContent::ToolResponse(new_response)
+            }
+            MessageContent::ActionRequired(action_required) => {
+                use crate::conversation::message::ActionRequiredData;
+                let mut new_action = action_required.clone();
+                if let ActionRequiredData::ElicitationResponse {
+                    ref mut user_data, ..
+                } = new_action.data
+                {
+                    *user_data = self.redact_json_value(user_data);
+                }
+                MessageContent::ActionRequired(new_action)
             }
             _ => content.clone(),
         }
