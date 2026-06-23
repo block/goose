@@ -198,7 +198,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     const entry = getOrCreateEntry(sessionId);
     entry.messages = cloneMessages(messages);
     retainPendingLocalSteerMessageIds(entry);
-    entry.adapter = createAcpSessionNotificationAdapter(entry.messages);
+    entry.adapter = createAdapterForEntry(entry);
     return notify(sessionId, entry);
   };
 
@@ -213,7 +213,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
 
     entry.messages = [...entry.messages, cloneMessage(message)];
     entry.pendingLocalSteerMessageIds.add(message.id);
-    entry.adapter = createAcpSessionNotificationAdapter(entry.messages);
+    entry.adapter = createAdapterForEntry(entry);
     return notify(sessionId, entry);
   };
 
@@ -523,7 +523,35 @@ function discardPendingLocalSteerMessages(entry: StoreEntry): void {
     (message) => !message.id || !entry.pendingLocalSteerMessageIds.has(message.id)
   );
   entry.pendingLocalSteerMessageIds.clear();
-  entry.adapter = createAcpSessionNotificationAdapter(entry.messages);
+  entry.adapter = createAdapterForEntry(entry);
+}
+
+function createAdapterForEntry(entry: StoreEntry): AcpSessionNotificationAdapter {
+  return createAcpSessionNotificationAdapter(
+    entry.messages,
+    confirmedLocalSteerTextByMessageId(entry)
+  );
+}
+
+function confirmedLocalSteerTextByMessageId(entry: StoreEntry): Map<string, string> {
+  const textByMessageId = new Map<string, string>();
+
+  for (const message of entry.messages) {
+    if (
+      !message.id ||
+      !message.metadata.steer ||
+      entry.pendingLocalSteerMessageIds.has(message.id)
+    ) {
+      continue;
+    }
+
+    const firstContent = message.content[0];
+    if (firstContent?.type === 'text') {
+      textByMessageId.set(message.id, firstContent.text);
+    }
+  }
+
+  return textByMessageId;
 }
 
 function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {

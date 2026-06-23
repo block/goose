@@ -30,11 +30,12 @@ export interface AcpSessionNotificationAdapter {
 }
 
 export function createAcpSessionNotificationAdapter(
-  initialMessages: Message[] = []
+  initialMessages: Message[] = [],
+  localSteerTextByMessageId: Map<string, string> = new Map()
 ): AcpSessionNotificationAdapter {
   const state: AdapterState = {
     messages: initialMessages.map(cloneMessage),
-    localSteerTextByMessageId: new Map(),
+    localSteerTextByMessageId: new Map(localSteerTextByMessageId),
   };
 
   return {

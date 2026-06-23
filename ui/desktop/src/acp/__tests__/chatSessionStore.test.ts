@@ -336,6 +336,32 @@ describe('acpChatSessionStore', () => {
     expect(cancellationSnapshot?.messages[0].id).toBe('steer-1');
   });
 
+  it('preserves steer text accumulation when another local steer is added', () => {
+    const currentSessionId = sessionId('session-1');
+    const firstSteerMessage = {
+      ...message('steer-1', 'hello'),
+      metadata: { userVisible: true, agentVisible: true, steer: true },
+    };
+    const secondSteerMessage = {
+      ...message('steer-2', 'second'),
+      metadata: { userVisible: true, agentVisible: true, steer: true },
+    };
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    acpChatSessionActions.addPendingLocalSteerMessage(currentSessionId, firstSteerMessage);
+    acpChatSessionActions.applyAcpSessionNotification(
+      userSteerChunkNotification(currentSessionId, 'steer-1', 'hel')
+    );
+
+    acpChatSessionActions.addPendingLocalSteerMessage(currentSessionId, secondSteerMessage);
+    const snapshot = acpChatSessionActions.applyAcpSessionNotification(
+      userSteerChunkNotification(currentSessionId, 'steer-1', 'lo')
+    );
+
+    const firstMessage = snapshot.messages.find((item) => item.id === 'steer-1');
+    expect(firstMessage?.content[0]).toMatchObject({ type: 'text', text: 'hello' });
+  });
+
   it('stores active run ids from session info notifications', () => {
     const currentSessionId = sessionId('session-1');
 
