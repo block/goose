@@ -973,6 +973,42 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/session/steer"
     },
+    "DiagnosticsGetRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "level": {
+          "$ref": "#/$defs/DiagnosticsReportLevel",
+          "default": "summary"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "description": "Generate a diagnostics report for a session.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/diagnostics/get"
+    },
+    "DiagnosticsReportLevel": {
+      "type": "string",
+      "enum": [
+        "summary",
+        "full"
+      ]
+    },
+    "DiagnosticsGetResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "report": {}
+      },
+      "required": [
+        "report"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/diagnostics/get"
+    },
     "DeleteSessionRequest": {
       "type": "object",
       "properties": {
@@ -4616,6 +4652,15 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/DiagnosticsGetRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/diagnostics/get",
+                  "title": "DiagnosticsGetRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/DeleteSessionRequest"
                     }
                   ],
@@ -5249,6 +5294,14 @@
                         }
                       ],
                       "title": "SteerSessionResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/DiagnosticsGetResponse_unstable"
+                        }
+                      ],
+                      "title": "DiagnosticsGetResponse_unstable"
                     },
                     {
                       "allOf": [

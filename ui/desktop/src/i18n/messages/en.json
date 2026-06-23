@@ -804,10 +804,10 @@
     "defaultMessage": "Configuration settings"
   },
   "diagnosticsModal.description": {
-    "defaultMessage": "You can download a diagnostics zip file to share with the team, or file a bug directly on GitHub with your system details pre-filled. A diagnostics report contains the following:"
+    "defaultMessage": "You can download a diagnostics JSON report to share with the team, or file a bug directly on GitHub with your system details pre-filled. A diagnostics report contains the following:"
   },
   "diagnosticsModal.diagnosticsErrorMsg": {
-    "defaultMessage": "Failed to download diagnostics"
+    "defaultMessage": "Failed to download diagnostics report"
   },
   "diagnosticsModal.diagnosticsErrorTitle": {
     "defaultMessage": "Diagnostics Error"

@@ -82,6 +82,14 @@ impl GooseAcpAgent {
         self.on_steer_session(req).await
     }
 
+    #[custom_method(DiagnosticsGetRequest)]
+    async fn dispatch_get_diagnostics(
+        &self,
+        req: DiagnosticsGetRequest,
+    ) -> Result<DiagnosticsGetResponse, agent_client_protocol::Error> {
+        self.on_get_diagnostics(req).await
+    }
+
     #[custom_method(DeleteSessionRequest)]
     async fn dispatch_delete_session(
         &self,

@@ -1731,6 +1731,19 @@
         "operationId": "diagnostics",
         "parameters": [
           {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/DiagnosticsLevel"
+                }
+              ],
+              "nullable": true
+            }
+          },
+          {
             "name": "session_id",
             "in": "path",
             "required": true,
@@ -1741,12 +1754,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Diagnostics zip file",
+            "description": "Diagnostics report",
             "content": {
-              "application/zip": {
+              "application/json": {
                 "schema": {
-                  "type": "string",
-                  "format": "binary"
+                  "$ref": "#/components/schemas/DiagnosticsReport"
                 }
               }
             }
@@ -4614,6 +4626,200 @@
         "properties": {
           "id": {
             "type": "string"
+          }
+        }
+      },
+      "DiagnosticsConfig": {
+        "type": "object",
+        "required": [
+          "configPath",
+          "truncated"
+        ],
+        "properties": {
+          "configPath": {
+            "type": "string"
+          },
+          "configYaml": {
+            "type": "string",
+            "nullable": true
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DiagnosticsError": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "DiagnosticsExtensions": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DiagnosticsLevel": {
+        "type": "string",
+        "enum": [
+          "summary",
+          "full"
+        ]
+      },
+      "DiagnosticsLogs": {
+        "type": "object",
+        "required": [
+          "llm"
+        ],
+        "properties": {
+          "llm": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticsTextFile"
+            }
+          },
+          "server": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DiagnosticsTextFile"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "DiagnosticsPrompt": {
+        "type": "object",
+        "required": [
+          "name",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "DiagnosticsReport": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "generatedAt",
+          "level",
+          "system",
+          "extensions",
+          "logs",
+          "prompts",
+          "scheduledRecipes",
+          "errors"
+        ],
+        "properties": {
+          "config": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DiagnosticsConfig"
+              }
+            ],
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticsError"
+            }
+          },
+          "extensions": {
+            "$ref": "#/components/schemas/DiagnosticsExtensions"
+          },
+          "generatedAt": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/DiagnosticsLevel"
+          },
+          "logs": {
+            "$ref": "#/components/schemas/DiagnosticsLogs"
+          },
+          "prompts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticsPrompt"
+            }
+          },
+          "schedule": {
+            "nullable": true
+          },
+          "scheduledRecipes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticsScheduledRecipe"
+            }
+          },
+          "schemaVersion": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "session": {
+            "nullable": true
+          },
+          "system": {
+            "$ref": "#/components/schemas/SystemInfo"
+          }
+        }
+      },
+      "DiagnosticsScheduledRecipe": {
+        "type": "object",
+        "required": [
+          "path",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "DiagnosticsTextFile": {
+        "type": "object",
+        "required": [
+          "path",
+          "content",
+          "truncated"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
           }
         }
       },

@@ -580,11 +580,9 @@ enum SessionCommand {
     },
     #[command(name = "diagnostics")]
     Diagnostics {
-        /// Session identifier for generating diagnostics
         #[command(flatten)]
         identifier: Option<Identifier>,
 
-        /// Output path for the diagnostics zip file (optional, defaults to current directory)
         #[arg(short = 'o', long)]
         output: Option<PathBuf>,
     },

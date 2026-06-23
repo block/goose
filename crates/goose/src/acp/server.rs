@@ -84,6 +84,7 @@ mod agent_requests;
 pub use agent_requests::agent_request_schemas;
 mod config;
 mod custom_dispatch;
+mod diagnostics;
 mod dictation;
 mod dispatch;
 mod elicitation;
