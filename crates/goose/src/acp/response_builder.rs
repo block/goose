@@ -11,6 +11,7 @@ use agent_client_protocol::schema::{
 use agent_client_protocol::{Client, ConnectionTo};
 use goose_providers::model::ModelConfig;
 use goose_providers::thinking::ThinkingEffort;
+use serde::Serialize;
 use strum::{EnumMessage, VariantNames};
 
 use super::server::{build_usage_updates, DEFAULT_PROVIDER_ID, DEFAULT_PROVIDER_LABEL};
@@ -22,66 +23,54 @@ pub(super) fn session_provider_selection(session: &Session) -> &str {
         .unwrap_or(DEFAULT_PROVIDER_ID)
 }
 
-pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_json::Value> {
-    let mut meta = serde_json::Map::new();
-    meta.insert(
-        "messageCount".to_string(),
-        serde_json::Value::Number(session.message_count.into()),
-    );
-    meta.insert(
-        "createdAt".to_string(),
-        serde_json::Value::String(session.created_at.to_rfc3339()),
-    );
-    if let Some(ref last_message_at) = session.last_message_at {
-        meta.insert(
-            "lastMessageAt".to_string(),
-            serde_json::Value::String(last_message_at.to_rfc3339()),
-        );
-    }
-    if let Some(ref archived_at) = session.archived_at {
-        meta.insert(
-            "archivedAt".to_string(),
-            serde_json::Value::String(archived_at.to_rfc3339()),
-        );
-    }
-    meta.insert(
-        "userSetName".to_string(),
-        serde_json::Value::Bool(session.user_set_name),
-    );
-    meta.insert(
-        "sessionType".to_string(),
-        serde_json::Value::String(session.session_type.to_string()),
-    );
-    meta.insert(
-        "hasRecipe".to_string(),
-        serde_json::Value::Bool(session.recipe.is_some()),
-    );
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionMeta<'a> {
+    message_count: usize,
+    created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_message_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    archived_at: Option<chrono::DateTime<chrono::Utc>>,
+    user_set_name: bool,
+    session_type: String,
+    has_recipe: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    project_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_message_snippet: Option<&'a str>,
+}
 
-    if let Some(ref pid) = session.project_id {
-        meta.insert(
-            "projectId".to_string(),
-            serde_json::Value::String(pid.clone()),
-        );
+impl<'a> From<&'a Session> for SessionMeta<'a> {
+    fn from(session: &'a Session) -> Self {
+        Self {
+            message_count: session.message_count,
+            created_at: session.created_at,
+            last_message_at: session.last_message_at,
+            archived_at: session.archived_at,
+            user_set_name: session.user_set_name,
+            session_type: session.session_type.to_string(),
+            has_recipe: session.recipe.is_some(),
+            project_id: session.project_id.as_deref(),
+            provider_id: session.provider_name.as_deref(),
+            model_id: session
+                .model_config
+                .as_ref()
+                .map(|mc| mc.model_name.as_str()),
+            last_message_snippet: session.last_message_snippet.as_deref(),
+        }
     }
-    if let Some(ref provider) = session.provider_name {
-        meta.insert(
-            "providerId".to_string(),
-            serde_json::Value::String(provider.clone()),
-        );
+}
+
+pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_json::Value> {
+    match serde_json::to_value(SessionMeta::from(session)) {
+        Ok(serde_json::Value::Object(meta)) => meta,
+        _ => serde_json::Map::new(),
     }
-    if let Some(ref mc) = session.model_config {
-        meta.insert(
-            "modelId".to_string(),
-            serde_json::Value::String(mc.model_name.clone()),
-        );
-    }
-    if let Some(ref snippet) = session.last_message_snippet {
-        meta.insert(
-            "lastMessageSnippet".to_string(),
-            serde_json::Value::String(snippet.clone()),
-        );
-    }
-    meta
 }
 
 pub(super) fn session_response_meta(
