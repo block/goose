@@ -279,7 +279,7 @@ pub struct SessionManager {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct SessionListCursor {
-    pub(crate) updated_at: DateTime<Utc>,
+    pub(crate) sort_at: DateTime<Utc>,
     pub(crate) session_id: String,
 }
 
@@ -591,6 +591,10 @@ fn normalized_message_timestamp_sql(column: &str) -> String {
     format!(
         "CASE WHEN {column} > {MILLISECOND_TIMESTAMP_THRESHOLD} THEN {column} / 1000 ELSE {column} END"
     )
+}
+
+fn session_sort_at(session: &Session) -> DateTime<Utc> {
+    session.last_message_at.unwrap_or(session.updated_at)
 }
 
 impl Default for Session {
@@ -1660,6 +1664,10 @@ impl SessionStorage {
 
         let keywords = keyword_terms(filters.keyword);
         let mut where_clauses = Vec::new();
+        let mut having_clauses = Vec::new();
+        let normalized_message_timestamp = normalized_message_timestamp_sql("m.created_timestamp");
+        let sort_timestamp_sql =
+            format!("COALESCE(MAX({normalized_message_timestamp}), unixepoch(s.updated_at))");
         if let Some(types) = filters.types {
             let placeholders = types.iter().map(|_| "?").collect::<Vec<_>>().join(", ");
             where_clauses.push(format!("s.session_type IN ({})", placeholders));
@@ -1671,11 +1679,9 @@ impl SessionStorage {
             where_clauses.push(message_keyword_clause(keywords.len()));
         }
         if query.cursor.is_some() {
-            where_clauses.push(
-                "(datetime(s.updated_at) < datetime(?) \
-                 OR (datetime(s.updated_at) = datetime(?) AND s.id < ?))"
-                    .to_string(),
-            );
+            having_clauses.push(format!(
+                "({sort_timestamp_sql} < ? OR ({sort_timestamp_sql} = ? AND s.id < ?))"
+            ));
         }
 
         let where_clause = if where_clauses.is_empty() {
@@ -1683,16 +1689,17 @@ impl SessionStorage {
         } else {
             format!("WHERE {}", where_clauses.join(" AND "))
         };
+        let having_clause = if having_clauses.is_empty() {
+            String::new()
+        } else {
+            format!("HAVING {}", having_clauses.join(" AND "))
+        };
         let message_join = if filters.only_sessions_with_messages {
             "JOIN messages m ON s.id = m.session_id"
         } else {
             "LEFT JOIN messages m ON s.id = m.session_id"
         };
-        let order_by = if query.cursor.is_some() || query.limit.is_some() {
-            "ORDER BY datetime(s.updated_at) DESC, s.id DESC"
-        } else {
-            "ORDER BY s.updated_at DESC"
-        };
+        let order_by = "ORDER BY sort_timestamp DESC, s.id DESC";
         let limit_clause = if query.limit.is_some() { "LIMIT ?" } else { "" };
 
         let sql = format!(
@@ -1707,17 +1714,21 @@ impl SessionStorage {
                    s.provider_name, s.model_config_json, s.goose_mode,
                    s.archived_at, s.project_id,
                    COUNT(m.id) as message_count,
-                   MAX({}) as last_message_timestamp
+                   MAX({}) as last_message_timestamp,
+                   {} as sort_timestamp
             FROM sessions s
             {}
             {}
             GROUP BY s.id
             {}
             {}
+            {}
             "#,
-            normalized_message_timestamp_sql("m.created_timestamp"),
+            normalized_message_timestamp,
+            sort_timestamp_sql,
             message_join,
             where_clause,
+            having_clause,
             order_by,
             limit_clause
         );
@@ -1735,10 +1746,9 @@ impl SessionStorage {
             q = q.bind(term);
         }
         if let Some(cursor) = query.cursor {
-            let updated_at = cursor.updated_at.to_rfc3339();
-            // Normalize mixed SQLite CURRENT_TIMESTAMP and RFC3339 stored values.
-            q = q.bind(updated_at.clone());
-            q = q.bind(updated_at);
+            let sort_at = cursor.sort_at.timestamp();
+            q = q.bind(sort_at);
+            q = q.bind(sort_at);
             q = q.bind(&cursor.session_id);
         }
         if let Some(limit) = query.limit {
@@ -1784,7 +1794,7 @@ impl SessionStorage {
         let next_cursor = if has_next_page {
             let anchor = &sessions[page_size - 1];
             Some(SessionListCursor {
-                updated_at: anchor.updated_at,
+                sort_at: session_sort_at(anchor),
                 session_id: anchor.id.clone(),
             })
         } else {
@@ -2532,8 +2542,8 @@ mod tests {
             sessions.push(sm.get_session(session_id, false).await.unwrap());
         }
         sessions.sort_by(|a, b| {
-            b.updated_at
-                .cmp(&a.updated_at)
+            session_sort_at(b)
+                .cmp(&session_sort_at(a))
                 .then_with(|| b.id.cmp(&a.id))
         });
         sessions.into_iter().map(|session| session.id).collect()
@@ -2682,7 +2692,53 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_session_list_paged_uses_id_tiebreaker_for_duplicate_updated_at() {
+    async fn test_session_list_paged_sorts_by_last_message_at() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let stale_but_modified = create_session_for_list(&sm, "/tmp/session-list", false).await;
+        add_message_at(
+            &sm,
+            &stale_but_modified,
+            "older message",
+            "2026-01-01T00:00:00Z",
+        )
+        .await;
+        set_sessions_updated_at(
+            &sm,
+            std::slice::from_ref(&stale_but_modified),
+            "2026-02-01T00:00:00Z",
+        )
+        .await;
+
+        let active_but_not_modified =
+            create_session_for_list(&sm, "/tmp/session-list", false).await;
+        add_message_at(
+            &sm,
+            &active_but_not_modified,
+            "newer message",
+            "2026-01-02T00:00:00Z",
+        )
+        .await;
+        set_sessions_updated_at(
+            &sm,
+            std::slice::from_ref(&active_but_not_modified),
+            "2026-01-15T00:00:00Z",
+        )
+        .await;
+
+        assert_session_list_page(
+            &sm,
+            None,
+            None,
+            2,
+            &[active_but_not_modified, stale_but_modified],
+            false,
+        )
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_session_list_paged_uses_id_tiebreaker_for_duplicate_activity_time() {
         let temp_dir = TempDir::new().unwrap();
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
         let mut expected_ids = Vec::new();
