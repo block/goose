@@ -191,7 +191,15 @@ pub fn format_messages_with_options(
             pending_assistant_reasoning.clear();
         }
         // clears the reasoning of the turn as a new message from the user was received.
-        if options.preserve_thinking_context && message.role == Role::User {
+        // Tool results are also Role::User but belong to the same assistant turn, so
+        // only clear when the user message is not a tool result.
+        if options.preserve_thinking_context
+            && message.role == Role::User
+            && !message
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+        {
             tool_call_turn_reasoning.clear();
         }
 
