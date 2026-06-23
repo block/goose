@@ -175,7 +175,6 @@ function stop(sessionId: string): void {
   const hasStoredAcpPrompt = storedPromptAttemptId !== null && storedPromptAttemptId !== undefined;
 
   if (hasStoredAcpPrompt) {
-    acpChatSessionActions.clearActivePromptAttempt(sessionId);
     cancelAcpPermissionRequestsForSession(sessionId);
     cancelAcpElicitationRequestsForSession(sessionId);
     acpCancelPrompt(sessionId).catch((error) => {

@@ -1,1 +1,1 @@
-export const USE_ACP_CHAT = false;
+export const USE_ACP_CHAT = true;

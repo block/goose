@@ -1,7 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Session } from '../../api';
+import { ChatState } from '../../types/chatState';
 import { acpChatSessionController } from '../chatSessionController';
-import { acpChatSessionActions, acpChatSessionStore } from '../chatSessionStore';
+import {
+  acpChatSessionActions,
+  acpChatSessionStore,
+  type AcpChatSessionSnapshot,
+} from '../chatSessionStore';
+import { acpCancelPrompt } from '../prompt';
 import { acpLoadSession, isAcpSessionLoadInFlight, sessionInfoToSession } from '../sessions';
 
 vi.mock('../../utils/extensionErrorUtils', () => ({
@@ -35,6 +41,11 @@ vi.mock('../sessions', () => ({
   acpTruncateSessionConversation: vi.fn(),
 }));
 
+vi.mock('../prompt', () => ({
+  acpCancelPrompt: vi.fn(),
+  acpPromptSession: vi.fn(),
+}));
+
 const SESSION_ID = 'session-1';
 
 function loadedSession(): Session {
@@ -61,6 +72,25 @@ function mockLoadResult() {
     response: {},
     meta: {},
   } as Awaited<ReturnType<typeof acpLoadSession>>;
+}
+
+function snapshotWithActivePrompt(activePromptAttemptId: string | null): AcpChatSessionSnapshot {
+  return {
+    session: undefined,
+    messages: [],
+    tokenState: {
+      inputTokens: 0,
+      outputTokens: 0,
+      totalTokens: 0,
+      accumulatedInputTokens: 0,
+      accumulatedOutputTokens: 0,
+      accumulatedTotalTokens: 0,
+    },
+    notifications: [],
+    chatState: activePromptAttemptId ? ChatState.Streaming : ChatState.Idle,
+    sessionLoadError: undefined,
+    activePromptAttemptId,
+  };
 }
 
 describe('acpChatSessionController.loadSession', () => {
@@ -95,5 +125,36 @@ describe('acpChatSessionController.loadSession', () => {
       SESSION_ID,
       loadedSession()
     );
+  });
+});
+
+describe('acpChatSessionController.stop', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(acpCancelPrompt).mockResolvedValue(undefined);
+  });
+
+  it('keeps the active prompt attempt until the prompt request finishes', () => {
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue(
+      snapshotWithActivePrompt('attempt-1')
+    );
+
+    acpChatSessionController.stop(SESSION_ID);
+
+    expect(acpCancelPrompt).toHaveBeenCalledWith(SESSION_ID);
+    expect(acpChatSessionActions.clearActivePromptAttempt).not.toHaveBeenCalled();
+    expect(acpChatSessionActions.setChatState).not.toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.anything()
+    );
+  });
+
+  it('sets the chat idle when there is no active prompt attempt', () => {
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue(snapshotWithActivePrompt(null));
+
+    acpChatSessionController.stop(SESSION_ID);
+
+    expect(acpCancelPrompt).not.toHaveBeenCalled();
+    expect(acpChatSessionActions.setChatState).toHaveBeenCalledWith(SESSION_ID, ChatState.Idle);
   });
 });
