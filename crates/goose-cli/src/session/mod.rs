@@ -225,7 +225,7 @@ pub async fn classify_planner_response(
     );
 
     let message = Message::user().with_text(&prompt);
-    let model_config = provider.get_model_config();
+    let model_config = resolve_global_model_config()?;
     let (result, _usage) = provider
         .complete(
             &model_config,
@@ -722,8 +722,8 @@ impl CliSession {
             RunMode::Plan => {
                 let mut plan_messages = self.messages.clone();
                 plan_messages.push(Message::user().with_text(content));
-                let reasoner = get_reasoner().await?;
-                self.plan_with_reasoner_model(plan_messages, reasoner)
+                let (reasoner, reasoner_model_config) = get_reasoner().await?;
+                self.plan_with_reasoner_model(plan_messages, reasoner, reasoner_model_config)
                     .await?;
             }
         }
@@ -810,7 +810,10 @@ impl CliSession {
     async fn handle_model(&self, model: Option<&str>) -> Result<()> {
         let provider = self.agent.provider().await?;
         let current_provider_name = provider.get_name().to_string();
-        let current_model_config = provider.get_model_config();
+        let current_model_config = self
+            .agent
+            .model_config_for_session(&self.session_id)
+            .await?;
         let current_model_name = current_model_config.model_name.clone();
 
         if model.is_none() {
@@ -860,12 +863,12 @@ impl CliSession {
 
         let extensions = self.agent.get_extension_configs().await;
         let new_provider =
-            goose::providers::create(&current_provider_name, new_model_config, extensions)
+            goose::providers::create(&current_provider_name, new_model_config.clone(), extensions)
                 .await
                 .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
 
         self.agent
-            .update_provider(new_provider, &self.session_id)
+            .update_provider(new_provider, new_model_config, &self.session_id)
             .await?;
 
         let mode = self.agent.goose_mode().await;
@@ -888,8 +891,9 @@ impl CliSession {
         let mut plan_messages = self.messages.clone();
         plan_messages.push(Message::user().with_text(&options.message_text));
 
-        let reasoner = get_reasoner().await?;
-        self.plan_with_reasoner_model(plan_messages, reasoner).await
+        let (reasoner, reasoner_model_config) = get_reasoner().await?;
+        self.plan_with_reasoner_model(plan_messages, reasoner, reasoner_model_config)
+            .await
     }
 
     async fn handle_clear(&mut self) -> Result<()> {
@@ -1051,10 +1055,10 @@ impl CliSession {
         &mut self,
         plan_messages: Conversation,
         reasoner: Arc<dyn Provider>,
+        model_config: goose_providers::model::ModelConfig,
     ) -> Result<(), anyhow::Error> {
         let plan_prompt = self.agent.get_plan_prompt(&self.session_id).await?;
         output::show_thinking();
-        let model_config = reasoner.get_model_config();
         let (plan_response, _usage) = reasoner
             .complete(
                 &model_config,
@@ -1596,8 +1600,14 @@ impl CliSession {
     /// Display enhanced context usage with session totals
     pub async fn display_context_usage(&self) -> Result<()> {
         let provider = self.agent.provider().await?;
-        let model_config = provider.get_model_config();
-        let context_limit = model_config.context_limit();
+        let model_config = self
+            .agent
+            .model_config_for_session(&self.session_id)
+            .await?;
+        let context_limit = provider
+            .get_context_limit(&model_config)
+            .await
+            .unwrap_or_else(|_| model_config.context_limit());
 
         let config = Config::global();
         let show_cost = config
@@ -2213,7 +2223,8 @@ fn handle_agent_error(e: &anyhow::Error, is_stream_json_mode: bool) {
     }
 }
 
-async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
+async fn get_reasoner(
+) -> Result<(Arc<dyn Provider>, goose_providers::model::ModelConfig), anyhow::Error> {
     use goose::providers::create;
 
     let config = Config::global();
@@ -2252,9 +2263,9 @@ async fn get_reasoner() -> Result<Arc<dyn Provider>, anyhow::Error> {
         goose::model_config::model_config_from_user_config(&provider, model.as_str())?
             .with_context_limit(planner_context_limit);
     let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
-    let reasoner = create(&provider, model_config, extensions).await?;
+    let reasoner = create(&provider, model_config.clone(), extensions).await?;
 
-    Ok(reasoner)
+    Ok((reasoner, model_config))
 }
 
 /// Format elapsed time duration
@@ -2268,6 +2279,17 @@ fn format_elapsed_time(duration: std::time::Duration) -> String {
         let seconds = total_secs % 60;
         format!("{}m {:02}s", minutes, seconds)
     }
+}
+
+fn resolve_global_model_config() -> Result<goose_providers::model::ModelConfig> {
+    let config = goose::config::Config::global();
+    let provider_name = config
+        .get_goose_provider()
+        .map_err(|_| anyhow::anyhow!("missing provider"))?;
+    let model_name = config
+        .get_goose_model()
+        .map_err(|_| anyhow::anyhow!("missing model"))?;
+    goose::model_config::model_config_from_user_config(&provider_name, &model_name)
 }
 
 fn build_switched_model_config(

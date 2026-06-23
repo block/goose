@@ -767,7 +767,9 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     )?;
     let temp_provider = create(provider_name, temp_model_config, Vec::new()).await?;
     let models_res = retry_operation(&RetryConfig::default(), || async {
-        temp_provider.fetch_recommended_models().await
+        temp_provider
+            .fetch_recommended_models(goose::model_config::global_toolshim())
+            .await
     })
     .await;
     spin.stop(style("Model fetch complete").green());
@@ -1618,8 +1620,10 @@ pub async fn configure_tool_permissions_dialog() -> anyhow::Result<()> {
     }
 
     let extensions = extension_config.into_iter().collect::<Vec<_>>();
-    let new_provider = create(&provider_name, model_config, extensions).await?;
-    agent.update_provider(new_provider, &session.id).await?;
+    let new_provider = create(&provider_name, model_config.clone(), extensions).await?;
+    agent
+        .update_provider(new_provider, model_config, &session.id)
+        .await?;
 
     let permission_manager = PermissionManager::instance();
     let selected_tools = agent
@@ -1811,12 +1815,11 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
             }
         };
 
-    match create("openrouter", model_config, Vec::new()).await {
+    match create("openrouter", model_config.clone(), Vec::new()).await {
         Ok(provider) => {
-            let provider_model_config = provider.get_model_config();
             let test_result = provider
                 .complete(
-                    &provider_model_config,
+                    &model_config,
                     "",
                     "You are goose, an AI assistant.",
                     &[Message::user().with_text("Say 'Configuration test successful!'")],

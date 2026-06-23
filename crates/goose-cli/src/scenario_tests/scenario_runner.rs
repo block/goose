@@ -245,9 +245,12 @@ where
         )
         .await?;
 
+    let scenario_model_config =
+        goose::model_config::model_config_from_user_config(&factory_name, config.model_name)?;
     agent
         .update_provider(
             provider_arc as Arc<dyn goose::providers::base::Provider>,
+            scenario_model_config,
             &session.id,
         )
         .await?;

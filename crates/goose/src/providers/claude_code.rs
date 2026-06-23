@@ -648,10 +648,6 @@ impl Provider for ClaudeCodeProvider {
         true
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         // Uses a separate short-lived process because --system-prompt is a CLI-only
         // flag with no NDJSON equivalent. The persistent process needs it at spawn,

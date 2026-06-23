@@ -317,11 +317,6 @@ impl Provider for CursorAgentProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        // Return the model config with appropriate context limit for Cursor models
-        self.model.clone()
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         Ok(CURSOR_AGENT_KNOWN_MODELS
             .iter()

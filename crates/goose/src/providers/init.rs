@@ -516,15 +516,27 @@ mod tests {
             .await
             .expect("custom providers should refresh");
 
-        let provider = create_with_named_model("custom_inf", "kimi-k2.5", Vec::new())
+        let inf_entry = get_from_registry("custom_inf")
             .await
-            .expect("custom_inf provider should be creatable");
-        assert_eq!(provider.get_model_config().context_limit, Some(256_000));
+            .expect("custom_inf entry should exist");
+        let inf_config = inf_entry
+            .normalize_model_config_for_test(
+                crate::model_config::model_config_from_user_config("custom_inf", "kimi-k2.5")
+                    .expect("custom_inf model config should resolve"),
+            )
+            .expect("custom_inf model config should normalize");
+        assert_eq!(inf_config.context_limit, Some(256_000));
 
-        let zero_provider = create_with_named_model("custom_zero", "zero-model", Vec::new())
+        let zero_entry = get_from_registry("custom_zero")
             .await
-            .expect("custom_zero provider should be creatable");
-        assert_eq!(zero_provider.get_model_config().context_limit, None);
+            .expect("custom_zero entry should exist");
+        let zero_config = zero_entry
+            .normalize_model_config_for_test(
+                crate::model_config::model_config_from_user_config("custom_zero", "zero-model")
+                    .expect("custom_zero model config should resolve"),
+            )
+            .expect("custom_zero model config should normalize");
+        assert_eq!(zero_config.context_limit, None);
 
         std::env::remove_var("GOOSE_PATH_ROOT");
     }

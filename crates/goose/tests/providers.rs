@@ -101,6 +101,7 @@ struct ProviderFixture {
     expect_context_length_exceeded: bool,
     context_length_exceeded: usize,
     provider: Arc<dyn Provider>,
+    model_config: goose_providers::model::ModelConfig,
     agent: Agent,
     session_id: String,
     _mcp: McpFixture,
@@ -239,6 +240,10 @@ impl ProviderFixture {
         )
         .await
         .map_err(|e| anyhow::anyhow!("{}", e))?;
+        let model_config = goose::model_config::model_config_from_user_config(
+            &config.name.to_lowercase(),
+            config.model_name,
+        )?;
 
         let temp_dir = tempfile::tempdir()?;
         let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
@@ -262,7 +267,9 @@ impl ProviderFixture {
             .await?;
         let session_id = session.id;
         expected_session_id.set(&session_id);
-        agent.update_provider(provider.clone(), &session_id).await?;
+        agent
+            .update_provider(provider.clone(), model_config.clone(), &session_id)
+            .await?;
         agent
             .add_extension(mcp_extension, &session_id)
             .await
@@ -279,6 +286,7 @@ impl ProviderFixture {
             expect_context_length_exceeded: config.expect_context_length_exceeded,
             context_length_exceeded: config.context_length_exceeded,
             provider,
+            model_config,
             agent,
             session_id,
             _mcp: mcp,
@@ -310,7 +318,7 @@ impl ProviderFixture {
             .build();
 
         let message = Message::user().with_text(prompt);
-        let model_config = model_config.unwrap_or_else(|| self.provider.get_model_config());
+        let model_config = model_config.unwrap_or_else(|| self.model_config.clone());
         let (response1, _) = self
             .provider
             .complete(
@@ -372,7 +380,7 @@ impl ProviderFixture {
 
     async fn test_basic_response(&self) -> Result<()> {
         let message = Message::user().with_text("Just say hello!");
-        let model_config = self.provider.get_model_config();
+        let model_config = self.model_config.clone();
 
         let (response, _) = self
             .provider
@@ -413,7 +421,7 @@ impl ProviderFixture {
         // "hello " ≈ 2 tokens across common tokenizers
         let large_message_content = "hello ".repeat(self.context_length_exceeded / 2);
         let messages = vec![Message::user().with_text(&large_message_content)];
-        let model_config = self.provider.get_model_config();
+        let model_config = self.model_config.clone();
 
         let result = self
             .provider
@@ -466,7 +474,7 @@ impl ProviderFixture {
     }
 
     async fn test_model_switch(&self) -> Result<()> {
-        let default = &self.provider.get_model_config().model_name;
+        let default = &self.model_config.model_name;
         let alt = self.model_switch_name.as_deref().unwrap();
         let alt_config =
             goose_providers::model::ModelConfig::new(alt)?.with_canonical_limits(&self.name);
@@ -505,7 +513,7 @@ impl ProviderFixture {
         println!("===================");
 
         assert!(!models.is_empty());
-        let resolved = &self.provider.get_model_config().model_name;
+        let resolved = &self.model_config.model_name;
         assert_ne!(resolved.as_str(), ACP_CURRENT_MODEL);
         assert!(models
             .iter()

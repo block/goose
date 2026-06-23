@@ -147,7 +147,7 @@ pub struct AcpProvider {
     handoff_context_sent: AtomicBool,
     /// Latest `size` reported by the ACP server in a `session/update` →
     /// `usage_update` notification. 0 means no real update has arrived yet,
-    /// in which case `get_model_config()` falls back to the static model
+    /// in which case `get_context_limit()` falls back to the supplied model
     /// configuration's context limit.
     context_size: Arc<AtomicU64>,
 
@@ -378,13 +378,12 @@ impl Provider for AcpProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        let mut model = self.model.clone();
+    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
         let size = self.context_size.load(Ordering::Relaxed);
         if size > 0 {
-            model.context_limit = Some(size as usize);
+            return Ok(size as usize);
         }
-        model
+        Ok(model_config.context_limit())
     }
 
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
@@ -1656,16 +1655,19 @@ mod tests {
         assert!(!later_claim.include_context);
     }
 
-    #[test]
-    fn get_model_config_surfaces_captured_context_size() {
+    #[tokio::test]
+    async fn get_context_limit_surfaces_captured_context_size() {
         let provider = test_provider();
         assert_eq!(
-            provider.get_model_config().context_limit(),
+            provider.get_context_limit(&provider.model).await.unwrap(),
             goose_providers::model::DEFAULT_CONTEXT_LIMIT
         );
 
         provider.context_size.store(200_000, Ordering::Relaxed);
-        assert_eq!(provider.get_model_config().context_limit(), 200_000);
+        assert_eq!(
+            provider.get_context_limit(&provider.model).await.unwrap(),
+            200_000
+        );
     }
 
     #[tokio::test]

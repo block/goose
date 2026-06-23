@@ -40,6 +40,17 @@ pub type Error = rmcp::ServiceError;
 const MCP_APPS_UI_EXTENSION_ID: &str = "io.modelcontextprotocol/ui";
 const MCP_APPS_UI_MIME_TYPE: &str = "text/html;profile=mcp-app";
 
+fn resolve_sampling_model_config() -> anyhow::Result<goose_providers::model::ModelConfig> {
+    let config = crate::config::Config::global();
+    let provider_name = config
+        .get_goose_provider()
+        .map_err(|_| anyhow::anyhow!("missing provider"))?;
+    let model_name = config
+        .get_goose_model()
+        .map_err(|_| anyhow::anyhow!("missing model"))?;
+    crate::model_config::model_config_from_user_config(&provider_name, &model_name)
+}
+
 fn default_mcp_apps_ui_extensions() -> ExtensionCapabilities {
     let mut extensions = ExtensionCapabilities::new();
     let mut ui_extension_settings = JsonObject::new();
@@ -324,7 +335,13 @@ impl ClientHandler for GooseClient {
             .as_deref()
             .unwrap_or("You are a general-purpose AI agent called goose");
 
-        let model_config = provider.get_model_config();
+        let model_config = resolve_sampling_model_config().map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "Could not resolve model config",
+                Some(Value::from(e.to_string())),
+            )
+        })?;
         let (response, usage) = provider
             .complete(
                 &model_config,

@@ -47,6 +47,7 @@ fn write_acp_global_config(contents: &str) -> PathBuf {
 
 struct MockProvider {
     name: String,
+    #[allow(dead_code)]
     model_config: ModelConfig,
     recommended_models: Vec<String>,
     supported_models: Vec<String>,
@@ -69,11 +70,10 @@ impl Provider for MockProvider {
         unimplemented!()
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model_config.clone()
-    }
-
-    async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+    async fn fetch_recommended_models(
+        &self,
+        _toolshim: bool,
+    ) -> Result<Vec<String>, ProviderError> {
         Ok(self.recommended_models.clone())
     }
 

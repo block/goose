@@ -379,10 +379,6 @@ impl Provider for DatabricksV2Provider {
         Ok(())
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,

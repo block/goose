@@ -291,10 +291,6 @@ impl Provider for OllamaProvider {
         self.skip_canonical_filtering
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     fn retry_config(&self) -> RetryConfig {
         RetryConfig::new(
             OLLAMA_MAX_RETRIES,

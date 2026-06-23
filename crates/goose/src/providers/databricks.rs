@@ -571,10 +571,6 @@ impl Provider for DatabricksProvider {
         Ok(())
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -812,7 +808,10 @@ impl Provider for DatabricksProvider {
         Ok(Self::model_info_from_endpoint(endpoint_info))
     }
 
-    async fn fetch_recommended_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+    async fn fetch_recommended_model_info(
+        &self,
+        _toolshim: bool,
+    ) -> Result<Vec<ModelInfo>, ProviderError> {
         self.fetch_supported_model_info().await
     }
 }

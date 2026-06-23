@@ -114,6 +114,14 @@ fn get_goose_toolshim(config: &Config) -> Result<Option<bool>> {
     }
 }
 
+/// Resolve the global toolshim setting, defaulting to false when unset.
+pub fn global_toolshim() -> bool {
+    get_goose_toolshim(Config::global())
+        .ok()
+        .flatten()
+        .unwrap_or(false)
+}
+
 fn get_goose_toolshim_model(config: &Config) -> Result<Option<String>> {
     match config.get_param::<String>("GOOSE_TOOLSHIM_OLLAMA_MODEL") {
         Ok(value) if value.trim().is_empty() => Err(anyhow!(

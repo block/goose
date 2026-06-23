@@ -338,10 +338,6 @@ impl Provider for SnowflakeProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         Ok(SNOWFLAKE_KNOWN_MODELS
             .iter()

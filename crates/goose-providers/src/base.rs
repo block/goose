@@ -406,12 +406,12 @@ pub trait Provider: Send + Sync {
     /// Try fast model first, fall back to regular model on failure.
     async fn complete_fast(
         &self,
+        model_config: &ModelConfig,
         session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let model_config = self.get_model_config();
         let fast_config = model_config.use_fast_model();
 
         let result = self
@@ -428,7 +428,7 @@ pub trait Provider: Send + Sync {
                         e,
                         model_config.model_name
                     );
-                    self.complete(&model_config, session_id, system, messages, tools)
+                    self.complete(model_config, session_id, system, messages, tools)
                         .await
                 } else {
                     Err(e)
@@ -437,8 +437,14 @@ pub trait Provider: Send + Sync {
         }
     }
 
-    /// Get the model config from the provider
-    fn get_model_config(&self) -> ModelConfig;
+    /// Resolve the effective context limit for a model config.
+    ///
+    /// Providers may override this to enrich the limit with provider-specific
+    /// metadata (e.g. cached model info or a value captured from a remote
+    /// session). The default returns the limit derived from the model config.
+    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
+        Ok(model_config.context_limit())
+    }
 
     fn retry_config(&self) -> RetryConfig {
         RetryConfig::default()
@@ -466,7 +472,10 @@ pub trait Provider: Send + Sync {
     }
 
     /// Fetch inventory models filtered by canonical registry and usability.
-    async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+    ///
+    /// When `toolshim` is true, models that lack native tool-call support are
+    /// retained because the toolshim layer emulates tool calling.
+    async fn fetch_recommended_models(&self, toolshim: bool) -> Result<Vec<String>, ProviderError> {
         let all_models = self.fetch_supported_models().await?;
 
         if self.skip_canonical_filtering() {
@@ -496,7 +505,7 @@ pub trait Provider: Send + Sync {
                     return None;
                 }
 
-                if !canonical_model.tool_call && !self.get_model_config().toolshim {
+                if !canonical_model.tool_call && !toolshim {
                     return None;
                 }
 
@@ -526,9 +535,12 @@ pub trait Provider: Send + Sync {
         }
     }
 
-    async fn fetch_recommended_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+    async fn fetch_recommended_model_info(
+        &self,
+        toolshim: bool,
+    ) -> Result<Vec<ModelInfo>, ProviderError> {
         Ok(self
-            .fetch_recommended_models()
+            .fetch_recommended_models(toolshim)
             .await?
             .iter()
             .map(|model_name| model_info_for_provider_model(self.get_name(), model_name))

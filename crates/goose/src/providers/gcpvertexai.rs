@@ -603,11 +603,6 @@ impl Provider for GcpVertexAIProvider {
     /// * `system` - System prompt or context
     /// * `messages` - Array of previous messages in the conversation
     /// * `tools` - Array of available tools for the model
-    /// Returns the current model configuration.
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,

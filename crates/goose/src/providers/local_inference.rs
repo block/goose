@@ -549,10 +549,6 @@ impl Provider for LocalInferenceProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model_config.clone()
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         use crate::providers::local_inference::local_model_registry::get_registry;
 

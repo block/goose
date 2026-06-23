@@ -29,6 +29,7 @@ pub struct OpenAiCompatibleProvider {
     name: String,
     /// Client targeted at the base URL (e.g. `https://api.x.ai/v1`)
     api_client: ApiClient,
+    #[allow(dead_code)]
     model: ModelConfig,
     /// Path prefix prepended to `chat/completions` (e.g. `"deployments/{name}/"` for Azure).
     completions_prefix: String,
@@ -80,10 +81,6 @@ impl OpenAiCompatibleProvider {
 impl Provider for OpenAiCompatibleProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {

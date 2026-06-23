@@ -205,23 +205,25 @@ impl Provider for LiteLLMProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        let mut config = self.model.clone();
+    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
+        if let Some(limit) = model_config.context_limit {
+            return Ok(limit);
+        }
+
         // The cache is populated lazily by the first stream() call (via
         // supports_cache_control). On turn 1 this will be None and we fall
         // back to DEFAULT_CONTEXT_LIMIT, which is fine — the conversation is
         // too small to trigger compaction. From turn 2 onward the real limit
         // from /model/info is used.
-        if config.context_limit.is_none() {
-            if let Some(models) = self.cached_model_info.get() {
-                if let Some(info) = models.iter().find(|m| m.name == config.model_name) {
-                    if info.context_limit > 0 {
-                        config.context_limit = Some(info.context_limit);
-                    }
+        if let Some(models) = self.cached_model_info.get() {
+            if let Some(info) = models.iter().find(|m| m.name == model_config.model_name) {
+                if info.context_limit > 0 {
+                    return Ok(info.context_limit);
                 }
             }
         }
-        config
+
+        Ok(model_config.context_limit())
     }
 
     async fn stream(

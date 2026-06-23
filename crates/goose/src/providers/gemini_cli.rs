@@ -198,10 +198,6 @@ impl Provider for GeminiCliProvider {
         true
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         Ok(GEMINI_CLI_KNOWN_MODELS
             .iter()

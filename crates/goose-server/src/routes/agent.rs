@@ -660,7 +660,7 @@ async fn update_agent_provider(
         EnabledExtensionsState::for_session(state.session_manager(), &payload.session_id, config)
             .await;
 
-    let new_provider = create(&payload.provider, model_config, extensions)
+    let new_provider = create(&payload.provider, model_config.clone(), extensions)
         .await
         .map_err(|e| {
             (
@@ -670,7 +670,7 @@ async fn update_agent_provider(
         })?;
 
     agent
-        .update_provider(new_provider, &payload.session_id)
+        .update_provider(new_provider, model_config, &payload.session_id)
         .await
         .map_err(|e| {
             (

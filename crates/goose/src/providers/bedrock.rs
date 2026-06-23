@@ -731,10 +731,6 @@ impl Provider for BedrockProvider {
         self.retry_config.clone()
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         Ok(BEDROCK_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
     }

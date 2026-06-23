@@ -1528,7 +1528,7 @@ impl SummonClient {
         recipe: &Recipe,
         session: &crate::session::Session,
     ) -> Result<TaskConfig, anyhow::Error> {
-        let provider = self.resolve_provider(params, recipe, session).await?;
+        let (provider, model_config) = self.resolve_provider(params, recipe, session).await?;
 
         let mut extensions = EnabledExtensionsState::extensions_or_default(
             Some(&session.extension_data),
@@ -1574,9 +1574,14 @@ impl SummonClient {
             None => session.working_dir.clone(),
         };
 
-        let task_config =
-            TaskConfig::new(provider, &session.id, &effective_working_dir, extensions)
-                .with_max_turns(Some(max_turns));
+        let task_config = TaskConfig::new(
+            provider,
+            model_config,
+            &session.id,
+            &effective_working_dir,
+            extensions,
+        )
+        .with_max_turns(Some(max_turns));
 
         Ok(task_config)
     }
@@ -1640,7 +1645,13 @@ impl SummonClient {
         params: &DelegateParams,
         recipe: &Recipe,
         session: &crate::session::Session,
-    ) -> Result<Arc<dyn crate::providers::base::Provider>, anyhow::Error> {
+    ) -> Result<
+        (
+            Arc<dyn crate::providers::base::Provider>,
+            goose_providers::model::ModelConfig,
+        ),
+        anyhow::Error,
+    > {
         let provider_name = params
             .provider
             .clone()
@@ -1659,7 +1670,8 @@ impl SummonClient {
             .ok_or_else(|| anyhow::anyhow!("No provider configured"))?;
 
         let model_config = self.resolve_model_config(params, recipe, session, &provider_name)?;
-        providers::create(&provider_name, model_config, Vec::new()).await
+        let provider = providers::create(&provider_name, model_config.clone(), Vec::new()).await?;
+        Ok((provider, model_config))
     }
 
     fn resolve_max_turns(&self, session: &crate::session::Session) -> usize {

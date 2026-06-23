@@ -621,7 +621,7 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
     tracing::info!("🤖 Using model: {}", effective_model_name);
 
     agent
-        .update_provider(new_provider, &session_id)
+        .update_provider(new_provider, resolved.model_config.clone(), &session_id)
         .await
         .unwrap_or_else(|e| {
             output::render_error(&format!("Failed to initialize agent: {}", e));

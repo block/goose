@@ -76,7 +76,7 @@ impl AcpProviderSession {
             .unwrap()
             .get(session_id.as_ref())
             .cloned()
-            .unwrap_or_else(|| provider.get_model_config());
+            .unwrap_or_else(|| ModelConfig::new(TEST_MODEL).unwrap());
         let mut stream = provider
             .stream(&model_config, &session_id, "", &[message], &[])
             .await?;
@@ -237,7 +237,7 @@ impl Connection for AcpProviderConnection {
             let provider = provider.as_ref().unwrap();
             let available_models = provider.fetch_supported_models().await?;
             Some(SessionModelState::new(
-                ModelId::new(provider.get_model_config().model_name.clone()),
+                ModelId::new(TEST_MODEL.to_string()),
                 available_models
                     .into_iter()
                     .map(|model_id| ModelInfo::new(ModelId::new(model_id.clone()), model_id))

@@ -140,10 +140,6 @@ impl Provider for HuggingFaceProvider {
         self.inner.get_name()
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.inner.get_model_config()
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         if let Some(custom_models) = &self.custom_models {
             if self.dynamic_models == Some(false) {

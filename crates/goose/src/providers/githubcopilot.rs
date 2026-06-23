@@ -567,10 +567,6 @@ impl Provider for GithubCopilotProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     #[tracing::instrument(
         skip(self, model_config, session_id, system, messages, tools),
         fields(session.id = %session_id, gen_ai.request.model = %model_config.model_name)

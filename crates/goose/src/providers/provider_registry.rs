@@ -55,6 +55,14 @@ impl ProviderEntry {
         (self.inventory_configured)()
     }
 
+    #[cfg(test)]
+    pub(crate) fn normalize_model_config_for_test(
+        &self,
+        model: ModelConfig,
+    ) -> Result<ModelConfig> {
+        self.normalize_model_config(model)
+    }
+
     fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
         model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
 

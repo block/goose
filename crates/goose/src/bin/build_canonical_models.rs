@@ -644,7 +644,7 @@ async fn check_provider(
         }
     };
 
-    let recommended_models = match provider.fetch_recommended_models().await {
+    let recommended_models = match provider.fetch_recommended_models(false).await {
         Ok(models) => {
             println!("  ✓ Found {} recommended models", models.len());
             models

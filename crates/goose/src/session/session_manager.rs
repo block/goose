@@ -495,6 +495,10 @@ impl SessionManager {
             return Ok(Some(self.system_generated_name_update(id, name).await?));
         }
 
+        let model_config = session
+            .model_config
+            .clone()
+            .unwrap_or_else(|| goose_providers::model::ModelConfig::new_or_fail("unknown"));
         let conversation = session
             .conversation
             .ok_or_else(|| anyhow::anyhow!("No messages found"))?;
@@ -506,7 +510,8 @@ impl SessionManager {
             .count();
 
         if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
-            let name = generate_session_name(provider.as_ref(), id, &conversation).await?;
+            let name =
+                generate_session_name(provider.as_ref(), &model_config, id, &conversation).await?;
             return Ok(Some(self.system_generated_name_update(id, name).await?));
         }
         Ok(None)
@@ -2089,9 +2094,7 @@ mod tests {
     const NUM_CONCURRENT_SESSIONS: i32 = 10;
     const GENERATED_SESSION_NAME: &str = "Generated session name";
 
-    struct NamingTestProvider {
-        model_config: ModelConfig,
-    }
+    struct NamingTestProvider;
 
     #[async_trait::async_trait]
     impl Provider for NamingTestProvider {
@@ -2110,12 +2113,9 @@ mod tests {
             unimplemented!("session naming calls complete_fast")
         }
 
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
-        }
-
         async fn complete_fast(
             &self,
+            _model_config: &ModelConfig,
             _session_id: &str,
             _system: &str,
             _messages: &[Message],
@@ -2129,9 +2129,7 @@ mod tests {
     }
 
     fn naming_test_provider() -> Arc<dyn Provider> {
-        Arc::new(NamingTestProvider {
-            model_config: ModelConfig::new("test-model").unwrap(),
-        })
+        Arc::new(NamingTestProvider)
     }
 
     fn test_recipe(title: &str) -> Recipe {

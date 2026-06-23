@@ -138,6 +138,7 @@ pub struct ReplyContext {
     pub goose_mode: GooseMode,
     pub tool_call_cut_off: usize,
     pub initial_messages: Vec<Message>,
+    pub model_config: goose_providers::model::ModelConfig,
 }
 
 pub struct ToolCategorizeResult {
@@ -689,7 +690,7 @@ impl Agent {
         }
         let initial_messages = conversation.messages().clone();
 
-        let (tools, toolshim_tools, system_prompt) = self
+        let (tools, toolshim_tools, system_prompt, model_config) = self
             .prepare_tools_and_prompt(session_id, working_dir)
             .await?;
 
@@ -703,11 +704,13 @@ impl Agent {
         {
             Ok(v) => v,
             Err(_) => {
-                let context_limit = self
-                    .provider()
-                    .await
-                    .map(|p| p.get_model_config().context_limit())
-                    .unwrap_or(goose_providers::model::DEFAULT_CONTEXT_LIMIT);
+                let context_limit = match self.provider().await {
+                    Ok(provider) => provider
+                        .get_context_limit(&model_config)
+                        .await
+                        .unwrap_or_else(|_| model_config.context_limit()),
+                    Err(_) => goose_providers::model::DEFAULT_CONTEXT_LIMIT,
+                };
                 let compaction_threshold = Config::global()
                     .get_param::<f64>("GOOSE_AUTO_COMPACT_THRESHOLD")
                     .unwrap_or(crate::context_mgmt::DEFAULT_COMPACTION_THRESHOLD);
@@ -723,6 +726,7 @@ impl Agent {
             goose_mode,
             tool_call_cut_off,
             initial_messages,
+            model_config,
         })
     }
 
@@ -809,6 +813,38 @@ impl Agent {
             Some(provider) => Ok(Arc::clone(provider)),
             None => Err(anyhow!("Provider not set")),
         }
+    }
+
+    /// Resolve the active model config for a session.
+    ///
+    /// The session is the source of truth for the selected model and its
+    /// settings. When the session has no stored config (e.g. before the
+    /// provider has been persisted), fall back to the configured provider
+    /// defaults.
+    pub async fn model_config_for_session(
+        &self,
+        session_id: &str,
+    ) -> Result<goose_providers::model::ModelConfig> {
+        if let Ok(session) = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await
+        {
+            if let Some(model_config) = session.model_config {
+                return Ok(model_config);
+            }
+        }
+
+        let config = Config::global();
+        let provider_name = config
+            .get_goose_provider()
+            .map_err(|_| anyhow!("Could not resolve model config: missing provider"))?;
+        let model_name = config
+            .get_goose_model()
+            .map_err(|_| anyhow!("Could not resolve model config: missing model"))?;
+        crate::model_config::model_config_from_user_config(&provider_name, &model_name)
+            .map_err(|e| anyhow!("Could not resolve model config: {e}"))
     }
 
     /// When set, all stdio extensions will be started via `docker exec` in the specified container.
@@ -1671,8 +1707,10 @@ impl Agent {
                     )
                 );
 
+                let compact_model_config = self.model_config_for_session(&session_config.id).await?;
                 match compact_messages(
                     self.provider().await?.as_ref(),
+                    &compact_model_config,
                     &session_config.id,
                     &conversation_to_compact,
                     false,
@@ -1730,6 +1768,7 @@ impl Agent {
             tool_call_cut_off,
             goose_mode,
             initial_messages,
+            model_config,
         } = context;
 
         if let Some(project_addendum) = self.load_project_instructions(&session).await {
@@ -1740,7 +1779,7 @@ impl Agent {
 
         let provider = self.provider().await?;
         let provider_name = provider.get_name().to_string();
-        let requested_model = provider.get_model_config().model_name;
+        let requested_model = model_config.model_name.clone();
         let inference = provider
             .fetch_model_info(&requested_model)
             .await
@@ -1904,6 +1943,7 @@ impl Agent {
 
                 let mut stream = Self::stream_response_from_provider(
                     self.provider().await?,
+                    model_config.clone(),
                     &session_config.id,
                     &system_prompt,
                     conversation_with_moim.messages(),
@@ -1922,6 +1962,7 @@ impl Agent {
                 } else {
                     crate::context_mgmt::maybe_summarize_tool_pairs(
                         self.provider().await?,
+                        model_config.clone(),
                         session_config.id.clone(),
                         conversation.clone(),
                         tool_call_cut_off,
@@ -2273,6 +2314,7 @@ impl Agent {
 
                             match compact_messages(
                                 self.provider().await?.as_ref(),
+                                &model_config,
                                 &session_config.id,
                                 &conversation,
                                 false,
@@ -2366,7 +2408,7 @@ impl Agent {
                 can_drain_pending_steers = true;
 
                 if tools_updated {
-                    (tools, toolshim_tools, system_prompt) =
+                    (tools, toolshim_tools, system_prompt, _) =
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                 }
 
@@ -2377,7 +2419,7 @@ impl Agent {
                         .await
                         .load_subdirectory_hints(&working_dir);
                     if has_new_hints && !tools_updated {
-                        (tools, toolshim_tools, system_prompt) =
+                        (tools, toolshim_tools, system_prompt, _) =
                             self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
                     }
                 }
@@ -2607,10 +2649,10 @@ impl Agent {
     pub async fn update_provider(
         &self,
         provider: Arc<dyn Provider>,
+        model_config: goose_providers::model::ModelConfig,
         session_id: &str,
     ) -> Result<()> {
         let provider_name = provider.get_name().to_string();
-        let model_config = provider.get_model_config();
 
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider);
@@ -2668,14 +2710,15 @@ impl Agent {
 
         let provider = crate::providers::create_with_working_dir(
             provider_name,
-            model_config,
+            model_config.clone(),
             extensions,
             session.working_dir.clone(),
         )
         .await
         .map_err(|e| anyhow!("Could not create provider: {}", e))?;
 
-        self.update_provider(provider, session_id).await?;
+        self.update_provider(provider, model_config, session_id)
+            .await?;
 
         let mode = self.goose_mode().await;
         self.update_goose_mode(mode, session_id).await
@@ -2688,8 +2731,9 @@ impl Agent {
     ) -> Result<()> {
         let current_provider = self.provider().await?;
         let provider_name = current_provider.get_name().to_string();
-        let model_config = current_provider
-            .get_model_config()
+        let model_config = self
+            .model_config_for_session(session_id)
+            .await?
             .with_thinking_effort(effort);
 
         self.recreate_provider_for_session(session_id, &provider_name, model_config)
@@ -2723,79 +2767,82 @@ impl Agent {
         let extensions =
             EnabledExtensionsState::extensions_or_default(Some(&session.extension_data), config);
 
-        let (provider, provider_changed) = if crate::providers::get_from_registry(&provider_name)
-            .await
-            .is_ok()
-        {
-            let p = crate::providers::create_with_working_dir(
-                &provider_name,
-                model_config,
-                extensions,
-                session.working_dir.clone(),
-            )
-            .await
-            .map_err(|e| anyhow!("Could not create provider: {}", e))?;
-            (p, false)
-        } else {
-            let fallback_provider_name = config
-                .get_goose_provider()
-                .ok()
-                .filter(|name| name != &provider_name)
-                .ok_or_else(|| {
+        let (provider, active_model_config, provider_changed) =
+            if crate::providers::get_from_registry(&provider_name)
+                .await
+                .is_ok()
+            {
+                let p = crate::providers::create_with_working_dir(
+                    &provider_name,
+                    model_config.clone(),
+                    extensions,
+                    session.working_dir.clone(),
+                )
+                .await
+                .map_err(|e| anyhow!("Could not create provider: {}", e))?;
+                (p, model_config, false)
+            } else {
+                let fallback_provider_name = config
+                    .get_goose_provider()
+                    .ok()
+                    .filter(|name| name != &provider_name)
+                    .ok_or_else(|| {
+                        anyhow!(
+                            "Could not create provider: provider '{}' not found",
+                            provider_name
+                        )
+                    })?;
+
+                tracing::warn!(
+                    "Session provider '{}' unavailable, falling back to '{}'",
+                    provider_name,
+                    fallback_provider_name
+                );
+
+                let fallback_model_name = config.get_goose_model().ok().ok_or_else(|| {
+                    anyhow!("Could not configure fallback provider: missing model")
+                })?;
+                let fallback_model_config = crate::model_config::model_config_from_user_config(
+                    &fallback_provider_name,
+                    &fallback_model_name,
+                )
+                .map_err(|e| {
+                    anyhow!("Could not configure fallback provider: invalid model {}", e)
+                })?;
+
+                let fallback_provider = crate::providers::create_with_working_dir(
+                    &fallback_provider_name,
+                    fallback_model_config.clone(),
+                    extensions,
+                    session.working_dir.clone(),
+                )
+                .await
+                .map_err(|e| {
                     anyhow!(
-                        "Could not create provider: provider '{}' not found",
-                        provider_name
+                        "Could not create provider '{}' or fallback '{}': {}",
+                        provider_name,
+                        fallback_provider_name,
+                        e
                     )
                 })?;
 
-            tracing::warn!(
-                "Session provider '{}' unavailable, falling back to '{}'",
-                provider_name,
-                fallback_provider_name
-            );
+                if let Err(e) = self
+                    .config
+                    .session_manager
+                    .update(&session.id)
+                    .provider_name(&fallback_provider_name)
+                    .model_config(fallback_model_config.clone())
+                    .apply()
+                    .await
+                {
+                    tracing::warn!("Failed to update session provider: {}", e);
+                }
 
-            let fallback_model_name = config
-                .get_goose_model()
-                .ok()
-                .ok_or_else(|| anyhow!("Could not configure fallback provider: missing model"))?;
-            let fallback_model_config = crate::model_config::model_config_from_user_config(
-                &fallback_provider_name,
-                &fallback_model_name,
-            )
-            .map_err(|e| anyhow!("Could not configure fallback provider: invalid model {}", e))?;
+                (fallback_provider, fallback_model_config, true)
+            };
 
-            let fallback_provider = crate::providers::create_with_working_dir(
-                &fallback_provider_name,
-                fallback_model_config.clone(),
-                extensions,
-                session.working_dir.clone(),
-            )
-            .await
-            .map_err(|e| {
-                anyhow!(
-                    "Could not create provider '{}' or fallback '{}': {}",
-                    provider_name,
-                    fallback_provider_name,
-                    e
-                )
-            })?;
-
-            if let Err(e) = self
-                .config
-                .session_manager
-                .update(&session.id)
-                .provider_name(&fallback_provider_name)
-                .model_config(fallback_model_config)
-                .apply()
-                .await
-            {
-                tracing::warn!("Failed to update session provider: {}", e);
-            }
-
-            (fallback_provider, true)
-        };
-
-        self.update_provider(provider, &session.id).await?;
+        self.update_provider(provider, active_model_config, &session.id)
+            .await?;
         // Propagate session mode to the new provider
         if let Some(provider) = self.provider.lock().await.as_ref() {
             provider
@@ -2909,12 +2956,7 @@ impl Agent {
         tracing::debug!("Retrieved {} extensions info", extensions_info.len());
         let (extension_count, tool_count) = self.total_extension_and_tool_counts(session_id).await;
 
-        // Get model name from provider
-        let provider = self.provider().await.map_err(|e| {
-            tracing::error!("Failed to get provider for recipe creation: {}", e);
-            e
-        })?;
-        let model_config = provider.get_model_config();
+        let model_config = self.model_config_for_session(session_id).await?;
         let model_name = &model_config.model_name;
         tracing::debug!("Using model: {}", model_name);
 
@@ -2956,15 +2998,6 @@ impl Agent {
         );
 
         tracing::info!("Calling provider to generate recipe content");
-        let model_config = {
-            let provider_guard = self.provider.lock().await;
-            let provider = provider_guard.as_ref().ok_or_else(|| {
-                let error = anyhow!("Provider not available during recipe creation");
-                tracing::error!("{}", error);
-                error
-            })?;
-            provider.get_model_config()
-        };
         let (result, _usage) = self
             .provider
             .lock()
@@ -3191,9 +3224,6 @@ mod tests {
         fn get_name(&self) -> &str {
             "test-action-required"
         }
-        fn get_model_config(&self) -> goose_providers::model::ModelConfig {
-            goose_providers::model::ModelConfig::new("test").unwrap()
-        }
         async fn stream(
             &self,
             _: &goose_providers::model::ModelConfig,
@@ -3390,10 +3420,6 @@ exit 0
             Ok(stream_from_single_message(message, usage))
         }
 
-        fn get_model_config(&self) -> goose_providers::model::ModelConfig {
-            goose_providers::model::ModelConfig::new("mock-model").unwrap()
-        }
-
         fn get_name(&self) -> &str {
             "counting-text"
         }
@@ -3420,10 +3446,6 @@ exit 0
                     category: Some("cyber".to_string()),
                 })
             })))
-        }
-
-        fn get_model_config(&self) -> goose_providers::model::ModelConfig {
-            goose_providers::model::ModelConfig::new("mock-model").unwrap()
         }
 
         fn get_name(&self) -> &str {
@@ -3497,7 +3519,13 @@ exit 0
                 GooseMode::Auto,
             )
             .await?;
-        agent.update_provider(provider, &session.id).await?;
+        agent
+            .update_provider(
+                provider,
+                goose_providers::model::ModelConfig::new("mock-model").unwrap(),
+                &session.id,
+            )
+            .await?;
         Ok((agent, session.id))
     }
 

@@ -13,6 +13,17 @@ use crate::utils::safe_truncate;
 
 const DEFAULT_TOOLS: &[&str] = &["shell", "computercontroller__automation_script"];
 
+fn resolve_model_config() -> Result<goose_providers::model::ModelConfig> {
+    let config = crate::config::Config::global();
+    let provider_name = config
+        .get_goose_provider()
+        .map_err(|_| anyhow::anyhow!("missing provider"))?;
+    let model_name = config
+        .get_goose_model()
+        .map_err(|_| anyhow::anyhow!("missing model"))?;
+    crate::model_config::model_config_from_user_config(&provider_name, &model_name)
+}
+
 const DEFAULT_RULES: &str = r#"BLOCK if the command:
 - Exfiltrates data (curl/wget posting to unknown URLs, piping secrets out)
 - Is destructive beyond the project scope (rm -rf /, modifying system files)
@@ -290,7 +301,8 @@ impl AdversaryInspector {
         )];
         let conversation = Conversation::new_unvalidated(check_messages);
 
-        let model_config = provider.get_model_config();
+        let model_config = resolve_model_config()
+            .map_err(|e| anyhow::anyhow!("Could not resolve model config: {}", e))?;
         let (response, _usage) = provider
             .complete(
                 &model_config,

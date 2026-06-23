@@ -1433,6 +1433,10 @@ impl GooseAcpAgent {
                              checking network connectivity, listing files in src directory";
                         let user_text = format!("Tool: {name}\nArguments: {args_json}");
                         let message = Message::user().with_text(&user_text);
+                        let model_config = match agent.model_config_for_session(&sid.0).await {
+                            Ok(config) => config,
+                            Err(_) => return,
+                        };
                         // The fast model occasionally returns an empty response
                         // under load (rate limiting, transient network). One
                         // retry with a short backoff is enough to recover the
@@ -1440,7 +1444,13 @@ impl GooseAcpAgent {
                         let mut llm_outcome: Option<String> = None;
                         for attempt in 0..2 {
                             match provider
-                                .complete_fast(&sid.0, system, std::slice::from_ref(&message), &[])
+                                .complete_fast(
+                                    &model_config,
+                                    &sid.0,
+                                    system,
+                                    std::slice::from_ref(&message),
+                                    &[],
+                                )
                                 .await
                             {
                                 Ok((response, _)) => {
@@ -1707,6 +1717,10 @@ impl GooseAcpAgent {
                 user_text.push_str(&format!("Step {}: {} {}\n", i + 1, name, args));
             }
             let message = Message::user().with_text(&user_text);
+            let model_config = match agent.model_config_for_session(&sid.0).await {
+                Ok(config) => config,
+                Err(_) => return,
+            };
 
             // Match the per-tool retry policy: one retry on empty/error keeps
             // the chain header reliable when the fast model is rate-limited or
@@ -1714,7 +1728,13 @@ impl GooseAcpAgent {
             let mut summary: Option<String> = None;
             for attempt in 0..2 {
                 match provider
-                    .complete_fast(&sid.0, system, std::slice::from_ref(&message), &[])
+                    .complete_fast(
+                        &model_config,
+                        &sid.0,
+                        system,
+                        std::slice::from_ref(&message),
+                        &[],
+                    )
                     .await
                 {
                     Ok((response, _)) => {
@@ -2664,7 +2684,10 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to get provider")?;
         let provider_name = current_provider.get_name().to_string();
-        let current_model_config = current_provider.get_model_config();
+        let current_model_config = agent
+            .model_config_for_session(session_id)
+            .await
+            .internal_err_ctx("Failed to resolve model config")?;
         let model_config =
             crate::model_config::model_config_from_user_config_with_session_settings(
                 &provider_name,
@@ -2697,7 +2720,10 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to get provider")?;
         let provider_name = provider.get_name().to_string();
-        let current_model_config = provider.get_model_config();
+        let current_model_config = agent
+            .model_config_for_session(&session_id.0)
+            .await
+            .internal_err_ctx("Failed to resolve model config")?;
         let current_model = current_model_config.model_name.clone();
         let goose_mode = agent.goose_mode().await;
         let inventory = self
@@ -2782,7 +2808,10 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to get provider")?;
         let current_provider_name = current_provider.get_name();
-        let current_model_config = current_provider.get_model_config();
+        let current_model_config = agent
+            .model_config_for_session(session_id)
+            .await
+            .internal_err_ctx("Failed to resolve model config")?;
         let current_model = current_model_config.model_name.clone();
         let use_default_provider = provider_name == DEFAULT_PROVIDER_ID;
         let resolved_provider_name = if use_default_provider {

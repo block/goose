@@ -10,6 +10,17 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
 
+fn resolve_model_config() -> anyhow::Result<goose_providers::model::ModelConfig> {
+    let config = crate::config::Config::global();
+    let provider_name = config
+        .get_goose_provider()
+        .map_err(|_| anyhow::anyhow!("missing provider"))?;
+    let model_name = config
+        .get_goose_model()
+        .map_err(|_| anyhow::anyhow!("missing model"))?;
+    crate::model_config::model_config_from_user_config(&provider_name, &model_name)
+}
+
 #[derive(Serialize)]
 struct PermissionJudgeContext {
     // Empty struct for now since the current template doesn't need variables
@@ -134,7 +145,13 @@ pub async fn detect_read_only_tools(
     let system_prompt = render_template("permission_judge.md", &context)
         .unwrap_or_else(|_| "You are a good analyst and can detect operations whether they have read-only operations.".to_string());
 
-    let model_config = provider.get_model_config();
+    let model_config = match resolve_model_config() {
+        Ok(config) => config,
+        Err(e) => {
+            tracing::warn!("Could not resolve model config for permission judge: {e}");
+            return vec![];
+        }
+    };
     let res = provider
         .complete(
             &model_config,

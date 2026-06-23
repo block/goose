@@ -941,7 +941,9 @@ pub async fn get_provider_models(
         goose::model_config::model_config_from_user_config(&name, &metadata.default_model)?;
     let provider = goose::providers::create(&name, model_config, Vec::new()).await?;
 
-    let models_result = provider.fetch_recommended_model_info().await;
+    let models_result = provider
+        .fetch_recommended_model_info(goose::model_config::global_toolshim())
+        .await;
 
     match models_result {
         Ok(models) => Ok(Json(models)),

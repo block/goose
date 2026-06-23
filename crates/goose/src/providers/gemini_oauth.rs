@@ -973,10 +973,6 @@ impl Provider for GeminiOAuthProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
         self.token_provider
             .get_valid_setup()

@@ -42,6 +42,7 @@ struct Target {
 
 #[derive(Clone)]
 pub struct MockProvider {
+    #[allow(dead_code)]
     pub model_config: ModelConfig,
 }
 
@@ -86,10 +87,6 @@ impl Provider for MockProvider {
         let message = Message::assistant().with_text("\"So we beat on, boats against the current, borne back ceaselessly into the past.\" — F. Scott Fitzgerald, The Great Gatsby (1925)");
         let usage = ProviderUsage::new("mock".to_string(), Usage::default());
         Ok(stream_from_single_message(message, usage))
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model_config.clone()
     }
 }
 

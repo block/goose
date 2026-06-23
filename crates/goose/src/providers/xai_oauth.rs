@@ -703,10 +703,6 @@ impl Provider for XaiOAuthProvider {
         self.inner.get_name()
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.inner.get_model_config()
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
