@@ -1292,9 +1292,10 @@ mod tests {
             use goose_providers::images::ImageFormat;
 
             assert!(
-                messages
+                messages.iter().any(|m| m
+                    .content
                     .iter()
-                    .any(|m| m.content.iter().any(|c| matches!(c, MessageContent::Thinking(_)))),
+                    .any(|c| matches!(c, MessageContent::Thinking(_)))),
                 "{provider}: conversation must contain at least one Thinking message"
             );
             assert!(
