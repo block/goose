@@ -1,6 +1,11 @@
 use crate::config::{Config, ConfigError};
+use crate::conversation::message::Message;
+use crate::providers::base::Provider;
 use anyhow::{anyhow, Result};
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
+use rmcp::model::Tool;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -92,6 +97,41 @@ pub async fn get_fast_model(
             model_config_from_user_config(provider_name, name)
         }
         _ => Ok(model_config.clone()),
+    }
+}
+
+/// Run a completion for a lightweight "fast" task (session naming, compaction,
+/// summarization) using the provider's fast model, falling back to the supplied
+/// main `model_config` if the fast model errors.
+pub async fn complete_fast(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+    session_id: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> Result<(Message, ProviderUsage), ProviderError> {
+    let fast_model_config = get_fast_model(provider.get_name(), model_config)
+        .await
+        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+
+    match provider
+        .complete(&fast_model_config, session_id, system, messages, tools)
+        .await
+    {
+        Ok(response) => Ok(response),
+        Err(e) if fast_model_config.model_name != model_config.model_name => {
+            tracing::warn!(
+                "Fast model {} failed with error: {}. Falling back to main model {}",
+                fast_model_config.model_name,
+                e,
+                model_config.model_name
+            );
+            provider
+                .complete(model_config, session_id, system, messages, tools)
+                .await
+        }
+        Err(e) => Err(e),
     }
 }
 

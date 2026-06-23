@@ -145,11 +145,15 @@ pub(crate) async fn generate_session_name(
         SESSION_NAME_SUFFIX,
     );
     let message = Message::user().with_text(&user_text);
-    let fast_model_config =
-        crate::model_config::get_fast_model(provider.get_name(), model_config).await?;
-    let result = provider
-        .complete(&fast_model_config, session_id, &system, &[message], &[])
-        .await?;
+    let result = crate::model_config::complete_fast(
+        provider,
+        model_config,
+        session_id,
+        &system,
+        &[message],
+        &[],
+    )
+    .await?;
 
     let raw: String = result
         .0

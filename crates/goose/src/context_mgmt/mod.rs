@@ -301,9 +301,6 @@ async fn do_compact(
         .map(|msg| msg.agent_visible_content())
         .collect();
 
-    let fast_model_config =
-        crate::model_config::get_fast_model(provider.get_name(), model_config).await?;
-
     // Try progressively removing more tool response messages from the middle to reduce context length
     let removal_percentages = [0, 10, 20, 50, 100];
 
@@ -326,15 +323,15 @@ async fn do_compact(
             .with_text("Please summarize the conversation history provided in the system prompt.");
         let summarization_request = vec![user_message];
 
-        match provider
-            .complete(
-                &fast_model_config,
-                session_id,
-                &system_prompt,
-                &summarization_request,
-                &[],
-            )
-            .await
+        match crate::model_config::complete_fast(
+            provider,
+            model_config,
+            session_id,
+            &system_prompt,
+            &summarization_request,
+            &[],
+        )
+        .await
         {
             Ok((mut response, mut provider_usage)) => {
                 response.role = Role::User;
@@ -542,17 +539,15 @@ pub async fn summarize_tool_call(
                 if that is what it was.
             "#};
 
-    let fast_model_config =
-        crate::model_config::get_fast_model(provider.get_name(), model_config).await?;
-    let (mut response, _) = provider
-        .complete(
-            &fast_model_config,
-            session_id,
-            system_prompt,
-            &summarization_request,
-            &[],
-        )
-        .await?;
+    let (mut response, _) = crate::model_config::complete_fast(
+        provider,
+        model_config,
+        session_id,
+        system_prompt,
+        &summarization_request,
+        &[],
+    )
+    .await?;
 
     response.role = Role::User;
     response.created = matching_messages.last().unwrap().created;
