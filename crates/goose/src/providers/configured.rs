@@ -100,16 +100,16 @@ fn check_provider_configured_with_huggingface_oauth(
         .filter(|key| key.required)
         .collect();
 
-    // Special case: If a provider has exactly one required key and that key
-    // has a default value, check if it's explicitly set
+    // Special case: If a provider has exactly one required key and that key has
+    // a default value, it's configured when that key is explicitly set, or when
+    // any secret key holds a real value. The secret case covers Bedrock
+    // authenticated with AWS_BEARER_TOKEN_BEDROCK while the region resolves from
+    // an AWS profile or AWS_DEFAULT_REGION rather than an explicit AWS_REGION.
     if required_keys.len() == 1 && required_keys[0].default.is_some() {
         let key = &required_keys[0];
-
-        // Check if the key is explicitly set (either in env or config)
         let is_set_in_env = env::var(&key.name).is_ok();
         let is_set_in_config = config.get(&key.name, key.secret).is_ok();
-
-        return is_set_in_env || is_set_in_config;
+        return is_set_in_env || is_set_in_config || any_secret_configured(metadata, config);
     }
 
     // Special case: If a provider has only optional keys with defaults,
@@ -143,10 +143,7 @@ fn check_provider_configured_with_huggingface_oauth(
         let any_required_set = required_keys
             .iter()
             .any(|key| env::var(&key.name).is_ok() || config.get(&key.name, key.secret).is_ok());
-        let any_secret_set = metadata.config_keys.iter().any(|key| {
-            key.secret && (env::var(&key.name).is_ok() || config.get(&key.name, key.secret).is_ok())
-        });
-        return any_required_set || any_secret_set;
+        return any_required_set || any_secret_configured(metadata, config);
     }
 
     // Otherwise, all non-default keys must be set
@@ -155,6 +152,15 @@ fn check_provider_configured_with_huggingface_oauth(
         let is_set_in_config = config.get(&key.name, key.secret).is_ok();
 
         is_set_in_env || is_set_in_config
+    })
+}
+
+/// Whether any secret config key for this provider holds a real value, in the
+/// environment or stored config. A present secret (API key, bearer token) is a
+/// usable credential on its own, independent of any defaulted non-secret keys.
+fn any_secret_configured(metadata: &ProviderMetadata, config: &Config) -> bool {
+    metadata.config_keys.iter().any(|key| {
+        key.secret && (env::var(&key.name).is_ok() || config.get(&key.name, key.secret).is_ok())
     })
 }
 
