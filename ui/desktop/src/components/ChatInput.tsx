@@ -249,8 +249,12 @@ export default function ChatInput({
 
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
+  const isLoadingRef = useRef(isLoading);
+  const queueProcessingBlockedRef = useRef(queueProcessingBlocked);
   const wasLoadingRef = useRef(isLoading);
   const wasQueueProcessingBlockedRef = useRef(queueProcessingBlocked);
+  isLoadingRef.current = isLoading;
+  queueProcessingBlockedRef.current = queueProcessingBlocked;
 
   // Queue functionality - ephemeral, only exists in memory for this chat instance
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
@@ -383,8 +387,14 @@ export default function ChatInput({
   useEffect(() => {
     const becameIdle = wasLoadingRef.current && !isLoading;
     const becameUnblocked = wasQueueProcessingBlockedRef.current && !queueProcessingBlocked;
+    const hasSendNowInFlight = sendNowInFlightMessageIdsRef.current.size > 0;
 
-    if ((becameIdle || becameUnblocked) && !queueProcessingBlocked && queuedMessages.length > 0) {
+    if (
+      (becameIdle || becameUnblocked) &&
+      !queueProcessingBlocked &&
+      !hasSendNowInFlight &&
+      queuedMessages.length > 0
+    ) {
       const pendingSendAfterStopId = sendAfterStopMessageIdRef.current;
       const messageToSend = pendingSendAfterStopId
         ? queuedMessages.find((message) => message.id === pendingSendAfterStopId)
@@ -1408,6 +1418,8 @@ export default function ChatInput({
         return;
       }
 
+      const wasQueuePausedBeforeSteer = queuePausedRef.current;
+      pauseRemainingQueue();
       setSendNowInFlightMessage(messageId, true);
       try {
         const steerAccepted = await onSteerQueuedMessage({
@@ -1431,6 +1443,20 @@ export default function ChatInput({
         }
       } finally {
         setSendNowInFlightMessage(messageId, false);
+      }
+
+      if (!isLoadingRef.current && !queueProcessingBlockedRef.current) {
+        queuePausedRef.current = wasQueuePausedBeforeSteer;
+        setQueuedMessages((prev) => {
+          const newQueue = removeQueuedMessage(prev, messageId);
+          if (newQueue.length === 0) {
+            clearQueueState();
+          }
+          return newQueue;
+        });
+        LocalMessageStorage.addMessage(messageToSend.content);
+        handleSubmit({ msg: messageToSend.content, images: messageToSend.images });
+        return;
       }
     }
 
