@@ -236,7 +236,7 @@ pub async fn handle_term_log(command: String) -> Result<()> {
 
     let message = Message::new(
         Role::User,
-        chrono::Utc::now().timestamp_millis(),
+        chrono::Utc::now().timestamp(),
         vec![MessageContent::text(command)],
     )
     .with_metadata(MessageMetadata::user_only())

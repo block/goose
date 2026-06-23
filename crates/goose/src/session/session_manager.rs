@@ -26,6 +26,7 @@ use utoipa::ToSchema;
 pub const CURRENT_SCHEMA_VERSION: i32 = 14;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
+const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
 
 #[derive(
     Debug,
@@ -577,6 +578,21 @@ pub(crate) fn role_to_string(role: &Role) -> &'static str {
     }
 }
 
+fn message_timestamp_to_datetime(timestamp: i64) -> Option<DateTime<Utc>> {
+    let timestamp = if timestamp > MILLISECOND_TIMESTAMP_THRESHOLD {
+        timestamp / 1000
+    } else {
+        timestamp
+    };
+    Utc.timestamp_opt(timestamp, 0).single()
+}
+
+fn normalized_message_timestamp_sql(column: &str) -> String {
+    format!(
+        "CASE WHEN {column} > {MILLISECOND_TIMESTAMP_THRESHOLD} THEN {column} / 1000 ELSE {column} END"
+    )
+}
+
 impl Default for Session {
     fn default() -> Self {
         Self {
@@ -648,7 +664,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             .try_get::<Option<i64>, _>("last_message_timestamp")
             .ok()
             .flatten()
-            .and_then(|timestamp| Utc.timestamp_opt(timestamp, 0).single());
+            .and_then(message_timestamp_to_datetime);
 
         Ok(Session {
             id: row.try_get("id")?,
@@ -1361,19 +1377,21 @@ impl SessionStorage {
             session.last_message_at = conv
                 .messages()
                 .iter()
-                .filter_map(|message| Utc.timestamp_opt(message.created, 0).single())
+                .filter_map(|message| message_timestamp_to_datetime(message.created))
                 .max();
             session.conversation = Some(conv);
         } else {
-            let (count, last_message_timestamp): (i64, Option<i64>) = sqlx::query_as(
-                "SELECT COUNT(*), MAX(created_timestamp) FROM messages WHERE session_id = ?",
-            )
-            .bind(&session.id)
-            .fetch_one(pool)
-            .await?;
+            let sql = format!(
+                "SELECT COUNT(*), MAX({}) FROM messages WHERE session_id = ?",
+                normalized_message_timestamp_sql("created_timestamp")
+            );
+            let (count, last_message_timestamp): (i64, Option<i64>) = sqlx::query_as(&sql)
+                .bind(&session.id)
+                .fetch_one(pool)
+                .await?;
             session.message_count = count as usize;
-            session.last_message_at = last_message_timestamp
-                .and_then(|timestamp| Utc.timestamp_opt(timestamp, 0).single());
+            session.last_message_at =
+                last_message_timestamp.and_then(message_timestamp_to_datetime);
         }
 
         Ok(session)
@@ -1689,7 +1707,7 @@ impl SessionStorage {
                    s.provider_name, s.model_config_json, s.goose_mode,
                    s.archived_at, s.project_id,
                    COUNT(m.id) as message_count,
-                   MAX(m.created_timestamp) as last_message_timestamp
+                   MAX({}) as last_message_timestamp
             FROM sessions s
             {}
             {}
@@ -1697,7 +1715,11 @@ impl SessionStorage {
             {}
             {}
             "#,
-            message_join, where_clause, order_by, limit_clause
+            normalized_message_timestamp_sql("m.created_timestamp"),
+            message_join,
+            where_clause,
+            order_by,
+            limit_clause
         );
 
         let mut q = sqlx::query_as::<_, Session>(&sql);
@@ -2237,6 +2259,31 @@ mod tests {
         .unwrap();
     }
 
+    async fn add_message_at_millis(
+        sm: &SessionManager,
+        session_id: &str,
+        text: &str,
+        timestamp: &str,
+    ) {
+        sm.add_message(session_id, &Message::user().with_text(text))
+            .await
+            .unwrap();
+
+        let pool = sm.storage().pool().await.unwrap();
+        let timestamp = chrono::DateTime::parse_from_rfc3339(timestamp).unwrap();
+        let timestamp_string = timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+
+        sqlx::query(
+            "UPDATE messages SET timestamp = ?, created_timestamp = ? WHERE id = (SELECT MAX(id) FROM messages WHERE session_id = ?)",
+        )
+        .bind(&timestamp_string)
+        .bind(timestamp.timestamp_millis())
+        .bind(session_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
     async fn add_user_message(sm: &SessionManager, session_id: &str) {
         sm.add_message(session_id, &Message::user().with_text("hello world"))
             .await
@@ -2261,7 +2308,7 @@ mod tests {
         assert_eq!(empty.message_count, 0);
         assert_eq!(empty.last_message_at, None);
 
-        add_message_at(&sm, &session.id, "older", "2026-01-01T00:00:00Z").await;
+        add_message_at_millis(&sm, &session.id, "older", "2026-01-01T00:00:00Z").await;
         add_message_at(&sm, &session.id, "newer", "2026-01-02T03:04:05Z").await;
 
         let expected = chrono::DateTime::parse_from_rfc3339("2026-01-02T03:04:05Z")
