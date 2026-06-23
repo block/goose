@@ -10,6 +10,8 @@ fn default_recipe_version() -> String {
     "1.0.0".to_string()
 }
 
+pub const REQUEST_RECIPE_PARAMS_METHOD: &str = "_goose/unstable/session/recipe/request-params";
+
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
 pub struct RecipeDto {
     #[serde(default = "default_recipe_version")]
@@ -235,6 +237,30 @@ pub struct RecipeListEntryDto {
     pub schedule_cron: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub slash_command: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RequestRecipeParams {
+    pub session_id: String,
+    pub parameters: Vec<RecipeParameterDto>,
+}
+
+#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub enum RecipeParamsAction {
+    #[default]
+    Submit,
+    Cancel,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct RecipeParamsResponse {
+    #[serde(default)]
+    pub action: RecipeParamsAction,
+    #[serde(default)]
+    pub values: HashMap<String, String>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]

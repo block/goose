@@ -1785,21 +1785,8 @@ export type StatusMessageUpdate = {
 
 export type RequestRecipeParams_unstable = {
     sessionId: string;
-    parameters: Array<RecipeParameter>;
+    parameters: Array<RecipeParameterDto>;
 };
-
-export type RecipeParameter = {
-    key: string;
-    input_type: RecipeParameterInputType;
-    requirement: RecipeParameterRequirement;
-    description: string;
-    default?: string | null;
-    options?: Array<string> | null;
-};
-
-export type RecipeParameterInputType = 'string' | 'number' | 'boolean' | 'date' | 'select' | 'file';
-
-export type RecipeParameterRequirement = 'required' | 'optional' | 'user_prompt';
 
 export type RecipeParamsResponse_unstable = {
     action?: RecipeParamsAction;

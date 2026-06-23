@@ -1,5 +1,5 @@
 import type {
-  RecipeParameter,
+  RecipeParameterDto,
   RecipeParamsResponse_unstable,
   RequestRecipeParams_unstable,
 } from '@aaif/goose-sdk';
@@ -9,7 +9,7 @@ import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 export interface AcpRecipeParamRequest {
   id: string;
   sessionId: string;
-  parameters: RecipeParameter[];
+  parameters: RecipeParameterDto[];
   initialValues?: Record<string, string>;
 }
 

@@ -4481,7 +4481,7 @@
         "parameters": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/RecipeParameter"
+            "$ref": "#/$defs/RecipeParameterDto"
           }
         }
       },
@@ -4491,71 +4491,6 @@
       ],
       "x-side": "client",
       "x-method": "_goose/unstable/session/recipe/request-params"
-    },
-    "RecipeParameter": {
-      "type": "object",
-      "properties": {
-        "key": {
-          "type": "string"
-        },
-        "input_type": {
-          "$ref": "#/$defs/RecipeParameterInputType"
-        },
-        "requirement": {
-          "$ref": "#/$defs/RecipeParameterRequirement"
-        },
-        "description": {
-          "type": "string"
-        },
-        "default": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "options": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "key",
-        "input_type",
-        "requirement",
-        "description"
-      ]
-    },
-    "RecipeParameterInputType": {
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "string",
-            "number",
-            "boolean",
-            "date",
-            "select"
-          ]
-        },
-        {
-          "type": "string",
-          "const": "file",
-          "description": "File parameter that imports content from a file path.\nCannot have default values to prevent importing sensitive user files."
-        }
-      ]
-    },
-    "RecipeParameterRequirement": {
-      "type": "string",
-      "enum": [
-        "required",
-        "optional",
-        "user_prompt"
-      ]
     },
     "RecipeParamsResponse_unstable": {
       "type": "object",

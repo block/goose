@@ -10,11 +10,11 @@ use fs_err as fs;
 use goose_sdk_types::custom_requests::{
     DecodeRecipeRequest, DecodeRecipeResponse, DeleteRecipeRequest, EmptyResponse,
     EncodeRecipeRequest, EncodeRecipeResponse, ListRecipesRequest, ListRecipesResponse,
-    ParseRecipeRequest, ParseRecipeResponse, RecipeDto, RecipeToYamlRequest, RecipeToYamlResponse,
+    ParseRecipeRequest, ParseRecipeResponse, RecipeDto, RecipeParameterDto, RecipeParamsAction,
+    RecipeParamsResponse, RecipeToYamlRequest, RecipeToYamlResponse, RequestRecipeParams,
     SaveRecipeRequest, SaveRecipeResponse, ScanRecipeRequest, ScanRecipeResponse,
-    ScheduleRecipeRequest, SetRecipeSlashCommandRequest,
+    ScheduleRecipeRequest, SetRecipeSlashCommandRequest, REQUEST_RECIPE_PARAMS_METHOD,
 };
-use serde::{Deserialize, Serialize};
 use tokio::sync::oneshot;
 
 mod conversions;
@@ -33,7 +33,7 @@ use crate::slash_commands::recipe_slash_command;
 
 use self::conversions::recipe_manifest_to_list_entry_dto;
 
-pub(super) const RECIPE_PARAMS_METHOD: &str = "_goose/unstable/session/recipe/request-params";
+pub(super) const RECIPE_PARAMS_METHOD: &str = REQUEST_RECIPE_PARAMS_METHOD;
 
 pub(super) const RECIPE_PARAMS_CANCELLED_REASON: &str = "recipe_params_cancelled";
 
@@ -377,7 +377,10 @@ impl GooseAcpAgent {
     ) -> Result<RecipeParamsResponse, agent_client_protocol::Error> {
         let request = RequestRecipeParams {
             session_id: session_id.to_string(),
-            parameters,
+            parameters: parameters
+                .into_iter()
+                .map(RecipeParameterDto::from)
+                .collect(),
         };
         let (tx, rx) = oneshot::channel();
         cx.send_request(RequestRecipeParamsMessage(request))
@@ -441,30 +444,6 @@ fn recipe_from_dto(dto: RecipeDto) -> Result<Recipe, agent_client_protocol::Erro
 fn recipe_to_dto(recipe: Recipe) -> Result<RecipeDto, agent_client_protocol::Error> {
     RecipeDto::try_from(recipe)
         .map_err(|e| agent_client_protocol::Error::invalid_params().data(format!("recipe: {e}")))
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct RequestRecipeParams {
-    session_id: String,
-    parameters: Vec<RecipeParameter>,
-}
-
-#[derive(Debug, Clone, Copy, Default, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub(super) enum RecipeParamsAction {
-    #[default]
-    Submit,
-    Cancel,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize, schemars::JsonSchema)]
-#[serde(rename_all = "camelCase")]
-pub(super) struct RecipeParamsResponse {
-    #[serde(default)]
-    action: RecipeParamsAction,
-    #[serde(default)]
-    values: HashMap<String, String>,
 }
 
 #[derive(Debug, Clone)]

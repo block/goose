@@ -1894,39 +1894,9 @@ export const zGooseSessionNotification_unstable = z.object({
     update: zGooseSessionUpdate
 });
 
-export const zRecipeParameterInputType = z.union([
-    z.literal('string'),
-    z.literal('number'),
-    z.literal('boolean'),
-    z.literal('date'),
-    z.literal('select'),
-    z.literal('file')
-]);
-
-export const zRecipeParameterRequirement = z.enum([
-    'required',
-    'optional',
-    'user_prompt'
-]);
-
-export const zRecipeParameter = z.object({
-    key: z.string(),
-    input_type: zRecipeParameterInputType,
-    requirement: zRecipeParameterRequirement,
-    description: z.string(),
-    default: z.union([
-        z.string(),
-        z.null()
-    ]).optional(),
-    options: z.union([
-        z.array(z.string()),
-        z.null()
-    ]).optional()
-});
-
 export const zRequestRecipeParams_unstable = z.object({
     sessionId: z.string(),
-    parameters: z.array(zRecipeParameter)
+    parameters: z.array(zRecipeParameterDto)
 });
 
 export const zRecipeParamsAction = z.enum(['submit', 'cancel']);
