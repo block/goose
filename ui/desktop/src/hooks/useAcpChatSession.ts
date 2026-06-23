@@ -30,6 +30,10 @@ function isClearCommand(message: string): boolean {
   return message.trim() === '/clear';
 }
 
+function isSlashCommand(message: string): boolean {
+  return message.trim().startsWith('/');
+}
+
 const i18n = defineMessages({
   notificationTitle: {
     id: 'chat.notification.taskComplete.title',
@@ -188,8 +192,18 @@ export function useAcpChatSession({
   const onSteerQueuedMessage = useCallback(
     async (input: UserInput): Promise<boolean> => {
       const { msg: userMessage, images } = input;
-      const hasNewMessage = userMessage.trim().length > 0 || images.length > 0;
+      const hasTextContent = userMessage.trim().length > 0;
+      const hasNewMessage = hasTextContent || images.length > 0;
       if (!hasNewMessage) {
+        return false;
+      }
+
+      // ACP confirms picked-up steers with user text chunks; image-only steers cannot confirm pickup.
+      if (!hasTextContent) {
+        return false;
+      }
+
+      if (isSlashCommand(userMessage)) {
         return false;
       }
 

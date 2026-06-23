@@ -225,7 +225,7 @@ describe('acpChatSessionController.updateMessage', () => {
     });
   });
 
-  it('restores idle state when an edit cannot submit during cancellation', async () => {
+  it('rejects edits before truncating while cancellation is pending', async () => {
     const existingMessage = userMessage();
     const currentSnapshot: AcpChatSessionSnapshot = {
       ...snapshotWithActivePrompt(null),
@@ -239,12 +239,12 @@ describe('acpChatSessionController.updateMessage', () => {
       })
     ).rejects.toThrow('Cannot submit while prompt cancellation is pending');
 
-    expect(acpChatSessionActions.setChatState).toHaveBeenCalledWith(SESSION_ID, ChatState.Thinking);
-    expect(acpTruncateSessionConversation).toHaveBeenCalledWith(
+    expect(acpChatSessionActions.setChatState).not.toHaveBeenCalledWith(
       SESSION_ID,
-      existingMessage.created
+      ChatState.Thinking
     );
+    expect(acpTruncateSessionConversation).not.toHaveBeenCalled();
+    expect(acpChatSessionActions.setMessages).not.toHaveBeenCalled();
     expect(acpPromptSession).not.toHaveBeenCalled();
-    expect(acpChatSessionActions.setChatState).toHaveBeenLastCalledWith(SESSION_ID, ChatState.Idle);
   });
 });

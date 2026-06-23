@@ -81,6 +81,13 @@ function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Mess
   };
 }
 
+function assertNoPendingPromptCancellation(sessionId: string): void {
+  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
+  if (snapshot?.pendingCancelPromptAttemptId) {
+    throw new Error('Cannot submit while prompt cancellation is pending');
+  }
+}
+
 async function createSession(
   cwd: string,
   gooseExtensions: GooseExtension[],
@@ -131,11 +138,9 @@ async function submitMessage(
   userMessage: Message,
   options: AcpSubmitMessageOptions
 ): Promise<void> {
-  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
-  if (snapshot?.pendingCancelPromptAttemptId) {
-    throw new Error('Cannot submit while prompt cancellation is pending');
-  }
+  assertNoPendingPromptCancellation(sessionId);
 
+  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
   if (snapshot?.activePromptAttemptId) {
     return;
   }
@@ -206,6 +211,8 @@ async function updateMessage(
   editType: 'fork' | 'edit' | undefined,
   options: AcpSubmitMessageOptions
 ): Promise<void> {
+  assertNoPendingPromptCancellation(sessionId);
+
   const resolvedEditType = editType ?? 'fork';
   const currentSnapshot = options.getCurrentSnapshot();
 

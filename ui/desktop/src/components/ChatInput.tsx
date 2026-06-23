@@ -258,7 +258,21 @@ export default function ChatInput({
   const editingMessageIdRef = useRef<string | null>(null);
   const sendAfterStopMessageIdRef = useRef<string | null>(null);
   const sendNowInFlightMessageIdsRef = useRef<Set<string>>(new Set());
+  const [sendNowInFlightMessageIds, setSendNowInFlightMessageIds] = useState<ReadonlySet<string>>(
+    new Set()
+  );
   const [lastInterruption, setLastInterruption] = useState<string | null>(null);
+
+  const setSendNowInFlightMessage = useCallback((messageId: string, isInFlight: boolean) => {
+    const nextMessageIds = new Set(sendNowInFlightMessageIdsRef.current);
+    if (isInFlight) {
+      nextMessageIds.add(messageId);
+    } else {
+      nextMessageIds.delete(messageId);
+    }
+    sendNowInFlightMessageIdsRef.current = nextMessageIds;
+    setSendNowInFlightMessageIds(nextMessageIds);
+  }, []);
 
   const pauseRemainingQueue = useCallback(() => {
     queuePausedRef.current = true;
@@ -1352,20 +1366,26 @@ export default function ChatInput({
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
+    if (sendNowInFlightMessageIdsRef.current.has(messageId)) return;
     clearPendingSendAfterStop(messageId);
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
   };
 
   const handleClearQueue = () => {
+    if (sendNowInFlightMessageIdsRef.current.size > 0) return;
     setQueuedMessages([]);
     clearQueueState();
   };
 
   const handleReorderMessages = (reorderedMessages: QueuedMessage[]) => {
+    if (reorderedMessages.some((message) => sendNowInFlightMessageIdsRef.current.has(message.id))) {
+      return;
+    }
     setQueuedMessages(reorderedMessages);
   };
 
   const handleEditMessage = (messageId: string, newContent: string) => {
+    if (sendNowInFlightMessageIdsRef.current.has(messageId)) return;
     setQueuedMessages((prev) =>
       prev.map((msg) => (msg.id === messageId ? { ...msg, content: newContent } : msg))
     );
@@ -1388,7 +1408,7 @@ export default function ChatInput({
         return;
       }
 
-      sendNowInFlightMessageIdsRef.current.add(messageId);
+      setSendNowInFlightMessage(messageId, true);
       try {
         const steerAccepted = await onSteerQueuedMessage({
           msg: messageToSend.content,
@@ -1410,7 +1430,7 @@ export default function ChatInput({
           return;
         }
       } finally {
-        sendNowInFlightMessageIdsRef.current.delete(messageId);
+        setSendNowInFlightMessage(messageId, false);
       }
     }
 
@@ -1477,6 +1497,7 @@ export default function ChatInput({
           onEditMessage={handleEditMessage}
           onTriggerQueueProcessing={handleResumeQueue}
           editingMessageIdRef={editingMessageIdRef}
+          sendingMessageIds={sendNowInFlightMessageIds}
           isPaused={queuePausedRef.current}
           className="border-b border-border-primary"
         />
