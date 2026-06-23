@@ -345,6 +345,7 @@ impl Agent {
             .and_then(|host_info| host_info.client_name.clone())
             .unwrap_or_else(|| goose_platform.to_string());
         let session_manager = Arc::clone(&config.session_manager);
+        let inspection_session_manager = Arc::clone(&config.session_manager);
         let permission_manager = Arc::clone(&config.permission_manager);
         let use_login_shell_path = config.resolve_use_login_shell_path();
         Self {
@@ -370,6 +371,7 @@ impl Agent {
             tool_inspection_manager: Self::create_tool_inspection_manager(
                 permission_manager,
                 provider.clone(),
+                inspection_session_manager,
             ),
             hook_manager: crate::hooks::HookManager::load(
                 std::env::current_dir().ok().as_deref(),
@@ -578,6 +580,7 @@ impl Agent {
     fn create_tool_inspection_manager(
         permission_manager: Arc<PermissionManager>,
         provider: SharedProvider,
+        session_manager: Arc<SessionManager>,
     ) -> ToolInspectionManager {
         let mut tool_inspection_manager = ToolInspectionManager::new();
 
@@ -586,7 +589,10 @@ impl Agent {
         tool_inspection_manager.add_inspector(Box::new(EgressInspector::new()));
 
         // Add adversary inspector (LLM-based review, enabled by ~/.config/goose/adversary.md)
-        tool_inspection_manager.add_inspector(Box::new(AdversaryInspector::new(provider.clone())));
+        tool_inspection_manager.add_inspector(Box::new(AdversaryInspector::new(
+            provider.clone(),
+            session_manager,
+        )));
 
         // Add permission inspector (medium-high priority)
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
