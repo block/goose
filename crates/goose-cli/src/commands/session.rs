@@ -324,7 +324,7 @@ pub async fn handle_session_import(input: String, nostr: bool) -> Result<()> {
 
 pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) -> Result<()> {
     println!(
-        "Generating diagnostics bundle for session '{}'...",
+        "Generating diagnostics report for session '{}'...",
         session_id
     );
 
@@ -334,7 +334,7 @@ pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) 
             .await
             .with_context(|| {
                 format!(
-                    "Failed to write to generate diagnostics bundle for session '{}'",
+                    "Failed to generate diagnostics report for session '{}'",
                     session_id
                 )
             })?;
@@ -355,7 +355,7 @@ pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) 
     file.write_all(&diagnostics_data)
         .context("Failed to write diagnostics data")?;
 
-    println!("Diagnostics bundle saved to: {}", output_file.display());
+    println!("Diagnostics report saved to: {}", output_file.display());
 
     Ok(())
 }
