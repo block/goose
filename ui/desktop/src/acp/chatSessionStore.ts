@@ -21,6 +21,7 @@ export interface AcpChatSessionSnapshot {
   chatState: ChatState;
   sessionLoadError: string | undefined;
   activePromptAttemptId: string | null;
+  activeRunId: string | null;
 }
 
 type SnapshotListener = (snapshot: AcpChatSessionSnapshot) => void;
@@ -130,6 +131,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       chatState: ChatState.Idle,
       sessionLoadError: undefined,
       activePromptAttemptId: null,
+      activeRunId: null,
       adapter: createAcpSessionNotificationAdapter(),
     };
     sessionsById.set(sessionId, entry);
@@ -207,6 +209,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
   ) => {
     const entry = getOrCreateEntry(sessionId);
     entry.activePromptAttemptId = promptAttemptId;
+    entry.activeRunId = null;
     entry.chatState = ChatState.Streaming;
     entry.sessionLoadError = undefined;
     entry.notifications = [];
@@ -224,6 +227,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     }
 
     entry.activePromptAttemptId = null;
+    entry.activeRunId = null;
     entry.chatState = ChatState.Idle;
     entry.sessionLoadError = error;
     notify(sessionId, entry);
@@ -239,6 +243,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     }
 
     entry.activePromptAttemptId = null;
+    entry.activeRunId = null;
     entry.chatState = ChatState.Idle;
     return notify(sessionId, entry);
   };
@@ -403,6 +408,9 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
         if (change.name && entry.session) {
           entry.session = { ...entry.session, name: change.name };
         }
+        if (change.activeRunId !== undefined) {
+          entry.activeRunId = change.activeRunId;
+        }
         break;
       case 'notification':
         entry.notifications = [...entry.notifications, change.notification];
@@ -415,6 +423,7 @@ function resetReplayState(entry: StoreEntry): void {
   entry.messages = [];
   entry.tokenState = { ...initialTokenState };
   entry.notifications = [];
+  entry.activeRunId = null;
   entry.adapter = createAcpSessionNotificationAdapter();
 }
 
@@ -427,6 +436,7 @@ function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
     chatState: entry.chatState,
     sessionLoadError: entry.sessionLoadError,
     activePromptAttemptId: entry.activePromptAttemptId,
+    activeRunId: entry.activeRunId,
   };
 }
 

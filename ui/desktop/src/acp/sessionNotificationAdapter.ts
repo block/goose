@@ -9,7 +9,12 @@ import {
 import { applyGooseSessionNotification } from './adapter/gooseSessionNotifications';
 import { applyContentChunk, applyThoughtChunk } from './adapter/messages';
 import { applyPermissionRequest as applyPermissionRequestToState } from './adapter/permissions';
-import { type AcpChatStateChange, type AdapterState, cloneMessage } from './adapter/shared';
+import {
+  type AcpChatStateChange,
+  type AdapterState,
+  cloneMessage,
+  getGooseActiveRunId,
+} from './adapter/shared';
 import { applyToolCall, applyToolCallUpdate } from './adapter/tools';
 import type { AcpElicitationRequest } from './elicitationRequests';
 
@@ -71,10 +76,12 @@ function applyAcpSessionNotification(
     case 'tool_call_update':
       return applyToolCallUpdate(state, update);
     case 'session_info_update':
+      const activeRunId = getGooseActiveRunId(update);
       return [
         {
           type: 'sessionInfo',
           ...(update.title ? { name: update.title } : {}),
+          ...(activeRunId !== undefined ? { activeRunId } : {}),
         },
       ];
     case 'usage_update':

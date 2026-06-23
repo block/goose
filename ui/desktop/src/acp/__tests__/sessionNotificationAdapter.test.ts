@@ -67,9 +67,7 @@ function expectOnlyMessagesChange(chatStateChanges: AcpChatStateChange[]): Messa
   return chatStateChange.messages;
 }
 
-function expectOnlyNotificationChange(
-  chatStateChanges: AcpChatStateChange[]
-): NotificationEvent {
+function expectOnlyNotificationChange(chatStateChanges: AcpChatStateChange[]): NotificationEvent {
   expect(chatStateChanges).toHaveLength(1);
 
   const [chatStateChange] = chatStateChanges;
@@ -379,6 +377,50 @@ describe('createAcpSessionNotificationAdapter', () => {
             },
           },
         });
+      });
+    });
+
+    describe('session info', () => {
+      it('maps active run metadata from session info updates', () => {
+        const adapter = createAcpSessionNotificationAdapter();
+
+        expect(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'session_info_update',
+              title: 'Working',
+              _meta: {
+                goose: {
+                  activeRunId: 'run-1',
+                },
+              },
+            } as SessionNotification['update'])
+          )
+        ).toEqual([
+          {
+            type: 'sessionInfo',
+            name: 'Working',
+            activeRunId: 'run-1',
+          },
+        ]);
+
+        expect(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'session_info_update',
+              _meta: {
+                goose: {
+                  activeRunId: null,
+                },
+              },
+            } as SessionNotification['update'])
+          )
+        ).toEqual([
+          {
+            type: 'sessionInfo',
+            activeRunId: null,
+          },
+        ]);
       });
     });
   });

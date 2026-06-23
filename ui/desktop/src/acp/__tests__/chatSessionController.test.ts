@@ -90,6 +90,7 @@ function snapshotWithActivePrompt(activePromptAttemptId: string | null): AcpChat
     chatState: activePromptAttemptId ? ChatState.Streaming : ChatState.Idle,
     sessionLoadError: undefined,
     activePromptAttemptId,
+    activeRunId: null,
   };
 }
 

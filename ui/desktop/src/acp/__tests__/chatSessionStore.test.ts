@@ -129,6 +129,20 @@ function agentMessageChunkNotification(
   };
 }
 
+function activeRunNotification(sessionId: string, activeRunId: string | null): SessionNotification {
+  return {
+    sessionId,
+    update: {
+      sessionUpdate: 'session_info_update',
+      _meta: {
+        goose: {
+          activeRunId,
+        },
+      },
+    } as SessionNotification['update'],
+  };
+}
+
 describe('acpChatSessionStore', () => {
   const sessionIds = new Set<string>();
   const sessionId = (id: string): string => {
@@ -222,6 +236,49 @@ describe('acpChatSessionStore', () => {
 
     expect(snapshot.activePromptAttemptId).toBe('attempt-1');
     expect(snapshot.chatState).toBe(ChatState.Streaming);
+  });
+
+  it('stores active run ids from session info notifications', () => {
+    const currentSessionId = sessionId('session-1');
+
+    const snapshot = acpChatSessionActions.applyAcpSessionNotification(
+      activeRunNotification(currentSessionId, 'run-1')
+    );
+
+    expect(snapshot.activeRunId).toBe('run-1');
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)?.activeRunId).toBe('run-1');
+
+    const clearedSnapshot = acpChatSessionActions.applyAcpSessionNotification(
+      activeRunNotification(currentSessionId, null)
+    );
+
+    expect(clearedSnapshot.activeRunId).toBeNull();
+  });
+
+  it('clears active run ids when the prompt attempt finishes', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    acpChatSessionActions.applyAcpSessionNotification(
+      activeRunNotification(currentSessionId, 'run-1')
+    );
+
+    expect(acpChatSessionActions.finishPromptAttemptIfCurrent(currentSessionId, 'attempt-1')).toBe(
+      true
+    );
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)?.activeRunId).toBeNull();
+  });
+
+  it('clears active run ids before replaying a session load', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.applyAcpSessionNotification(
+      activeRunNotification(currentSessionId, 'run-1')
+    );
+
+    const snapshot = acpChatSessionActions.startSessionLoad(currentSessionId);
+
+    expect(snapshot.activeRunId).toBeNull();
   });
 
   it('stores ACP tool notifications and clears them for a new prompt attempt', () => {
