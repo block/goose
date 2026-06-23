@@ -101,7 +101,20 @@ export default function DeeplinkGenerator() {
             description,
             url: remoteUrl,
             environmentVariables: [],
+            headers: [],
           };
+          urlParams.getAll('env').forEach(env => {
+            const [envName, envDescription] = env.split('=');
+            if (envName && envDescription) {
+              server.environmentVariables.push({ name: envName, description: envDescription, required: true });
+            }
+          });
+          urlParams.getAll('header').forEach(header => {
+            const [headerName, headerDescription] = header.split('=');
+            if (headerName && headerDescription) {
+              server.headers.push({ name: headerName, description: headerDescription, required: true });
+            }
+          });
           const link = generateDeeplink(server);
           handleGeneratedLink(link, true);
           return;
