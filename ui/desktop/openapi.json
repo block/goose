@@ -6910,6 +6910,11 @@
             "type": "string",
             "description": "Display name for the provider in UIs"
           },
+          "fast_model": {
+            "type": "string",
+            "description": "The name of a fast/cheap model to use for lightweight tasks (e.g. session naming,\ncompaction). When set, `complete_fast` will prefer this model over the main model.",
+            "nullable": true
+          },
           "known_models": {
             "type": "array",
             "items": {
