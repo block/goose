@@ -31,6 +31,7 @@ vi.mock('../chatSessionStore', () => ({
     finishPromptAttemptIfCurrent: vi.fn(),
     isCurrentPromptAttempt: vi.fn(),
     setMessages: vi.fn(),
+    addPendingLocalSteerMessage: vi.fn(),
     clearActivePromptAttempt: vi.fn(),
     startPromptCancellation: vi.fn(),
     clearPromptCancellation: vi.fn(),

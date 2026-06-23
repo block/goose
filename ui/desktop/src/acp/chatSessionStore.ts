@@ -29,6 +29,7 @@ type SnapshotListener = (snapshot: AcpChatSessionSnapshot) => void;
 
 interface StoreEntry extends AcpChatSessionSnapshot {
   adapter: AcpSessionNotificationAdapter;
+  pendingLocalSteerMessageIds: Set<string>;
 }
 
 const initialTokenState: TokenState = {
@@ -69,6 +70,7 @@ export interface AcpChatSessionActions {
   ): AcpChatSessionSnapshot;
 
   setMessages(sessionId: string, messages: Message[]): AcpChatSessionSnapshot;
+  addPendingLocalSteerMessage(sessionId: string, message: Message): AcpChatSessionSnapshot;
   setChatState(sessionId: string, chatState: ChatState): AcpChatSessionSnapshot;
 
   startPromptAttempt(sessionId: string, promptAttemptId: string): AcpChatSessionSnapshot;
@@ -142,6 +144,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       activePromptAttemptId: null,
       activeRunId: null,
       pendingCancelPromptAttemptId: null,
+      pendingLocalSteerMessageIds: new Set(),
       adapter: createAcpSessionNotificationAdapter(),
     };
     sessionsById.set(sessionId, entry);
@@ -194,6 +197,22 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
   const setMessages: AcpChatSessionActions['setMessages'] = (sessionId, messages) => {
     const entry = getOrCreateEntry(sessionId);
     entry.messages = cloneMessages(messages);
+    retainPendingLocalSteerMessageIds(entry);
+    entry.adapter = createAcpSessionNotificationAdapter(entry.messages);
+    return notify(sessionId, entry);
+  };
+
+  const addPendingLocalSteerMessage: AcpChatSessionActions['addPendingLocalSteerMessage'] = (
+    sessionId,
+    message
+  ) => {
+    const entry = getOrCreateEntry(sessionId);
+    if (!message.id || entry.messages.some((existing) => existing.id === message.id)) {
+      return notify(sessionId, entry);
+    }
+
+    entry.messages = [...entry.messages, cloneMessage(message)];
+    entry.pendingLocalSteerMessageIds.add(message.id);
     entry.adapter = createAcpSessionNotificationAdapter(entry.messages);
     return notify(sessionId, entry);
   };
@@ -218,6 +237,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     promptAttemptId
   ) => {
     const entry = getOrCreateEntry(sessionId);
+    discardPendingLocalSteerMessages(entry);
     entry.activePromptAttemptId = promptAttemptId;
     entry.activeRunId = null;
     entry.pendingCancelPromptAttemptId = null;
@@ -239,6 +259,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     entry.activePromptAttemptId = null;
     entry.activeRunId = null;
     entry.pendingCancelPromptAttemptId = promptAttemptId;
+    discardPendingLocalSteerMessages(entry);
     entry.chatState = ChatState.Idle;
     return notify(sessionId, entry);
   };
@@ -269,6 +290,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     entry.activePromptAttemptId = null;
     entry.activeRunId = null;
     entry.pendingCancelPromptAttemptId = null;
+    discardPendingLocalSteerMessages(entry);
     entry.chatState = ChatState.Idle;
     entry.sessionLoadError = error;
     notify(sessionId, entry);
@@ -285,6 +307,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
 
     entry.activePromptAttemptId = null;
     entry.activeRunId = null;
+    discardPendingLocalSteerMessages(entry);
     entry.chatState = ChatState.Idle;
     return notify(sessionId, entry);
   };
@@ -356,6 +379,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     failSessionLoad,
     setSessionLoadError,
     setMessages,
+    addPendingLocalSteerMessage,
     setChatState,
     startPromptAttempt,
     startPromptCancellation,
@@ -430,6 +454,7 @@ function actionsFromStore(store: AcpChatSessionStoreInternal): AcpChatSessionAct
     failSessionLoad: store.failSessionLoad,
     setSessionLoadError: store.setSessionLoadError,
     setMessages: store.setMessages,
+    addPendingLocalSteerMessage: store.addPendingLocalSteerMessage,
     setChatState: store.setChatState,
     startPromptAttempt: store.startPromptAttempt,
     startPromptCancellation: store.startPromptCancellation,
@@ -445,6 +470,7 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
     switch (change.type) {
       case 'messages':
         entry.messages = cloneMessages(change.messages);
+        retainPendingLocalSteerMessageIds(entry);
         break;
       case 'tokenState':
         entry.tokenState = { ...entry.tokenState, ...change.tokenState };
@@ -456,6 +482,9 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
         if (change.activeRunId !== undefined) {
           entry.activeRunId = change.activeRunId;
         }
+        break;
+      case 'localSteerConfirmed':
+        entry.pendingLocalSteerMessageIds.delete(change.messageId);
         break;
       case 'notification':
         entry.notifications = [...entry.notifications, change.notification];
@@ -470,7 +499,31 @@ function resetReplayState(entry: StoreEntry): void {
   entry.notifications = [];
   entry.activeRunId = null;
   entry.pendingCancelPromptAttemptId = null;
+  entry.pendingLocalSteerMessageIds.clear();
   entry.adapter = createAcpSessionNotificationAdapter();
+}
+
+function retainPendingLocalSteerMessageIds(entry: StoreEntry): void {
+  if (entry.pendingLocalSteerMessageIds.size === 0) {
+    return;
+  }
+
+  const messageIds = new Set(entry.messages.map((message) => message.id).filter(Boolean));
+  entry.pendingLocalSteerMessageIds = new Set(
+    [...entry.pendingLocalSteerMessageIds].filter((messageId) => messageIds.has(messageId))
+  );
+}
+
+function discardPendingLocalSteerMessages(entry: StoreEntry): void {
+  if (entry.pendingLocalSteerMessageIds.size === 0) {
+    return;
+  }
+
+  entry.messages = entry.messages.filter(
+    (message) => !message.id || !entry.pendingLocalSteerMessageIds.has(message.id)
+  );
+  entry.pendingLocalSteerMessageIds.clear();
+  entry.adapter = createAcpSessionNotificationAdapter(entry.messages);
 }
 
 function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {

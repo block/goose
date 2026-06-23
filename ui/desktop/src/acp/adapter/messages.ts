@@ -30,17 +30,19 @@ export function applyContentChunk(
 
   if (existing) {
     const lastContent = existing.content[existing.content.length - 1];
-    if (reconcileLocalSteerTextChunk(existing, content, gooseMeta.steer)) {
-      return messagesChange(state);
+    if (reconcileLocalSteerTextChunk(state, existing, content, gooseMeta.steer)) {
+      return messagesChangeWithLocalSteerConfirmation(state, existing, gooseMeta.steer);
     }
 
     if (lastContent?.type === 'text' && content.type === 'text') {
       lastContent.text += content.text;
     } else if (content.type === 'image' && hasImageContent(existing, content)) {
-      return messagesChange(state);
+      return messagesChangeWithLocalSteerConfirmation(state, existing, gooseMeta.steer);
     } else {
       existing.content.push(content);
     }
+
+    return messagesChangeWithLocalSteerConfirmation(state, existing, gooseMeta.steer);
   } else {
     state.messages.push({
       ...(messageId ? { id: messageId } : {}),
@@ -156,7 +158,20 @@ function hasImageContent(message: Message, image: Extract<MessageContent, { type
   );
 }
 
+function messagesChangeWithLocalSteerConfirmation(
+  state: AdapterState,
+  message: Message,
+  isSteerChunk: boolean | undefined
+): AcpChatStateChange[] {
+  const changes = messagesChange(state);
+  if (isSteerChunk && message.metadata.steer && message.role === 'user' && message.id) {
+    changes.push({ type: 'localSteerConfirmed', messageId: message.id });
+  }
+  return changes;
+}
+
 function reconcileLocalSteerTextChunk(
+  state: AdapterState,
   message: Message,
   content: MessageContent,
   isSteerChunk: boolean | undefined
@@ -173,13 +188,13 @@ function reconcileLocalSteerTextChunk(
     return false;
   }
 
-  const firstContent = message.content[0];
-  const text =
-    firstContent.text.startsWith(content.text) || content.text.startsWith(firstContent.text)
-      ? content.text
-      : firstContent.text + content.text;
+  const text = (message.id ? state.localSteerTextByMessageId.get(message.id) : undefined) ?? '';
+  const nextText = text + content.text;
+  if (message.id) {
+    state.localSteerTextByMessageId.set(message.id, nextText);
+  }
 
-  message.content = [{ ...content, text }, ...message.content.slice(1)];
+  message.content = [{ ...content, text: nextText }, ...message.content.slice(1)];
   message.metadata = { ...message.metadata, steer: true };
   return true;
 }

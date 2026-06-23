@@ -10,10 +10,12 @@ export type AcpChatStateChange =
       name?: string;
       activeRunId?: string | null;
     }
+  | { type: 'localSteerConfirmed'; messageId: string }
   | { type: 'notification'; notification: NotificationEvent };
 
 export interface AdapterState {
   messages: Message[];
+  localSteerTextByMessageId: Map<string, string>;
 }
 
 export interface GooseMessageMeta {

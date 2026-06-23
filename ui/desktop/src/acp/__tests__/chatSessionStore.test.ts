@@ -129,6 +129,30 @@ function agentMessageChunkNotification(
   };
 }
 
+function userSteerChunkNotification(
+  sessionId: string,
+  messageId: string,
+  text: string
+): SessionNotification {
+  return {
+    sessionId,
+    update: {
+      sessionUpdate: 'user_message_chunk',
+      messageId,
+      content: {
+        type: 'text',
+        text,
+      },
+      _meta: {
+        goose: {
+          messageId,
+          steer: true,
+        },
+      },
+    } as SessionNotification['update'],
+  };
+}
+
 function activeRunNotification(sessionId: string, activeRunId: string | null): SessionNotification {
   return {
     sessionId,
@@ -268,6 +292,48 @@ describe('acpChatSessionStore', () => {
     );
 
     expect(clearedSnapshot?.pendingCancelPromptAttemptId).toBeNull();
+  });
+
+  it('removes pending local steer messages when cancellation starts', () => {
+    const currentSessionId = sessionId('session-1');
+    const localSteerMessage = {
+      ...message('steer-1', 'hello'),
+      metadata: { userVisible: true, agentVisible: true, steer: true },
+    };
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    acpChatSessionActions.addPendingLocalSteerMessage(currentSessionId, localSteerMessage);
+
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)?.messages).toHaveLength(1);
+
+    const cancellationSnapshot = acpChatSessionActions.startPromptCancellation(
+      currentSessionId,
+      'attempt-1'
+    );
+
+    expect(cancellationSnapshot?.messages).toEqual([]);
+  });
+
+  it('keeps confirmed local steer messages when cancellation starts', () => {
+    const currentSessionId = sessionId('session-1');
+    const localSteerMessage = {
+      ...message('steer-1', 'hello'),
+      metadata: { userVisible: true, agentVisible: true, steer: true },
+    };
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    acpChatSessionActions.addPendingLocalSteerMessage(currentSessionId, localSteerMessage);
+    acpChatSessionActions.applyAcpSessionNotification(
+      userSteerChunkNotification(currentSessionId, 'steer-1', 'hello')
+    );
+
+    const cancellationSnapshot = acpChatSessionActions.startPromptCancellation(
+      currentSessionId,
+      'attempt-1'
+    );
+
+    expect(cancellationSnapshot?.messages).toHaveLength(1);
+    expect(cancellationSnapshot?.messages[0].id).toBe('steer-1');
   });
 
   it('stores active run ids from session info notifications', () => {

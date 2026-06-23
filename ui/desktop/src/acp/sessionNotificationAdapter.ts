@@ -34,6 +34,7 @@ export function createAcpSessionNotificationAdapter(
 ): AcpSessionNotificationAdapter {
   const state: AdapterState = {
     messages: initialMessages.map(cloneMessage),
+    localSteerTextByMessageId: new Map(),
   };
 
   return {

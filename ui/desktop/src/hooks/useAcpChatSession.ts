@@ -214,7 +214,7 @@ export function useAcpChatSession({
           [];
 
         if (!currentMessages.some((message) => message.id === response.messageId)) {
-          acpChatSessionActions.setMessages(sessionId, [...currentMessages, localSteerMessage]);
+          acpChatSessionActions.addPendingLocalSteerMessage(sessionId, localSteerMessage);
         }
 
         return true;
