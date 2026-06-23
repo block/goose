@@ -920,21 +920,21 @@ impl CliSession {
                 Ok(c) => c.with_canonical_limits(&meta.name),
                 Err(_) => continue,
             };
-            let temp_provider =
-                match goose::providers::create(&meta.name, model_config, Vec::new()).await {
-                    Ok(p) => p,
-                    Err(_) => {
-                        skipped.push(meta.display_name.clone());
-                        continue;
-                    }
-                };
+            // Bound construction and listing under a single timeout. An ACP
+            // provider's create() blocks on the adapter's initialize/newSession
+            // handshake, so a hung adapter would otherwise stall the picker here,
+            // before a timeout wrapped around fetch_supported_models() alone could
+            // fire. A provider that errors, times out, or lists nothing is skipped.
+            let provider_name = meta.name.clone();
+            let listed = tokio::time::timeout(Duration::from_secs(15), async move {
+                let temp_provider =
+                    goose::providers::create(&provider_name, model_config, Vec::new()).await?;
+                let models = temp_provider.fetch_supported_models().await?;
+                Ok::<Vec<String>, anyhow::Error>(models)
+            })
+            .await;
 
-            match tokio::time::timeout(
-                Duration::from_secs(15),
-                temp_provider.fetch_supported_models(),
-            )
-            .await
-            {
+            match listed {
                 Ok(Ok(models)) if !models.is_empty() => {
                     for m in models {
                         let mut label = format!("{}  ▸  {}", meta.display_name, m);
