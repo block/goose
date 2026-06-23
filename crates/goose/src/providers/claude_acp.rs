@@ -81,6 +81,7 @@ impl ProviderDef for ClaudeAcpProvider {
                 work_dir: working_dir,
                 mcp_servers: extension_configs_to_mcp_servers(&extensions),
                 session_mode_id: Some(mode_mapping[&goose_mode].clone()),
+                session_config_options: vec![],
                 mode_mapping,
                 notification_callback: None,
             };

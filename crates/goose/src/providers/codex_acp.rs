@@ -100,6 +100,7 @@ impl ProviderDef for CodexAcpProvider {
                 mcp_servers,
                 // Disabled until https://github.com/zed-industries/codex-acp/issues/179 is fixed.
                 session_mode_id: None,
+                session_config_options: vec![],
                 mode_mapping,
                 notification_callback: None,
             };

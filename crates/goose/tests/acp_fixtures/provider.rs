@@ -183,6 +183,7 @@ impl Connection for AcpProviderConnection {
             work_dir: cwd_path.clone(),
             mcp_servers,
             session_mode_id: None,
+            session_config_options: vec![],
             mode_mapping: GooseMode::VARIANTS
                 .iter()
                 .map(|v| {

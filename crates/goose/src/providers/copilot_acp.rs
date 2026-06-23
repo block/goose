@@ -63,8 +63,16 @@ impl ProviderDef for CopilotAcpProvider {
                 .with_npm()
                 .resolve(COPILOT_ACP_BINARY)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+            let model = config
+                .get_goose_model()
+                .unwrap_or_else(|_| ACP_CURRENT_MODEL.to_string());
 
             let args = vec!["--acp".to_string()];
+            let session_config_options = if model == ACP_CURRENT_MODEL {
+                vec![]
+            } else {
+                vec![("model".to_string(), model)]
+            };
 
             // Copilot modes are full protocol URIs.
             // No approve-specific mode; permissions are handled separately.
@@ -83,6 +91,7 @@ impl ProviderDef for CopilotAcpProvider {
                 work_dir: working_dir,
                 mcp_servers: extension_configs_to_mcp_servers(&extensions),
                 session_mode_id: Some(mode_mapping[&goose_mode].clone()),
+                session_config_options,
                 mode_mapping,
                 notification_callback: None,
             };
