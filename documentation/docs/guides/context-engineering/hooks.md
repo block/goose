@@ -318,6 +318,7 @@ Check the following:
 - The command path is correct. Use `${PLUGIN_ROOT}` for scripts inside the plugin.
 - The script is executable if you call it directly.
 - The plugin is not listed in `disabledPlugins`.
+- The event is not a subagent lifecycle event. `SubagentStart` and `SubagentStop` are not currently emitted by goose, so hooks registered for them will never run.
 
 ### My Hook Timed Out or Failed
 
