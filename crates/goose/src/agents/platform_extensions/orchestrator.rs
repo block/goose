@@ -141,14 +141,12 @@ impl OrchestratorClient {
             .ok_or_else(|| "Provider not available".to_string())
     }
 
-    fn parent_model_config(
+    async fn parent_model_config(
         &self,
         provider_name: &str,
     ) -> Result<goose_providers::model::ModelConfig, String> {
         if let Some(session) = self.context.session.as_ref() {
-            if let Some(model_config) = session.model_config.clone() {
-                return Ok(model_config);
-            }
+            return self.context.model_config_for_session(&session.id).await;
         }
 
         let model_name = Config::global()
@@ -354,7 +352,7 @@ impl OrchestratorClient {
             conversation_text
         ));
 
-        let model_config = self.parent_model_config(provider.get_name())?;
+        let model_config = self.parent_model_config(provider.get_name()).await?;
         let (response, _usage) = provider
             .complete_fast(&model_config, session_id, system, &[user_message], &[])
             .await
@@ -424,7 +422,7 @@ impl OrchestratorClient {
 
         let parent_provider = self.get_provider().await?;
         let extensions = self.parent_extensions();
-        let model_config = self.parent_model_config(parent_provider.get_name())?;
+        let model_config = self.parent_model_config(parent_provider.get_name()).await?;
         let provider = providers::create(parent_provider.get_name(), extensions)
             .await
             .map_err(|e| format!("Failed to create provider for new agent: {}", e))?;
@@ -463,7 +461,7 @@ impl OrchestratorClient {
         if agent.provider().await.is_err() {
             if let Ok(parent_provider) = self.get_provider().await {
                 let extensions = self.parent_extensions();
-                let model_config = self.parent_model_config(parent_provider.get_name())?;
+                let model_config = self.parent_model_config(parent_provider.get_name()).await?;
                 if let Ok(provider) =
                     providers::create(parent_provider.get_name(), extensions).await
                 {

@@ -8,14 +8,25 @@ use crate::providers::base::{ProviderDef, DEFAULT_PROVIDER_TIMEOUT_SECS};
 use goose_providers::api_client::{ApiClient, AuthMethod};
 use goose_providers::openai::{
     ensure_url_scheme, parse_custom_headers, parse_openai_base_url, OpenAiProvider,
-    OpenAiProviderBuilder, OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_VERSIONLESS_BASE_PATH,
+    OpenAiProviderBuilder, OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_DEFAULT_FAST_MODEL,
+    OPEN_AI_VERSIONLESS_BASE_PATH,
 };
 
 pub struct OpenAiProviderDef;
 
 impl ProviderDescriptor for OpenAiProviderDef {
     fn metadata() -> goose_providers::base::ProviderMetadata {
-        OpenAiProvider::metadata()
+        // Only advertise the default fast model when talking to OpenAI
+        // directly. Custom/compatible endpoints likely don't serve
+        // gpt-4o-mini, so leave it unset (complete_fast falls back to the
+        // main model).
+        let metadata = OpenAiProvider::metadata();
+        match resolve_base_url(crate::config::Config::global()) {
+            Ok(parsed) if is_direct_openai_host(&parsed.host) => {
+                metadata.with_fast_model(OPEN_AI_DEFAULT_FAST_MODEL)
+            }
+            _ => metadata,
+        }
     }
 }
 
@@ -50,34 +61,7 @@ pub async fn from_env(
     // otherwise "chat/completions" to match the OpenAI SDK convention.
     //
     // OPENAI_BASE_PATH always wins when set explicitly.
-    let parsed = if let Ok(h) = std::env::var("OPENAI_HOST") {
-        // OPENAI_HOST env var takes priority as a session override so
-        // that existing scripts like `OPENAI_HOST=… goose` still work
-        // even after OPENAI_BASE_URL is persisted in config.
-        ParsedBaseUrl {
-            host: h,
-            query_params: vec![],
-            has_v1: true,
-            from_base_url: false,
-        }
-    } else if let Some(raw_url) = config
-        .get_param::<String>("OPENAI_BASE_URL")
-        .ok()
-        .map(|s| s.trim().to_string())
-        .filter(|s| !s.is_empty())
-    {
-        parse_base_url(&raw_url)?
-    } else {
-        let h: String = config
-            .get_param("OPENAI_HOST")
-            .unwrap_or_else(|_| "https://api.openai.com".to_string());
-        ParsedBaseUrl {
-            host: h,
-            query_params: vec![],
-            has_v1: true,
-            from_base_url: false,
-        }
-    };
+    let parsed = resolve_base_url(config)?;
 
     // When the host was derived from OPENAI_BASE_URL, read
     // OPENAI_BASE_PATH from env only so that the desktop UI's persisted
@@ -100,18 +84,7 @@ pub async fn from_env(
             .unwrap_or_else(|_| default_bp())
     };
 
-    // Only apply the default fast model when talking to OpenAI directly.
-    // Custom/compatible endpoints likely don't serve gpt-4o-mini, so
-    // leave fast_model unset (complete_fast will fall back to the main model).
-    // Parse the URL and compare the hostname exactly to avoid false positives
-    // (e.g. https://api.openai.com.local:8000 or proxy paths containing api.openai.com).
-    let host = parsed.host.clone();
-
-    let is_openai = url::Url::parse(&host)
-        .ok()
-        .and_then(|u| u.host_str().map(|h| h.to_ascii_lowercase()))
-        .map(|h| h == "api.openai.com" || h.ends_with(".api.openai.com"))
-        .unwrap_or(false);
+    let is_openai = is_direct_openai_host(&parsed.host);
     let secrets = config
         .get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])
         .unwrap_or_default();
@@ -330,6 +303,56 @@ fn parse_base_url(raw_url: &str) -> Result<ParsedBaseUrl> {
     })
 }
 
+/// Resolve the effective host from environment and config.
+///
+/// Priority (highest first):
+///   1. OPENAI_HOST env var — session override (deprecated but still honoured)
+///   2. OPENAI_BASE_URL (env or config) — ecosystem-standard
+///   3. OPENAI_HOST from config file — persisted by `goose configure`
+///   4. Default "https://api.openai.com"
+fn resolve_base_url(config: &crate::config::Config) -> Result<ParsedBaseUrl> {
+    if let Ok(h) = std::env::var("OPENAI_HOST") {
+        return Ok(ParsedBaseUrl {
+            host: h,
+            query_params: vec![],
+            has_v1: true,
+            from_base_url: false,
+        });
+    }
+
+    if let Some(raw_url) = config
+        .get_param::<String>("OPENAI_BASE_URL")
+        .ok()
+        .map(|s| s.trim().to_string())
+        .filter(|s| !s.is_empty())
+    {
+        return parse_base_url(&raw_url);
+    }
+
+    let h: String = config
+        .get_param("OPENAI_HOST")
+        .unwrap_or_else(|_| "https://api.openai.com".to_string());
+    Ok(ParsedBaseUrl {
+        host: h,
+        query_params: vec![],
+        has_v1: true,
+        from_base_url: false,
+    })
+}
+
+/// Whether `host` points at OpenAI directly.
+///
+/// Compares the hostname exactly to avoid false positives (e.g.
+/// `https://api.openai.com.local:8000` or proxy paths containing
+/// `api.openai.com`).
+fn is_direct_openai_host(host: &str) -> bool {
+    url::Url::parse(host)
+        .ok()
+        .and_then(|u| u.host_str().map(|h| h.to_ascii_lowercase()))
+        .map(|h| h == "api.openai.com" || h.ends_with(".api.openai.com"))
+        .unwrap_or(false)
+}
+
 fn derive_base_path(url_path: &str) -> String {
     let stripped = url_path.trim_start_matches('/');
     let normalized = stripped.trim_end_matches('/');
@@ -401,6 +424,16 @@ mod tests {
     fn derive_base_path_not_removing_api_path() {
         let r = derive_base_path("https://opencode.ai/zen/go");
         assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
+    }
+
+    #[test]
+    fn is_direct_openai_host_matches_only_openai() {
+        assert!(is_direct_openai_host("https://api.openai.com"));
+        assert!(is_direct_openai_host("https://api.openai.com/v1"));
+        assert!(is_direct_openai_host("https://eu.api.openai.com"));
+        assert!(!is_direct_openai_host("https://api.openai.com.local:8000"));
+        assert!(!is_direct_openai_host("https://localhost:1234"));
+        assert!(!is_direct_openai_host("https://router.huggingface.co/v1"));
     }
 
     #[test]

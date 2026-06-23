@@ -170,6 +170,7 @@ impl goose_providers::base::ProviderDescriptor for OpenRouterProvider {
             "Click 'Create' or use an existing API key",
             "Copy the key and paste it above",
         ])
+        .with_fast_model(OPENROUTER_DEFAULT_FAST_MODEL)
     }
 }
 
