@@ -1,5 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipe_management';
+import {
+  convertToLocaleDateString,
+  deleteRecipe,
+  listSavedRecipes,
+  recipeToYaml,
+  scheduleRecipe,
+  setRecipeSlashCommand,
+} from '../../recipe/recipe_management';
 import {
   FileText,
   Edit,
@@ -22,13 +29,7 @@ import { Skeleton } from '../ui/skeleton';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
-import {
-  deleteRecipe,
-  RecipeManifest,
-  scheduleRecipe,
-  setRecipeSlashCommand,
-  recipeToYaml,
-} from '../../api';
+import type { RecipeManifest } from '../../api';
 import { createSession } from '../../sessions';
 import { isRecipeParamsCancelled } from '../../acp/errors';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
@@ -253,7 +254,8 @@ const i18n = defineMessages({
   },
   recipesDescription: {
     id: 'recipesView.recipesDescription',
-    defaultMessage: 'View and manage your saved recipes to quickly start new sessions with predefined configurations. {shortcut} to search.',
+    defaultMessage:
+      'View and manage your saved recipes to quickly start new sessions with predefined configurations. {shortcut} to search.',
   },
   searchRecipesPlaceholder: {
     id: 'recipesView.searchRecipesPlaceholder',
@@ -432,7 +434,7 @@ export default function RecipesView() {
     }
 
     try {
-      await deleteRecipe({ body: { id: recipeManifest.id } });
+      await deleteRecipe(recipeManifest.id);
       trackRecipeDeleted(true);
       await loadSavedRecipes();
       toastSuccess({
@@ -481,16 +483,13 @@ export default function RecipesView() {
 
   const handleCopyYaml = async (recipeManifest: RecipeManifest) => {
     try {
-      const response = await recipeToYaml({
-        body: { recipe: recipeManifest.recipe },
-        throwOnError: true,
-      });
+      const yaml = await recipeToYaml(recipeManifest.recipe);
 
-      if (!response.data?.yaml) {
+      if (!yaml) {
         throw new Error('No YAML data returned from API');
       }
 
-      await navigator.clipboard.writeText(response.data.yaml);
+      await navigator.clipboard.writeText(yaml);
       trackRecipeYamlCopied(true);
       toastSuccess({
         title: intl.formatMessage(i18n.yamlCopiedTitle),
@@ -508,12 +507,9 @@ export default function RecipesView() {
 
   const handleExportFile = async (recipeManifest: RecipeManifest) => {
     try {
-      const response = await recipeToYaml({
-        body: { recipe: recipeManifest.recipe },
-        throwOnError: true,
-      });
+      const yaml = await recipeToYaml(recipeManifest.recipe);
 
-      if (!response.data?.yaml) {
+      if (!yaml) {
         throw new Error('No YAML data returned from API');
       }
 
@@ -534,7 +530,7 @@ export default function RecipesView() {
       });
 
       if (!result.canceled && result.filePath) {
-        await window.electron.writeFile(result.filePath, response.data.yaml);
+        await window.electron.writeFile(result.filePath, yaml);
         trackRecipeExportedToFile(true);
         toastSuccess({
           title: intl.formatMessage(i18n.recipeExportedTitle),
@@ -563,12 +559,7 @@ export default function RecipesView() {
     const action = scheduleRecipeManifest.schedule_cron ? 'edit' : 'add';
 
     try {
-      await scheduleRecipe({
-        body: {
-          id: scheduleRecipeManifest.id,
-          cron_schedule: scheduleCron,
-        },
-      });
+      await scheduleRecipe(scheduleRecipeManifest.id, scheduleCron);
 
       trackRecipeScheduled(true, action);
       toastSuccess({
@@ -591,12 +582,7 @@ export default function RecipesView() {
     if (!scheduleRecipeManifest) return;
 
     try {
-      await scheduleRecipe({
-        body: {
-          id: scheduleRecipeManifest.id,
-          cron_schedule: null,
-        },
-      });
+      await scheduleRecipe(scheduleRecipeManifest.id, null);
 
       trackRecipeScheduled(true, 'remove');
       toastSuccess({
@@ -631,17 +617,14 @@ export default function RecipesView() {
       : 'remove';
 
     try {
-      await setRecipeSlashCommand({
-        body: {
-          id: slashCommandRecipeManifest.id,
-          slash_command: slashCommand || null,
-        },
-      });
+      await setRecipeSlashCommand(slashCommandRecipeManifest.id, slashCommand || null);
 
       trackRecipeSlashCommandSet(true, action);
       toastSuccess({
         title: intl.formatMessage(i18n.slashCommandSavedTitle),
-        msg: slashCommand ? intl.formatMessage(i18n.slashCommandSavedMsg, { command: slashCommand }) : intl.formatMessage(i18n.slashCommandRemovedMsg),
+        msg: slashCommand
+          ? intl.formatMessage(i18n.slashCommandSavedMsg, { command: slashCommand })
+          : intl.formatMessage(i18n.slashCommandRemovedMsg),
       });
 
       setShowSlashCommandDialog(false);
@@ -659,12 +642,7 @@ export default function RecipesView() {
     if (!slashCommandRecipeManifest) return;
 
     try {
-      await setRecipeSlashCommand({
-        body: {
-          id: slashCommandRecipeManifest.id,
-          slash_command: null,
-        },
-      });
+      await setRecipeSlashCommand(slashCommandRecipeManifest.id, null);
 
       trackRecipeSlashCommandSet(true, 'remove');
       toastSuccess({
@@ -736,7 +714,11 @@ export default function RecipesView() {
           variant={slash_command ? 'default' : 'outline'}
           size="sm"
           className="h-8 w-8 p-0"
-          title={slash_command ? intl.formatMessage(i18n.editSlashCommand) : intl.formatMessage(i18n.addSlashCommand)}
+          title={
+            slash_command
+              ? intl.formatMessage(i18n.editSlashCommand)
+              : intl.formatMessage(i18n.addSlashCommand)
+          }
         >
           <Terminal className="w-4 h-4" />
         </Button>
@@ -813,7 +795,11 @@ export default function RecipesView() {
             variant={schedule_cron ? 'default' : 'outline'}
             size="sm"
             className="h-8 w-8 p-0"
-            title={schedule_cron ? intl.formatMessage(i18n.editSchedule) : intl.formatMessage(i18n.addSchedule)}
+            title={
+              schedule_cron
+                ? intl.formatMessage(i18n.editSchedule)
+                : intl.formatMessage(i18n.addSchedule)
+            }
           >
             <Clock className="w-4 h-4" />
           </Button>
@@ -886,7 +872,9 @@ export default function RecipesView() {
       return (
         <div className="flex flex-col justify-center pt-2 h-full">
           <p className="text-lg">{intl.formatMessage(i18n.noSavedRecipes)}</p>
-          <p className="text-sm text-text-secondary">{intl.formatMessage(i18n.noSavedRecipesDescription)}</p>
+          <p className="text-sm text-text-secondary">
+            {intl.formatMessage(i18n.noSavedRecipesDescription)}
+          </p>
         </div>
       );
     }
@@ -942,7 +930,10 @@ export default function RecipesView() {
 
           <div className="flex-1 min-h-0 relative px-8">
             <ScrollArea className="h-full">
-              <SearchView onSearch={(term) => setSearchTerm(term)} placeholder={intl.formatMessage(i18n.searchRecipesPlaceholder)}>
+              <SearchView
+                onSearch={(term) => setSearchTerm(term)}
+                placeholder={intl.formatMessage(i18n.searchRecipesPlaceholder)}
+              >
                 <div
                   className={`h-full relative transition-all duration-300 ${
                     showContent ? 'opacity-100 animate-in fade-in ' : 'opacity-0'
@@ -987,7 +978,9 @@ export default function RecipesView() {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>
-                {intl.formatMessage(i18n.scheduleDialogTitle, { action: scheduleRecipeManifest.schedule_cron ? 'Edit' : 'Add' })}
+                {intl.formatMessage(i18n.scheduleDialogTitle, {
+                  action: scheduleRecipeManifest.schedule_cron ? 'Edit' : 'Add',
+                })}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
