@@ -4886,7 +4886,6 @@ dependencies = [
  "which 8.0.3",
  "winapi",
  "wiremock",
- "zip 8.6.0",
 ]
 
 [[package]]

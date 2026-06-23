@@ -458,6 +458,17 @@ export const zSteerSessionResponse_unstable = z.object({
     messageId: z.string()
 });
 
+export const zDiagnosticsReportLevel = z.enum(['summary', 'full']);
+
+export const zDiagnosticsGetRequest_unstable = z.object({
+    sessionId: z.string(),
+    level: zDiagnosticsReportLevel.optional().default('summary')
+});
+
+export const zDiagnosticsGetResponse_unstable = z.object({
+    report: z.unknown()
+});
+
 /**
  * Delete a session.
  */
@@ -1921,6 +1932,7 @@ export const zExtRequest = z.object({
             zUpdateWorkingDirRequest_unstable,
             zSetSessionSystemPromptRequest_unstable,
             zSteerSessionRequest_unstable,
+            zDiagnosticsGetRequest_unstable,
             zDeleteSessionRequest,
             zGetConfigExtensionsRequest_unstable,
             zGetAvailableExtensionsRequest_unstable,
@@ -2002,6 +2014,7 @@ export const zExtResponse = z.union([
                 zGooseToolCallResponse_unstable,
                 zReadResourceResponse_unstable,
                 zSteerSessionResponse_unstable,
+                zDiagnosticsGetResponse_unstable,
                 zGetConfigExtensionsResponse_unstable,
                 zGetAvailableExtensionsResponse_unstable,
                 zGetSessionExtensionsResponse_unstable,

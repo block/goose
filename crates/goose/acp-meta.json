@@ -41,6 +41,11 @@
       "responseType": "SteerSessionResponse_unstable"
     },
     {
+      "method": "_goose/unstable/diagnostics/get",
+      "requestType": "DiagnosticsGetRequest_unstable",
+      "responseType": "DiagnosticsGetResponse_unstable"
+    },
+    {
       "method": "session/delete",
       "requestType": "DeleteSessionRequest",
       "responseType": "EmptyResponse"

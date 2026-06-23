@@ -7,7 +7,9 @@ use etcetera::home_dir;
 use goose::config::Config;
 #[cfg(feature = "nostr")]
 use goose::session::nostr_share;
-use goose::session::{generate_diagnostics, Session, SessionManager, SessionType};
+use goose::session::{
+    generate_diagnostics, DiagnosticsLevel, Session, SessionManager, SessionType,
+};
 use goose::utils::safe_truncate;
 use regex::Regex;
 use std::fs;
@@ -327,19 +329,22 @@ pub async fn handle_diagnostics(session_id: &str, output_path: Option<PathBuf>) 
     );
 
     let session_manager = SessionManager::instance();
-    let diagnostics_data = generate_diagnostics(&session_manager, session_id)
-        .await
-        .with_context(|| {
-            format!(
-                "Failed to write to generate diagnostics bundle for session '{}'",
-                session_id
-            )
-        })?;
+    let diagnostics_report =
+        generate_diagnostics(&session_manager, session_id, DiagnosticsLevel::Full)
+            .await
+            .with_context(|| {
+                format!(
+                    "Failed to write to generate diagnostics bundle for session '{}'",
+                    session_id
+                )
+            })?;
+    let diagnostics_data = serde_json::to_vec_pretty(&diagnostics_report)
+        .context("Failed to serialize diagnostics report")?;
 
     let output_file = if let Some(path) = output_path {
         path.clone()
     } else {
-        PathBuf::from(format!("diagnostics_{}.zip", session_id))
+        PathBuf::from(format!("diagnostics_{}.json", session_id))
     };
 
     let mut file = fs::File::create(&output_file).context(format!(

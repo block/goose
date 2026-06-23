@@ -30,6 +30,8 @@ import type {
   DeleteRecipeRequest_unstable,
   DeleteSessionRequest,
   DeleteSourceRequest_unstable,
+  DiagnosticsGetRequest_unstable,
+  DiagnosticsGetResponse_unstable,
   DictationConfigRequest_unstable,
   DictationConfigResponse_unstable,
   DictationModelCancelRequest_unstable,
@@ -135,6 +137,7 @@ import {
   zCustomProviderUpdateResponse_unstable,
   zDecodeRecipeResponse_unstable,
   zDefaultsReadResponse_unstable,
+  zDiagnosticsGetResponse_unstable,
   zDictationConfigResponse_unstable,
   zDictationModelDownloadProgressResponse_unstable,
   zDictationModelsListResponse_unstable,
@@ -249,6 +252,18 @@ export class GooseExtClient {
     return zSteerSessionResponse_unstable.parse(
       raw,
     ) as SteerSessionResponse_unstable;
+  }
+
+  async diagnosticsGet_unstable(
+    params: DiagnosticsGetRequest_unstable,
+  ): Promise<DiagnosticsGetResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/diagnostics/get",
+      params,
+    );
+    return zDiagnosticsGetResponse_unstable.parse(
+      raw,
+    ) as DiagnosticsGetResponse_unstable;
   }
 
   async sessionDelete(params: DeleteSessionRequest): Promise<void> {
