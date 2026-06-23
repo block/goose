@@ -102,6 +102,7 @@ export default function BaseChat({
     tokenState,
     notifications: toolCallNotifications,
     pauseQueueOnStop,
+    queueProcessingBlocked,
     onMessageUpdate,
   } = useChatSession({
     sessionId,
@@ -507,6 +508,7 @@ export default function BaseChat({
             onStop={stopStreaming}
             onSteerQueuedMessage={onSteerQueuedMessage}
             pauseQueueOnStop={pauseQueueOnStop}
+            queueProcessingBlocked={queueProcessingBlocked}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}

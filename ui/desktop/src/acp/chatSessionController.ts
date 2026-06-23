@@ -131,7 +131,8 @@ async function submitMessage(
   userMessage: Message,
   options: AcpSubmitMessageOptions
 ): Promise<void> {
-  if (acpChatSessionStore.getSnapshot(sessionId)?.activePromptAttemptId) {
+  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
+  if (snapshot?.activePromptAttemptId || snapshot?.pendingCancelPromptAttemptId) {
     return;
   }
 
@@ -140,10 +141,17 @@ async function submitMessage(
 
   try {
     await acpPromptSession(sessionId, userMessage);
+    if (acpChatSessionActions.clearPromptCancellation(sessionId, promptAttemptId)) {
+      return;
+    }
     if (acpChatSessionActions.finishPromptAttemptIfCurrent(sessionId, promptAttemptId)) {
       void options.onFinish();
     }
   } catch (error) {
+    if (acpChatSessionActions.clearPromptCancellation(sessionId, promptAttemptId)) {
+      return;
+    }
+
     const creditsExhaustedError = parseAcpCreditsExhaustedError(error);
     if (creditsExhaustedError) {
       if (!acpChatSessionActions.isCurrentPromptAttempt(sessionId, promptAttemptId)) {
@@ -175,6 +183,7 @@ function stop(sessionId: string): void {
   const hasStoredAcpPrompt = storedPromptAttemptId !== null && storedPromptAttemptId !== undefined;
 
   if (hasStoredAcpPrompt) {
+    acpChatSessionActions.startPromptCancellation(sessionId, storedPromptAttemptId);
     cancelAcpPermissionRequestsForSession(sessionId);
     cancelAcpElicitationRequestsForSession(sessionId);
     acpCancelPrompt(sessionId).catch((error) => {

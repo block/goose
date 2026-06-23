@@ -30,6 +30,7 @@ export interface UseChatSessionResult {
   tokenState: TokenState;
   notifications: Map<string, NotificationEvent[]>;
   pauseQueueOnStop: boolean;
+  queueProcessingBlocked: boolean;
   onMessageUpdate: (
     messageId: string,
     newContent: string,

@@ -57,6 +57,7 @@ export function useAcpChatSession({
   const chatState = acpSnapshot?.chatState ?? ChatState.LoadingConversation;
   const sessionLoadError = acpSnapshot?.sessionLoadError;
   const tokenState = acpSnapshot?.tokenState ?? initialTokenState;
+  const queueProcessingBlocked = acpSnapshot?.pendingCancelPromptAttemptId != null;
 
   const snapshotRef = useRef(acpSnapshot);
   snapshotRef.current = acpSnapshot;
@@ -150,7 +151,8 @@ export function useAcpChatSession({
         currentSnapshot.chatState === ChatState.LoadingConversation ||
         currentSnapshot.chatState === ChatState.Streaming ||
         currentSnapshot.chatState === ChatState.Thinking ||
-        currentSnapshot.chatState === ChatState.Compacting
+        currentSnapshot.chatState === ChatState.Compacting ||
+        currentSnapshot.pendingCancelPromptAttemptId !== null
       ) {
         return;
       }
@@ -196,18 +198,29 @@ export function useAcpChatSession({
       }
 
       const activeRunId =
-        getCurrentSnapshot()?.activeRunId ??
-        acpChatSessionStore.getSnapshot(sessionId)?.activeRunId;
+        acpChatSessionStore.getSnapshot(sessionId)?.activeRunId ??
+        getCurrentSnapshot()?.activeRunId;
       if (!activeRunId) {
         return null;
       }
 
       try {
-        const response = await acpSteerSession(
-          sessionId,
-          createUserMessage(userMessage, images),
-          activeRunId
-        );
+        const steeredMessage = createUserMessage(userMessage, images);
+        const response = await acpSteerSession(sessionId, steeredMessage, activeRunId);
+        const optimisticMessage: Message = {
+          ...steeredMessage,
+          id: response.messageId,
+          metadata: { ...steeredMessage.metadata, steer: true },
+        };
+        const currentMessages =
+          acpChatSessionStore.getSnapshot(sessionId)?.messages ??
+          getCurrentSnapshot()?.messages ??
+          [];
+
+        if (!currentMessages.some((message) => message.id === response.messageId)) {
+          acpChatSessionActions.setMessages(sessionId, [...currentMessages, optimisticMessage]);
+        }
+
         return { messageId: response.messageId };
       } catch (error) {
         console.warn('Failed to steer ACP session:', error);
@@ -324,7 +337,8 @@ export function useAcpChatSession({
     setRecipeUserParams,
     tokenState,
     notifications: notificationsMap,
-    pauseQueueOnStop: true,
+    pauseQueueOnStop: false,
+    queueProcessingBlocked,
     onMessageUpdate,
   };
 }

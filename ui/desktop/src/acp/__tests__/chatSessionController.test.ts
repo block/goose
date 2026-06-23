@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Session } from '../../api';
+import type { Message, Session } from '../../api';
 import { ChatState } from '../../types/chatState';
 import { acpChatSessionController } from '../chatSessionController';
 import {
@@ -7,7 +7,7 @@ import {
   acpChatSessionStore,
   type AcpChatSessionSnapshot,
 } from '../chatSessionStore';
-import { acpCancelPrompt } from '../prompt';
+import { acpCancelPrompt, acpPromptSession } from '../prompt';
 import { acpLoadSession, isAcpSessionLoadInFlight, sessionInfoToSession } from '../sessions';
 
 vi.mock('../../utils/extensionErrorUtils', () => ({
@@ -27,6 +27,8 @@ vi.mock('../chatSessionStore', () => ({
     isCurrentPromptAttempt: vi.fn(),
     setMessages: vi.fn(),
     clearActivePromptAttempt: vi.fn(),
+    startPromptCancellation: vi.fn(),
+    clearPromptCancellation: vi.fn(),
     setChatState: vi.fn(),
     setSessionMetadata: vi.fn(),
     setSessionLoadError: vi.fn(),
@@ -47,6 +49,16 @@ vi.mock('../prompt', () => ({
 }));
 
 const SESSION_ID = 'session-1';
+
+function userMessage(): Message {
+  return {
+    id: 'message-1',
+    role: 'user',
+    created: 123,
+    content: [{ type: 'text', text: 'Hello' }],
+    metadata: { userVisible: true, agentVisible: true },
+  };
+}
 
 function loadedSession(): Session {
   return {
@@ -90,7 +102,9 @@ function snapshotWithActivePrompt(activePromptAttemptId: string | null): AcpChat
     chatState: activePromptAttemptId ? ChatState.Streaming : ChatState.Idle,
     sessionLoadError: undefined,
     activePromptAttemptId,
-    activeRunId: null,
+    activeRunId: activePromptAttemptId ? 'run-1' : null,
+    pendingCancelPromptAttemptId: null,
+    queuedSteers: [],
   };
 }
 
@@ -135,27 +149,61 @@ describe('acpChatSessionController.stop', () => {
     vi.mocked(acpCancelPrompt).mockResolvedValue(undefined);
   });
 
-  it('keeps the active prompt attempt until the prompt request finishes', () => {
+  it('marks cancellation pending while clearing visible prompt activity', () => {
     vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue(
       snapshotWithActivePrompt('attempt-1')
     );
 
     acpChatSessionController.stop(SESSION_ID);
 
-    expect(acpCancelPrompt).toHaveBeenCalledWith(SESSION_ID);
-    expect(acpChatSessionActions.clearActivePromptAttempt).not.toHaveBeenCalled();
-    expect(acpChatSessionActions.setChatState).not.toHaveBeenCalledWith(
+    expect(acpChatSessionActions.startPromptCancellation).toHaveBeenCalledWith(
       SESSION_ID,
-      expect.anything()
+      'attempt-1'
     );
+    expect(acpCancelPrompt).toHaveBeenCalledWith(SESSION_ID);
+  });
+});
+
+describe('acpChatSessionController.submitMessage', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue(snapshotWithActivePrompt(null));
+    vi.mocked(acpPromptSession).mockResolvedValue({ stopReason: 'cancelled' } as never);
+    vi.mocked(acpChatSessionActions.clearPromptCancellation).mockReturnValue(undefined);
+    vi.mocked(acpChatSessionActions.finishPromptAttemptIfCurrent).mockReturnValue(true);
   });
 
-  it('sets the chat idle when there is no active prompt attempt', () => {
-    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue(snapshotWithActivePrompt(null));
+  it('clears a pending cancellation barrier when the original prompt settles', async () => {
+    vi.mocked(acpChatSessionActions.clearPromptCancellation).mockReturnValueOnce(
+      snapshotWithActivePrompt(null)
+    );
+    const onFinish = vi.fn();
 
-    acpChatSessionController.stop(SESSION_ID);
+    await acpChatSessionController.submitMessage(SESSION_ID, userMessage(), {
+      getCurrentSnapshot: () => snapshotWithActivePrompt(null),
+      onFinish,
+    });
 
-    expect(acpCancelPrompt).not.toHaveBeenCalled();
-    expect(acpChatSessionActions.setChatState).toHaveBeenCalledWith(SESSION_ID, ChatState.Idle);
+    expect(acpChatSessionActions.clearPromptCancellation).toHaveBeenCalledWith(
+      SESSION_ID,
+      expect.any(String)
+    );
+    expect(acpChatSessionActions.finishPromptAttemptIfCurrent).not.toHaveBeenCalled();
+    expect(onFinish).not.toHaveBeenCalled();
+  });
+
+  it('does not submit while a cancellation barrier is pending', async () => {
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
+      ...snapshotWithActivePrompt(null),
+      pendingCancelPromptAttemptId: 'attempt-1',
+    });
+
+    await acpChatSessionController.submitMessage(SESSION_ID, userMessage(), {
+      getCurrentSnapshot: () => snapshotWithActivePrompt(null),
+      onFinish: vi.fn(),
+    });
+
+    expect(acpChatSessionActions.startPromptAttempt).not.toHaveBeenCalled();
+    expect(acpPromptSession).not.toHaveBeenCalled();
   });
 });

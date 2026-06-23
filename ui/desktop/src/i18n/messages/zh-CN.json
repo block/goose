@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "查看扩展"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "正在等待取消完成"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "正在等待图片保存…"
   },

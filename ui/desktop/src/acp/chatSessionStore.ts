@@ -10,7 +10,7 @@ import {
   type AcpSessionNotificationAdapter,
 } from './sessionNotificationAdapter';
 import type { ElicitationStatus } from './adapter/elicitations';
-import { cloneMessage } from './adapter/shared';
+import { cloneMessage, type QueuedSteerMeta } from './adapter/shared';
 import type { AcpElicitationRequest } from './elicitationRequests';
 
 export interface AcpChatSessionSnapshot {
@@ -22,6 +22,8 @@ export interface AcpChatSessionSnapshot {
   sessionLoadError: string | undefined;
   activePromptAttemptId: string | null;
   activeRunId: string | null;
+  pendingCancelPromptAttemptId: string | null;
+  queuedSteers: QueuedSteerMeta[];
 }
 
 type SnapshotListener = (snapshot: AcpChatSessionSnapshot) => void;
@@ -71,6 +73,14 @@ export interface AcpChatSessionActions {
   setChatState(sessionId: string, chatState: ChatState): AcpChatSessionSnapshot;
 
   startPromptAttempt(sessionId: string, promptAttemptId: string): AcpChatSessionSnapshot;
+  startPromptCancellation(
+    sessionId: string,
+    promptAttemptId: string
+  ): AcpChatSessionSnapshot | undefined;
+  clearPromptCancellation(
+    sessionId: string,
+    promptAttemptId: string
+  ): AcpChatSessionSnapshot | undefined;
   finishPromptAttemptIfCurrent(sessionId: string, promptAttemptId: string, error?: string): boolean;
   clearActivePromptAttempt(sessionId: string): AcpChatSessionSnapshot | undefined;
   isCurrentPromptAttempt(sessionId: string, promptAttemptId: string): boolean;
@@ -132,6 +142,8 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       sessionLoadError: undefined,
       activePromptAttemptId: null,
       activeRunId: null,
+      pendingCancelPromptAttemptId: null,
+      queuedSteers: [],
       adapter: createAcpSessionNotificationAdapter(),
     };
     sessionsById.set(sessionId, entry);
@@ -210,9 +222,41 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     const entry = getOrCreateEntry(sessionId);
     entry.activePromptAttemptId = promptAttemptId;
     entry.activeRunId = null;
+    entry.pendingCancelPromptAttemptId = null;
+    entry.queuedSteers = [];
     entry.chatState = ChatState.Streaming;
     entry.sessionLoadError = undefined;
     entry.notifications = [];
+    return notify(sessionId, entry);
+  };
+
+  const startPromptCancellation: AcpChatSessionActions['startPromptCancellation'] = (
+    sessionId,
+    promptAttemptId
+  ) => {
+    const entry = sessionsById.get(sessionId);
+    if (!entry || entry.activePromptAttemptId !== promptAttemptId) {
+      return entry ? snapshotFromEntry(entry) : undefined;
+    }
+
+    entry.activePromptAttemptId = null;
+    entry.activeRunId = null;
+    entry.pendingCancelPromptAttemptId = promptAttemptId;
+    entry.queuedSteers = [];
+    entry.chatState = ChatState.Idle;
+    return notify(sessionId, entry);
+  };
+
+  const clearPromptCancellation: AcpChatSessionActions['clearPromptCancellation'] = (
+    sessionId,
+    promptAttemptId
+  ) => {
+    const entry = sessionsById.get(sessionId);
+    if (!entry || entry.pendingCancelPromptAttemptId !== promptAttemptId) {
+      return undefined;
+    }
+
+    entry.pendingCancelPromptAttemptId = null;
     return notify(sessionId, entry);
   };
 
@@ -228,6 +272,8 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
 
     entry.activePromptAttemptId = null;
     entry.activeRunId = null;
+    entry.pendingCancelPromptAttemptId = null;
+    entry.queuedSteers = [];
     entry.chatState = ChatState.Idle;
     entry.sessionLoadError = error;
     notify(sessionId, entry);
@@ -244,6 +290,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
 
     entry.activePromptAttemptId = null;
     entry.activeRunId = null;
+    entry.queuedSteers = [];
     entry.chatState = ChatState.Idle;
     return notify(sessionId, entry);
   };
@@ -317,6 +364,8 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     setMessages,
     setChatState,
     startPromptAttempt,
+    startPromptCancellation,
+    clearPromptCancellation,
     finishPromptAttemptIfCurrent,
     clearActivePromptAttempt,
     isCurrentPromptAttempt,
@@ -389,6 +438,8 @@ function actionsFromStore(store: AcpChatSessionStoreInternal): AcpChatSessionAct
     setMessages: store.setMessages,
     setChatState: store.setChatState,
     startPromptAttempt: store.startPromptAttempt,
+    startPromptCancellation: store.startPromptCancellation,
+    clearPromptCancellation: store.clearPromptCancellation,
     finishPromptAttemptIfCurrent: store.finishPromptAttemptIfCurrent,
     clearActivePromptAttempt: store.clearActivePromptAttempt,
     isCurrentPromptAttempt: store.isCurrentPromptAttempt,
@@ -411,6 +462,9 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
         if (change.activeRunId !== undefined) {
           entry.activeRunId = change.activeRunId;
         }
+        if (change.queuedSteer) {
+          addQueuedSteer(entry, change.queuedSteer);
+        }
         break;
       case 'notification':
         entry.notifications = [...entry.notifications, change.notification];
@@ -424,7 +478,17 @@ function resetReplayState(entry: StoreEntry): void {
   entry.tokenState = { ...initialTokenState };
   entry.notifications = [];
   entry.activeRunId = null;
+  entry.pendingCancelPromptAttemptId = null;
+  entry.queuedSteers = [];
   entry.adapter = createAcpSessionNotificationAdapter();
+}
+
+function addQueuedSteer(entry: StoreEntry, queuedSteer: QueuedSteerMeta): void {
+  if (entry.queuedSteers.some((steer) => steer.messageId === queuedSteer.messageId)) {
+    return;
+  }
+
+  entry.queuedSteers = [...entry.queuedSteers, queuedSteer];
 }
 
 function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
@@ -437,6 +501,8 @@ function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
     sessionLoadError: entry.sessionLoadError,
     activePromptAttemptId: entry.activePromptAttemptId,
     activeRunId: entry.activeRunId,
+    pendingCancelPromptAttemptId: entry.pendingCancelPromptAttemptId,
+    queuedSteers: entry.queuedSteers.map((steer) => ({ ...steer })),
   };
 }
 

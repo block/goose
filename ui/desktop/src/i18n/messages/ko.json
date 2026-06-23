@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "익스텐션 보기"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "취소가 완료될 때까지 기다리는 중"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "이미지 저장을 기다리는 중..."
   },

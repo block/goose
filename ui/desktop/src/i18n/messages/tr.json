@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "Uzantıları görüntüle"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "İptalin tamamlanması bekleniyor"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "Resimlerin kaydedilmesi bekleniyor..."
   },

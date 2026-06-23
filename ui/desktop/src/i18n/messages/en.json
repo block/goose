@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "View extensions"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "Waiting for cancellation to finish"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "Waiting for images to save..."
   },

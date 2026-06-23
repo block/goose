@@ -238,6 +238,38 @@ describe('acpChatSessionStore', () => {
     expect(snapshot.chatState).toBe(ChatState.Streaming);
   });
 
+  it('tracks prompt cancellation separately from visible prompt activity', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    const cancellationSnapshot = acpChatSessionActions.startPromptCancellation(
+      currentSessionId,
+      'attempt-1'
+    );
+
+    expect(cancellationSnapshot).toMatchObject({
+      activePromptAttemptId: null,
+      pendingCancelPromptAttemptId: 'attempt-1',
+      chatState: ChatState.Idle,
+    });
+
+    const staleClearSnapshot = acpChatSessionActions.clearPromptCancellation(
+      currentSessionId,
+      'attempt-2'
+    );
+    expect(staleClearSnapshot).toBeUndefined();
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)?.pendingCancelPromptAttemptId).toBe(
+      'attempt-1'
+    );
+
+    const clearedSnapshot = acpChatSessionActions.clearPromptCancellation(
+      currentSessionId,
+      'attempt-1'
+    );
+
+    expect(clearedSnapshot?.pendingCancelPromptAttemptId).toBeNull();
+  });
+
   it('stores active run ids from session info notifications', () => {
     const currentSessionId = sessionId('session-1');
 

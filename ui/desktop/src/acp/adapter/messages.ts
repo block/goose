@@ -30,6 +30,10 @@ export function applyContentChunk(
 
   if (existing) {
     const lastContent = existing.content[existing.content.length - 1];
+    if (mergeOptimisticSteerTextChunk(existing, content, gooseMeta.steer)) {
+      return messagesChange(state);
+    }
+
     if (lastContent?.type === 'text' && content.type === 'text') {
       lastContent.text += content.text;
     } else if (content.type === 'image' && hasImageContent(existing, content)) {
@@ -43,7 +47,10 @@ export function applyContentChunk(
       role,
       created: gooseMeta.created ?? Math.floor(Date.now() / 1000),
       content: [content],
-      metadata: { ...DEFAULT_VISIBLE_MESSAGE_METADATA },
+      metadata: {
+        ...DEFAULT_VISIBLE_MESSAGE_METADATA,
+        ...(gooseMeta.steer ? { steer: true } : {}),
+      },
     });
   }
 
@@ -147,4 +154,32 @@ function hasImageContent(message: Message, image: Extract<MessageContent, { type
     (content) =>
       content.type === 'image' && content.data === image.data && content.mimeType === image.mimeType
   );
+}
+
+function mergeOptimisticSteerTextChunk(
+  message: Message,
+  content: MessageContent,
+  isSteerChunk: boolean | undefined
+): boolean {
+  if (!isSteerChunk || !message.metadata.steer || message.role !== 'user') {
+    return false;
+  }
+
+  if (
+    content.type !== 'text' ||
+    message.content.length === 0 ||
+    message.content[0].type !== 'text'
+  ) {
+    return false;
+  }
+
+  const firstContent = message.content[0];
+  const text =
+    firstContent.text.startsWith(content.text) || content.text.startsWith(firstContent.text)
+      ? content.text
+      : firstContent.text + content.text;
+
+  message.content = [{ ...content, text }, ...message.content.slice(1)];
+  message.metadata = { ...message.metadata, steer: true };
+  return true;
 }

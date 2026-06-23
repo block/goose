@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "拡張機能を表示"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "キャンセルの完了を待機中"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "画像の保存を待機中..."
   },

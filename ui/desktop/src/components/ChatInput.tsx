@@ -155,6 +155,10 @@ const i18n = defineMessages({
     id: 'chatInput.send',
     defaultMessage: 'Send',
   },
+  waitingForCancellation: {
+    id: 'chatInput.waitingForCancellation',
+    defaultMessage: 'Waiting for cancellation to finish',
+  },
   failedToReadImage: {
     id: 'chatInput.failedToReadImage',
     defaultMessage: 'Failed to read image file',
@@ -173,6 +177,7 @@ interface ChatInputProps {
   onStop?: () => void;
   onSteerQueuedMessage?: (input: UserInput) => Promise<SteerQueuedMessageResult | null>;
   pauseQueueOnStop?: boolean;
+  queueProcessingBlocked?: boolean;
   commandHistory?: string[];
   initialValue?: string;
   droppedFiles?: DroppedFile[];
@@ -209,6 +214,7 @@ export default function ChatInput({
   onStop,
   onSteerQueuedMessage,
   pauseQueueOnStop = false,
+  queueProcessingBlocked = false,
   commandHistory = [],
   initialValue = '',
   droppedFiles = [],
@@ -245,6 +251,7 @@ export default function ChatInput({
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
   const wasLoadingRef = useRef(isLoading);
+  const wasQueueProcessingBlockedRef = useRef(queueProcessingBlocked);
 
   // Queue functionality - ephemeral, only exists in memory for this chat instance
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
@@ -360,7 +367,10 @@ export default function ChatInput({
 
   // Queue processing
   useEffect(() => {
-    if (wasLoadingRef.current && !isLoading && queuedMessages.length > 0) {
+    const becameIdle = wasLoadingRef.current && !isLoading;
+    const becameUnblocked = wasQueueProcessingBlockedRef.current && !queueProcessingBlocked;
+
+    if ((becameIdle || becameUnblocked) && !queueProcessingBlocked && queuedMessages.length > 0) {
       const pendingSendAfterStopId = sendAfterStopMessageIdRef.current;
       const messageToSend = pendingSendAfterStopId
         ? queuedMessages.find((message) => message.id === pendingSendAfterStopId)
@@ -369,11 +379,13 @@ export default function ChatInput({
       if (pendingSendAfterStopId && !messageToSend) {
         clearPendingSendAfterStop(pendingSendAfterStopId);
         wasLoadingRef.current = isLoading;
+        wasQueueProcessingBlockedRef.current = queueProcessingBlocked;
         return;
       }
 
       if (!messageToSend) {
         wasLoadingRef.current = isLoading;
+        wasQueueProcessingBlockedRef.current = queueProcessingBlocked;
         return;
       }
 
@@ -409,8 +421,10 @@ export default function ChatInput({
       }
     }
     wasLoadingRef.current = isLoading;
+    wasQueueProcessingBlockedRef.current = queueProcessingBlocked;
   }, [
     isLoading,
+    queueProcessingBlocked,
     queuedMessages,
     handleSubmit,
     lastInterruption,
@@ -1077,6 +1091,7 @@ export default function ChatInput({
 
   const canSubmit =
     !isLoading &&
+    !queueProcessingBlocked &&
     (displayValue.trim() ||
       pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
       allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1193,12 +1208,16 @@ export default function ChatInput({
 
   const onFormSubmit = (e: React.FormEvent | React.MouseEvent) => {
     e.preventDefault();
+    if (queueProcessingBlocked) {
+      return;
+    }
     if (isLoading && hasSubmittableContent) {
       handleInterruptionAndQueue();
       return;
     }
     const canSubmit =
       !isLoading &&
+      !queueProcessingBlocked &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1317,9 +1336,11 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
+    queueProcessingBlocked ||
     chatState === ChatState.RestartingAgent;
 
   const getSubmitButtonTooltip = (): string => {
+    if (queueProcessingBlocked) return intl.formatMessage(i18n.waitingForCancellation);
     if (isAnyImageLoading) return intl.formatMessage(i18n.waitingForImages);
     if (isAnyDroppedFileLoading) return intl.formatMessage(i18n.processingDroppedFiles);
     if (isRecording) return intl.formatMessage(i18n.recording);
@@ -1353,6 +1374,7 @@ export default function ChatInput({
   const handleStopAndSend = async (messageId: string) => {
     const messageToSend = queuedMessages.find((msg) => msg.id === messageId);
     if (!messageToSend) return;
+    if (queueProcessingBlocked) return;
 
     if (!isLoading) {
       setQueuedMessages((prev) => removeQueuedMessage(prev, messageId));
@@ -1399,7 +1421,7 @@ export default function ChatInput({
   const handleResumeQueue = () => {
     queuePausedRef.current = false;
     setLastInterruption(null);
-    if (!isLoading && queuedMessages.length > 0) {
+    if (!isLoading && !queueProcessingBlocked && queuedMessages.length > 0) {
       const nextMessage = queuedMessages[0];
       LocalMessageStorage.addMessage(nextMessage.content);
       handleSubmit({ msg: nextMessage.content, images: nextMessage.images });

@@ -119,6 +119,81 @@ describe('createAcpSessionNotificationAdapter', () => {
         expect(firstContent(messages[0])).toMatchObject({ type: 'text', text: 'Hell' });
       });
 
+      it('replaces optimistic steer text with picked-up steer chunks', () => {
+        const adapter = createAcpSessionNotificationAdapter([
+          {
+            id: 'steer-1',
+            role: 'user',
+            created: 123,
+            content: [
+              { type: 'text', text: 'hello' },
+              { type: 'image', data: 'base64-image', mimeType: 'image/png' },
+            ],
+            metadata: { userVisible: true, agentVisible: true, steer: true },
+          },
+        ]);
+
+        let messages = expectOnlyMessagesChange(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'user_message_chunk',
+              content: { type: 'text', text: 'hel' },
+              _meta: {
+                goose: {
+                  messageId: 'steer-1',
+                  steer: true,
+                },
+              },
+            } as SessionNotification['update'])
+          )
+        );
+
+        expect(firstContent(messages[0])).toMatchObject({ type: 'text', text: 'hel' });
+        expect(messages[0].content[1]).toMatchObject({
+          type: 'image',
+          data: 'base64-image',
+          mimeType: 'image/png',
+        });
+        expect(messages[0].metadata.steer).toBe(true);
+
+        messages = expectOnlyMessagesChange(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'user_message_chunk',
+              content: { type: 'text', text: 'lo' },
+              _meta: {
+                goose: {
+                  messageId: 'steer-1',
+                  steer: true,
+                },
+              },
+            } as SessionNotification['update'])
+          )
+        );
+
+        expect(firstContent(messages[0])).toMatchObject({ type: 'text', text: 'hello' });
+
+        messages = expectOnlyMessagesChange(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'user_message_chunk',
+              content: { type: 'image', data: 'base64-image', mimeType: 'image/png' },
+              _meta: {
+                goose: {
+                  messageId: 'steer-1',
+                  steer: true,
+                },
+              },
+            } as SessionNotification['update'])
+          )
+        );
+
+        expect(messages[0].content).toEqual([
+          { type: 'text', text: 'hello' },
+          { type: 'image', data: 'base64-image', mimeType: 'image/png' },
+        ]);
+      });
+
       it('maps image and thinking chunks to existing message content shapes', () => {
         const imageAdapter = createAcpSessionNotificationAdapter();
 

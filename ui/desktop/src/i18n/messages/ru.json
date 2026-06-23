@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "Просмотреть расширения"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "Ожидание завершения отмены"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "Ожидание сохранения изображений..."
   },

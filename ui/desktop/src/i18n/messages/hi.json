@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "एक्सटेंशन देखें"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "रद्दीकरण समाप्त होने की प्रतीक्षा की जा रही है"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "छवियों को सहेजने की प्रतीक्षा की जा रही है..."
   },

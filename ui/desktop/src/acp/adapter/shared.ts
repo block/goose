@@ -5,7 +5,12 @@ import type { NotificationEvent } from '../../types/message';
 export type AcpChatStateChange =
   | { type: 'messages'; messages: Message[] }
   | { type: 'tokenState'; tokenState: Partial<TokenState> }
-  | { type: 'sessionInfo'; name?: string; activeRunId?: string | null }
+  | {
+      type: 'sessionInfo';
+      name?: string;
+      activeRunId?: string | null;
+      queuedSteer?: QueuedSteerMeta;
+    }
   | { type: 'notification'; notification: NotificationEvent };
 
 export interface AdapterState {
@@ -15,6 +20,12 @@ export interface AdapterState {
 export interface GooseMessageMeta {
   messageId?: string;
   created?: number;
+  steer?: boolean;
+}
+
+export interface QueuedSteerMeta {
+  messageId: string;
+  runId: string;
 }
 
 export interface ToolIdentity {
@@ -52,6 +63,7 @@ export function getGooseMessageMeta(update: { _meta?: unknown }): GooseMessageMe
   return {
     created: typeof goose.created === 'number' ? goose.created : undefined,
     messageId: typeof goose.messageId === 'string' ? goose.messageId : undefined,
+    steer: goose.steer === true ? true : undefined,
   };
 }
 
@@ -67,6 +79,23 @@ export function getGooseActiveRunId(update: { _meta?: unknown }): string | null 
 
   return typeof goose.activeRunId === 'string' || goose.activeRunId === null
     ? goose.activeRunId
+    : undefined;
+}
+
+export function getGooseQueuedSteer(update: { _meta?: unknown }): QueuedSteerMeta | undefined {
+  if (!isRecord(update._meta)) {
+    return undefined;
+  }
+
+  const goose = update._meta.goose;
+  if (!isRecord(goose) || !isRecord(goose.queuedSteer)) {
+    return undefined;
+  }
+
+  const messageId = goose.queuedSteer.messageId;
+  const runId = goose.queuedSteer.runId;
+  return typeof messageId === 'string' && typeof runId === 'string'
+    ? { messageId, runId }
     : undefined;
 }
 
