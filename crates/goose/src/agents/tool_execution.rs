@@ -74,6 +74,89 @@ pub const CHAT_MODE_TOOL_SKIPPED_RESPONSE: &str = "Let the user know the tool ca
                                         If needed, adjust the explanation based on user preferences or questions.";
 
 impl Agent {
+    async fn mark_frontend_tool_request_cancelled(&self, request_id: &str) {
+        self.pending_frontend_tool_results
+            .lock()
+            .await
+            .remove(request_id);
+        self.cancelled_frontend_tool_requests
+            .lock()
+            .await
+            .insert(request_id.to_string());
+    }
+
+    async fn receive_frontend_tool_result(
+        &self,
+        request_id: &str,
+        cancellation_token: Option<&CancellationToken>,
+    ) -> Option<ToolResult<CallToolResult>> {
+        if cancellation_token.is_some_and(|token| token.is_cancelled()) {
+            self.mark_frontend_tool_request_cancelled(request_id).await;
+            return None;
+        }
+
+        if let Some(result) = self
+            .pending_frontend_tool_results
+            .lock()
+            .await
+            .remove(request_id)
+        {
+            if cancellation_token.is_some_and(|token| token.is_cancelled()) {
+                self.mark_frontend_tool_request_cancelled(request_id).await;
+                return None;
+            }
+
+            return Some(result);
+        }
+
+        loop {
+            if cancellation_token.is_some_and(|token| token.is_cancelled()) {
+                self.mark_frontend_tool_request_cancelled(request_id).await;
+                return None;
+            }
+
+            let tool_result = if let Some(token) = cancellation_token {
+                tokio::select! {
+                    biased;
+                    _ = token.cancelled() => {
+                        self.mark_frontend_tool_request_cancelled(request_id).await;
+                        return None;
+                    },
+                    result = async { self.tool_result_rx.lock().await.recv().await } => result,
+                }
+            } else {
+                self.tool_result_rx.lock().await.recv().await
+            };
+
+            let Some((id, result)) = tool_result else {
+                return None;
+            };
+
+            if id == request_id {
+                if cancellation_token.is_some_and(|token| token.is_cancelled()) {
+                    self.mark_frontend_tool_request_cancelled(request_id).await;
+                    return None;
+                }
+
+                return Some(result);
+            }
+
+            if self
+                .cancelled_frontend_tool_requests
+                .lock()
+                .await
+                .remove(&id)
+            {
+                continue;
+            }
+
+            self.pending_frontend_tool_results
+                .lock()
+                .await
+                .insert(id, result);
+        }
+    }
+
     pub(crate) fn handle_approval_tool_requests<'a>(
         &'a self,
         tool_requests: &'a [ToolRequest],
@@ -85,6 +168,10 @@ impl Agent {
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
         for request in tool_requests.iter() {
+            if cancellation_token.as_ref().is_some_and(|token| token.is_cancelled()) {
+                break;
+            }
+
             if let Ok(tool_call) = request.tool_call.clone() {
                 let security_message = inspection_results.iter()
                     .find(|result| result.tool_request_id == request.id)
@@ -108,8 +195,25 @@ impl Agent {
                     .user_only();
                 yield action_required_msg;
 
-                let confirmation = confirmation_rx.await
-                    .map_err(|_| anyhow::anyhow!("Confirmation channel closed for request {}", request.id))?;
+                let confirmation = if let Some(token) = cancellation_token.as_ref() {
+                    let confirmation_result = tokio::select! {
+                        biased;
+                        _ = token.cancelled() => None,
+                        confirmation = confirmation_rx => Some(confirmation),
+                    };
+                    let Some(confirmation_result) = confirmation_result else {
+                        break;
+                    };
+                    confirmation_result
+                        .map_err(|_| anyhow::anyhow!("Confirmation channel closed for request {}", request.id))?
+                } else {
+                    confirmation_rx.await
+                        .map_err(|_| anyhow::anyhow!("Confirmation channel closed for request {}", request.id))?
+                };
+
+                if cancellation_token.as_ref().is_some_and(|token| token.is_cancelled()) {
+                    break;
+                }
 
                 if let Some(finding_id) = get_security_finding_id_from_results(&request.id, inspection_results) {
                     let action = match confirmation.permission {
@@ -128,6 +232,10 @@ impl Agent {
                 }
 
                 if confirmation.permission == Permission::AllowOnce || confirmation.permission == Permission::AlwaysAllow {
+                    if cancellation_token.as_ref().is_some_and(|token| token.is_cancelled()) {
+                        break;
+                    }
+
                     let (req_id, tool_result) = self.dispatch_tool_call(tool_call.clone(), request.id.clone(), cancellation_token.clone(), session).await;
 
                     tool_futures.push((req_id, match tool_result {
@@ -170,21 +278,31 @@ impl Agent {
         &'a self,
         tool_request: &'a ToolRequest,
         message_tool_response: &'a mut Message,
+        cancellation_token: Option<CancellationToken>,
     ) -> BoxStream<'a, anyhow::Result<Message>> {
         try_stream! {
                 if let Ok(tool_call) = tool_request.tool_call.clone() {
                     if self.is_frontend_tool(&tool_call.name).await {
-                        yield Message::assistant().with_frontend_tool_request(
-                            tool_request.id.clone(),
-                            Ok(tool_call.clone())
-                        );
-
-                        if let Some((id, result)) = self.tool_result_rx.lock().await.recv().await {
-                            message_tool_response.add_tool_response_with_metadata(
-                                id,
-                                result,
-                                tool_request.metadata.as_ref(),
+                        if cancellation_token.as_ref().is_some_and(|token| token.is_cancelled()) {
+                            self.mark_frontend_tool_request_cancelled(&tool_request.id).await;
+                        } else {
+                            yield Message::assistant().with_frontend_tool_request(
+                                tool_request.id.clone(),
+                                Ok(tool_call.clone())
                             );
+
+                            if cancellation_token.as_ref().is_some_and(|token| token.is_cancelled()) {
+                                self.mark_frontend_tool_request_cancelled(&tool_request.id).await;
+                            } else if let Some(result) = self.receive_frontend_tool_result(
+                                &tool_request.id,
+                                cancellation_token.as_ref(),
+                            ).await {
+                                message_tool_response.add_tool_response_with_metadata(
+                                    tool_request.id.clone(),
+                                    result,
+                                    tool_request.metadata.as_ref(),
+                                );
+                            }
                         }
                     }
             }

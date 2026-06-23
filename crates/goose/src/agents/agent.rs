@@ -1,4 +1,4 @@
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::fmt;
 use std::future::Future;
 use std::pin::Pin;
@@ -246,6 +246,8 @@ pub struct Agent {
     pub tool_confirmation_router: ToolConfirmationRouter,
     pub(super) tool_result_tx: mpsc::Sender<(String, ToolResult<CallToolResult>)>,
     pub(super) tool_result_rx: ToolResultReceiver,
+    pub(super) pending_frontend_tool_results: Mutex<HashMap<String, ToolResult<CallToolResult>>>,
+    pub(super) cancelled_frontend_tool_requests: Mutex<HashSet<String>>,
 
     pub(super) retry_manager: RetryManager,
     pub(super) tool_inspection_manager: ToolInspectionManager,
@@ -365,6 +367,8 @@ impl Agent {
             tool_confirmation_router: ToolConfirmationRouter::new(),
             tool_result_tx: tool_tx,
             tool_result_rx: Arc::new(Mutex::new(tool_rx)),
+            pending_frontend_tool_results: Mutex::new(HashMap::new()),
+            cancelled_frontend_tool_requests: Mutex::new(HashSet::new()),
             retry_manager: RetryManager::new(),
             tool_inspection_manager: Self::create_tool_inspection_manager(
                 permission_manager,
@@ -965,6 +969,17 @@ impl Agent {
         cancellation_token: Option<CancellationToken>,
         session: &Session,
     ) -> (String, Result<ToolCallResult, ErrorData>) {
+        if is_token_cancelled(&cancellation_token) {
+            return (
+                request_id,
+                Err(ErrorData::new(
+                    ErrorCode::INVALID_REQUEST,
+                    "Tool call cancelled before execution".to_string(),
+                    None,
+                )),
+            );
+        }
+
         let input_summary = serde_json::json!({
             "tool": tool_call.name,
             "arguments": tool_call.arguments,
@@ -1941,7 +1956,25 @@ impl Agent {
                 // reasoning without hiding final-only non-streaming thoughts.
                 let mut surfaced_thinking_in_turn = false;
 
-                while let Some(next) = stream.next().await {
+                loop {
+                    if is_token_cancelled(&cancel_token) || exit_chat {
+                        break;
+                    }
+
+                    let next = if let Some(token) = cancel_token.as_ref() {
+                        tokio::select! {
+                            biased;
+                            _ = token.cancelled() => break,
+                            next = stream.next() => next,
+                        }
+                    } else {
+                        stream.next().await
+                    };
+
+                    let Some(next) = next else {
+                        break;
+                    };
+
                     if is_token_cancelled(&cancel_token) || exit_chat {
                         break;
                     }
@@ -1989,8 +2022,16 @@ impl Agent {
                                     },
                                 );
 
+                                if is_token_cancelled(&cancel_token) {
+                                    break;
+                                }
+
                                 yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;
+
+                                if is_token_cancelled(&cancel_token) {
+                                    break;
+                                }
 
                                 let num_tool_requests = frontend_requests.len() + remaining_requests.len();
                                 if num_tool_requests == 0 {
@@ -2015,12 +2056,17 @@ impl Agent {
                                     let mut frontend_tool_stream = self.handle_frontend_tool_request(
                                         request,
                                         response_msg,
+                                        cancel_token.clone(),
                                     );
 
                                     while let Some(msg) = frontend_tool_stream.try_next().await? {
                                         yield AgentEvent::Message(msg);
                                     }
                                 }
+                                if is_token_cancelled(&cancel_token) {
+                                    break;
+                                }
+
                                 if goose_mode == GooseMode::Chat {
                                     for request in remaining_requests.iter() {
                                         if let Some(response) = request_to_response_map.get_mut(&request.id) {
@@ -2067,12 +2113,20 @@ impl Agent {
                                         }
                                     }
 
+                                    if is_token_cancelled(&cancel_token) {
+                                        break;
+                                    }
+
                                     let mut tool_futures = self.handle_approved_and_denied_tools(
                                         &permission_check_result,
                                         &mut request_to_response_map,
                                         cancel_token.clone(),
                                         &session,
                                     ).await?;
+
+                                    if is_token_cancelled(&cancel_token) {
+                                        break;
+                                    }
 
                                     {
                                         let mut tool_approval_stream = self.handle_approval_tool_requests(
@@ -2110,6 +2164,14 @@ impl Agent {
 
                                         tokio::select! {
                                             biased;
+
+                                            _ = async {
+                                                if let Some(token) = cancel_token.as_ref() {
+                                                    token.cancelled().await;
+                                                } else {
+                                                    futures::future::pending::<()>().await;
+                                                }
+                                            } => break,
 
                                             tool_item = combined.next() => {
                                                 match tool_item {
@@ -2158,9 +2220,17 @@ impl Agent {
                                         }
                                     }
 
+                                    if is_token_cancelled(&cancel_token) {
+                                        break;
+                                    }
+
                                     // check for remaining elicitation messages after all tools complete
                                     for msg in self.drain_elicitation_messages(&session_config.id).await {
                                         yield AgentEvent::Message(msg);
+                                    }
+
+                                    if is_token_cancelled(&cancel_token) {
+                                        break;
                                     }
 
                                     if all_install_successful && !enable_extension_request_ids.is_empty() {
@@ -2365,6 +2435,13 @@ impl Agent {
                 }
                 can_drain_pending_steers = true;
 
+                if is_token_cancelled(&cancel_token) {
+                    if let Some(ref task) = tool_pair_summarization_task {
+                        task.abort();
+                    }
+                    break;
+                }
+
                 if tools_updated {
                     (tools, toolshim_tools, system_prompt) =
                         self.prepare_tools_and_prompt(&session_config.id, &session.working_dir).await?;
@@ -2474,6 +2551,7 @@ impl Agent {
                     if let Some(ref task) = tool_pair_summarization_task {
                         task.abort();
                     }
+                    break;
                 }
 
                 if let Some(task) = tool_pair_summarization_task {
@@ -2885,6 +2963,15 @@ impl Agent {
     }
 
     pub async fn handle_tool_result(&self, id: String, result: ToolResult<CallToolResult>) {
+        if self
+            .cancelled_frontend_tool_requests
+            .lock()
+            .await
+            .remove(&id)
+        {
+            return;
+        }
+
         if let Err(e) = self.tool_result_tx.send((id, result)).await {
             error!("Failed to send tool result: {}", e);
         }
@@ -3139,7 +3226,10 @@ mod tests {
     use crate::recipe::Response;
     use crate::session::session_manager::SessionType;
     use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
-    use rmcp::model::Tool;
+    use rmcp::{
+        model::{CallToolRequestParams, Tool},
+        object,
+    };
     use std::path::PathBuf;
     use std::sync::atomic::{AtomicUsize, Ordering};
     use tempfile::TempDir;
@@ -3403,6 +3493,86 @@ exit 0
         call_count: AtomicUsize,
     }
 
+    struct SingleToolRequestProvider {
+        tool_name: &'static str,
+    }
+
+    impl SingleToolRequestProvider {
+        fn new(tool_name: &'static str) -> Self {
+            Self { tool_name }
+        }
+    }
+
+    fn tool_request_message(tool_name: &str) -> Message {
+        let tool_call = CallToolRequestParams::new(tool_name.to_string());
+        let request_id = format!("{}_{}", tool_name, Uuid::new_v4());
+        Message::assistant().with_tool_request(request_id, Ok(tool_call))
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for SingleToolRequestProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _session_id: &str,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let message = tool_request_message(self.tool_name);
+            let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+
+            Ok(stream_from_single_message(message, usage))
+        }
+
+        fn get_model_config(&self) -> goose_providers::model::ModelConfig {
+            goose_providers::model::ModelConfig::new("mock-model").unwrap()
+        }
+
+        fn get_name(&self) -> &str {
+            "single-tool-request"
+        }
+    }
+
+    struct DelayedToolRequestProvider {
+        tool_name: &'static str,
+        delay: std::time::Duration,
+    }
+
+    impl DelayedToolRequestProvider {
+        fn new(tool_name: &'static str, delay: std::time::Duration) -> Self {
+            Self { tool_name, delay }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl crate::providers::base::Provider for DelayedToolRequestProvider {
+        async fn stream(
+            &self,
+            _model_config: &goose_providers::model::ModelConfig,
+            _session_id: &str,
+            _system_prompt: &str,
+            _messages: &[Message],
+            _tools: &[Tool],
+        ) -> Result<MessageStream, ProviderError> {
+            let tool_name = self.tool_name;
+            let delay = self.delay;
+            Ok(Box::pin(futures::stream::once(async move {
+                tokio::time::sleep(delay).await;
+                let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
+                Ok((Some(tool_request_message(tool_name)), Some(usage)))
+            })))
+        }
+
+        fn get_model_config(&self) -> goose_providers::model::ModelConfig {
+            goose_providers::model::ModelConfig::new("mock-model").unwrap()
+        }
+
+        fn get_name(&self) -> &str {
+            "delayed-tool-request"
+        }
+    }
+
     #[async_trait::async_trait]
     impl crate::providers::base::Provider for RefusingProvider {
         async fn stream(
@@ -3429,6 +3599,342 @@ exit 0
         fn get_name(&self) -> &str {
             "refusing"
         }
+    }
+
+    async fn wait_for_message(
+        stream: &mut (impl futures::Stream<Item = Result<AgentEvent>> + Unpin),
+        description: &str,
+        matches_message: impl Fn(&Message) -> bool,
+    ) -> Result<Message> {
+        loop {
+            let next = match tokio::time::timeout(std::time::Duration::from_secs(2), stream.next())
+                .await
+            {
+                Ok(next) => next,
+                Err(_) => anyhow::bail!("timed out waiting for {description}"),
+            };
+
+            match next {
+                Some(Ok(AgentEvent::Message(message))) if matches_message(&message) => {
+                    return Ok(message)
+                }
+                Some(Ok(_)) => continue,
+                Some(Err(e)) => return Err(e),
+                None => anyhow::bail!("reply stream ended before {description}"),
+            }
+        }
+    }
+
+    fn frontend_tool_request_id(message: &Message) -> Option<String> {
+        message.content.iter().find_map(|content| {
+            if let MessageContent::FrontendToolRequest(request) = content {
+                Some(request.id.clone())
+            } else {
+                None
+            }
+        })
+    }
+
+    async fn assert_cancelled_stream_ends(
+        stream: &mut (impl futures::Stream<Item = Result<AgentEvent>> + Unpin),
+        description: &str,
+    ) -> Result<()> {
+        let next =
+            match tokio::time::timeout(std::time::Duration::from_secs(2), stream.next()).await {
+                Ok(next) => next,
+                Err(_) => anyhow::bail!("timed out waiting for cancelled {description} to end"),
+            };
+
+        match next {
+            None => Ok(()),
+            Some(Ok(AgentEvent::Message(message))) => anyhow::bail!(
+                "cancelled {description} produced an unexpected message: {}",
+                message.as_concat_text()
+            ),
+            Some(Ok(_)) => anyhow::bail!("cancelled {description} produced an unexpected event"),
+            Some(Err(e)) => Err(e),
+        }
+    }
+
+    async fn assert_no_persisted_tool_content(
+        agent: &Agent,
+        session_id: &str,
+        is_cancelled_tool_content: impl Fn(&MessageContent) -> bool,
+    ) -> Result<()> {
+        let session = agent
+            .config
+            .session_manager
+            .get_session(session_id, true)
+            .await?;
+        let conversation = session
+            .conversation
+            .expect("cancelled session should keep conversation");
+        let persisted_tool_content = conversation
+            .messages()
+            .iter()
+            .flat_map(|message| message.content.iter())
+            .filter(|content| is_cancelled_tool_content(content))
+            .count();
+
+        assert_eq!(
+            persisted_tool_content, 0,
+            "cancelled tool request/result must not be committed to history"
+        );
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn cancellation_after_tool_request_message_prevents_tool_response() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(SingleToolRequestProvider::new("late_after_cancel"));
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider).await?;
+        let cancel_token = CancellationToken::new();
+        let session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("trigger tool"),
+                session_config,
+                Some(cancel_token.clone()),
+            )
+            .await?;
+        let mut reply_stream = reply_stream;
+        wait_for_message(&mut reply_stream, "provider tool request", |message| {
+            message
+                .content
+                .iter()
+                .any(|content| matches!(content, MessageContent::ToolRequest(_)))
+        })
+        .await?;
+
+        cancel_token.cancel();
+        assert_cancelled_stream_ends(&mut reply_stream, "reply stream").await?;
+        assert_no_persisted_tool_content(&agent, &session_id, |content| {
+            matches!(
+                content,
+                MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)
+            )
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn cancellation_while_provider_stream_pending_prevents_tool_request() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(DelayedToolRequestProvider::new(
+            "late_after_cancel",
+            std::time::Duration::from_secs(5),
+        ));
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider).await?;
+        let cancel_token = CancellationToken::new();
+        let session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("trigger delayed tool"),
+                session_config,
+                Some(cancel_token.clone()),
+            )
+            .await?;
+        let mut reply_stream = reply_stream;
+
+        let pending =
+            tokio::time::timeout(std::time::Duration::from_millis(200), reply_stream.next()).await;
+        assert!(pending.is_err(), "provider stream should still be pending");
+
+        cancel_token.cancel();
+        assert_cancelled_stream_ends(&mut reply_stream, "pending provider stream").await?;
+        assert_no_persisted_tool_content(&agent, &session_id, |content| {
+            matches!(
+                content,
+                MessageContent::ToolRequest(_) | MessageContent::ToolResponse(_)
+            )
+        })
+        .await
+    }
+
+    #[tokio::test]
+    async fn cancellation_after_tool_approval_request_ends_without_confirmation() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(SingleToolRequestProvider::new("late_after_cancel"));
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) = create_test_agent_with_mode(
+            temp_dir.path().join("data"),
+            hook_manager,
+            provider,
+            GooseMode::Approve,
+        )
+        .await?;
+        let cancel_token = CancellationToken::new();
+        let session_config = SessionConfig {
+            id: session_id,
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("trigger approval"),
+                session_config,
+                Some(cancel_token.clone()),
+            )
+            .await?;
+        let mut reply_stream = reply_stream;
+        wait_for_message(&mut reply_stream, "tool approval request", |message| {
+            message
+                .content
+                .iter()
+                .any(|content| matches!(content, MessageContent::ActionRequired(_)))
+        })
+        .await?;
+
+        cancel_token.cancel();
+        assert_cancelled_stream_ends(&mut reply_stream, "approval stream").await
+    }
+
+    #[tokio::test]
+    async fn cancellation_after_frontend_tool_request_ends_without_result() -> Result<()> {
+        let temp_dir = tempfile::tempdir()?;
+        let provider = Arc::new(SingleToolRequestProvider::new("frontend_after_cancel"));
+        let hook_manager = crate::hooks::HookManager::from_plugins_for_test(vec![]);
+        let (agent, session_id) =
+            create_test_agent(temp_dir.path().join("data"), hook_manager, provider).await?;
+        agent
+            .add_extension(
+                ExtensionConfig::Frontend {
+                    name: "frontend-test".to_string(),
+                    description: "Frontend cancellation test extension".to_string(),
+                    tools: vec![Tool::new(
+                        "frontend_after_cancel",
+                        "Frontend test tool",
+                        object!({ "type": "object" }),
+                    )],
+                    instructions: None,
+                    bundled: None,
+                    available_tools: vec![],
+                },
+                &session_id,
+            )
+            .await
+            .map_err(|e| anyhow::anyhow!(e.to_string()))?;
+
+        let cancel_token = CancellationToken::new();
+        let session_config = SessionConfig {
+            id: session_id.clone(),
+            schedule_id: None,
+            max_turns: Some(10),
+            retry_config: None,
+        };
+
+        let reply_stream = agent
+            .reply(
+                Message::user().with_text("trigger frontend tool"),
+                session_config,
+                Some(cancel_token.clone()),
+            )
+            .await?;
+        let mut reply_stream = reply_stream;
+        let frontend_request =
+            wait_for_message(&mut reply_stream, "frontend tool request", |message| {
+                message
+                    .content
+                    .iter()
+                    .any(|content| matches!(content, MessageContent::FrontendToolRequest(_)))
+            })
+            .await?;
+        let stale_request_id = frontend_tool_request_id(&frontend_request)
+            .expect("frontend request should include an id");
+
+        cancel_token.cancel();
+        assert_cancelled_stream_ends(&mut reply_stream, "frontend stream").await?;
+        assert_no_persisted_tool_content(&agent, &session_id, |content| {
+            matches!(
+                content,
+                MessageContent::FrontendToolRequest(_) | MessageContent::ToolResponse(_)
+            )
+        })
+        .await?;
+
+        agent
+            .handle_tool_result(
+                stale_request_id.clone(),
+                Ok(CallToolResult::success(vec![Content::text("stale result")])),
+            )
+            .await;
+
+        let second_cancel_token = CancellationToken::new();
+        let second_reply_stream = agent
+            .reply(
+                Message::user().with_text("trigger frontend tool again"),
+                SessionConfig {
+                    id: session_id,
+                    schedule_id: None,
+                    max_turns: Some(10),
+                    retry_config: None,
+                },
+                Some(second_cancel_token.clone()),
+            )
+            .await?;
+        let mut second_reply_stream = second_reply_stream;
+        let second_frontend_request = wait_for_message(
+            &mut second_reply_stream,
+            "second frontend tool request",
+            |message| {
+                message
+                    .content
+                    .iter()
+                    .any(|content| matches!(content, MessageContent::FrontendToolRequest(_)))
+            },
+        )
+        .await?;
+        let second_request_id = frontend_tool_request_id(&second_frontend_request)
+            .expect("second frontend request should include an id");
+        assert_ne!(
+            stale_request_id, second_request_id,
+            "test provider should create a fresh frontend request id"
+        );
+
+        let unexpected = tokio::time::timeout(
+            std::time::Duration::from_millis(200),
+            second_reply_stream.next(),
+        )
+        .await;
+        assert!(
+            unexpected.is_err(),
+            "stale frontend tool result must not be emitted for the next request"
+        );
+
+        agent
+            .handle_tool_result(
+                second_request_id.clone(),
+                Ok(CallToolResult::success(vec![Content::text("fresh result")])),
+            )
+            .await;
+        wait_for_message(&mut second_reply_stream, "fresh frontend tool response", |message| {
+            message.content.iter().any(|content| {
+                matches!(content, MessageContent::ToolResponse(response) if response.id == second_request_id)
+            })
+        })
+        .await?;
+
+        second_cancel_token.cancel();
+        assert_cancelled_stream_ends(&mut second_reply_stream, "second frontend stream").await
     }
 
     #[tokio::test]
@@ -3477,13 +3983,22 @@ exit 0
         hook_manager: crate::hooks::HookManager,
         provider: Arc<dyn crate::providers::base::Provider>,
     ) -> Result<(Agent, String)> {
+        create_test_agent_with_mode(data_dir, hook_manager, provider, GooseMode::Auto).await
+    }
+
+    async fn create_test_agent_with_mode(
+        data_dir: PathBuf,
+        hook_manager: crate::hooks::HookManager,
+        provider: Arc<dyn crate::providers::base::Provider>,
+        goose_mode: GooseMode,
+    ) -> Result<(Agent, String)> {
         let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
         let permission_manager = Arc::new(PermissionManager::new(data_dir));
         let config = AgentConfig::new(
             session_manager.clone(),
             permission_manager,
             None,
-            GooseMode::Auto,
+            goose_mode,
             true,
             GoosePlatform::GooseCli,
         );
@@ -3494,7 +4009,7 @@ exit 0
                 PathBuf::default(),
                 "test".to_string(),
                 SessionType::Hidden,
-                GooseMode::Auto,
+                goose_mode,
             )
             .await?;
         agent.update_provider(provider, &session.id).await?;
