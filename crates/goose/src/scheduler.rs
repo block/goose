@@ -858,7 +858,7 @@ async fn execute_job(
         agent.add_extension(ext.clone(), &session.id).await?;
     }
 
-    let agent_provider = create(&provider_name, model_config.clone(), extensions).await?;
+    let agent_provider = create(&provider_name, extensions).await?;
     agent
         .update_provider(agent_provider, model_config, &session.id)
         .await?;

@@ -381,7 +381,6 @@ mod tests {
             type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
                 _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
@@ -556,7 +555,6 @@ mod tests {
             type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
                 _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
@@ -913,7 +911,6 @@ mod tests {
             type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
                 _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
@@ -1188,7 +1185,6 @@ mod tests {
             type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
                 _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {

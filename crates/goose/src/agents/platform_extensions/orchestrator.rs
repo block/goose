@@ -425,10 +425,9 @@ impl OrchestratorClient {
         let parent_provider = self.get_provider().await?;
         let extensions = self.parent_extensions();
         let model_config = self.parent_model_config(parent_provider.get_name())?;
-        let provider =
-            providers::create(parent_provider.get_name(), model_config.clone(), extensions)
-                .await
-                .map_err(|e| format!("Failed to create provider for new agent: {}", e))?;
+        let provider = providers::create(parent_provider.get_name(), extensions)
+            .await
+            .map_err(|e| format!("Failed to create provider for new agent: {}", e))?;
         agent
             .update_provider(provider, model_config, &session.id)
             .await
@@ -466,8 +465,7 @@ impl OrchestratorClient {
                 let extensions = self.parent_extensions();
                 let model_config = self.parent_model_config(parent_provider.get_name())?;
                 if let Ok(provider) =
-                    providers::create(parent_provider.get_name(), model_config.clone(), extensions)
-                        .await
+                    providers::create(parent_provider.get_name(), extensions).await
                 {
                     agent
                         .update_provider(provider, model_config, &session_id)

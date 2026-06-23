@@ -68,7 +68,6 @@ impl DatabricksV2Provider {
     }
 
     pub async fn from_env(
-        _model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -352,11 +351,10 @@ impl ProviderDef for DatabricksV2Provider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 

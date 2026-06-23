@@ -1670,7 +1670,7 @@ impl SummonClient {
             .ok_or_else(|| anyhow::anyhow!("No provider configured"))?;
 
         let model_config = self.resolve_model_config(params, recipe, session, &provider_name)?;
-        let provider = providers::create(&provider_name, model_config.clone(), Vec::new()).await?;
+        let provider = providers::create(&provider_name, Vec::new()).await?;
         Ok((provider, model_config))
     }
 

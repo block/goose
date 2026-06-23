@@ -63,7 +63,6 @@ pub struct AnthropicProvider {
 
 impl AnthropicProvider {
     pub async fn from_env(
-        _model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -92,7 +91,6 @@ impl AnthropicProvider {
     }
 
     pub fn from_custom_config(
-        _model: ModelConfig,
         config: DeclarativeProviderConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
@@ -243,11 +241,10 @@ impl ProviderDef for AnthropicProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -414,13 +411,9 @@ mod tests {
     #[test]
     fn from_custom_config_rejects_static_only_without_models() {
         let config = base_declarative_config(vec![], Some(false));
-        let err = AnthropicProvider::from_custom_config(
-            ModelConfig::new_or_fail("claude-test"),
-            config,
-            None,
-        )
-        .err()
-        .expect("expected construction error for dynamic_models: false with empty models");
+        let err = AnthropicProvider::from_custom_config(config, None)
+            .err()
+            .expect("expected construction error for dynamic_models: false with empty models");
         let msg = err.to_string();
         assert!(
             msg.contains("dynamic_models: false"),

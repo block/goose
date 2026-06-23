@@ -380,29 +380,6 @@ impl OpenAiProvider {
         }
     }
 
-    /// TODO(jack): replace this
-    /// Fill the model's context limit from the API when it isn't already set.
-    ///
-    /// An existing value may be an explicit GOOSE_CONTEXT_LIMIT, an ACP/server
-    /// per-session override, or a GOOSE_PREDEFINED_MODELS entry, none of which we
-    /// should overwrite. llama.cpp and Ollama report the real allocated window via
-    /// the non-standard meta.n_ctx field; reading it fixes auto-compaction for local
-    /// servers that would otherwise fall back to DEFAULT_CONTEXT_LIMIT. The probe is
-    /// bounded by a short timeout so a hung /v1/models can't stall provider
-    /// construction (the shared ApiClient uses OPENAI_TIMEOUT, up to 600s).
-    // pub async fn probe_context_limit_if_unset(&self, model: &mut ModelConfig) {
-    //     if model.context_limit.is_some() {
-    //         return;
-    //     }
-    //     const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
-    //     let model_name = model.model_name.clone();
-    //     if let Ok(Some(n_ctx)) =
-    //         tokio::time::timeout(N_CTX_PROBE_TIMEOUT, self.fetch_n_ctx_from_api(&model_name)).await
-    //     {
-    //         model.context_limit = Some(n_ctx);
-    //     }
-    // }
-
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
         let models_path =
             Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
@@ -535,6 +512,29 @@ impl Provider for OpenAiProvider {
 
     fn skip_canonical_filtering(&self) -> bool {
         self.skip_canonical_filtering
+    }
+
+    /// Resolve the effective context limit. When the config carries an explicit
+    /// limit (GOOSE_CONTEXT_LIMIT, a session override, or a known/canonical
+    /// value) it is used as-is. Otherwise probe `/v1/models`: llama.cpp and
+    /// Ollama report the real allocated window via the non-standard
+    /// `meta.n_ctx` field, which fixes auto-compaction for local servers that
+    /// would otherwise fall back to DEFAULT_CONTEXT_LIMIT. The probe is bounded
+    /// by a short timeout so a hung endpoint can't stall the caller.
+    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
+        if let Some(limit) = model_config.context_limit {
+            return Ok(limit);
+        }
+        const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+        if let Ok(Some(n_ctx)) = tokio::time::timeout(
+            N_CTX_PROBE_TIMEOUT,
+            self.fetch_n_ctx_from_api(&model_config.model_name),
+        )
+        .await
+        {
+            return Ok(n_ctx);
+        }
+        Ok(model_config.context_limit())
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {

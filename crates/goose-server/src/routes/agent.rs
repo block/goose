@@ -660,14 +660,12 @@ async fn update_agent_provider(
         EnabledExtensionsState::for_session(state.session_manager(), &payload.session_id, config)
             .await;
 
-    let new_provider = create(&payload.provider, model_config.clone(), extensions)
-        .await
-        .map_err(|e| {
-            (
-                StatusCode::BAD_REQUEST,
-                format!("Failed to create {} provider: {}", &payload.provider, e),
-            )
-        })?;
+    let new_provider = create(&payload.provider, extensions).await.map_err(|e| {
+        (
+            StatusCode::BAD_REQUEST,
+            format!("Failed to create {} provider: {}", &payload.provider, e),
+        )
+    })?;
 
     agent
         .update_provider(new_provider, model_config, &payload.session_id)

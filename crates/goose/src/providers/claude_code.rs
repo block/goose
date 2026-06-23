@@ -611,7 +611,6 @@ impl ProviderDef for ClaudeCodeProvider {
     type Provider = Self;
 
     fn from_env(
-        _model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {

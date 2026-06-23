@@ -571,7 +571,7 @@ impl LocalInterpreter {
             .with_toolshim(false)
             .with_toolshim_model(None);
 
-        let provider = crate::providers::init::create("local", model_config.clone(), vec![])
+        let provider = crate::providers::init::create("local", vec![])
             .await
             .map_err(|e| {
                 ProviderError::RequestFailed(format!(

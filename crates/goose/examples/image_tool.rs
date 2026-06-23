@@ -22,18 +22,18 @@ async fn main() -> Result<()> {
         goose_providers::model::ModelConfig,
     )> = vec![
         (
-            create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL, Vec::new()).await?,
+            create_with_named_model("databricks", Vec::new()).await?,
             goose::model_config::model_config_from_user_config(
                 "databricks",
                 DATABRICKS_DEFAULT_MODEL,
             )?,
         ),
         (
-            create_with_named_model("openai", OPEN_AI_DEFAULT_MODEL, Vec::new()).await?,
+            create_with_named_model("openai", Vec::new()).await?,
             goose::model_config::model_config_from_user_config("openai", OPEN_AI_DEFAULT_MODEL)?,
         ),
         (
-            create_with_named_model("anthropic", ANTHROPIC_DEFAULT_MODEL, Vec::new()).await?,
+            create_with_named_model("anthropic", Vec::new()).await?,
             goose::model_config::model_config_from_user_config(
                 "anthropic",
                 ANTHROPIC_DEFAULT_MODEL,

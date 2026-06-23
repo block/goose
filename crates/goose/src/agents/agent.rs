@@ -2710,7 +2710,6 @@ impl Agent {
 
         let provider = crate::providers::create_with_working_dir(
             provider_name,
-            model_config.clone(),
             extensions,
             session.working_dir.clone(),
         )
@@ -2774,7 +2773,6 @@ impl Agent {
             {
                 let p = crate::providers::create_with_working_dir(
                     &provider_name,
-                    model_config.clone(),
                     extensions,
                     session.working_dir.clone(),
                 )
@@ -2812,7 +2810,6 @@ impl Agent {
 
                 let fallback_provider = crate::providers::create_with_working_dir(
                     &fallback_provider_name,
-                    fallback_model_config.clone(),
                     extensions,
                     session.working_dir.clone(),
                 )

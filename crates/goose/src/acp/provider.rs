@@ -135,7 +135,6 @@ struct HandoffContextClaim {
 
 pub struct AcpProvider {
     name: String,
-    model: ModelConfig,
     goose_mode: Arc<Mutex<GooseMode>>,
     mode_mapping: HashMap<GooseMode, String>,
 
@@ -159,7 +158,6 @@ impl std::fmt::Debug for AcpProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AcpProvider")
             .field("name", &self.name)
-            .field("model", &self.model)
             .finish()
     }
 }
@@ -177,13 +175,11 @@ fn spawn_client_loop(fut: impl Future<Output = ()> + Send + 'static) -> JoinHand
 impl AcpProvider {
     pub async fn connect(
         name: String,
-        model: ModelConfig,
         goose_mode: GooseMode,
         config: AcpProviderConfig,
     ) -> Result<Self> {
         Self::start(
             name,
-            model,
             goose_mode,
             config,
             Box::new(|cl, rx, init_tx| Box::pin(cl.spawn(rx, init_tx))),
@@ -194,14 +190,12 @@ impl AcpProvider {
     #[doc(hidden)]
     pub async fn connect_with_transport(
         name: String,
-        model: ModelConfig,
         goose_mode: GooseMode,
         config: AcpProviderConfig,
         transport: impl agent_client_protocol::ConnectTo<Client> + 'static,
     ) -> Result<Self> {
         Self::start(
             name,
-            model,
             goose_mode,
             config,
             Box::new(move |cl, mut rx, init_tx| {
@@ -217,7 +211,6 @@ impl AcpProvider {
 
     async fn start(
         name: String,
-        model: ModelConfig,
         goose_mode: GooseMode,
         config: AcpProviderConfig,
         run: ClientLoopFn,
@@ -252,21 +245,6 @@ impl AcpProvider {
             .await
             .context("ACP session creation cancelled")??;
 
-        // Resolve model from the session response.
-        let resolved_model = if model.model_name == ACP_CURRENT_MODEL {
-            if let Ok((resolved, _)) = resolve_model_info(&name, &response) {
-                tracing::info!(from = ACP_CURRENT_MODEL, to = %resolved, "resolved ACP model");
-                ModelConfig {
-                    model_name: resolved,
-                    ..model
-                }
-            } else {
-                model
-            }
-        } else {
-            model
-        };
-
         let session = AcpSession {
             id: response.session_id.clone(),
             response,
@@ -274,7 +252,6 @@ impl AcpProvider {
 
         Ok(Self {
             name,
-            model: resolved_model,
             goose_mode: goose_mode_shared,
             mode_mapping,
             session,
@@ -1530,30 +1507,34 @@ mod tests {
         }
     }
 
-    fn test_provider() -> AcpProvider {
+    fn test_provider() -> (AcpProvider, ModelConfig) {
         test_provider_with_tx(None)
     }
 
-    fn test_provider_with_tx(tx: Option<mpsc::Sender<ClientRequest>>) -> AcpProvider {
-        AcpProvider {
-            name: "acp-test".to_string(),
-            model: ModelConfig {
+    fn test_provider_with_tx(
+        tx: Option<mpsc::Sender<ClientRequest>>,
+    ) -> (AcpProvider, ModelConfig) {
+        (
+            AcpProvider {
+                name: "acp-test".to_string(),
+                goose_mode: Arc::new(Mutex::new(GooseMode::Auto)),
+                mode_mapping: HashMap::new(),
+                session: AcpSession {
+                    id: SessionId::new("test-session"),
+                    response: NewSessionResponse::new("test-session"),
+                },
+                pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
+                pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
+                handoff_context_sent: AtomicBool::new(false),
+                context_size: Arc::new(AtomicU64::new(0)),
+                tx,
+                loop_thread: None,
+            },
+            ModelConfig {
                 model_name: "test-model".to_string(),
                 ..Default::default()
             },
-            goose_mode: Arc::new(Mutex::new(GooseMode::Auto)),
-            mode_mapping: HashMap::new(),
-            session: AcpSession {
-                id: SessionId::new("test-session"),
-                response: NewSessionResponse::new("test-session"),
-            },
-            pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
-            pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
-            handoff_context_sent: AtomicBool::new(false),
-            context_size: Arc::new(AtomicU64::new(0)),
-            tx,
-            loop_thread: None,
-        }
+        )
     }
 
     #[test]
@@ -1622,7 +1603,7 @@ mod tests {
 
     #[test]
     fn handoff_context_is_sent_only_on_first_provider_prompt() {
-        let provider = test_provider();
+        let (provider, _) = test_provider();
         let messages = vec![
             Message::assistant().with_text("prior answer"),
             Message::user().with_text("current request"),
@@ -1639,7 +1620,7 @@ mod tests {
 
     #[test]
     fn first_prompt_without_history_still_marks_handoff_context_sent() {
-        let provider = test_provider();
+        let (provider, _) = test_provider();
         let first_prompt = vec![Message::user().with_text("new conversation")];
         let later_prompt_with_history = vec![
             Message::assistant().with_text("prior answer"),
@@ -1657,31 +1638,28 @@ mod tests {
 
     #[tokio::test]
     async fn get_context_limit_surfaces_captured_context_size() {
-        let provider = test_provider();
+        let (provider, model) = test_provider();
         assert_eq!(
-            provider.get_context_limit(&provider.model).await.unwrap(),
+            provider.get_context_limit(&model).await.unwrap(),
             goose_providers::model::DEFAULT_CONTEXT_LIMIT
         );
 
         provider.context_size.store(200_000, Ordering::Relaxed);
-        assert_eq!(
-            provider.get_context_limit(&provider.model).await.unwrap(),
-            200_000
-        );
+        assert_eq!(provider.get_context_limit(&model).await.unwrap(), 200_000);
     }
 
     #[tokio::test]
     async fn failed_first_prompt_send_rolls_back_handoff_context_claim() {
         let (tx, rx) = mpsc::channel(1);
         drop(rx);
-        let provider = test_provider_with_tx(Some(tx));
+        let (provider, model) = test_provider_with_tx(Some(tx));
         let messages = vec![
             Message::assistant().with_text("prior answer"),
             Message::user().with_text("current request"),
         ];
 
         let result = provider
-            .stream(&provider.model, "goose-session", "", &messages, &[])
+            .stream(&model, "goose-session", "", &messages, &[])
             .await;
 
         assert!(matches!(result, Err(ProviderError::RequestFailed(_))));

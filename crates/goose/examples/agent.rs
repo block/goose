@@ -12,8 +12,7 @@ use std::path::PathBuf;
 async fn main() -> anyhow::Result<()> {
     let _ = dotenv();
 
-    let provider =
-        create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL, Vec::new()).await?;
+    let provider = create_with_named_model("databricks", Vec::new()).await?;
     let model_config =
         goose::model_config::model_config_from_user_config("databricks", DATABRICKS_DEFAULT_MODEL)?;
 

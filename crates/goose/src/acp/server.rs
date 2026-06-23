@@ -100,7 +100,6 @@ mod tools;
 pub type AcpProviderFactory = Arc<
     dyn Fn(
             String,
-            goose_providers::model::ModelConfig,
             Vec<ExtensionConfig>,
             Option<PathBuf>,
         ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
@@ -914,17 +913,10 @@ impl GooseAcpAgent {
     async fn create_provider(
         &self,
         provider_name: &str,
-        model_config: goose_providers::model::ModelConfig,
         extensions: Vec<ExtensionConfig>,
         working_dir: Option<PathBuf>,
     ) -> Result<Arc<dyn Provider>> {
-        (self.provider_factory)(
-            provider_name.to_string(),
-            model_config,
-            extensions,
-            working_dir,
-        )
-        .await
+        (self.provider_factory)(provider_name.to_string(), extensions, working_dir).await
     }
 
     async fn maybe_refresh_provider_inventory_with_agent(

@@ -879,7 +879,6 @@ impl AuthProvider for ChatGptCodexAuthProvider {
 pub struct ChatGptCodexProvider {
     #[serde(skip)]
     auth_provider: Arc<ChatGptCodexAuthProvider>,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
 }
@@ -891,7 +890,6 @@ impl ChatGptCodexProvider {
     }
 
     pub async fn from_env(
-        model: ModelConfig,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let auth_provider = Arc::new(ChatGptCodexAuthProvider::new(
@@ -900,7 +898,6 @@ impl ChatGptCodexProvider {
 
         Ok(Self {
             auth_provider,
-            model,
             name: CHATGPT_CODEX_PROVIDER_NAME.to_string(),
         })
     }
@@ -975,11 +972,10 @@ impl ProviderDef for ChatGptCodexProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 

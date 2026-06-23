@@ -173,7 +173,7 @@ async fn try_create_and_test(
         crate::model_config::model_config_from_user_config(provider_name, model_name)
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
 
-    let provider = providers::create(provider_name, model_config.clone(), vec![])
+    let provider = providers::create(provider_name, vec![])
         .await
         .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
 

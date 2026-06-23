@@ -40,15 +40,12 @@ struct Target {
     kind: Vec<String>,
 }
 
-#[derive(Clone)]
-pub struct MockProvider {
-    #[allow(dead_code)]
-    pub model_config: ModelConfig,
-}
+#[derive(Clone, Default)]
+pub struct MockProvider;
 
 impl MockProvider {
-    pub fn new(model_config: ModelConfig) -> Self {
-        Self { model_config }
+    pub fn new() -> Self {
+        Self
     }
 }
 
@@ -62,11 +59,10 @@ impl ProviderDef for MockProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<goose::config::ExtensionConfig>,
         _tls_config: Option<goose::providers::api_client::TlsConfig>,
     ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
-        Box::pin(async move { Ok(Self::new(model)) })
+        Box::pin(async move { Ok(Self::new()) })
     }
 }
 
@@ -251,9 +247,9 @@ async fn test_replayed_session(
         available_tools: vec![],
     };
 
-    let provider = Arc::new(tokio::sync::Mutex::new(Some(Arc::new(MockProvider {
-        model_config: ModelConfig::new("test-model").unwrap(),
-    }) as Arc<dyn Provider>)));
+    let provider = Arc::new(tokio::sync::Mutex::new(Some(
+        Arc::new(MockProvider::new()) as Arc<dyn Provider>
+    )));
     let temp_dir = tempfile::tempdir().unwrap();
     let session_manager = Arc::new(goose::session::SessionManager::new(
         temp_dir.path().to_path_buf(),

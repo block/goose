@@ -11,7 +11,6 @@ use std::sync::Arc;
 
 pub type ProviderConstructor = Arc<
     dyn Fn(
-            ModelConfig,
             Vec<ExtensionConfig>,
             Option<PathBuf>,
             Option<TlsConfig>,
@@ -55,15 +54,12 @@ impl ProviderEntry {
         (self.inventory_configured)()
     }
 
-    #[cfg(test)]
-    pub(crate) fn normalize_model_config_for_test(
-        &self,
-        model: ModelConfig,
-    ) -> Result<ModelConfig> {
-        self.normalize_model_config(model)
-    }
-
-    fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
+    /// Apply provider-specific normalization to a model config: materialize
+    /// global defaults and backfill `context_limit` from the provider's known
+    /// models when the canonical registry didn't already resolve one. Used by
+    /// the agent/session layer to resolve effective limits (e.g. for custom
+    /// providers that declare explicit context limits in their config).
+    pub fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
         model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
 
         if model.context_limit.is_none() {
@@ -84,37 +80,19 @@ impl ProviderEntry {
         &self,
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
-        let model_config = crate::model_config::model_config_from_user_config(
-            &self.metadata.name,
-            &self.metadata.default_model,
-        )?;
-        let model_config = self.normalize_model_config(model_config)?;
-        (self.constructor)(model_config, extensions, None, self.tls_config.clone()).await
+        self.create(extensions).await
     }
 
-    pub async fn create(
-        &self,
-        model: ModelConfig,
-        extensions: Vec<ExtensionConfig>,
-    ) -> Result<Arc<dyn Provider>> {
-        let model = self.normalize_model_config(model)?;
-        (self.constructor)(model, extensions, None, self.tls_config.clone()).await
+    pub async fn create(&self, extensions: Vec<ExtensionConfig>) -> Result<Arc<dyn Provider>> {
+        (self.constructor)(extensions, None, self.tls_config.clone()).await
     }
 
     pub async fn create_with_working_dir(
         &self,
-        model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
         working_dir: PathBuf,
     ) -> Result<Arc<dyn Provider>> {
-        let model = self.normalize_model_config(model)?;
-        (self.constructor)(
-            model,
-            extensions,
-            Some(working_dir),
-            self.tls_config.clone(),
-        )
-        .await
+        (self.constructor)(extensions, Some(working_dir), self.tls_config.clone()).await
     }
 }
 
@@ -155,19 +133,14 @@ impl ProviderRegistry {
             name,
             ProviderEntry {
                 metadata,
-                constructor: Arc::new(|model, extensions, working_dir, tls_config| {
+                constructor: Arc::new(|extensions, working_dir, tls_config| {
                     Box::pin(async move {
                         let provider = match working_dir {
                             Some(working_dir) => {
-                                F::from_env_with_working_dir(
-                                    model,
-                                    extensions,
-                                    working_dir,
-                                    tls_config,
-                                )
-                                .await?
+                                F::from_env_with_working_dir(extensions, working_dir, tls_config)
+                                    .await?
                             }
-                            None => F::from_env(model, extensions, tls_config).await?,
+                            None => F::from_env(extensions, tls_config).await?,
                         };
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
@@ -195,7 +168,7 @@ impl ProviderRegistry {
         inventory_identity: G,
     ) where
         P: ProviderDef + 'static,
-        F: Fn(ModelConfig, Option<TlsConfig>) -> Result<P::Provider> + Send + Sync + 'static,
+        F: Fn(Option<TlsConfig>) -> Result<P::Provider> + Send + Sync + 'static,
         G: Fn() -> Result<InventoryIdentityInput> + Send + Sync + 'static,
     {
         self.register_with_name_impl::<P, F, G>(
@@ -218,7 +191,7 @@ impl ProviderRegistry {
         inventory_configured: H,
     ) where
         P: ProviderDef + 'static,
-        F: Fn(ModelConfig, Option<TlsConfig>) -> Result<P::Provider> + Send + Sync + 'static,
+        F: Fn(Option<TlsConfig>) -> Result<P::Provider> + Send + Sync + 'static,
         G: Fn() -> Result<InventoryIdentityInput> + Send + Sync + 'static,
         H: Fn() -> bool + Send + Sync + 'static,
     {
@@ -242,7 +215,7 @@ impl ProviderRegistry {
         inventory_configured: Option<super::inventory::InventoryConfiguredResolver>,
     ) where
         P: ProviderDef + 'static,
-        F: Fn(ModelConfig, Option<TlsConfig>) -> Result<P::Provider> + Send + Sync + 'static,
+        F: Fn(Option<TlsConfig>) -> Result<P::Provider> + Send + Sync + 'static,
         G: Fn() -> Result<InventoryIdentityInput> + Send + Sync + 'static,
     {
         let base_metadata = P::metadata();
@@ -337,8 +310,8 @@ impl ProviderRegistry {
             config.name.clone(),
             ProviderEntry {
                 metadata: custom_metadata,
-                constructor: Arc::new(move |model, _extensions, _working_dir, tls_config| {
-                    let result = constructor(model, tls_config);
+                constructor: Arc::new(move |_extensions, _working_dir, tls_config| {
+                    let result = constructor(tls_config);
                     Box::pin(async move {
                         let provider = result?;
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
@@ -371,7 +344,6 @@ impl ProviderRegistry {
     pub async fn create(
         &self,
         name: &str,
-        model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
     ) -> Result<Arc<dyn Provider>> {
         let entry = self
@@ -379,7 +351,7 @@ impl ProviderRegistry {
             .get(name)
             .ok_or_else(|| anyhow::anyhow!("Unknown provider: {}", name))?;
 
-        entry.create(model, extensions).await
+        entry.create(extensions).await
     }
 
     pub fn all_metadata_with_types(&self) -> Vec<(ProviderMetadata, ProviderType)> {
@@ -432,7 +404,7 @@ mod tests {
             &test_config(),
             ProviderType::Declarative,
             false,
-            |_, _| unreachable!("constructor is not used by this test"),
+            |_| unreachable!("constructor is not used by this test"),
             || Ok(InventoryIdentityInput::new("custom_hf", "huggingface")),
             || false,
         );

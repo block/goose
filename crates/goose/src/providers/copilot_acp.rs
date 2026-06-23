@@ -11,7 +11,6 @@ use crate::config::{Config, GooseMode};
 use crate::providers::base::{
     current_working_dir, ProviderDef, ProviderDescriptor, ProviderMetadata,
 };
-use goose_providers::model::ModelConfig;
 
 pub(crate) const COPILOT_ACP_PROVIDER_NAME: &str = "copilot-acp";
 const COPILOT_ACP_DOC_URL: &str = "https://github.com/github/copilot-cli";
@@ -46,15 +45,13 @@ impl ProviderDef for CopilotAcpProvider {
     type Provider = AcpProvider;
 
     fn from_env(
-        model: ModelConfig,
         extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<AcpProvider>> {
-        Self::from_env_with_working_dir(model, extensions, current_working_dir(), tls_config)
+        Self::from_env_with_working_dir(extensions, current_working_dir(), tls_config)
     }
 
     fn from_env_with_working_dir(
-        model: ModelConfig,
         extensions: Vec<crate::config::ExtensionConfig>,
         working_dir: PathBuf,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
@@ -67,11 +64,7 @@ impl ProviderDef for CopilotAcpProvider {
                 .resolve(COPILOT_ACP_BINARY)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
 
-            let mut args = vec!["--acp".to_string()];
-            if model.model_name != ACP_CURRENT_MODEL {
-                args.push("--model".to_string());
-                args.push(model.model_name.clone());
-            }
+            let args = vec!["--acp".to_string()];
 
             // Copilot modes are full protocol URIs.
             // No approve-specific mode; permissions are handled separately.
@@ -95,7 +88,7 @@ impl ProviderDef for CopilotAcpProvider {
             };
 
             let metadata = Self::metadata();
-            AcpProvider::connect(metadata.name, model, goose_mode, provider_config).await
+            AcpProvider::connect(metadata.name, goose_mode, provider_config).await
         })
     }
 }

@@ -546,7 +546,6 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
 
     let (new_provider, effective_provider_name, effective_model_name) = match create(
         &resolved.provider_name,
-        resolved.model_config.clone(),
         extensions_for_provider.clone(),
     )
     .await
@@ -578,22 +577,13 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
                 ))
                 .yellow()
             );
-            let fallback_model_config =
+            if let Err(e) =
                 model_config_from_user_config(fallback_provider.as_str(), &fallback_model)
-                    .unwrap_or_else(|e| {
-                        output::render_error(&format!(
-                            "Failed to create model configuration: {}",
-                            e
-                        ));
-                        process::exit(1);
-                    });
-            match create(
-                &fallback_provider,
-                fallback_model_config,
-                extensions_for_provider.clone(),
-            )
-            .await
             {
+                output::render_error(&format!("Failed to create model configuration: {}", e));
+                process::exit(1);
+            }
+            match create(&fallback_provider, extensions_for_provider.clone()).await {
                 Ok(provider) => (provider, fallback_provider, fallback_model),
                 Err(e2) => {
                     output::render_error(&format!(

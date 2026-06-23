@@ -185,12 +185,7 @@ where
 
         let original_env = setup_environment(config)?;
 
-        let inner_provider = create(
-            &factory_name,
-            goose::model_config::model_config_from_user_config(&factory_name, config.model_name)?,
-            Vec::new(),
-        )
-        .await?;
+        let inner_provider = create(&factory_name, Vec::new()).await?;
 
         let test_provider = Arc::new(TestProvider::new_recording(inner_provider, &file_path));
         (

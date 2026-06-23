@@ -482,7 +482,7 @@ pub struct LocalInferenceProvider {
 }
 
 impl LocalInferenceProvider {
-    pub async fn from_env(_model: ModelConfig, _extensions: Vec<ExtensionConfig>) -> Result<Self> {
+    pub async fn from_env(_extensions: Vec<ExtensionConfig>) -> Result<Self> {
         let runtime = InferenceRuntime::get_or_init()?;
         Ok(Self {
             runtime,
@@ -530,14 +530,13 @@ impl ProviderDef for LocalInferenceProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>>
     where
         Self: Sized,
     {
-        Box::pin(Self::from_env(model, extensions))
+        Box::pin(Self::from_env(extensions))
     }
 }
 

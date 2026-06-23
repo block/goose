@@ -11,7 +11,6 @@ use crate::config::{Config, GooseMode};
 use crate::providers::base::{
     current_working_dir, ProviderDef, ProviderDescriptor, ProviderMetadata,
 };
-use goose_providers::model::ModelConfig;
 
 pub(crate) const AMP_ACP_PROVIDER_NAME: &str = "amp-acp";
 const AMP_ACP_DOC_URL: &str = "https://ampcode.com";
@@ -45,15 +44,13 @@ impl ProviderDef for AmpAcpProvider {
     type Provider = AcpProvider;
 
     fn from_env(
-        model: ModelConfig,
         extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<AcpProvider>> {
-        Self::from_env_with_working_dir(model, extensions, current_working_dir(), tls_config)
+        Self::from_env_with_working_dir(extensions, current_working_dir(), tls_config)
     }
 
     fn from_env_with_working_dir(
-        model: ModelConfig,
         extensions: Vec<crate::config::ExtensionConfig>,
         working_dir: PathBuf,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
@@ -85,7 +82,7 @@ impl ProviderDef for AmpAcpProvider {
             };
 
             let metadata = Self::metadata();
-            AcpProvider::connect(metadata.name, model, goose_mode, provider_config).await
+            AcpProvider::connect(metadata.name, goose_mode, provider_config).await
         })
     }
 }

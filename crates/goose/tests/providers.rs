@@ -235,7 +235,6 @@ impl ProviderFixture {
 
         let provider = create_with_named_model(
             &config.name.to_lowercase(),
-            config.model_name,
             vec![mcp_extension.clone(), developer_extension.clone()],
         )
         .await

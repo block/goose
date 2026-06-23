@@ -12,7 +12,6 @@ use goose_providers::{
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    let model = ModelConfig::new("gpt-5.4-mini")?;
     let key = env::var("OPENAI_API_KEY").map_err(|_| anyhow::anyhow!("need an OpenAI key"))?;
     let api_client = ApiClient::new_with_tls(
         "https://api.openai.com".to_string(),
@@ -24,6 +23,7 @@ async fn main() -> Result<()> {
     let system = "You are a knowledgable geography expert";
     let messages = [Message::user().with_text("what is the capital of France?")];
 
+    let model = ModelConfig::new("gpt-5.4-mini")?;
     let mut stream = provider
         .stream(
             &model,

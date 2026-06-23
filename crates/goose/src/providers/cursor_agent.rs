@@ -36,7 +36,6 @@ pub struct CursorAgentProvider {
 
 impl CursorAgentProvider {
     pub async fn from_env(
-        _model: ModelConfig,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -302,11 +301,10 @@ impl ProviderDef for CursorAgentProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -358,7 +356,7 @@ impl Provider for CursorAgentProvider {
             "usage": usage
         });
 
-        let mut log = start_log(&model_config, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
         log.write(&response, Some(&usage))?;
 
         let provider_usage = ProviderUsage::new(model_config.model_name.clone(), usage);

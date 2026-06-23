@@ -862,10 +862,9 @@ impl CliSession {
         }
 
         let extensions = self.agent.get_extension_configs().await;
-        let new_provider =
-            goose::providers::create(&current_provider_name, new_model_config.clone(), extensions)
-                .await
-                .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
+        let new_provider = goose::providers::create(&current_provider_name, extensions)
+            .await
+            .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
 
         self.agent
             .update_provider(new_provider, new_model_config, &self.session_id)
@@ -2263,7 +2262,7 @@ async fn get_reasoner(
         goose::model_config::model_config_from_user_config(&provider, model.as_str())?
             .with_context_limit(planner_context_limit);
     let extensions = goose::config::extensions::get_enabled_extensions_with_config(config);
-    let reasoner = create(&provider, model_config.clone(), extensions).await?;
+    let reasoner = create(&provider, extensions).await?;
 
     Ok((reasoner, model_config))
 }

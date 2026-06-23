@@ -15,7 +15,7 @@ pub async fn test_provider_configuration(
         .with_toolshim(toolshim_enabled)
         .with_toolshim_model(toolshim_model);
 
-    let provider = create(provider_name, model_config.clone(), Vec::new()).await?;
+    let provider = create(provider_name, Vec::new()).await?;
 
     let messages =
         vec![Message::user().with_text("What is the weather like in San Francisco today?")];

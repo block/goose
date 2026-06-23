@@ -76,7 +76,7 @@ async fn check_provider(
     let model_config = goose::model_config::model_config_from_user_config(&provider, &model)
         .map_err(|e| ProviderCheckError::InvalidModel(e.to_string()))?;
 
-    let provider_client = goose::providers::create(&provider, model_config.clone(), Vec::new())
+    let provider_client = goose::providers::create(&provider, Vec::new())
         .await
         .map_err(|e| {
             let error = e.to_string();

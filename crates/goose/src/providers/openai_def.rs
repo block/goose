@@ -6,7 +6,6 @@ use std::collections::HashMap;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::providers::base::{ProviderDef, DEFAULT_PROVIDER_TIMEOUT_SECS};
 use goose_providers::api_client::{ApiClient, AuthMethod};
-use goose_providers::model::ModelConfig;
 use goose_providers::openai::{
     ensure_url_scheme, parse_custom_headers, parse_openai_base_url, OpenAiProvider,
     OpenAiProviderBuilder, OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_VERSIONLESS_BASE_PATH,
@@ -24,16 +23,14 @@ impl ProviderDef for OpenAiProviderDef {
     type Provider = OpenAiProvider;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(from_env(model, tls_config))
+        Box::pin(from_env(tls_config))
     }
 }
 
 pub async fn from_env(
-    _model: ModelConfig,
     tls_config: Option<goose_providers::api_client::TlsConfig>,
 ) -> Result<OpenAiProvider> {
     let config = crate::config::Config::global();
@@ -225,7 +222,6 @@ pub fn resolve_api_key(
 }
 
 pub fn from_custom_config(
-    _model: ModelConfig,
     config: DeclarativeProviderConfig,
     tls_config: Option<goose_providers::api_client::TlsConfig>,
 ) -> Result<OpenAiProvider> {

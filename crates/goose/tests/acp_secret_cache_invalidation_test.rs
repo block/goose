@@ -17,8 +17,6 @@ use std::sync::Arc;
 
 struct MockProvider {
     name: String,
-    #[allow(dead_code)]
-    model_config: ModelConfig,
 }
 
 #[async_trait::async_trait]
@@ -47,11 +45,10 @@ impl Provider for MockProvider {
 }
 
 fn mock_provider_factory() -> goose::acp::server::AcpProviderFactory {
-    Arc::new(|provider_name, model_config, _extensions, _working_dir| {
+    Arc::new(|provider_name, _extensions, _working_dir| {
         Box::pin(async move {
             Ok(Arc::new(MockProvider {
                 name: provider_name,
-                model_config,
             }) as Arc<dyn Provider>)
         })
     })
