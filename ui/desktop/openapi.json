@@ -7978,6 +7978,11 @@
           "id": {
             "type": "string"
           },
+          "last_message_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
           "last_message_snippet": {
             "type": "string",
             "nullable": true

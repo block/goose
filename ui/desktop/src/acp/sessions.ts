@@ -14,6 +14,7 @@ import type { Recipe } from '../recipe';
 interface GooseSessionInfoMeta {
   messageCount?: number;
   createdAt?: string;
+  lastMessageAt?: string;
   archivedAt?: string;
   projectId?: string;
   providerId?: string;
@@ -30,6 +31,7 @@ export interface SessionListItem {
   workingDir: string;
   updatedAt: string;
   messageCount: number;
+  lastMessageAt?: string;
   createdAt: string;
   archivedAt?: string;
   projectId?: string;
@@ -94,6 +96,7 @@ export function sessionInfoToSession(s: SessionInfo, loadMeta: LoadSessionMeta =
     working_dir: loadMeta.workingDir ?? s.cwd,
     created_at: createdAt,
     updated_at: updatedAt,
+    last_message_at: meta.lastMessageAt,
     message_count: meta.messageCount ?? 0,
     extension_data: {},
     archived_at: meta.archivedAt,
@@ -116,6 +119,7 @@ function sessionInfoToListItem(s: SessionInfo): SessionListItem {
     workingDir: s.cwd,
     updatedAt: s.updatedAt ?? '',
     messageCount: meta.messageCount ?? 0,
+    lastMessageAt: meta.lastMessageAt,
     createdAt: meta.createdAt ?? s.updatedAt ?? '',
     archivedAt: meta.archivedAt,
     projectId: meta.projectId,

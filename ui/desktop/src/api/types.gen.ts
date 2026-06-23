@@ -1356,6 +1356,7 @@ export type Session = {
     extension_data: ExtensionData;
     goose_mode?: GooseMode;
     id: string;
+    last_message_at?: string | null;
     last_message_snippet?: string | null;
     message_count: number;
     model_config?: ModelConfig | null;

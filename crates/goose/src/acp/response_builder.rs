@@ -32,6 +32,12 @@ pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_j
         "createdAt".to_string(),
         serde_json::Value::String(session.created_at.to_rfc3339()),
     );
+    if let Some(ref last_message_at) = session.last_message_at {
+        meta.insert(
+            "lastMessageAt".to_string(),
+            serde_json::Value::String(last_message_at.to_rfc3339()),
+        );
+    }
     if let Some(ref archived_at) = session.archived_at {
         meta.insert(
             "archivedAt".to_string(),

@@ -24,11 +24,12 @@ use common_tests::{
     run_shell_terminal_false, run_shell_terminal_true,
 };
 use goose::config::GooseMode;
-use goose::conversation::message::{Message, MessageMetadata};
+use goose::conversation::message::{Message, MessageContent, MessageMetadata};
 use goose::custom_requests::{GetSessionInfoRequest, GetSessionInfoResponse};
 use goose::recipe::{Recipe, Settings};
 use goose::recipe_deeplink;
 use goose::session::{SessionManager, SessionType};
+use rmcp::model::Role;
 use std::path::Path;
 
 tests_config_option_set_error!(AcpServerConnection);
@@ -138,6 +139,14 @@ fn last_message_snippet(session: &SessionInfo) -> Option<&str> {
         .and_then(serde_json::Value::as_str)
 }
 
+fn last_message_at(session: &SessionInfo) -> Option<&str> {
+    session
+        .meta
+        .as_ref()
+        .and_then(|meta| meta.get("lastMessageAt"))
+        .and_then(serde_json::Value::as_str)
+}
+
 #[test]
 fn test_config_mcp() {
     run_test(async { run_config_mcp::<AcpServerConnection>().await });
@@ -222,6 +231,51 @@ fn test_list_sessions_emits_computed_snippet() {
         assert_eq!(
             last_message_snippet(&response.sessions[0]),
             Some("**raw** _markdown_ subtitle")
+        );
+    });
+}
+
+#[test]
+fn test_list_sessions_emits_last_message_at() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let cwd = Path::new("/tmp/acp-session-list-last-message-at");
+        let session_manager = SessionManager::new(data_root.path().to_path_buf());
+        let session = session_manager
+            .create_session(
+                cwd.to_path_buf(),
+                "Session recency".to_string(),
+                SessionType::Acp,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+        let expected = chrono::DateTime::parse_from_rfc3339("2026-01-02T03:04:05Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+        session_manager
+            .add_message(
+                &session.id,
+                &Message::new(
+                    Role::User,
+                    expected.timestamp(),
+                    vec![MessageContent::text("hello")],
+                ),
+            )
+            .await
+            .unwrap();
+
+        let conn = new_connection(data_root.path()).await;
+        let response = list_sessions_request(&conn, ListSessionsRequest::new())
+            .await
+            .unwrap();
+
+        assert_eq!(response.sessions.len(), 1);
+        assert_eq!(
+            last_message_at(&response.sessions[0])
+                .and_then(|value| chrono::DateTime::parse_from_rfc3339(value).ok())
+                .map(|value| value.with_timezone(&chrono::Utc)),
+            Some(expected)
         );
     });
 }

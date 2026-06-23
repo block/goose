@@ -9,7 +9,7 @@ use crate::session::session_naming::{
     generate_session_name, MSG_COUNT_FOR_SESSION_NAME_GENERATION,
 };
 use anyhow::Result;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use goose_providers::conversation::token_usage::Usage;
 use goose_providers::model::ModelConfig;
 use rmcp::model::Role;
@@ -80,6 +80,8 @@ pub struct Session {
     pub user_recipe_values: Option<HashMap<String, String>>,
     pub conversation: Option<Conversation>,
     pub message_count: usize,
+    #[serde(default)]
+    pub last_message_at: Option<DateTime<Utc>>,
     pub provider_name: Option<String>,
     pub model_config: Option<ModelConfig>,
     #[serde(default)]
@@ -594,6 +596,7 @@ impl Default for Session {
             user_recipe_values: None,
             conversation: None,
             message_count: 0,
+            last_message_at: None,
             provider_name: None,
             model_config: None,
             goose_mode: GooseMode::default(),
@@ -641,6 +644,12 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             .unwrap_or_else(|_| "user".to_string());
         let session_type = session_type_str.parse().unwrap_or_default();
 
+        let last_message_at = row
+            .try_get::<Option<i64>, _>("last_message_timestamp")
+            .ok()
+            .flatten()
+            .and_then(|timestamp| Utc.timestamp_opt(timestamp, 0).single());
+
         Ok(Session {
             id: row.try_get("id")?,
             working_dir: PathBuf::from(row.try_get::<String, _>("working_dir")?),
@@ -677,6 +686,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
             user_recipe_values,
             conversation: None,
             message_count: row.try_get("message_count").unwrap_or(0) as usize,
+            last_message_at,
             provider_name: row.try_get("provider_name").ok().flatten(),
             model_config,
             goose_mode: row
@@ -1348,14 +1358,22 @@ impl SessionStorage {
         if include_messages {
             let conv = self.get_conversation(&session.id).await?;
             session.message_count = conv.messages().len();
+            session.last_message_at = conv
+                .messages()
+                .iter()
+                .filter_map(|message| Utc.timestamp_opt(message.created, 0).single())
+                .max();
             session.conversation = Some(conv);
         } else {
-            let count =
-                sqlx::query_scalar::<_, i64>("SELECT COUNT(*) FROM messages WHERE session_id = ?")
-                    .bind(&session.id)
-                    .fetch_one(pool)
-                    .await? as usize;
-            session.message_count = count;
+            let (count, last_message_timestamp): (i64, Option<i64>) = sqlx::query_as(
+                "SELECT COUNT(*), MAX(created_timestamp) FROM messages WHERE session_id = ?",
+            )
+            .bind(&session.id)
+            .fetch_one(pool)
+            .await?;
+            session.message_count = count as usize;
+            session.last_message_at = last_message_timestamp
+                .and_then(|timestamp| Utc.timestamp_opt(timestamp, 0).single());
         }
 
         Ok(session)
@@ -1670,7 +1688,8 @@ impl SessionStorage {
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
                    s.archived_at, s.project_id,
-                   COUNT(m.id) as message_count
+                   COUNT(m.id) as message_count,
+                   MAX(m.created_timestamp) as last_message_timestamp
             FROM sessions s
             {}
             {}
@@ -2222,6 +2241,40 @@ mod tests {
         sm.add_message(session_id, &Message::user().with_text("hello world"))
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_last_message_at_is_derived_from_messages() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                PathBuf::from("/tmp/test"),
+                "Session recency".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let empty = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(empty.message_count, 0);
+        assert_eq!(empty.last_message_at, None);
+
+        add_message_at(&sm, &session.id, "older", "2026-01-01T00:00:00Z").await;
+        add_message_at(&sm, &session.id, "newer", "2026-01-02T03:04:05Z").await;
+
+        let expected = chrono::DateTime::parse_from_rfc3339("2026-01-02T03:04:05Z")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        let without_messages = sm.get_session(&session.id, false).await.unwrap();
+        assert_eq!(without_messages.message_count, 2);
+        assert_eq!(without_messages.last_message_at, Some(expected));
+
+        let with_messages = sm.get_session(&session.id, true).await.unwrap();
+        assert_eq!(with_messages.message_count, 2);
+        assert_eq!(with_messages.last_message_at, Some(expected));
     }
 
     #[tokio::test]
