@@ -145,7 +145,7 @@ pub struct GooseClient {
     notification_handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
     provider: SharedProvider,
     session_id: Mutex<Option<String>>,
-    active_tool_calls: Mutex<HashMap<String, Vec<String>>>,
+    active_tool_calls: Mutex<HashMap<String, String>>,
     client_name: String,
     capabilities: GooseMcpClientCapabilities,
     working_dir: Arc<tokio::sync::RwLock<PathBuf>>,
@@ -215,25 +215,15 @@ impl GooseClient {
         self.active_tool_calls
             .lock()
             .await
-            .entry(session_id.to_string())
-            .or_default()
-            .push(tool_call_request_id.to_string());
+            .insert(session_id.to_string(), tool_call_request_id.to_string());
     }
 
     async fn unregister_active_tool_call(&self, session_id: &str, tool_call_request_id: &str) {
         let mut active_tool_calls = self.active_tool_calls.lock().await;
-        let Some(session_tool_calls) = active_tool_calls.get_mut(session_id) else {
-            return;
-        };
-
-        if let Some(position) = session_tool_calls
-            .iter()
-            .position(|id| id == tool_call_request_id)
+        if active_tool_calls
+            .get(session_id)
+            .is_some_and(|id| id == tool_call_request_id)
         {
-            session_tool_calls.remove(position);
-        }
-
-        if session_tool_calls.is_empty() {
             active_tool_calls.remove(session_id);
         }
     }
@@ -248,19 +238,13 @@ impl GooseClient {
         }
 
         let active_tool_calls = self.active_tool_calls.lock().await;
-        let session_tool_calls = active_tool_calls
-            .get(session_id)
-            .map(Vec::as_slice)
-            .unwrap_or_default();
-
-        match session_tool_calls.first() {
-            Some(tool_call_request_id) => Ok(tool_call_request_id.clone()),
-            None => Err(ErrorData::new(
+        active_tool_calls.get(session_id).cloned().ok_or_else(|| {
+            ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 "Could not resolve tool call request id for elicitation request",
                 None,
-            )),
-        }
+            )
+        })
     }
 
     fn resolved_extensions(&self) -> ExtensionCapabilities {
@@ -524,6 +508,7 @@ pub struct GooseMcpClientCapabilities {
 /// The MCP client is the interface for MCP operations.
 pub struct McpClient {
     client: Mutex<RunningService<RoleClient, GooseClient>>,
+    tool_call_lock: Mutex<()>,
     notification_subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
     server_info: Option<InitializeResult>,
     timeout: std::time::Duration,
@@ -584,6 +569,7 @@ impl McpClient {
 
         Ok(Self {
             client: Mutex::new(client),
+            tool_call_lock: Mutex::new(()),
             notification_subscribers,
             server_info,
             timeout,
@@ -777,6 +763,7 @@ impl McpClientTrait for McpClient {
         arguments: Option<JsonObject>,
         cancel_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
+        let _tool_call_guard = self.tool_call_lock.lock().await;
         let mut params = CallToolRequestParams::new(name.to_string());
         if let Some(args) = arguments {
             params = params.with_arguments(args);
@@ -1133,7 +1120,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_resolve_tool_call_request_id_uses_active_call_when_tools_overlap() {
+    async fn test_resolve_tool_call_request_id_uses_current_active_call() {
         let client = new_client(GoosePlatform::GooseCli);
         client
             .register_active_tool_call("session-a", "active-tool-call-a")
@@ -1147,7 +1134,28 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(resolved, "active-tool-call-a");
+        assert_eq!(resolved, "active-tool-call-b");
+    }
+
+    #[tokio::test]
+    async fn test_unregister_active_tool_call_ignores_stale_id() {
+        let client = new_client(GoosePlatform::GooseCli);
+        client
+            .register_active_tool_call("session-a", "active-tool-call-a")
+            .await;
+        client
+            .register_active_tool_call("session-a", "active-tool-call-b")
+            .await;
+
+        client
+            .unregister_active_tool_call("session-a", "active-tool-call-a")
+            .await;
+        let resolved = client
+            .resolve_tool_call_request_id("session-a", &Extensions::new())
+            .await
+            .unwrap();
+
+        assert_eq!(resolved, "active-tool-call-b");
     }
 
     #[test_case(list_resources_request; "list_resources")]
