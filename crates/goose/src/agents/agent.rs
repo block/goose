@@ -591,13 +591,14 @@ impl Agent {
         // Add adversary inspector (LLM-based review, enabled by ~/.config/goose/adversary.md)
         tool_inspection_manager.add_inspector(Box::new(AdversaryInspector::new(
             provider.clone(),
-            session_manager,
+            session_manager.clone(),
         )));
 
         // Add permission inspector (medium-high priority)
         tool_inspection_manager.add_inspector(Box::new(PermissionInspector::new(
             permission_manager,
             provider,
+            session_manager,
         )));
 
         // Add repetition inspector (lower priority - basic repetition checking)
