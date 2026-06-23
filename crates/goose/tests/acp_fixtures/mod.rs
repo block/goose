@@ -182,10 +182,7 @@ impl SchedulerTrait for FixtureScheduler {
             .iter()
             .find(|job| job.id == sched_id)
             .ok_or_else(|| SchedulerError::JobNotFound(sched_id.to_string()))?;
-        Ok(job
-            .current_session_id
-            .clone()
-            .zip(job.process_start_time.clone()))
+        Ok(job.current_session_id.clone().zip(job.process_start_time))
     }
 }
 

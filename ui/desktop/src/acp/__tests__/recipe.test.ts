@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { RecipeDto } from '@aaif/goose-sdk';
 import { getAcpClient } from '../acpConnection';
-import { encodeRecipe, saveRecipe } from '../recipe';
+import { encodeRecipe, listRecipes, parseRecipe, saveRecipe } from '../recipe';
 
 vi.mock('../acpConnection', () => ({
   getAcpClient: vi.fn(),
@@ -17,6 +17,8 @@ function createClient() {
   return {
     goose: {
       recipesEncode_unstable: vi.fn(),
+      recipesList_unstable: vi.fn(),
+      recipesParse_unstable: vi.fn(),
       recipesSave_unstable: vi.fn(),
     },
   };
@@ -52,5 +54,45 @@ describe('ACP recipe helpers', () => {
     await expect(saveRecipe(recipe)).rejects.toThrow(
       'save recipe validation failed at recipe.extensions[0]: missing field `cmd`'
     );
+  });
+
+  it('prefers ACP JSON-RPC error data from Error instances', async () => {
+    client.goose.recipesParse_unstable.mockRejectedValue(
+      Object.assign(new Error('Invalid params'), {
+        error: {
+          message: 'Invalid params',
+          data: 'recipe: missing field `title`',
+        },
+      })
+    );
+
+    await expect(parseRecipe('description: Missing title')).rejects.toThrow(
+      'recipe: missing field `title`'
+    );
+  });
+
+  it('shares concurrent recipe list requests', async () => {
+    const recipes = [
+      {
+        id: 'recipe-1',
+        recipe,
+      },
+    ];
+    client.goose.recipesList_unstable.mockResolvedValue({ recipes });
+
+    const [first, second] = await Promise.all([listRecipes(), listRecipes()]);
+
+    expect(client.goose.recipesList_unstable).toHaveBeenCalledTimes(1);
+    expect(first).toBe(recipes);
+    expect(second).toBe(recipes);
+  });
+
+  it('fetches recipes again after a list request settles', async () => {
+    client.goose.recipesList_unstable.mockResolvedValue({ recipes: [] });
+
+    await listRecipes();
+    await listRecipes();
+
+    expect(client.goose.recipesList_unstable).toHaveBeenCalledTimes(2);
   });
 });

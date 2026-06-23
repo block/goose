@@ -6,6 +6,8 @@ import type {
 } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
 
+let inFlightListRecipes: Promise<RecipeListEntryDto[]> | null = null;
+
 function acpErrorMessage(error: unknown): string | null {
   if (typeof error !== 'object' || error === null) {
     return null;
@@ -26,10 +28,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function normalizeAcpError(error: unknown, fallback: string): Error {
+  const message = acpErrorMessage(error);
+  if (message) {
+    return new Error(message);
+  }
   if (error instanceof Error) {
     return error;
   }
-  return new Error(acpErrorMessage(error) ?? fallback);
+  return new Error(fallback);
 }
 
 export async function encodeRecipe(recipe: RecipeDto): Promise<string> {
@@ -87,12 +93,27 @@ export async function saveRecipe(
 }
 
 export async function listRecipes(): Promise<RecipeListEntryDto[]> {
-  try {
+  const pending = inFlightListRecipes;
+  if (pending) {
+    return pending;
+  }
+
+  const listPromise = (async () => {
     const client = await getAcpClient();
     const response = await client.goose.recipesList_unstable({});
     return response.recipes;
-  } catch (error) {
+  })().catch((error) => {
     throw normalizeAcpError(error, 'Failed to list recipes');
+  });
+
+  inFlightListRecipes = listPromise;
+
+  try {
+    return await listPromise;
+  } finally {
+    if (inFlightListRecipes === listPromise) {
+      inFlightListRecipes = null;
+    }
   }
 }
 
