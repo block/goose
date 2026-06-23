@@ -42,7 +42,7 @@ use crate::utils::sanitize_unicode_tags;
 use agent_client_protocol::schema::{
     AgentCapabilities, Annotations, AuthMethod, AuthMethodAgent, AuthenticateRequest,
     AuthenticateResponse, BlobResourceContents, CancelNotification, CloseSessionRequest,
-    CloseSessionResponse, ConfigOptionUpdate, Content, ContentBlock, ContentChunk,
+    CloseSessionResponse, ConfigOptionUpdate, Content, ContentBlock, ContentChunk, Cost,
     CurrentModeUpdate, EmbeddedResource, EmbeddedResourceResource, FileSystemCapabilities,
     ForkSessionRequest, ForkSessionResponse, ImageContent, Implementation, InitializeRequest,
     InitializeResponse, ListSessionsRequest, ListSessionsResponse, LoadSessionRequest,
@@ -835,7 +835,13 @@ pub(super) fn build_usage_updates(session: &Session) -> Option<UsageUpdates> {
                 accumulated_cost: session.accumulated_cost,
             }),
         },
-        standard: UsageUpdate::new(used, ctx_limit),
+        standard: {
+            let mut standard = UsageUpdate::new(used, ctx_limit);
+            if let Some(amount) = session.accumulated_cost {
+                standard = standard.cost(Cost::new(amount, "USD"));
+            }
+            standard
+        },
     })
 }
 
