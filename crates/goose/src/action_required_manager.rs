@@ -209,6 +209,17 @@ impl ActionRequiredManager {
         rx
     }
 
+    pub(crate) async fn has_action_required_stream(
+        &self,
+        session_id: &str,
+        tool_call_request_id: &str,
+    ) -> bool {
+        self.action_required_senders
+            .lock()
+            .await
+            .contains_key(&(session_id.to_string(), tool_call_request_id.to_string()))
+    }
+
     pub(crate) async fn unregister_action_required_stream(
         &self,
         session_id: &str,

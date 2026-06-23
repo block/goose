@@ -253,16 +253,11 @@ impl GooseClient {
             .map(Vec::as_slice)
             .unwrap_or_default();
 
-        match session_tool_calls {
-            [tool_call_request_id] => Ok(tool_call_request_id.clone()),
-            [] => Err(ErrorData::new(
+        match session_tool_calls.first() {
+            Some(tool_call_request_id) => Ok(tool_call_request_id.clone()),
+            None => Err(ErrorData::new(
                 ErrorCode::INTERNAL_ERROR,
                 "Could not resolve tool call request id for elicitation request",
-                None,
-            )),
-            _ => Err(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "Could not resolve tool call request id for elicitation request because multiple tool calls are active",
                 None,
             )),
         }
@@ -1138,7 +1133,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_resolve_tool_call_request_id_rejects_ambiguous_active_calls() {
+    async fn test_resolve_tool_call_request_id_uses_active_call_when_tools_overlap() {
         let client = new_client(GoosePlatform::GooseCli);
         client
             .register_active_tool_call("session-a", "active-tool-call-a")
@@ -1147,12 +1142,12 @@ mod tests {
             .register_active_tool_call("session-a", "active-tool-call-b")
             .await;
 
-        let error = client
+        let resolved = client
             .resolve_tool_call_request_id("session-a", &Extensions::new())
             .await
-            .expect_err("multiple active tool calls should be ambiguous");
+            .unwrap();
 
-        assert!(error.message.contains("multiple tool calls are active"));
+        assert_eq!(resolved, "active-tool-call-a");
     }
 
     #[test_case(list_resources_request; "list_resources")]

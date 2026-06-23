@@ -1735,22 +1735,32 @@ impl ExtensionManager {
         let hydration_client = client.clone();
         let notifications_receiver = client.subscribe().await;
         let session_id = ctx.session_id.clone();
-        let action_required_receiver =
-            if let Some(tool_call_request_id) = ctx.tool_call_request_id.clone() {
+        let action_required_tool_call_request_id = ctx.tool_call_request_id.clone();
+        let mut unregister_action_required_stream = false;
+        let action_required_receiver = if let Some(tool_call_request_id) =
+            action_required_tool_call_request_id.clone()
+        {
+            if ActionRequiredManager::global()
+                .has_action_required_stream(&session_id, &tool_call_request_id)
+                .await
+            {
+                None
+            } else {
+                unregister_action_required_stream = true;
                 Some(
                     ActionRequiredManager::global()
                         .register_action_required_stream(session_id.clone(), tool_call_request_id)
                         .await,
                 )
-            } else {
-                None
-            };
+            }
+        } else {
+            None
+        };
         let actual_tool_name = resolved.actual_tool_name.clone();
         let resolved_tool = resolved;
         let should_hydrate_mcp_app = self.host_supports_mcp_apps();
         let read_cancellation_token = cancellation_token.clone();
         let action_required_session_id = session_id.clone();
-        let action_required_tool_call_request_id = ctx.tool_call_request_id.clone();
         let owned_ctx = ToolCallContext::new(
             ctx.session_id.clone(),
             ctx.working_dir.clone(),
@@ -1774,7 +1784,10 @@ impl ExtensionManager {
                     }
                 });
 
-            if let Some(tool_call_request_id) = &action_required_tool_call_request_id {
+            if unregister_action_required_stream {
+                let Some(tool_call_request_id) = &action_required_tool_call_request_id else {
+                    unreachable!("registered action-required stream without a tool call id")
+                };
                 ActionRequiredManager::global()
                     .unregister_action_required_stream(
                         &action_required_session_id,

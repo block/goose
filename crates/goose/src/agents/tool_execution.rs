@@ -15,6 +15,7 @@ use crate::permission::Permission;
 use rmcp::model::{Content, ServerNotification};
 
 /// Context passed through the tool call dispatch chain.
+#[derive(Clone)]
 pub struct ToolCallContext {
     pub session_id: String,
     pub working_dir: Option<PathBuf>,
