@@ -24,7 +24,6 @@ const NANOGPT_API_KEY: &str = "NANOGPT_API_KEY";
 pub struct NanoGptProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
 }
@@ -64,7 +63,7 @@ impl NanoGptProvider {
     }
 
     pub async fn from_env(
-        model: ModelConfig,
+        _model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -83,7 +82,6 @@ impl NanoGptProvider {
 
         Ok(Self {
             api_client,
-            model,
             name: NANOGPT_PROVIDER_NAME.to_string(),
         })
     }

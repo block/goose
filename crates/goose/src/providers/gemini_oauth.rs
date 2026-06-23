@@ -11,7 +11,6 @@ use goose_providers::model::ModelConfig;
 use goose_providers::request_log::{start_log, LoggerHandleExt};
 
 const GEMINI_OAUTH_DEFAULT_MODEL: &str = "gemini-3-flash-preview";
-const GEMINI_OAUTH_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash-lite";
 use crate::providers::retry::ProviderRetry;
 use crate::session_context::SESSION_ID_HEADER;
 use anyhow::{anyhow, Result};
@@ -831,29 +830,21 @@ fn parse_retry_delay(body: &str) -> Option<Duration> {
 pub struct GeminiOAuthProvider {
     #[serde(skip)]
     token_provider: Arc<GeminiOAuthTokenProvider>,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
 }
 
 impl GeminiOAuthProvider {
     pub async fn from_env(
-        model: ModelConfig,
+        _model: ModelConfig,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
-        let model = crate::model_config::with_configured_fast_model(
-            model,
-            GEMINI_OAUTH_PROVIDER_NAME,
-            GEMINI_OAUTH_DEFAULT_FAST_MODEL,
-        )?;
-
         let token_provider = Arc::new(GeminiOAuthTokenProvider::new(
             GeminiOAuthAuthState::instance(),
         ));
 
         Ok(Self {
             token_provider,
-            model,
             name: GEMINI_OAUTH_PROVIDER_NAME.to_string(),
         })
     }

@@ -195,7 +195,6 @@ pub struct GithubCopilotProvider {
     cache: DiskCache,
     #[serde(skip)]
     mu: tokio::sync::Mutex<RefCell<Option<CopilotState>>>,
-    model: ModelConfig,
     #[serde(skip)]
     urls: GithubCopilotUrls,
     #[serde(skip)]
@@ -232,7 +231,7 @@ impl GithubCopilotProvider {
     }
 
     pub async fn from_env(
-        model: ModelConfig,
+        _model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = Config::global();
@@ -255,7 +254,6 @@ impl GithubCopilotProvider {
             client,
             cache,
             mu,
-            model,
             urls,
             client_id,
             name: GITHUB_COPILOT_PROVIDER_NAME.to_string(),

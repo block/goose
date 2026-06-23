@@ -25,7 +25,6 @@ use tokio_util::io::StreamReader;
 pub(crate) const GOOGLE_PROVIDER_NAME: &str = "google";
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-pro";
-pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash";
 pub const GOOGLE_KNOWN_MODELS: &[&str] = &[
     // Gemini 3 models
     "gemini-3-pro-preview",
@@ -60,22 +59,15 @@ pub const GOOGLE_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs/models";
 pub struct GoogleProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
 }
 
 impl GoogleProvider {
     pub async fn from_env(
-        model: ModelConfig,
+        _model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
-        let model = crate::model_config::with_configured_fast_model(
-            model,
-            GOOGLE_PROVIDER_NAME,
-            GOOGLE_DEFAULT_FAST_MODEL,
-        )?;
-
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GOOGLE_API_KEY")?;
         let host: String = config
@@ -92,7 +84,6 @@ impl GoogleProvider {
 
         Ok(Self {
             api_client,
-            model,
             name: GOOGLE_PROVIDER_NAME.to_string(),
         })
     }

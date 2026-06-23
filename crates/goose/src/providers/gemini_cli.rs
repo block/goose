@@ -38,7 +38,6 @@ pub const GEMINI_CLI_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs";
 #[derive(Debug, serde::Serialize)]
 pub struct GeminiCliProvider {
     command: PathBuf,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
     #[serde(skip)]
@@ -47,7 +46,7 @@ pub struct GeminiCliProvider {
 
 impl GeminiCliProvider {
     pub async fn from_env(
-        model: ModelConfig,
+        _model: ModelConfig,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = Config::global();
@@ -56,7 +55,6 @@ impl GeminiCliProvider {
 
         Ok(Self {
             command: resolved_command,
-            model,
             name: GEMINI_CLI_PROVIDER_NAME.to_string(),
             cli_session_id: Arc::new(OnceLock::new()),
         })
@@ -332,7 +330,6 @@ mod tests {
     fn make_provider() -> GeminiCliProvider {
         GeminiCliProvider {
             command: PathBuf::from("gemini"),
-            model: ModelConfig::new("gemini-2.5-pro").unwrap(),
             name: "gemini-cli".to_string(),
             cli_session_id: Arc::new(OnceLock::new()),
         }

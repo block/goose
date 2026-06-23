@@ -54,7 +54,6 @@ enum DatabricksV2Route {
 pub struct DatabricksV2Provider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     #[serde(skip)]
     retry_config: RetryConfig,
     #[serde(skip)]
@@ -69,7 +68,7 @@ impl DatabricksV2Provider {
     }
 
     pub async fn from_env(
-        model: ModelConfig,
+        _model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -95,13 +94,12 @@ impl DatabricksV2Provider {
             DatabricksAuth::oauth(host.clone())
         };
 
-        Self::new(host, auth, model, retry_config, tls_config)
+        Self::new(host, auth, retry_config, tls_config)
     }
 
     fn new(
         host: String,
         auth: DatabricksAuth,
-        model: ModelConfig,
         retry_config: RetryConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
@@ -124,7 +122,6 @@ impl DatabricksV2Provider {
 
         Ok(Self {
             api_client,
-            model,
             retry_config,
             name: DATABRICKS_V2_PROVIDER_NAME.to_string(),
             token_cache,

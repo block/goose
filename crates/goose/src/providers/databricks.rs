@@ -63,7 +63,6 @@ static DATABRICKS_ENDPOINT_INFO_CACHE: LazyLock<
     Mutex<std::collections::HashMap<String, CachedDatabricksEndpointInfo>>,
 > = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-sonnet-4";
-const DATABRICKS_DEFAULT_FAST_MODEL: &str = "databricks-claude-haiku-4-5";
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-claude-sonnet-4-5",
     "databricks-meta-llama-3-3-70b-instruct",
@@ -80,7 +79,6 @@ pub struct DatabricksProvider {
     #[serde(skip)]
     host: String,
     auth: DatabricksAuth,
-    model: ModelConfig,
     image_format: ImageFormat,
     #[serde(skip)]
     retry_config: RetryConfig,
@@ -98,7 +96,7 @@ impl DatabricksProvider {
     }
 
     pub async fn from_env(
-        model: ModelConfig,
+        _model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -141,23 +139,16 @@ impl DatabricksProvider {
             tls_config.clone(),
         )?;
 
-        let mut provider = Self {
+        Ok(Self {
             api_client,
             host,
             auth,
-            model: model.clone(),
             image_format: ImageFormat::OpenAi,
             retry_config,
             name: DATABRICKS_PROVIDER_NAME.to_string(),
             token_cache,
             instance_id: Self::resolve_instance_id(),
-        };
-        provider.model = crate::model_config::with_configured_fast_model(
-            model,
-            DATABRICKS_PROVIDER_NAME,
-            DATABRICKS_DEFAULT_FAST_MODEL,
-        )?;
-        Ok(provider)
+        })
     }
 
     fn load_retry_config(config: &crate::config::Config) -> RetryConfig {

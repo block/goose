@@ -52,7 +52,6 @@ const OLLAMA_MAX_RETRY_INTERVAL_MS: u64 = 15_000;
 pub struct OllamaProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     supports_streaming: bool,
     name: String,
     skip_canonical_filtering: bool,
@@ -131,7 +130,7 @@ pub(crate) fn ollama_host_configured(config: &crate::config::Config) -> bool {
 
 impl OllamaProvider {
     pub async fn from_env(
-        model: ModelConfig,
+        _model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -170,7 +169,6 @@ impl OllamaProvider {
 
         Ok(Self {
             api_client,
-            model,
             supports_streaming: true,
             name: OLLAMA_PROVIDER_NAME.to_string(),
             skip_canonical_filtering: false,
@@ -178,7 +176,7 @@ impl OllamaProvider {
     }
 
     pub fn from_custom_config(
-        model: ModelConfig,
+        _model: ModelConfig,
         config: DeclarativeProviderConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
@@ -230,15 +228,8 @@ impl OllamaProvider {
             ));
         }
 
-        let model = if let Some(ref fast_model_name) = config.fast_model {
-            crate::model_config::with_configured_fast_model(model, &config.name, fast_model_name)?
-        } else {
-            model
-        };
-
         Ok(Self {
             api_client,
-            model,
             supports_streaming,
             name: config.name.clone(),
             skip_canonical_filtering: config.skip_canonical_filtering,
