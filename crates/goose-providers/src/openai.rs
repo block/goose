@@ -20,6 +20,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::StatusCode;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use crate::base::{MessageStream, ProviderDescriptor};
 use crate::model::ModelConfig;
@@ -132,6 +133,8 @@ pub struct OpenAiProvider {
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
+    #[serde(skip)]
+    n_ctx_cache: Arc<Mutex<HashMap<String, Option<usize>>>>,
 }
 
 /// Builder for [`OpenAiProvider`].
@@ -238,6 +241,7 @@ impl OpenAiProviderBuilder {
             dynamic_models: self.dynamic_models,
             skip_canonical_filtering: self.skip_canonical_filtering,
             preserve_thinking_context: self.preserve_thinking_context,
+            n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -257,6 +261,7 @@ impl OpenAiProvider {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -525,16 +530,30 @@ impl Provider for OpenAiProvider {
         if let Some(limit) = model_config.context_limit {
             return Ok(limit);
         }
+
+        if let Some(cached) = self
+            .n_ctx_cache
+            .lock()
+            .ok()
+            .and_then(|cache| cache.get(&model_config.model_name).copied())
+        {
+            return Ok(cached.unwrap_or_else(|| model_config.context_limit()));
+        }
+
         const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
-        if let Ok(Some(n_ctx)) = tokio::time::timeout(
+        let probed = tokio::time::timeout(
             N_CTX_PROBE_TIMEOUT,
             self.fetch_n_ctx_from_api(&model_config.model_name),
         )
         .await
-        {
-            return Ok(n_ctx);
+        .ok()
+        .flatten();
+
+        if let Ok(mut cache) = self.n_ctx_cache.lock() {
+            cache.insert(model_config.model_name.clone(), probed);
         }
-        Ok(model_config.context_limit())
+
+        Ok(probed.unwrap_or_else(|| model_config.context_limit()))
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -709,6 +728,7 @@ mod tests {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
