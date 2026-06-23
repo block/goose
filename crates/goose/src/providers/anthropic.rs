@@ -53,7 +53,6 @@ const ANTHROPIC_API_VERSION: &str = "2023-06-01";
 pub struct AnthropicProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     supports_streaming: bool,
     name: String,
     custom_models: Option<Vec<String>>,
@@ -90,7 +89,6 @@ impl AnthropicProvider {
 
         Ok(Self {
             api_client,
-            model,
             supports_streaming: true,
             name: ANTHROPIC_PROVIDER_NAME.to_string(),
             custom_models: None,
@@ -167,7 +165,6 @@ impl AnthropicProvider {
 
         Ok(Self {
             api_client,
-            model,
             supports_streaming,
             name: config.name.clone(),
             custom_models,
@@ -182,19 +179,6 @@ impl AnthropicProvider {
             preserve_unsigned_thinking: preserves_thinking,
             preserve_thinking_context: preserves_thinking,
         }
-    }
-
-    fn get_conditional_headers(&self) -> Vec<(&str, &str)> {
-        let mut headers = Vec::new();
-
-        if self.model.model_name.starts_with("claude-3-7-sonnet-") {
-            if thinking_type(&self.model) == ThinkingType::Enabled {
-                headers.push(("anthropic-beta", "output-128k-2025-02-19"));
-            }
-            headers.push(("anthropic-beta", "token-efficient-tools-2025-02-19"));
-        }
-
-        headers
     }
 
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
@@ -333,15 +317,11 @@ impl Provider for AnthropicProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let conditional_headers = self.get_conditional_headers();
         let mut log = start_log(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
-                let mut request = self.api_client.request(Some(session_id), "v1/messages");
-                for (key, value) in &conditional_headers {
-                    request = request.header(key, value)?;
-                }
+                let request = self.api_client.request(Some(session_id), "v1/messages");
                 let resp = request.response_post(&payload).await?;
                 handle_status(resp).await
             })
@@ -389,7 +369,6 @@ mod tests {
             .unwrap();
         AnthropicProvider {
             api_client,
-            model: ModelConfig::new_or_fail("claude-test"),
             supports_streaming: true,
             name: "custom_anthropic".to_string(),
             custom_models,
