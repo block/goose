@@ -1,5 +1,5 @@
 use regex::Regex;
-use rmcp::model::{AnnotateAble, RawTextContent};
+use rmcp::model::{AnnotateAble, RawContent, RawTextContent};
 #[cfg(test)]
 use std::collections::HashSet;
 
@@ -353,6 +353,31 @@ impl Redactor {
                     }
                     .no_annotation(),
                 )
+            }
+            MessageContent::ToolResponse(tool_response) => {
+                let mut new_response = tool_response.clone();
+                if let Ok(call_tool_result) = &mut new_response.tool_result {
+                    call_tool_result.content = call_tool_result
+                        .content
+                        .iter()
+                        .map(|c| {
+                            if let RawContent::Text(ref text_content) = c.raw {
+                                let (redacted, events) = self.redact_text(&text_content.text);
+                                if !events.is_empty() {
+                                    Self::log_redaction(&events[0].category, events.len());
+                                }
+                                RawContent::Text(RawTextContent {
+                                    text: redacted,
+                                    meta: None,
+                                })
+                                .no_annotation()
+                            } else {
+                                c.clone()
+                            }
+                        })
+                        .collect();
+                }
+                MessageContent::ToolResponse(new_response)
             }
             _ => content.clone(),
         }

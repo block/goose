@@ -1499,6 +1499,12 @@ impl Agent {
 
         let message_text = user_message.as_concat_text();
 
+        let user_message = if Redactor::is_enabled() {
+            Redactor::from_config().redact_message(&user_message)
+        } else {
+            user_message
+        };
+
         if self
             .hook_manager
             .has_hooks(crate::hooks::HookEvent::UserPromptSubmit)
