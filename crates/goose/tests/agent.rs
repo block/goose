@@ -1345,6 +1345,156 @@ mod tests {
             assert_formatter_adds_reasoning_to_tool_calls(&messages, "Kimi");
             Ok(())
         }
+
+        /// Simulates a provider that emits reasoning and a tool call in the same
+        /// streamed message (no prior thinking-only chunk).
+        struct CombinedThinkingToolProvider {
+            call_count: AtomicUsize,
+        }
+
+        impl CombinedThinkingToolProvider {
+            fn new() -> Self {
+                Self {
+                    call_count: AtomicUsize::new(0),
+                }
+            }
+        }
+
+        impl goose::providers::base::ProviderDescriptor for CombinedThinkingToolProvider {
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "combined-thinking-tool-mock".to_string(),
+                    display_name: "Combined Thinking+Tool Mock".to_string(),
+                    description: "Mock for combined thinking+tool call in one chunk".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                    model_selection_hint: None,
+                }
+            }
+        }
+
+        impl ProviderDef for CombinedThinkingToolProvider {
+            type Provider = Self;
+
+            fn from_env(
+                _model: ModelConfig,
+                _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                unimplemented!()
+            }
+        }
+
+        #[async_trait]
+        impl Provider for CombinedThinkingToolProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _session_id: &str,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+                let usage = ProviderUsage::new(
+                    "mock-model".to_string(),
+                    Usage::new(Some(10), Some(20), Some(30)),
+                );
+                match call {
+                    0 => {
+                        // Single chunk: reasoning_content AND tool call together
+                        let tool_call = CallToolRequestParams::new("test_tool")
+                            .with_arguments(object!({"param": "value"}));
+                        let combined = Message::assistant()
+                            .with_thinking("I should call test_tool", "sig_0")
+                            .with_tool_request("call_1", Ok(tool_call));
+                        Ok(Box::pin(futures::stream::once(async move {
+                            Ok((Some(combined), Some(usage)))
+                        })))
+                    }
+                    _ => {
+                        let msg = Message::assistant().with_text("Done.");
+                        Ok(Box::pin(futures::stream::once(async move {
+                            Ok((Some(msg), Some(usage)))
+                        })))
+                    }
+                }
+            }
+
+            fn get_model_config(&self) -> ModelConfig {
+                ModelConfig::new("mock-model").unwrap()
+            }
+
+            fn get_name(&self) -> &str {
+                "combined-thinking-tool-mock"
+            }
+        }
+
+        /// When reasoning arrives in the same chunk as the tool call (no prior
+        /// thinking-only message), the agent must attach it to the persisted
+        /// request_msg so the formatter can emit reasoning_content on the next turn.
+        #[tokio::test]
+        async fn test_reasoning_preserved_when_combined_with_tool_call() -> Result<()> {
+            let temp_dir = tempfile::tempdir()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+            let config = AgentConfig::new(
+                session_manager.clone(),
+                PermissionManager::instance(),
+                None,
+                GooseMode::Auto,
+                true,
+                GoosePlatform::GooseCli,
+            );
+            let agent = Agent::with_config(config);
+            let provider = Arc::new(CombinedThinkingToolProvider::new());
+
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "combined-thinking-tool-test".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+
+            let session_id = session.id.clone();
+            agent.update_provider(provider, &session_id).await?;
+
+            let session_config = SessionConfig {
+                id: session_id.clone(),
+                schedule_id: None,
+                max_turns: Some(2),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(
+                    Message::user().with_text("Use the test tool"),
+                    session_config,
+                    None,
+                )
+                .await?;
+            tokio::pin!(reply_stream);
+            while let Some(event) = reply_stream.next().await {
+                match event {
+                    Ok(_) => {}
+                    Err(e) => return Err(e),
+                }
+            }
+
+            let reloaded = session_manager.get_session(&session_id, true).await?;
+            let messages = reloaded
+                .conversation
+                .expect("should have conversation")
+                .messages()
+                .to_vec();
+
+            assert_formatter_adds_reasoning_to_tool_calls(&messages, "combined-thinking-tool");
+            Ok(())
+        }
     }
 
     #[cfg(test)]

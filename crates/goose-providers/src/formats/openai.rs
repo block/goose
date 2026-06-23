@@ -436,7 +436,11 @@ pub fn format_messages_with_options(
                     tool_call_turn_reasoning = reasoning_text.clone();
                 }
             } else {
-                tool_call_turn_reasoning.clear();
+                // Carry reasoning forward even through non-tool assistant messages
+                // (e.g., a visible text chunk that's is sent before a tool-call chunk
+                // in the same streaming turn). An empty reasoning_text is equivalent
+                // to clear.
+                tool_call_turn_reasoning = reasoning_text.clone();
             }
         }
 

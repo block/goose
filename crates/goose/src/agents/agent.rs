@@ -2211,10 +2211,34 @@ impl Agent {
                                     }
                                 }
 
+                                // When reasoning arrives in the same streamed chunk as tool
+                                // calls there is no prior thinking-only message for the
+                                // formatter to buffer, so attach it to the first request_msg.
+                                let response_thinking: Vec<MessageContent> = response
+                                    .content
+                                    .iter()
+                                    .filter(|c| {
+                                        matches!(
+                                            c,
+                                            MessageContent::Thinking(_)
+                                                | MessageContent::RedactedThinking(_)
+                                        )
+                                    })
+                                    .cloned()
+                                    .collect();
+                                let mut first_tool_msg = true;
+
                                 for request in frontend_requests.iter().chain(remaining_requests.iter()) {
                                     if request.tool_call.is_ok() {
                                         let mut request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()));
+
+                                        if first_tool_msg {
+                                            for thinking in &response_thinking {
+                                                request_msg = request_msg.with_content(thinking.clone());
+                                            }
+                                            first_tool_msg = false;
+                                        }
 
                                         request_msg = request_msg
                                             .with_tool_request_with_metadata(
