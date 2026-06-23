@@ -182,10 +182,17 @@ pub fn format_messages_with_options(
 ) -> Vec<Value> {
     let mut messages_spec = Vec::new();
     let mut pending_assistant_reasoning = String::new();
+    // Reasoning to propagate across consecutive tool-call messages in the same turn.
+    // DeepSeek/Kimi require reasoning_content on every assistant tool-call message.
+    let mut tool_call_turn_reasoning = String::new();
 
     for message in messages {
         if options.preserve_thinking_context && message.role != Role::Assistant {
             pending_assistant_reasoning.clear();
+        }
+        // clears the reasoning of the turn as a new message from the user was received.
+        if options.preserve_thinking_context && message.role == Role::User {
+            tool_call_turn_reasoning.clear();
         }
 
         let mut converted = json!({
@@ -407,6 +414,21 @@ pub fn format_messages_with_options(
                 reasoning_text =
                     merge_reasoning_text(&pending_assistant_reasoning, &reasoning_text);
                 pending_assistant_reasoning.clear();
+            }
+
+            let has_tool_calls = converted
+                .get("tool_calls")
+                .and_then(|tc| tc.as_array())
+                .is_some_and(|a| !a.is_empty());
+
+            if has_tool_calls {
+                if reasoning_text.is_empty() {
+                    reasoning_text = tool_call_turn_reasoning.clone();
+                } else {
+                    tool_call_turn_reasoning = reasoning_text.clone();
+                }
+            } else {
+                tool_call_turn_reasoning.clear();
             }
         }
 
@@ -3128,6 +3150,53 @@ data: [DONE]"#;
         assert_eq!(spec[0]["role"], "user");
         assert_eq!(spec[1]["role"], "assistant");
         assert!(spec[1].get("reasoning_content").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_carries_reasoning_to_all_split_tool_calls() -> anyhow::Result<()> {
+        // Simulates DeepSeek/Kimi streaming: thinking-only chunk arrives first,
+        // then two separate tool-call chunks (agent stores each as its own message).
+        // The formatter must propagate reasoning_content to both tool-call messages
+        // so merge_split_tool_call_messages can merge them and the provider sees
+        // reasoning_content on the combined assistant message.
+        let tool_result1 = Message::user().with_tool_response(
+            "tool1",
+            Ok(rmcp::model::CallToolResult::success(vec![
+                rmcp::model::Content::text("result1"),
+            ])),
+        );
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::thinking("reasoning", "")),
+            Message::assistant().with_tool_request(
+                "tool1",
+                Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({}))),
+            ),
+            tool_result1,
+            Message::assistant().with_tool_request(
+                "tool2",
+                Ok(CallToolRequestParams::new("tool_b").with_arguments(object!({}))),
+            ),
+        ];
+
+        let spec = format_messages_with_options(
+            &messages,
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+            },
+        );
+
+        // After merge: one assistant message with both tool calls
+        let assistant_msgs: Vec<_> = spec
+            .iter()
+            .filter(|m| m.get("role") == Some(&json!("assistant")))
+            .collect();
+        assert_eq!(assistant_msgs.len(), 1);
+        assert_eq!(assistant_msgs[0]["reasoning_content"], "reasoning");
+        let tool_calls = assistant_msgs[0]["tool_calls"].as_array().unwrap();
+        assert_eq!(tool_calls.len(), 2);
 
         Ok(())
     }

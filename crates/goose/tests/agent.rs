@@ -1285,66 +1285,60 @@ mod tests {
                 .to_vec())
         }
 
-        /// DeepSeek (and OpenRouter DeepSeek models) stream reasoning_content before the
-        /// tool-call chunk. The agent must attach it to the tool-call assistant message;
-        /// otherwise DeepSeek returns HTTP 400 on the next turn.
+        fn assert_formatter_adds_reasoning_to_tool_calls(messages: &[Message], provider: &str) {
+            use goose_providers::formats::openai::{
+                format_messages_with_options, OpenAiFormatOptions,
+            };
+            use goose_providers::images::ImageFormat;
+
+            assert!(
+                messages
+                    .iter()
+                    .any(|m| m.content.iter().any(|c| matches!(c, MessageContent::Thinking(_)))),
+                "{provider}: conversation must contain at least one Thinking message"
+            );
+            assert!(
+                messages.iter().any(|m| m
+                    .content
+                    .iter()
+                    .any(|c| matches!(c, MessageContent::ToolRequest(_)))),
+                "{provider}: conversation must contain at least one tool-call message"
+            );
+
+            let spec = format_messages_with_options(
+                messages,
+                &ImageFormat::OpenAi,
+                OpenAiFormatOptions {
+                    preserve_thinking_context: true,
+                },
+            );
+            let has_reasoning_on_tool_call = spec.iter().any(|m| {
+                m.get("tool_calls")
+                    .and_then(|tc| tc.as_array())
+                    .is_some_and(|a| !a.is_empty())
+                    && m.get("reasoning_content").is_some()
+            });
+            assert!(
+                has_reasoning_on_tool_call,
+                "{provider}: formatter must produce reasoning_content on assistant tool-call \
+                 messages — {provider} returns HTTP 400 when it is absent on the next turn"
+            );
+        }
+
+        /// DeepSeek streams reasoning_content before the tool-call chunk. The formatter
+        /// must attach it to the tool-call message so the next turn is accepted.
         #[tokio::test]
         async fn test_deepseek_thinking_preserved_in_tool_call_message() -> Result<()> {
             let messages = run_and_collect("deepseek-mock").await?;
-
-            let tool_call_msgs: Vec<_> = messages
-                .iter()
-                .filter(|m| {
-                    m.content
-                        .iter()
-                        .any(|c| matches!(c, MessageContent::ToolRequest(_)))
-                })
-                .collect();
-
-            assert!(
-                !tool_call_msgs.is_empty(),
-                "expected at least one tool-call assistant message"
-            );
-            assert!(
-                tool_call_msgs.iter().any(|m| m
-                    .content
-                    .iter()
-                    .any(|c| matches!(c, MessageContent::Thinking(_)))),
-                "tool-call message must carry Thinking content — DeepSeek rejects the next \
-                 turn with HTTP 400 when reasoning_content is absent from the assistant \
-                 tool-call message"
-            );
+            assert_formatter_adds_reasoning_to_tool_calls(&messages, "DeepSeek");
             Ok(())
         }
 
-        /// Kimi (moonshot provider, OpenAI engine, preserves_thinking=true) has the same
-        /// streaming behaviour as DeepSeek: reasoning_content arrives before the tool call.
+        /// Kimi has the same streaming behaviour as DeepSeek.
         #[tokio::test]
         async fn test_kimi_thinking_preserved_in_tool_call_message() -> Result<()> {
             let messages = run_and_collect("kimi-mock").await?;
-
-            let tool_call_msgs: Vec<_> = messages
-                .iter()
-                .filter(|m| {
-                    m.content
-                        .iter()
-                        .any(|c| matches!(c, MessageContent::ToolRequest(_)))
-                })
-                .collect();
-
-            assert!(
-                !tool_call_msgs.is_empty(),
-                "expected at least one tool-call assistant message"
-            );
-            assert!(
-                tool_call_msgs.iter().any(|m| m
-                    .content
-                    .iter()
-                    .any(|c| matches!(c, MessageContent::Thinking(_)))),
-                "tool-call message must carry Thinking content — Kimi rejects the next \
-                 turn with HTTP 400 when reasoning_content is absent from the assistant \
-                 tool-call message"
-            );
+            assert_formatter_adds_reasoning_to_tool_calls(&messages, "Kimi");
             Ok(())
         }
     }

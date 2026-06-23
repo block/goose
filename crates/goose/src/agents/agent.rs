@@ -1982,16 +1982,6 @@ impl Agent {
                 // thinking so a later tool-call chunk can suppress replayed
                 // reasoning without hiding final-only non-streaming thoughts.
                 let mut surfaced_thinking_in_turn = false;
-                // DeepSeek/Kimi emit reasoning_content in earlier chunks before the
-                // tool-call chunk, so we buffer it across all chunks in a turn.
-                let mut reasoning_buffer: Vec<MessageContent> = Vec::new();
-                // Indices into messages_to_add of no-tool messages that contained
-                // reasoning content. When a tool-call chunk later arrives, we strip
-                // the Thinking variants from each of those messages (preserving any
-                // text) rather than popping them, since a subsequent text chunk may
-                // have been appended after them.
-                // see: https://github.com/aaif-goose/goose/issues/9675
-                let mut reasoning_buffer_persisted_indices: Vec<usize> = Vec::new();
 
                 while let Some(next) = stream.next().await {
                     if is_token_cancelled(&cancel_token) || exit_chat {
@@ -2041,12 +2031,6 @@ impl Agent {
                                     },
                                 );
 
-                                for content in &response.content {
-                                    if matches!(content, MessageContent::Thinking(_)) {
-                                        reasoning_buffer.push(content.clone());
-                                    }
-                                }
-
                                 yield AgentEvent::Message(filtered_response.clone());
                                 tokio::task::yield_now().await;
 
@@ -2056,11 +2040,7 @@ impl Agent {
                                     if !text.is_empty() {
                                         last_assistant_text = text;
                                     }
-                                    let has_thinking = response.content.iter().any(|c| matches!(c, MessageContent::Thinking(_)));
                                     messages_to_add.push(response);
-                                    if has_thinking {
-                                        reasoning_buffer_persisted_indices.push(messages_to_add.len() - 1);
-                                    }
                                     continue;
                                 }
 
@@ -2231,36 +2211,10 @@ impl Agent {
                                     }
                                 }
 
-                                // reasoning_buffer holds thinking from earlier chunks since
-                                // Kimi/DeepSeek send it before the tool-call chunk.
-                                let reasoning_content: Vec<MessageContent> = std::mem::take(&mut reasoning_buffer);
-                                let persisted_indices = std::mem::take(&mut reasoning_buffer_persisted_indices);
-                                if !reasoning_content.is_empty() && !persisted_indices.is_empty() {
-                                    // Strip Thinking from every no-tool message that held reasoning
-                                    // content, preserving any accompanying text in those messages.
-                                    let old = std::mem::take(&mut messages_to_add);
-                                    for (i, mut msg) in old.into_iter().enumerate() {
-                                        if persisted_indices.contains(&i) {
-                                            msg.content.retain(|c| !matches!(c, MessageContent::Thinking(_)));
-                                            if !msg.content.is_empty() {
-                                                messages_to_add.push(msg);
-                                            }
-                                        } else {
-                                            messages_to_add.push(msg);
-                                        }
-                                    }
-                                }
-
                                 for request in frontend_requests.iter().chain(remaining_requests.iter()) {
                                     if request.tool_call.is_ok() {
                                         let mut request_msg = Message::assistant()
                                             .with_id(format!("msg_{}", Uuid::new_v4()));
-
-                                        // Providers like Kimi require reasoning_content on all assistant
-                                        // messages with tool_calls when thinking mode is enabled.
-                                        for rc in &reasoning_content {
-                                            request_msg = request_msg.with_content(rc.clone());
-                                        }
 
                                         request_msg = request_msg
                                             .with_tool_request_with_metadata(
