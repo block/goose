@@ -215,19 +215,10 @@ pub fn truncation_error_message(args: &str) -> Option<String> {
     ))
 }
 
-/// Parse tool-call arguments with a tiered strategy that avoids silent data
-/// loss from truncation while still tolerating common model quirks like
-/// unescaped control characters.
-///
-/// 1. Strict parse — handles the common case and is the only path that
-///    guarantees the arguments are complete and well-formed.
-/// 2. If strict fails and the string does NOT look truncated, try
-///    [`safely_parse_json`] — this repairs unescaped control characters (e.g.
-///    raw newlines) that some models emit inside string values, without the
-///    data-loss risk of repairing truncation.
-/// 3. If the string looks truncated (or both parses fail), return `None` so
-///    the caller can surface an actionable error via
-///    [`truncation_error_message`].
+/// Parse tool-call arguments, returning `None` when the input looks truncated
+/// so callers can surface an actionable error rather than invoking a tool with
+/// incomplete arguments. Non-truncated malformation (e.g. unescaped control
+/// characters some models emit) is still repaired via [`safely_parse_json`].
 pub fn parse_tool_arguments(args: &str) -> Option<serde_json::Value> {
     if args.is_empty() {
         return Some(serde_json::Value::Object(serde_json::Map::new()));

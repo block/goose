@@ -879,7 +879,6 @@ where
                         }
                     }
                     if let Some(tool_id) = current_tool_id.take() {
-                        // Tool call finished, yield complete tool call
                         if let Some((name, args)) = accumulated_tool_calls.remove(&tool_id) {
                             let parsed_args = if args.is_empty() {
                                 json!({})
@@ -989,10 +988,8 @@ where
             }
         }
 
-        // Guard: if the stream ended while a tool_use block was still open
-        // (i.e. its content_block_stop never arrived because the model hit the
-        // output-token limit), the accumulated args are truncated. Surface them
-        // as actionable errors instead of silently dropping the tool call.
+        // A tool_use block left open at stream end never received its
+        // content_block_stop, so its args are truncated rather than complete.
         if !accumulated_tool_calls.is_empty() {
             let truncated_by_limit = stop_reason.as_deref() == Some("max_tokens");
             let mut ids: Vec<String> = accumulated_tool_calls.keys().cloned().collect();
@@ -2080,10 +2077,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_streaming_truncated_tool_args_in_content_block_stop() {
-        // A tool_use block that the provider closes (content_block_stop) but whose
-        // accumulated input_json_delta is truncated mid-content-word because the
-        // model hit the output-token limit mid-JSON. Each delta is a valid JSON
-        // fragment; their concatenation is truncated, unterminated JSON.
+        // Block is closed by content_block_stop, but the concatenated deltas form
+        // truncated JSON (each fragment is valid; together they're unterminated).
         let events = concat!(
             r##"data: {"type":"message_start","message":{"id":"msg_t","role":"assistant","content":[],"model":"glm-4.7","usage":{"input_tokens":10,"output_tokens":0}}}"##,
             "\n",
@@ -2122,10 +2117,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_streaming_truncated_tool_args_no_content_block_stop() {
-        // The realistic truncation scenario: the model hits the output-token limit
-        // mid-tool-call and the stream ends WITHOUT a content_block_stop for the
-        // open tool_use block. The provider signals stop_reason: "max_tokens".
-        // Each delta is a valid fragment; concatenation is truncated JSON.
+        // The stream ends with the tool_use block still open (no content_block_stop),
+        // which is what happens when the model is cut off mid-tool-call.
         let events = concat!(
             r##"data: {"type":"message_start","message":{"id":"msg_t2","role":"assistant","content":[],"model":"glm-4.7","usage":{"input_tokens":10,"output_tokens":0}}}"##,
             "\n",
