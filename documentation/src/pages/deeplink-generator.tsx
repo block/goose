@@ -104,15 +104,23 @@ export default function DeeplinkGenerator() {
             headers: [],
           };
           urlParams.getAll('env').forEach(env => {
-            const [envName, envDescription] = env.split('=');
-            if (envName && envDescription) {
-              server.environmentVariables.push({ name: envName, description: envDescription, required: true });
+            const separatorIndex = env.indexOf('=');
+            if (separatorIndex > 0) {
+              server.environmentVariables.push({
+                name: env.slice(0, separatorIndex),
+                description: env.slice(separatorIndex + 1),
+                required: true,
+              });
             }
           });
           urlParams.getAll('header').forEach(header => {
-            const [headerName, headerDescription] = header.split('=');
-            if (headerName && headerDescription) {
-              server.headers.push({ name: headerName, description: headerDescription, required: true });
+            const separatorIndex = header.indexOf('=');
+            if (separatorIndex > 0) {
+              server.headers.push({
+                name: header.slice(0, separatorIndex),
+                description: header.slice(separatorIndex + 1),
+                required: true,
+              });
             }
           });
           const link = generateDeeplink(server);
@@ -148,11 +156,11 @@ export default function DeeplinkGenerator() {
         const envVars = urlParams.getAll('env');
         if (envVars.length > 0) {
           envVars.forEach(env => {
-            const [name, description] = env.split('=');
-            if (name && description) {
+            const separatorIndex = env.indexOf('=');
+            if (separatorIndex > 0) {
               server.environmentVariables.push({
-                name,
-                description,
+                name: env.slice(0, separatorIndex),
+                description: env.slice(separatorIndex + 1),
                 required: true
               });
             }
