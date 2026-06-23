@@ -1130,8 +1130,8 @@ mod tests {
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
         use goose::conversation::message::{Message, MessageContent};
-        use goose::model::ModelConfig;
         use goose::providers::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
+        use goose_providers::model::ModelConfig;
         use goose::session::session_manager::SessionType;
         use goose::session::SessionManager;
         use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
@@ -1157,9 +1157,7 @@ mod tests {
             }
         }
 
-        impl ProviderDef for ThinkingStreamProvider {
-            type Provider = Self;
-
+        impl goose::providers::base::ProviderDescriptor for ThinkingStreamProvider {
             fn metadata() -> ProviderMetadata {
                 ProviderMetadata {
                     name: "thinking-stream-mock".to_string(),
@@ -1173,10 +1171,15 @@ mod tests {
                     model_selection_hint: None,
                 }
             }
+        }
+
+        impl ProviderDef for ThinkingStreamProvider {
+            type Provider = Self;
 
             fn from_env(
                 _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
                 unimplemented!()
             }
