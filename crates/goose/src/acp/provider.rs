@@ -53,6 +53,10 @@ pub struct AcpProviderConfig {
     pub mcp_servers: Vec<McpServer>,
     pub session_mode_id: Option<String>,
     pub session_config_options: Vec<(String, String)>,
+    /// Config option id used to select the model (e.g. `"model"`). When set, the
+    /// provider re-applies this option from the per-completion `ModelConfig`
+    /// whenever the active session model changes.
+    pub model_config_option_id: Option<String>,
     pub mode_mapping: HashMap<GooseMode, String>,
     pub notification_callback: Option<Arc<dyn Fn(SessionNotification) + Send + Sync>>,
 }
@@ -151,6 +155,12 @@ pub struct AcpProvider {
     /// configuration's context limit.
     context_size: Arc<AtomicU64>,
 
+    /// Config option id used to select the model, if this agent supports it.
+    model_config_option_id: Option<String>,
+    /// Model currently applied via `model_config_option_id`, used to avoid
+    /// redundant `SetConfigOption` calls.
+    applied_model: Arc<Mutex<Option<String>>>,
+
     tx: Option<mpsc::Sender<ClientRequest>>,
     loop_thread: Option<JoinHandle<()>>,
 }
@@ -219,6 +229,14 @@ impl AcpProvider {
         let (tx, rx) = mpsc::channel(32);
         let (init_tx, init_rx) = oneshot::channel();
         let mode_mapping = config.mode_mapping.clone();
+        let model_config_option_id = config.model_config_option_id.clone();
+        let applied_model = config.model_config_option_id.as_ref().and_then(|id| {
+            config
+                .session_config_options
+                .iter()
+                .find(|(opt_id, _)| opt_id == id)
+                .map(|(_, value)| value.clone())
+        });
         let goose_mode_shared = Arc::new(Mutex::new(goose_mode));
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
@@ -260,6 +278,8 @@ impl AcpProvider {
             pending_tool_updates,
             handoff_context_sent: AtomicBool::new(false),
             context_size,
+            model_config_option_id,
+            applied_model: Arc::new(Mutex::new(applied_model)),
             tx: Some(tx),
             loop_thread: Some(loop_thread),
         })
@@ -305,6 +325,39 @@ impl AcpProvider {
             .await
             .context("ACP client is unavailable")?;
         response_rx.await.context("ACP request cancelled")?
+    }
+
+    /// Re-apply the model selection config option when the active session model
+    /// differs from what was last applied. ACP agents that select their model
+    /// via a config option (e.g. Copilot) need this so resumed or switched
+    /// sessions actually use the requested model instead of the agent default.
+    async fn apply_model_if_changed(&self, model_name: &str) -> Result<()> {
+        let Some(config_id) = self.model_config_option_id.clone() else {
+            return Ok(());
+        };
+        if model_name == ACP_CURRENT_MODEL {
+            return Ok(());
+        }
+
+        {
+            let applied = self
+                .applied_model
+                .lock()
+                .map_err(|_| anyhow::anyhow!("applied_model lock poisoned"))?;
+            if applied.as_deref() == Some(model_name) {
+                return Ok(());
+            }
+        }
+
+        self.send_set_config_option("", config_id, model_name.to_string())
+            .await?;
+
+        let mut applied = self
+            .applied_model
+            .lock()
+            .map_err(|_| anyhow::anyhow!("applied_model lock poisoned"))?;
+        *applied = Some(model_name.to_string());
+        Ok(())
     }
 
     async fn prompt(
@@ -417,6 +470,12 @@ impl Provider for AcpProvider {
         _tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let session_id = self.acp_session_id();
+
+        self.apply_model_if_changed(&model_config.model_name)
+            .await
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to set ACP model option: {e}"))
+            })?;
 
         let claim = self.claim_handoff_context(messages);
         let prompt_blocks = messages_to_prompt(messages, claim.include_context);
@@ -1555,6 +1614,8 @@ mod tests {
                 pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
                 handoff_context_sent: AtomicBool::new(false),
                 context_size: Arc::new(AtomicU64::new(0)),
+                model_config_option_id: None,
+                applied_model: Arc::new(Mutex::new(None)),
                 tx,
                 loop_thread: None,
             },
@@ -1691,6 +1752,74 @@ mod tests {
         let next_claim = provider.claim_handoff_context(&messages);
         assert!(next_claim.first_prompt);
         assert!(next_claim.include_context);
+    }
+
+    fn test_provider_with_model_option(
+        tx: mpsc::Sender<ClientRequest>,
+        applied_model: Option<String>,
+    ) -> AcpProvider {
+        let (mut provider, _) = test_provider_with_tx(Some(tx));
+        provider.model_config_option_id = Some("model".to_string());
+        provider.applied_model = Arc::new(Mutex::new(applied_model));
+        provider
+    }
+
+    #[tokio::test]
+    async fn apply_model_if_changed_sends_set_config_option_on_change() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_model_option(tx, Some("old-model".to_string()));
+
+        let handle =
+            tokio::spawn(async move { provider.apply_model_if_changed("new-model").await });
+
+        match rx.recv().await.expect("expected a SetConfigOption request") {
+            ClientRequest::SetConfigOption {
+                config_id,
+                value,
+                response_tx,
+                ..
+            } => {
+                assert_eq!(config_id, "model");
+                assert_eq!(value, "new-model");
+                let _ = response_tx.send(Ok(()));
+            }
+            _ => panic!("unexpected request kind"),
+        }
+
+        handle.await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn apply_model_if_changed_skips_when_model_unchanged() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_model_option(tx, Some("same-model".to_string()));
+
+        provider.apply_model_if_changed("same-model").await.unwrap();
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn apply_model_if_changed_noop_without_option_id() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, _) = test_provider_with_tx(Some(tx));
+
+        provider.apply_model_if_changed("any-model").await.unwrap();
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn apply_model_if_changed_skips_sentinel_model() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_model_option(tx, None);
+
+        provider
+            .apply_model_if_changed(ACP_CURRENT_MODEL)
+            .await
+            .unwrap();
+
+        assert!(rx.try_recv().is_err());
     }
 
     #[test]

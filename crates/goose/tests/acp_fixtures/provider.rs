@@ -184,6 +184,7 @@ impl Connection for AcpProviderConnection {
             mcp_servers,
             session_mode_id: None,
             session_config_options: vec![],
+            model_config_option_id: None,
             mode_mapping: GooseMode::VARIANTS
                 .iter()
                 .map(|v| {

@@ -101,6 +101,7 @@ impl ProviderDef for CodexAcpProvider {
                 // Disabled until https://github.com/zed-industries/codex-acp/issues/179 is fixed.
                 session_mode_id: None,
                 session_config_options: vec![],
+                model_config_option_id: None,
                 mode_mapping,
                 notification_callback: None,
             };

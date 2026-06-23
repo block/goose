@@ -78,6 +78,7 @@ impl ProviderDef for AmpAcpProvider {
                 mcp_servers: extension_configs_to_mcp_servers(&extensions),
                 session_mode_id: Some(mode_mapping[&goose_mode].clone()),
                 session_config_options: vec![],
+                model_config_option_id: None,
                 mode_mapping,
                 notification_callback: None,
             };
