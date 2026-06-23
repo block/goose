@@ -88,6 +88,13 @@ function assertNoPendingPromptCancellation(sessionId: string): void {
   }
 }
 
+function assertNoActivePromptAttempt(sessionId: string): void {
+  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
+  if (snapshot?.activePromptAttemptId) {
+    throw new Error('Cannot update message while prompt is active');
+  }
+}
+
 async function createSession(
   cwd: string,
   gooseExtensions: GooseExtension[],
@@ -212,6 +219,7 @@ async function updateMessage(
   options: AcpSubmitMessageOptions
 ): Promise<void> {
   assertNoPendingPromptCancellation(sessionId);
+  assertNoActivePromptAttempt(sessionId);
 
   const resolvedEditType = editType ?? 'fork';
   const currentSnapshot = options.getCurrentSnapshot();

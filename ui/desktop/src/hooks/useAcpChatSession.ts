@@ -222,10 +222,12 @@ export function useAcpChatSession({
           id: response.messageId,
           metadata: { ...steeredMessage.metadata, steer: true },
         };
-        const currentMessages =
-          acpChatSessionStore.getSnapshot(sessionId)?.messages ??
-          getCurrentSnapshot()?.messages ??
-          [];
+        const latestSnapshot = acpChatSessionStore.getSnapshot(sessionId) ?? getCurrentSnapshot();
+        if (latestSnapshot?.activeRunId !== activeRunId) {
+          return false;
+        }
+
+        const currentMessages = latestSnapshot.messages;
 
         if (!currentMessages.some((message) => message.id === response.messageId)) {
           acpChatSessionActions.addPendingLocalSteerMessage(sessionId, localSteerMessage);

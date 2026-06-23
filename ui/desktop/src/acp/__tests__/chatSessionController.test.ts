@@ -219,13 +219,14 @@ describe('acpChatSessionController.updateMessage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     vi.mocked(acpTruncateSessionConversation).mockResolvedValue(undefined as never);
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue(snapshotWithActivePrompt(null));
+  });
+
+  it('rejects edits before truncating while cancellation is pending', async () => {
     vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue({
       ...snapshotWithActivePrompt(null),
       pendingCancelPromptAttemptId: 'attempt-1',
     });
-  });
-
-  it('rejects edits before truncating while cancellation is pending', async () => {
     const existingMessage = userMessage();
     const currentSnapshot: AcpChatSessionSnapshot = {
       ...snapshotWithActivePrompt(null),
@@ -238,6 +239,32 @@ describe('acpChatSessionController.updateMessage', () => {
         onFinish: vi.fn(),
       })
     ).rejects.toThrow('Cannot submit while prompt cancellation is pending');
+
+    expect(acpChatSessionActions.setChatState).not.toHaveBeenCalledWith(
+      SESSION_ID,
+      ChatState.Thinking
+    );
+    expect(acpTruncateSessionConversation).not.toHaveBeenCalled();
+    expect(acpChatSessionActions.setMessages).not.toHaveBeenCalled();
+    expect(acpPromptSession).not.toHaveBeenCalled();
+  });
+
+  it('rejects edits before truncating while a prompt is active', async () => {
+    vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue(
+      snapshotWithActivePrompt('attempt-1')
+    );
+    const existingMessage = userMessage();
+    const currentSnapshot: AcpChatSessionSnapshot = {
+      ...snapshotWithActivePrompt('attempt-1'),
+      messages: [existingMessage],
+    };
+
+    await expect(
+      acpChatSessionController.updateMessage(SESSION_ID, existingMessage.id, 'Updated', 'edit', {
+        getCurrentSnapshot: () => currentSnapshot,
+        onFinish: vi.fn(),
+      })
+    ).rejects.toThrow('Cannot update message while prompt is active');
 
     expect(acpChatSessionActions.setChatState).not.toHaveBeenCalledWith(
       SESSION_ID,
