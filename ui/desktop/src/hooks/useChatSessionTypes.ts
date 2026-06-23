@@ -8,6 +8,10 @@ export interface UseChatSessionParams {
   onSessionLoaded?: () => void;
 }
 
+export interface SteerQueuedMessageResult {
+  messageId: string;
+}
+
 export interface UseChatSessionResult {
   session?: Session;
   messages: Message[];
@@ -15,6 +19,7 @@ export interface UseChatSessionResult {
   setChatState: (state: ChatState) => void;
   updateSession: (updater: (session: Session) => Session) => void;
   handleSubmit: (input: UserInput) => Promise<void>;
+  onSteerQueuedMessage?: (input: UserInput) => Promise<SteerQueuedMessageResult | null>;
   submitElicitationResponse: (
     elicitationId: string,
     userData: Record<string, unknown>

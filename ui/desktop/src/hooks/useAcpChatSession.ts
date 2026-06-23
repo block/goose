@@ -7,7 +7,11 @@ import { Message, Session, TokenState, updateFromSession } from '../api';
 
 import { createUserMessage, NotificationEvent, UserInput } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
-import type { UseChatSessionParams, UseChatSessionResult } from './useChatSessionTypes';
+import type {
+  SteerQueuedMessageResult,
+  UseChatSessionParams,
+  UseChatSessionResult,
+} from './useChatSessionTypes';
 import { resolveAcpElicitationRequest } from '../acp/elicitationRequests';
 import { acpChatSessionController } from '../acp/chatSessionController';
 import {
@@ -15,6 +19,7 @@ import {
   acpChatSessionStore,
   useAcpChatSessionSnapshot,
 } from '../acp/chatSessionStore';
+import { acpSteerSession } from '../acp/prompt';
 
 const initialTokenState: TokenState = {
   inputTokens: 0,
@@ -182,6 +187,36 @@ export function useAcpChatSession({
     [getCurrentSnapshot, sessionId, submitToAcpSession]
   );
 
+  const onSteerQueuedMessage = useCallback(
+    async (input: UserInput): Promise<SteerQueuedMessageResult | null> => {
+      const { msg: userMessage, images } = input;
+      const hasNewMessage = userMessage.trim().length > 0 || images.length > 0;
+      if (!hasNewMessage) {
+        return null;
+      }
+
+      const activeRunId =
+        getCurrentSnapshot()?.activeRunId ??
+        acpChatSessionStore.getSnapshot(sessionId)?.activeRunId;
+      if (!activeRunId) {
+        return null;
+      }
+
+      try {
+        const response = await acpSteerSession(
+          sessionId,
+          createUserMessage(userMessage, images),
+          activeRunId
+        );
+        return { messageId: response.messageId };
+      } catch (error) {
+        console.warn('Failed to steer ACP session:', error);
+        return null;
+      }
+    },
+    [getCurrentSnapshot, sessionId]
+  );
+
   const submitElicitationResponse = useCallback(
     async (elicitationId: string, userData: Record<string, unknown>) => {
       const currentSnapshot = getCurrentSnapshot();
@@ -283,6 +318,7 @@ export function useAcpChatSession({
     setChatState,
     updateSession,
     handleSubmit,
+    onSteerQueuedMessage,
     submitElicitationResponse,
     stopStreaming,
     setRecipeUserParams,
