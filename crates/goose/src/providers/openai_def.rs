@@ -16,17 +16,21 @@ pub struct OpenAiProviderDef;
 
 impl ProviderDescriptor for OpenAiProviderDef {
     fn metadata() -> goose_providers::base::ProviderMetadata {
-        // Only advertise the default fast model when talking to OpenAI
-        // directly. Custom/compatible endpoints likely don't serve
-        // gpt-4o-mini, so leave it unset (complete_fast falls back to the
-        // main model).
-        let metadata = OpenAiProvider::metadata();
-        match resolve_base_url(crate::config::Config::global()) {
-            Ok(parsed) if is_direct_openai_host(&parsed.host) => {
-                metadata.with_fast_model(OPEN_AI_DEFAULT_FAST_MODEL)
-            }
-            _ => metadata,
+        // The default fast model is resolved live in `live_fast_model` rather
+        // than baked into metadata here: registry metadata is snapshotted at
+        // init time, but the OpenAI base URL can change at runtime (e.g.
+        // switching to an OpenAI-compatible endpoint), which would otherwise
+        // leave the cached fast model stale.
+        OpenAiProvider::metadata()
+    }
+}
+
+pub fn live_fast_model() -> Option<String> {
+    match resolve_base_url(crate::config::Config::global()) {
+        Ok(parsed) if is_direct_openai_host(&parsed.host) => {
+            Some(OPEN_AI_DEFAULT_FAST_MODEL.to_string())
         }
+        _ => None,
     }
 }
 

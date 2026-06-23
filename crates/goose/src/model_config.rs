@@ -86,10 +86,7 @@ pub async fn get_fast_model(
 ) -> Result<ModelConfig> {
     let fast_model_name = match configured_fast_model_name() {
         Some(name) => Some(name),
-        None => crate::providers::get_from_registry(provider_name)
-            .await
-            .ok()
-            .and_then(|entry| entry.metadata().fast_model.clone()),
+        None => provider_default_fast_model(provider_name).await,
     };
 
     match fast_model_name {
@@ -133,6 +130,17 @@ pub async fn complete_fast(
         }
         Err(e) => Err(e),
     }
+}
+
+async fn provider_default_fast_model(provider_name: &str) -> Option<String> {
+    if provider_name == goose_providers::openai::OPEN_AI_PROVIDER_NAME {
+        return crate::providers::openai_def::live_fast_model();
+    }
+
+    crate::providers::get_from_registry(provider_name)
+        .await
+        .ok()
+        .and_then(|entry| entry.metadata().fast_model.clone())
 }
 
 fn base_model_config_from_user_config(model_name: &str) -> Result<ModelConfig> {
