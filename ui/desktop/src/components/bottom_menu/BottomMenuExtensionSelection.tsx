@@ -4,6 +4,8 @@ import { toastService } from '../../toasts';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import { nameToKey } from '../settings/extensions/utils';
 import { ExtensionConfig, getSessionExtensions } from '../../api';
+import { getSessionExtensions as getAcpSessionExtensions } from '../../acp/session-extensions';
+import { USE_ACP_CHAT } from '../../acpChatFeatureFlag';
 import { addToAgent, removeFromAgent } from '../settings/extensions/agent-api';
 import { defineMessages, useIntl } from '../../i18n';
 import { AppEvents } from '../../constants/events';
@@ -260,17 +262,21 @@ function SessionExtensionsMenu({ sessionId }: { sessionId: string }) {
 
   const loadSessionExtensions = useCallback(
     async (targetSessionId: string, signal?: GetSessionExtensionsSignal) => {
-      const response = await getSessionExtensions({
-        path: { session_id: targetSessionId },
-        signal,
-        throwOnError: true,
-      });
+      const extensions = USE_ACP_CHAT
+        ? await getAcpSessionExtensions(targetSessionId)
+        : ((
+            await getSessionExtensions({
+              path: { session_id: targetSessionId },
+              signal,
+              throwOnError: true,
+            })
+          ).data?.extensions ?? []);
 
       if (signal?.aborted || latestSessionIdRef.current !== targetSessionId) {
         return;
       }
 
-      setSessionExtensions(response.data?.extensions ?? []);
+      setSessionExtensions(extensions);
       setIsSessionExtensionsLoaded(true);
     },
     []

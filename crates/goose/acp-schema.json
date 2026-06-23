@@ -3691,6 +3691,116 @@
       ],
       "description": "Live UI/session status. This is not conversation transcript content, and\nshould not be persisted or replayed as history."
     },
+    "RequestRecipeParams_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecipeParameter"
+          }
+        }
+      },
+      "required": [
+        "sessionId",
+        "parameters"
+      ],
+      "x-side": "client",
+      "x-method": "_goose/unstable/session/recipe/request-params"
+    },
+    "RecipeParameter": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "input_type": {
+          "$ref": "#/$defs/RecipeParameterInputType"
+        },
+        "requirement": {
+          "$ref": "#/$defs/RecipeParameterRequirement"
+        },
+        "description": {
+          "type": "string"
+        },
+        "default": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "options": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "key",
+        "input_type",
+        "requirement",
+        "description"
+      ]
+    },
+    "RecipeParameterInputType": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "string",
+            "number",
+            "boolean",
+            "date",
+            "select"
+          ]
+        },
+        {
+          "type": "string",
+          "const": "file",
+          "description": "File parameter that imports content from a file path.\nCannot have default values to prevent importing sensitive user files."
+        }
+      ]
+    },
+    "RecipeParameterRequirement": {
+      "type": "string",
+      "enum": [
+        "required",
+        "optional",
+        "user_prompt"
+      ]
+    },
+    "RecipeParamsResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/RecipeParamsAction",
+          "default": "submit"
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        }
+      },
+      "x-side": "client",
+      "x-method": "_goose/unstable/session/recipe/request-params"
+    },
+    "RecipeParamsAction": {
+      "type": "string",
+      "enum": [
+        "submit",
+        "cancel"
+      ]
+    },
     "ExtRequest": {
       "properties": {
         "id": {
@@ -4659,6 +4769,111 @@
       ],
       "type": "object",
       "x-docs-ignore": true
+    },
+    "ExtAgentRequest": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/RequestRecipeParams_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/recipe/request-params",
+                  "title": "RequestRecipeParams_unstable"
+                }
+              ]
+            },
+            {
+              "description": "Untyped params",
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "method"
+      ],
+      "type": "object",
+      "x-docs-ignore": true
+    },
+    "ExtAgentResponse": {
+      "anyOf": [
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "result": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/RecipeParamsResponse_unstable"
+                        }
+                      ],
+                      "title": "RecipeParamsResponse_unstable"
+                    }
+                  ]
+                },
+                {
+                  "description": "Untyped result"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "Success",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "data": {}
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "error"
+          ],
+          "title": "Error",
+          "type": "object"
+        }
+      ],
+      "x-docs-ignore": true
     }
   },
   "anyOf": [
@@ -4688,6 +4903,24 @@
       ],
       "description": "Extension notification (agent → client, fire-and-forget)",
       "title": "Notification"
+    },
+    {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ExtAgentRequest"
+        }
+      ],
+      "description": "Extension agent request (agent → client)",
+      "title": "AgentRequest"
+    },
+    {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ExtAgentResponse"
+        }
+      ],
+      "description": "Extension agent response (client → agent)",
+      "title": "AgentResponse"
     }
   ]
 }

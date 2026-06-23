@@ -181,9 +181,7 @@ impl Provider for HuggingFaceProvider {
     }
 }
 
-impl ProviderDef for HuggingFaceProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for HuggingFaceProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             huggingface_auth::HUGGINGFACE_PROVIDER_NAME,
@@ -204,6 +202,10 @@ impl ProviderDef for HuggingFaceProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for HuggingFaceProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,
@@ -373,6 +375,8 @@ fn completions_prefix(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use goose_providers::base::ProviderDescriptor as _;
+
     use super::*;
     use crate::providers::base::ModelInfo;
 

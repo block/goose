@@ -89,9 +89,7 @@ impl NanoGptProvider {
     }
 }
 
-impl ProviderDef for NanoGptProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for NanoGptProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             NANOGPT_PROVIDER_NAME,
@@ -103,6 +101,10 @@ impl ProviderDef for NanoGptProvider {
             vec![ConfigKey::new(NANOGPT_API_KEY, true, true, None, true)],
         )
     }
+}
+
+impl ProviderDef for NanoGptProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,
@@ -218,6 +220,7 @@ impl Provider for NanoGptProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose_providers::base::ProviderDescriptor as _;
 
     #[test]
     fn test_metadata() {

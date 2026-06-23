@@ -98,7 +98,7 @@ async-trait = { workspace = true }
 async-stream = { workspace = true }
 minijinja = { version = "2.18", default-features = false, features = ["loader", "multi_template", "serde"] }
 include_dir = { workspace = true }
-tiktoken-rs = { version = "0.11", default-features = false }
+tiktoken-rs = { version = "0.12", default-features = false }
 chrono = { workspace = true }
 clap = { workspace = true }
 indoc = { workspace = true }
@@ -164,7 +164,7 @@ candle-core = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
 candle-transformers = { version = "0.10", default-features = false, optional = true }
 byteorder = { version = "1.5", default-features = false, features = ["std"], optional = true }
-tokenizers = { version = "0.22", default-features = false, features = ["onig"], optional = true }
+tokenizers = { version = "0.23", default-features = false, features = ["onig"], optional = true }
 symphonia = { version = "0.5", default-features = false, features = ["aac", "adpcm", "alac", "isomp4", "mkv", "mp3", "pcm", "vorbis", "wav"], optional = true }
 rubato = { version = "0.16", default-features = false, optional = true }
 zip = { workspace = true }
@@ -220,7 +220,7 @@ subtle = { version = "2.5", default-features = false, features = ["std"] }
 gethostname = "1.1.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { workspace = true }
+winapi = { version = "0.3.9", default-features = false, features = ["wincred", "std", "jobapi2", "winbase", "winnt", "processthreadsapi", "handleapi", "minwindef"] }
 keyring = { workspace = true, features = ["windows-native"], optional = true }
 
 # Platform-specific GPU acceleration for Whisper and local inference

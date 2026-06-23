@@ -155,9 +155,7 @@ impl LiteLLMProvider {
     }
 }
 
-impl ProviderDef for LiteLLMProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for LiteLLMProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             LITELLM_PROVIDER_NAME,
@@ -187,6 +185,10 @@ impl ProviderDef for LiteLLMProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for LiteLLMProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

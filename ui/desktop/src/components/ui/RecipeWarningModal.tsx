@@ -20,24 +20,23 @@ const i18n = defineMessages({
   },
   newRecipeWarningTitle: {
     id: 'recipeWarningModal.newRecipeWarningTitle',
-    defaultMessage: '⚠️ New Workflow Warning',
+    defaultMessage: "⚠️ New Workflow Warning",
   },
   firstTimeDescription: {
     id: 'recipeWarningModal.firstTimeDescription',
-    defaultMessage: "You are about to execute a workflow that you haven't run before. ",
+    defaultMessage: "You are about to execute a workflow that you haven't run before.",
   },
   trustSource: {
     id: 'recipeWarningModal.trustSource',
-    defaultMessage: 'Only proceed if you trust the source of this workflow.',
+    defaultMessage: "Only proceed if you trust the source of this workflow.",
   },
   hiddenCharsWarning: {
     id: 'recipeWarningModal.hiddenCharsWarning',
-    defaultMessage:
-      'This workflow contains hidden characters that will be ignored for your safety, as they could be used for malicious purposes.',
+    defaultMessage: "This workflow contains hidden characters that will be ignored for your safety, as they could be used for malicious purposes.",
   },
   recipePreview: {
     id: 'recipeWarningModal.recipePreview',
-    defaultMessage: 'Workflow Preview:',
+    defaultMessage: "Workflow Preview:",
   },
   titleLabel: {
     id: 'recipeWarningModal.titleLabel',

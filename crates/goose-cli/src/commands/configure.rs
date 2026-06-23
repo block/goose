@@ -365,7 +365,12 @@ async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyh
     }
 }
 
-fn interactive_model_search(models: &[String]) -> anyhow::Result<String> {
+const UNLISTED_MODEL_KEY: &str = "__unlisted__";
+
+fn interactive_model_search(
+    models: &[String],
+    provider_meta: &goose::providers::base::ProviderMetadata,
+) -> anyhow::Result<String> {
     const MAX_VISIBLE: usize = 30;
     let mut query = String::new();
 
@@ -395,7 +400,20 @@ fn interactive_model_search(models: &[String]) -> anyhow::Result<String> {
         };
 
         if filtered.is_empty() {
-            let _ = cliclack::log::warning("No matching models. Try a different search.");
+            let selection = cliclack::select("No matching models. What would you like to do?")
+                .item(
+                    "__new_search__",
+                    "Start a new search...",
+                    "Enter a different search term",
+                )
+                .item(UNLISTED_MODEL_KEY, "Enter a model not listed...", "")
+                .interact()?;
+
+            if selection == UNLISTED_MODEL_KEY {
+                return prompt_unlisted_model(provider_meta);
+            }
+
+            query.clear();
             continue;
         }
 
@@ -429,6 +447,12 @@ fn interactive_model_search(models: &[String]) -> anyhow::Result<String> {
             );
         }
 
+        items.push((
+            UNLISTED_MODEL_KEY.to_string(),
+            "Enter a model not listed...".to_string(),
+            "",
+        ));
+
         let selection = cliclack::select("Select a model:")
             .items(&items)
             .interact()?;
@@ -438,6 +462,8 @@ fn interactive_model_search(models: &[String]) -> anyhow::Result<String> {
         } else if selection == "__new_search__" {
             query.clear();
             continue;
+        } else if selection == UNLISTED_MODEL_KEY {
+            return prompt_unlisted_model(provider_meta);
         } else {
             return Ok(selection);
         }
@@ -449,7 +475,6 @@ fn select_model_from_list(
     provider_meta: &goose::providers::base::ProviderMetadata,
 ) -> anyhow::Result<String> {
     const MAX_MODELS: usize = 10;
-    const UNLISTED_MODEL_KEY: &str = "__unlisted__";
 
     // Smart model selection:
     // If we have more than MAX_MODELS models, show the recommended models with additional search option.
@@ -488,14 +513,14 @@ fn select_model_from_list(
                 .interact()?;
 
             if selection == "search_all" {
-                Ok(interactive_model_search(models)?)
+                interactive_model_search(models, provider_meta)
             } else if selection == UNLISTED_MODEL_KEY {
                 prompt_unlisted_model(provider_meta)
             } else {
                 Ok(selection)
             }
         } else {
-            Ok(interactive_model_search(models)?)
+            interactive_model_search(models, provider_meta)
         }
     } else {
         let mut model_items: Vec<(String, String, &str)> =

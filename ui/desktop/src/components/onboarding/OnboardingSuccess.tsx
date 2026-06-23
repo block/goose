@@ -24,7 +24,7 @@ const i18n = defineMessages({
   },
   privacyDescription: {
     id: 'onboardingSuccess.privacyDescription',
-    defaultMessage: 'Anonymous usage data helps improve ApeMind Agent. We never collect your conversations, code, or personal data.',
+    defaultMessage: "Anonymous usage data helps improve ApeMind Agent. We never collect your conversations, code, or personal data.",
   },
   learnMore: {
     id: 'onboardingSuccess.learnMore',

@@ -22,7 +22,6 @@ use super::base::{
     ProviderMetadata,
 };
 use super::utils::filter_extensions_from_system_prompt;
-use crate::config::base::ClaudeCodeCommand;
 use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, ExtensionConfig, GooseMode};
@@ -583,9 +582,7 @@ fn write_mcp_config_file(state_dir: &Path, json: &str) -> Result<NamedTempFile, 
     Ok(tmp)
 }
 
-impl ProviderDef for ClaudeCodeProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for ClaudeCodeProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             CLAUDE_CODE_PROVIDER_NAME,
@@ -595,11 +592,19 @@ impl ProviderDef for ClaudeCodeProvider {
             // Only a few agentic choices; fetched dynamically via fetch_supported_models.
             vec![],
             CLAUDE_CODE_DOC_URL,
-            vec![ConfigKey::from_value_type::<ClaudeCodeCommand>(
-                true, false, true,
+            vec![ConfigKey::new(
+                "CLAUDE_CODE_COMMAND",
+                true,
+                false,
+                Some("claude"),
+                true,
             )],
         )
     }
+}
+
+impl ProviderDef for ClaudeCodeProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

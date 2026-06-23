@@ -10,11 +10,11 @@ import { defineMessages, useIntl } from '../../../i18n';
 const i18n = defineMessages({
   label: {
     id: 'subRecipeEditor.label',
-    defaultMessage: 'Sub-workflows',
+    defaultMessage: "Sub-workflows",
   },
   createNew: {
     id: 'subRecipeEditor.createNew',
-    defaultMessage: 'Create New Sub-workflow',
+    defaultMessage: "Create New Sub-workflow",
   },
   addExisting: {
     id: 'subRecipeEditor.addExisting',
@@ -22,8 +22,7 @@ const i18n = defineMessages({
   },
   description: {
     id: 'subRecipeEditor.description',
-    defaultMessage:
-      'Sub-workflows are workflows that can be called as tools during execution. They enable multi-step workflows and reusable components.',
+    defaultMessage: "Sub-workflows are workflows that can be called as tools during execution. They enable multi-step workflows and reusable components.",
   },
   sequential: {
     id: 'subRecipeEditor.sequential',
@@ -35,11 +34,11 @@ const i18n = defineMessages({
   },
   editSubrecipe: {
     id: 'subRecipeEditor.editSubrecipe',
-    defaultMessage: 'Edit sub-workflow {name}',
+    defaultMessage: "Edit sub-workflow {name}",
   },
   deleteSubrecipe: {
     id: 'subRecipeEditor.deleteSubrecipe',
-    defaultMessage: 'Delete sub-workflow {name}',
+    defaultMessage: "Delete sub-workflow {name}",
   },
   duplicateName: {
     id: 'subRecipeEditor.duplicateName',
@@ -47,7 +46,7 @@ const i18n = defineMessages({
   },
   duplicateNameMsg: {
     id: 'subRecipeEditor.duplicateNameMsg',
-    defaultMessage: 'A sub-workflow named "{name}" already exists. Please use a unique name.',
+    defaultMessage: "A sub-workflow named \"{name}\" already exists. Please use a unique name.",
   },
 });
 

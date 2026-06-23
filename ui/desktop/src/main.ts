@@ -207,7 +207,7 @@ async function seedDefaultRecipes(): Promise<void> {
 
     if (!fsSync.existsSync(destPath)) {
       await fs.copyFile(sourcePath, destPath);
-      log.info(`[seedDefaultRecipes] seeded ${entry} → ${destPath}`);
+      log.info(`[seedDefaultRecipes] seeded ${entry} -> ${destPath}`);
     }
 
     try {
@@ -225,7 +225,7 @@ async function seedDefaultRecipes(): Promise<void> {
       const hashFile = path.join(hashesDir, `${hash}.hash`);
       if (!fsSync.existsSync(hashFile)) {
         await fs.writeFile(hashFile, new Date().toISOString());
-        log.info(`[seedDefaultRecipes] pre-trusted hash for ${entry} → ${hash}`);
+        log.info(`[seedDefaultRecipes] pre-trusted hash for ${entry} -> ${hash}`);
       }
     } catch (err) {
       log.warn(`[seedDefaultRecipes] failed to pre-trust ${entry}:`, err);
@@ -234,7 +234,9 @@ async function seedDefaultRecipes(): Promise<void> {
 
   try {
     await fs.writeFile(bundledTitlesFile, JSON.stringify(bundledTitles, null, 2));
-    log.info(`[seedDefaultRecipes] wrote bundled-recipe-titles.json with ${bundledTitles.length} titles`);
+    log.info(
+      `[seedDefaultRecipes] wrote bundled-recipe-titles.json with ${bundledTitles.length} titles`
+    );
   } catch (err) {
     log.warn(`[seedDefaultRecipes] failed to write bundled-recipe-titles.json:`, err);
   }

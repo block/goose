@@ -18,21 +18,19 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   createRecipeTitle: {
     id: 'createEditRecipe.createRecipeTitle',
-    defaultMessage: 'Create Workflow',
+    defaultMessage: "Create Workflow",
   },
   viewEditRecipeTitle: {
     id: 'createEditRecipe.viewEditRecipeTitle',
-    defaultMessage: 'View/edit workflow',
+    defaultMessage: "View/edit workflow",
   },
   createSubtitle: {
     id: 'createEditRecipe.createSubtitle',
-    defaultMessage:
-      'Create a new workflow to define agent behavior and capabilities for reusable chat sessions.',
+    defaultMessage: "Create a new workflow to define agent behavior and capabilities for reusable chat sessions.",
   },
   editSubtitle: {
     id: 'createEditRecipe.editSubtitle',
-    defaultMessage:
-      "You can edit the workflow below to change the agent's behavior in a new session.",
+    defaultMessage: "You can edit the workflow below to change the agent's behavior in a new session.",
   },
   learnMore: {
     id: 'createEditRecipe.learnMore',
@@ -68,11 +66,11 @@ const i18n = defineMessages({
   },
   saveRecipe: {
     id: 'createEditRecipe.saveRecipe',
-    defaultMessage: 'Save Workflow',
+    defaultMessage: "Save Workflow",
   },
   saveAndRunRecipe: {
     id: 'createEditRecipe.saveAndRunRecipe',
-    defaultMessage: 'Save & Run Workflow',
+    defaultMessage: "Save & Run Workflow",
   },
   validationFailed: {
     id: 'createEditRecipe.validationFailed',
@@ -84,7 +82,7 @@ const i18n = defineMessages({
   },
   recipeSavedMsg: {
     id: 'createEditRecipe.recipeSavedMsg',
-    defaultMessage: 'Workflow saved successfully',
+    defaultMessage: "Workflow saved successfully",
   },
   saveFailed: {
     id: 'createEditRecipe.saveFailed',
@@ -92,11 +90,11 @@ const i18n = defineMessages({
   },
   saveFailedMsg: {
     id: 'createEditRecipe.saveFailedMsg',
-    defaultMessage: 'Failed to save workflow: {error}',
+    defaultMessage: "Failed to save workflow: {error}",
   },
   recipeSavedAndLaunchedMsg: {
     id: 'createEditRecipe.recipeSavedAndLaunchedMsg',
-    defaultMessage: 'Workflow saved and launched successfully',
+    defaultMessage: "Workflow saved and launched successfully",
   },
   saveAndRunFailed: {
     id: 'createEditRecipe.saveAndRunFailed',
@@ -104,7 +102,7 @@ const i18n = defineMessages({
   },
   saveAndRunFailedMsg: {
     id: 'createEditRecipe.saveAndRunFailedMsg',
-    defaultMessage: 'Failed to save and run workflow: {error}',
+    defaultMessage: "Failed to save and run workflow: {error}",
   },
 });
 

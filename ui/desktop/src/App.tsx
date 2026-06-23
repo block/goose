@@ -2,7 +2,6 @@ import { useEffect, useState, useRef } from 'react';
 import { IpcRendererEvent } from 'electron';
 import {
   HashRouter,
-  Navigate,
   Routes,
   Route,
   useNavigate,
@@ -13,6 +12,8 @@ import { openSharedSessionFromDeepLink, importNostrSessionFromDeepLink } from '.
 import { type SharedSessionDetails } from './sharedSessions';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
+import RecipeParamsModalContainer from './components/RecipeParamsModalContainer';
+import { isRecipeParamsCancelled } from './acp/errors';
 import { toast, ToastContainer } from 'react-toastify';
 import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
@@ -47,6 +48,7 @@ import PermissionSettingsView from './components/settings/permission/PermissionS
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
 import RecipesView from './components/recipes/RecipesView';
 import SkillsView from './components/skills/SkillsView';
+import AppsView from './components/apps/AppsView';
 import StandaloneAppView from './components/apps/StandaloneAppView';
 import { View, ViewOptions } from './utils/navigationUtils';
 
@@ -96,7 +98,8 @@ const PairRouteWrapper = ({
   const routeState =
     (location.state as PairRouteState) || (window.history.state as PairRouteState) || {};
   const [searchParams, setSearchParams] = useSearchParams();
-  const [isCreatingSession, setIsCreatingSession] = useState(false);
+  const isCreatingSessionRef = useRef(false);
+  const navigate = useNavigate();
 
   const resumeSessionId = searchParams.get('resumeSessionId') ?? undefined;
   const recipeDeeplinkFromConfig = window.appConfig?.get('recipeDeeplink') as string | undefined;
@@ -109,9 +112,9 @@ const PairRouteWrapper = ({
     if (
       (initialMessage || recipeDeeplinkFromConfig || recipeIdFromConfig) &&
       !resumeSessionId &&
-      !isCreatingSession
+      !isCreatingSessionRef.current
     ) {
-      setIsCreatingSession(true);
+      isCreatingSessionRef.current = true;
 
       (async () => {
         try {
@@ -137,6 +140,10 @@ const PairRouteWrapper = ({
             return prev;
           });
         } catch (error) {
+          if (isRecipeParamsCancelled(error)) {
+            navigate('/');
+            return;
+          }
           console.error('Failed to create session:', error);
           trackErrorWithContext(error, {
             component: 'PairRouteWrapper',
@@ -144,12 +151,10 @@ const PairRouteWrapper = ({
             recoverable: true,
           });
         } finally {
-          setIsCreatingSession(false);
+          isCreatingSessionRef.current = false;
         }
       })();
     }
-    // Note: isCreatingSession is intentionally NOT in the dependency array
-    // It's only used as a guard to prevent concurrent session creation
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     initialMessage,
@@ -668,6 +673,7 @@ export function AppInner() {
         pauseOnHover
       />
       <ExtensionInstallModal addExtension={addExtension} setView={setView} />
+      <RecipeParamsModalContainer />
       <div className="relative w-screen h-screen overflow-hidden bg-background-secondary flex flex-col">
         <div className="titlebar-drag-region" />
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
@@ -711,7 +717,7 @@ export function AppInner() {
                   </ChatProvider>
                 }
               />
-              <Route path="apps" element={<Navigate to="/" replace />} />
+              <Route path="apps" element={<AppsView />} />
               <Route path="sessions" element={<SessionsRoute />} />
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="recipes" element={<RecipesRoute />} />

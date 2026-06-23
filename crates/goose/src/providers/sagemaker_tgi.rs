@@ -278,9 +278,7 @@ impl SageMakerTgiProvider {
     }
 }
 
-impl ProviderDef for SageMakerTgiProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for SageMakerTgiProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             SAGEMAKER_TGI_PROVIDER_NAME,
@@ -296,6 +294,10 @@ impl ProviderDef for SageMakerTgiProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for SageMakerTgiProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

@@ -18,7 +18,6 @@ use super::base::{
 };
 use super::databricks_auth::{DatabricksAuth, DatabricksAuthProvider};
 use super::formats::databricks::{create_request_for_provider, DATABRICKS_PROVIDER_NAME};
-use super::formats::openai_responses::create_responses_request;
 use super::openai_compatible::{
     handle_status, map_http_error_to_provider_error, sanitize_url, stream_openai_compat,
     stream_responses_compat,
@@ -32,6 +31,7 @@ use crate::providers::retry::{
     DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
 };
 use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai_responses::create_responses_request;
 use goose_providers::model::ModelConfig;
 use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
@@ -525,9 +525,7 @@ impl DatabricksProvider {
     }
 }
 
-impl ProviderDef for DatabricksProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for DatabricksProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             DATABRICKS_PROVIDER_NAME,
@@ -542,6 +540,10 @@ impl ProviderDef for DatabricksProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for DatabricksProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

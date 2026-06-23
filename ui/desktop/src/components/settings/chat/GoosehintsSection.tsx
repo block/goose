@@ -11,8 +11,7 @@ const i18n = defineMessages({
   },
   description: {
     id: 'goosehintsSection.description',
-    defaultMessage:
-      "Configure your project's .goosehints file to provide additional context to ApeMind",
+    defaultMessage: "Configure your project's .goosehints file to provide additional context to ApeMind",
   },
   configure: {
     id: 'goosehintsSection.configure',

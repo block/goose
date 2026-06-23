@@ -15,11 +15,11 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   importRecipeTitle: {
     id: 'importRecipeForm.importRecipeTitle',
-    defaultMessage: 'Import Workflow',
+    defaultMessage: "Import Workflow",
   },
   recipeDeeplinkLabel: {
     id: 'importRecipeForm.recipeDeeplinkLabel',
-    defaultMessage: 'Workflow Deeplink',
+    defaultMessage: "Workflow Deeplink",
   },
   deeplinkPlaceholder: {
     id: 'importRecipeForm.deeplinkPlaceholder',
@@ -27,7 +27,7 @@ const i18n = defineMessages({
   },
   deeplinkHint: {
     id: 'importRecipeForm.deeplinkHint',
-    defaultMessage: 'Paste a workflow deeplink starting with "goose://recipe?config="',
+    defaultMessage: "Paste a workflow deeplink starting with \"goose://recipe?config=\"",
   },
   or: {
     id: 'importRecipeForm.or',
@@ -35,11 +35,11 @@ const i18n = defineMessages({
   },
   recipeFileLabel: {
     id: 'importRecipeForm.recipeFileLabel',
-    defaultMessage: 'Workflow File',
+    defaultMessage: "Workflow File",
   },
   recipeFileHint: {
     id: 'importRecipeForm.recipeFileHint',
-    defaultMessage: 'Upload a YAML or JSON file containing the workflow structure',
+    defaultMessage: "Upload a YAML or JSON file containing the workflow structure",
   },
   example: {
     id: 'importRecipeForm.example',
@@ -47,8 +47,7 @@ const i18n = defineMessages({
   },
   reviewWarning: {
     id: 'importRecipeForm.reviewWarning',
-    defaultMessage:
-      'Ensure you review contents of workflow files before adding them to ApeMind Agent.',
+    defaultMessage: "Ensure you review contents of workflow files before adding them to ApeMind Agent.",
   },
   cancel: {
     id: 'importRecipeForm.cancel',
@@ -60,11 +59,11 @@ const i18n = defineMessages({
   },
   importRecipeButton: {
     id: 'importRecipeForm.importRecipeButton',
-    defaultMessage: 'Import Workflow',
+    defaultMessage: "Import Workflow",
   },
   expectedRecipeStructure: {
     id: 'importRecipeForm.expectedRecipeStructure',
-    defaultMessage: 'Expected Workflow Structure',
+    defaultMessage: "Expected Workflow Structure",
   },
   schemaDescription: {
     id: 'importRecipeForm.schemaDescription',

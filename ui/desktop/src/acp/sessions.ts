@@ -209,14 +209,25 @@ export interface AcpNewSessionResult {
   meta: LoadSessionMeta;
 }
 
+export interface AcpRecipeOptions {
+  recipeId?: string;
+  recipeDeeplink?: string;
+}
+
 export async function acpNewSession(
   cwd: string,
-  gooseExtensions: GooseExtension[]
+  gooseExtensions: GooseExtension[],
+  recipe?: AcpRecipeOptions
 ): Promise<AcpNewSessionResult> {
   const client = await getAcpClient();
   const meta: Record<string, unknown> = { client: 'goose-desktop' };
   if (gooseExtensions.length > 0) {
     meta.enabledExtensions = gooseExtensions;
+  }
+  if (recipe?.recipeId) {
+    meta.recipeId = recipe.recipeId;
+  } else if (recipe?.recipeDeeplink) {
+    meta.recipeDeeplink = recipe.recipeDeeplink;
   }
   const request: NewSessionRequest = { cwd, mcpServers: [], _meta: meta };
   const response = await client.newSession(request);

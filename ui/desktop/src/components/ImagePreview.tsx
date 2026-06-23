@@ -8,7 +8,7 @@ const i18n = defineMessages({
   },
   altText: {
     id: 'imagePreview.altText',
-    defaultMessage: 'ApeMind Agent image',
+    defaultMessage: "ApeMind Agent image",
   },
   clickToCollapse: {
     id: 'imagePreview.clickToCollapse',

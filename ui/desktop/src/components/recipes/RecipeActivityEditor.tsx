@@ -9,8 +9,7 @@ const i18n = defineMessages({
   },
   activitiesDescription: {
     id: 'recipeActivityEditor.activitiesDescription',
-    defaultMessage:
-      'The top-line prompts and activity buttons that will display in the workflow chat window.',
+    defaultMessage: "The top-line prompts and activity buttons that will display in the workflow chat window.",
   },
   messageLabel: {
     id: 'recipeActivityEditor.messageLabel',
@@ -18,13 +17,11 @@ const i18n = defineMessages({
   },
   messageDescription: {
     id: 'recipeActivityEditor.messageDescription',
-    defaultMessage:
-      'A formatted message that will appear at the top of the workflow. Supports markdown formatting.',
+    defaultMessage: "A formatted message that will appear at the top of the workflow. Supports markdown formatting.",
   },
   messagePlaceholder: {
     id: 'recipeActivityEditor.messagePlaceholder',
-    defaultMessage:
-      'Enter a user facing introduction message for your workflow (supports **bold**, *italic*, `code`, etc.)',
+    defaultMessage: "Enter a user facing introduction message for your workflow (supports **bold**, *italic*, `code`, etc.)",
   },
   activityButtonsLabel: {
     id: 'recipeActivityEditor.activityButtonsLabel',
@@ -32,8 +29,7 @@ const i18n = defineMessages({
   },
   activityButtonsDescription: {
     id: 'recipeActivityEditor.activityButtonsDescription',
-    defaultMessage:
-      'Clickable buttons that will appear below the message to help users interact with your workflow.',
+    defaultMessage: "Clickable buttons that will appear below the message to help users interact with your workflow.",
   },
   addNewActivityPlaceholder: {
     id: 'recipeActivityEditor.addNewActivityPlaceholder',

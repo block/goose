@@ -7,7 +7,7 @@ import { defineMessages, useIntl } from '../i18n';
 const i18n = defineMessages({
   cancelRecipeSetup: {
     id: 'parameterInputModal.cancelRecipeSetup',
-    defaultMessage: 'Cancel Workflow Setup',
+    defaultMessage: "Cancel Workflow Setup",
   },
   whatToDo: {
     id: 'parameterInputModal.whatToDo',
@@ -19,11 +19,11 @@ const i18n = defineMessages({
   },
   startNewChat: {
     id: 'parameterInputModal.startNewChat',
-    defaultMessage: 'Start New Chat (No Workflow)',
+    defaultMessage: "Start New Chat (No Workflow)",
   },
   recipeParameters: {
     id: 'parameterInputModal.recipeParameters',
-    defaultMessage: 'Workflow Parameters',
+    defaultMessage: "Workflow Parameters",
   },
   selectOption: {
     id: 'parameterInputModal.selectOption',
@@ -51,7 +51,7 @@ const i18n = defineMessages({
   },
   startRecipe: {
     id: 'parameterInputModal.startRecipe',
-    defaultMessage: 'Start Workflow',
+    defaultMessage: "Start Workflow",
   },
 });
 
@@ -60,6 +60,10 @@ interface ParameterInputModalProps {
   onSubmit: (values: Record<string, string>) => void;
   onClose: () => void;
   initialValues?: Record<string, string>;
+}
+
+function needsUserValue(param: Parameter): boolean {
+  return param.requirement === 'required' || param.requirement === 'user_prompt';
 }
 
 const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
@@ -95,7 +99,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   const handleSubmit = (): void => {
     setValidationErrors({});
 
-    const requiredParams: Parameter[] = parameters.filter((p) => p.requirement === 'required');
+    const requiredParams: Parameter[] = parameters.filter(needsUserValue);
     const errors: Record<string, string> = {};
 
     requiredParams.forEach((param) => {
@@ -127,7 +131,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
     if (option === 'new-chat') {
       navigate('/pair');
     } else {
-      setShowCancelOptions(false); // Go back to the parameter form
+      setShowCancelOptions(false);
     }
   };
 
@@ -174,9 +178,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                     className="block text-md font-medium text-text-primary mb-2"
                   >
                     {param.description || param.key}
-                    {param.requirement === 'required' && (
-                      <span className="text-red-500 ml-1">*</span>
-                    )}
+                    {needsUserValue(param) && <span className="text-red-500 ml-1">*</span>}
                   </label>
 
                   {param.input_type === 'select' && param.options ? (

@@ -36,7 +36,6 @@ No extensions are defined. You should let the user know that they should add ext
 
 {% if extension_tool_limits is defined and not code_execution_mode %}
 {% with (extension_count, tool_count) = extension_tool_limits  %}
-
 # Suggestion
 
 The user has {{extension_count}} extensions with {{tool_count}} tools enabled, exceeding recommended limits ({{max_extensions}} extensions or {{max_tools}} tools).

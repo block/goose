@@ -66,7 +66,7 @@ const i18n = defineMessages({
   importNostrDesc: { id: 'sessions.importNostr.description', defaultMessage: 'Paste a Goose Nostr share link to fetch, decrypt, and import the session.' },
   importNostrPlaceholder: { id: 'sessions.importNostr.placeholder', defaultMessage: 'goose://sessions/nostr?nevent=...&key=...' },
   importing: { id: 'sessions.importing', defaultMessage: 'Importing...' },
-  chatHistoryDesc: { id: 'sessions.chatHistoryDesc', defaultMessage: 'View and search your past conversations with Goose. {shortcut} to search.' },
+  chatHistoryDesc: { id: 'sessions.chatHistoryDesc', defaultMessage: 'View and search your past conversations with ApeMind Agent. {shortcut} to search.' },
   searchPlaceholder: { id: 'sessions.searchPlaceholder', defaultMessage: 'Search history...' },
   errorLoading: { id: 'sessions.error.loading', defaultMessage: 'Error Loading Sessions' },
   tryAgain: { id: 'sessions.error.tryAgain', defaultMessage: 'Try Again' },

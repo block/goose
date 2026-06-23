@@ -10,12 +10,11 @@ import { defineMessages, useIntl } from '../../../i18n';
 const i18n = defineMessages({
   title: {
     id: 'externalBackendSection.title',
-    defaultMessage: 'ApeMind Agent Server',
+    defaultMessage: "ApeMind Agent Server",
   },
   description: {
     id: 'externalBackendSection.description',
-    defaultMessage:
-      'By default ApeMind Agent launches a local server for you. Use this to connect to an external server.',
+    defaultMessage: "By default ApeMind Agent launches a local server for you. Use this to connect to an external server.",
   },
   useExternalServer: {
     id: 'externalBackendSection.useExternalServer',
@@ -23,7 +22,7 @@ const i18n = defineMessages({
   },
   useExternalServerDescription: {
     id: 'externalBackendSection.useExternalServerDescription',
-    defaultMessage: 'Connect to an ApeMind Agent server running elsewhere (requires app restart)',
+    defaultMessage: "Connect to an ApeMind Agent server running elsewhere (requires app restart)",
   },
   serverUrl: {
     id: 'externalBackendSection.serverUrl',

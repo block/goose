@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
-use super::formats::openai_responses::create_responses_request;
 use super::openai_compatible::{handle_status, stream_responses_compat};
 use super::retry::{ProviderRetry, RetryConfig};
 use crate::conversation::message::Message;
@@ -19,6 +18,7 @@ use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::formats::openai::extract_reasoning_effort;
+use goose_providers::formats::openai_responses::create_responses_request;
 use goose_providers::model::ModelConfig;
 use goose_providers::request_log::{start_log, LoggerHandleExt};
 use reqwest::header::{HeaderName, HeaderValue, AUTHORIZATION};
@@ -683,9 +683,7 @@ fn process_stream_event(
     (messages, usage)
 }
 
-impl ProviderDef for BedrockProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for BedrockProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             BEDROCK_PROVIDER_NAME,
@@ -709,6 +707,10 @@ impl ProviderDef for BedrockProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for BedrockProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,
@@ -904,6 +906,7 @@ impl Provider for BedrockProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose_providers::base::ProviderDescriptor as _;
     use serial_test::serial;
 
     fn create_mock_provider(model_name: &str) -> BedrockProvider {

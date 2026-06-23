@@ -20,7 +20,7 @@ const i18n = defineMessages({
   browseYaml: { id: 'scheduleModal.browseYaml', defaultMessage: 'Browse for YAML file...' },
   selected: { id: 'scheduleModal.selected', defaultMessage: 'Selected: {path}' },
   deepLinkPlaceholder: { id: 'scheduleModal.deepLinkPlaceholder', defaultMessage: 'Paste goose://recipe link here...' },
-  recipeParsed: { id: 'scheduleModal.recipeParsed', defaultMessage: 'Workflow parsed successfully' },
+  recipeParsed: { id: 'scheduleModal.recipeParsed', defaultMessage: "Workflow parsed successfully" },
   recipeTitle: { id: 'scheduleModal.recipeTitle', defaultMessage: 'Title: {title}' },
   recipeDescription: { id: 'scheduleModal.recipeDescription', defaultMessage: 'Description: {description}' },
   scheduleLabel: { id: 'scheduleModal.scheduleLabel', defaultMessage: 'Schedule:' },
@@ -31,10 +31,10 @@ const i18n = defineMessages({
   createSchedule: { id: 'scheduleModal.createSchedule', defaultMessage: 'Create Schedule' },
   invalidDeepLink: { id: 'scheduleModal.invalidDeepLink', defaultMessage: 'Invalid deep link. Please use a goose://recipe link.' },
   failedReadFile: { id: 'scheduleModal.failedReadFile', defaultMessage: 'Failed to read the selected file.' },
-  failedParseRecipe: { id: 'scheduleModal.failedParseRecipe', defaultMessage: 'Failed to parse workflow from file.' },
+  failedParseRecipe: { id: 'scheduleModal.failedParseRecipe', defaultMessage: "Failed to parse workflow from file." },
   invalidFileType: { id: 'scheduleModal.invalidFileType', defaultMessage: 'Invalid file type: Please select a YAML file (.yaml or .yml)' },
   scheduleIdRequired: { id: 'scheduleModal.scheduleIdRequired', defaultMessage: 'Schedule ID is required.' },
-  provideValidRecipe: { id: 'scheduleModal.provideValidRecipe', defaultMessage: 'Please provide a valid workflow source.' },
+  provideValidRecipe: { id: 'scheduleModal.provideValidRecipe', defaultMessage: "Please provide a valid workflow source." },
 });
 
 export interface NewSchedulePayload {

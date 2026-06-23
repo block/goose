@@ -11,7 +11,7 @@ const i18n = defineMessages({
   },
   titlePlaceholder: {
     id: 'recipeFormFields.titlePlaceholder',
-    defaultMessage: 'Workflow title',
+    defaultMessage: "Workflow title",
   },
   descriptionLabel: {
     id: 'recipeFormFields.descriptionLabel',
@@ -19,7 +19,7 @@ const i18n = defineMessages({
   },
   descriptionPlaceholder: {
     id: 'recipeFormFields.descriptionPlaceholder',
-    defaultMessage: 'Brief description of what this workflow does',
+    defaultMessage: "Brief description of what this workflow does",
   },
   instructionsLabel: {
     id: 'recipeFormFields.instructionsLabel',
@@ -35,8 +35,7 @@ const i18n = defineMessages({
   },
   templateVarHint: {
     id: 'recipeFormFields.templateVarHint',
-    defaultMessage:
-      "Use '{{parameter_name}}' to define parameters that can be filled in when running the workflow.",
+    defaultMessage: "Use '{{parameter_name}}' to define parameters that can be filled in when running the workflow.",
   },
   initialPrompt: {
     id: 'recipeFormFields.initialPrompt',
@@ -48,7 +47,7 @@ const i18n = defineMessages({
   },
   promptPlaceholder: {
     id: 'recipeFormFields.promptPlaceholder',
-    defaultMessage: 'Pre-filled prompt when the workflow starts',
+    defaultMessage: "Pre-filled prompt when the workflow starts",
   },
   advancedOptions: {
     id: 'recipeFormFields.advancedOptions',
@@ -56,7 +55,7 @@ const i18n = defineMessages({
   },
   advancedOptionsHint: {
     id: 'recipeFormFields.advancedOptionsHint',
-    defaultMessage: 'Activities, parameters, model, extensions, response schema, sub-workflows',
+    defaultMessage: "Activities, parameters, model, extensions, response schema, sub-workflows",
   },
   parametersLabel: {
     id: 'recipeFormFields.parametersLabel',

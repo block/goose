@@ -27,11 +27,11 @@ tokio::task_local! {
 use super::base::{
     collect_stream, Provider, ProviderDef, ProviderMetadata, DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::formats::openai_responses::create_responses_request;
 use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
 use super::utils::get_model;
 use goose_providers::formats::openai::{create_request, get_usage, response_to_message};
+use goose_providers::formats::openai_responses::create_responses_request;
 
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::{Message, MessageContent};
@@ -530,9 +530,7 @@ impl GithubCopilotProvider {
     }
 }
 
-impl ProviderDef for GithubCopilotProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for GithubCopilotProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             GITHUB_COPILOT_PROVIDER_NAME,
@@ -549,6 +547,10 @@ impl ProviderDef for GithubCopilotProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for GithubCopilotProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

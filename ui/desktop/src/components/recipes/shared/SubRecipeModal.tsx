@@ -10,20 +10,19 @@ import { defineMessages, useIntl } from '../../../i18n';
 const i18n = defineMessages({
   configureTitle: {
     id: 'subRecipeModal.configureTitle',
-    defaultMessage: 'Configure Sub-workflow',
+    defaultMessage: "Configure Sub-workflow",
   },
   addTitle: {
     id: 'subRecipeModal.addTitle',
-    defaultMessage: 'Add Sub-workflow',
+    defaultMessage: "Add Sub-workflow",
   },
   subtitle: {
     id: 'subRecipeModal.subtitle',
-    defaultMessage:
-      'Configure a sub-workflow that can be called as a tool during workflow execution',
+    defaultMessage: "Configure a sub-workflow that can be called as a tool during workflow execution",
   },
   closeModal: {
     id: 'subRecipeModal.closeModal',
-    defaultMessage: 'Close sub-workflow modal',
+    defaultMessage: "Close sub-workflow modal",
   },
   nameLabel: {
     id: 'subRecipeModal.nameLabel',
@@ -43,7 +42,7 @@ const i18n = defineMessages({
   },
   pathPlaceholder: {
     id: 'subRecipeModal.pathPlaceholder',
-    defaultMessage: 'e.g., ./sub-workflows/security-analysis.yaml',
+    defaultMessage: "e.g., ./sub-workflows/security-analysis.yaml",
   },
   browse: {
     id: 'subRecipeModal.browse',
@@ -51,7 +50,7 @@ const i18n = defineMessages({
   },
   pathHint: {
     id: 'subRecipeModal.pathHint',
-    defaultMessage: 'Browse for an existing workflow file or enter a path manually',
+    defaultMessage: "Browse for an existing workflow file or enter a path manually",
   },
   descriptionLabel: {
     id: 'subRecipeModal.descriptionLabel',
@@ -59,7 +58,7 @@ const i18n = defineMessages({
   },
   descriptionPlaceholder: {
     id: 'subRecipeModal.descriptionPlaceholder',
-    defaultMessage: 'Optional description of what this sub-workflow does...',
+    defaultMessage: "Optional description of what this sub-workflow does...",
   },
   sequentialLabel: {
     id: 'subRecipeModal.sequentialLabel',
@@ -67,7 +66,7 @@ const i18n = defineMessages({
   },
   sequentialHint: {
     id: 'subRecipeModal.sequentialHint',
-    defaultMessage: '(Forces sequential execution of multiple sub-workflow instances)',
+    defaultMessage: "(Forces sequential execution of multiple sub-workflow instances)",
   },
   preconfiguredValues: {
     id: 'subRecipeModal.preconfiguredValues',
@@ -75,7 +74,7 @@ const i18n = defineMessages({
   },
   preconfiguredValuesHint: {
     id: 'subRecipeModal.preconfiguredValuesHint',
-    defaultMessage: 'Optional parameter values that are always passed to the sub-workflow',
+    defaultMessage: "Optional parameter values that are always passed to the sub-workflow",
   },
   cancel: {
     id: 'subRecipeModal.cancel',

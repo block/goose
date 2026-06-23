@@ -179,9 +179,7 @@ impl Provider for MockCompactionProvider {
     }
 }
 
-impl ProviderDef for MockCompactionProvider {
-    type Provider = Self;
-
+impl goose::providers::base::ProviderDescriptor for MockCompactionProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata {
             name: "mock".to_string(),
@@ -195,6 +193,10 @@ impl ProviderDef for MockCompactionProvider {
             model_selection_hint: None,
         }
     }
+}
+
+impl ProviderDef for MockCompactionProvider {
+    type Provider = Self;
 
     fn from_env(
         _model: ModelConfig,

@@ -50,7 +50,7 @@ export class GitHubUpdater {
       const response = await fetch(this.apiUrl, {
         headers: {
           Accept: 'application/vnd.github.v3+json',
-          'User-Agent': `ApeMind-Agent-Desktop/${app.getVersion()}`,
+          'User-Agent': `Goose-Desktop/${app.getVersion()}`,
         },
         signal: controller.signal,
       });

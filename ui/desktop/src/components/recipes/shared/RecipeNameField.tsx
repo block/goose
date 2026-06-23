@@ -4,7 +4,7 @@ import { defineMessages, useIntl } from '../../../i18n';
 const i18n = defineMessages({
   defaultLabel: {
     id: 'recipeNameField.defaultLabel',
-    defaultMessage: 'Workflow Name',
+    defaultMessage: "Workflow Name",
   },
   formatHint: {
     id: 'recipeNameField.formatHint',

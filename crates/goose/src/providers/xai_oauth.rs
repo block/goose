@@ -760,9 +760,7 @@ impl Provider for XaiOAuthProvider {
     }
 }
 
-impl ProviderDef for XaiOAuthProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for XaiOAuthProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             XAI_OAUTH_PROVIDER_NAME,
@@ -777,6 +775,10 @@ impl ProviderDef for XaiOAuthProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for XaiOAuthProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

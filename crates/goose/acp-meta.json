@@ -311,5 +311,12 @@
       "method": "_goose/unstable/session/update",
       "paramsType": "GooseSessionNotification_unstable"
     }
+  ],
+  "agentRequests": [
+    {
+      "method": "_goose/unstable/session/recipe/request-params",
+      "requestType": "RequestRecipeParams_unstable",
+      "responseType": "RecipeParamsResponse_unstable"
+    }
   ]
 }

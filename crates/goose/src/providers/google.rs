@@ -112,9 +112,7 @@ impl GoogleProvider {
     }
 }
 
-impl ProviderDef for GoogleProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for GoogleProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             GOOGLE_PROVIDER_NAME,
@@ -135,6 +133,10 @@ impl ProviderDef for GoogleProvider {
             "Copy the key and paste it above",
         ])
     }
+}
+
+impl ProviderDef for GoogleProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

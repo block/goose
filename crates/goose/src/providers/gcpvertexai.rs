@@ -528,9 +528,7 @@ impl GcpVertexAIProvider {
     }
 }
 
-impl ProviderDef for GcpVertexAIProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for GcpVertexAIProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             GCP_VERTEX_AI_PROVIDER_NAME,
@@ -579,6 +577,10 @@ impl ProviderDef for GcpVertexAIProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for GcpVertexAIProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,
@@ -662,6 +664,7 @@ impl Provider for GcpVertexAIProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose_providers::base::ProviderDescriptor as _;
     use reqwest::StatusCode;
 
     #[test]

@@ -3908,9 +3908,6 @@
   "sessions.close": {
     "defaultMessage": "关闭"
   },
-  "sessions.close": {
-    "defaultMessage": "关闭"
-  },
   "sessions.delete.message": {
     "defaultMessage": "确定要删除会话“{name}”吗？此操作无法撤销。"
   },
@@ -4178,14 +4175,14 @@
   "settingsView.tabLocalInference": {
     "defaultMessage": "本地推理"
   },
-  "settingsView.tabSession": {
-    "defaultMessage": "会话"
-  },
   "settingsView.tabModels": {
     "defaultMessage": "模型"
   },
   "settingsView.tabPrompts": {
     "defaultMessage": "提示词"
+  },
+  "settingsView.tabSession": {
+    "defaultMessage": "会话"
   },
   "settingsView.title": {
     "defaultMessage": "设置"

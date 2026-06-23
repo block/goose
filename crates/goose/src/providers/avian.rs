@@ -18,9 +18,7 @@ pub const AVIAN_DOC_URL: &str = "https://avian.io/docs";
 
 pub struct AvianProvider;
 
-impl ProviderDef for AvianProvider {
-    type Provider = OpenAiCompatibleProvider;
-
+impl goose_providers::base::ProviderDescriptor for AvianProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             AVIAN_PROVIDER_NAME,
@@ -35,6 +33,10 @@ impl ProviderDef for AvianProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for AvianProvider {
+    type Provider = OpenAiCompatibleProvider;
 
     fn from_env(
         model: ModelConfig,

@@ -5,7 +5,7 @@ use super::{
 use crate::config::Config;
 use crate::providers::acp_tooling::{acp_adapter_installed, resolved_acp_command};
 use crate::providers::amp_acp::{AMP_ACP_BINARY, AMP_ACP_PROVIDER_NAME};
-use crate::providers::base::ProviderDef;
+use crate::providers::base::ProviderDescriptor;
 use crate::providers::chatgpt_codex::TokenCache as ChatGptCodexTokenCache;
 use crate::providers::claude_acp::{CLAUDE_ACP_BINARY, CLAUDE_ACP_PROVIDER_NAME};
 use crate::providers::codex_acp::CODEX_ACP_PROVIDER_NAME;

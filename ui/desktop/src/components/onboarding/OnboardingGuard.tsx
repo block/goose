@@ -18,7 +18,7 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   welcomeTitle: {
     id: 'onboardingGuard.welcomeTitle',
-    defaultMessage: 'Welcome to ApeMind Agent',
+    defaultMessage: "Welcome to ApeMind Agent",
   },
   welcomeDescription: {
     id: 'onboardingGuard.welcomeDescription',
@@ -26,7 +26,7 @@ const i18n = defineMessages({
   },
   checkProviderErrorTitle: {
     id: 'onboardingGuard.checkProviderErrorTitle',
-    defaultMessage: 'Unable to connect to ApeMind Agent server',
+    defaultMessage: "Unable to connect to ApeMind Agent server",
   },
   checkProviderErrorDescription: {
     id: 'onboardingGuard.checkProviderErrorDescription',

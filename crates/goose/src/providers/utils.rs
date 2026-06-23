@@ -134,7 +134,7 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
                     error_msg = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
                     let error_status = error.get("status").and_then(|s| s.as_str()).unwrap_or("Unknown status");
                     if error_status == "INVALID_ARGUMENT"
-                        && super::http_status::is_context_length_exceeded_message(&error_msg)
+                        && goose_providers::http_status::is_context_length_exceeded_message(&error_msg)
                     {
                         return Err(ProviderError::ContextLengthExceeded(error_msg.to_string()));
                     }

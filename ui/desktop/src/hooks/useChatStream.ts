@@ -378,11 +378,11 @@ function createEventProcessor(
 const i18n = defineMessages({
   notificationTitle: {
     id: 'chat.notification.taskComplete.title',
-    defaultMessage: 'ApeMind Agent finished the task.',
+    defaultMessage: "ApeMind Agent finished the task.",
   },
   notificationBody: {
     id: 'chat.notification.taskComplete.body',
-    defaultMessage: 'Click here to bring ApeMind Agent back into focus.',
+    defaultMessage: "Click here to bring ApeMind Agent back into focus.",
   },
 });
 

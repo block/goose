@@ -13,15 +13,15 @@ import { defineMessages, useIntl } from '../../../i18n';
 const i18n = defineMessages({
   title: {
     id: 'createSubRecipeInline.title',
-    defaultMessage: 'Create New Sub-workflow',
+    defaultMessage: "Create New Sub-workflow",
   },
   subtitle: {
     id: 'createSubRecipeInline.subtitle',
-    defaultMessage: 'Create a simple workflow to use as a callable tool in your main workflow',
+    defaultMessage: "Create a simple workflow to use as a callable tool in your main workflow",
   },
   closeModal: {
     id: 'createSubRecipeInline.closeModal',
-    defaultMessage: 'Close create sub-workflow modal',
+    defaultMessage: "Close create sub-workflow modal",
   },
   nameLabel: {
     id: 'createSubRecipeInline.nameLabel',
@@ -37,7 +37,7 @@ const i18n = defineMessages({
   },
   recipeTitleLabel: {
     id: 'createSubRecipeInline.recipeTitleLabel',
-    defaultMessage: 'Workflow Title',
+    defaultMessage: "Workflow Title",
   },
   recipeTitlePlaceholder: {
     id: 'createSubRecipeInline.recipeTitlePlaceholder',
@@ -45,11 +45,11 @@ const i18n = defineMessages({
   },
   recipeDescriptionLabel: {
     id: 'createSubRecipeInline.recipeDescriptionLabel',
-    defaultMessage: 'Workflow Description',
+    defaultMessage: "Workflow Description",
   },
   recipeDescriptionPlaceholder: {
     id: 'createSubRecipeInline.recipeDescriptionPlaceholder',
-    defaultMessage: 'What this workflow does when executed',
+    defaultMessage: "What this workflow does when executed",
   },
   instructionsLabel: {
     id: 'createSubRecipeInline.instructionsLabel',
@@ -57,7 +57,7 @@ const i18n = defineMessages({
   },
   instructionsPlaceholder: {
     id: 'createSubRecipeInline.instructionsPlaceholder',
-    defaultMessage: 'Instructions for the AI when this sub-workflow is called...',
+    defaultMessage: "Instructions for the AI when this sub-workflow is called...",
   },
   toolDescriptionLabel: {
     id: 'createSubRecipeInline.toolDescriptionLabel',
@@ -81,7 +81,7 @@ const i18n = defineMessages({
   },
   preconfiguredValuesHint: {
     id: 'createSubRecipeInline.preconfiguredValuesHint',
-    defaultMessage: 'Optional parameter values that are always passed to the sub-workflow',
+    defaultMessage: "Optional parameter values that are always passed to the sub-workflow",
   },
   cancel: {
     id: 'createSubRecipeInline.cancel',
@@ -93,7 +93,7 @@ const i18n = defineMessages({
   },
   createAndAdd: {
     id: 'createSubRecipeInline.createAndAdd',
-    defaultMessage: 'Create & Add Sub-workflow',
+    defaultMessage: "Create & Add Sub-workflow",
   },
   validationFailed: {
     id: 'createSubRecipeInline.validationFailed',
@@ -101,7 +101,7 @@ const i18n = defineMessages({
   },
   validationMsg: {
     id: 'createSubRecipeInline.validationMsg',
-    defaultMessage: 'Name, title, workflow description, and instructions are required.',
+    defaultMessage: "Name, title, workflow description, and instructions are required.",
   },
   duplicateName: {
     id: 'createSubRecipeInline.duplicateName',
@@ -109,11 +109,11 @@ const i18n = defineMessages({
   },
   duplicateNameMsg: {
     id: 'createSubRecipeInline.duplicateNameMsg',
-    defaultMessage: 'A sub-workflow named "{name}" already exists. Please use a unique name.',
+    defaultMessage: "A sub-workflow named \"{name}\" already exists. Please use a unique name.",
   },
   createdSuccess: {
     id: 'createSubRecipeInline.createdSuccess',
-    defaultMessage: 'Sub-workflow created successfully',
+    defaultMessage: "Sub-workflow created successfully",
   },
   saveFailed: {
     id: 'createSubRecipeInline.saveFailed',
@@ -121,7 +121,7 @@ const i18n = defineMessages({
   },
   saveFailedMsg: {
     id: 'createSubRecipeInline.saveFailedMsg',
-    defaultMessage: 'Failed to save sub-workflow: {error}',
+    defaultMessage: "Failed to save sub-workflow: {error}",
   },
 });
 

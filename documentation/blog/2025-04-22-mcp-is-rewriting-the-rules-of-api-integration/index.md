@@ -1,7 +1,7 @@
 ---
 title: "MCP Is Rewriting the Rules of API Integration"
 description: "A developer's guide to modernizing API infrastructure with AI agents and Model Context Protocol. Learn about the benefits, integration strategies, and how to address security considerations."
-authors: 
+authors:
     - ian
 ---
 
@@ -47,12 +47,12 @@ From the business side, the integration of AI agents and MCP can lead to signifi
 
 **Example ROI Calculation (Per Developer):**
 
-Traditional API Development: 
+Traditional API Development:
 - Average time to add feature: 2 weeks
 - Developer cost: $150/hour
 - Assuming 40 hours/week: 2 weeks * 40 hours/week * $150/hour = $12,000
 
-AI-Agent Enabled: 
+AI-Agent Enabled:
 - Average time to add feature: 2 days
 - Developer cost: $150/hour
 - Assuming 8 hours/day: 2 days * 8 hours/day * $150/hour = $2,400
@@ -72,17 +72,17 @@ Integrating AI agents, especially through a platform like MCP, requires careful 
 
 A step-by-step approach can help mitigate risks, and learn effectively through feedback, as you integrate AI agents via MCP:
 
-**Phase 1: Assessment (Initial Exploration)** 
+**Phase 1: Assessment (Initial Exploration)**
 - Look through your existing API usage, and identify integration possibilities
 - Consider the ROI: start with small ideas and grow your integration efforts over time
 - Build initial business/tech plans for adopting AI agents and MCP
 
-**Phase 2: A/B Testing and Pilot Projects** 
+**Phase 2: A/B Testing and Pilot Projects**
 - Select a low-risk, high-value service for initial AI agent integration via MCP
 - Implement the integration, then do thorough A/B testing and comparisons against the traditional API approach
 - Measure the results, gather benchmark/performance data, and talk to the team about what you find
 
-**Phase 3: Scale and Optimization** 
+**Phase 3: Scale and Optimization**
 - Take it a step at a time: based on the results, take on bigger and more complex integration ideas
 - Continue to optimize your integration process over time
 - Use feedback from your dev teams and end-users to refine your process
@@ -119,7 +119,7 @@ Additional Reading:
 1. What are AI Agents
 - [AI agents — what they are, and how they’ll change the way we work](https://news.microsoft.com/source/features/ai/ai-agents-what-they-are-and-how-theyll-change-the-way-we-work/)
 - [What are AI Agents and Why do They Matter?](https://www.aitrends.com/ai-agents/what-are-ai-agents-and-why-do-they-matter/)
-  
+
 2. [An Introduction to MCP](https://modelcontextprotocol.io/introduction)
 
 3. [Connecting AI Agents to Your Systems with MCP](/blog/2024/12/10/connecting-ai-agents-to-your-systems-with-mcp/)

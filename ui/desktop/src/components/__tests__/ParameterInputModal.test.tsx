@@ -98,6 +98,31 @@ describe('ParameterInputModal', () => {
       });
       expect(defaultProps.onSubmit).not.toHaveBeenCalled();
     });
+
+    it('shows validation errors for user-prompt parameters', async () => {
+      const user = userEvent.setup();
+      renderWithIntl(
+        <ParameterInputModal
+          {...defaultProps}
+          parameters={[
+            {
+              key: 'topic',
+              description: 'Topic',
+              input_type: 'string',
+              requirement: 'user_prompt',
+            },
+          ]}
+        />
+      );
+
+      const submitButton = screen.getByText('Start Workflow');
+      await user.click(submitButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Topic is required')).toBeInTheDocument();
+      });
+      expect(defaultProps.onSubmit).not.toHaveBeenCalled();
+    });
   });
 
   describe('Cancel Behavior', () => {
@@ -122,7 +147,7 @@ describe('ParameterInputModal', () => {
       expect(defaultProps.onClose).toHaveBeenCalled();
     });
 
-    it('navigates to the pair screen when "Start New Chat" option is selected', async () => {
+    it('navigates to pair when "Start New Chat" option is selected', async () => {
       const user = userEvent.setup();
       renderWithIntl(<ParameterInputModal {...defaultProps} />);
 

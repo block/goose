@@ -3903,7 +3903,7 @@
     "defaultMessage": "Chat history"
   },
   "sessions.chatHistoryDesc": {
-    "defaultMessage": "View and search your past conversations with Goose. {shortcut} to search."
+    "defaultMessage": "View and search your past conversations with ApeMind Agent. {shortcut} to search."
   },
   "sessions.close": {
     "defaultMessage": "Close"

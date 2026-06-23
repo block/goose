@@ -353,6 +353,15 @@ async fn child_process_client(
     let (transport, mut stderr) = TokioChildProcess::builder(command)
         .stderr(Stdio::piped())
         .spawn()?;
+    // Attach the child to a Windows Job Object to ensure proper cleanup on Goose exit
+    #[cfg(windows)]
+    {
+        if let Some(pid) = transport.id() {
+            // Initialize Job Object and attach the child process to it
+            crate::windows_job::init_windows_cleanup();
+            crate::windows_job::attach_pid_to_job(pid);
+        }
+    }
     let mut stderr = stderr.take().ok_or_else(|| {
         ExtensionError::SetupError("failed to attach child process stderr".to_owned())
     })?;

@@ -64,7 +64,7 @@ fn resolve_login_shell_path() -> Option<String> {
         .stdout(Stdio::piped())
         .stderr(Stdio::null());
 
-    // Spawn in a new session so that interactive shell job-control setup
+    // Spawn in a new session so that interactive shells job-control setup
     // cannot steal the terminal foreground from the parent goose process.
     cmd.wrap(ProcessSession);
 

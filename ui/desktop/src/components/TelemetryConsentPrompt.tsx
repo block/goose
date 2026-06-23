@@ -13,12 +13,11 @@ import { defineMessages, useIntl } from '../i18n';
 const i18n = defineMessages({
   heading: {
     id: 'telemetryConsentPrompt.heading',
-    defaultMessage: 'Help improve ApeMind Agent',
+    defaultMessage: "Help improve ApeMind Agent",
   },
   description: {
     id: 'telemetryConsentPrompt.description',
-    defaultMessage:
-      'Would you like to share anonymous usage data to help improve ApeMind Agent? We never collect your conversations, code, or personal data.',
+    defaultMessage: "Would you like to share anonymous usage data to help improve ApeMind Agent? We never collect your conversations, code, or personal data.",
   },
   learnMore: {
     id: 'telemetryConsentPrompt.learnMore',

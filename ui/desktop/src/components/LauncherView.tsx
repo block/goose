@@ -5,7 +5,7 @@ import { getInitialWorkingDir } from '../utils/workingDir';
 const messages = defineMessages({
   placeholder: {
     id: 'launcher.placeholder',
-    defaultMessage: 'Ask ApeMind Agent anything...',
+    defaultMessage: "Ask ApeMind Agent anything...",
   },
 });
 

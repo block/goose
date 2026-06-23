@@ -52,7 +52,7 @@ const i18n = defineMessages({
   },
   addApiKeyDescription: {
     id: 'providerConfigurationModal.addApiKeyDescription',
-    defaultMessage: 'Add your API key(s) for this provider to integrate into ApeMind Agent',
+    defaultMessage: "Add your API key(s) for this provider to integrate into ApeMind Agent",
   },
   oauthLoginFailed: {
     id: 'providerConfigurationModal.oauthLoginFailed',
@@ -97,7 +97,7 @@ const i18n = defineMessages({
   },
   externalSetupIntro: {
     id: 'providerConfigurationModal.externalSetupIntro',
-    defaultMessage: 'This provider is configured outside of ApeMind Agent. Follow these steps:',
+    defaultMessage: "This provider is configured outside of ApeMind Agent. Follow these steps:",
   },
   seeDocumentation: {
     id: 'providerConfigurationModal.seeDocumentation',

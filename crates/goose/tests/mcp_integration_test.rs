@@ -51,12 +51,14 @@ impl MockProvider {
     }
 }
 
-impl ProviderDef for MockProvider {
-    type Provider = Self;
-
+impl goose::providers::base::ProviderDescriptor for MockProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::empty()
     }
+}
+
+impl ProviderDef for MockProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,
