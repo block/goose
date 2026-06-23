@@ -343,9 +343,7 @@ impl KimiCodeProvider {
 
 // ── ProviderDef ───────────────────────────────────────────────────────────────
 
-impl ProviderDef for KimiCodeProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for KimiCodeProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             KIMI_CODE_PROVIDER_NAME,
@@ -371,6 +369,10 @@ impl ProviderDef for KimiCodeProvider {
             "Once authorized, Goose will save your token automatically",
         ])
     }
+}
+
+impl ProviderDef for KimiCodeProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,
@@ -495,6 +497,7 @@ impl Provider for KimiCodeProvider {
 mod tests {
     use super::*;
     use chrono::Utc;
+    use goose_providers::base::ProviderDescriptor as _;
     use serde_json::json;
     use wiremock::matchers::{body_string_contains, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};

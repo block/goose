@@ -11,7 +11,6 @@ use super::base::{
     stream_from_single_message, ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
 };
 use super::utils::filter_extensions_from_system_prompt;
-use crate::config::base::CursorAgentCommand;
 use crate::config::search_path::SearchPaths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::subprocess::configure_subprocess;
@@ -280,9 +279,7 @@ impl CursorAgentProvider {
     }
 }
 
-impl ProviderDef for CursorAgentProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for CursorAgentProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             CURSOR_AGENT_PROVIDER_NAME,
@@ -291,11 +288,19 @@ impl ProviderDef for CursorAgentProvider {
             CURSOR_AGENT_DEFAULT_MODEL,
             CURSOR_AGENT_KNOWN_MODELS.to_vec(),
             CURSOR_AGENT_DOC_URL,
-            vec![ConfigKey::from_value_type::<CursorAgentCommand>(
-                true, false, true,
+            vec![ConfigKey::new(
+                "CURSOR_AGENT_COMMAND",
+                true,
+                false,
+                Some("cursor-agent"),
+                true,
             )],
         )
     }
+}
+
+impl ProviderDef for CursorAgentProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

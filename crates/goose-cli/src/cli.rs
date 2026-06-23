@@ -43,11 +43,11 @@ use tracing::warn;
 const GOOSE_SERVER_SECRET_KEY_ENV: &str = "GOOSE_SERVER__SECRET_KEY";
 
 fn generate_serve_secret_key() -> String {
-    use rand::distributions::{Alphanumeric, DistString};
+    use rand::distr::{Alphanumeric, SampleString};
 
     format!(
         "goose-acp-{}",
-        Alphanumeric.sample_string(&mut rand::thread_rng(), 32)
+        Alphanumeric.sample_string(&mut rand::rng(), 32)
     )
 }
 

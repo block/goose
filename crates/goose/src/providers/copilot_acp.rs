@@ -8,7 +8,9 @@ use crate::acp::{
 };
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
-use crate::providers::base::{current_working_dir, ProviderDef, ProviderMetadata};
+use crate::providers::base::{
+    current_working_dir, ProviderDef, ProviderDescriptor, ProviderMetadata,
+};
 use goose_providers::model::ModelConfig;
 
 pub(crate) const COPILOT_ACP_PROVIDER_NAME: &str = "copilot-acp";
@@ -20,9 +22,7 @@ const MODE_PLAN: &str = "https://agentclientprotocol.com/protocol/session-modes#
 
 pub struct CopilotAcpProvider;
 
-impl ProviderDef for CopilotAcpProvider {
-    type Provider = AcpProvider;
-
+impl goose_providers::base::ProviderDescriptor for CopilotAcpProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             COPILOT_ACP_PROVIDER_NAME,
@@ -40,6 +40,10 @@ impl ProviderDef for CopilotAcpProvider {
             "Restart goose for changes to take effect",
         ])
     }
+}
+
+impl ProviderDef for CopilotAcpProvider {
+    type Provider = AcpProvider;
 
     fn from_env(
         model: ModelConfig,

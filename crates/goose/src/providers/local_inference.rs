@@ -493,9 +493,7 @@ impl LocalInferenceProvider {
     }
 }
 
-impl ProviderDef for LocalInferenceProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for LocalInferenceProvider {
     fn metadata() -> ProviderMetadata
     where
         Self: Sized,
@@ -528,6 +526,10 @@ impl ProviderDef for LocalInferenceProvider {
             vec![],
         )
     }
+}
+
+impl ProviderDef for LocalInferenceProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

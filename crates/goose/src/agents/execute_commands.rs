@@ -50,6 +50,10 @@ static COMMANDS: &[CommandDef] = &[
         description:
             "Set a goal the agent pursues relentlessly until max_turns, or clear with /grind off",
     },
+    CommandDef {
+        name: "status",
+        description: "Show session status: model, provider, mode, and token usage",
+    },
 ];
 
 pub struct ParsedSlashCommand<'a> {
@@ -126,6 +130,7 @@ impl Agent {
             "clear" => self.handle_clear_command(session_id).await,
             "skills" => self.handle_skills_command(session_id).await,
             "doctor" => Ok(Some(crate::doctor::run(self, session_id).await?)),
+            "status" => self.handle_status_command(session_id).await,
             "goal" => self.handle_goal_command(params_str).await,
             "grind" => self.handle_grind_command(params_str).await,
             _ => {
@@ -200,6 +205,61 @@ impl Agent {
             .map(|s| s.working_dir);
         let output = skill_slash_command::format_installed_skills(working_dir.as_deref());
         Ok(Some(Message::assistant().with_text(output)))
+    }
+
+    async fn handle_status_command(&self, session_id: &str) -> Result<Option<Message>> {
+        let provider = self.provider().await?;
+        let model_config = provider.get_model_config();
+        let context_limit = model_config.context_limit();
+
+        let goose_mode = self.goose_mode().await;
+
+        let metadata = self
+            .config
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .ok();
+
+        // `usage` is the current context-window usage (reset by /compact);
+        // `accumulated_usage` is the lifetime sum across all responses. The context
+        // percentage must use the former, or it inflates and pegs at 100% in any
+        // long or post-compaction session.
+        let context_tokens = metadata
+            .as_ref()
+            .and_then(|s| s.usage.total_tokens)
+            .unwrap_or(0)
+            .max(0) as usize;
+        let lifetime_tokens = metadata
+            .as_ref()
+            .and_then(|s| s.accumulated_usage.total_tokens)
+            .unwrap_or(0)
+            .max(0) as usize;
+
+        let context_pct = if context_limit > 0 {
+            let pct = ((context_tokens as f64 / context_limit as f64) * 100.0).round() as usize;
+            format!("{}%", pct.min(100))
+        } else {
+            "N/A".to_string()
+        };
+
+        let text = format!(
+            "**Session status**\n\n\
+             - Model: {}\n\
+             - Provider: {}\n\
+             - Mode: {}\n\
+             - Tokens (lifetime): {}\n\
+             - Context: {} / {} tokens ({})",
+            model_config.model_name,
+            provider.get_name(),
+            goose_mode,
+            lifetime_tokens,
+            context_tokens,
+            context_limit,
+            context_pct,
+        );
+
+        Ok(Some(user_only_assistant_text(text)))
     }
 
     async fn handle_prompts_command(
@@ -494,5 +554,12 @@ mod tests {
             message.content.as_slice(),
             [MessageContent::Text(text)] if text.text == "Conversation cleared"
         ));
+    }
+
+    #[test]
+    fn status_is_registered_as_a_builtin_command() {
+        assert!(list_commands()
+            .iter()
+            .any(|command| command.name == "status"));
     }
 }

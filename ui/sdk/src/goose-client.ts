@@ -27,6 +27,7 @@ import {
 } from "@agentclientprotocol/sdk";
 import {
   GooseExtClient,
+  installGooseExtAgentRequestDispatcher,
   installGooseExtNotificationDispatcher,
   type GooseClientCallbacks,
 } from "./generated/client.gen.js";
@@ -45,7 +46,9 @@ export class GooseClient {
         ? createHttpStream(streamOrUrl)
         : streamOrUrl;
     const toAcpClient = () =>
-      installGooseExtNotificationDispatcher(toClient());
+      installGooseExtAgentRequestDispatcher(
+        installGooseExtNotificationDispatcher(toClient()),
+      );
     this.conn = new ClientSideConnection(toAcpClient, stream);
     this.ext = new GooseExtClient(this.conn);
   }

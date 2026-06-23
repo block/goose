@@ -154,9 +154,7 @@ fn is_gemini_model(model_name: &str) -> bool {
     model_name.starts_with("google/")
 }
 
-impl ProviderDef for OpenRouterProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for OpenRouterProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             OPENROUTER_PROVIDER_NAME,
@@ -182,6 +180,10 @@ impl ProviderDef for OpenRouterProvider {
             "Copy the key and paste it above",
         ])
     }
+}
+
+impl ProviderDef for OpenRouterProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

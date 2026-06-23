@@ -65,7 +65,10 @@ mod tests {
 
         assert_eq!(
             names,
-            vec!["prompts", "prompt", "compact", "clear", "skills", "doctor", "goal", "grind"]
+            vec![
+                "prompts", "prompt", "compact", "clear", "skills", "doctor", "goal", "grind",
+                "status"
+            ]
         );
         assert!(commands
             .iter()

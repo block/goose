@@ -361,9 +361,7 @@ mod tests {
             }
         }
 
-        impl ProviderDef for MockToolProvider {
-            type Provider = Self;
-
+        impl goose::providers::base::ProviderDescriptor for MockToolProvider {
             fn metadata() -> ProviderMetadata {
                 ProviderMetadata {
                     name: "mock".to_string(),
@@ -377,6 +375,10 @@ mod tests {
                     model_selection_hint: None,
                 }
             }
+        }
+
+        impl ProviderDef for MockToolProvider {
+            type Provider = Self;
 
             fn from_env(
                 _model: ModelConfig,
@@ -532,9 +534,7 @@ mod tests {
             }
         }
 
-        impl ProviderDef for SummarizationTestProvider {
-            type Provider = Self;
-
+        impl goose::providers::base::ProviderDescriptor for SummarizationTestProvider {
             fn metadata() -> ProviderMetadata {
                 ProviderMetadata {
                     name: "mock-summarization".to_string(),
@@ -548,6 +548,10 @@ mod tests {
                     model_selection_hint: None,
                 }
             }
+        }
+
+        impl ProviderDef for SummarizationTestProvider {
+            type Provider = Self;
 
             fn from_env(
                 _model: ModelConfig,
@@ -885,9 +889,7 @@ mod tests {
             }
         }
 
-        impl ProviderDef for MultiStepProvider {
-            type Provider = Self;
-
+        impl goose::providers::base::ProviderDescriptor for MultiStepProvider {
             fn metadata() -> ProviderMetadata {
                 ProviderMetadata {
                     name: "multi-step-mock".to_string(),
@@ -901,6 +903,10 @@ mod tests {
                     model_selection_hint: None,
                 }
             }
+        }
+
+        impl ProviderDef for MultiStepProvider {
+            type Provider = Self;
 
             fn from_env(
                 _model: ModelConfig,
@@ -1156,9 +1162,7 @@ mod tests {
             }
         }
 
-        impl ProviderDef for GoalTextProvider {
-            type Provider = Self;
-
+        impl goose::providers::base::ProviderDescriptor for GoalTextProvider {
             fn metadata() -> ProviderMetadata {
                 ProviderMetadata {
                     name: "goal-mock".to_string(),
@@ -1172,6 +1176,10 @@ mod tests {
                     model_selection_hint: None,
                 }
             }
+        }
+
+        impl ProviderDef for GoalTextProvider {
+            type Provider = Self;
 
             fn from_env(
                 _model: ModelConfig,

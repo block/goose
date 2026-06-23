@@ -1568,6 +1568,48 @@ export const zGooseSessionNotification_unstable = z.object({
     update: zGooseSessionUpdate
 });
 
+export const zRecipeParameterInputType = z.union([
+    z.literal('string'),
+    z.literal('number'),
+    z.literal('boolean'),
+    z.literal('date'),
+    z.literal('select'),
+    z.literal('file')
+]);
+
+export const zRecipeParameterRequirement = z.enum([
+    'required',
+    'optional',
+    'user_prompt'
+]);
+
+export const zRecipeParameter = z.object({
+    key: z.string(),
+    input_type: zRecipeParameterInputType,
+    requirement: zRecipeParameterRequirement,
+    description: z.string(),
+    default: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    options: z.union([
+        z.array(z.string()),
+        z.null()
+    ]).optional()
+});
+
+export const zRequestRecipeParams_unstable = z.object({
+    sessionId: z.string(),
+    parameters: z.array(zRecipeParameter)
+});
+
+export const zRecipeParamsAction = z.enum(['submit', 'cancel']);
+
+export const zRecipeParamsResponse_unstable = z.object({
+    action: zRecipeParamsAction.optional().default('submit'),
+    values: z.record(z.string()).optional().default({})
+});
+
 export const zExtRequest = z.object({
     id: z.string(),
     method: z.string(),
@@ -1708,3 +1750,33 @@ export const zExtNotification = z.object({
         ])
     ]).optional()
 });
+
+export const zExtAgentRequest = z.object({
+    id: z.string(),
+    method: z.string(),
+    params: z.union([
+        zRequestRecipeParams_unstable,
+        z.union([
+            z.record(z.unknown()),
+            z.null()
+        ])
+    ]).optional()
+});
+
+export const zExtAgentResponse = z.union([
+    z.object({
+        id: z.string(),
+        result: z.union([
+            zRecipeParamsResponse_unstable,
+            z.unknown()
+        ]).optional()
+    }),
+    z.object({
+        error: z.object({
+            code: z.number().int(),
+            message: z.string(),
+            data: z.unknown().optional()
+        }),
+        id: z.string()
+    })
+]);

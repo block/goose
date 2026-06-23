@@ -25,11 +25,12 @@ import { useEscapeKey } from '../../hooks/useEscapeKey';
 import {
   deleteRecipe,
   RecipeManifest,
-  startAgent,
   scheduleRecipe,
   setRecipeSlashCommand,
   recipeToYaml,
 } from '../../api';
+import { createSession } from '../../sessions';
+import { isRecipeParamsCancelled } from '../../acp/errors';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
 import CreateEditRecipeModal from './CreateEditRecipeModal';
 import { generateDeepLink } from '../../recipe';
@@ -378,14 +379,7 @@ export default function RecipesView() {
 
   const handleStartRecipeChat = async (recipeId: string) => {
     try {
-      const newAgent = await startAgent({
-        body: {
-          working_dir: getInitialWorkingDir(),
-          recipe_id: recipeId,
-        },
-        throwOnError: true,
-      });
-      const session = newAgent.data;
+      const session = await createSession(getInitialWorkingDir(), { recipeId });
       trackRecipeStarted(true, undefined, false);
 
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED, { detail: { session } }));
@@ -398,10 +392,14 @@ export default function RecipesView() {
           : undefined,
       });
     } catch (error) {
+      if (isRecipeParamsCancelled(error)) {
+        setView('chat');
+        return;
+      }
       console.error('Failed to load recipe:', error);
       const errorMsg = errorMessage(error, 'Failed to load recipe');
       trackRecipeStarted(false, getErrorType(error), false);
-      setError(errorMsg);
+      toastError({ title: intl.formatMessage(i18n.errorLoadingRecipes), msg: errorMsg });
     }
   };
 

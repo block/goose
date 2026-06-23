@@ -161,11 +161,6 @@ impl ProviderTestConfig {
         self
     }
 
-    fn clear_env(mut self, vars: &'static [&'static str]) -> Self {
-        self.clear_env = vars;
-        self
-    }
-
     fn test_permissions(mut self, v: bool) -> Self {
         self.test_permissions = v;
         self
@@ -188,6 +183,12 @@ impl ProviderTestConfig {
 
     fn context_length_exceeded(mut self, token_count: usize) -> Self {
         self.context_length_exceeded = token_count;
+        self
+    }
+
+    #[allow(dead_code)] // only used by tests that are behind non-default feature flags
+    fn clear_env(mut self, vars: &'static [&'static str]) -> Self {
+        self.clear_env = vars;
         self
     }
 

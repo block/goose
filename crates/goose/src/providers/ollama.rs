@@ -246,9 +246,7 @@ impl OllamaProvider {
     }
 }
 
-impl ProviderDef for OllamaProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for OllamaProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             OLLAMA_PROVIDER_NAME,
@@ -269,6 +267,10 @@ impl ProviderDef for OllamaProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for OllamaProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

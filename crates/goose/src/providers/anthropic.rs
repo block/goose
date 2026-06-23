@@ -2,6 +2,7 @@ use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::TryStreamExt;
+use goose_providers::base::ProviderDescriptor;
 use goose_providers::errors::ProviderError;
 use goose_providers::request_log::{start_log, LoggerHandleExt};
 use reqwest::StatusCode;
@@ -234,9 +235,7 @@ impl AnthropicProvider {
     }
 }
 
-impl ProviderDef for AnthropicProvider {
-    type Provider = Self;
-
+impl ProviderDescriptor for AnthropicProvider {
     fn metadata() -> ProviderMetadata {
         let models: Vec<ModelInfo> = ANTHROPIC_KNOWN_MODELS
             .iter()
@@ -267,6 +266,10 @@ impl ProviderDef for AnthropicProvider {
             "Copy the key and paste it above",
         ])
     }
+}
+
+impl ProviderDef for AnthropicProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

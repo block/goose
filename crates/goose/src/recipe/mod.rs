@@ -153,7 +153,7 @@ where
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RecipeParameterRequirement {
     Required,
@@ -171,7 +171,7 @@ impl fmt::Display for RecipeParameterRequirement {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, schemars::JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum RecipeParameterInputType {
     String,
@@ -194,7 +194,7 @@ impl fmt::Display for RecipeParameterInputType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, ToSchema)]
+#[derive(Serialize, Deserialize, Debug, Clone, ToSchema, schemars::JsonSchema)]
 pub struct RecipeParameter {
     pub key: String,
     pub input_type: RecipeParameterInputType,
