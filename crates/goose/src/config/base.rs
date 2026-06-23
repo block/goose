@@ -1211,6 +1211,11 @@ impl Config {
 
 config_value!(GOOSE_DEFAULT_EXTENSION_TIMEOUT, u64);
 
+// --- Redactor (PII/sensitive data filtering) ---
+config_value!(REDACTOR_ENABLED, bool);
+config_value!(REDACTOR_MODE, String); // "mask", "hash", or "redact"
+config_value!(REDACTOR_ALLOWLIST, String); // JSON array of regex strings
+
 fn find_workspace_or_exe_root() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let exe_dir = exe.parent()?.to_path_buf();

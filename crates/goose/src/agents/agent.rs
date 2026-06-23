@@ -47,6 +47,7 @@ use crate::recipe::{Author, Recipe, Response, Settings};
 use crate::scheduler_trait::SchedulerTrait;
 use crate::security::adversary_inspector::AdversaryInspector;
 use crate::security::egress_inspector::EgressInspector;
+use crate::security::redactor::Redactor;
 use crate::security::security_inspector::SecurityInspector;
 use crate::session::extension_data::{EnabledExtensionsState, ExtensionState};
 use crate::session::{Session, SessionManager, SessionNameUpdate};
@@ -2523,15 +2524,25 @@ impl Agent {
                     messages_to_add
                 };
 
-                for msg in &messages_to_add {
+                let redactor = if Redactor::is_enabled() {
+                    Some(Redactor::from_config())
+                } else {
+                    None
+                };
+
+                let redacted_messages: Vec<_> = messages_to_add
+                    .into_iter()
+                    .map(|msg| redactor.as_ref().map(|r| r.redact_message(&msg)).unwrap_or(msg))
+                    .collect();
+
+                for msg in &redacted_messages {
                     session_manager.add_message(&session_config.id, msg).await?;
                 }
-                conversation.extend(messages_to_add);
+                conversation.extend(redacted_messages);
 
                 if exit_chat && self.has_pending_steers(&session_config.id).await {
                     exit_chat = false;
                 }
-
                 if exit_chat {
                     let ctx = crate::hooks::HookContext::new(
                         crate::hooks::HookEvent::Stop,
