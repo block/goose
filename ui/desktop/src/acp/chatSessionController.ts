@@ -132,7 +132,11 @@ async function submitMessage(
   options: AcpSubmitMessageOptions
 ): Promise<void> {
   const snapshot = acpChatSessionStore.getSnapshot(sessionId);
-  if (snapshot?.activePromptAttemptId || snapshot?.pendingCancelPromptAttemptId) {
+  if (snapshot?.pendingCancelPromptAttemptId) {
+    throw new Error('Cannot submit while prompt cancellation is pending');
+  }
+
+  if (snapshot?.activePromptAttemptId) {
     return;
   }
 

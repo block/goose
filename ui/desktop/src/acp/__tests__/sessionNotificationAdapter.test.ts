@@ -119,7 +119,7 @@ describe('createAcpSessionNotificationAdapter', () => {
         expect(firstContent(messages[0])).toMatchObject({ type: 'text', text: 'Hell' });
       });
 
-      it('replaces optimistic steer text with picked-up steer chunks', () => {
+      it('reconciles locally rendered steer text with server chunks', () => {
         const adapter = createAcpSessionNotificationAdapter([
           {
             id: 'steer-1',

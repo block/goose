@@ -30,7 +30,7 @@ export function applyContentChunk(
 
   if (existing) {
     const lastContent = existing.content[existing.content.length - 1];
-    if (mergeOptimisticSteerTextChunk(existing, content, gooseMeta.steer)) {
+    if (reconcileLocalSteerTextChunk(existing, content, gooseMeta.steer)) {
       return messagesChange(state);
     }
 
@@ -156,7 +156,7 @@ function hasImageContent(message: Message, image: Extract<MessageContent, { type
   );
 }
 
-function mergeOptimisticSteerTextChunk(
+function reconcileLocalSteerTextChunk(
   message: Message,
   content: MessageContent,
   isSteerChunk: boolean | undefined

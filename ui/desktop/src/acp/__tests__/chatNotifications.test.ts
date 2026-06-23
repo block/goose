@@ -64,7 +64,6 @@ function snapshotWithName(name: string): AcpChatSessionSnapshot {
     activePromptAttemptId: null,
     activeRunId: null,
     pendingCancelPromptAttemptId: null,
-    queuedSteers: [],
   };
 }
 
@@ -86,7 +85,6 @@ function snapshotWithoutSession(): AcpChatSessionSnapshot {
     activePromptAttemptId: null,
     activeRunId: null,
     pendingCancelPromptAttemptId: null,
-    queuedSteers: [],
   };
 }
 

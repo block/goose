@@ -7,11 +7,7 @@ import { Message, Session, TokenState, updateFromSession } from '../api';
 
 import { createUserMessage, NotificationEvent, UserInput } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
-import type {
-  SteerQueuedMessageResult,
-  UseChatSessionParams,
-  UseChatSessionResult,
-} from './useChatSessionTypes';
+import type { UseChatSessionParams, UseChatSessionResult } from './useChatSessionTypes';
 import { resolveAcpElicitationRequest } from '../acp/elicitationRequests';
 import { acpChatSessionController } from '../acp/chatSessionController';
 import {
@@ -190,24 +186,24 @@ export function useAcpChatSession({
   );
 
   const onSteerQueuedMessage = useCallback(
-    async (input: UserInput): Promise<SteerQueuedMessageResult | null> => {
+    async (input: UserInput): Promise<boolean> => {
       const { msg: userMessage, images } = input;
       const hasNewMessage = userMessage.trim().length > 0 || images.length > 0;
       if (!hasNewMessage) {
-        return null;
+        return false;
       }
 
       const activeRunId =
         acpChatSessionStore.getSnapshot(sessionId)?.activeRunId ??
         getCurrentSnapshot()?.activeRunId;
       if (!activeRunId) {
-        return null;
+        return false;
       }
 
       try {
         const steeredMessage = createUserMessage(userMessage, images);
         const response = await acpSteerSession(sessionId, steeredMessage, activeRunId);
-        const optimisticMessage: Message = {
+        const localSteerMessage: Message = {
           ...steeredMessage,
           id: response.messageId,
           metadata: { ...steeredMessage.metadata, steer: true },
@@ -218,13 +214,13 @@ export function useAcpChatSession({
           [];
 
         if (!currentMessages.some((message) => message.id === response.messageId)) {
-          acpChatSessionActions.setMessages(sessionId, [...currentMessages, optimisticMessage]);
+          acpChatSessionActions.setMessages(sessionId, [...currentMessages, localSteerMessage]);
         }
 
-        return { messageId: response.messageId };
+        return true;
       } catch (error) {
         console.warn('Failed to steer ACP session:', error);
-        return null;
+        return false;
       }
     },
     [getCurrentSnapshot, sessionId]

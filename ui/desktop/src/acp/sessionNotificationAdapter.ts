@@ -14,7 +14,6 @@ import {
   type AdapterState,
   cloneMessage,
   getGooseActiveRunId,
-  getGooseQueuedSteer,
 } from './adapter/shared';
 import { applyToolCall, applyToolCallUpdate } from './adapter/tools';
 import type { AcpElicitationRequest } from './elicitationRequests';
@@ -78,13 +77,15 @@ function applyAcpSessionNotification(
       return applyToolCallUpdate(state, update);
     case 'session_info_update': {
       const activeRunId = getGooseActiveRunId(update);
-      const queuedSteer = getGooseQueuedSteer(update);
+      if (!update.title && activeRunId === undefined) {
+        return [];
+      }
+
       return [
         {
           type: 'sessionInfo',
           ...(update.title ? { name: update.title } : {}),
           ...(activeRunId !== undefined ? { activeRunId } : {}),
-          ...(queuedSteer ? { queuedSteer } : {}),
         },
       ];
     }

@@ -9,7 +9,6 @@ export type AcpChatStateChange =
       type: 'sessionInfo';
       name?: string;
       activeRunId?: string | null;
-      queuedSteer?: QueuedSteerMeta;
     }
   | { type: 'notification'; notification: NotificationEvent };
 
@@ -21,11 +20,6 @@ export interface GooseMessageMeta {
   messageId?: string;
   created?: number;
   steer?: boolean;
-}
-
-export interface QueuedSteerMeta {
-  messageId: string;
-  runId: string;
 }
 
 export interface ToolIdentity {
@@ -79,23 +73,6 @@ export function getGooseActiveRunId(update: { _meta?: unknown }): string | null 
 
   return typeof goose.activeRunId === 'string' || goose.activeRunId === null
     ? goose.activeRunId
-    : undefined;
-}
-
-export function getGooseQueuedSteer(update: { _meta?: unknown }): QueuedSteerMeta | undefined {
-  if (!isRecord(update._meta)) {
-    return undefined;
-  }
-
-  const goose = update._meta.goose;
-  if (!isRecord(goose) || !isRecord(goose.queuedSteer)) {
-    return undefined;
-  }
-
-  const messageId = goose.queuedSteer.messageId;
-  const runId = goose.queuedSteer.runId;
-  return typeof messageId === 'string' && typeof runId === 'string'
-    ? { messageId, runId }
     : undefined;
 }
 

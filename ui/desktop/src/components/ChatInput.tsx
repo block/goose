@@ -39,7 +39,6 @@ import { fetchCanonicalModelInfo } from '../utils/canonical';
 import { defineMessages, useIntl } from '../i18n';
 import TurndownService from 'turndown';
 import type { NextChatExtensionDraft } from '../utils/nextChatExtensions';
-import type { SteerQueuedMessageResult } from '../hooks/useChatSessionTypes';
 
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -175,7 +174,7 @@ interface ChatInputProps {
   chatState: ChatState;
   setChatState?: (state: ChatState) => void;
   onStop?: () => void;
-  onSteerQueuedMessage?: (input: UserInput) => Promise<SteerQueuedMessageResult | null>;
+  onSteerQueuedMessage?: (input: UserInput) => Promise<boolean>;
   pauseQueueOnStop?: boolean;
   queueProcessingBlocked?: boolean;
   commandHistory?: string[];
@@ -258,6 +257,7 @@ export default function ChatInput({
   const queuePausedRef = useRef(false);
   const editingMessageIdRef = useRef<string | null>(null);
   const sendAfterStopMessageIdRef = useRef<string | null>(null);
+  const sendNowInFlightMessageIdsRef = useRef<Set<string>>(new Set());
   const [lastInterruption, setLastInterruption] = useState<string | null>(null);
 
   const pauseRemainingQueue = useCallback(() => {
@@ -1384,24 +1384,33 @@ export default function ChatInput({
     }
 
     if (onSteerQueuedMessage) {
-      const steerResult = await onSteerQueuedMessage({
-        msg: messageToSend.content,
-        images: messageToSend.images,
-      });
-
-      if (steerResult) {
-        LocalMessageStorage.addMessage(messageToSend.content);
-        clearPendingSendAfterStop(messageId);
-        setQueuedMessages((prev) => {
-          const newQueue = removeQueuedMessage(prev, messageId);
-          if (newQueue.length === 0) {
-            clearQueueState();
-          } else {
-            pauseRemainingQueue();
-          }
-          return newQueue;
-        });
+      if (sendNowInFlightMessageIdsRef.current.has(messageId)) {
         return;
+      }
+
+      sendNowInFlightMessageIdsRef.current.add(messageId);
+      try {
+        const steerAccepted = await onSteerQueuedMessage({
+          msg: messageToSend.content,
+          images: messageToSend.images,
+        });
+
+        if (steerAccepted) {
+          LocalMessageStorage.addMessage(messageToSend.content);
+          clearPendingSendAfterStop(messageId);
+          setQueuedMessages((prev) => {
+            const newQueue = removeQueuedMessage(prev, messageId);
+            if (newQueue.length === 0) {
+              clearQueueState();
+            } else {
+              pauseRemainingQueue();
+            }
+            return newQueue;
+          });
+          return;
+        }
+      } finally {
+        sendNowInFlightMessageIdsRef.current.delete(messageId);
       }
     }
 
