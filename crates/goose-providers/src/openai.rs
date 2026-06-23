@@ -1,37 +1,33 @@
-use super::api_client::{ApiClient, AuthMethod};
-use super::base::{
-    ConfigKey, ModelInfo, Provider, ProviderDef, ProviderMetadata, DEFAULT_PROVIDER_TIMEOUT_SECS,
-};
-use super::formats::openai_responses::{
-    create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
-};
-use super::openai_compatible::{
-    handle_response_openai_compat, handle_status, stream_openai_compat, stream_responses_compat,
-};
+use super::api_client::ApiClient;
+use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata};
 use super::retry::ProviderRetry;
-use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::conversation::message::Message;
-use anyhow::Result;
-use async_trait::async_trait;
-use futures::future::BoxFuture;
-use goose_providers::conversation::token_usage::ProviderUsage;
-use goose_providers::errors::ProviderError;
-use goose_providers::formats::openai::is_openai_responses_model;
-use goose_providers::formats::openai::{
+use crate::conversation::token_usage::ProviderUsage;
+use crate::errors::ProviderError;
+use crate::formats::openai::is_openai_responses_model;
+use crate::formats::openai::{
     create_request_with_options, get_usage, response_to_message, OpenAiFormatOptions,
 };
-use goose_providers::images::ImageFormat;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
+use crate::formats::openai_responses::{
+    create_responses_request, get_responses_usage, responses_api_to_message, ResponsesApiResponse,
+};
+use crate::images::ImageFormat;
+use crate::openai_compatible::{
+    handle_response_openai_compat, handle_status, stream_openai_compat, stream_responses_compat,
+};
+use crate::request_log::{start_log, LoggerHandleExt};
+use anyhow::Result;
+use async_trait::async_trait;
 use reqwest::StatusCode;
 use std::collections::HashMap;
 
-use crate::providers::base::MessageStream;
-use goose_providers::model::ModelConfig;
+use crate::base::{MessageStream, ProviderDescriptor};
+use crate::model::ModelConfig;
 use rmcp::model::Tool;
 
-pub(crate) const OPEN_AI_PROVIDER_NAME: &str = "openai";
-pub(crate) const OPEN_AI_DEFAULT_BASE_PATH: &str = "v1/chat/completions";
-const OPEN_AI_VERSIONLESS_BASE_PATH: &str = "chat/completions";
+pub const OPEN_AI_PROVIDER_NAME: &str = "openai";
+pub const OPEN_AI_DEFAULT_BASE_PATH: &str = "v1/chat/completions";
+pub const OPEN_AI_VERSIONLESS_BASE_PATH: &str = "chat/completions";
 const OPEN_AI_DEFAULT_RESPONSES_PATH: &str = "v1/responses";
 const OPEN_AI_DEFAULT_MODELS_PATH: &str = "v1/models";
 pub const OPEN_AI_DEFAULT_MODEL: &str = "gpt-4o";
@@ -67,21 +63,6 @@ pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
 
 type OpenAiBaseUrlParts = (String, Vec<(String, String)>, bool);
 
-/// Components extracted from an `OPENAI_BASE_URL` value.
-struct ParsedBaseUrl {
-    /// The host (scheme + authority + any path prefix before `/v1`).
-    host: String,
-    /// Query parameters to forward on every request.
-    query_params: Vec<(String, String)>,
-    /// Whether the URL path ended with `/v1`.
-    has_v1: bool,
-    /// `true` when the host was derived from `OPENAI_BASE_URL`.
-    /// Controls whether `OPENAI_BASE_PATH` is read from env only
-    /// (to avoid persisted desktop defaults shadowing URL-derived paths)
-    /// or from config too (to honour Docker Model Runner setups).
-    from_base_url: bool,
-}
-
 /// Ensure a base URL has an explicit scheme.
 ///
 /// Users frequently enter hosts like `localhost:1234` without a scheme. The
@@ -89,7 +70,7 @@ struct ParsedBaseUrl {
 /// silently dropping both the host and the port. When no `://` is present we
 /// prepend a sensible scheme (`http://` for local hosts, `https://`
 /// otherwise) so the host and port survive parsing.
-pub(crate) fn ensure_url_scheme(raw_url: &str) -> String {
+pub fn ensure_url_scheme(raw_url: &str) -> String {
     let trimmed = raw_url.trim();
     if trimmed.contains("://") {
         return trimmed.to_string();
@@ -110,7 +91,7 @@ pub(crate) fn ensure_url_scheme(raw_url: &str) -> String {
     format!("{}://{}", scheme, trimmed)
 }
 
-pub(crate) fn parse_openai_base_url(raw_url: &str) -> Result<OpenAiBaseUrlParts> {
+pub fn parse_openai_base_url(raw_url: &str) -> Result<OpenAiBaseUrlParts> {
     let raw_url = ensure_url_scheme(raw_url);
     let raw_url = raw_url.as_str();
     let parsed = url::Url::parse(raw_url)
@@ -154,193 +135,27 @@ pub struct OpenAiProvider {
     preserve_thinking_context: bool,
 }
 
-impl OpenAiProvider {
-    pub async fn from_env(
-        model: ModelConfig,
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
-    ) -> Result<Self> {
-        let config = crate::config::Config::global();
+/// Builder for [`OpenAiProvider`].
+///
+/// Exposes every field of the provider so that constructors living outside
+/// `openai.rs` (e.g. in `openai_def.rs`) can assemble a provider without
+/// needing direct access to the struct's private fields.
+pub struct OpenAiProviderBuilder {
+    api_client: ApiClient,
+    base_path: String,
+    organization: Option<String>,
+    project: Option<String>,
+    model: ModelConfig,
+    custom_headers: Option<HashMap<String, String>>,
+    supports_streaming: bool,
+    name: String,
+    custom_models: Option<Vec<String>>,
+    dynamic_models: Option<bool>,
+    skip_canonical_filtering: bool,
+    preserve_thinking_context: bool,
+}
 
-        // Resolve host and base_path.
-        //
-        // Priority (highest first):
-        //   1. OPENAI_HOST env var — session override (deprecated but still
-        //      honoured so that `OPENAI_HOST=… goose` keeps working)
-        //   2. OPENAI_BASE_URL (env or config) — ecosystem-standard
-        //   3. OPENAI_HOST from config file — persisted by `goose configure`
-        //   4. Default "https://api.openai.com"
-        //
-        // OPENAI_BASE_URL is parsed into host + query params + a flag
-        // indicating whether the URL included a /v1 path segment.  When /v1
-        // is present the default base_path is "v1/chat/completions";
-        // otherwise "chat/completions" to match the OpenAI SDK convention.
-        //
-        // OPENAI_BASE_PATH always wins when set explicitly.
-        let parsed = if let Ok(h) = std::env::var("OPENAI_HOST") {
-            // OPENAI_HOST env var takes priority as a session override so
-            // that existing scripts like `OPENAI_HOST=… goose` still work
-            // even after OPENAI_BASE_URL is persisted in config.
-            ParsedBaseUrl {
-                host: h,
-                query_params: vec![],
-                has_v1: true,
-                from_base_url: false,
-            }
-        } else if let Some(raw_url) = config
-            .get_param::<String>("OPENAI_BASE_URL")
-            .ok()
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-        {
-            Self::parse_base_url(&raw_url)?
-        } else {
-            let h: String = config
-                .get_param("OPENAI_HOST")
-                .unwrap_or_else(|_| "https://api.openai.com".to_string());
-            ParsedBaseUrl {
-                host: h,
-                query_params: vec![],
-                has_v1: true,
-                from_base_url: false,
-            }
-        };
-
-        // When the host was derived from OPENAI_BASE_URL, read
-        // OPENAI_BASE_PATH from env only so that the desktop UI's persisted
-        // default ("v1/chat/completions") doesn't shadow the versionless
-        // path.  When the host came from OPENAI_HOST (env or config), read
-        // from config too — Docker Model Runner and similar setups persist a
-        // custom base_path that must be honoured.
-        let default_bp = || {
-            if parsed.has_v1 {
-                OPEN_AI_DEFAULT_BASE_PATH.to_string()
-            } else {
-                OPEN_AI_VERSIONLESS_BASE_PATH.to_string()
-            }
-        };
-        let base_path: String = if parsed.from_base_url {
-            std::env::var("OPENAI_BASE_PATH").unwrap_or_else(|_| default_bp())
-        } else {
-            config
-                .get_param("OPENAI_BASE_PATH")
-                .unwrap_or_else(|_| default_bp())
-        };
-
-        // Only apply the default fast model when talking to OpenAI directly.
-        // Custom/compatible endpoints likely don't serve gpt-4o-mini, so
-        // leave fast_model unset (complete_fast will fall back to the main model).
-        // Parse the URL and compare the hostname exactly to avoid false positives
-        // (e.g. https://api.openai.com.local:8000 or proxy paths containing api.openai.com).
-        let host = parsed.host.clone();
-
-        // Only apply the default fast model when talking to OpenAI directly.
-        // Custom/compatible endpoints likely don't serve gpt-4o-mini, so
-        // leave fast_model unset (complete_fast will fall back to the main model).
-        // Parse the URL and compare the hostname exactly to avoid false positives
-        // (e.g. https://api.openai.com.local:8000 or proxy paths containing api.openai.com).
-        let is_openai = url::Url::parse(&host)
-            .ok()
-            .and_then(|u| u.host_str().map(|h| h.to_ascii_lowercase()))
-            .map(|h| h == "api.openai.com" || h.ends_with(".api.openai.com"))
-            .unwrap_or(false);
-        let model = if is_openai {
-            crate::model_config::with_configured_fast_model(
-                model,
-                OPEN_AI_PROVIDER_NAME,
-                OPEN_AI_DEFAULT_FAST_MODEL,
-            )?
-        } else {
-            model
-        };
-
-        let secrets = config
-            .get_secrets("OPENAI_API_KEY", &["OPENAI_CUSTOM_HEADERS"])
-            .unwrap_or_default();
-        let api_key: Option<String> = secrets.get("OPENAI_API_KEY").cloned();
-        let custom_headers: Option<HashMap<String, String>> = secrets
-            .get("OPENAI_CUSTOM_HEADERS")
-            .cloned()
-            .map(parse_custom_headers);
-
-        let organization: Option<String> = config.get_param("OPENAI_ORGANIZATION").ok();
-        let project: Option<String> = config.get_param("OPENAI_PROJECT").ok();
-        let timeout_secs: u64 = config
-            .get_param("OPENAI_TIMEOUT")
-            .unwrap_or(DEFAULT_PROVIDER_TIMEOUT_SECS);
-
-        let auth = match api_key {
-            Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
-            _ => AuthMethod::NoAuth,
-        };
-        let mut api_client = ApiClient::with_timeout_and_tls(
-            parsed.host,
-            auth,
-            std::time::Duration::from_secs(timeout_secs),
-            tls_config,
-        )?;
-
-        if !parsed.query_params.is_empty() {
-            api_client = api_client.with_query(parsed.query_params);
-        }
-
-        if let Some(org) = &organization {
-            api_client = api_client.with_header("OpenAI-Organization", org)?;
-        }
-
-        if let Some(project) = &project {
-            api_client = api_client.with_header("OpenAI-Project", project)?;
-        }
-
-        if let Some(headers) = &custom_headers {
-            let mut header_map = reqwest::header::HeaderMap::new();
-            for (key, value) in headers {
-                let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
-                let header_value = reqwest::header::HeaderValue::from_str(value)?;
-                header_map.insert(header_name, header_value);
-            }
-            api_client = api_client.with_headers(header_map)?;
-        }
-
-        let mut provider = Self {
-            api_client,
-            base_path,
-            organization,
-            project,
-            model,
-            custom_headers,
-            supports_streaming: true,
-            name: OPEN_AI_PROVIDER_NAME.to_string(),
-            custom_models: None,
-            dynamic_models: None,
-            skip_canonical_filtering: false,
-            preserve_thinking_context: !is_openai,
-        };
-
-        // Only fill the context limit when nothing else set it: an existing value may be
-        // an explicit GOOSE_CONTEXT_LIMIT, an ACP/server per-session override, or a
-        // GOOSE_PREDEFINED_MODELS entry, none of which we should overwrite. llama.cpp and
-        // Ollama report the real allocated window via the non-standard meta.n_ctx field;
-        // reading it fixes auto-compaction for local servers that would otherwise fall
-        // back to DEFAULT_CONTEXT_LIMIT. The probe is bounded by a short timeout so a
-        // hung /v1/models can't stall provider construction (the shared ApiClient uses
-        // OPENAI_TIMEOUT, up to 600s).
-        if provider.model.context_limit.is_none() {
-            const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
-            let model_name = provider.model.model_name.clone();
-            if let Ok(Some(n_ctx)) = tokio::time::timeout(
-                N_CTX_PROBE_TIMEOUT,
-                provider.fetch_n_ctx_from_api(&model_name),
-            )
-            .await
-            {
-                provider.model.context_limit = Some(n_ctx);
-            }
-        }
-
-        Ok(provider)
-    }
-
-    #[doc(hidden)]
+impl OpenAiProviderBuilder {
     pub fn new(api_client: ApiClient, model: ModelConfig) -> Self {
         Self {
             api_client,
@@ -358,177 +173,101 @@ impl OpenAiProvider {
         }
     }
 
-    /// Resolve the API key from a declarative provider config.
-    ///
-    /// Returns `Some(key)` if a key is found, `None` if the key is optional/missing,
-    /// or an error if the key is required but missing/unreadable.
-    ///
-    /// The `get_secret` closure is used to look up the secret by key name. This allows
-    /// testing without depending on `Config::global()`.
-    pub fn resolve_api_key(
-        config: &DeclarativeProviderConfig,
-        get_secret: &dyn Fn(&str) -> Result<String, crate::config::ConfigError>,
-    ) -> Result<Option<String>> {
-        if config.api_key_env.is_empty() {
-            return Ok(None);
-        }
-
-        match get_secret(&config.api_key_env) {
-            Ok(key) => Ok(Some(key)),
-            Err(e) => {
-                use crate::config::ConfigError;
-                match e {
-                    ConfigError::NotFound(_) => {
-                        if config.requires_auth {
-                            anyhow::bail!(
-                                "Required API key {} is not set. Configure it via `goose configure` or set the {} environment variable.",
-                                config.api_key_env,
-                                config.api_key_env
-                            );
-                        }
-                        Ok(None)
-                    }
-                    other => {
-                        if config.requires_auth {
-                            anyhow::bail!("Failed to read {}: {}", config.api_key_env, other);
-                        } else {
-                            tracing::warn!(
-                                "Failed to read optional API key {}: {}. Proceeding without authentication.",
-                                config.api_key_env,
-                                other
-                            );
-                            Ok(None)
-                        }
-                    }
-                }
-            }
-        }
+    pub fn api_client(mut self, api_client: ApiClient) -> Self {
+        self.api_client = api_client;
+        self
     }
 
-    pub fn from_custom_config(
-        model: ModelConfig,
-        config: DeclarativeProviderConfig,
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
-    ) -> Result<Self> {
-        let custom_models = if !config.models.is_empty() {
-            Some(
-                config
-                    .models
-                    .iter()
-                    .map(|m| m.name.clone())
-                    .collect::<Vec<String>>(),
-            )
-        } else {
-            None
-        };
+    pub fn base_path(mut self, base_path: impl Into<String>) -> Self {
+        self.base_path = base_path.into();
+        self
+    }
 
-        if config.dynamic_models == Some(false) && custom_models.is_none() {
-            return Err(anyhow::anyhow!(
-                "Provider '{}' has dynamic_models: false but no static models listed; \
-                 at least one entry in `models` is required.",
-                config.name
-            ));
+    pub fn organization(mut self, organization: Option<String>) -> Self {
+        self.organization = organization;
+        self
+    }
+
+    pub fn project(mut self, project: Option<String>) -> Self {
+        self.project = project;
+        self
+    }
+
+    pub fn model(mut self, model: ModelConfig) -> Self {
+        self.model = model;
+        self
+    }
+
+    pub fn custom_headers(mut self, custom_headers: Option<HashMap<String, String>>) -> Self {
+        self.custom_headers = custom_headers;
+        self
+    }
+
+    pub fn supports_streaming(mut self, supports_streaming: bool) -> Self {
+        self.supports_streaming = supports_streaming;
+        self
+    }
+
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    pub fn custom_models(mut self, custom_models: Option<Vec<String>>) -> Self {
+        self.custom_models = custom_models;
+        self
+    }
+
+    pub fn dynamic_models(mut self, dynamic_models: Option<bool>) -> Self {
+        self.dynamic_models = dynamic_models;
+        self
+    }
+
+    pub fn skip_canonical_filtering(mut self, skip_canonical_filtering: bool) -> Self {
+        self.skip_canonical_filtering = skip_canonical_filtering;
+        self
+    }
+
+    pub fn preserve_thinking_context(mut self, preserve_thinking_context: bool) -> Self {
+        self.preserve_thinking_context = preserve_thinking_context;
+        self
+    }
+
+    pub fn build(self) -> OpenAiProvider {
+        OpenAiProvider {
+            api_client: self.api_client,
+            base_path: self.base_path,
+            organization: self.organization,
+            project: self.project,
+            model: self.model,
+            custom_headers: self.custom_headers,
+            supports_streaming: self.supports_streaming,
+            name: self.name,
+            custom_models: self.custom_models,
+            dynamic_models: self.dynamic_models,
+            skip_canonical_filtering: self.skip_canonical_filtering,
+            preserve_thinking_context: self.preserve_thinking_context,
         }
+    }
+}
 
-        let global_config = crate::config::Config::global();
-        let api_key = Self::resolve_api_key(&config, &|key| global_config.get_secret(key))?;
-
-        let normalized_base_url = ensure_url_scheme(&config.base_url);
-        let url = url::Url::parse(&normalized_base_url)
-            .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
-
-        let host = if let Some(port) = url.port() {
-            format!(
-                "{}://{}:{}",
-                url.scheme(),
-                url.host_str().unwrap_or(""),
-                port
-            )
-        } else {
-            format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
-        };
-        let base_path = if let Some(ref explicit_path) = config.base_path {
-            explicit_path.trim_start_matches('/').to_string()
-        } else {
-            Self::derive_base_path(url.path())
-        };
-
-        let timeout_secs = config
-            .timeout_seconds
-            .unwrap_or(DEFAULT_PROVIDER_TIMEOUT_SECS);
-
-        let auth = match api_key {
-            Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
-            _ => AuthMethod::NoAuth,
-        };
-        let mut api_client = ApiClient::with_timeout_and_tls(
-            host,
-            auth,
-            std::time::Duration::from_secs(timeout_secs),
-            tls_config,
-        )?;
-
-        // Add custom headers if present
-        if let Some(headers) = &config.headers {
-            let mut header_map = reqwest::header::HeaderMap::new();
-            for (key, value) in headers {
-                let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
-                let header_value = reqwest::header::HeaderValue::from_str(value)?;
-                header_map.insert(header_name, header_value);
-            }
-            api_client = api_client.with_headers(header_map)?;
-        }
-
-        let model = if let Some(ref fast_model_name) = config.fast_model {
-            crate::model_config::with_configured_fast_model(model, &config.name, fast_model_name)?
-        } else {
-            model
-        };
-
-        Ok(Self {
+impl OpenAiProvider {
+    #[doc(hidden)]
+    pub fn new(api_client: ApiClient, model: ModelConfig) -> Self {
+        Self {
             api_client,
-            base_path,
+            base_path: OPEN_AI_DEFAULT_BASE_PATH.to_string(),
             organization: None,
             project: None,
             model,
-            custom_headers: config.headers,
-            supports_streaming: config.supports_streaming.unwrap_or(true),
-            name: config.name.clone(),
-            custom_models,
-            dynamic_models: config.dynamic_models,
-            skip_canonical_filtering: config.skip_canonical_filtering,
-            preserve_thinking_context: config.preserves_thinking,
-        })
-    }
-
-    fn parse_base_url(raw_url: &str) -> Result<ParsedBaseUrl> {
-        let (host, query_params, has_v1) = parse_openai_base_url(raw_url)?;
-        Ok(ParsedBaseUrl {
-            host,
-            query_params,
-            has_v1,
-            from_base_url: true,
-        })
-    }
-
-    fn derive_base_path(url_path: &str) -> String {
-        let stripped = url_path.trim_start_matches('/');
-        let normalized = stripped.trim_end_matches('/');
-        if normalized.is_empty() {
-            "v1/chat/completions".to_string()
-        } else if normalized.ends_with("chat/completions") {
-            stripped.to_string()
-        } else if Self::ends_with_version_segment(normalized) {
-            format!("{}/chat/completions", normalized)
-        } else {
-            format!("{}/v1/chat/completions", normalized)
+            custom_headers: None,
+            supports_streaming: true,
+            name: OPEN_AI_PROVIDER_NAME.to_string(),
+            custom_models: None,
+            dynamic_models: None,
+            skip_canonical_filtering: false,
+            preserve_thinking_context: false,
         }
-    }
-
-    fn ends_with_version_segment(path: &str) -> bool {
-        let last = path.rsplit('/').next().unwrap_or(path);
-        last.strip_prefix('v')
-            .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()))
     }
 
     fn normalize_base_path(base_path: &str) -> String {
@@ -651,6 +390,28 @@ impl OpenAiProvider {
         }
     }
 
+    /// Fill the model's context limit from the API when it isn't already set.
+    ///
+    /// An existing value may be an explicit GOOSE_CONTEXT_LIMIT, an ACP/server
+    /// per-session override, or a GOOSE_PREDEFINED_MODELS entry, none of which we
+    /// should overwrite. llama.cpp and Ollama report the real allocated window via
+    /// the non-standard meta.n_ctx field; reading it fixes auto-compaction for local
+    /// servers that would otherwise fall back to DEFAULT_CONTEXT_LIMIT. The probe is
+    /// bounded by a short timeout so a hung /v1/models can't stall provider
+    /// construction (the shared ApiClient uses OPENAI_TIMEOUT, up to 600s).
+    pub async fn probe_context_limit_if_unset(&mut self) {
+        if self.model.context_limit.is_some() {
+            return;
+        }
+        const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+        let model_name = self.model.model_name.clone();
+        if let Ok(Some(n_ctx)) =
+            tokio::time::timeout(N_CTX_PROBE_TIMEOUT, self.fetch_n_ctx_from_api(&model_name)).await
+        {
+            self.model.context_limit = Some(n_ctx);
+        }
+    }
+
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
         let models_path =
             Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
@@ -730,9 +491,7 @@ fn parse_n_ctx_from_models(json: &serde_json::Value, model_name: &str) -> Option
     }
 }
 
-impl ProviderDef for OpenAiProvider {
-    type Provider = Self;
-
+impl ProviderDescriptor for OpenAiProvider {
     fn metadata() -> ProviderMetadata {
         let models = OPEN_AI_KNOWN_MODELS
             .iter()
@@ -774,14 +533,6 @@ impl ProviderDef for OpenAiProvider {
             "Click 'Create new secret key'",
             "Copy the key and paste it above",
         ])
-    }
-
-    fn from_env(
-        model: ModelConfig,
-        _extensions: Vec<crate::config::ExtensionConfig>,
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
-    ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
     }
 }
 
@@ -936,7 +687,7 @@ impl Provider for OpenAiProvider {
     }
 }
 
-fn parse_custom_headers(s: String) -> HashMap<String, String> {
+pub fn parse_custom_headers(s: String) -> HashMap<String, String> {
     s.split(',')
         .filter_map(|header| {
             let mut parts = header.splitn(2, '=');
@@ -950,6 +701,7 @@ fn parse_custom_headers(s: String) -> HashMap<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::api_client::AuthMethod;
     use serde_json::json;
 
     fn make_provider(name: &str) -> OpenAiProvider {
@@ -1159,180 +911,11 @@ mod tests {
         assert_eq!(models_path, "/v1/models");
     }
     #[test]
-    fn parse_base_url_strips_v1_from_standard_openai_url() {
-        let r = OpenAiProvider::parse_base_url("https://api.openai.com/v1").unwrap();
-        assert_eq!(r.host, "https://api.openai.com");
-        assert!(r.query_params.is_empty());
-        assert!(r.has_v1);
-    }
-
-    #[test]
-    fn parse_base_url_preserves_prefix_before_v1() {
-        let r = OpenAiProvider::parse_base_url("https://gateway.example.com/openai/v1").unwrap();
-        assert_eq!(r.host, "https://gateway.example.com/openai");
-        assert!(r.has_v1);
-    }
-
-    #[test]
-    fn parse_base_url_handles_no_path() {
-        let r = OpenAiProvider::parse_base_url("https://api.openai.com").unwrap();
-        assert_eq!(r.host, "https://api.openai.com");
-        assert!(r.has_v1);
-    }
-
-    #[test]
-    fn parse_base_url_handles_trailing_slash() {
-        let r = OpenAiProvider::parse_base_url("https://api.openai.com/v1/").unwrap();
-        assert_eq!(r.host, "https://api.openai.com");
-        assert!(r.has_v1);
-    }
-
-    #[test]
-    fn parse_base_url_preserves_port() {
-        let r = OpenAiProvider::parse_base_url("https://localhost:8080/v1").unwrap();
-        assert_eq!(r.host, "https://localhost:8080");
-        assert!(r.has_v1);
-    }
-
-    #[test]
-    fn parse_base_url_preserves_non_v1_path() {
-        let r = OpenAiProvider::parse_base_url("https://example.com/custom/api").unwrap();
-        assert_eq!(r.host, "https://example.com/custom/api");
-        assert!(!r.has_v1);
-    }
-
-    #[test]
-    fn derive_base_path_not_removing_api_path() {
-        let r = OpenAiProvider::derive_base_path("https://opencode.ai/zen/go");
-        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
-    }
-
-    #[test]
-    fn derive_base_path_should_support_v1() {
-        let r = OpenAiProvider::derive_base_path("https://opencode.ai/zen/go/v1");
-        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
-    }
-
-    #[test]
-    fn derive_base_path_should_support_no_base_path() {
-        let r = OpenAiProvider::derive_base_path("https://opencode.ai/");
-        assert_eq!(r, "https://opencode.ai/v1/chat/completions");
-    }
-
-    #[test]
-    fn derive_base_path_preserves_non_v1_version_prefix() {
-        // Zhipu's default base_url is https://open.bigmodel.cn/api/paas/v4 and
-        // from_custom_config passes url.path() ("/api/paas/v4") here. The
-        // existing /api/paas/v4 version must not gain an extra /v1 segment.
-        let r = OpenAiProvider::derive_base_path("/api/paas/v4");
-        assert_eq!(r, "api/paas/v4/chat/completions");
-    }
-
-    #[test]
-    fn derive_base_path_does_not_treat_v_word_as_version() {
-        let r = OpenAiProvider::derive_base_path("/api/voice");
-        assert_eq!(r, "api/voice/v1/chat/completions");
-    }
-
-    #[test]
-    fn parse_base_url_preserves_query_params() {
-        let r = OpenAiProvider::parse_base_url("https://gw.example.com/v1?api-version=2024-02-01")
-            .unwrap();
-        assert_eq!(r.host, "https://gw.example.com");
-        assert_eq!(
-            r.query_params,
-            vec![("api-version".to_string(), "2024-02-01".to_string())]
-        );
-        assert!(r.has_v1);
-    }
-
-    #[test]
-    fn parse_base_url_preserves_multiple_query_params() {
-        let r = OpenAiProvider::parse_base_url("https://example.com/v1?key=val&foo=bar").unwrap();
-        assert_eq!(r.query_params.len(), 2);
-        assert_eq!(r.query_params[0], ("key".to_string(), "val".to_string()));
-        assert_eq!(r.query_params[1], ("foo".to_string(), "bar".to_string()));
-    }
-
-    #[test]
-    fn parse_base_url_preserves_credentials() {
-        let r = OpenAiProvider::parse_base_url("https://user:pass@gateway.example.com/v1").unwrap();
-        assert_eq!(r.host, "https://user:pass@gateway.example.com");
-        assert!(r.has_v1);
-    }
-
-    #[test]
-    fn parse_base_url_rejects_empty_string() {
-        assert!(OpenAiProvider::parse_base_url("").is_err());
-    }
-
-    #[test]
-    fn parse_base_url_rejects_whitespace_only() {
-        assert!(OpenAiProvider::parse_base_url("  ").is_err());
-    }
-
-    #[test]
     fn versionless_base_path_opts_out_of_responses_for_codex_models() {
         assert!(!OpenAiProvider::should_use_responses_api(
             "gpt-5-codex",
             "chat/completions"
         ));
-    }
-
-    // ── dynamic_models behavior ─────────────────────────────────────────────
-
-    use crate::config::declarative_providers::{DeclarativeProviderConfig, ProviderEngine};
-    use wiremock::matchers::method;
-    use wiremock::{Mock, MockServer, ResponseTemplate};
-
-    fn make_provider_with_server(
-        server_uri: &str,
-        custom_models: Option<Vec<String>>,
-        dynamic_models: Option<bool>,
-    ) -> OpenAiProvider {
-        OpenAiProvider {
-            api_client: ApiClient::new_with_tls(server_uri.to_string(), AuthMethod::NoAuth, None)
-                .unwrap(),
-            base_path: "v1/chat/completions".to_string(),
-            organization: None,
-            project: None,
-            model: ModelConfig::new_or_fail("test-model"),
-            custom_headers: None,
-            supports_streaming: true,
-            name: "custom_test".to_string(),
-            custom_models,
-            dynamic_models,
-            skip_canonical_filtering: false,
-            preserve_thinking_context: false,
-        }
-    }
-
-    fn base_declarative_config(
-        models: Vec<ModelInfo>,
-        dynamic_models: Option<bool>,
-    ) -> DeclarativeProviderConfig {
-        DeclarativeProviderConfig {
-            name: "custom_test".to_string(),
-            engine: ProviderEngine::OpenAI,
-            display_name: "Custom Test".to_string(),
-            description: None,
-            api_key_env: String::new(),
-            base_url: "http://localhost:1".to_string(),
-            models,
-            headers: None,
-            timeout_seconds: None,
-            supports_streaming: Some(true),
-            requires_auth: false,
-            catalog_provider_id: None,
-            base_path: None,
-            env_vars: None,
-            dynamic_models,
-            skip_canonical_filtering: false,
-            model_doc_link: None,
-            setup_steps: vec![],
-            fast_model: None,
-            preserves_thinking: false,
-        }
     }
 
     #[test]
@@ -1364,134 +947,6 @@ mod tests {
         assert_eq!(
             ensure_url_scheme("https://api.openai.com/v1"),
             "https://api.openai.com/v1"
-        );
-    }
-
-    #[test]
-    fn from_custom_config_preserves_port_without_scheme() {
-        let mut config =
-            base_declarative_config(vec![ModelInfo::new("m1".to_string(), 128000)], None);
-        config.base_url = "localhost:1234".to_string();
-
-        let provider =
-            OpenAiProvider::from_custom_config(ModelConfig::new_or_fail("m1"), config, None)
-                .unwrap();
-
-        assert_eq!(provider.api_client.host(), "http://localhost:1234");
-        assert_eq!(provider.base_path, "v1/chat/completions");
-    }
-
-    #[tokio::test]
-    async fn fetch_supported_models_static_only_skips_api() {
-        // Any request to the mock returns 500 — if the fix calls the API, the test fails.
-        let server = MockServer::start().await;
-        Mock::given(method("GET"))
-            .respond_with(ResponseTemplate::new(500))
-            .mount(&server)
-            .await;
-
-        let provider = make_provider_with_server(
-            &server.uri(),
-            Some(vec!["m1".to_string(), "m2".to_string()]),
-            Some(false),
-        );
-
-        let models = provider.fetch_supported_models().await.unwrap();
-        assert_eq!(models, vec!["m1".to_string(), "m2".to_string()]);
-    }
-
-    #[test]
-    fn from_custom_config_rejects_static_only_without_models() {
-        let config = base_declarative_config(vec![], Some(false));
-        let err = OpenAiProvider::from_custom_config(
-            ModelConfig::new_or_fail("test-model"),
-            config,
-            None,
-        )
-        .expect_err("expected construction error for dynamic_models: false with empty models");
-        let msg = err.to_string();
-        assert!(
-            msg.contains("dynamic_models: false"),
-            "error message should mention dynamic_models: false; got: {msg}"
-        );
-    }
-
-    // ── resolve_api_key tests ──────────────────────────────────────────────
-
-    fn config_with_key(api_key_env: &str, requires_auth: bool) -> DeclarativeProviderConfig {
-        let mut config = base_declarative_config(vec![], None);
-        config.api_key_env = api_key_env.to_string();
-        config.requires_auth = requires_auth;
-        config
-    }
-
-    #[test]
-    fn resolve_api_key_empty_env_returns_none() {
-        let config = config_with_key("", true);
-        assert_eq!(
-            OpenAiProvider::resolve_api_key(&config, &|_| unreachable!()).unwrap(),
-            None
-        );
-    }
-
-    #[test]
-    fn resolve_api_key_missing_with_requires_auth_bails() {
-        let config = config_with_key("MY_KEY", true);
-        let err = OpenAiProvider::resolve_api_key(&config, &|_| {
-            Err(crate::config::ConfigError::NotFound("x".into()))
-        })
-        .unwrap_err()
-        .to_string();
-        assert!(
-            err.contains("MY_KEY"),
-            "error should mention the key name; got: {err}"
-        );
-    }
-
-    #[test]
-    fn resolve_api_key_missing_without_requires_auth_returns_none() {
-        let config = config_with_key("MY_KEY", false);
-        assert_eq!(
-            OpenAiProvider::resolve_api_key(&config, &|_| Err(
-                crate::config::ConfigError::NotFound("x".into())
-            ))
-            .unwrap(),
-            None
-        );
-    }
-
-    #[test]
-    fn resolve_api_key_present_returns_value() {
-        let config = config_with_key("MY_KEY", true);
-        assert_eq!(
-            OpenAiProvider::resolve_api_key(&config, &|_| Ok("secret".into())).unwrap(),
-            Some("secret".to_string())
-        );
-    }
-
-    #[test]
-    fn resolve_api_key_other_error_bails_when_required() {
-        let config = config_with_key("MY_KEY", true);
-        let err = OpenAiProvider::resolve_api_key(&config, &|_| {
-            Err(crate::config::ConfigError::KeyringError("ring fail".into()))
-        })
-        .unwrap_err()
-        .to_string();
-        assert!(
-            err.contains("MY_KEY"),
-            "error should mention the key name; got: {err}"
-        );
-    }
-
-    #[test]
-    fn resolve_api_key_other_error_warns_and_returns_none_when_optional() {
-        let config = config_with_key("MY_KEY", false);
-        assert_eq!(
-            OpenAiProvider::resolve_api_key(&config, &|_| Err(
-                crate::config::ConfigError::KeyringError("ring fail".into())
-            ))
-            .unwrap(),
-            None
         );
     }
 

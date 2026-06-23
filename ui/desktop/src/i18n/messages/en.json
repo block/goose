@@ -4698,7 +4698,7 @@
     "defaultMessage": "URL:"
   },
   "updateSection.autoDownload": {
-    "defaultMessage": "Update will be downloaded automatically in the background."
+    "defaultMessage": "Goose will download the update in the background and install it the next time you quit or restart."
   },
   "updateSection.autoDownloadDisabledByEnv": {
     "defaultMessage": "Automatic downloads are disabled via the GOOSE_DISABLE_AUTO_DOWNLOAD environment variable."
@@ -4707,7 +4707,7 @@
     "defaultMessage": "Automatic download is disabled. Click \"Download Now\" to download manually."
   },
   "updateSection.autoInstallNote": {
-    "defaultMessage": "The update will be installed automatically when you quit the app."
+    "defaultMessage": "No manual install is needed."
   },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Check for Updates"
@@ -4740,7 +4740,7 @@
     "defaultMessage": "Install & Restart"
   },
   "updateSection.installNowHint": {
-    "defaultMessage": "Or click \"Install & Restart\" to update now."
+    "defaultMessage": "Click \"Install & Restart\" to update now."
   },
   "updateSection.latestVersion": {
     "defaultMessage": "You are running the latest version!"
@@ -4755,7 +4755,7 @@
     "defaultMessage": "Manual installation required for this update method."
   },
   "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Update is ready! It will be installed when you quit Goose."
+    "defaultMessage": "✓ Update is ready. Restart Goose to finish installing it, or quit when you're done."
   },
   "updateSection.readyInstallManual": {
     "defaultMessage": "✓ Update is ready! Click \"Install & Restart\" for installation instructions."

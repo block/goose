@@ -2,7 +2,6 @@ use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
 use crate::providers::api_client::AuthProvider;
 use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
-use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
 use crate::providers::openai_compatible::handle_status;
 use crate::providers::retry::ProviderRetry;
 use crate::session_context::SESSION_ID_HEADER;
@@ -15,6 +14,7 @@ use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai_responses::responses_api_to_streaming_message;
 use goose_providers::model::ModelConfig;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
@@ -951,9 +951,7 @@ impl ChatGptCodexProvider {
     }
 }
 
-impl ProviderDef for ChatGptCodexProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for ChatGptCodexProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             CHATGPT_CODEX_PROVIDER_NAME,
@@ -971,6 +969,10 @@ impl ProviderDef for ChatGptCodexProvider {
             )],
         )
     }
+}
+
+impl ProviderDef for ChatGptCodexProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

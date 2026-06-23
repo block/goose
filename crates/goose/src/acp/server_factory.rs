@@ -1,8 +1,11 @@
 use crate::acp::server::{AcpProviderFactory, GooseAcpAgent, GooseAcpAgentOptions};
 use crate::agents::GoosePlatform;
+use crate::scheduler_trait::SchedulerTrait;
+use crate::session::SessionManager;
 use crate::source_roots::SourceRoot;
 use anyhow::Result;
 use std::sync::Arc;
+use tokio::sync::OnceCell;
 use tracing::info;
 
 pub struct AcpServerFactoryConfig {
@@ -11,20 +14,49 @@ pub struct AcpServerFactoryConfig {
     pub config_dir: std::path::PathBuf,
     pub goose_platform: GoosePlatform,
     pub additional_source_roots: Vec<SourceRoot>,
+    // TODO(acp-migration): Temporary bridge for goosed, which still creates the REST AppState scheduler.
+    // When the REST/goose-server path is removed, make AcpServer own the scheduler
+    // directly and remove this optional injection.
+    pub scheduler: Option<Arc<dyn SchedulerTrait>>,
 }
 
 pub struct AcpServer {
     config: AcpServerFactoryConfig,
+    scheduler: OnceCell<Arc<dyn SchedulerTrait>>,
 }
 
 impl AcpServer {
     pub fn new(config: AcpServerFactoryConfig) -> Self {
-        Self { config }
+        Self {
+            config,
+            scheduler: OnceCell::new(),
+        }
+    }
+
+    async fn scheduler(&self) -> Result<Arc<dyn SchedulerTrait>> {
+        if let Some(scheduler) = &self.config.scheduler {
+            return Ok(Arc::clone(scheduler));
+        }
+
+        let data_dir = self.config.data_dir.clone();
+        self.scheduler
+            .get_or_try_init(|| async move {
+                let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+                let schedule_file_path = data_dir.join("schedule.json");
+                let scheduler =
+                    crate::scheduler::Scheduler::new(schedule_file_path, session_manager)
+                        .await
+                        .map(|scheduler| scheduler as Arc<dyn SchedulerTrait>)?;
+                Ok(scheduler)
+            })
+            .await
+            .cloned()
     }
 
     pub async fn create_agent(&self) -> Result<Arc<GooseAcpAgent>> {
         let config = crate::config::Config::global();
         let disable_session_naming = config.get_goose_disable_session_naming().unwrap_or(false);
+        let scheduler = self.scheduler().await?;
 
         let provider_factory: AcpProviderFactory = Arc::new(
             move |provider_name, model_config, extensions, working_dir| {
@@ -55,6 +87,7 @@ impl AcpServer {
             disable_session_naming,
             goose_platform: self.config.goose_platform.clone(),
             additional_source_roots: self.config.additional_source_roots.clone(),
+            scheduler,
         })
         .await?;
         info!("Created new ACP agent");

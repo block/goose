@@ -33,9 +33,7 @@ pub const XAI_DOC_URL: &str = "https://docs.x.ai/docs/overview";
 
 pub struct XaiProvider;
 
-impl ProviderDef for XaiProvider {
-    type Provider = OpenAiCompatibleProvider;
-
+impl goose_providers::base::ProviderDescriptor for XaiProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             XAI_PROVIDER_NAME,
@@ -50,6 +48,10 @@ impl ProviderDef for XaiProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for XaiProvider {
+    type Provider = OpenAiCompatibleProvider;
 
     fn from_env(
         model: ModelConfig,

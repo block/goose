@@ -25,8 +25,8 @@ use serde_json::{json, Map, Value};
 
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::providers::formats::openai_responses::{ResponseOutputItem, ResponsesApiResponse};
 use goose_providers::conversation::token_usage::Usage;
+use goose_providers::formats::openai_responses::{ResponseOutputItem, ResponsesApiResponse};
 
 pub fn convert(content: &str) -> Result<String> {
     let lines: Vec<Value> = content
@@ -147,7 +147,7 @@ pub fn convert(content: &str) -> Result<String> {
                 usage: None,
             };
             if let Ok(decoded) =
-                crate::providers::formats::openai_responses::responses_api_to_message(&stub)
+                goose_providers::formats::openai_responses::responses_api_to_message(&stub)
             {
                 if !decoded.content.is_empty() {
                     let mut msg = Message::assistant();

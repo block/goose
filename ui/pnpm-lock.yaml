@@ -189,6 +189,9 @@ importers:
       zod:
         specifier: ^3.25.76
         version: 3.25.76
+      zod-to-json-schema:
+        specifier: 3.25.1
+        version: 3.25.1(zod@3.25.76)
     devDependencies:
       '@electron-forge/cli':
         specifier: ^7.11.1

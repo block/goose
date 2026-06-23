@@ -390,7 +390,7 @@ impl ProviderRegistry {
 mod tests {
     use super::*;
     use crate::config::declarative_providers::ProviderEngine;
-    use crate::providers::openai::OpenAiProvider;
+    use crate::providers::openai_def::OpenAiProviderDef;
 
     fn test_config() -> DeclarativeProviderConfig {
         DeclarativeProviderConfig {
@@ -420,7 +420,7 @@ mod tests {
     #[test]
     fn register_with_name_can_override_inventory_configured() {
         let mut registry = ProviderRegistry::new(None);
-        registry.register_with_name_and_inventory_configured::<OpenAiProvider, _, _, _>(
+        registry.register_with_name_and_inventory_configured::<OpenAiProviderDef, _, _, _>(
             &test_config(),
             ProviderType::Declarative,
             false,

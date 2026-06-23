@@ -81,7 +81,8 @@ const i18n = defineMessages({
   },
   autoDownload: {
     id: 'updateSection.autoDownload',
-    defaultMessage: 'Update will be downloaded automatically in the background.',
+    defaultMessage:
+      'Goose will download the update in the background and install it the next time you quit or restart.',
   },
   manualInstallNote: {
     id: 'updateSection.manualInstallNote',
@@ -89,7 +90,7 @@ const i18n = defineMessages({
   },
   autoInstallNote: {
     id: 'updateSection.autoInstallNote',
-    defaultMessage: 'The update will be installed automatically when you quit the app.',
+    defaultMessage: 'No manual install is needed.',
   },
   readyInstallManual: {
     id: 'updateSection.readyInstallManual',
@@ -101,11 +102,12 @@ const i18n = defineMessages({
   },
   readyInstallAuto: {
     id: 'updateSection.readyInstallAuto',
-    defaultMessage: '✓ Update is ready! It will be installed when you quit Goose.',
+    defaultMessage:
+      "✓ Update is ready. Restart Goose to finish installing it, or quit when you're done.",
   },
   installNowHint: {
     id: 'updateSection.installNowHint',
-    defaultMessage: 'Or click "Install & Restart" to update now.',
+    defaultMessage: 'Click "Install & Restart" to update now.',
   },
 });
 
@@ -176,7 +178,6 @@ export default function UpdateSection() {
 
     // Listen for updater events
     window.electron.onUpdaterEvent((event) => {
-
       switch (event.event) {
         case 'checking-for-update':
           setUpdateStatus('checking');
@@ -354,10 +355,15 @@ export default function UpdateSection() {
           <div className="text-text-primary text-2xl font-mono">
             {updateInfo.currentVersion || intl.formatMessage(i18n.loading)}
           </div>
-          <div className="text-xs text-text-secondary">{intl.formatMessage(i18n.currentVersion)}</div>
+          <div className="text-xs text-text-secondary">
+            {intl.formatMessage(i18n.currentVersion)}
+          </div>
         </div>
         {updateInfo.latestVersion && updateInfo.isUpdateAvailable && (
-          <span className="text-text-secondary"> {intl.formatMessage(i18n.versionAvailable, { version: updateInfo.latestVersion })}</span>
+          <span className="text-text-secondary">
+            {' '}
+            {intl.formatMessage(i18n.versionAvailable, { version: updateInfo.latestVersion })}
+          </span>
         )}
         {updateInfo.currentVersion && updateInfo.isUpdateAvailable === false && (
           <span className="text-text-primary"> {intl.formatMessage(i18n.upToDate)}</span>
@@ -375,11 +381,13 @@ export default function UpdateSection() {
             {intl.formatMessage(i18n.checkForUpdates)}
           </Button>
 
-          {updateInfo.isUpdateAvailable && updateStatus === 'idle' && autoDownloadEffectivelyDisabled && (
-            <Button onClick={downloadUpdate} variant="secondary" size="sm">
-              {intl.formatMessage(i18n.downloadNow)}
-            </Button>
-          )}
+          {updateInfo.isUpdateAvailable &&
+            updateStatus === 'idle' &&
+            autoDownloadEffectivelyDisabled && (
+              <Button onClick={downloadUpdate} variant="secondary" size="sm">
+                {intl.formatMessage(i18n.downloadNow)}
+              </Button>
+            )}
 
           {updateStatus === 'ready' && (
             <Button onClick={installUpdate} variant="default" size="sm">

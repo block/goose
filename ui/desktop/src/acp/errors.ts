@@ -5,6 +5,13 @@ export interface AcpCreditsExhaustedError {
 
 const CREDITS_EXHAUSTED_REASON = 'credits_exhausted';
 
+// Kept in sync with RECIPE_PARAMS_CANCELLED_REASON in crates/goose/src/acp/server/recipe.rs.
+const RECIPE_PARAMS_CANCELLED_REASON = 'recipe_params_cancelled';
+
+export function isRecipeParamsCancelled(error: unknown): boolean {
+  return asAcpJsonRpcError(error)?.data?.reason === RECIPE_PARAMS_CANCELLED_REASON;
+}
+
 export function parseAcpCreditsExhaustedError(error: unknown): AcpCreditsExhaustedError | null {
   const jsonRpcError = asAcpJsonRpcError(error);
   if (jsonRpcError?.data?.reason !== CREDITS_EXHAUSTED_REASON) {

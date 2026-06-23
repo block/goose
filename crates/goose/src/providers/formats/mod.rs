@@ -5,6 +5,5 @@ pub mod databricks;
 pub mod gcpvertexai;
 pub mod google;
 pub mod ollama;
-pub mod openai_responses;
 pub mod openrouter;
 pub mod snowflake;

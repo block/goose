@@ -303,9 +303,7 @@ impl SnowflakeProvider {
     }
 }
 
-impl ProviderDef for SnowflakeProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for SnowflakeProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             SNOWFLAKE_PROVIDER_NAME,
@@ -320,6 +318,10 @@ impl ProviderDef for SnowflakeProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for SnowflakeProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

@@ -50,9 +50,7 @@ impl AuthProvider for AzureAuthProvider {
     }
 }
 
-impl ProviderDef for AzureProvider {
-    type Provider = OpenAiCompatibleProvider;
-
+impl goose_providers::base::ProviderDescriptor for AzureProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             AZURE_PROVIDER_NAME,
@@ -70,6 +68,10 @@ impl ProviderDef for AzureProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for AzureProvider {
+    type Provider = OpenAiCompatibleProvider;
 
     fn from_env(
         model: ModelConfig,

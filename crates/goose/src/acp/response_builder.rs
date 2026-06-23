@@ -1,3 +1,4 @@
+use crate::agents::ExtensionLoadResult;
 use crate::config::{Config, GooseMode};
 use crate::providers::inventory::{ProviderInventoryEntry, ProviderInventoryService};
 use crate::session::Session;
@@ -74,6 +75,31 @@ pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_j
             serde_json::Value::String(snippet.clone()),
         );
     }
+    meta
+}
+
+pub(super) fn session_response_meta(
+    session: &Session,
+    extension_results: &[ExtensionLoadResult],
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut meta = serde_json::Map::new();
+    if let Some(recipe) = &session.recipe {
+        if let Ok(v) = serde_json::to_value(recipe) {
+            meta.insert("recipe".to_string(), v);
+        }
+    }
+    if let Some(values) = &session.user_recipe_values {
+        if let Ok(v) = serde_json::to_value(values) {
+            meta.insert("userRecipeValues".to_string(), v);
+        }
+    }
+    if let Ok(v) = serde_json::to_value(extension_results) {
+        meta.insert("extensionResults".to_string(), v);
+    }
+    meta.insert(
+        "workingDir".to_string(),
+        serde_json::Value::String(session.working_dir.to_string_lossy().to_string()),
+    );
     meta
 }
 

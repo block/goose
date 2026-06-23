@@ -8,7 +8,9 @@ use crate::acp::{
 };
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
-use crate::providers::base::{current_working_dir, ProviderDef, ProviderMetadata};
+use crate::providers::base::{
+    current_working_dir, ProviderDef, ProviderDescriptor, ProviderMetadata,
+};
 use goose_providers::model::ModelConfig;
 
 pub(crate) const PI_ACP_PROVIDER_NAME: &str = "pi-acp";
@@ -17,9 +19,7 @@ pub(crate) const PI_ACP_BINARY: &str = "pi-acp";
 
 pub struct PiAcpProvider;
 
-impl ProviderDef for PiAcpProvider {
-    type Provider = AcpProvider;
-
+impl goose_providers::base::ProviderDescriptor for PiAcpProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             PI_ACP_PROVIDER_NAME,
@@ -38,6 +38,10 @@ impl ProviderDef for PiAcpProvider {
         ])
         .with_model_selection_hint("Use the Pi CLI to configure models")
     }
+}
+
+impl ProviderDef for PiAcpProvider {
+    type Provider = AcpProvider;
 
     fn from_env(
         model: ModelConfig,

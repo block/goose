@@ -92,9 +92,7 @@ impl TetrateProvider {
     }
 }
 
-impl ProviderDef for TetrateProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for TetrateProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             TETRATE_PROVIDER_NAME,
@@ -115,6 +113,10 @@ impl ProviderDef for TetrateProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for TetrateProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,

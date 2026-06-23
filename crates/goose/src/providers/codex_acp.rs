@@ -8,7 +8,9 @@ use crate::acp::{
 };
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
-use crate::providers::base::{current_working_dir, ProviderDef, ProviderMetadata};
+use crate::providers::base::{
+    current_working_dir, ProviderDef, ProviderDescriptor, ProviderMetadata,
+};
 use goose_providers::model::ModelConfig;
 
 pub(crate) const CODEX_ACP_PROVIDER_NAME: &str = "codex-acp";
@@ -16,9 +18,7 @@ const CODEX_ACP_DOC_URL: &str = "https://github.com/zed-industries/codex-acp";
 
 pub struct CodexAcpProvider;
 
-impl ProviderDef for CodexAcpProvider {
-    type Provider = AcpProvider;
-
+impl goose_providers::base::ProviderDescriptor for CodexAcpProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             CODEX_ACP_PROVIDER_NAME,
@@ -36,6 +36,10 @@ impl ProviderDef for CodexAcpProvider {
             "Restart goose for changes to take effect",
         ])
     }
+}
+
+impl ProviderDef for CodexAcpProvider {
+    type Provider = AcpProvider;
 
     fn from_env(
         model: ModelConfig,

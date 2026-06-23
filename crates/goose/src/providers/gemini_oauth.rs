@@ -935,9 +935,7 @@ impl GeminiOAuthProvider {
     }
 }
 
-impl ProviderDef for GeminiOAuthProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for GeminiOAuthProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             GEMINI_OAUTH_PROVIDER_NAME,
@@ -955,6 +953,10 @@ impl ProviderDef for GeminiOAuthProvider {
             )],
         )
     }
+}
+
+impl ProviderDef for GeminiOAuthProvider {
+    type Provider = Self;
 
     fn from_env(
         model: ModelConfig,
