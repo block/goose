@@ -7,6 +7,7 @@ import {
   scheduleRecipe,
   setRecipeSlashCommand,
 } from '../../recipe/recipe_management';
+import type { RecipeManifest } from '../../recipe';
 import {
   FileText,
   Edit,
@@ -29,7 +30,6 @@ import { Skeleton } from '../ui/skeleton';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
-import type { RecipeManifest } from '../../api';
 import { createSession } from '../../sessions';
 import { isRecipeParamsCancelled } from '../../acp/errors';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';

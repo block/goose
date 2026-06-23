@@ -1,4 +1,10 @@
-import type { RecipeParameter } from '../api';
+import type {
+  RecipeDto,
+  RecipeExtensionDto,
+  RecipeListEntryDto,
+  RecipeParameterDto,
+  RecipeSettingsDto,
+} from '@aaif/goose-sdk';
 import {
   decodeRecipe as acpDecodeRecipe,
   encodeRecipe as acpEncodeRecipe,
@@ -6,13 +12,17 @@ import {
   scanRecipe as acpScanRecipe,
 } from '../acp/recipe';
 
-// Re-export OpenAPI types with frontend-specific additions
-export type Parameter = RecipeParameter;
-export type Recipe = import('../api').Recipe & {
+export type Parameter = RecipeParameterDto;
+export type RecipeExtension = RecipeExtensionDto;
+export type RecipeSettings = RecipeSettingsDto;
+export type Recipe = RecipeDto & {
   // TODO: Separate these from the raw recipe type
   // Properties added for scheduled execution
   scheduledJobId?: string;
   isScheduledExecution?: boolean;
+};
+export type RecipeManifest = Omit<RecipeListEntryDto, 'recipe'> & {
+  recipe: Recipe;
 };
 
 export async function encodeRecipe(recipe: Recipe): Promise<string> {

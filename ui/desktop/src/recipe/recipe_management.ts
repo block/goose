@@ -1,4 +1,3 @@
-import type { Recipe, RecipeManifest } from '../api';
 import {
   deleteRecipe as acpDeleteRecipe,
   listRecipes as acpListRecipes,
@@ -8,6 +7,7 @@ import {
   setRecipeSlashCommand as acpSetRecipeSlashCommand,
 } from '../acp/recipe';
 import { stripEmptyExtensions } from '.';
+import type { Recipe, RecipeManifest } from '.';
 
 export const saveRecipe = async (
   recipe: Recipe,

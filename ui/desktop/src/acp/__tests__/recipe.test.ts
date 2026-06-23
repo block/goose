@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Recipe } from '../../api';
+import type { RecipeDto } from '@aaif/goose-sdk';
 import { getAcpClient } from '../acpConnection';
 import {
   decodeRecipe,
@@ -22,7 +22,7 @@ const recipe = {
   title: 'Test Recipe',
   description: 'A recipe used by ACP tests',
   instructions: 'Follow these test instructions',
-} as Recipe;
+} as RecipeDto;
 
 function createClient() {
   return {

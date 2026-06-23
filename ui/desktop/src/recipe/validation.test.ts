@@ -28,5 +28,18 @@ describe('Recipe Validation', () => {
 
       expect(schema1).toEqual(schema2);
     });
+
+    it('documents only ACP-supported recipe extension variants', () => {
+      const schemaJson = JSON.stringify(getRecipeJsonSchema());
+
+      expect(schemaJson).toContain('builtin');
+      expect(schemaJson).toContain('platform');
+      expect(schemaJson).toContain('stdio');
+      expect(schemaJson).toContain('streamable_http');
+      expect(schemaJson).not.toContain('sse');
+      expect(schemaJson).not.toContain('frontend');
+      expect(schemaJson).not.toContain('inline_python');
+      expect(schemaJson).not.toContain('available_tools');
+    });
   });
 });

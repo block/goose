@@ -23,6 +23,7 @@ import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
+import type { Recipe } from '../recipe';
 import { UserInput } from '../types/message';
 import RecipeActivities from './recipes/RecipeActivities';
 import { useToolCount } from './alerts/useToolCount';
@@ -127,7 +128,7 @@ export default function BaseChat({
     [session, sessionId, updateSession]
   );
 
-  const recipe = session?.recipe;
+  const recipe = session?.recipe as Recipe | null | undefined;
 
   const resolvedInitialMessage = useMemo((): UserInput | undefined => {
     if (!initialMessage) return undefined;
@@ -246,9 +247,7 @@ export default function BaseChat({
     if (sessionId) {
       try {
         await acpDeleteSession(sessionId);
-        window.dispatchEvent(
-          new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId } })
-        );
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId } }));
       } catch (error) {
         console.error('Failed to delete declined recipe session:', error);
       }

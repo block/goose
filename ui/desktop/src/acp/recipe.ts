@@ -1,26 +1,10 @@
 import type {
   RecipeDto,
-  RecipeListEntryDto,
   SaveRecipeResponse_unstable,
   ScanRecipeResponse_unstable,
+  RecipeListEntryDto,
 } from '@aaif/goose-sdk';
-import type { Recipe, RecipeManifest } from '../api';
 import { getAcpClient } from './acpConnection';
-
-function asAcpRecipe(recipe: Recipe): RecipeDto {
-  return recipe as unknown as RecipeDto;
-}
-
-function asDesktopRecipe(recipe: RecipeDto): Recipe {
-  return recipe as unknown as Recipe;
-}
-
-function asDesktopRecipeManifest(entry: RecipeListEntryDto): RecipeManifest {
-  return {
-    ...entry,
-    recipe: asDesktopRecipe(entry.recipe),
-  };
-}
 
 function acpErrorMessage(error: unknown): string | null {
   if (typeof error !== 'object' || error === null) {
@@ -42,53 +26,53 @@ function normalizeAcpError(error: unknown, fallback: string): Error {
   return new Error(acpErrorMessage(error) ?? fallback);
 }
 
-export async function encodeRecipe(recipe: Recipe): Promise<string> {
+export async function encodeRecipe(recipe: RecipeDto): Promise<string> {
   try {
     const client = await getAcpClient();
-    const response = await client.goose.recipesEncode_unstable({ recipe: asAcpRecipe(recipe) });
+    const response = await client.goose.recipesEncode_unstable({ recipe });
     return response.deeplink;
   } catch (error) {
     throw normalizeAcpError(error, 'Failed to encode recipe');
   }
 }
 
-export async function decodeRecipe(deeplink: string): Promise<Recipe> {
+export async function decodeRecipe(deeplink: string): Promise<RecipeDto> {
   try {
     const client = await getAcpClient();
     const response = await client.goose.recipesDecode_unstable({ deeplink });
-    return asDesktopRecipe(response.recipe);
+    return response.recipe;
   } catch (error) {
     throw normalizeAcpError(error, 'Failed to decode recipe');
   }
 }
 
-export async function scanRecipe(recipe: Recipe): Promise<ScanRecipeResponse_unstable> {
+export async function scanRecipe(recipe: RecipeDto): Promise<ScanRecipeResponse_unstable> {
   try {
     const client = await getAcpClient();
-    return await client.goose.recipesScan_unstable({ recipe: asAcpRecipe(recipe) });
+    return await client.goose.recipesScan_unstable({ recipe });
   } catch (error) {
     throw normalizeAcpError(error, 'Failed to scan recipe');
   }
 }
 
-export async function parseRecipe(content: string): Promise<Recipe> {
+export async function parseRecipe(content: string): Promise<RecipeDto> {
   try {
     const client = await getAcpClient();
     const response = await client.goose.recipesParse_unstable({ content });
-    return asDesktopRecipe(response.recipe);
+    return response.recipe;
   } catch (error) {
     throw normalizeAcpError(error, 'Failed to parse recipe');
   }
 }
 
 export async function saveRecipe(
-  recipe: Recipe,
+  recipe: RecipeDto,
   id?: string | null
 ): Promise<SaveRecipeResponse_unstable> {
   try {
     const client = await getAcpClient();
     return await client.goose.recipesSave_unstable({
-      recipe: asAcpRecipe(recipe),
+      recipe,
       id,
     });
   } catch (error) {
@@ -96,11 +80,11 @@ export async function saveRecipe(
   }
 }
 
-export async function listRecipes(): Promise<RecipeManifest[]> {
+export async function listRecipes(): Promise<RecipeListEntryDto[]> {
   try {
     const client = await getAcpClient();
     const response = await client.goose.recipesList_unstable({});
-    return response.recipes.map(asDesktopRecipeManifest);
+    return response.recipes;
   } catch (error) {
     throw normalizeAcpError(error, 'Failed to list recipes');
   }
@@ -136,10 +120,10 @@ export async function setRecipeSlashCommand(
   }
 }
 
-export async function recipeToYaml(recipe: Recipe): Promise<string> {
+export async function recipeToYaml(recipe: RecipeDto): Promise<string> {
   try {
     const client = await getAcpClient();
-    const response = await client.goose.recipesToYaml_unstable({ recipe: asAcpRecipe(recipe) });
+    const response = await client.goose.recipesToYaml_unstable({ recipe });
     return response.yaml;
   } catch (error) {
     throw normalizeAcpError(error, 'Failed to convert recipe to YAML');
