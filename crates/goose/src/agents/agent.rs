@@ -2654,6 +2654,17 @@ impl Agent {
     ) -> Result<()> {
         let provider_name = provider.get_name().to_string();
 
+        // Normalize against the provider entry so custom/declarative providers
+        // backfill `context_limit` from their known models before the config is
+        // persisted as the session source of truth; otherwise auto-compaction
+        // would fall back to DEFAULT_CONTEXT_LIMIT.
+        let model_config = match crate::providers::get_from_registry(&provider_name).await {
+            Ok(entry) => entry
+                .normalize_model_config(model_config.clone())
+                .unwrap_or(model_config),
+            Err(_) => model_config,
+        };
+
         let mut current_provider = self.provider.lock().await;
         *current_provider = Some(provider);
 

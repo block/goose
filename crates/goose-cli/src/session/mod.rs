@@ -219,13 +219,13 @@ pub async fn classify_planner_response(
     session_id: &str,
     message_text: String,
     provider: Arc<dyn Provider>,
+    model_config: goose_providers::model::ModelConfig,
 ) -> Result<PlannerResponseType> {
     let prompt = format!(
         "The text below is the output from an AI model which can either provide a plan or list of clarifying questions. Based on the text below, decide if the output is a \"plan\" or \"clarifying questions\".\n---\n{message_text}"
     );
 
     let message = Message::user().with_text(&prompt);
-    let model_config = resolve_global_model_config()?;
     let (result, _usage) = provider
         .complete(
             &model_config,
@@ -1073,6 +1073,9 @@ impl CliSession {
             &self.session_id,
             plan_response.as_concat_text(),
             self.agent.provider().await?,
+            self.agent
+                .model_config_for_session(&self.session_id)
+                .await?,
         )
         .await?;
 
@@ -2278,17 +2281,6 @@ fn format_elapsed_time(duration: std::time::Duration) -> String {
         let seconds = total_secs % 60;
         format!("{}m {:02}s", minutes, seconds)
     }
-}
-
-fn resolve_global_model_config() -> Result<goose_providers::model::ModelConfig> {
-    let config = goose::config::Config::global();
-    let provider_name = config
-        .get_goose_provider()
-        .map_err(|_| anyhow::anyhow!("missing provider"))?;
-    let model_name = config
-        .get_goose_model()
-        .map_err(|_| anyhow::anyhow!("missing model"))?;
-    goose::model_config::model_config_from_user_config(&provider_name, &model_name)
 }
 
 fn build_switched_model_config(
