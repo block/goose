@@ -196,6 +196,56 @@
       "responseType": "ImportSessionResponse_unstable"
     },
     {
+      "method": "_goose/unstable/recipes/encode",
+      "requestType": "EncodeRecipeRequest_unstable",
+      "responseType": "EncodeRecipeResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/recipes/decode",
+      "requestType": "DecodeRecipeRequest_unstable",
+      "responseType": "DecodeRecipeResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/recipes/scan",
+      "requestType": "ScanRecipeRequest_unstable",
+      "responseType": "ScanRecipeResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/recipes/list",
+      "requestType": "ListRecipesRequest_unstable",
+      "responseType": "ListRecipesResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/recipes/delete",
+      "requestType": "DeleteRecipeRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/recipes/schedule",
+      "requestType": "ScheduleRecipeRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/recipes/slash-command",
+      "requestType": "SetRecipeSlashCommandRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/recipes/save",
+      "requestType": "SaveRecipeRequest_unstable",
+      "responseType": "SaveRecipeResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/recipes/parse",
+      "requestType": "ParseRecipeRequest_unstable",
+      "responseType": "ParseRecipeResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/recipes/to-yaml",
+      "requestType": "RecipeToYamlRequest_unstable",
+      "responseType": "RecipeToYamlResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/session/info",
       "requestType": "GetSessionInfoRequest_unstable",
       "responseType": "GetSessionInfoResponse_unstable"
