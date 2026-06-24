@@ -2,6 +2,7 @@ use crate::config::base::Config;
 use crate::config::extensions::get_enabled_extensions;
 use crate::config::paths::Paths;
 use crate::prompt_template::list_templates;
+use crate::providers::utils::LOGS_TO_KEEP;
 use crate::session::SessionManager;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -174,24 +175,43 @@ fn recent_llm_log_paths() -> Vec<PathBuf> {
         })
         .collect();
 
-    paths.sort_by_key(|path| llm_log_sort_key(path));
+    paths.sort_by(compare_llm_log_paths);
+    paths.truncate(LOGS_TO_KEEP);
     paths
 }
 
-fn llm_log_sort_key(path: &std::path::Path) -> (u8, usize, String) {
+fn compare_llm_log_paths(left: &PathBuf, right: &PathBuf) -> std::cmp::Ordering {
+    match (llm_log_index(left), llm_log_index(right)) {
+        (None, None) => llm_log_modified(right)
+            .cmp(&llm_log_modified(left))
+            .then_with(|| llm_log_name(left).cmp(&llm_log_name(right))),
+        (None, Some(_)) => std::cmp::Ordering::Less,
+        (Some(_), None) => std::cmp::Ordering::Greater,
+        (Some(left_index), Some(right_index)) => left_index.cmp(&right_index),
+    }
+}
+
+fn llm_log_index(path: &std::path::Path) -> Option<usize> {
     let name = path
         .file_name()
         .and_then(|name| name.to_str())
         .unwrap_or_default();
-    let index = name
-        .strip_prefix("llm_request.")
+    name.strip_prefix("llm_request.")
         .and_then(|name| name.strip_suffix(".jsonl"))
-        .and_then(|name| name.parse::<usize>().ok());
+        .and_then(|name| name.parse::<usize>().ok())
+}
 
-    match index {
-        Some(index) => (0, index, String::new()),
-        None => (1, usize::MAX, name.to_string()),
-    }
+fn llm_log_modified(path: &std::path::Path) -> std::time::SystemTime {
+    path.metadata()
+        .and_then(|metadata| metadata.modified())
+        .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+}
+
+fn llm_log_name(path: &std::path::Path) -> String {
+    path.file_name()
+        .and_then(|name| name.to_str())
+        .unwrap_or_default()
+        .to_string()
 }
 
 pub fn read_tail(path: &std::path::Path, max_lines: usize) -> Option<String> {
