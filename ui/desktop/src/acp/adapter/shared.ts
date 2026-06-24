@@ -5,16 +5,23 @@ import type { NotificationEvent } from '../../types/message';
 export type AcpChatStateChange =
   | { type: 'messages'; messages: Message[] }
   | { type: 'tokenState'; tokenState: Partial<TokenState> }
-  | { type: 'sessionInfo'; name?: string }
+  | {
+      type: 'sessionInfo';
+      name?: string;
+      activeRunId?: string | null;
+    }
+  | { type: 'localSteerConfirmed'; messageId: string }
   | { type: 'notification'; notification: NotificationEvent };
 
 export interface AdapterState {
   messages: Message[];
+  localSteerTextByMessageId: Map<string, string>;
 }
 
 export interface GooseMessageMeta {
   messageId?: string;
   created?: number;
+  steer?: boolean;
 }
 
 export interface ToolIdentity {
@@ -52,7 +59,23 @@ export function getGooseMessageMeta(update: { _meta?: unknown }): GooseMessageMe
   return {
     created: typeof goose.created === 'number' ? goose.created : undefined,
     messageId: typeof goose.messageId === 'string' ? goose.messageId : undefined,
+    steer: goose.steer === true ? true : undefined,
   };
+}
+
+export function getGooseActiveRunId(update: { _meta?: unknown }): string | null | undefined {
+  if (!isRecord(update._meta)) {
+    return undefined;
+  }
+
+  const goose = update._meta.goose;
+  if (!isRecord(goose) || !('activeRunId' in goose)) {
+    return undefined;
+  }
+
+  return typeof goose.activeRunId === 'string' || goose.activeRunId === null
+    ? goose.activeRunId
+    : undefined;
 }
 
 export function rawInputToArguments(rawInput: unknown): Record<string, unknown> {

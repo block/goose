@@ -26,7 +26,6 @@ import { scanRecipe } from '../recipe';
 import type { Recipe } from '../recipe';
 import { UserInput } from '../types/message';
 import RecipeActivities from './recipes/RecipeActivities';
-import { useToolCount } from './alerts/useToolCount';
 import { getThinkingMessage, getTextAndImageContent } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
 import { substituteParameters } from '../utils/parameterSubstitution';
@@ -95,6 +94,7 @@ export default function BaseChat({
     setChatState,
     updateSession,
     handleSubmit,
+    onSteerQueuedMessage,
     submitElicitationResponse,
     stopStreaming,
     sessionLoadError,
@@ -102,6 +102,7 @@ export default function BaseChat({
     tokenState,
     notifications: toolCallNotifications,
     pauseQueueOnStop,
+    queueProcessingBlocked,
     onMessageUpdate,
   } = useChatSession({
     sessionId,
@@ -272,8 +273,6 @@ export default function BaseChat({
       }
     }
   }, [messages.length]);
-
-  const toolCount = useToolCount(sessionId);
 
   // Listen for global scroll-to-bottom requests (e.g., from MCP UI prompt actions)
   useEffect(() => {
@@ -505,7 +504,9 @@ export default function BaseChat({
             chatState={chatState}
             setChatState={setChatState}
             onStop={stopStreaming}
+            onSteerQueuedMessage={onSteerQueuedMessage}
             pauseQueueOnStop={pauseQueueOnStop}
+            queueProcessingBlocked={queueProcessingBlocked}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
@@ -528,7 +529,6 @@ export default function BaseChat({
             recipe={recipe}
             recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
-            toolCount={toolCount || 0}
             sessionModel={sessionModel}
             sessionProvider={sessionProvider}
             sessionLoaded={sessionLoaded}

@@ -82,6 +82,7 @@ use uuid::Uuid;
 
 mod agent_requests;
 pub use agent_requests::agent_request_schemas;
+mod agent_mentions;
 mod config;
 mod custom_dispatch;
 mod diagnostics;
@@ -99,6 +100,7 @@ mod providers;
 mod recipe;
 mod resources;
 mod schedule;
+mod slash_commands;
 mod sources;
 mod tool_notifications;
 mod tools;

@@ -21,7 +21,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { SearchView } from '../conversation/SearchView';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
+import { groupSessionsByDate, sessionActivityAt, type DateGroup } from '../../utils/dateUtils';
 import { errorMessage } from '../../utils/conversionUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
@@ -734,7 +734,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             <div className="flex-1 mt-2">
               <div className="flex items-center text-text-secondary text-xs">
                 <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
-                <span>{formatMessageTimestamp(Date.parse(session.updatedAt) / 1000)}</span>
+                <span>
+                  {formatMessageTimestamp(Date.parse(sessionActivityAt(session)) / 1000)}
+                </span>
               </div>
               <div className="flex items-center text-text-secondary text-xs">
                 <Folder className="w-3 h-3 mr-1 flex-shrink-0" />

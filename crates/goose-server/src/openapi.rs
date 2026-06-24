@@ -476,8 +476,6 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::setup::start_openrouter_setup,
         super::routes::setup::start_tetrate_setup,
         super::routes::setup::start_nanogpt_setup,
-        super::routes::tunnel::start_tunnel,
-        super::routes::tunnel::stop_tunnel,
         super::routes::tunnel::get_tunnel_status,
         super::routes::telemetry::send_telemetry_event,
         super::routes::dictation::transcribe_dictation,

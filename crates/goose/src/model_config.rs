@@ -5,6 +5,7 @@ use anyhow::{anyhow, Result};
 use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
+use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::Tool;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -110,7 +111,8 @@ pub async fn complete_fast(
 ) -> Result<(Message, ProviderUsage), ProviderError> {
     let fast_model_config = get_fast_model(provider.get_name(), model_config)
         .await
-        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
+        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
+        .with_thinking_effort(ThinkingEffort::Off);
 
     match provider
         .complete(&fast_model_config, session_id, system, messages, tools)
@@ -124,8 +126,11 @@ pub async fn complete_fast(
                 e,
                 model_config.model_name
             );
+            let fallback_config = model_config
+                .clone()
+                .with_thinking_effort(ThinkingEffort::Off);
             provider
-                .complete(model_config, session_id, system, messages, tools)
+                .complete(&fallback_config, session_id, system, messages, tools)
                 .await
         }
         Err(e) => Err(e),
