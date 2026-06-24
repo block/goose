@@ -55,13 +55,6 @@ pub async fn run() -> Result<()> {
     boot_marker("appstate init start");
     let app_state = state::AppState::new(settings.tls).await?;
 
-    // Share the server secret with the tunnel manager so it uses the same
-    // key for forwarded requests, without mutating the process environment.
-    app_state
-        .tunnel_manager
-        .set_server_secret(secret_key.clone())
-        .await;
-
     let cors = CorsLayer::new()
         .allow_origin(Any)
         .allow_methods(Any)
