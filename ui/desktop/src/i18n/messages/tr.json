@@ -185,9 +185,6 @@
   "chatInput.send": {
     "defaultMessage": "Gönder"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "Çok fazla araç performansı düşürebilir. Takım sayısı: {toolCount} (önerilen: {recommended})"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "Metne dönüştürülüyor..."
   },
@@ -199,9 +196,6 @@
   },
   "chatInput.viewEditRecipe": {
     "defaultMessage": "Tarifi Görüntüle/Düzenle"
-  },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "Uzantıları görüntüle"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "Resimlerin kaydedilmesi bekleniyor..."

@@ -185,9 +185,6 @@
   "chatInput.send": {
     "defaultMessage": "发送"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "工具过多会降低性能。工具数量：{toolCount}（建议：{recommended}）"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "转写中…"
   },
@@ -199,9 +196,6 @@
   },
   "chatInput.viewEditRecipe": {
     "defaultMessage": "查看/编辑配方"
-  },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "查看扩展"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "正在等待图片保存…"

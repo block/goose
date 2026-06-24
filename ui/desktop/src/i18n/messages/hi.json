@@ -185,9 +185,6 @@
   "chatInput.send": {
     "defaultMessage": "भेजें"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "बहुत सारे उपकरण प्रदर्शन को ख़राब कर सकते हैं. उपकरण संख्या: {toolCount} (अनुशंसा: {recommended})"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "प्रतिलेखन..."
   },
@@ -199,9 +196,6 @@
   },
   "chatInput.viewEditRecipe": {
     "defaultMessage": "रेसिपी देखें/संपादित करें"
-  },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "एक्सटेंशन देखें"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "छवियों को सहेजने की प्रतीक्षा की जा रही है..."

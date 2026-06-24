@@ -185,9 +185,6 @@
   "chatInput.send": {
     "defaultMessage": "Отправить"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "Слишком много инструментов может снизить производительность. Количество инструментов: {toolCount} (рекомендуется: {recommended})"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "Расшифровка..."
   },
@@ -199,9 +196,6 @@
   },
   "chatInput.viewEditRecipe": {
     "defaultMessage": "Просмотреть/изменить рецепт"
-  },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "Просмотреть расширения"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "Ожидание сохранения изображений..."

@@ -185,9 +185,6 @@
   "chatInput.send": {
     "defaultMessage": "送信"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "ツールが多すぎるとパフォーマンスが低下する可能性があります。ツール数: {toolCount}（推奨: {recommended}）"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "文字起こし中..."
   },
@@ -199,9 +196,6 @@
   },
   "chatInput.viewEditRecipe": {
     "defaultMessage": "レシピを表示/編集"
-  },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "拡張機能を表示"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "画像の保存を待機中..."

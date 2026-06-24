@@ -185,9 +185,6 @@
   "chatInput.send": {
     "defaultMessage": "Enviar"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "Demasiadas herramientas pueden degradar el rendimiento. Cantidad de herramientas: {toolCount} (recomendado: {recommended})"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "Transcribiendo..."
   },
@@ -199,9 +196,6 @@
   },
   "chatInput.viewEditRecipe": {
     "defaultMessage": "Ver/Editar Receta"
-  },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "Ver extensiones"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "Esperando a que se guarden las imágenes..."

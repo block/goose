@@ -185,9 +185,6 @@
   "chatInput.send": {
     "defaultMessage": "보내기"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "도구가 너무 많으면 성능이 저하될 수 있습니다. 도구 수: {toolCount} (권장: {recommended})"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "음성을 텍스트로 변환 중..."
   },
@@ -199,9 +196,6 @@
   },
   "chatInput.viewEditRecipe": {
     "defaultMessage": "레시피 보기/편집"
-  },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "익스텐션 보기"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "이미지 저장을 기다리는 중..."
