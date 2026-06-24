@@ -411,6 +411,30 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_fireworks_declarative_provider_registry_wiring() {
+        let fireworks = get_from_registry("fireworks-ai")
+            .await
+            .expect("fireworks-ai provider should be registered");
+        let meta = fireworks.metadata();
+
+        assert_eq!(fireworks.provider_type(), ProviderType::Declarative);
+        assert_eq!(meta.display_name, "Fireworks AI");
+        assert_eq!(
+            meta.default_model,
+            "accounts/fireworks/models/kimi-k2p7-code"
+        );
+        assert_eq!(meta.model_doc_link, "https://fireworks.ai/models");
+
+        let api_key = meta
+            .config_keys
+            .iter()
+            .find(|k| k.name == "FIREWORKS_API_KEY")
+            .expect("FIREWORKS_API_KEY config key should exist");
+        assert!(api_key.required, "FIREWORKS_API_KEY should be required");
+        assert!(api_key.secret, "FIREWORKS_API_KEY should be secret");
+    }
+
+    #[tokio::test]
     async fn test_openai_compatible_providers_config_keys() {
         let providers_list = providers().await;
         let required_api_key_cases = vec![
