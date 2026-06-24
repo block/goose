@@ -1,4 +1,4 @@
-use crate::{conversation::message::Message, model::ModelConfig, providers::create};
+use crate::{conversation::message::Message, providers::create};
 use anyhow::Result;
 use futures::StreamExt;
 use rmcp::model::ToolAnnotations;
@@ -10,13 +10,12 @@ pub async fn test_provider_configuration(
     toolshim_enabled: bool,
     toolshim_model: Option<String>,
 ) -> Result<()> {
-    let model_config = ModelConfig::new(model)?
-        .with_canonical_limits(provider_name)
+    let model_config = crate::model_config::model_config_from_user_config(provider_name, model)?
         .with_max_tokens(Some(50))
         .with_toolshim(toolshim_enabled)
         .with_toolshim_model(toolshim_model);
 
-    let provider = create(provider_name, model_config, Vec::new()).await?;
+    let provider = create(provider_name, Vec::new()).await?;
 
     let messages =
         vec![Message::user().with_text("What is the weather like in San Francisco today?")];
@@ -27,10 +26,9 @@ pub async fn test_provider_configuration(
         vec![]
     };
 
-    let provider_model_config = provider.get_model_config();
     let mut stream = provider
         .stream(
-            &provider_model_config,
+            &model_config,
             "test-session-id",
             "You are an AI agent called goose. You use tools of connected extensions to solve problems.",
             &messages,

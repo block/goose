@@ -11,6 +11,9 @@
   "announcementModal.gotIt": {
     "defaultMessage": "Понятно!"
   },
+  "appLayout.collapseNavigation": {
+    "defaultMessage": "Collapse navigation"
+  },
   "appLayout.openNavigation": {
     "defaultMessage": "Открыть навигацию"
   },
@@ -113,18 +116,6 @@
   "baseChat.goHome": {
     "defaultMessage": "На главную"
   },
-  "baseChat.noSession": {
-    "defaultMessage": "Нет сеанса"
-  },
-  "baseChat.recipeCreatedMessage": {
-    "defaultMessage": "«{title}» сохранено и готово к использованию."
-  },
-  "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "Рецепт успешно создан!"
-  },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "Ошибка переключения расширения"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Расширение обновлено"
   },
@@ -142,9 +133,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "управлять расширениями"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "Активный сеанс не найден. Сначала начните чат."
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "нет доступных расширений"
@@ -169,9 +157,6 @@
   },
   "chatInput.contextWindow": {
     "defaultMessage": "Контекстное окно"
-  },
-  "chatInput.createRecipeFromSession": {
-    "defaultMessage": "Создать рецепт из сеанса"
   },
   "chatInput.dictationError": {
     "defaultMessage": "Ошибка диктовки"
@@ -217,6 +202,9 @@
   },
   "chatInput.viewExtensions": {
     "defaultMessage": "Просмотреть расширения"
+  },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "Ожидание завершения отмены"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "Ожидание сохранения изображений..."
@@ -403,54 +391,6 @@
   },
   "createEditRecipe.viewEditRecipeTitle": {
     "defaultMessage": "Просмотреть/изменить рецепт"
-  },
-  "createRecipeFromSession.analyzingTitle": {
-    "defaultMessage": "Анализ вашего разговора"
-  },
-  "createRecipeFromSession.cancel": {
-    "defaultMessage": "Отмена"
-  },
-  "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "Создать и запустить рецепт"
-  },
-  "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "Создать рецепт"
-  },
-  "createRecipeFromSession.creating": {
-    "defaultMessage": "Создание..."
-  },
-  "createRecipeFromSession.extractingInsights": {
-    "defaultMessage": "Извлечение сведений из вашего чата"
-  },
-  "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "При создании рецепта произошла непредвиденная ошибка. Повторите попытку."
-  },
-  "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "Не удалось создать рецепт"
-  },
-  "createRecipeFromSession.stageComplete": {
-    "defaultMessage": "Готово!"
-  },
-  "createRecipeFromSession.stageExtracting": {
-    "defaultMessage": "Извлечение основных тем..."
-  },
-  "createRecipeFromSession.stageFinalizing": {
-    "defaultMessage": "Завершение деталей..."
-  },
-  "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "Создание структуры рецепта..."
-  },
-  "createRecipeFromSession.stageIdentifying": {
-    "defaultMessage": "Определение ключевых шаблонов..."
-  },
-  "createRecipeFromSession.stageReading": {
-    "defaultMessage": "Чтение вашего разговора..."
-  },
-  "createRecipeFromSession.subtitle": {
-    "defaultMessage": "Создайте повторно используемый рецепт на основе текущего разговора."
-  },
-  "createRecipeFromSession.title": {
-    "defaultMessage": "Создать рецепт из сеанса"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "Отмена"
@@ -991,6 +931,9 @@
   },
   "elicitationRequest.submit": {
     "defaultMessage": "Отправить"
+  },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
   },
   "elicitationRequest.submitted": {
     "defaultMessage": "Информация отправлена"
@@ -1853,8 +1796,14 @@
   "localInferenceSettings.description": {
     "defaultMessage": "Скачивайте и управляйте локальными LLM-моделями для инференса без API-ключей. Ищите любые GGUF-модели на HuggingFace или используйте подборку ниже."
   },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "Скрыть"
+  },
   "localInferenceSettings.download": {
     "defaultMessage": "Скачать"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "Скачивание отменено"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "Скачивание не удалось"
@@ -1888,6 +1837,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "осталось {time}"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "Повторить"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "Показать все рекомендуемые (ещё {count})"
@@ -2452,9 +2404,6 @@
   },
   "navigationPanel.chats": {
     "defaultMessage": "Чаты"
-  },
-  "navigationPanel.collapseSidebar": {
-    "defaultMessage": "Свернуть боковую панель"
   },
   "navigationPanel.noChats": {
     "defaultMessage": "Нет недавних чатов"
@@ -3746,6 +3695,72 @@
   "securityToggle.warpNotice": {
     "defaultMessage": "Обнаружение внедрения команд работает лучше всего при подключении к WARP (требуется для доступа к сервису классификации)."
   },
+  "sessionActionsHeader.actionsLabel": {
+    "defaultMessage": "Session actions"
+  },
+  "sessionActionsHeader.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "sessionActionsHeader.close": {
+    "defaultMessage": "Close"
+  },
+  "sessionActionsHeader.copiedJson": {
+    "defaultMessage": "Session JSON copied"
+  },
+  "sessionActionsHeader.copiedText": {
+    "defaultMessage": "Text copied"
+  },
+  "sessionActionsHeader.copyJson": {
+    "defaultMessage": "Copy JSON"
+  },
+  "sessionActionsHeader.copyText": {
+    "defaultMessage": "Copy text"
+  },
+  "sessionActionsHeader.duplicateFailed": {
+    "defaultMessage": "Failed to duplicate session: {error}"
+  },
+  "sessionActionsHeader.duplicateSession": {
+    "defaultMessage": "Duplicate session"
+  },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "Session duplicated"
+  },
+  "sessionActionsHeader.fullTextTitle": {
+    "defaultMessage": "Text value"
+  },
+  "sessionActionsHeader.jsonFailed": {
+    "defaultMessage": "Failed to load session JSON: {error}"
+  },
+  "sessionActionsHeader.jsonTitle": {
+    "defaultMessage": "Session JSON"
+  },
+  "sessionActionsHeader.loadingJson": {
+    "defaultMessage": "Loading JSON..."
+  },
+  "sessionActionsHeader.renameFailed": {
+    "defaultMessage": "Failed to rename session: {error}"
+  },
+  "sessionActionsHeader.renamePlaceholder": {
+    "defaultMessage": "Enter session name"
+  },
+  "sessionActionsHeader.renameSession": {
+    "defaultMessage": "Rename session"
+  },
+  "sessionActionsHeader.renameTitle": {
+    "defaultMessage": "Rename Session"
+  },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "Session renamed"
+  },
+  "sessionActionsHeader.save": {
+    "defaultMessage": "Save"
+  },
+  "sessionActionsHeader.saving": {
+    "defaultMessage": "Saving..."
+  },
+  "sessionActionsHeader.viewJson": {
+    "defaultMessage": "View session JSON"
+  },
   "sessionHistory.cancel": {
     "defaultMessage": "Отмена"
   },
@@ -4045,6 +4060,39 @@
   },
   "settings.help.title": {
     "defaultMessage": "Помощь и отзывы"
+  },
+  "settings.language.description": {
+    "defaultMessage": "Выберите язык интерфейса goose"
+  },
+  "settings.language.english": {
+    "defaultMessage": "Английский"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "Хинди"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "Японский"
+  },
+  "settings.language.korean": {
+    "defaultMessage": "Корейский"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "Русский"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "Испанский"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "Системный язык"
+  },
+  "settings.language.title": {
+    "defaultMessage": "Язык"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "Турецкий"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "Китайский (упрощенный)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Показывать goose в строке меню"
@@ -4562,98 +4610,14 @@
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose хочет вызвать {toolName}. Разрешить?"
   },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "Отсканируйте этот QR-код камерой iPhone, чтобы установить мобильное приложение goose из App Store"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "Закрыть"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "Сведения о подключении"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "Скачать приложение goose для iOS"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "Не удалось загрузить статус туннеля"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "Не удалось запустить туннель"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "Не удалось остановить туннель"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "Получить приложение iOS"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "Мобильное приложение"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "Подключение мобильного приложения"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "Открыть в App Store"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "или"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "Включите удаленный доступ к goose с мобильных устройств через защищенное туннелирование."
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "Предварительная функция:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "Отсканируйте этот QR-код мобильным приложением goose. Не делитесь этим кодом: он предназначен для вашего личного доступа."
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "Повторить"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "сканировать QR-код"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "Секретный ключ"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "Показать QR-код"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Запустить туннель"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "Запуск..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "Туннель отключен"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "В туннеле возникла ошибка"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "Туннель не запущен"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "Туннель активен"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "Запуск туннеля..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "Остановить туннель"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "Статус туннеля"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "URL туннеля"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL:"
-  },
   "updateSection.autoDownload": {
     "defaultMessage": "Обновление будет автоматически скачано в фоновом режиме."
+  },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "Автоматическая загрузка отключена через переменную окружения GOOSE_DISABLE_AUTO_DOWNLOAD."
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "Автоматическая загрузка отключена. Нажмите «Скачать сейчас», чтобы загрузить вручную."
   },
   "updateSection.autoInstallNote": {
     "defaultMessage": "Обновление будет установлено автоматически при выходе из приложения."
@@ -4666,6 +4630,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "Текущая версия"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "Отключить автоматическую загрузку обновлений"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "Когда включено, Goose будет уведомлять о новых версиях, но не будет загружать их автоматически."
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "Скачать сейчас"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "Обновление скачано и готово к установке!"

@@ -21,7 +21,6 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import TunnelSection from './tunnel/TunnelSection';
 import GatewaySettingsSection from './gateways/GatewaySettingsSection';
 import { getTunnelStatus } from '../../api/sdk.gen';
 import ChatSettingsSection from './chat/ChatSettingsSection';
@@ -300,12 +299,7 @@ export default function SettingsView({
                   <div className="space-y-8 pb-8">
                     <SessionSharingSection />
                     <ExternalBackendSection />
-                    {!tunnelDisabled && (
-                      <div className="space-y-4">
-                        <TunnelSection />
-                        <GatewaySettingsSection />
-                      </div>
-                    )}
+                    {!tunnelDisabled && <GatewaySettingsSection />}
                   </div>
                 </TabsContent>
 

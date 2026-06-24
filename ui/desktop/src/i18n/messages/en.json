@@ -11,6 +11,9 @@
   "announcementModal.gotIt": {
     "defaultMessage": "Got it!"
   },
+  "appLayout.collapseNavigation": {
+    "defaultMessage": "Collapse navigation"
+  },
   "appLayout.openNavigation": {
     "defaultMessage": "Open navigation"
   },
@@ -113,18 +116,6 @@
   "baseChat.goHome": {
     "defaultMessage": "Go home"
   },
-  "baseChat.noSession": {
-    "defaultMessage": "No Session"
-  },
-  "baseChat.recipeCreatedMessage": {
-    "defaultMessage": "\"{title}\" has been saved and is ready to use."
-  },
-  "baseChat.recipeCreatedTitle": {
-    "defaultMessage": "Recipe created successfully!"
-  },
-  "bottomMenuExtensionSelection.extensionToggleError": {
-    "defaultMessage": "Extension Toggle Error"
-  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Extension Updated"
   },
@@ -142,9 +133,6 @@
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "manage extensions"
-  },
-  "bottomMenuExtensionSelection.noActiveSession": {
-    "defaultMessage": "No active session found. Please start a chat session first."
   },
   "bottomMenuExtensionSelection.noExtensionsAvailable": {
     "defaultMessage": "no extensions available"
@@ -169,9 +157,6 @@
   },
   "chatInput.contextWindow": {
     "defaultMessage": "Context window"
-  },
-  "chatInput.createRecipeFromSession": {
-    "defaultMessage": "Create Recipe from Session"
   },
   "chatInput.dictationError": {
     "defaultMessage": "Dictation Error"
@@ -217,6 +202,9 @@
   },
   "chatInput.viewExtensions": {
     "defaultMessage": "View extensions"
+  },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "Waiting for cancellation to finish"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "Waiting for images to save..."
@@ -403,54 +391,6 @@
   },
   "createEditRecipe.viewEditRecipeTitle": {
     "defaultMessage": "View/edit recipe"
-  },
-  "createRecipeFromSession.analyzingTitle": {
-    "defaultMessage": "Analyzing your conversation"
-  },
-  "createRecipeFromSession.cancel": {
-    "defaultMessage": "Cancel"
-  },
-  "createRecipeFromSession.createAndRunRecipe": {
-    "defaultMessage": "Create & Run Recipe"
-  },
-  "createRecipeFromSession.createRecipe": {
-    "defaultMessage": "Create Recipe"
-  },
-  "createRecipeFromSession.creating": {
-    "defaultMessage": "Creating..."
-  },
-  "createRecipeFromSession.extractingInsights": {
-    "defaultMessage": "Extracting insights from your chat"
-  },
-  "createRecipeFromSession.failedToCreateDefaultMsg": {
-    "defaultMessage": "An unexpected error occurred while creating the recipe. Please try again."
-  },
-  "createRecipeFromSession.failedToCreateTitle": {
-    "defaultMessage": "Failed to create recipe"
-  },
-  "createRecipeFromSession.stageComplete": {
-    "defaultMessage": "Complete!"
-  },
-  "createRecipeFromSession.stageExtracting": {
-    "defaultMessage": "Extracting main topics..."
-  },
-  "createRecipeFromSession.stageFinalizing": {
-    "defaultMessage": "Finalizing details..."
-  },
-  "createRecipeFromSession.stageGenerating": {
-    "defaultMessage": "Generating recipe structure..."
-  },
-  "createRecipeFromSession.stageIdentifying": {
-    "defaultMessage": "Identifying key patterns..."
-  },
-  "createRecipeFromSession.stageReading": {
-    "defaultMessage": "Reading your conversation..."
-  },
-  "createRecipeFromSession.subtitle": {
-    "defaultMessage": "Create a reusable recipe based on your current conversation."
-  },
-  "createRecipeFromSession.title": {
-    "defaultMessage": "Create Recipe from Session"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "Cancel"
@@ -867,10 +807,10 @@
     "defaultMessage": "Configuration settings"
   },
   "diagnosticsModal.description": {
-    "defaultMessage": "You can download a diagnostics zip file to share with the team, or file a bug directly on GitHub with your system details pre-filled. A diagnostics report contains the following:"
+    "defaultMessage": "You can download a diagnostics JSON report to share with the team, or file a bug directly on GitHub with your system details pre-filled. A diagnostics report contains the following:"
   },
   "diagnosticsModal.diagnosticsErrorMsg": {
-    "defaultMessage": "Failed to download diagnostics"
+    "defaultMessage": "Failed to download diagnostics report"
   },
   "diagnosticsModal.diagnosticsErrorTitle": {
     "defaultMessage": "Diagnostics Error"
@@ -991,6 +931,9 @@
   },
   "elicitationRequest.submit": {
     "defaultMessage": "Submit"
+  },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "This request is no longer active. The extension will need to ask again."
   },
   "elicitationRequest.submitted": {
     "defaultMessage": "Information submitted"
@@ -1494,7 +1437,7 @@
     "defaultMessage": "Loading variants..."
   },
   "huggingFaceModelSearch.noGgufModels": {
-    "defaultMessage": "No GGUF models found for this query."
+    "defaultMessage": "No compatible local models found for this query."
   },
   "huggingFaceModelSearch.recommended": {
     "defaultMessage": "Recommended"
@@ -1512,7 +1455,7 @@
     "defaultMessage": "Search returned no data."
   },
   "huggingFaceModelSearch.searchPlaceholder": {
-    "defaultMessage": "Search for GGUF models..."
+    "defaultMessage": "Search for local models..."
   },
   "huggingFaceModelSearch.tooLarge": {
     "defaultMessage": "May not fit in memory ({size} model, {available} available)"
@@ -1851,10 +1794,16 @@
     "defaultMessage": "Delete this model? You can re-download it later."
   },
   "localInferenceSettings.description": {
-    "defaultMessage": "Download and manage local LLM models for inference without API keys. Search HuggingFace for any GGUF model or use the featured picks below."
+    "defaultMessage": "Download and manage local LLM models for inference without API keys. Search HuggingFace for GGUF or MLX models, or use the featured picks below."
+  },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "Dismiss"
   },
   "localInferenceSettings.download": {
     "defaultMessage": "Download"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "Download cancelled"
   },
   "localInferenceSettings.downloadFailed": {
     "defaultMessage": "Download failed"
@@ -1888,6 +1837,9 @@
   },
   "localInferenceSettings.remaining": {
     "defaultMessage": "{time} remaining"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "Retry"
   },
   "localInferenceSettings.showAllFeatured": {
     "defaultMessage": "Show all featured ({count} more)"
@@ -2452,9 +2404,6 @@
   },
   "navigationPanel.chats": {
     "defaultMessage": "Chats"
-  },
-  "navigationPanel.collapseSidebar": {
-    "defaultMessage": "Collapse sidebar"
   },
   "navigationPanel.noChats": {
     "defaultMessage": "No recent chats"
@@ -3746,6 +3695,72 @@
   "securityToggle.warpNotice": {
     "defaultMessage": "Command injection detection works best when connected to WARP (required to reach the classification service)."
   },
+  "sessionActionsHeader.actionsLabel": {
+    "defaultMessage": "Session actions"
+  },
+  "sessionActionsHeader.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "sessionActionsHeader.close": {
+    "defaultMessage": "Close"
+  },
+  "sessionActionsHeader.copiedJson": {
+    "defaultMessage": "Session JSON copied"
+  },
+  "sessionActionsHeader.copiedText": {
+    "defaultMessage": "Text copied"
+  },
+  "sessionActionsHeader.copyJson": {
+    "defaultMessage": "Copy JSON"
+  },
+  "sessionActionsHeader.copyText": {
+    "defaultMessage": "Copy text"
+  },
+  "sessionActionsHeader.duplicateFailed": {
+    "defaultMessage": "Failed to duplicate session: {error}"
+  },
+  "sessionActionsHeader.duplicateSession": {
+    "defaultMessage": "Duplicate session"
+  },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "Session duplicated"
+  },
+  "sessionActionsHeader.fullTextTitle": {
+    "defaultMessage": "Text value"
+  },
+  "sessionActionsHeader.jsonFailed": {
+    "defaultMessage": "Failed to load session JSON: {error}"
+  },
+  "sessionActionsHeader.jsonTitle": {
+    "defaultMessage": "Session JSON"
+  },
+  "sessionActionsHeader.loadingJson": {
+    "defaultMessage": "Loading JSON..."
+  },
+  "sessionActionsHeader.renameFailed": {
+    "defaultMessage": "Failed to rename session: {error}"
+  },
+  "sessionActionsHeader.renamePlaceholder": {
+    "defaultMessage": "Enter session name"
+  },
+  "sessionActionsHeader.renameSession": {
+    "defaultMessage": "Rename session"
+  },
+  "sessionActionsHeader.renameTitle": {
+    "defaultMessage": "Rename Session"
+  },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "Session renamed"
+  },
+  "sessionActionsHeader.save": {
+    "defaultMessage": "Save"
+  },
+  "sessionActionsHeader.saving": {
+    "defaultMessage": "Saving..."
+  },
+  "sessionActionsHeader.viewJson": {
+    "defaultMessage": "View session JSON"
+  },
   "sessionHistory.cancel": {
     "defaultMessage": "Cancel"
   },
@@ -4045,6 +4060,39 @@
   },
   "settings.help.title": {
     "defaultMessage": "Help & feedback"
+  },
+  "settings.language.description": {
+    "defaultMessage": "Choose the display language for goose"
+  },
+  "settings.language.english": {
+    "defaultMessage": "English"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "Hindi"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "Japanese"
+  },
+  "settings.language.korean": {
+    "defaultMessage": "Korean"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "Russian"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "Spanish"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "System Default"
+  },
+  "settings.language.title": {
+    "defaultMessage": "Language"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "Turkish"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "Chinese (Simplified)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Show goose in the menu bar"
@@ -4562,101 +4610,17 @@
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose would like to call {toolName}. Allow?"
   },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "Scan this QR code with your iPhone camera to install the goose mobile app from the App Store"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "Close"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "Connection Details"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "Download goose iOS App"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "Failed to load tunnel status"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "Failed to start tunnel"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "Failed to stop tunnel"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "Get the iOS app"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "Mobile App"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "Mobile App Connection"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "Open in App Store"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "or"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "Enable remote access to goose from mobile devices using secure tunneling."
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "Preview feature:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "Scan this QR code with the goose mobile app. Do not share this code with anyone else as it is for your personal access."
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "Retry"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "scan QR code"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "Secret Key"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "Show QR Code"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Start Tunnel"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "Starting..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "Tunnel is disabled"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "Tunnel encountered an error"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "Tunnel is not running"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "Tunnel is active"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "Starting tunnel..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "Stop Tunnel"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "Tunnel Status"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "Tunnel URL"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL:"
-  },
   "updateSection.autoDownload": {
-    "defaultMessage": "Update will be downloaded automatically in the background."
+    "defaultMessage": "Goose will download the update in the background and install it the next time you quit or restart."
+  },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "Automatic downloads are disabled via the GOOSE_DISABLE_AUTO_DOWNLOAD environment variable."
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "Automatic download is disabled. Click \"Download Now\" to download manually."
   },
   "updateSection.autoInstallNote": {
-    "defaultMessage": "The update will be installed automatically when you quit the app."
+    "defaultMessage": "No manual install is needed."
   },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Check for Updates"
@@ -4666,6 +4630,15 @@
   },
   "updateSection.currentVersion": {
     "defaultMessage": "Current version"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "Disable automatic update downloads"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "When enabled, Goose will notify you of new versions but will not download them automatically."
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "Download Now"
   },
   "updateSection.downloadReady": {
     "defaultMessage": "Update downloaded and ready to install!"
@@ -4680,7 +4653,7 @@
     "defaultMessage": "Install & Restart"
   },
   "updateSection.installNowHint": {
-    "defaultMessage": "Or click \"Install & Restart\" to update now."
+    "defaultMessage": "Click \"Install & Restart\" to update now."
   },
   "updateSection.latestVersion": {
     "defaultMessage": "You are running the latest version!"
@@ -4695,7 +4668,7 @@
     "defaultMessage": "Manual installation required for this update method."
   },
   "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Update is ready! It will be installed when you quit Goose."
+    "defaultMessage": "✓ Update is ready. Restart Goose to finish installing it, or quit when you're done."
   },
   "updateSection.readyInstallManual": {
     "defaultMessage": "✓ Update is ready! Click \"Install & Restart\" for installation instructions."

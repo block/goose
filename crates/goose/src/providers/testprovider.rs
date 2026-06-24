@@ -11,11 +11,11 @@ use std::sync::{Arc, Mutex};
 use super::base::stream_from_single_message;
 use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::conversation::message::{Message, ToolResponse};
-use crate::model::ModelConfig;
 use crate::utils::bytes_to_hex;
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::ProviderUsage;
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use rmcp::model::{CallToolResult, Tool};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -138,9 +138,7 @@ impl TestProvider {
     }
 }
 
-impl ProviderDef for TestProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for TestProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             Self::PROVIDER_NAME,
@@ -152,10 +150,14 @@ impl ProviderDef for TestProvider {
             vec![],
         )
     }
+}
+
+impl ProviderDef for TestProvider {
+    type Provider = Self;
 
     fn from_env(
-        _model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async { Err(anyhow!("TestProvider must be constructed explicitly")) })
     }
@@ -216,10 +218,6 @@ impl Provider for TestProvider {
             }
         }
     }
-
-    fn get_model_config(&self) -> ModelConfig {
-        ModelConfig::new_or_fail("test-model")
-    }
 }
 
 #[cfg(test)]
@@ -233,7 +231,6 @@ mod tests {
 
     #[derive(Clone)]
     struct MockProvider {
-        model_config: ModelConfig,
         response: String,
     }
 
@@ -265,10 +262,6 @@ mod tests {
             let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
             Ok(stream_from_single_message(message, usage))
         }
-
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
-        }
     }
 
     #[tokio::test]
@@ -280,13 +273,12 @@ mod tests {
         );
 
         let mock = Arc::new(MockProvider {
-            model_config: ModelConfig::new_or_fail("mock-model"),
             response: "Hello, world!".to_string(),
         });
 
         {
             let test_provider = TestProvider::new_recording(mock, &temp_file);
-            let model_config = test_provider.get_model_config();
+            let model_config = ModelConfig::new("test-model");
 
             let result = test_provider
                 .complete(
@@ -311,7 +303,7 @@ mod tests {
 
         {
             let replay_provider = TestProvider::new_replaying(&temp_file).unwrap();
-            let model_config = replay_provider.get_model_config();
+            let model_config = ModelConfig::new("test-model");
 
             let result = replay_provider
                 .complete(
@@ -343,7 +335,7 @@ mod tests {
         );
 
         let replay_provider = TestProvider::new_replaying(&temp_file).unwrap();
-        let model_config = replay_provider.get_model_config();
+        let model_config = ModelConfig::new("test-model");
 
         let result = replay_provider
             .complete(

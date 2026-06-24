@@ -16,6 +16,7 @@ use serde_json::{json, Map, Value};
 
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+use goose_providers::conversation::token_usage::Usage;
 
 pub fn convert(content: &str) -> Result<String> {
     let mut lines = content.lines().filter(|l| !l.trim().is_empty());
@@ -48,6 +49,8 @@ pub fn convert(content: &str) -> Result<String> {
     let mut messages: Vec<Message> = Vec::new();
     let mut total_input: i64 = 0;
     let mut total_output: i64 = 0;
+    let mut total_cache_read: i64 = 0;
+    let mut total_cache_write: i64 = 0;
     let mut total_cost: f64 = 0.0;
     let mut first_ts: Option<DateTime<Utc>> = header_ts;
     let mut last_ts: Option<DateTime<Utc>> = header_ts;
@@ -84,12 +87,15 @@ pub fn convert(content: &str) -> Result<String> {
             .unwrap_or_else(|| Utc::now().timestamp());
 
         if let Some(usage) = inner.get("usage").and_then(|u| u.as_object()) {
-            total_input += usage.get("input").and_then(|v| v.as_i64()).unwrap_or(0);
-            total_input += usage.get("cacheRead").and_then(|v| v.as_i64()).unwrap_or(0);
-            total_input += usage
+            let cache_read = usage.get("cacheRead").and_then(|v| v.as_i64()).unwrap_or(0);
+            let cache_write = usage
                 .get("cacheWrite")
                 .and_then(|v| v.as_i64())
                 .unwrap_or(0);
+            total_input += usage.get("input").and_then(|v| v.as_i64()).unwrap_or(0);
+            total_input += cache_read + cache_write;
+            total_cache_read += cache_read;
+            total_cache_write += cache_write;
             total_output += usage.get("output").and_then(|v| v.as_i64()).unwrap_or(0);
             if let Some(cost) = usage
                 .get("cost")
@@ -202,21 +208,20 @@ pub fn convert(content: &str) -> Result<String> {
     let updated_at = last_ts.unwrap_or(created_at);
     let conversation = Conversation::new_unvalidated(messages);
 
-    let session_json = build_session_json(
-        &session_id,
-        &working_dir,
-        &name,
+    let session_json = super::build_session_json(super::ImportedSession {
+        session_id: &session_id,
+        working_dir: &working_dir,
+        name: &name,
         created_at,
         updated_at,
-        Some(total_input as i32),
-        Some(total_output as i32),
-        if total_cost > 0.0 {
-            Some(total_cost)
-        } else {
-            None
-        },
+        usage: Usage::new(Some(total_input as i32), Some(total_output as i32), None)
+            .with_cache_tokens(
+                (total_cache_read > 0).then_some(total_cache_read as i32),
+                (total_cache_write > 0).then_some(total_cache_write as i32),
+            ),
+        accumulated_cost: (total_cost > 0.0).then_some(total_cost),
         conversation,
-    );
+    });
 
     serde_json::to_string_pretty(&session_json).map_err(Into::into)
 }
@@ -331,54 +336,6 @@ fn extract_first_text(msg: &Message) -> Option<String> {
         }
     }
     None
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_session_json(
-    session_id: &str,
-    working_dir: &str,
-    name: &str,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-    input_tokens: Option<i32>,
-    output_tokens: Option<i32>,
-    cost: Option<f64>,
-    conversation: Conversation,
-) -> Value {
-    let total = match (input_tokens, output_tokens) {
-        (Some(a), Some(b)) => Some(a + b),
-        _ => None,
-    };
-    let mut obj = Map::new();
-    obj.insert("id".into(), json!(session_id));
-    obj.insert("working_dir".into(), json!(working_dir));
-    obj.insert("name".into(), json!(name));
-    obj.insert("user_set_name".into(), json!(false));
-    obj.insert("session_type".into(), json!("user"));
-    obj.insert("created_at".into(), json!(created_at.to_rfc3339()));
-    obj.insert("updated_at".into(), json!(updated_at.to_rfc3339()));
-    obj.insert("extension_data".into(), json!({}));
-    obj.insert("total_tokens".into(), json!(total));
-    obj.insert("input_tokens".into(), json!(input_tokens));
-    obj.insert("output_tokens".into(), json!(output_tokens));
-    obj.insert("accumulated_total_tokens".into(), json!(total));
-    obj.insert("accumulated_input_tokens".into(), json!(input_tokens));
-    obj.insert("accumulated_output_tokens".into(), json!(output_tokens));
-    obj.insert("accumulated_cost".into(), json!(cost));
-    obj.insert("schedule_id".into(), json!(null));
-    obj.insert("recipe".into(), json!(null));
-    obj.insert("user_recipe_values".into(), json!(null));
-    obj.insert(
-        "conversation".into(),
-        serde_json::to_value(&conversation).unwrap(),
-    );
-    obj.insert("message_count".into(), json!(conversation.messages().len()));
-    obj.insert("provider_name".into(), json!(null));
-    obj.insert("model_config".into(), json!(null));
-    obj.insert("goose_mode".into(), json!("auto"));
-    obj.insert("archived_at".into(), json!(null));
-    obj.insert("project_id".into(), json!(null));
-    Value::Object(obj)
 }
 
 #[cfg(test)]

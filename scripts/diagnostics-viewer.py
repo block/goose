@@ -6,9 +6,9 @@
 WARNING: entirely vibe coded. use as a throwaway tool
 
 
-Diagnostics Viewer - Browse and inspect Goose diagnostics bundles.
+Diagnostics Viewer - Browse and inspect Goose diagnostics reports.
 
-Scans for diagnostics zip files, displays their sessions, and provides
+Scans for diagnostics JSON reports and legacy zip files, displays their sessions, and provides
 an interactive viewer for examining session data, logs, and other files.
 """
 import json
@@ -188,34 +188,114 @@ class SearchOverlay(Container):
 
 
 class DiagnosticsSession:
-    """Represents a diagnostics bundle."""
+    """Represents a diagnostics report or legacy diagnostics bundle."""
 
-    def __init__(self, zip_path: Path):
-        self.zip_path = zip_path
+    def __init__(self, path: Path):
+        self.path = path
+        self.is_zip = path.suffix == ".zip"
         self.name = "Unknown Session"
-        self.session_id = zip_path.stem
-        self.created_at = zip_path.stat().st_mtime
+        self.session_id = path.stem
+        self.created_at = path.stat().st_mtime
+        self.report = None
         self._load_session_name()
 
     def _load_session_name(self):
-        """Extract session name from session.json."""
+        """Extract session name from the report."""
+        if not self.is_zip:
+            self._load_json_report()
+            session = (self.report or {}).get("session") or {}
+            self.name = session.get("name", "Unknown Session")
+            self.session_id = session.get("id", self.path.stem)
+            return
+
         try:
-            with zipfile.ZipFile(self.zip_path, 'r') as zf:
+            with zipfile.ZipFile(self.path, 'r') as zf:
                 # Find session.json
                 for name in zf.namelist():
                     if name.endswith('session.json'):
                         with zf.open(name) as f:
                             data = json.load(f)
                             self.name = data.get('name', 'Unknown Session')
-                            self.session_id = data.get('id', self.zip_path.stem)
+                            self.session_id = data.get('id', self.path.stem)
                         break
         except Exception as e:
             self.name = f"Error loading: {e}"
 
-    def get_file_list(self) -> list[str]:
-        """Get list of files in the zip, sorted with system.txt first."""
+    def _load_json_report(self):
+        if self.report is not None:
+            return
+
         try:
-            with zipfile.ZipFile(self.zip_path, 'r') as zf:
+            self.report = json.loads(self.path.read_text())
+        except Exception as e:
+            self.report = {"error": f"Error loading: {e}"}
+
+    def _json_virtual_files(self) -> dict[str, str]:
+        self._load_json_report()
+        report = self.report or {}
+        files = {
+            "diagnostics.json": json.dumps(report, indent=2),
+        }
+
+        for key, filename in [
+            ("system", "system.json"),
+            ("config", "config.json"),
+            ("extensions", "extensions.json"),
+            ("session", "session.json"),
+            ("schedule", "schedule.json"),
+            ("errors", "errors.json"),
+        ]:
+            value = report.get(key)
+            if value is not None:
+                files[filename] = json.dumps(value, indent=2)
+
+        logs = report.get("logs") or {}
+        server = logs.get("server")
+        if isinstance(server, dict) and server.get("content") is not None:
+            files["logs/server.txt"] = server["content"]
+
+        llm_logs = logs.get("llm") or []
+        for index, entry in enumerate(llm_logs):
+            if isinstance(entry, dict) and entry.get("content") is not None:
+                path = Path(entry.get("path") or f"llm_request.{index}.jsonl")
+                files[f"logs/{path.name}"] = entry["content"]
+
+        config = report.get("config") or {}
+        if isinstance(config, dict) and config.get("configYaml"):
+            files["config.yaml"] = config["configYaml"]
+
+        for prompt in report.get("prompts") or []:
+            if isinstance(prompt, dict) and prompt.get("name") and prompt.get("content") is not None:
+                files[f"prompts/{prompt['name']}.txt"] = prompt["content"]
+
+        for recipe in report.get("scheduledRecipes") or []:
+            if isinstance(recipe, dict) and recipe.get("path") and recipe.get("content") is not None:
+                path = Path(recipe["path"])
+                files[f"scheduled_recipes/{path.name}"] = recipe["content"]
+
+        return files
+
+    def get_file_list(self) -> list[str]:
+        """Get list of report files, sorted with system first."""
+        if not self.is_zip:
+            files = list(self._json_virtual_files().keys())
+
+            def sort_key(f):
+                if f == "system.json":
+                    return (0, f)
+                elif f == "session.json":
+                    return (1, f)
+                elif f == "config.yaml" or f == "config.json":
+                    return (2, f)
+                elif f == "diagnostics.json":
+                    return (3, f)
+                else:
+                    return (4, f)
+
+            return sorted(files, key=sort_key)
+
+        try:
+            with zipfile.ZipFile(self.path, 'r') as zf:
                 files = zf.namelist()
 
                 # Sort: system.txt first, then session.json, then alphabetically
@@ -234,13 +314,16 @@ class DiagnosticsSession:
             return []
 
     def read_file(self, filename: str) -> Optional[str]:
-        """Read a file from the zip.
+        """Read a file from the report.
 
         Returns:
             File content as string, or None if file cannot be read.
         """
+        if not self.is_zip:
+            return self._json_virtual_files().get(filename)
+
         try:
-            with zipfile.ZipFile(self.zip_path, 'r') as zf:
+            with zipfile.ZipFile(self.path, 'r') as zf:
                 with zf.open(filename) as f:
                     return f.read().decode('utf-8', errors='replace')
         except Exception:
@@ -591,8 +674,8 @@ class SessionList(Vertical):
         list_view = self.query_one(ListView)
         for session in self.sessions:
             item = ListItem(
-                Label(f"{session.name}\n[dim]{session.zip_path.name}[/dim]"),
-                name=session.zip_path.name
+                Label(f"{session.name}\n[dim]{session.path.name}[/dim]"),
+                name=session.path.name
             )
             list_view.append(item)
 
@@ -752,13 +835,14 @@ class DiagnosticsApp(App):
         self.show_session_list()
 
     def scan_diagnostics(self):
-        """Scan for diagnostics zip files."""
+        """Scan for diagnostics JSON reports and legacy zip files."""
         self.sessions = []
 
-        # Find all diagnostics zip files
-        for zip_path in self.diagnostics_dir.glob("diagnostics*.zip"):
-            session = DiagnosticsSession(zip_path)
-            self.sessions.append(session)
+        for path in [
+            *self.diagnostics_dir.glob("diagnostics*.json"),
+            *self.diagnostics_dir.glob("diagnostics*.zip"),
+        ]:
+            self.sessions.append(DiagnosticsSession(path))
 
         # Sort by creation time (newest first)
         self.sessions.sort(key=lambda s: s.created_at, reverse=True)
@@ -781,9 +865,9 @@ class DiagnosticsApp(App):
 
     def on_list_view_selected(self, event: ListView.Selected):
         """Handle session selection."""
-        # Find the session by zip name
+        # Find the session by diagnostics file name
         session_name = event.item.name
-        session = next((s for s in self.sessions if s.zip_path.name == session_name), None)
+        session = next((s for s in self.sessions if s.path.name == session_name), None)
         if session:
             self.show_session_viewer(session)
 

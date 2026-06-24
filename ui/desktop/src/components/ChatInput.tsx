@@ -16,6 +16,7 @@ import { cn } from '../utils';
 import { AlertType, useAlerts } from './alerts';
 import { useConfig } from './ConfigContext';
 import { useModelAndProvider } from './ModelAndProviderContext';
+import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
@@ -27,20 +28,17 @@ import { Recipe } from '../recipe';
 import { MessageQueue, QueuedMessage } from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/Diagnostics';
-import { getSession, Message } from '../api';
+import { Message } from '../api';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { getPredefinedModelsFromEnv } from './settings/models/predefinedModelsUtils';
-import {
-  trackFileAttached,
-  trackVoiceDictation,
-  trackDiagnosticsOpened,
-} from '../utils/analytics';
+import { trackFileAttached, trackVoiceDictation, trackDiagnosticsOpened } from '../utils/analytics';
 import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
 import { UserInput, ImageData } from '../types/message';
 import { compressImageDataUrl } from '../utils/conversionUtils';
 import { fetchCanonicalModelInfo } from '../utils/canonical';
 import { defineMessages, useIntl } from '../i18n';
 import TurndownService from 'turndown';
+import type { NextChatExtensionDraft } from '../utils/nextChatExtensions';
 
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -51,9 +49,7 @@ const turndown = new TurndownService({
 turndown.addRule('complexLinks', {
   filter: (node) => {
     return (
-      node.nodeName === 'A' &&
-      !!node.getAttribute('href') &&
-      /\n/.test(node.textContent || '')
+      node.nodeName === 'A' && !!node.getAttribute('href') && /\n/.test(node.textContent || '')
     );
   },
   replacement: (content, node) => {
@@ -158,6 +154,10 @@ const i18n = defineMessages({
     id: 'chatInput.send',
     defaultMessage: 'Send',
   },
+  waitingForCancellation: {
+    id: 'chatInput.waitingForCancellation',
+    defaultMessage: 'Waiting for cancellation to finish',
+  },
   failedToReadImage: {
     id: 'chatInput.failedToReadImage',
     defaultMessage: 'Failed to read image file',
@@ -165,10 +165,6 @@ const i18n = defineMessages({
   viewEditRecipe: {
     id: 'chatInput.viewEditRecipe',
     defaultMessage: 'View/Edit Recipe',
-  },
-  createRecipeFromSession: {
-    id: 'chatInput.createRecipeFromSession',
-    defaultMessage: 'Create Recipe from Session',
   },
 });
 
@@ -178,6 +174,9 @@ interface ChatInputProps {
   chatState: ChatState;
   setChatState?: (state: ChatState) => void;
   onStop?: () => void;
+  onSteerQueuedMessage?: (input: UserInput) => Promise<boolean>;
+  pauseQueueOnStop?: boolean;
+  queueProcessingBlocked?: boolean;
   commandHistory?: string[];
   initialValue?: string;
   droppedFiles?: DroppedFile[];
@@ -195,12 +194,15 @@ interface ChatInputProps {
   initialPrompt?: string;
   toolCount: number;
   append?: (message: Message) => void;
-  onWorkingDirChange?: (newDir: string) => void;
+  onWorkingDirChange?: (newDir: string) => Promise<void> | void;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
   sessionModel?: string | null;
   sessionProvider?: string | null;
   sessionLoaded?: boolean;
+  workingDir?: string | null;
   latestInference?: Message['metadata']['inference'] | null;
+  nextChatExtensionDraft?: NextChatExtensionDraft;
+  onNextChatExtensionDraftChange?: (draft: NextChatExtensionDraft) => void;
 }
 
 export default function ChatInput({
@@ -209,6 +211,9 @@ export default function ChatInput({
   chatState = ChatState.Idle,
   setChatState,
   onStop,
+  onSteerQueuedMessage,
+  pauseQueueOnStop = false,
+  queueProcessingBlocked = false,
   commandHistory = [],
   initialValue = '',
   droppedFiles = [],
@@ -231,7 +236,10 @@ export default function ChatInput({
   sessionModel,
   sessionProvider,
   sessionLoaded,
+  workingDir,
   latestInference,
+  nextChatExtensionDraft,
+  onNextChatExtensionDraftChange,
 }: ChatInputProps) {
   const [_value, setValue] = useState(initialValue);
   const [displayValue, setDisplayValue] = useState(initialValue); // For immediate visual feedback
@@ -241,14 +249,34 @@ export default function ChatInput({
 
   // Derived state - chatState != Idle means we're in some form of loading state
   const isLoading = chatState !== ChatState.Idle;
+  const isLoadingRef = useRef(isLoading);
+  const queueProcessingBlockedRef = useRef(queueProcessingBlocked);
   const wasLoadingRef = useRef(isLoading);
+  const wasQueueProcessingBlockedRef = useRef(queueProcessingBlocked);
+  isLoadingRef.current = isLoading;
+  queueProcessingBlockedRef.current = queueProcessingBlocked;
 
   // Queue functionality - ephemeral, only exists in memory for this chat instance
   const [queuedMessages, setQueuedMessages] = useState<QueuedMessage[]>([]);
   const queuePausedRef = useRef(false);
   const editingMessageIdRef = useRef<string | null>(null);
   const sendAfterStopMessageIdRef = useRef<string | null>(null);
+  const sendNowInFlightMessageIdsRef = useRef<Set<string>>(new Set());
+  const [sendNowInFlightMessageIds, setSendNowInFlightMessageIds] = useState<ReadonlySet<string>>(
+    new Set()
+  );
   const [lastInterruption, setLastInterruption] = useState<string | null>(null);
+
+  const setSendNowInFlightMessage = useCallback((messageId: string, isInFlight: boolean) => {
+    const nextMessageIds = new Set(sendNowInFlightMessageIdsRef.current);
+    if (isInFlight) {
+      nextMessageIds.add(messageId);
+    } else {
+      nextMessageIds.delete(messageId);
+    }
+    sendNowInFlightMessageIdsRef.current = nextMessageIds;
+    setSendNowInFlightMessageIds(nextMessageIds);
+  }, []);
 
   const pauseRemainingQueue = useCallback(() => {
     queuePausedRef.current = true;
@@ -303,7 +331,8 @@ export default function ChatInput({
   const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
-  const [sessionWorkingDir, setSessionWorkingDir] = useState<string | null>(null);
+  const [workingDirOverride, setWorkingDirOverride] = useState<string | null>(null);
+  const currentWorkingDir = workingDirOverride ?? workingDir ?? getInitialWorkingDir();
 
   // Hide non-essential bottom-bar controls when the chat input is narrow.
   // Only the model selector, mic, and send button remain visible.
@@ -321,23 +350,8 @@ export default function ChatInput({
   }, []);
 
   useEffect(() => {
-    if (!sessionId) {
-      return;
-    }
-
-    const fetchSessionWorkingDir = async () => {
-      try {
-        const response = await getSession({ path: { session_id: sessionId } });
-        if (response.data?.working_dir) {
-          setSessionWorkingDir(response.data.working_dir);
-        }
-      } catch (error) {
-        console.error('[ChatInput] Failed to fetch session working dir:', error);
-      }
-    };
-
-    fetchSessionWorkingDir();
-  }, [sessionId]);
+    setWorkingDirOverride(null);
+  }, [sessionId, workingDir]);
 
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
@@ -371,7 +385,16 @@ export default function ChatInput({
 
   // Queue processing
   useEffect(() => {
-    if (wasLoadingRef.current && !isLoading && queuedMessages.length > 0) {
+    const becameIdle = wasLoadingRef.current && !isLoading;
+    const becameUnblocked = wasQueueProcessingBlockedRef.current && !queueProcessingBlocked;
+    const hasSendNowInFlight = sendNowInFlightMessageIdsRef.current.size > 0;
+
+    if (
+      (becameIdle || (becameUnblocked && !isLoading)) &&
+      !queueProcessingBlocked &&
+      !hasSendNowInFlight &&
+      queuedMessages.length > 0
+    ) {
       const pendingSendAfterStopId = sendAfterStopMessageIdRef.current;
       const messageToSend = pendingSendAfterStopId
         ? queuedMessages.find((message) => message.id === pendingSendAfterStopId)
@@ -380,11 +403,13 @@ export default function ChatInput({
       if (pendingSendAfterStopId && !messageToSend) {
         clearPendingSendAfterStop(pendingSendAfterStopId);
         wasLoadingRef.current = isLoading;
+        wasQueueProcessingBlockedRef.current = queueProcessingBlocked;
         return;
       }
 
       if (!messageToSend) {
         wasLoadingRef.current = isLoading;
+        wasQueueProcessingBlockedRef.current = queueProcessingBlocked;
         return;
       }
 
@@ -420,8 +445,10 @@ export default function ChatInput({
       }
     }
     wasLoadingRef.current = isLoading;
+    wasQueueProcessingBlockedRef.current = queueProcessingBlocked;
   }, [
     isLoading,
+    queueProcessingBlocked,
     queuedMessages,
     handleSubmit,
     lastInterruption,
@@ -1088,6 +1115,7 @@ export default function ChatInput({
 
   const canSubmit =
     !isLoading &&
+    !queueProcessingBlocked &&
     (displayValue.trim() ||
       pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
       allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1204,12 +1232,16 @@ export default function ChatInput({
 
   const onFormSubmit = (e: React.FormEvent | React.MouseEvent) => {
     e.preventDefault();
+    if (queueProcessingBlocked) {
+      return;
+    }
     if (isLoading && hasSubmittableContent) {
       handleInterruptionAndQueue();
       return;
     }
     const canSubmit =
       !isLoading &&
+      !queueProcessingBlocked &&
       (displayValue.trim() ||
         pastedImages.some((img) => img.dataUrl && !img.error && !img.isLoading) ||
         allDroppedFiles.some((file) => !file.error && !file.isLoading));
@@ -1328,9 +1360,11 @@ export default function ChatInput({
     isAnyDroppedFileLoading ||
     isRecording ||
     isTranscribing ||
+    queueProcessingBlocked ||
     chatState === ChatState.RestartingAgent;
 
   const getSubmitButtonTooltip = (): string => {
+    if (queueProcessingBlocked) return intl.formatMessage(i18n.waitingForCancellation);
     if (isAnyImageLoading) return intl.formatMessage(i18n.waitingForImages);
     if (isAnyDroppedFileLoading) return intl.formatMessage(i18n.processingDroppedFiles);
     if (isRecording) return intl.formatMessage(i18n.recording);
@@ -1342,28 +1376,35 @@ export default function ChatInput({
 
   // Queue management functions - no storage persistence, only in-memory
   const handleRemoveQueuedMessage = (messageId: string) => {
+    if (sendNowInFlightMessageIdsRef.current.has(messageId)) return;
     clearPendingSendAfterStop(messageId);
     setQueuedMessages((prev) => prev.filter((msg) => msg.id !== messageId));
   };
 
   const handleClearQueue = () => {
+    if (sendNowInFlightMessageIdsRef.current.size > 0) return;
     setQueuedMessages([]);
     clearQueueState();
   };
 
   const handleReorderMessages = (reorderedMessages: QueuedMessage[]) => {
+    if (reorderedMessages.some((message) => sendNowInFlightMessageIdsRef.current.has(message.id))) {
+      return;
+    }
     setQueuedMessages(reorderedMessages);
   };
 
   const handleEditMessage = (messageId: string, newContent: string) => {
+    if (sendNowInFlightMessageIdsRef.current.has(messageId)) return;
     setQueuedMessages((prev) =>
       prev.map((msg) => (msg.id === messageId ? { ...msg, content: newContent } : msg))
     );
   };
 
-  const handleStopAndSend = (messageId: string) => {
+  const handleStopAndSend = async (messageId: string) => {
     const messageToSend = queuedMessages.find((msg) => msg.id === messageId);
     if (!messageToSend) return;
+    if (queueProcessingBlocked) return;
 
     if (!isLoading) {
       setQueuedMessages((prev) => removeQueuedMessage(prev, messageId));
@@ -1372,16 +1413,70 @@ export default function ChatInput({
       return;
     }
 
+    if (onSteerQueuedMessage) {
+      if (sendNowInFlightMessageIdsRef.current.has(messageId)) {
+        return;
+      }
+
+      const wasQueuePausedBeforeSteer = queuePausedRef.current;
+      pauseRemainingQueue();
+      setSendNowInFlightMessage(messageId, true);
+      try {
+        const steerAccepted = await onSteerQueuedMessage({
+          msg: messageToSend.content,
+          images: messageToSend.images,
+        });
+
+        if (steerAccepted) {
+          LocalMessageStorage.addMessage(messageToSend.content);
+          clearPendingSendAfterStop(messageId);
+          setQueuedMessages((prev) => {
+            const newQueue = removeQueuedMessage(prev, messageId);
+            if (newQueue.length === 0) {
+              clearQueueState();
+            } else {
+              pauseRemainingQueue();
+            }
+            return newQueue;
+          });
+          return;
+        }
+      } finally {
+        setSendNowInFlightMessage(messageId, false);
+      }
+
+      if (!isLoadingRef.current && !queueProcessingBlockedRef.current) {
+        queuePausedRef.current = wasQueuePausedBeforeSteer;
+        setQueuedMessages((prev) => {
+          const newQueue = removeQueuedMessage(prev, messageId);
+          if (newQueue.length === 0) {
+            clearQueueState();
+          }
+          return newQueue;
+        });
+        LocalMessageStorage.addMessage(messageToSend.content);
+        handleSubmit({ msg: messageToSend.content, images: messageToSend.images });
+        return;
+      }
+    }
+
     sendAfterStopMessageIdRef.current = messageId;
     pauseRemainingQueue();
     setQueuedMessages((prev) => moveQueuedMessageToFront(prev, messageId));
     if (onStop) onStop();
   };
 
+  const handleStop = () => {
+    if (pauseQueueOnStop && queuedMessages.length > 0) {
+      pauseRemainingQueue();
+    }
+    if (onStop) onStop();
+  };
+
   const handleResumeQueue = () => {
     queuePausedRef.current = false;
     setLastInterruption(null);
-    if (!isLoading && queuedMessages.length > 0) {
+    if (!isLoading && !queueProcessingBlocked && queuedMessages.length > 0) {
       const nextMessage = queuedMessages[0];
       LocalMessageStorage.addMessage(nextMessage.content);
       handleSubmit({ msg: nextMessage.content, images: nextMessage.images });
@@ -1428,6 +1523,7 @@ export default function ChatInput({
           onEditMessage={handleEditMessage}
           onTriggerQueueProcessing={handleResumeQueue}
           editingMessageIdRef={editingMessageIdRef}
+          sendingMessageIds={sendNowInFlightMessageIds}
           isPaused={queuePausedRef.current}
           className="border-b border-border-primary"
         />
@@ -1588,10 +1684,7 @@ export default function ChatInput({
           extensions, diagnostics, attach, mic, send. When the bar is narrow
           (e.g. on a small window), the secondary controls drop out so the
           model selector + send button always stay visible. */}
-      <div
-        ref={bottomBarRef}
-        className="flex flex-row items-center gap-2 px-3 py-2 relative"
-      >
+      <div ref={bottomBarRef} className="flex flex-row items-center gap-2 px-3 py-2 relative">
         {/* Left: model selector */}
         <Tooltip>
           <div>
@@ -1613,15 +1706,15 @@ export default function ChatInput({
           <DirSwitcher
             className=""
             sessionId={sessionId ?? undefined}
-            workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
-            onWorkingDirChange={(newDir) => {
-              setSessionWorkingDir(newDir);
-              if (onWorkingDirChange) {
-                onWorkingDirChange(newDir);
-              }
+            workingDir={currentWorkingDir}
+            onWorkingDirChange={async (newDir) => {
+              await onWorkingDirChange?.(newDir);
+              setWorkingDirOverride(newDir);
             }}
-            onRestartStart={() => setChatState?.(ChatState.RestartingAgent)}
-            onRestartEnd={() => setChatState?.(ChatState.Idle)}
+            onRestartStart={
+              USE_ACP_CHAT ? undefined : () => setChatState?.(ChatState.RestartingAgent)
+            }
+            onRestartEnd={USE_ACP_CHAT ? undefined : () => setChatState?.(ChatState.Idle)}
           />
         )}
 
@@ -1649,7 +1742,11 @@ export default function ChatInput({
             />
 
             {/* Right: extension selector */}
-            <BottomMenuExtensionSelection sessionId={sessionId} />
+            <BottomMenuExtensionSelection
+              sessionId={sessionId}
+              nextChatExtensionDraft={nextChatExtensionDraft}
+              onNextChatExtensionDraftChange={onNextChatExtensionDraftChange}
+            />
 
             {/* Right: diagnostics */}
             {sessionId && (
@@ -1746,7 +1843,7 @@ export default function ChatInput({
         {isLoading && !hasSubmittableContent ? (
           <Button
             type="button"
-            onClick={onStop}
+            onClick={handleStop}
             size="sm"
             shape="round"
             variant="ghost"
@@ -1802,9 +1899,9 @@ export default function ChatInput({
           onSelectedIndexChange={(index) =>
             setMentionPopover((prev) => ({ ...prev, selectedIndex: index }))
           }
-          workingDir={sessionWorkingDir ?? getInitialWorkingDir()}
+          workingDir={currentWorkingDir}
+          sessionId={sessionId}
         />
-
       </div>
     </div>
   );

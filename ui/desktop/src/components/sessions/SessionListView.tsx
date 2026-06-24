@@ -21,7 +21,7 @@ import { ScrollArea } from '../ui/scroll-area';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
 import { SearchView } from '../conversation/SearchView';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { groupSessionsByDate, type DateGroup } from '../../utils/dateUtils';
+import { groupSessionsByDate, sessionActivityAt, type DateGroup } from '../../utils/dateUtils';
 import { errorMessage } from '../../utils/conversionUtils';
 import { Skeleton } from '../ui/skeleton';
 import { toast } from 'react-toastify';
@@ -45,6 +45,9 @@ import {
   acpRenameSession,
   type SessionListItem,
 } from '../../acp/sessions';
+import { acpChatSessionActions } from '../../acp/chatSessionStore';
+import { cancelAcpPermissionRequestsForSession } from '../../acp/permissionRequests';
+import { cancelAcpElicitationRequestsForSession } from '../../acp/elicitationRequests';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
 import { clearSessionCache } from '../../hooks/useChatStream';
 
@@ -458,11 +461,13 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const handleModalSave = useCallback(async (sessionId: string, newDescription: string) => {
       // Update state immediately for optimistic UI
       setSessions((prevSessions) =>
-        prevSessions.map((s) => (s.id === sessionId ? { ...s, name: newDescription } : s))
+        prevSessions.map((s) =>
+          s.id === sessionId ? { ...s, name: newDescription, user_set_name: true } : s
+        )
       );
       window.dispatchEvent(
         new CustomEvent(AppEvents.SESSION_RENAMED, {
-          detail: { sessionId, newName: newDescription },
+          detail: { sessionId, newName: newDescription, userInitiated: true },
         })
       );
     }, []);
@@ -480,7 +485,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const handleDuplicateSession = useCallback(
       async (session: SessionListItem) => {
         try {
-          await acpForkSession(session.id, session.workingDir);
+          await acpForkSession(session.id);
           toast.success(intl.formatMessage(i18n.duplicateSuccess, { name: session.name }));
           window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
           await loadSessions();
@@ -507,6 +512,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
         clearSessionCache(sessionToDeleteId);
+        cancelAcpPermissionRequestsForSession(sessionToDeleteId);
+        cancelAcpElicitationRequestsForSession(sessionToDeleteId);
+        acpChatSessionActions.deleteSnapshot(sessionToDeleteId);
       } catch (error) {
         console.error('Error deleting session:', error);
         toast.error(intl.formatMessage(i18n.deleteFailed, { name: sessionName, error: errorMessage(error, 'Unknown error') }));
@@ -726,7 +734,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             <div className="flex-1 mt-2">
               <div className="flex items-center text-text-secondary text-xs">
                 <Calendar className="w-3 h-3 mr-1 flex-shrink-0" />
-                <span>{formatMessageTimestamp(Date.parse(session.updatedAt) / 1000)}</span>
+                <span>
+                  {formatMessageTimestamp(Date.parse(sessionActivityAt(session)) / 1000)}
+                </span>
               </div>
               <div className="flex items-center text-text-secondary text-xs">
                 <Folder className="w-3 h-3 mr-1 flex-shrink-0" />
@@ -943,9 +953,9 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
               </div>
             </div>
 
-            <div className="flex-1 min-h-0 relative px-8">
+            <div className="flex-1 min-h-0 relative">
               <ScrollArea handleScroll={handleScroll} className="h-full" data-search-scroll-area>
-                <div ref={containerRef} className="h-full relative">
+                <div ref={containerRef} className="h-full relative px-8">
                   <SearchView
                     onSearch={handleSearch}
                     className="relative"

@@ -28,9 +28,12 @@ export interface SessionSharingConfig {
   baseUrl: string;
 }
 
+export type LanguageSetting = 'system' | 'en' | 'es' | 'hi' | 'ja' | 'ko' | 'ru' | 'tr' | 'zh-CN';
+
 export interface Settings {
   // Desktop app settings
   showMenuBarIcon: boolean;
+  disableAutoDownload: boolean;
   showDockIcon: boolean;
   enableWakelock: boolean;
   enableNotifications: boolean;
@@ -42,6 +45,7 @@ export interface Settings {
   // UI preferences (migrated from localStorage)
   theme: 'dark' | 'light';
   useSystemTheme: boolean;
+  language: LanguageSetting;
   responseStyle: string;
   showPricing: boolean;
   sessionSharing: SessionSharingConfig;
@@ -67,6 +71,7 @@ export const defaultKeyboardShortcuts: DefaultKeyboardShortcuts = {
 export const defaultSettings: Settings = {
   // Desktop app settings
   showMenuBarIcon: true,
+  disableAutoDownload: false,
   showDockIcon: true,
   enableWakelock: false,
   enableNotifications: true,
@@ -81,6 +86,7 @@ export const defaultSettings: Settings = {
   // UI preferences
   theme: 'light',
   useSystemTheme: true,
+  language: 'system',
   responseStyle: 'concise',
   showPricing: true,
   sessionSharing: {

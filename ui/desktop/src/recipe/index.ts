@@ -1,31 +1,33 @@
+import type {
+  RecipeDto,
+  RecipeExtensionDto,
+  RecipeListEntryDto,
+  RecipeParameterDto,
+  RecipeSettingsDto,
+} from '@aaif/goose-sdk';
 import {
-  encodeRecipe as apiEncodeRecipe,
-  decodeRecipe as apiDecodeRecipe,
-  scanRecipe as apiScanRecipe,
-  parseRecipe as apiParseRecipe,
-} from '../api';
-import type { RecipeParameter } from '../api';
+  decodeRecipe as acpDecodeRecipe,
+  encodeRecipe as acpEncodeRecipe,
+  parseRecipe as acpParseRecipe,
+  scanRecipe as acpScanRecipe,
+} from '../acp/recipe';
 
-// Re-export OpenAPI types with frontend-specific additions
-export type Parameter = RecipeParameter;
-export type Recipe = import('../api').Recipe & {
+export type Parameter = RecipeParameterDto;
+export type RecipeExtension = RecipeExtensionDto;
+export type RecipeSettings = RecipeSettingsDto;
+export type Recipe = RecipeDto & {
   // TODO: Separate these from the raw recipe type
   // Properties added for scheduled execution
   scheduledJobId?: string;
   isScheduledExecution?: boolean;
 };
+export type RecipeManifest = Omit<RecipeListEntryDto, 'recipe'> & {
+  recipe: Recipe;
+};
 
 export async function encodeRecipe(recipe: Recipe): Promise<string> {
   try {
-    const response = await apiEncodeRecipe({
-      body: { recipe },
-    });
-
-    if (!response.data) {
-      throw new Error('No data returned from API');
-    }
-
-    return response.data.deeplink;
+    return await acpEncodeRecipe(recipe);
   } catch (error) {
     console.error('Failed to encode recipe:', error);
     throw error;
@@ -33,22 +35,8 @@ export async function encodeRecipe(recipe: Recipe): Promise<string> {
 }
 
 export async function decodeRecipe(deeplink: string): Promise<Recipe> {
-
   try {
-    const response = await apiDecodeRecipe({
-      body: { deeplink },
-    });
-
-    if (!response.data) {
-      throw new Error('No data returned from API');
-    }
-
-    if (!response.data.recipe) {
-      console.error('Decoded recipe is null:', response.data);
-      throw new Error('Decoded recipe is null');
-    }
-
-    return stripEmptyExtensions(response.data.recipe as Recipe);
+    return stripEmptyExtensions(await acpDecodeRecipe(deeplink));
   } catch (error) {
     console.error('Failed to decode deeplink:', error);
     throw error;
@@ -57,15 +45,7 @@ export async function decodeRecipe(deeplink: string): Promise<Recipe> {
 
 export async function scanRecipe(recipe: Recipe): Promise<{ has_security_warnings: boolean }> {
   try {
-    const response = await apiScanRecipe({
-      body: { recipe },
-    });
-
-    if (!response.data) {
-      throw new Error('No data returned from API');
-    }
-
-    return response.data;
+    return await acpScanRecipe(recipe);
   } catch (error) {
     console.error('Failed to scan recipe:', error);
     throw error;
@@ -100,16 +80,7 @@ export function stripEmptyExtensions(recipe: Recipe): Recipe {
 
 export async function parseRecipeFromFile(fileContent: string): Promise<Recipe> {
   try {
-    const response = await apiParseRecipe({
-      body: { content: fileContent },
-      throwOnError: true,
-    });
-
-    if (!response.data?.recipe) {
-      throw new Error('No recipe returned from API');
-    }
-
-    return response.data.recipe as Recipe;
+    return await acpParseRecipe(fileContent);
   } catch (error) {
     let errorMessage = 'unknown error';
     if (typeof error === 'object' && error !== null && 'message' in error) {

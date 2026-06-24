@@ -33,28 +33,79 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
     }
 }
 
-/// Detect if a string contains a path to an image file
 pub fn detect_image_path(text: &str) -> Option<&str> {
-    // Basic image file extension check
-    let extensions = [".png", ".jpg", ".jpeg"];
+    const EXTENSIONS: [&str; 3] = [".png", ".jpg", ".jpeg"];
+    const MAX_PATH_LEN: usize = 4096;
 
-    // Find any word that ends with an image extension
-    for word in text.split_whitespace() {
-        if extensions
+    let mut best: Option<(usize, &str)> = None;
+    let mut from = 0;
+    while from < text.len() {
+        let Some(end) = EXTENSIONS
             .iter()
-            .any(|ext| word.to_lowercase().ends_with(ext))
-        {
-            let path = Path::new(word);
-            // Check if it's an absolute path and file exists
-            if path.is_absolute() && path.is_file() {
-                // Verify it's actually an image file
-                if is_image_file(path) {
-                    return Some(word);
+            .filter_map(|ext| find_ascii_ci(text, ext, from).map(|i| i + ext.len()))
+            .min()
+        else {
+            break;
+        };
+
+        let terminator = text.get(end..).and_then(|rest| rest.chars().next());
+        let terminated =
+            terminator.is_none_or(|c| c == '/' || c.is_whitespace() || c == '"' || c == '\'');
+
+        if terminated {
+            let mut floor = end.saturating_sub(MAX_PATH_LEN);
+            while floor < end && !text.is_char_boundary(floor) {
+                floor += 1;
+            }
+            if let Some(window) = text.get(floor..end) {
+                for (rel, _) in window.match_indices('/') {
+                    let start = floor + rel;
+                    let preceded_by_boundary = text
+                        .get(..start)
+                        .and_then(|prefix| prefix.chars().next_back())
+                        .is_none_or(|c| c.is_whitespace() || c == '"' || c == '\'');
+                    if !preceded_by_boundary {
+                        continue;
+                    }
+                    let Some(candidate) = text.get(start..end) else {
+                        continue;
+                    };
+                    let path = Path::new(candidate);
+                    if path.is_absolute() && path.is_file() && is_image_file(path) {
+                        // Keep the first referenced path, but allow a longer
+                        // match anchored at the same start to extend it (a
+                        // whitespace-terminated extension may be a prefix of a
+                        // spaced filename ending in a later extension).
+                        match best {
+                            Some((best_start, _)) if start == best_start => {
+                                best = Some((start, candidate));
+                            }
+                            None => best = Some((start, candidate)),
+                            Some(_) => {}
+                        }
+                        break;
+                    }
                 }
             }
         }
+        from = end;
     }
-    None
+    best.map(|(_, candidate)| candidate)
+}
+
+/// Case-insensitive ASCII substring search returning a byte index into
+/// `haystack` (no allocation, so the index stays valid for slicing).
+fn find_ascii_ci(haystack: &str, needle: &str, from: usize) -> Option<usize> {
+    let (hb, nb) = (haystack.as_bytes(), needle.as_bytes());
+    if nb.is_empty() || hb.len() < nb.len() || from > hb.len() - nb.len() {
+        return None;
+    }
+    (from..=hb.len() - nb.len()).find(|&i| {
+        hb[i..i + nb.len()]
+            .iter()
+            .zip(nb)
+            .all(|(a, b)| a.eq_ignore_ascii_case(b))
+    })
 }
 
 /// Check if a file is actually an image by examining its magic bytes
@@ -162,6 +213,89 @@ mod tests {
         // Test with relative path (should not match)
         let text = "Here is a relative/path/image.png";
         assert_eq!(detect_image_path(text), None);
+    }
+
+    #[test]
+    fn test_detect_image_path_with_spaces() {
+        // Absolute path containing spaces (macOS screenshot style).
+        let temp_dir = tempfile::tempdir().unwrap();
+        let png_path = temp_dir.path().join("Screen Shot 2026.png");
+        let png_data = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        std::fs::write(&png_path, png_data).unwrap();
+        let png_path_str = png_path.to_str().unwrap();
+
+        let text = format!("please describe {} for me", png_path_str);
+        assert_eq!(detect_image_path(&text), Some(png_path_str));
+
+        // Case-insensitive extension also matches.
+        let upper = temp_dir.path().join("Another Shot.PNG");
+        std::fs::write(&upper, png_data).unwrap();
+        let upper_str = upper.to_str().unwrap();
+        let text = format!("see {}", upper_str);
+        assert_eq!(detect_image_path(&text), Some(upper_str));
+
+        // Quoted path with spaces: the closing quote terminates the candidate.
+        let text = format!("describe \"{}\" please", png_path_str);
+        assert_eq!(detect_image_path(&text), Some(png_path_str));
+        let text = format!("describe '{}'", png_path_str);
+        assert_eq!(detect_image_path(&text), Some(png_path_str));
+
+        // A stray closing quote in prose must not act as a terminator for an
+        // unquoted path.
+        let text = format!("here {}\" trailing", png_path_str);
+        assert_eq!(detect_image_path(&text), Some(png_path_str));
+
+        // When a spaced filename contains an earlier image extension, prefer
+        // the longer existing candidate over the embedded prefix.
+        let edited = temp_dir.path().join("Screen Shot.png edited.jpg");
+        std::fs::write(&edited, png_data).unwrap();
+        let edited_str = edited.to_str().unwrap();
+        let prefix = temp_dir.path().join("Screen Shot.png");
+        std::fs::write(&prefix, png_data).unwrap();
+        let text = format!("look at {}", edited_str);
+        assert_eq!(detect_image_path(&text), Some(edited_str));
+
+        // With multiple distinct images, the first referenced one wins even if
+        // a later one has a longer path.
+        let a = temp_dir.path().join("a.png");
+        std::fs::write(&a, png_data).unwrap();
+        let longer = temp_dir.path().join("much-longer.png");
+        std::fs::write(&longer, png_data).unwrap();
+        let text = format!(
+            "compare {} with {}",
+            a.to_str().unwrap(),
+            longer.to_str().unwrap()
+        );
+        assert_eq!(detect_image_path(&text), Some(a.to_str().unwrap()));
+    }
+
+    #[test]
+    fn test_detect_image_path_ignores_urls_and_longer_extensions() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let png_data = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+
+        // A real image whose path is a suffix of a URL must not be extracted
+        // from that URL via the `://` separator.
+        let dir = temp_dir.path().to_str().unwrap().trim_start_matches('/');
+        let png_path = temp_dir.path().join("photo.png");
+        std::fs::write(&png_path, png_data).unwrap();
+        let url = format!("https:/{}/photo.png", dir);
+        assert_eq!(detect_image_path(&url), None);
+
+        // A backup file sharing the image extension prefix must not be
+        // truncated to the bare image path.
+        let real = temp_dir.path().join("shot.png");
+        std::fs::write(&real, png_data).unwrap();
+        let backup = format!("{}.backup", real.to_str().unwrap());
+        assert_eq!(detect_image_path(&backup), None);
+    }
+
+    #[test]
+    fn test_detect_image_path_ignores_extension_flood() {
+        // Many extension-like tokens but no real absolute path: must scan
+        // cheaply (bounded) and find nothing.
+        let text = "see foo.png and bar.jpg and baz.jpeg ".repeat(500);
+        assert_eq!(detect_image_path(&text), None);
     }
 
     #[test]

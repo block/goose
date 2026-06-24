@@ -8,7 +8,7 @@ resolver = "2"
 
 [workspace.package]
 edition = "2021"
-version = "1.38.0"
+version = "1.39.0"
 rust-version = "1.91.1"
 authors = ["AAIF <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
@@ -47,7 +47,7 @@ indoc = { version = "2", default-features = false }
 keyring = { version = "3.6.3", default-features = false, features = ["vendored"] }
 lru = { version = "0.18", default-features = false }
 once_cell = { version = "1.21.3", default-features = false, features = ["std"] }
-rand = { version = "0.8.5", default-features = false, features = ["std"] }
+rand = "0.10.1"
 regex = { version = "1.12.3", default-features = false, features = ["std"] }
 reqwest = { version = "0.13.2", default-features = false, features = ["multipart", "form"] }
 rustls = { version = "0.23.31", default-features = false, features = ["aws_lc_rs", "std"] }
@@ -58,11 +58,11 @@ serde_yaml = { version = "0.9.32", default-features = false }
 shellexpand = { version = "3", default-features = false, features = ["base-0", "tilde"] }
 strum = { version = "0.28.0", default-features = false, features = ["derive", "std"] }
 tempfile = { version = "3.10.1", default-features = false }
-thiserror = { version = "1.0.49", default-features = false }
+thiserror = { version = "2.0.18", default-features = false }
 tokio = { version = "1.48", default-features = false }
 tokio-stream = { version = "0.1.16", default-features = false }
 tokio-util = { version = "0.7.12", default-features = false }
-tower-http = { version = "0.6.8", default-features = false }
+tower-http = { version = "0.7.0", default-features = false }
 tracing = { version = "0.1.43", default-features = false, features = ["std"] }
 tracing-appender = { version = "0.2.1", default-features = false }
 tracing-futures = { version = "0.2.4", default-features = false, features = ["futures-03", "std", "std-future"] }
@@ -83,7 +83,7 @@ url = { version = "2.5.4", default-features = false, features = ["std"] }
 opentelemetry = { version = "0.32", default-features = false }
 opentelemetry_sdk = { version = "0.32", default-features = false, features = ["metrics"] }
 opentelemetry-http = { version = "0.32", default-features = false, features = ["internal-logs", "reqwest"] }
-opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "internal-logs", "logs", "metrics", "reqwest-client", "trace"] }
+opentelemetry-otlp = { version = "0.32", default-features = false, features = ["http-proto", "internal-logs", "logs", "metrics", "reqwest-blocking-client", "trace"] }
 opentelemetry-appender-tracing = { version = "0.32", default-features = false, features = ["experimental_span_attributes"] }
 opentelemetry-stdout = { version = "0.32", default-features = false, features = ["trace", "metrics", "logs"] }
 tracing-opentelemetry = { version = "0.33", default-features = false, features = ["metrics"] }
@@ -113,3 +113,12 @@ icu_locale = { version = "=2.1.1", default-features = false }
 [patch.crates-io]
 v8 = { path = "vendor/v8" }
 cudaforge = { git = "https://github.com/jbg/cudaforge", rev = "e7c1967340e40673db98dc9e17da0f04834a456f" }
+
+# Dependencies don't need debug info. You rarely step-debug into third-party
+# crates, but their DWARF dominates `target/debug` — roughly 50-70% of each
+# dependency rlib in this workspace is debug info. Dropping it for dependencies
+# only shrinks the debug build substantially and speeds linking. The "*" spec
+# matches all dependencies but NOT workspace members, so first-party crates keep
+# full debug info and stay fully debuggable; release builds are unaffected.
+[profile.dev.package."*"]
+debug = false

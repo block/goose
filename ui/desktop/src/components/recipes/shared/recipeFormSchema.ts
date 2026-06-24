@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { ExtensionConfig } from '../../../api';
+import type { RecipeExtension } from '../../../recipe';
 
-// Zod schema for Parameter - matching API RecipeParameter type
+// Zod schema for Parameter - matching ACP RecipeParameterDto type
 const parameterSchema = z.object({
   key: z.string().min(1, 'Parameter key is required'),
   input_type: z.enum(['string', 'number', 'boolean', 'date', 'file', 'select']),
@@ -14,7 +14,7 @@ const parameterSchema = z.object({
 // Export the parameter type for use in components
 export type RecipeParameter = z.infer<typeof parameterSchema>;
 
-// Zod schema for SubRecipe - matching API SubRecipe type
+// Zod schema for SubRecipe - matching ACP SubRecipeDto type
 const subRecipeSchema = z.object({
   name: z.string().min(1, 'Subrecipe name is required'),
   path: z.string().min(1, 'Subrecipe path is required'),
@@ -56,7 +56,7 @@ export const recipeFormSchema = z.object({
 
   provider: z.string().optional(),
 
-  extensions: z.array(z.custom<ExtensionConfig>()).optional(),
+  extensions: z.array(z.custom<RecipeExtension>()).optional(),
 
   subRecipes: z.array(subRecipeSchema).default([]),
 });

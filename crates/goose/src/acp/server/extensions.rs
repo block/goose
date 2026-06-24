@@ -4,15 +4,13 @@ use crate::config::extensions::ExtensionEntry;
 use agent_client_protocol::schema::{HttpHeader, McpServer, McpServerHttp, McpServerStdio};
 
 impl GooseAcpAgent {
-    pub(super) async fn on_add_extension(
+    pub(super) async fn on_add_session_extension(
         &self,
-        req: AddExtensionRequest,
+        req: AddSessionExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         let session_id = &req.session_id;
-        let config: ExtensionConfig = serde_json::from_value(req.config).map_err(|e| {
-            agent_client_protocol::Error::invalid_params().data(format!("bad config: {e}"))
-        })?;
-        let agent = self.get_session_agent(&req.session_id, None).await?;
+        let config = goose_extension_to_config_without_secrets(req.extension)?;
+        let agent = self.get_session_agent(&req.session_id).await?;
         agent
             .add_extension(config, session_id)
             .await
@@ -20,12 +18,12 @@ impl GooseAcpAgent {
         Ok(EmptyResponse {})
     }
 
-    pub(super) async fn on_remove_extension(
+    pub(super) async fn on_remove_session_extension(
         &self,
-        req: RemoveExtensionRequest,
+        req: RemoveSessionExtensionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         let session_id = &req.session_id;
-        let agent = self.get_session_agent(&req.session_id, None).await?;
+        let agent = self.get_session_agent(&req.session_id).await?;
         agent
             .remove_extension(&req.name, session_id)
             .await
@@ -125,15 +123,15 @@ impl GooseAcpAgent {
             crate::config::Config::global(),
         );
 
-        let extensions_json = extensions
+        let extensions = extensions
             .into_iter()
-            .map(|e| serde_json::to_value(&e))
-            .collect::<Result<Vec<_>, _>>()
-            .internal_err()?;
+            .map(|config| config_to_goose_extension(&config))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect::<Vec<_>>();
 
-        Ok(GetSessionExtensionsResponse {
-            extensions: extensions_json,
-        })
+        Ok(GetSessionExtensionsResponse { extensions })
     }
 }
 
@@ -279,6 +277,7 @@ fn goose_extension_to_config(
                     envs: Envs::default(),
                     env_keys,
                     timeout,
+                    cwd: None,
                     bundled,
                     available_tools: Vec::new(),
                 }
@@ -314,6 +313,27 @@ fn goose_extension_to_config(
         config,
         secret_updates,
     })
+}
+
+fn goose_extension_to_config_without_secrets(
+    extension: GooseExtension,
+) -> Result<ExtensionConfig, agent_client_protocol::Error> {
+    let conversion = goose_extension_to_config(extension)?;
+    if !conversion.secret_updates.is_empty() {
+        return Err(agent_client_protocol::Error::invalid_params().data(
+            "extension env values must be passed via envKeys referencing stored secrets, not inline env",
+        ));
+    }
+    Ok(conversion.config)
+}
+
+pub(super) fn goose_extensions_to_configs(
+    extensions: Vec<GooseExtension>,
+) -> Result<Vec<ExtensionConfig>, agent_client_protocol::Error> {
+    extensions
+        .into_iter()
+        .map(goose_extension_to_config_without_secrets)
+        .collect()
 }
 
 fn config_entry_to_goose_entry(
@@ -421,6 +441,7 @@ mod tests {
             )])),
             env_keys: vec!["SECRET_TOKEN".to_string()],
             timeout: Some(42),
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         };
@@ -596,6 +617,7 @@ mod tests {
             timeout,
             bundled,
             available_tools,
+            ..
         } = conversion.config
         else {
             panic!("expected stdio config");

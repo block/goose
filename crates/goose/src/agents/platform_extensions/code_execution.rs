@@ -143,7 +143,7 @@ impl CodeExecutionClient {
     /// Build a PctxRegistry with all tool callbacks registered
     fn build_callback_registry(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         code_mode: &CodeMode,
     ) -> Result<PctxRegistry, String> {
         let manager = self
@@ -163,7 +163,7 @@ impl CodeExecutionClient {
                     .unwrap_or_default(),
                 &cfg.name
             );
-            let callback = create_tool_callback(session_id.to_string(), full_name, manager.clone());
+            let callback = create_tool_callback(ctx.clone(), full_name, manager.clone());
             registry
                 .add_callback(&cfg.id(), callback)
                 .map_err(|e| format!("Failed to register callback: {e}"))?;
@@ -236,7 +236,7 @@ impl CodeExecutionClient {
     /// Handle the execute typescript tool call
     async fn handle_execute_typescript(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
         let args: ExecuteWithToolGraph = arguments
@@ -245,8 +245,9 @@ impl CodeExecutionClient {
             .map_err(|e| format!("Failed to parse arguments: {e}"))?
             .ok_or("Missing arguments for execute_typescript")?;
 
+        let session_id = &ctx.session_id;
         let code_mode = self.get_code_mode(session_id).await?;
-        let registry = self.build_callback_registry(session_id, &code_mode)?;
+        let registry = self.build_callback_registry(ctx, &code_mode)?;
         let code = args.input.code.clone();
         let disclosure = self.disclosure;
 
@@ -273,12 +274,12 @@ impl CodeExecutionClient {
 }
 
 fn create_tool_callback(
-    session_id: String,
+    ctx: ToolCallContext,
     full_name: String,
     manager: Arc<crate::agents::ExtensionManager>,
 ) -> CallbackFn {
     Arc::new(move |args: Option<Value>| {
-        let session_id = session_id.clone();
+        let ctx = ctx.clone();
         let full_name = full_name.clone();
         let manager = manager.clone();
         Box::pin(async move {
@@ -289,7 +290,6 @@ fn create_tool_callback(
                 }
                 params
             };
-            let ctx = crate::agents::ToolCallContext::new(session_id, None, None);
             match manager
                 .dispatch_tool_call(&ctx, tool_call, CancellationToken::new())
                 .await
@@ -457,7 +457,7 @@ impl McpClientTrait for CodeExecutionClient {
                     .await
             }
             "execute_bash" => self.handle_execute_bash(session_id, arguments).await,
-            "execute_typescript" => self.handle_execute_typescript(session_id, arguments).await,
+            "execute_typescript" => self.handle_execute_typescript(ctx, arguments).await,
             _ => Err(format!("Unknown tool: {name}")),
         };
 
@@ -478,21 +478,8 @@ impl McpClientTrait for CodeExecutionClient {
 
         let disclosure_style_moim = match self.disclosure {
             ToolDisclosure::Catalog => {
-                let functions = code_mode.list_functions().functions;
-                let sandbox_only: Vec<_> = functions
-                    .iter()
-                    .filter(|f| !crate::agents::extension_manager::is_first_class_extension(&f.namespace))
-                    .map(|f| format!("{}.{}", &f.namespace, &f.name))
-                    .collect();
-                let mut msg = String::new();
-                if !sandbox_only.is_empty() {
-                    msg.push_str(&format!(
-                        "Additional functions available ONLY via execute_typescript (do NOT call these as direct tool calls): {}",
-                        sandbox_only.join(", ")
-                    ));
-                }
-                msg.push_str("\n\n                Use the list_functions & get_function_details tools to see tool signatures and input/output types before calling execute_typescript.");
-                msg
+                let function_count = code_mode.list_functions().functions.len();
+                catalog_disclosure_moim(function_count)
             }
             ToolDisclosure::Filesystem => {
                 let available_filepaths: Vec<_> = code_mode
@@ -512,6 +499,16 @@ impl McpClientTrait for CodeExecutionClient {
             "#},
             disclosure_style_moim
         ))
+    }
+}
+
+fn catalog_disclosure_moim(function_count: usize) -> String {
+    if function_count == 0 {
+        "No execute_typescript callback functions are currently registered.".to_string()
+    } else {
+        format!(
+            "{function_count} callback functions are available only from inside execute_typescript. Do not call callback function names directly as tools. Use list_functions and get_function_details to inspect signatures before writing one execute_typescript call."
+        )
     }
 }
 
@@ -552,5 +549,21 @@ impl CodeModeState {
             s.hash(&mut hasher);
         }
         hasher.finish()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn catalog_moim_mentions_inspection_tools_without_function_names() {
+        let moim = catalog_disclosure_moim(3);
+
+        assert!(moim.contains("3 callback functions"));
+        assert!(moim.contains("list_functions"));
+        assert!(moim.contains("get_function_details"));
+        assert!(!moim.contains("extract_relations"));
+        assert!(!moim.contains("ask_heimdall"));
     }
 }

@@ -9,7 +9,6 @@ use anyhow::Result;
 use goose::agents::{Agent, AgentConfig, GoosePlatform};
 use goose::config::permission::PermissionManager;
 use goose::config::GooseMode;
-use goose::model::ModelConfig;
 use goose::providers::{create, testprovider::TestProvider};
 use goose::session::session_manager::SessionType;
 use goose::session::SessionManager;
@@ -186,12 +185,7 @@ where
 
         let original_env = setup_environment(config)?;
 
-        let inner_provider = create(
-            &factory_name,
-            ModelConfig::new(config.model_name)?.with_canonical_limits(&factory_name),
-            Vec::new(),
-        )
-        .await?;
+        let inner_provider = create(&factory_name, Vec::new()).await?;
 
         let test_provider = Arc::new(TestProvider::new_recording(inner_provider, &file_path));
         (
@@ -246,9 +240,12 @@ where
         )
         .await?;
 
+    let scenario_model_config =
+        goose::model_config::model_config_from_user_config(&factory_name, config.model_name)?;
     agent
         .update_provider(
             provider_arc as Arc<dyn goose::providers::base::Provider>,
+            scenario_model_config,
             &session.id,
         )
         .await?;
@@ -262,6 +259,7 @@ where
         None,
         None,
         "text".to_string(),
+        false,
     )
     .await;
 

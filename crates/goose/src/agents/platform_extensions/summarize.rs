@@ -149,7 +149,16 @@ impl McpClientTrait for SummarizeClient {
         };
 
         let session_id = &ctx.session_id;
-        match execute_summarize(provider, session_id, params, &working_dir).await {
+        let model_config = match self.context.model_config_for_session(session_id).await {
+            Ok(config) => config,
+            Err(e) => {
+                return Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Error: {}",
+                    e
+                ))]));
+            }
+        };
+        match execute_summarize(provider, model_config, session_id, params, &working_dir).await {
             Ok(result) => Ok(result),
             Err(msg) => Ok(CallToolResult::error(vec![Content::text(format!(
                 "Error: {}",
@@ -165,6 +174,7 @@ impl McpClientTrait for SummarizeClient {
 
 async fn execute_summarize(
     provider: Arc<dyn Provider>,
+    model_config: goose_providers::model::ModelConfig,
     session_id: &str,
     params: SummarizeParams,
     working_dir: &Path,
@@ -186,8 +196,6 @@ async fn execute_summarize(
          Be specific and reference relevant parts of the content when helpful.";
 
     let user_message = Message::user().with_text(&prompt);
-
-    let model_config = provider.get_model_config();
 
     let (response, _usage) = provider
         .complete(&model_config, session_id, system, &[user_message], &[])

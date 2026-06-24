@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ExtensionConfig } from '../../../api';
-import { useConfig } from '../../ConfigContext';
+import type { RecipeExtension } from '../../../recipe';
+import { useConfig, type FixedExtensionEntry } from '../../ConfigContext';
 import { Input } from '../../ui/input';
 import { Switch } from '../../ui/switch';
 import { formatExtensionName } from '../../settings/extensions/subcomponents/ExtensionList';
@@ -13,7 +13,8 @@ const i18n = defineMessages({
   },
   description: {
     id: 'recipeExtensionSelector.description',
-    defaultMessage: 'Select which extensions should be available when running this recipe. Leave empty to use default extensions.',
+    defaultMessage:
+      'Select which extensions should be available when running this recipe. Leave empty to use default extensions.',
   },
   searchPlaceholder: {
     id: 'recipeExtensionSelector.searchPlaceholder',
@@ -33,9 +34,59 @@ const i18n = defineMessages({
   },
 });
 
+type DisplayRecipeExtension = RecipeExtension & {
+  enabled?: boolean;
+};
+
+function toRecipeExtension(
+  extension: FixedExtensionEntry | DisplayRecipeExtension
+): DisplayRecipeExtension | null {
+  const enabled = 'enabled' in extension ? extension.enabled : undefined;
+
+  switch (extension.type) {
+    case 'builtin': {
+      const { name, description, display_name, timeout, bundled, type } = extension;
+      return { name, description, display_name, timeout, bundled, type, enabled };
+    }
+    case 'platform': {
+      const { name, description, display_name, bundled, type } = extension;
+      return { name, description, display_name, bundled, type, enabled };
+    }
+    case 'stdio': {
+      const { name, description, cmd, args, envs, env_keys, timeout, cwd, bundled, type } =
+        extension;
+      return { name, description, cmd, args, envs, env_keys, timeout, cwd, bundled, type, enabled };
+    }
+    case 'streamable_http': {
+      const { name, description, uri, envs, env_keys, headers, timeout, socket, bundled, type } =
+        extension;
+      return {
+        name,
+        description,
+        uri,
+        envs,
+        env_keys,
+        headers,
+        timeout,
+        socket,
+        bundled,
+        type,
+        enabled,
+      };
+    }
+    default:
+      return null;
+  }
+}
+
+function removeDisplayFields(extension: DisplayRecipeExtension): RecipeExtension {
+  const { enabled: _enabled, ...recipeExtension } = extension;
+  return recipeExtension;
+}
+
 interface RecipeExtensionSelectorProps {
-  selectedExtensions: ExtensionConfig[];
-  onExtensionsChange: (extensions: ExtensionConfig[]) => void;
+  selectedExtensions: RecipeExtension[];
+  onExtensionsChange: (extensions: RecipeExtension[]) => void;
 }
 
 export const RecipeExtensionSelector = ({
@@ -48,26 +99,30 @@ export const RecipeExtensionSelector = ({
 
   const selectedExtensionNames = new Set(selectedExtensions.map((ext) => ext.name));
 
-  const extensionMap = new Map(allExtensions.map((ext) => [ext.name, ext]));
+  const extensionMap = new Map<string, DisplayRecipeExtension>();
+  allExtensions.forEach((extension) => {
+    const recipeExtension = toRecipeExtension(extension);
+    if (recipeExtension) {
+      extensionMap.set(recipeExtension.name, recipeExtension);
+    }
+  });
 
   selectedExtensions.forEach((ext) => {
-    if (!extensionMap.has(ext.name)) {
-      extensionMap.set(ext.name, { ...ext, enabled: true });
+    const recipeExtension = toRecipeExtension({ ...ext, enabled: true });
+    if (recipeExtension) {
+      extensionMap.set(recipeExtension.name, recipeExtension);
     }
   });
 
   const displayExtensions = Array.from(extensionMap.values());
 
-  const handleToggle = (extensionConfig: ExtensionConfig) => {
+  const handleToggle = (extensionConfig: DisplayRecipeExtension) => {
     const isSelected = selectedExtensionNames.has(extensionConfig.name);
 
     if (isSelected) {
       onExtensionsChange(selectedExtensions.filter((ext) => ext.name !== extensionConfig.name));
     } else {
-      const { enabled: _enabled, ...cleanExtension } = extensionConfig as ExtensionConfig & {
-        enabled?: boolean;
-      };
-      onExtensionsChange([...selectedExtensions, cleanExtension]);
+      onExtensionsChange([...selectedExtensions, removeDisplayFields(extensionConfig)]);
     }
   };
 
@@ -96,9 +151,7 @@ export const RecipeExtensionSelector = ({
         <label className="block text-md text-textProminent mb-2 font-bold">
           {intl.formatMessage(i18n.label)}
         </label>
-        <p className="text-textSubtle text-sm mb-4">
-          {intl.formatMessage(i18n.description)}
-        </p>
+        <p className="text-textSubtle text-sm mb-4">{intl.formatMessage(i18n.description)}</p>
 
         <Input
           type="text"
@@ -116,7 +169,9 @@ export const RecipeExtensionSelector = ({
       <div className="max-h-[300px] overflow-y-auto border border-borderSubtle rounded-lg">
         {sortedExtensions.length === 0 ? (
           <div className="px-4 py-6 text-center text-sm text-textSubtle">
-            {searchQuery ? intl.formatMessage(i18n.noExtensionsFound) : intl.formatMessage(i18n.noExtensionsAvailable)}
+            {searchQuery
+              ? intl.formatMessage(i18n.noExtensionsFound)
+              : intl.formatMessage(i18n.noExtensionsAvailable)}
           </div>
         ) : (
           sortedExtensions.map((ext) => {

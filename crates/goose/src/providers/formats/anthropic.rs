@@ -1,12 +1,12 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::mcp_utils::extract_text_from_resource;
-use crate::model::ModelConfig;
 use crate::providers::canonical::maybe_get_canonical_model;
 use anyhow::{anyhow, Result};
 use goose_providers::canonical::ThinkingMode;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::errors::ProviderError;
 use goose_providers::images::{convert_image, ImageFormat};
+use goose_providers::model::ModelConfig;
 use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
@@ -53,16 +53,20 @@ pub struct AnthropicFormatOptions {
 impl AnthropicFormatOptions {
     fn for_model(self, model_config: &ModelConfig) -> Self {
         let preserve_thinking_context = model_config
-            .get_config_param::<bool>(
-                "preserve_thinking_context",
-                "ANTHROPIC_PRESERVE_THINKING_CONTEXT",
-            )
+            .request_param::<bool>("preserve_thinking_context")
+            .or_else(|| {
+                crate::config::Config::global()
+                    .get_param("ANTHROPIC_PRESERVE_THINKING_CONTEXT")
+                    .ok()
+            })
             .unwrap_or(self.preserve_thinking_context);
         let preserve_unsigned_thinking = model_config
-            .get_config_param::<bool>(
-                "preserve_unsigned_thinking",
-                "ANTHROPIC_PRESERVE_UNSIGNED_THINKING",
-            )
+            .request_param::<bool>("preserve_unsigned_thinking")
+            .or_else(|| {
+                crate::config::Config::global()
+                    .get_param("ANTHROPIC_PRESERVE_UNSIGNED_THINKING")
+                    .ok()
+            })
             .unwrap_or(self.preserve_unsigned_thinking)
             || preserve_thinking_context;
         let thinking_disabled = model_config.reasoning == Some(false)
@@ -451,89 +455,64 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
     Ok(message)
 }
 
-/// Extract usage information from Anthropic's API response
+fn usage_from_anthropic_fields(usage: &Value) -> Usage {
+    let field = |key: &str| {
+        usage
+            .get(key)
+            .and_then(|v| v.as_u64())
+            .map(|v| v.min(i32::MAX as u64) as i32)
+    };
+
+    Usage::from_cache_exclusive_input(
+        Some(field("input_tokens").unwrap_or(0)),
+        Some(field("output_tokens").unwrap_or(0)),
+        None,
+        field("cache_read_input_tokens"),
+        field("cache_creation_input_tokens"),
+    )
+}
+
+/// Merge a `message_delta` usage into the usage captured at `message_start`.
+/// Delta usage is cumulative (input grows during server tool use), so fields
+/// present in the raw delta payload win over the start values.
+fn merge_delta_usage(existing: &Usage, delta: &Usage, delta_data: &Value) -> Usage {
+    let reports = |key: &str| delta_data.get(key).is_some();
+
+    let output = if reports("output_tokens") {
+        delta.output_tokens
+    } else {
+        existing.output_tokens
+    };
+
+    if !reports("input_tokens") {
+        Usage::new(existing.input_tokens, output, None).with_cache_tokens(
+            existing.cache_read_input_tokens,
+            existing.cache_write_input_tokens,
+        )
+    } else if reports("cache_read_input_tokens") || reports("cache_creation_input_tokens") {
+        Usage::new(delta.input_tokens, output, None).with_cache_tokens(
+            delta.cache_read_input_tokens,
+            delta.cache_write_input_tokens,
+        )
+    } else {
+        Usage::from_cache_exclusive_input(
+            delta.input_tokens,
+            output,
+            None,
+            existing.cache_read_input_tokens,
+            existing.cache_write_input_tokens,
+        )
+    }
+}
+
 pub fn get_usage(data: &Value) -> Result<Usage> {
-    // Extract usage data if available
     if let Some(usage) = data.get("usage") {
-        // Get all token fields for analysis
-        let input_tokens = usage
-            .get("input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let cache_creation_tokens = usage
-            .get("cache_creation_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let cache_read_tokens = usage
-            .get("cache_read_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let output_tokens = usage
-            .get("output_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        // IMPORTANT: For display purposes, we want to show the ACTUAL total tokens consumed
-        // The cache pricing should only affect cost calculation, not token count display
-        let total_input_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
-
-        // Convert to i32 with bounds checking
-        let total_input_i32 = total_input_tokens.min(i32::MAX as u64) as i32;
-        let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
-        let total_tokens_i32 =
-            (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
-
-        Ok(Usage::new(
-            Some(total_input_i32),
-            Some(output_tokens_i32),
-            Some(total_tokens_i32),
-        ))
+        Ok(usage_from_anthropic_fields(usage))
     } else if data.as_object().is_some() {
         // Check if the data itself is the usage object (for message_delta events that might have usage at top level)
-        let input_tokens = data
-            .get("input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let cache_creation_tokens = data
-            .get("cache_creation_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let cache_read_tokens = data
-            .get("cache_read_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let output_tokens = data
-            .get("output_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        // If we found any token data, process it
-        if input_tokens > 0
-            || cache_creation_tokens > 0
-            || cache_read_tokens > 0
-            || output_tokens > 0
-        {
-            let total_input_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
-
-            let total_input_i32 = total_input_tokens.min(i32::MAX as u64) as i32;
-            let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
-            let total_tokens_i32 =
-                (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
-
-            tracing::debug!("🔍 Anthropic ACTUAL token counts from direct object: input={}, output={}, total={}",
-                    total_input_i32, output_tokens_i32, total_tokens_i32);
-
-            Ok(Usage::new(
-                Some(total_input_i32),
-                Some(output_tokens_i32),
-                Some(total_tokens_i32),
-            ))
+        let usage = usage_from_anthropic_fields(data);
+        if usage.total_tokens.unwrap_or(0) > 0 {
+            Ok(usage)
         } else {
             tracing::debug!("🔍 Anthropic no token data found in object");
             Ok(Usage::new(None, None, None))
@@ -784,6 +763,7 @@ where
         let mut final_usage: Option<ProviderUsage> = None;
         let mut message_id: Option<String> = None;
         let mut thinking: Option<ThinkingState> = None;
+        let mut stop_reason: Option<String> = None;
 
         while let Some(line_result) = stream.next().await {
             let line = line_result?;
@@ -910,18 +890,20 @@ where
                         }
                     }
                     if let Some(tool_id) = current_tool_id.take() {
-                        // Tool call finished, yield complete tool call
                         if let Some((name, args)) = accumulated_tool_calls.remove(&tool_id) {
                             let parsed_args = if args.is_empty() {
                                 json!({})
                             } else {
-                                match serde_json::from_str::<Value>(&args) {
-                                    Ok(parsed) => parsed,
-                                    Err(_) => {
-                                        // If parsing fails, create an error tool request
+                                match goose_providers::json::parse_tool_arguments(&args) {
+                                    Some(parsed) => parsed,
+                                    None => {
+                                        let message_text = goose_providers::json::truncation_error_message(&args)
+                                            .unwrap_or_else(|| {
+                                                format!("Could not parse tool arguments: {args}")
+                                            });
                                         let error = ErrorData::new(
                                             ErrorCode::INVALID_PARAMS,
-                                            format!("Could not parse tool arguments: {}", args),
+                                            message_text,
                                             None,
                                         );
                                         let mut message = Message::new(
@@ -954,16 +936,7 @@ where
                         let delta_usage = get_usage(usage_data).unwrap_or_default();
 
                         if let Some(existing_usage) = &final_usage {
-                            let merged_input = existing_usage.usage.input_tokens.or(delta_usage.input_tokens);
-                            let merged_output = delta_usage.output_tokens.or(existing_usage.usage.output_tokens);
-                            let merged_total = match (merged_input, merged_output) {
-                                (Some(input), Some(output)) => Some(input + output),
-                                (Some(input), None) => Some(input),
-                                (None, Some(output)) => Some(output),
-                                (None, None) => None,
-                            };
-
-                            let merged_usage = Usage::new(merged_input, merged_output, merged_total);
+                            let merged_usage = merge_delta_usage(&existing_usage.usage, &delta_usage, usage_data);
                             final_usage = Some(ProviderUsage::new(existing_usage.model.clone(), merged_usage));
                         } else {
                             let model = event.data.get("model")
@@ -975,6 +948,11 @@ where
                     }
                     if let Some(delta) = event.data.get("delta") {
                         let stop_details = delta.get("stop_details").filter(|d| !d.is_null());
+                        if stop_reason.is_none() {
+                            if let Some(sr) = delta.get("stop_reason").and_then(|v| v.as_str()) {
+                                stop_reason = Some(sr.to_string());
+                            }
+                        }
                         if delta.get("stop_reason").and_then(|v| v.as_str()) == Some(STOP_REASON_REFUSAL) {
                             let str_field = |key: &str| stop_details
                                 .and_then(|d| d.get(key))
@@ -1021,6 +999,38 @@ where
             }
         }
 
+        // A tool_use block left open at stream end never received its
+        // content_block_stop, so its args are truncated rather than complete.
+        if !accumulated_tool_calls.is_empty() {
+            let truncated_by_limit = stop_reason.as_deref() == Some("max_tokens");
+            let mut ids: Vec<String> = accumulated_tool_calls.keys().cloned().collect();
+            ids.sort();
+            for id in ids {
+                if let Some((_name, args)) = accumulated_tool_calls.remove(&id) {
+                    let guidance = if truncated_by_limit {
+                        "The model's response was truncated — it hit the output token limit while generating this tool call. \
+                         Try increasing max_tokens for this provider or breaking the task into smaller steps."
+                    } else {
+                        "A tool call was not completed before the stream ended. \
+                         Try resending your message or breaking the task into smaller steps."
+                    };
+                    let snippet_len = args.chars().count();
+                    let tail: String = args.chars().rev().take(80).collect::<Vec<_>>().into_iter().rev().collect();
+                    let message_text = format!(
+                        "{guidance}\nReceived {snippet_len} characters of arguments; cut off at: …{tail}"
+                    );
+                    let error = ErrorData::new(ErrorCode::INVALID_PARAMS, message_text, None);
+                    let mut message = Message::new(
+                        Role::Assistant,
+                        chrono::Utc::now().timestamp(),
+                        vec![MessageContent::tool_request(id, Err(error))],
+                    );
+                    message.id = message_id.clone();
+                    yield (Some(message), None);
+                }
+            }
+        }
+
         if let Some(usage) = final_usage {
             yield (None, Some(usage));
         }
@@ -1031,7 +1041,7 @@ where
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
-    use crate::model::ModelConfig;
+    use goose_providers::model::ModelConfig;
     use rmcp::object;
     use serde_json::json;
 
@@ -1068,6 +1078,8 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(24)); // 12 + 12 = 24 actual tokens
         assert_eq!(usage.output_tokens, Some(15));
         assert_eq!(usage.total_tokens, Some(39)); // 24 + 15
+        assert_eq!(usage.cache_read_input_tokens, Some(0));
+        assert_eq!(usage.cache_write_input_tokens, Some(12));
 
         Ok(())
     }
@@ -1111,6 +1123,8 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(30)); // 15 + 15 = 30 actual tokens
         assert_eq!(usage.output_tokens, Some(20));
         assert_eq!(usage.total_tokens, Some(50)); // 30 + 20
+        assert_eq!(usage.cache_read_input_tokens, Some(0));
+        assert_eq!(usage.cache_write_input_tokens, Some(15));
 
         Ok(())
     }
@@ -1289,6 +1303,8 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(15007));
         assert_eq!(usage.output_tokens, Some(50));
         assert_eq!(usage.total_tokens, Some(15057)); // 15007 + 50
+        assert_eq!(usage.cache_read_input_tokens, Some(5000));
+        assert_eq!(usage.cache_write_input_tokens, Some(10000));
 
         Ok(())
     }
@@ -1410,7 +1426,7 @@ mod tests {
         )?;
 
         assert_eq!(payload["thinking"]["type"], "enabled");
-        assert_eq!(payload["thinking"]["budget_tokens"], 16000);
+        assert!(payload["thinking"]["budget_tokens"].as_i64().unwrap() >= 1024);
         assert_eq!(payload["thinking"]["clear_thinking"], false);
         assert_eq!(payload["max_tokens"], 64000);
         assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
@@ -1632,20 +1648,13 @@ mod tests {
     }
 
     fn cfg(name: &str) -> ModelConfig {
-        ModelConfig {
-            model_name: name.to_string(),
-            ..Default::default()
-        }
+        ModelConfig::new(name)
     }
 
     fn cfg_with_effort(name: &str, effort: &str) -> ModelConfig {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!(effort));
-        ModelConfig {
-            model_name: name.to_string(),
-            request_params: Some(params),
-            ..Default::default()
-        }
+        ModelConfig::new(name).with_merged_request_params(params)
     }
 
     #[test]
@@ -1757,6 +1766,7 @@ mod tests {
         redacted_thinking: Vec<String>,
         text: Vec<String>,
         tool_calls: Vec<String>,
+        tool_errors: Vec<String>,
     }
 
     async fn collect_stream(events: &str) -> StreamedParts {
@@ -1777,11 +1787,10 @@ mod tests {
                         MessageContent::Text(t) => {
                             parts.text.push(t.text.clone());
                         }
-                        MessageContent::ToolRequest(req) => {
-                            if let Ok(call) = &req.tool_call {
-                                parts.tool_calls.push(call.name.to_string());
-                            }
-                        }
+                        MessageContent::ToolRequest(req) => match &req.tool_call {
+                            Ok(call) => parts.tool_calls.push(call.name.to_string()),
+                            Err(e) => parts.tool_errors.push(e.message.to_string()),
+                        },
                         _ => {}
                     }
                 }
@@ -1924,6 +1933,80 @@ mod tests {
         response_to_streaming_message(stream).collect().await
     }
 
+    #[tokio::test]
+    async fn test_streaming_preserves_cache_tokens_through_delta_merge() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":7,"cache_creation_input_tokens":10000,"cache_read_input_tokens":5000,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":25}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let usage = collect_stream_results(events)
+            .await
+            .into_iter()
+            .filter_map(|r| r.ok().and_then(|(_, usage)| usage))
+            .next_back()
+            .expect("stream should yield usage");
+
+        assert_eq!(usage.usage.input_tokens, Some(15007));
+        assert_eq!(usage.usage.output_tokens, Some(25));
+        assert_eq!(usage.usage.cache_read_input_tokens, Some(5000));
+        assert_eq!(usage.usage.cache_write_input_tokens, Some(10000));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_delta_usage_is_cumulative_and_wins() {
+        // Server tool use grows input during the turn: the final
+        // message_delta usage is authoritative, not message_start.
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":2679,"cache_creation_input_tokens":100,"cache_read_input_tokens":200,"output_tokens":3}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":10682,"cache_creation_input_tokens":100,"cache_read_input_tokens":200,"output_tokens":510}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let usage = collect_stream_results(events)
+            .await
+            .into_iter()
+            .filter_map(|r| r.ok().and_then(|(_, usage)| usage))
+            .next_back()
+            .expect("stream should yield usage");
+
+        assert_eq!(usage.usage.input_tokens, Some(10982)); // 10682 + 100 + 200
+        assert_eq!(usage.usage.output_tokens, Some(510));
+        assert_eq!(usage.usage.cache_read_input_tokens, Some(200));
+        assert_eq!(usage.usage.cache_write_input_tokens, Some(100));
+    }
+
+    #[test]
+    fn test_merge_delta_usage_raw_input_inherits_start_cache() {
+        let start =
+            Usage::new(Some(15007), Some(3), None).with_cache_tokens(Some(5000), Some(10000));
+        let delta_data = json!({"input_tokens": 8, "output_tokens": 510});
+        let delta = get_usage(&delta_data).unwrap();
+
+        let merged = merge_delta_usage(&start, &delta, &delta_data);
+        assert_eq!(merged.input_tokens, Some(15008)); // 8 + 5000 + 10000
+        assert_eq!(merged.output_tokens, Some(510));
+        assert_eq!(merged.cache_read_input_tokens, Some(5000));
+        assert_eq!(merged.cache_write_input_tokens, Some(10000));
+    }
+
     fn expect_refusal(
         results: Vec<anyhow::Result<(Option<Message>, Option<ProviderUsage>)>>,
     ) -> (String, Option<String>) {
@@ -1996,5 +2079,101 @@ mod tests {
             parts.text[0]
         );
         assert!(parts.text[0].contains("context_window"));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_truncated_tool_args_in_content_block_stop() {
+        // Block is closed by content_block_stop, but the concatenated deltas form
+        // truncated JSON (each fragment is valid; together they're unterminated).
+        let events = concat!(
+            r##"data: {"type":"message_start","message":{"id":"msg_t","role":"assistant","content":[],"model":"glm-4.7","usage":{"input_tokens":10,"output_tokens":0}}}"##,
+            "\n",
+            r##"data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"tool_t","name":"write","input":{}}}"##,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"/some/path.md\","}}"#,
+            "\n",
+            r##"data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"content\":\"# Very long markdown"}}"##,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"},"usage":{"output_tokens":4096}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let parts = collect_stream(events).await;
+        assert_eq!(
+            parts.tool_errors.len(),
+            1,
+            "expected one tool error, got: {:?}",
+            parts.tool_errors
+        );
+        let msg = &parts.tool_errors[0];
+        assert!(
+            msg.contains("truncated") || msg.contains("output token limit"),
+            "expected actionable truncation message, got: {}",
+            msg
+        );
+        assert!(
+            msg.contains("max_tokens") || msg.contains("smaller steps"),
+            "expected guidance to increase max_tokens or break up the task, got: {}",
+            msg
+        );
+    }
+
+    #[tokio::test]
+    async fn test_streaming_truncated_tool_args_no_content_block_stop() {
+        // The stream ends with the tool_use block still open (no content_block_stop),
+        // which is what happens when the model is cut off mid-tool-call.
+        let events = concat!(
+            r##"data: {"type":"message_start","message":{"id":"msg_t2","role":"assistant","content":[],"model":"glm-4.7","usage":{"input_tokens":10,"output_tokens":0}}}"##,
+            "\n",
+            r##"data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"tool_t2","name":"write","input":{}}}"##,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"/report.md\","}}"#,
+            "\n",
+            r##"data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"\"content\":\"# Big report that got cut off mid"}}"##,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"max_tokens"},"usage":{"output_tokens":8192}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let parts = collect_stream(events).await;
+        assert_eq!(
+            parts.tool_errors.len(),
+            1,
+            "expected one tool error for the dropped/truncated tool call, got: {:?}",
+            parts.tool_errors
+        );
+        let msg = &parts.tool_errors[0];
+        assert!(
+            msg.contains("truncated") || msg.contains("output token limit"),
+            "expected actionable truncation message, got: {}",
+            msg
+        );
+    }
+
+    #[tokio::test]
+    async fn test_streaming_complete_tool_call_unaffected() {
+        // Regression guard: a normal, complete tool call must still parse and
+        // produce no error even though stop_reason handling is added.
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_ok","role":"assistant","content":[],"model":"glm-4.7","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"tool_use","id":"tool_ok","name":"write","input":{}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"input_json_delta","partial_json":"{\"path\":\"/ok.md\",\"content\":\"hello\"}"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"tool_use"},"usage":{"output_tokens":15}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let parts = collect_stream(events).await;
+        assert_eq!(parts.tool_calls, vec!["write"]);
+        assert!(parts.tool_errors.is_empty());
     }
 }

@@ -15,6 +15,7 @@ pub mod conversation {
 pub mod dictation;
 pub mod doctor;
 pub mod download_manager;
+pub mod elicitation;
 pub mod execution;
 pub mod gateway;
 pub mod goose_apps;
@@ -23,7 +24,7 @@ pub mod hooks;
 pub mod instance_id;
 pub mod logging;
 pub mod mcp_utils;
-pub mod model;
+pub mod model_config;
 pub mod oauth;
 #[cfg(feature = "otel")]
 pub mod otel;
@@ -45,8 +46,11 @@ pub mod slash_commands;
 pub mod source_roots;
 pub mod sources;
 pub mod subprocess;
+
 pub mod token_counter;
 pub mod tool_inspection;
 pub mod tool_monitor;
 pub mod tracing;
 pub mod utils;
+#[cfg(windows)]
+pub mod windows_job;

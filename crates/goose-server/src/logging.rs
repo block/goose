@@ -1,9 +1,11 @@
 use anyhow::Result;
+use goose::providers::utils::init_goose_request_log;
 use tracing_subscriber::util::SubscriberInitExt;
 
 /// Sets up the logging infrastructure for the server.
 /// Logs go to a JSON file and a pretty console layer on stderr.
 pub fn setup_logging(name: Option<&str>) -> Result<()> {
+    init_goose_request_log()?;
     let config = goose::logging::LoggingConfig {
         component: "server",
         name,

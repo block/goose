@@ -1,7 +1,6 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
-use crate::model::ModelConfig;
 use anyhow::Result;
 use futures::future::BoxFuture;
 
@@ -33,9 +32,7 @@ pub const XAI_DOC_URL: &str = "https://docs.x.ai/docs/overview";
 
 pub struct XaiProvider;
 
-impl ProviderDef for XaiProvider {
-    type Provider = OpenAiCompatibleProvider;
-
+impl goose_providers::base::ProviderDescriptor for XaiProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             XAI_PROVIDER_NAME,
@@ -50,10 +47,14 @@ impl ProviderDef for XaiProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for XaiProvider {
+    type Provider = OpenAiCompatibleProvider;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<OpenAiCompatibleProvider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();
@@ -62,12 +63,12 @@ impl ProviderDef for XaiProvider {
                 .get_param("XAI_HOST")
                 .unwrap_or_else(|_| XAI_API_HOST.to_string());
 
-            let api_client = ApiClient::new(host, AuthMethod::BearerToken(api_key))?;
+            let api_client =
+                ApiClient::new_with_tls(host, AuthMethod::BearerToken(api_key), tls_config)?;
 
             Ok(OpenAiCompatibleProvider::new(
                 XAI_PROVIDER_NAME.to_string(),
                 api_client,
-                model,
                 String::new(),
             ))
         })

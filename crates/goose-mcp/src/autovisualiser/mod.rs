@@ -116,6 +116,25 @@ fn validation_err(msg: impl Into<String>) -> ErrorData {
     ErrorData::new(ErrorCode::INVALID_PARAMS, msg.into(), None)
 }
 
+/// Accepts `data` either as a JSON value or as a JSON-encoded string,
+/// since models sometimes emit complex tool parameters double-encoded.
+fn lenient_data<'de, D, T>(deserializer: D) -> Result<T, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: serde::de::DeserializeOwned,
+{
+    let value = Value::deserialize(deserializer)?;
+    let value = match value {
+        Value::String(s) => serde_json::from_str(&s).map_err(|e| {
+            serde::de::Error::custom(format!(
+                "the 'data' parameter was a JSON-encoded string that could not be parsed as JSON ({e}); provide 'data' as a JSON object, not a string"
+            ))
+        })?,
+        other => other,
+    };
+    T::deserialize(value).map_err(serde::de::Error::custom)
+}
+
 /// Sankey node structure
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct SankeyNode {
@@ -184,6 +203,7 @@ impl SankeyData {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderSankeyParams {
     /// The data for the Sankey diagram
+    #[serde(deserialize_with = "lenient_data")]
     pub data: SankeyData,
 }
 
@@ -232,6 +252,7 @@ impl RadarData {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderRadarParams {
     /// The data for the radar chart
+    #[serde(deserialize_with = "lenient_data")]
     pub data: RadarData,
 }
 
@@ -309,6 +330,7 @@ fn validate_donut_charts(charts: &[SingleDonutChart]) -> Result<(), ErrorData> {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderDonutParams {
     /// The chart data as an array of chart objects. Use a single-element array for one chart.
+    #[serde(deserialize_with = "lenient_data")]
     pub data: Vec<SingleDonutChart>,
 }
 
@@ -350,6 +372,7 @@ impl TreemapNode {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderTreemapParams {
     /// The hierarchical data for the treemap
+    #[serde(deserialize_with = "lenient_data")]
     pub data: TreemapNode,
 }
 
@@ -393,6 +416,7 @@ impl ChordData {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderChordParams {
     /// The data for the chord diagram
+    #[serde(deserialize_with = "lenient_data")]
     pub data: ChordData,
 }
 
@@ -493,6 +517,7 @@ impl MapData {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct RenderMapParams {
     /// The data for the map visualization
+    #[serde(deserialize_with = "lenient_data")]
     pub data: MapData,
 }
 
@@ -608,6 +633,7 @@ impl ChartData {
 #[derive(Debug, Serialize, Deserialize, rmcp::schemars::JsonSchema)]
 pub struct ShowChartParams {
     /// The data for the chart
+    #[serde(deserialize_with = "lenient_data")]
     pub data: ChartData,
 }
 
@@ -2083,5 +2109,104 @@ mod validation_tests {
         };
         let err = data.validate().unwrap_err();
         assert!(err.message.contains("longitude"));
+    }
+}
+
+#[cfg(test)]
+mod lenient_data_tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn show_chart_accepts_string_encoded_data() {
+        let input = json!({
+            "data": "{\"type\": \"bar\", \"labels\": [\"A\", \"B\"], \"datasets\": [{\"label\": \"S\", \"data\": [1, 2]}]}"
+        });
+        let parsed: ShowChartParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.datasets.len(), 1);
+    }
+
+    #[test]
+    fn show_chart_still_accepts_object_data() {
+        let input = json!({
+            "data": {"type": "bar", "labels": ["A", "B"], "datasets": [{"label": "S", "data": [1, 2]}]}
+        });
+        let parsed: ShowChartParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.datasets.len(), 1);
+    }
+
+    #[test]
+    fn donut_accepts_string_encoded_array_data() {
+        let input = json!({
+            "data": "[{\"values\": [10, 20], \"labels\": [\"A\", \"B\"]}]"
+        });
+        let parsed: RenderDonutParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.len(), 1);
+    }
+
+    #[test]
+    fn sankey_accepts_string_encoded_data() {
+        let input = json!({
+            "data": "{\"nodes\": [{\"name\": \"A\"}, {\"name\": \"B\"}], \"links\": [{\"source\": \"A\", \"target\": \"B\", \"value\": 1.0}]}"
+        });
+        let parsed: RenderSankeyParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.nodes.len(), 2);
+    }
+
+    #[test]
+    fn radar_accepts_string_encoded_data() {
+        let input = json!({
+            "data": "{\"labels\": [\"X\", \"Y\"], \"datasets\": [{\"label\": \"S\", \"data\": [1.0, 2.0]}]}"
+        });
+        let parsed: RenderRadarParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.labels.len(), 2);
+    }
+
+    #[test]
+    fn treemap_accepts_string_encoded_data() {
+        let input = json!({
+            "data": "{\"name\": \"root\", \"children\": [{\"name\": \"leaf\", \"value\": 5.0}]}"
+        });
+        let parsed: RenderTreemapParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.name, "root");
+    }
+
+    #[test]
+    fn chord_accepts_string_encoded_data() {
+        let input = json!({
+            "data": "{\"labels\": [\"A\", \"B\"], \"matrix\": [[0.0, 1.0], [1.0, 0.0]]}"
+        });
+        let parsed: RenderChordParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.matrix.len(), 2);
+    }
+
+    #[test]
+    fn map_accepts_string_encoded_data() {
+        let input = json!({
+            "data": "{\"markers\": [{\"lat\": 1.0, \"lng\": 2.0}]}"
+        });
+        let parsed: RenderMapParams = serde_json::from_value(input).unwrap();
+        assert_eq!(parsed.data.markers.len(), 1);
+    }
+
+    #[test]
+    fn invalid_json_string_gives_clear_error() {
+        let input = json!({"data": "not valid json"});
+        let err = serde_json::from_value::<ShowChartParams>(input).unwrap_err();
+        assert!(err.to_string().contains("could not be parsed as JSON"));
+    }
+
+    #[test]
+    fn string_encoded_data_with_wrong_shape_reports_field_error() {
+        let input = json!({"data": "{\"nope\": 1}"});
+        let err = serde_json::from_value::<ShowChartParams>(input).unwrap_err();
+        assert!(err.to_string().contains("type"));
+    }
+
+    #[test]
+    fn schema_still_reflects_struct_type() {
+        let schema = serde_json::to_value(rmcp::schemars::schema_for!(ShowChartParams)).unwrap();
+        let data_schema = &schema["properties"]["data"];
+        assert_ne!(data_schema["type"], json!("string"));
     }
 }

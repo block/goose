@@ -58,12 +58,22 @@ pub enum ExtensionError {
 
 pub type ExtensionResult<T> = Result<T, ExtensionError>;
 
-#[derive(Debug, Clone, Deserialize, Serialize, Default, ToSchema, PartialEq)]
+#[derive(Debug, Clone, Serialize, Default, ToSchema, PartialEq)]
 pub struct Envs {
     /// A map of environment variables to set, e.g. API_KEY -> some_secret, HOST -> host
     #[serde(default)]
     #[serde(flatten)]
     map: HashMap<String, String>,
+}
+
+impl<'de> Deserialize<'de> for Envs {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let map = HashMap::<String, String>::deserialize(deserializer)?;
+        Ok(Self::new(map))
+    }
 }
 
 impl Envs {
@@ -180,6 +190,8 @@ pub enum ExtensionConfig {
         #[serde(default)]
         env_keys: Vec<String>,
         timeout: Option<u64>,
+        #[serde(default)]
+        cwd: Option<String>,
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
@@ -333,6 +345,7 @@ impl ExtensionConfig {
             env_keys: Vec::new(),
             description: description.into(),
             timeout: Some(timeout.into()),
+            cwd: None,
             bundled: None,
             available_tools: Vec::new(),
         }
@@ -366,6 +379,7 @@ impl ExtensionConfig {
                 envs,
                 env_keys,
                 timeout,
+                cwd,
                 description,
                 bundled,
                 available_tools,
@@ -378,6 +392,7 @@ impl ExtensionConfig {
                 args: args.into_iter().map(Into::into).collect(),
                 description,
                 timeout,
+                cwd,
                 bundled,
                 available_tools,
             },
@@ -443,6 +458,7 @@ impl ExtensionConfig {
                 envs,
                 env_keys,
                 timeout,
+                cwd,
                 bundled,
                 available_tools,
             } => {
@@ -452,9 +468,10 @@ impl ExtensionConfig {
                     description,
                     cmd,
                     args,
-                    envs: Envs::new(merged),
+                    envs: Envs::new(merged.clone()),
                     env_keys: vec![],
                     timeout,
+                    cwd: cwd.map(|s| substitute_env_vars(&s, &merged)),
                     bundled,
                     available_tools,
                 })
@@ -658,6 +675,16 @@ available_tools: []
         }
     }
 
+    #[test]
+    fn envs_deserialization_filters_disallowed_keys() {
+        let envs: extension::Envs =
+            serde_yaml::from_str("LD_PRELOAD: /tmp/injected.so\nSAFE_VAR: ok\n").unwrap();
+        let map = envs.get_env();
+
+        assert!(!map.contains_key("LD_PRELOAD"));
+        assert_eq!(map.get("SAFE_VAR"), Some(&"ok".to_string()));
+    }
+
     #[test_case(
         ExtensionConfig::Builtin {
             name: "developer".into(),
@@ -731,6 +758,7 @@ available_tools: []
             envs: extension::Envs::default(),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -742,6 +770,7 @@ available_tools: []
             envs: extension::Envs::default(),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -756,6 +785,7 @@ available_tools: []
             envs: extension::Envs::default(),
             env_keys: vec!["MY_SECRET".into()],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -771,6 +801,7 @@ available_tools: []
             }),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -858,6 +889,7 @@ available_tools: []
             }),
             env_keys: vec!["MY_SECRET".into()],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -873,6 +905,7 @@ available_tools: []
             }),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         }
