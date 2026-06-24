@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "Uzantıları görüntüle"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "İptalin tamamlanması bekleniyor"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "Resimlerin kaydedilmesi bekleniyor..."
   },
@@ -4606,96 +4609,6 @@
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose, {toolName}'yi aramak istiyor. İzin vermek?"
-  },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "App Store'dan goose mobil uygulamasını yüklemek için bu QR kodunu iPhone kameranızla tarayın"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "Kapat"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "Bağlantı Detayları"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "goose iOS Uygulamasını İndirin"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "Tünel durumu yüklenemedi"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "Tünel başlatılamadı"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "Tünel durdurulamadı"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "iOS uygulamasını edinin"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "Mobil Uygulama"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "Mobil Uygulama Bağlantısı"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "App Store'da aç"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "veya"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "Güvenli tünellemeyi kullanarak mobil cihazlardan goose'a uzaktan erişimi etkinleştirin."
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "Önizleme özelliği:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "Bu QR kodunu goose mobil uygulamasıyla tarayın. Bu kodu kişisel erişiminiz için olduğundan başkasıyla paylaşmayınız."
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "Yeniden dene"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "QR kodunu tara"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "Gizli Anahtar"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "QR Kodunu Göster"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Tüneli Başlat"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "Başlıyor..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "Tünel devre dışı"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "Tünel bir hatayla karşılaştı"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "Tünel çalışmıyor"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "Tünel aktif"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "Tünel başlatılıyor..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "Tüneli Durdur"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "Tünel Durumu"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "Tünel URL'si"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL'si:"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "Güncelleme arka planda otomatik olarak indirilecektir."

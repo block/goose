@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "एक्सटेंशन देखें"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "रद्दीकरण समाप्त होने की प्रतीक्षा की जा रही है"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "छवियों को सहेजने की प्रतीक्षा की जा रही है..."
   },
@@ -4606,96 +4609,6 @@
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose {toolName} को कॉल करना चाहेंगे। अनुमति दें?"
-  },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "ऐप स्टोर से goose मोबाइल ऐप इंस्टॉल करने के लिए इस QR कोड को अपने iPhone कैमरे से स्कैन करें"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "बंद करें"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "कनेक्शन विवरण"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "goose iOS ऐप डाउनलोड करें"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "सुरंग स्थिति लोड करने में विफल"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "सुरंग प्रारंभ करने में विफल"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "सुरंग रोकने में विफल"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "आईओएस ऐप प्राप्त करें"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "मोबाइल ऐप"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "मोबाइल ऐप कनेक्शन"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "ऐप स्टोर में खोलें"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "या"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "सुरक्षित टनलिंग का उपयोग करके मोबाइल उपकरणों से goose तक दूरस्थ पहुंच सक्षम करें।"
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "पूर्वावलोकन सुविधा:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "इस QR कोड को goose मोबाइल ऐप से स्कैन करें। इस कोड को किसी और के साथ साझा न करें क्योंकि यह आपकी व्यक्तिगत पहुंच के लिए है।"
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "पुनः प्रयास करें"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "QR कोड स्कैन करें"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "गुप्त कुंजी"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "QR कोड दिखाएँ"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "सुरंग प्रारंभ करें"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "प्रारंभ..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "सुरंग अक्षम है"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "टनल में एक त्रुटि आई"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "सुरंग नहीं चल रही है"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "सुरंग सक्रिय है"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "सुरंग शुरू हो रही है..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "सुरंग बंद करो"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "सुरंग की स्थिति"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "सुरंग URL"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL:"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "अपडेट बैकग्राउंड में अपने आप डाउनलोड हो जाएगा."

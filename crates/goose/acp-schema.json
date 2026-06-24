@@ -3887,6 +3887,175 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/sources/list"
     },
+    "ListAgentMentionsRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sessionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "description": "List user-facing agent mention targets for `@` autocomplete.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/agent-mentions/list"
+    },
+    "ListAgentMentionsResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentMention"
+          }
+        }
+      },
+      "required": [
+        "agents"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/agent-mentions/list"
+    },
+    "AgentMention": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "sourceType": {
+          "$ref": "#/$defs/SourceType"
+        },
+        "sourcePath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mention": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "sourceType",
+        "mention"
+      ],
+      "description": "A user-facing `@` mention target backed by an agent, recipe, or subrecipe source."
+    },
+    "ListSlashCommandsRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sessionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "description": "List slash commands available for `/` autocomplete.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/slash-commands/list"
+    },
+    "ListSlashCommandsResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "availableCommands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AvailableCommand"
+          }
+        }
+      },
+      "required": [
+        "availableCommands"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/slash-commands/list"
+    },
+    "AvailableCommand": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Command name (e.g., `create_plan`, `research_codebase`)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of what the command does."
+        },
+        "input": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AvailableCommandInput"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Input for the command if required"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "name",
+        "description"
+      ],
+      "description": "Information about a command."
+    },
+    "AvailableCommandInput": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UnstructuredCommandInput",
+          "description": "All text that was typed after the command name is provided as input."
+        }
+      ],
+      "description": "The input specification for a command."
+    },
+    "UnstructuredCommandInput": {
+      "type": "object",
+      "properties": {
+        "hint": {
+          "type": "string",
+          "description": "A hint to display when the input hasn't been provided yet"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "hint"
+      ],
+      "description": "All text that was typed after the command name is provided as input."
+    },
     "UpdateSourceRequest_unstable": {
       "type": "object",
       "properties": {
@@ -5101,6 +5270,24 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/ListAgentMentionsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/agent-mentions/list",
+                  "title": "ListAgentMentionsRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ListSlashCommandsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/slash-commands/list",
+                  "title": "ListSlashCommandsRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/UpdateSourceRequest_unstable"
                     }
                   ],
@@ -5557,6 +5744,22 @@
                         }
                       ],
                       "title": "ListSourcesResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListAgentMentionsResponse_unstable"
+                        }
+                      ],
+                      "title": "ListAgentMentionsResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListSlashCommandsResponse_unstable"
+                        }
+                      ],
+                      "title": "ListSlashCommandsResponse_unstable"
                     },
                     {
                       "allOf": [

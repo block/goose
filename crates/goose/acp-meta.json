@@ -291,6 +291,16 @@
       "responseType": "ListSourcesResponse_unstable"
     },
     {
+      "method": "_goose/unstable/agent-mentions/list",
+      "requestType": "ListAgentMentionsRequest_unstable",
+      "responseType": "ListAgentMentionsResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/slash-commands/list",
+      "requestType": "ListSlashCommandsRequest_unstable",
+      "responseType": "ListSlashCommandsResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/sources/update",
       "requestType": "UpdateSourceRequest_unstable",
       "responseType": "UpdateSourceResponse_unstable"

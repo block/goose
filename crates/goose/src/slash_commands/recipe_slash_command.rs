@@ -80,6 +80,7 @@ pub(super) fn commands_from_mappings(mappings: Vec<SlashCommandMapping>) -> Vec<
                 name,
                 description: metadata.description,
                 source: SlashCommandSource::Recipe,
+                source_path: Some(mapping.recipe_path),
                 input_hint: metadata.input_hint,
             })
         })

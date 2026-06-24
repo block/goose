@@ -6,6 +6,10 @@ export interface DateGroup {
   date: Date;
 }
 
+export function sessionActivityAt(session: SessionListItem): string {
+  return session.lastMessageAt ?? session.updatedAt;
+}
+
 export function groupSessionsByDate(sessions: SessionListItem[]): DateGroup[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -16,7 +20,7 @@ export function groupSessionsByDate(sessions: SessionListItem[]): DateGroup[] {
   const groups: { [key: string]: DateGroup } = {};
 
   sessions.forEach((session) => {
-    const sessionDate = new Date(session.updatedAt);
+    const sessionDate = new Date(sessionActivityAt(session));
     const sessionDateStart = new Date(sessionDate);
     sessionDateStart.setHours(0, 0, 0, 0);
 

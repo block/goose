@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "Просмотреть расширения"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "Ожидание завершения отмены"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "Ожидание сохранения изображений..."
   },
@@ -4606,96 +4609,6 @@
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose хочет вызвать {toolName}. Разрешить?"
-  },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "Отсканируйте этот QR-код камерой iPhone, чтобы установить мобильное приложение goose из App Store"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "Закрыть"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "Сведения о подключении"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "Скачать приложение goose для iOS"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "Не удалось загрузить статус туннеля"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "Не удалось запустить туннель"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "Не удалось остановить туннель"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "Получить приложение iOS"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "Мобильное приложение"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "Подключение мобильного приложения"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "Открыть в App Store"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "или"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "Включите удаленный доступ к goose с мобильных устройств через защищенное туннелирование."
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "Предварительная функция:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "Отсканируйте этот QR-код мобильным приложением goose. Не делитесь этим кодом: он предназначен для вашего личного доступа."
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "Повторить"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "сканировать QR-код"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "Секретный ключ"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "Показать QR-код"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Запустить туннель"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "Запуск..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "Туннель отключен"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "В туннеле возникла ошибка"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "Туннель не запущен"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "Туннель активен"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "Запуск туннеля..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "Остановить туннель"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "Статус туннеля"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "URL туннеля"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL:"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "Обновление будет автоматически скачано в фоновом режиме."

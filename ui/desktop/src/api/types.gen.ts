@@ -1414,6 +1414,7 @@ export type Session = {
     extension_data: ExtensionData;
     goose_mode?: GooseMode;
     id: string;
+    last_message_at?: string | null;
     last_message_snippet?: string | null;
     message_count: number;
     model_config?: ModelConfig | null;
@@ -4662,35 +4663,6 @@ export type SendTelemetryEventResponses = {
     202: unknown;
 };
 
-export type StartTunnelData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/tunnel/start';
-};
-
-export type StartTunnelErrors = {
-    /**
-     * Bad request
-     */
-    400: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type StartTunnelError = StartTunnelErrors[keyof StartTunnelErrors];
-
-export type StartTunnelResponses = {
-    /**
-     * Tunnel started successfully
-     */
-    200: TunnelInfo;
-};
-
-export type StartTunnelResponse = StartTunnelResponses[keyof StartTunnelResponses];
-
 export type GetTunnelStatusData = {
     body?: never;
     path?: never;
@@ -4706,26 +4678,3 @@ export type GetTunnelStatusResponses = {
 };
 
 export type GetTunnelStatusResponse = GetTunnelStatusResponses[keyof GetTunnelStatusResponses];
-
-export type StopTunnelData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/tunnel/stop';
-};
-
-export type StopTunnelErrors = {
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type StopTunnelError = StopTunnelErrors[keyof StopTunnelErrors];
-
-export type StopTunnelResponses = {
-    /**
-     * Tunnel stopped successfully
-     */
-    200: unknown;
-};

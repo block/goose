@@ -69,10 +69,14 @@ import type {
   ImportSessionResponse_unstable,
   ImportSourcesRequest_unstable,
   ImportSourcesResponse_unstable,
+  ListAgentMentionsRequest_unstable,
+  ListAgentMentionsResponse_unstable,
   ListProvidersRequest_unstable,
   ListProvidersResponse_unstable,
   ListRecipesRequest_unstable,
   ListRecipesResponse_unstable,
+  ListSlashCommandsRequest_unstable,
+  ListSlashCommandsResponse_unstable,
   ListSourcesRequest_unstable,
   ListSourcesResponse_unstable,
   OnboardingImportApplyRequest_unstable,
@@ -154,8 +158,10 @@ import {
   zGooseToolCallResponse_unstable,
   zImportSessionResponse_unstable,
   zImportSourcesResponse_unstable,
+  zListAgentMentionsResponse_unstable,
   zListProvidersResponse_unstable,
   zListRecipesResponse_unstable,
+  zListSlashCommandsResponse_unstable,
   zListSourcesResponse_unstable,
   zOnboardingImportApplyResponse_unstable,
   zOnboardingImportScanResponse_unstable,
@@ -775,6 +781,30 @@ export class GooseExtClient {
     return zListSourcesResponse_unstable.parse(
       raw,
     ) as ListSourcesResponse_unstable;
+  }
+
+  async agentMentionsList_unstable(
+    params: ListAgentMentionsRequest_unstable,
+  ): Promise<ListAgentMentionsResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/agent-mentions/list",
+      params,
+    );
+    return zListAgentMentionsResponse_unstable.parse(
+      raw,
+    ) as ListAgentMentionsResponse_unstable;
+  }
+
+  async slashCommandsList_unstable(
+    params: ListSlashCommandsRequest_unstable,
+  ): Promise<ListSlashCommandsResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/slash-commands/list",
+      params,
+    );
+    return zListSlashCommandsResponse_unstable.parse(
+      raw,
+    ) as ListSlashCommandsResponse_unstable;
   }
 
   async sourcesUpdate_unstable(

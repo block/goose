@@ -31,6 +31,7 @@ export function sessionToListItem(s: Session): SessionListItem {
     workingDir: s.working_dir,
     updatedAt: s.updated_at,
     messageCount: s.message_count,
+    lastMessageAt: s.last_message_at ?? undefined,
     createdAt: s.created_at,
     archivedAt: s.archived_at ?? undefined,
     projectId: s.project_id ?? undefined,
