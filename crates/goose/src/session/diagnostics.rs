@@ -163,7 +163,7 @@ pub fn latest_llm_log_path() -> Option<PathBuf> {
 
 fn recent_llm_log_paths() -> Vec<PathBuf> {
     let logs_dir = Paths::in_state_dir("logs");
-    let mut paths: Vec<_> = fs::read_dir(logs_dir)
+    let paths: Vec<_> = fs::read_dir(logs_dir)
         .ok()
         .into_iter()
         .flatten()
@@ -175,19 +175,28 @@ fn recent_llm_log_paths() -> Vec<PathBuf> {
         })
         .collect();
 
-    paths.sort_by(|left, right| compare_llm_log_paths(left.as_path(), right.as_path()));
-    paths.truncate(LOGS_TO_KEEP);
-    paths
-}
+    let (mut numbered, mut temp): (Vec<_>, Vec<_>) = paths
+        .into_iter()
+        .partition(|path| llm_log_index(path).is_some());
 
-fn compare_llm_log_paths(left: &std::path::Path, right: &std::path::Path) -> std::cmp::Ordering {
-    match (llm_log_index(left), llm_log_index(right)) {
-        (None, None) => llm_log_modified(right)
+    numbered.sort_by_key(|path| llm_log_index(path).unwrap_or(usize::MAX));
+    temp.sort_by(|left, right| {
+        llm_log_modified(right)
             .cmp(&llm_log_modified(left))
-            .then_with(|| llm_log_name(left).cmp(&llm_log_name(right))),
-        (None, Some(_)) => std::cmp::Ordering::Less,
-        (Some(_), None) => std::cmp::Ordering::Greater,
-        (Some(left_index), Some(right_index)) => left_index.cmp(&right_index),
+            .then_with(|| llm_log_name(left).cmp(&llm_log_name(right)))
+    });
+
+    if temp.is_empty() || numbered.len() < LOGS_TO_KEEP {
+        numbered.extend(temp);
+        numbered.truncate(LOGS_TO_KEEP);
+        numbered
+    } else {
+        let temp_slots = 1;
+        let numbered_slots = LOGS_TO_KEEP.saturating_sub(temp_slots);
+        temp.truncate(temp_slots);
+        numbered.truncate(numbered_slots);
+        temp.extend(numbered);
+        temp
     }
 }
 
