@@ -722,7 +722,7 @@ fn find_enclosing_fn(node: tree_sitter::Node, source: &str, info: &LangInfo) -> 
             }
             // If this is an anonymous function-like node (closure, async block, arrow
             // function with no name), keep walking up to find the enclosing named function.
-            if let Some(name) = find_child_text(&parent, info.fn_name_kinds, source) {
+            if let Some(name) = find_fn_name(&parent, info.fn_name_kinds, source) {
                 return Some(name);
             }
         }
@@ -736,6 +736,22 @@ fn find_child_text(node: &tree_sitter::Node, kinds: &[&str], source: &str) -> Op
         .filter_map(|i| node.child(i))
         .find(|c| kinds.contains(&c.kind()))
         .map(|c| node_text(source, &c).to_string())
+}
+
+fn find_fn_name(node: &tree_sitter::Node, kinds: &[&str], source: &str) -> Option<String> {
+    if let Some(name) = find_child_text(node, kinds, source) {
+        return Some(name);
+    }
+    // C/C++ nest the name inside declarator wrappers, e.g.
+    // function_definition > pointer_declarator > function_declarator > identifier.
+    // Follow the `declarator` field so we never descend into parameter lists.
+    let mut cur = node.child_by_field_name("declarator")?;
+    loop {
+        if let Some(name) = find_child_text(&cur, kinds, source) {
+            return Some(name);
+        }
+        cur = cur.child_by_field_name("declarator")?;
+    }
 }
 
 /// Truncate a string to at most `max` chars, appending "..." if truncated.

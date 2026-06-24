@@ -408,6 +408,35 @@ fn helper() { validate(0); }
     }
 
     #[tokio::test]
+    async fn c_call_graph_resolves_caller() {
+        let tmp = tempdir().unwrap();
+        fs::write(
+            tmp.path().join("main.c"),
+            "#include <stdio.h>\nint validate(int x) { return x > 0; }\nchar *process(void) {\n    validate(1);\n    return 0;\n}\n",
+        )
+        .unwrap();
+
+        let client = AnalyzeClient::new(ctx()).unwrap();
+        let result = client.analyze(
+            AnalyzeParams {
+                path: tmp.path().to_str().unwrap().into(),
+                focus: Some("validate".into()),
+                max_depth: 3,
+                follow_depth: 2,
+                force: false,
+            },
+            tmp.path().to_path_buf(),
+        );
+        let out = text(&result);
+
+        assert!(out.contains("FOCUS: validate"));
+        // The call to validate must be attributed to process(), not <module>,
+        // even though the C name is nested inside a pointer/function declarator.
+        assert!(out.contains("process"));
+        assert!(!out.contains("<module>"));
+    }
+
+    #[tokio::test]
     async fn error_and_edge() {
         let client = AnalyzeClient::new(ctx()).unwrap();
 
