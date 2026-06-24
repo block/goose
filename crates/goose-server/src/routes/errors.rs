@@ -5,7 +5,6 @@ use axum::{
 };
 use goose::config::ConfigError;
 use goose_providers::errors::ProviderError;
-use goose_providers::model::ConfigError as ModelConfigError;
 use serde::Serialize;
 use utoipa::ToSchema;
 
@@ -74,12 +73,6 @@ impl From<ConfigError> for ErrorResponse {
             ConfigError::NotFound(key) => Self::not_found(format!("Config key not found: {}", key)),
             _ => Self::internal(err.to_string()),
         }
-    }
-}
-
-impl From<ModelConfigError> for ErrorResponse {
-    fn from(err: ModelConfigError) -> Self {
-        Self::internal(format!("Model configuration error: {}", err))
     }
 }
 

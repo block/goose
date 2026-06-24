@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "View extensions"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "Waiting for cancellation to finish"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "Waiting for images to save..."
   },
@@ -804,10 +807,10 @@
     "defaultMessage": "Configuration settings"
   },
   "diagnosticsModal.description": {
-    "defaultMessage": "You can download a diagnostics zip file to share with the team, or file a bug directly on GitHub with your system details pre-filled. A diagnostics report contains the following:"
+    "defaultMessage": "You can download a diagnostics JSON report to share with the team, or file a bug directly on GitHub with your system details pre-filled. A diagnostics report contains the following:"
   },
   "diagnosticsModal.diagnosticsErrorMsg": {
-    "defaultMessage": "Failed to download diagnostics"
+    "defaultMessage": "Failed to download diagnostics report"
   },
   "diagnosticsModal.diagnosticsErrorTitle": {
     "defaultMessage": "Diagnostics Error"
@@ -4606,96 +4609,6 @@
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose would like to call {toolName}. Allow?"
-  },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "Scan this QR code with your iPhone camera to install the goose mobile app from the App Store"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "Close"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "Connection Details"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "Download goose iOS App"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "Failed to load tunnel status"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "Failed to start tunnel"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "Failed to stop tunnel"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "Get the iOS app"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "Mobile App"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "Mobile App Connection"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "Open in App Store"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "or"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "Enable remote access to goose from mobile devices using secure tunneling."
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "Preview feature:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "Scan this QR code with the goose mobile app. Do not share this code with anyone else as it is for your personal access."
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "Retry"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "scan QR code"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "Secret Key"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "Show QR Code"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Start Tunnel"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "Starting..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "Tunnel is disabled"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "Tunnel encountered an error"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "Tunnel is not running"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "Tunnel is active"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "Starting tunnel..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "Stop Tunnel"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "Tunnel Status"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "Tunnel URL"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL:"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "Goose will download the update in the background and install it the next time you quit or restart."

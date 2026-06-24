@@ -165,6 +165,31 @@ pub struct SteerSessionResponse {
     pub message_id: String,
 }
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/diagnostics/get",
+    response = DiagnosticsGetResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticsGetRequest {
+    pub session_id: String,
+    #[serde(default)]
+    pub level: DiagnosticsReportLevel,
+}
+
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DiagnosticsReportLevel {
+    #[default]
+    Summary,
+    Full,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct DiagnosticsGetResponse {
+    pub report: serde_json::Value,
+}
+
 /// Delete a session.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "session/delete", response = EmptyResponse)]

@@ -24,7 +24,6 @@ const NANOGPT_API_KEY: &str = "NANOGPT_API_KEY";
 pub struct NanoGptProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
 }
@@ -64,7 +63,6 @@ impl NanoGptProvider {
     }
 
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -83,7 +81,6 @@ impl NanoGptProvider {
 
         Ok(Self {
             api_client,
-            model,
             name: NANOGPT_PROVIDER_NAME.to_string(),
         })
     }
@@ -107,11 +104,10 @@ impl ProviderDef for NanoGptProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -119,10 +115,6 @@ impl ProviderDef for NanoGptProvider {
 impl Provider for NanoGptProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {

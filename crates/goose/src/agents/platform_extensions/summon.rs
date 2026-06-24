@@ -1528,7 +1528,7 @@ impl SummonClient {
         recipe: &Recipe,
         session: &crate::session::Session,
     ) -> Result<TaskConfig, anyhow::Error> {
-        let provider = self.resolve_provider(params, recipe, session).await?;
+        let (provider, model_config) = self.resolve_provider(params, recipe, session).await?;
 
         let mut extensions = EnabledExtensionsState::extensions_or_default(
             Some(&session.extension_data),
@@ -1574,9 +1574,14 @@ impl SummonClient {
             None => session.working_dir.clone(),
         };
 
-        let task_config =
-            TaskConfig::new(provider, &session.id, &effective_working_dir, extensions)
-                .with_max_turns(Some(max_turns));
+        let task_config = TaskConfig::new(
+            provider,
+            model_config,
+            &session.id,
+            &effective_working_dir,
+            extensions,
+        )
+        .with_max_turns(Some(max_turns));
 
         Ok(task_config)
     }
@@ -1614,7 +1619,6 @@ impl SummonClient {
                     crate::model_config::model_config_from_user_config(provider_name, &model)?;
                 cfg.toolshim = parent.toolshim;
                 cfg.toolshim_model = parent.toolshim_model;
-                cfg.fast_model_config = parent.fast_model_config;
                 cfg.temperature = cfg.temperature.or(parent.temperature);
                 if let Some(parent_params) = parent.request_params {
                     let merged = cfg.request_params.get_or_insert_with(Default::default);
@@ -1640,7 +1644,13 @@ impl SummonClient {
         params: &DelegateParams,
         recipe: &Recipe,
         session: &crate::session::Session,
-    ) -> Result<Arc<dyn crate::providers::base::Provider>, anyhow::Error> {
+    ) -> Result<
+        (
+            Arc<dyn crate::providers::base::Provider>,
+            goose_providers::model::ModelConfig,
+        ),
+        anyhow::Error,
+    > {
         let provider_name = params
             .provider
             .clone()
@@ -1659,7 +1669,8 @@ impl SummonClient {
             .ok_or_else(|| anyhow::anyhow!("No provider configured"))?;
 
         let model_config = self.resolve_model_config(params, recipe, session, &provider_name)?;
-        providers::create(&provider_name, model_config, Vec::new()).await
+        let provider = providers::create(&provider_name, Vec::new()).await?;
+        Ok((provider, model_config))
     }
 
     fn resolve_max_turns(&self, session: &crate::session::Session) -> usize {
@@ -2577,9 +2588,7 @@ You review code."#;
     }
 
     fn parent_config() -> goose_providers::model::ModelConfig {
-        goose_providers::model::ModelConfig::new(PARENT_MODEL)
-            .unwrap()
-            .with_canonical_limits(PROVIDER)
+        goose_providers::model::ModelConfig::new(PARENT_MODEL).with_canonical_limits(PROVIDER)
     }
 
     #[tokio::test]
@@ -2593,7 +2602,6 @@ You review code."#;
 
         let parent = parent_config();
         let overridden = goose_providers::model::ModelConfig::new(OVERRIDE_MODEL)
-            .unwrap()
             .with_canonical_limits(PROVIDER);
         assert_ne!(parent.context_limit, overridden.context_limit);
         assert_ne!(parent.reasoning, overridden.reasoning);

@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "Ver extensiones"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "Esperando a que finalice la cancelación"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "Esperando a que se guarden las imágenes..."
   },
@@ -4606,96 +4609,6 @@
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose quiere invocar {toolName}. ¿Permitir?"
-  },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "Escanea este código QR con la cámara de tu iPhone para instalar la app móvil de goose desde la App Store"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "Cerrar"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "Detalles de conexión"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "Descargar la app de goose para iOS"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "No se pudo cargar el estado del túnel"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "No se pudo iniciar el túnel"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "No se pudo detener el túnel"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "Obtén la app para iOS"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "App móvil"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "Conexión de la app móvil"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "Abrir en la App Store"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "o"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "Activa el acceso remoto a goose desde dispositivos móviles mediante un túnel seguro."
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "Función en vista previa:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "Escanea este código QR con la app móvil de goose. No compartas este código con nadie, ya que es para tu acceso personal."
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "Reintentar"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "escanear código QR"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "Clave secreta"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "Mostrar código QR"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Iniciar túnel"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "Iniciando..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "El túnel está desactivado"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "El túnel encontró un error"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "El túnel no está en ejecución"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "El túnel está activo"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "Iniciando el túnel..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "Detener túnel"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "Estado del túnel"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "URL del túnel"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL:"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "La actualización se descargará automáticamente en segundo plano."

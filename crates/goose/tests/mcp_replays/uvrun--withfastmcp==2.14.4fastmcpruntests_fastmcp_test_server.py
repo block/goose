@@ -27,5 +27,5 @@ STDOUT: {"jsonrpc":"2.0","id":0,"result":{"protocolVersion":"2025-03-26","capabi
 STDIN: {"jsonrpc":"2.0","method":"notifications/initialized"}
 STDIN: {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"agent-session-id":"test-session-id","progressToken":0}}}
 STDOUT: {"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"divide","description":"Divide two numbers","inputSchema":{"type":"object","properties":{"dividend":{"type":"number"},"divisor":{"type":"number"}},"required":["dividend","divisor"]}}]}}
-STDIN: {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"_meta":{"agent-session-id":"test-session-id","progressToken":1},"name":"divide","arguments":{"dividend":10,"divisor":2}}}
+STDIN: {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"_meta":{"agent-session-id":"test-session-id","agent-tool-call-request-id":"test-id","progressToken":1},"name":"divide","arguments":{"dividend":10,"divisor":2}}}
 STDOUT: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"5.0"}],"structuredContent":{"result":5.0},"isError":false}}

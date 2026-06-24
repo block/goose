@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "查看扩展"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "正在等待取消完成"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "正在等待图片保存…"
   },
@@ -4606,96 +4609,6 @@
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose 想调用 {toolName}，允许吗？"
-  },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "用 iPhone 相机扫描此二维码，从 App Store 安装 goose 手机应用"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "关闭"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "连接详情"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "下载 goose iOS 应用"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "加载通道状态失败"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "启动通道失败"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "停止通道失败"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "获取 iOS 应用"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "移动应用"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "移动应用连接"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "在 App Store 中打开"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "或"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "使用安全通道从移动设备远程访问 goose。"
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "预览功能："
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "用 goose 手机应用扫描此二维码。请不要把此码分享给任何人，它仅用于你的个人访问。"
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "重试"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "扫描二维码"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "密钥"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "显示二维码"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "启动通道"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "启动中…"
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "通道已禁用"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "通道发生错误"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "通道未运行"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "通道已启用"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "正在启动通道…"
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "停止通道"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "通道状态"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "通道 URL"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL："
   },
   "updateSection.autoDownload": {
     "defaultMessage": "更新将在后台自动下载。"

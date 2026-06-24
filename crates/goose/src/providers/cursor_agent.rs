@@ -30,14 +30,12 @@ pub const CURSOR_AGENT_DOC_URL: &str = "https://docs.cursor.com/en/cli/overview"
 #[derive(Debug, serde::Serialize)]
 pub struct CursorAgentProvider {
     command: PathBuf,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
 }
 
 impl CursorAgentProvider {
     pub async fn from_env(
-        model: ModelConfig,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -46,7 +44,6 @@ impl CursorAgentProvider {
 
         Ok(Self {
             command: resolved_command,
-            model,
             name: CURSOR_AGENT_PROVIDER_NAME.to_string(),
         })
     }
@@ -182,6 +179,7 @@ impl CursorAgentProvider {
 
     async fn execute_command(
         &self,
+        model: &ModelConfig,
         system: &str,
         messages: &[Message],
         _tools: &[Tool],
@@ -197,7 +195,7 @@ impl CursorAgentProvider {
                 filter_extensions_from_system_prompt(system).len()
             );
             println!("Full prompt: {}", prompt);
-            println!("Model: {}", self.model.model_name);
+            println!("Model: {}", model.model_name);
             println!("================================");
         }
 
@@ -208,7 +206,7 @@ impl CursorAgentProvider {
             cmd.env("PATH", path);
         }
 
-        cmd.arg("--model").arg(&self.model.model_name);
+        cmd.arg("--model").arg(&model.model_name);
 
         cmd.arg("-p")
             .arg(&prompt)
@@ -303,11 +301,10 @@ impl ProviderDef for CursorAgentProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -315,11 +312,6 @@ impl ProviderDef for CursorAgentProvider {
 impl Provider for CursorAgentProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        // Return the model config with appropriate context limit for Cursor models
-        self.model.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -345,7 +337,9 @@ impl Provider for CursorAgentProvider {
             return Ok(stream_from_single_message(message, provider_usage));
         }
 
-        let lines = self.execute_command(system, messages, tools).await?;
+        let lines = self
+            .execute_command(model_config, system, messages, tools)
+            .await?;
 
         let (message, usage) = self.parse_cursor_agent_response(&lines)?;
 
@@ -362,7 +356,7 @@ impl Provider for CursorAgentProvider {
             "usage": usage
         });
 
-        let mut log = start_log(&self.model, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
         log.write(&response, Some(&usage))?;
 
         let provider_usage = ProviderUsage::new(model_config.model_name.clone(), usage);

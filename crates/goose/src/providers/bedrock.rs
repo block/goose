@@ -55,7 +55,6 @@ pub const BEDROCK_DEFAULT_MAX_RETRY_INTERVAL_MS: u64 = 120_000;
 pub struct BedrockProvider {
     #[serde(skip)]
     client: Client,
-    model: ModelConfig,
     #[serde(skip)]
     retry_config: RetryConfig,
     #[serde(skip)]
@@ -80,7 +79,6 @@ struct ConverseRequestParts {
 
 impl BedrockProvider {
     pub async fn from_env(
-        model: ModelConfig,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -173,7 +171,6 @@ impl BedrockProvider {
 
         Ok(Self {
             client,
-            model,
             retry_config,
             name: BEDROCK_PROVIDER_NAME.to_string(),
             region: resolved_region,
@@ -224,13 +221,13 @@ impl BedrockProvider {
         )
     }
 
-    fn should_enable_caching(&self) -> bool {
+    fn should_enable_caching(&self, model: &ModelConfig) -> bool {
         let config = crate::config::Config::global();
 
         let enabled = config
             .get_param::<bool>("BEDROCK_ENABLE_CACHING")
             .unwrap_or(false);
-        enabled && self.model.model_name.contains("anthropic.claude")
+        enabled && model.model_name.contains("anthropic.claude")
     }
 
     async fn post_mantle_streaming(
@@ -285,11 +282,12 @@ impl BedrockProvider {
     /// the tool configuration.
     fn build_request_parts(
         &self,
+        model: &ModelConfig,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<ConverseRequestParts, ProviderError> {
-        let enable_caching = self.should_enable_caching();
+        let enable_caching = self.should_enable_caching(model);
 
         let system_blocks = if enable_caching {
             vec![
@@ -332,26 +330,25 @@ impl BedrockProvider {
             system_blocks,
             messages: bedrock_messages,
             tool_config,
-            thinking_fields: bedrock_anthropic_thinking_fields(&self.model),
+            thinking_fields: bedrock_anthropic_thinking_fields(model),
         })
     }
 
     async fn converse(
         &self,
+        model: &ModelConfig,
         session_id: Option<&str>,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<(bedrock::Message, Option<bedrock::TokenUsage>), ProviderError> {
-        let model_name = &self.model.model_name;
-
-        let parts = self.build_request_parts(system, messages, tools)?;
+        let parts = self.build_request_parts(model, system, messages, tools)?;
 
         let mut request = self
             .client
             .converse()
             .set_system(Some(parts.system_blocks))
-            .model_id(model_name.to_string())
+            .model_id(&model.model_name)
             .set_messages(Some(parts.messages));
 
         if let Some(fields) = parts.thinking_fields {
@@ -431,6 +428,7 @@ impl BedrockProvider {
     /// receiver so [`Provider::stream`] can forward deltas incrementally.
     async fn converse_stream(
         &self,
+        model: &ModelConfig,
         session_id: Option<&str>,
         system: &str,
         messages: &[Message],
@@ -439,15 +437,13 @@ impl BedrockProvider {
         aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamOutput,
         ProviderError,
     > {
-        let model_name = &self.model.model_name;
-
-        let parts = self.build_request_parts(system, messages, tools)?;
+        let parts = self.build_request_parts(model, system, messages, tools)?;
 
         let mut request = self
             .client
             .converse_stream()
             .set_system(Some(parts.system_blocks))
-            .model_id(model_name.to_string())
+            .model_id(&model.model_name)
             .set_messages(Some(parts.messages));
 
         if let Some(fields) = parts.thinking_fields {
@@ -506,6 +502,7 @@ impl BedrockProvider {
     /// escape hatch.
     async fn stream_via_converse(
         &self,
+        model: &ModelConfig,
         session_id: Option<&str>,
         system: &str,
         messages: &[Message],
@@ -513,7 +510,7 @@ impl BedrockProvider {
         model_name: &str,
     ) -> Result<MessageStream, ProviderError> {
         let (bedrock_message, bedrock_usage) = self
-            .with_retry(|| self.converse(session_id, system, messages, tools))
+            .with_retry(|| self.converse(model, session_id, system, messages, tools))
             .await?;
 
         let usage = bedrock_usage
@@ -529,7 +526,7 @@ impl BedrockProvider {
             "messages": messages,
             "tools": tools
         });
-        let mut log = start_log(&self.model, &debug_payload)?;
+        let mut log = start_log(model, &debug_payload)?;
         log.write(
             &serde_json::to_value(&message).unwrap_or_default(),
             Some(&usage),
@@ -713,11 +710,10 @@ impl ProviderDef for BedrockProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -729,10 +725,6 @@ impl Provider for BedrockProvider {
 
     fn retry_config(&self) -> RetryConfig {
         self.retry_config.clone()
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -798,7 +790,14 @@ impl Provider for BedrockProvider {
         // Escape hatch: restore the previous blocking-Converse behaviour.
         if self.streaming_disabled() {
             return self
-                .stream_via_converse(session_id_opt, system, messages, tools, &model_name)
+                .stream_via_converse(
+                    model_config,
+                    session_id_opt,
+                    system,
+                    messages,
+                    tools,
+                    &model_name,
+                )
                 .await;
         }
 
@@ -806,7 +805,9 @@ impl Provider for BedrockProvider {
         // setup only — mid-stream errors are surfaced, not retried (matching
         // the Anthropic provider's behaviour).
         let response = self
-            .with_retry(|| self.converse_stream(session_id_opt, system, messages, tools))
+            .with_retry(|| {
+                self.converse_stream(model_config, session_id_opt, system, messages, tools)
+            })
             .await?;
 
         // Debug trace with input context; the streamed text is written once
@@ -816,7 +817,7 @@ impl Provider for BedrockProvider {
             "messages": messages,
             "tools": tools
         });
-        let mut log = start_log(&self.model, &debug_payload)?;
+        let mut log = start_log(model_config, &debug_payload)?;
 
         let mut event_stream = response.stream;
 
@@ -909,33 +910,34 @@ mod tests {
     use goose_providers::base::ProviderDescriptor as _;
     use serial_test::serial;
 
-    fn create_mock_provider(model_name: &str) -> BedrockProvider {
+    fn create_mock_provider_and_model(model_name: &str) -> (BedrockProvider, ModelConfig) {
         let sdk_config = aws_config::SdkConfig::builder()
             .behavior_version(aws_config::BehaviorVersion::latest())
             .region(aws_config::Region::new("us-east-1"))
             .build();
         let client = Client::new(&sdk_config);
 
-        BedrockProvider {
-            client,
-            model: ModelConfig {
+        (
+            BedrockProvider {
+                client,
+                retry_config: RetryConfig::default(),
+                name: "aws_bedrock".to_string(),
+                region: None,
+                bearer_token: None,
+                http_client: reqwest::Client::new(),
+                mantle_base_url: None,
+            },
+            ModelConfig {
                 model_name: model_name.to_string(),
                 context_limit: None,
                 temperature: None,
                 max_tokens: None,
                 toolshim: false,
                 toolshim_model: None,
-                fast_model_config: None,
                 request_params: None,
                 reasoning: None,
             },
-            retry_config: RetryConfig::default(),
-            name: "aws_bedrock".to_string(),
-            region: None,
-            bearer_token: None,
-            http_client: reqwest::Client::new(),
-            mantle_base_url: None,
-        }
+        )
     }
 
     #[test]
@@ -1001,23 +1003,10 @@ mod tests {
     }
 
     #[test]
-    #[serial]
-    fn test_caching_disabled_by_default() {
-        // Ensure clean environment
-        std::env::remove_var("BEDROCK_ENABLE_CACHING");
-
-        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        assert!(
-            !provider.should_enable_caching(),
-            "Caching should be disabled by default"
-        );
-    }
-
-    #[test]
     fn test_caching_disabled_for_non_claude_models() {
-        let provider = create_mock_provider("amazon.titan-text-express-v1");
+        let (provider, model) = create_mock_provider_and_model("amazon.titan-text-express-v1");
         assert!(
-            !provider.should_enable_caching(),
+            !provider.should_enable_caching(&model),
             "Caching should be disabled for non-Claude models"
         );
     }
@@ -1027,9 +1016,10 @@ mod tests {
     fn test_caching_enabled_for_claude_model() {
         std::env::set_var("BEDROCK_ENABLE_CACHING", "true");
 
-        let provider = create_mock_provider("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let (provider, model) =
+            create_mock_provider_and_model("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
         assert!(
-            provider.should_enable_caching(),
+            provider.should_enable_caching(&model),
             "Caching should be enabled for Claude models when BEDROCK_ENABLE_CACHING=true"
         );
 
@@ -1038,7 +1028,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_mantle_streaming_missing_region() {
-        let provider = create_mock_provider("openai.gpt-5.5");
+        let (provider, _) = create_mock_provider_and_model("openai.gpt-5.5");
         let payload = serde_json::json!({"model": "openai.gpt-5.5"});
         let result = provider.post_mantle_streaming(None, &payload).await;
         assert!(result.is_err());
@@ -1055,7 +1045,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_post_mantle_streaming_missing_bearer_token() {
-        let mut provider = create_mock_provider("openai.gpt-5.5");
+        let (mut provider, _) = create_mock_provider_and_model("openai.gpt-5.5");
         provider.region = Some("us-east-1".to_string());
 
         let payload = serde_json::json!({"model": "openai.gpt-5.5"});
@@ -1099,9 +1089,9 @@ mod tests {
             .region(aws_config::Region::new("us-east-1"))
             .build();
 
+        let model = ModelConfig::new("openai.gpt-5.5");
         let provider = BedrockProvider {
             client: Client::new(&sdk_config),
-            model: ModelConfig::new("openai.gpt-5.5").unwrap(),
             retry_config: RetryConfig::default(),
             name: "aws_bedrock".to_string(),
             region: Some("us-east-1".to_string()),
@@ -1112,7 +1102,7 @@ mod tests {
 
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
         let mut stream = provider
-            .stream(&provider.model.clone(), "", "", &messages, &[])
+            .stream(&model.clone(), "", "", &messages, &[])
             .await
             .unwrap();
 

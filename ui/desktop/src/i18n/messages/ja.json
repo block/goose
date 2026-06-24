@@ -203,6 +203,9 @@
   "chatInput.viewExtensions": {
     "defaultMessage": "拡張機能を表示"
   },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "キャンセルの完了を待機中"
+  },
   "chatInput.waitingForImages": {
     "defaultMessage": "画像の保存を待機中..."
   },
@@ -4606,96 +4609,6 @@
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Gooseが{toolName}を実行しようとしています。許可しますか？"
-  },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "このQRコードをiPhoneのカメラでスキャンして、App Storeからgooseモバイルアプリをインストールしてください"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "閉じる"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "接続の詳細"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "goose iOSアプリをダウンロード"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "トンネルステータスの読み込みに失敗しました"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "トンネルの開始に失敗しました"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "トンネルの停止に失敗しました"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "iOSアプリを入手"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "モバイルアプリ"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "モバイルアプリ接続"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "App Storeで開く"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "または"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "安全なトンネリングを使用して、モバイルデバイスからgooseへリモートアクセスできるようにします。"
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "プレビュー機能:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "このQRコードをgooseモバイルアプリでスキャンしてください。このコードは個人アクセス用です。他人と共有しないでください。"
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "再試行"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "QRコードをスキャン"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "シークレットキー"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "QRコードを表示"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "トンネルを開始"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "開始中..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "トンネルは無効です"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "トンネルでエラーが発生しました"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "トンネルは実行されていません"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "トンネルは実行中です"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "トンネルを開始中..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "トンネルを停止"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "トンネルステータス"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "トンネルURL"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL:"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "アップデートはバックグラウンドで自動的にダウンロードされます。"

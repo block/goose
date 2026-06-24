@@ -67,9 +67,24 @@ function expectOnlyMessagesChange(chatStateChanges: AcpChatStateChange[]): Messa
   return chatStateChange.messages;
 }
 
-function expectOnlyNotificationChange(
-  chatStateChanges: AcpChatStateChange[]
-): NotificationEvent {
+function expectMessagesAndLocalSteerConfirmation(
+  chatStateChanges: AcpChatStateChange[],
+  messageId: string
+): Message[] {
+  expect(chatStateChanges).toHaveLength(2);
+
+  const [messagesChange, confirmationChange] = chatStateChanges;
+  expect(messagesChange.type).toBe('messages');
+  expect(confirmationChange).toEqual({ type: 'localSteerConfirmed', messageId });
+
+  if (messagesChange.type !== 'messages') {
+    throw new Error('expected messages state change');
+  }
+
+  return messagesChange.messages;
+}
+
+function expectOnlyNotificationChange(chatStateChanges: AcpChatStateChange[]): NotificationEvent {
   expect(chatStateChanges).toHaveLength(1);
 
   const [chatStateChange] = chatStateChanges;
@@ -119,6 +134,132 @@ describe('createAcpSessionNotificationAdapter', () => {
 
         expect(messages).toHaveLength(1);
         expect(firstContent(messages[0])).toMatchObject({ type: 'text', text: 'Hell' });
+      });
+
+      it('reconciles locally rendered steer text with server chunks', () => {
+        const adapter = createAcpSessionNotificationAdapter([
+          {
+            id: 'steer-1',
+            role: 'user',
+            created: 123,
+            content: [
+              { type: 'text', text: 'hello' },
+              { type: 'image', data: 'base64-image', mimeType: 'image/png' },
+            ],
+            metadata: { userVisible: true, agentVisible: true, steer: true },
+          },
+        ]);
+
+        let messages = expectMessagesAndLocalSteerConfirmation(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'user_message_chunk',
+              content: { type: 'text', text: 'hel' },
+              _meta: {
+                goose: {
+                  messageId: 'steer-1',
+                  steer: true,
+                },
+              },
+            } as SessionNotification['update'])
+          ),
+          'steer-1'
+        );
+
+        expect(firstContent(messages[0])).toMatchObject({ type: 'text', text: 'hel' });
+        expect(messages[0].content[1]).toMatchObject({
+          type: 'image',
+          data: 'base64-image',
+          mimeType: 'image/png',
+        });
+        expect(messages[0].metadata.steer).toBe(true);
+
+        messages = expectMessagesAndLocalSteerConfirmation(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'user_message_chunk',
+              content: { type: 'text', text: 'lo' },
+              _meta: {
+                goose: {
+                  messageId: 'steer-1',
+                  steer: true,
+                },
+              },
+            } as SessionNotification['update'])
+          ),
+          'steer-1'
+        );
+
+        expect(firstContent(messages[0])).toMatchObject({ type: 'text', text: 'hello' });
+
+        messages = expectMessagesAndLocalSteerConfirmation(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'user_message_chunk',
+              content: { type: 'image', data: 'base64-image', mimeType: 'image/png' },
+              _meta: {
+                goose: {
+                  messageId: 'steer-1',
+                  steer: true,
+                },
+              },
+            } as SessionNotification['update'])
+          ),
+          'steer-1'
+        );
+
+        expect(messages[0].content).toEqual([
+          { type: 'text', text: 'hello' },
+          { type: 'image', data: 'base64-image', mimeType: 'image/png' },
+        ]);
+      });
+
+      it('appends repeated local steer text deltas without collapsing them', () => {
+        const adapter = createAcpSessionNotificationAdapter([
+          {
+            id: 'steer-1',
+            role: 'user',
+            created: 123,
+            content: [{ type: 'text', text: 'haha' }],
+            metadata: { userVisible: true, agentVisible: true, steer: true },
+          },
+        ]);
+
+        let messages = expectMessagesAndLocalSteerConfirmation(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'user_message_chunk',
+              content: { type: 'text', text: 'ha' },
+              _meta: {
+                goose: {
+                  messageId: 'steer-1',
+                  steer: true,
+                },
+              },
+            } as SessionNotification['update'])
+          ),
+          'steer-1'
+        );
+
+        expect(firstContent(messages[0])).toMatchObject({ type: 'text', text: 'ha' });
+
+        messages = expectMessagesAndLocalSteerConfirmation(
+          adapter.apply(
+            acpUpdate({
+              sessionUpdate: 'user_message_chunk',
+              content: { type: 'text', text: 'ha' },
+              _meta: {
+                goose: {
+                  messageId: 'steer-1',
+                  steer: true,
+                },
+              },
+            } as SessionNotification['update'])
+          ),
+          'steer-1'
+        );
+
+        expect(firstContent(messages[0])).toMatchObject({ type: 'text', text: 'haha' });
       });
 
       it('maps image and thinking chunks to existing message content shapes', () => {

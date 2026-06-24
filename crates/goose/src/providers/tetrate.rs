@@ -40,7 +40,6 @@ pub const TETRATE_KNOWN_MODELS: &[&str] = &[
 pub struct TetrateProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     supports_streaming: bool,
     #[serde(skip)]
     name: String,
@@ -48,7 +47,6 @@ pub struct TetrateProvider {
 
 impl TetrateProvider {
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -64,7 +62,6 @@ impl TetrateProvider {
 
         Ok(Self {
             api_client,
-            model,
             supports_streaming: true,
             name: TETRATE_PROVIDER_NAME.to_string(),
         })
@@ -119,11 +116,10 @@ impl ProviderDef for TetrateProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -131,10 +127,6 @@ impl ProviderDef for TetrateProvider {
 impl Provider for TetrateProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn stream(

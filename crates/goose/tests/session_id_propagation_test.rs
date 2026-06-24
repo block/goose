@@ -42,8 +42,7 @@ fn create_test_provider(mock_server_url: &str) -> Box<dyn Provider> {
         None,
     )
     .unwrap();
-    let model = ModelConfig::new_or_fail("gpt-5-nano");
-    Box::new(OpenAiProvider::new(api_client, model))
+    Box::new(OpenAiProvider::new(api_client))
 }
 
 async fn setup_mock_server() -> (MockServer, HeaderCapture, Box<dyn Provider>) {
@@ -144,7 +143,7 @@ async fn setup_mock_server() -> (MockServer, HeaderCapture, Box<dyn Provider>) {
 
 async fn make_request(provider: &dyn Provider, session_id: &str) {
     let message = Message::user().with_text("test message");
-    let model_config = provider.get_model_config();
+    let model_config = ModelConfig::new("gpt-5-nano");
     let _ = provider
         .complete(
             &model_config,

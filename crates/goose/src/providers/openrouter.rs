@@ -40,7 +40,6 @@ pub const OPENROUTER_DOC_URL: &str = "https://openrouter.ai/models";
 pub struct OpenRouterProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     supports_streaming: bool,
     #[serde(skip)]
     name: String,
@@ -48,15 +47,8 @@ pub struct OpenRouterProvider {
 
 impl OpenRouterProvider {
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
-        let model = crate::model_config::with_configured_fast_model(
-            model,
-            OPENROUTER_PROVIDER_NAME,
-            OPENROUTER_DEFAULT_FAST_MODEL,
-        )?;
-
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
         let host: String = config
@@ -70,7 +62,6 @@ impl OpenRouterProvider {
 
         Ok(Self {
             api_client,
-            model,
             supports_streaming: true,
             name: OPENROUTER_PROVIDER_NAME.to_string(),
         })
@@ -179,6 +170,7 @@ impl goose_providers::base::ProviderDescriptor for OpenRouterProvider {
             "Click 'Create' or use an existing API key",
             "Copy the key and paste it above",
         ])
+        .with_fast_model(OPENROUTER_DEFAULT_FAST_MODEL)
     }
 }
 
@@ -186,11 +178,10 @@ impl ProviderDef for OpenRouterProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -198,10 +189,6 @@ impl ProviderDef for OpenRouterProvider {
 impl Provider for OpenRouterProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     /// Fetch supported models from OpenRouter API (only models with tool support)
@@ -252,12 +239,6 @@ impl Provider for OpenRouterProvider {
         Ok(models)
     }
 
-    async fn supports_cache_control(&self) -> bool {
-        self.model
-            .model_name
-            .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -282,7 +263,7 @@ impl Provider for OpenRouterProvider {
             }
         }
 
-        if self.supports_cache_control().await {
+        if supports_cache_control(model_config) {
             payload = update_request_for_anthropic(&payload);
         }
 
@@ -312,4 +293,10 @@ impl Provider for OpenRouterProvider {
 
         stream_openai_compat(response, log)
     }
+}
+
+fn supports_cache_control(model: &ModelConfig) -> bool {
+    model
+        .model_name
+        .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
 }

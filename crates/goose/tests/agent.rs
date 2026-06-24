@@ -373,6 +373,7 @@ mod tests {
                     config_keys: vec![],
                     setup_steps: vec![],
                     model_selection_hint: None,
+                    fast_model: None,
                 }
             }
         }
@@ -381,7 +382,6 @@ mod tests {
             type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
                 _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
@@ -411,10 +411,6 @@ mod tests {
                 Ok(stream_from_single_message(message, usage))
             }
 
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model").unwrap()
-            }
-
             fn get_name(&self) -> &str {
                 "mock-test"
             }
@@ -437,7 +433,9 @@ mod tests {
                 )
                 .await?;
 
-            agent.update_provider(provider, &session.id).await?;
+            agent
+                .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
+                .await?;
 
             let session_config = SessionConfig {
                 id: session.id,
@@ -546,6 +544,7 @@ mod tests {
                     config_keys: vec![],
                     setup_steps: vec![],
                     model_selection_hint: None,
+                    fast_model: None,
                 }
             }
         }
@@ -554,7 +553,6 @@ mod tests {
             type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
                 _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
@@ -586,10 +584,6 @@ mod tests {
                     Usage::new(Some(10), Some(5), Some(15)),
                 );
                 Ok(stream_from_single_message(message, usage))
-            }
-
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model").unwrap()
             }
 
             fn get_name(&self) -> &str {
@@ -624,7 +618,9 @@ mod tests {
                 )
                 .await?;
 
-            agent.update_provider(provider, &session.id).await?;
+            agent
+                .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
+                .await?;
 
             // Pre-populate 13 tool pairs (need > cutoff + batch_size = 12 to trigger).
             // Timestamps in the past so DB ordering places summaries before current turn.
@@ -901,6 +897,7 @@ mod tests {
                     config_keys: vec![],
                     setup_steps: vec![],
                     model_selection_hint: None,
+                    fast_model: None,
                 }
             }
         }
@@ -909,7 +906,6 @@ mod tests {
             type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
                 _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
@@ -978,10 +974,6 @@ mod tests {
                 }
             }
 
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model").unwrap()
-            }
-
             fn get_name(&self) -> &str {
                 "multi-step-mock"
             }
@@ -1013,7 +1005,9 @@ mod tests {
                 .await?;
 
             let session_id = session.id.clone();
-            agent.update_provider(provider, &session_id).await?;
+            agent
+                .update_provider(provider, ModelConfig::new("mock-model"), &session_id)
+                .await?;
 
             // ── Single reply: tool call (call 0) → text stream (call 1) → cancelled text (call 2)
             // max_turns=3 allows all three provider calls within one reply().
@@ -1174,6 +1168,7 @@ mod tests {
                     config_keys: vec![],
                     setup_steps: vec![],
                     model_selection_hint: None,
+                    fast_model: None,
                 }
             }
         }
@@ -1182,7 +1177,6 @@ mod tests {
             type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
                 _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
@@ -1208,10 +1202,6 @@ mod tests {
                     Usage::new(Some(10), Some(5), Some(15)),
                 );
                 Ok(stream_from_single_message(message, usage))
-            }
-
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model").unwrap()
             }
 
             fn get_name(&self) -> &str {
@@ -1249,7 +1239,13 @@ mod tests {
                 )
                 .await?;
 
-            agent.update_provider(provider.clone(), &session.id).await?;
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
             agent
                 .set_goal(Some("Ensure the sky is blue".to_string()))
                 .await;
@@ -1325,7 +1321,13 @@ mod tests {
                 )
                 .await?;
 
-            agent.update_provider(provider.clone(), &session.id).await?;
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
 
             let session_config = SessionConfig {
                 id: session.id.clone(),
@@ -1415,7 +1417,13 @@ mod tests {
                     GooseMode::default(),
                 )
                 .await?;
-            agent.update_provider(provider.clone(), &session.id).await?;
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
 
             let session_config = SessionConfig {
                 id: session.id.clone(),
@@ -1473,7 +1481,13 @@ mod tests {
                     GooseMode::default(),
                 )
                 .await?;
-            agent.update_provider(provider.clone(), &session.id).await?;
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
 
             let session_config = SessionConfig {
                 id: session.id.clone(),
@@ -1545,10 +1559,6 @@ mod tests {
                 Ok(stream_from_single_message(message, usage))
             }
 
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model").unwrap()
-            }
-
             fn get_name(&self) -> &str {
                 "fixed-usage-mock"
             }
@@ -1599,7 +1609,13 @@ mod tests {
                 .await?;
 
             let session_id = session.id.clone();
-            agent.update_provider(provider.clone(), &session_id).await?;
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session_id,
+                )
+                .await?;
 
             run_turn(&agent, &session_id, "Turn 1").await?;
             let after_1 = session_manager.get_session(&session_id, false).await?;

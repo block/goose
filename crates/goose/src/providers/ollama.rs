@@ -52,7 +52,6 @@ const OLLAMA_MAX_RETRY_INTERVAL_MS: u64 = 15_000;
 pub struct OllamaProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     supports_streaming: bool,
     name: String,
     skip_canonical_filtering: bool,
@@ -131,7 +130,6 @@ pub(crate) fn ollama_host_configured(config: &crate::config::Config) -> bool {
 
 impl OllamaProvider {
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -170,7 +168,6 @@ impl OllamaProvider {
 
         Ok(Self {
             api_client,
-            model,
             supports_streaming: true,
             name: OLLAMA_PROVIDER_NAME.to_string(),
             skip_canonical_filtering: false,
@@ -178,7 +175,6 @@ impl OllamaProvider {
     }
 
     pub fn from_custom_config(
-        model: ModelConfig,
         config: DeclarativeProviderConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
@@ -230,15 +226,8 @@ impl OllamaProvider {
             ));
         }
 
-        let model = if let Some(ref fast_model_name) = config.fast_model {
-            crate::model_config::with_configured_fast_model(model, &config.name, fast_model_name)?
-        } else {
-            model
-        };
-
         Ok(Self {
             api_client,
-            model,
             supports_streaming,
             name: config.name.clone(),
             skip_canonical_filtering: config.skip_canonical_filtering,
@@ -273,11 +262,10 @@ impl ProviderDef for OllamaProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -289,10 +277,6 @@ impl Provider for OllamaProvider {
 
     fn skip_canonical_filtering(&self) -> bool {
         self.skip_canonical_filtering
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     fn retry_config(&self) -> RetryConfig {
@@ -522,9 +506,7 @@ mod tests {
     #[test]
     fn test_apply_ollama_options_uses_input_limit() {
         let _guard = env_lock::lock_env([("GOOSE_INPUT_LIMIT", Some("8192"))]);
-        let model_config = ModelConfig::new("qwen3")
-            .unwrap()
-            .with_context_limit(Some(16_000));
+        let model_config = ModelConfig::new("qwen3").with_context_limit(Some(16_000));
         let mut payload = json!({});
         apply_ollama_options(&mut payload, &model_config);
         assert_eq!(payload["options"]["num_ctx"], 8192);
@@ -533,9 +515,7 @@ mod tests {
     #[test]
     fn test_apply_ollama_options_falls_back_to_context_limit() {
         let _guard = env_lock::lock_env([("GOOSE_INPUT_LIMIT", None::<&str>)]);
-        let model_config = ModelConfig::new("qwen3")
-            .unwrap()
-            .with_context_limit(Some(12_000));
+        let model_config = ModelConfig::new("qwen3").with_context_limit(Some(12_000));
         let mut payload = json!({});
         apply_ollama_options(&mut payload, &model_config);
         assert_eq!(payload["options"]["num_ctx"], 12_000);
@@ -544,7 +524,7 @@ mod tests {
     #[test]
     fn test_apply_ollama_options_skips_when_no_limit() {
         let _guard = env_lock::lock_env([("GOOSE_INPUT_LIMIT", None::<&str>)]);
-        let mut model_config = ModelConfig::new("qwen3").unwrap();
+        let mut model_config = ModelConfig::new("qwen3");
         model_config.context_limit = None;
         let mut payload = json!({});
         apply_ollama_options(&mut payload, &model_config);
@@ -555,9 +535,7 @@ mod tests {
     fn test_raw_create_request_contains_unsupported_ollama_fields() {
         use crate::providers::formats::ollama::create_request;
 
-        let model_config = ModelConfig::new("llama3.1")
-            .unwrap()
-            .with_max_tokens(Some(4096));
+        let model_config = ModelConfig::new("llama3.1").with_max_tokens(Some(4096));
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let payload = create_request(
@@ -588,9 +566,7 @@ mod tests {
             ("GOOSE_INPUT_LIMIT", None::<&str>),
             ("OLLAMA_STREAM_USAGE", None::<&str>),
         ]);
-        let model_config = ModelConfig::new("llama3.1")
-            .unwrap()
-            .with_max_tokens(Some(4096));
+        let model_config = ModelConfig::new("llama3.1").with_max_tokens(Some(4096));
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let mut payload = create_request(
@@ -632,9 +608,7 @@ mod tests {
             ("GOOSE_INPUT_LIMIT", None::<&str>),
             ("OLLAMA_STREAM_USAGE", Some("false")),
         ]);
-        let model_config = ModelConfig::new("llama3.1")
-            .unwrap()
-            .with_max_tokens(Some(4096));
+        let model_config = ModelConfig::new("llama3.1").with_max_tokens(Some(4096));
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
         let mut payload = create_request(

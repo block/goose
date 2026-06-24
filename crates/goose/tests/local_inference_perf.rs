@@ -24,10 +24,8 @@ fn test_model() -> String {
 #[tokio::test]
 #[ignore]
 async fn test_local_inference_cold_vs_warm() {
-    let model_config = ModelConfig::new(test_model())
-        .expect("valid model config")
-        .with_max_tokens(Some(20));
-    let provider = create("local", model_config.clone(), Vec::new())
+    let model_config = ModelConfig::new(test_model()).with_max_tokens(Some(20));
+    let provider = create("local", Vec::new())
         .await
         .expect("provider creation should succeed");
 

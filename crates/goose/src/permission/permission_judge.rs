@@ -10,6 +10,28 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
 
+async fn resolve_model_config(
+    session_manager: &crate::session::SessionManager,
+    session_id: &str,
+) -> anyhow::Result<goose_providers::model::ModelConfig> {
+    if !session_id.is_empty() {
+        if let Ok(session) = session_manager.get_session(session_id, false).await {
+            if let Some(model_config) = session.model_config {
+                return Ok(model_config);
+            }
+        }
+    }
+
+    let config = crate::config::Config::global();
+    let provider_name = config
+        .get_goose_provider()
+        .map_err(|_| anyhow::anyhow!("missing provider"))?;
+    let model_name = config
+        .get_goose_model()
+        .map_err(|_| anyhow::anyhow!("missing model"))?;
+    crate::model_config::model_config_from_user_config(&provider_name, &model_name)
+}
+
 #[derive(Serialize)]
 struct PermissionJudgeContext {
     // Empty struct for now since the current template doesn't need variables
@@ -121,6 +143,7 @@ fn extract_read_only_tools(response: &Message) -> Option<Vec<String>> {
 /// Executes the read-only tools detection and returns the list of tools with read-only operations.
 pub async fn detect_read_only_tools(
     provider: Arc<dyn Provider>,
+    session_manager: &crate::session::SessionManager,
     session_id: &str,
     tool_requests: Vec<&ToolRequest>,
 ) -> Vec<String> {
@@ -134,7 +157,13 @@ pub async fn detect_read_only_tools(
     let system_prompt = render_template("permission_judge.md", &context)
         .unwrap_or_else(|_| "You are a good analyst and can detect operations whether they have read-only operations.".to_string());
 
-    let model_config = provider.get_model_config();
+    let model_config = match resolve_model_config(session_manager, session_id).await {
+        Ok(config) => config,
+        Err(e) => {
+            tracing::warn!("Could not resolve model config for permission judge: {e}");
+            return vec![];
+        }
+    };
     let res = provider
         .complete(
             &model_config,
