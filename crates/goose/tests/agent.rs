@@ -1169,6 +1169,7 @@ mod tests {
                     config_keys: vec![],
                     setup_steps: vec![],
                     model_selection_hint: None,
+                    fast_model: None,
                 }
             }
         }
@@ -1177,7 +1178,6 @@ mod tests {
             type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
                 _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
@@ -1225,10 +1225,6 @@ mod tests {
                 }
             }
 
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model").unwrap()
-            }
-
             fn get_name(&self) -> &str {
                 self.name
             }
@@ -1258,7 +1254,9 @@ mod tests {
                 .await?;
 
             let session_id = session.id.clone();
-            agent.update_provider(provider, &session_id).await?;
+            agent
+                .update_provider(provider, ModelConfig::new("mock-model"), &session_id)
+                .await?;
 
             let session_config = SessionConfig {
                 id: session_id.clone(),
@@ -1372,6 +1370,7 @@ mod tests {
                     config_keys: vec![],
                     setup_steps: vec![],
                     model_selection_hint: None,
+                    fast_model: None,
                 }
             }
         }
@@ -1380,7 +1379,6 @@ mod tests {
             type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
                 _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
@@ -1424,10 +1422,6 @@ mod tests {
                 }
             }
 
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model").unwrap()
-            }
-
             fn get_name(&self) -> &str {
                 "combined-thinking-tool-mock"
             }
@@ -1461,7 +1455,9 @@ mod tests {
                 .await?;
 
             let session_id = session.id.clone();
-            agent.update_provider(provider, &session_id).await?;
+            agent
+                .update_provider(provider, ModelConfig::new("mock-model"), &session_id)
+                .await?;
 
             let session_config = SessionConfig {
                 id: session_id.clone(),
