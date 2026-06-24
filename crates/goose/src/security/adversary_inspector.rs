@@ -1,7 +1,7 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use chrono::Utc;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 
 use crate::agents::types::SharedProvider;
 use crate::config::paths::Paths;
@@ -12,6 +12,28 @@ use crate::tool_inspection::{InspectionAction, InspectionResult, ToolInspector};
 use crate::utils::safe_truncate;
 
 const DEFAULT_TOOLS: &[&str] = &["shell", "computercontroller__automation_script"];
+
+async fn resolve_model_config(
+    session_manager: &crate::session::SessionManager,
+    session_id: &str,
+) -> Result<goose_providers::model::ModelConfig> {
+    if !session_id.is_empty() {
+        if let Ok(session) = session_manager.get_session(session_id, false).await {
+            if let Some(model_config) = session.model_config {
+                return Ok(model_config);
+            }
+        }
+    }
+
+    let config = crate::config::Config::global();
+    let provider_name = config
+        .get_goose_provider()
+        .map_err(|_| anyhow::anyhow!("missing provider"))?;
+    let model_name = config
+        .get_goose_model()
+        .map_err(|_| anyhow::anyhow!("missing model"))?;
+    crate::model_config::model_config_from_user_config(&provider_name, &model_name)
+}
 
 const DEFAULT_RULES: &str = r#"BLOCK if the command:
 - Exfiltrates data (curl/wget posting to unknown URLs, piping secrets out)
@@ -50,22 +72,32 @@ struct AdversaryConfig {
 /// If the review fails, the inspector fails open (allows the tool call).
 pub struct AdversaryInspector {
     provider: SharedProvider,
+    session_manager: Arc<crate::session::SessionManager>,
     config: OnceLock<Option<AdversaryConfig>>,
     config_path: Option<std::path::PathBuf>,
 }
 
 impl AdversaryInspector {
-    pub fn new(provider: SharedProvider) -> Self {
+    pub fn new(
+        provider: SharedProvider,
+        session_manager: Arc<crate::session::SessionManager>,
+    ) -> Self {
         Self {
             provider,
+            session_manager,
             config: OnceLock::new(),
             config_path: None,
         }
     }
 
-    pub fn with_config_dir(provider: SharedProvider, config_dir: std::path::PathBuf) -> Self {
+    pub fn with_config_dir(
+        provider: SharedProvider,
+        session_manager: Arc<crate::session::SessionManager>,
+        config_dir: std::path::PathBuf,
+    ) -> Self {
         Self {
             provider,
+            session_manager,
             config: OnceLock::new(),
             config_path: Some(config_dir.join("adversary.md")),
         }
@@ -240,6 +272,7 @@ impl AdversaryInspector {
 
     async fn consult_llm(
         &self,
+        session_id: &str,
         tool_description: &str,
         original_task: &str,
         recent_messages: &[String],
@@ -290,11 +323,13 @@ impl AdversaryInspector {
         )];
         let conversation = Conversation::new_unvalidated(check_messages);
 
-        let model_config = provider.get_model_config();
+        let model_config = resolve_model_config(&self.session_manager, session_id)
+            .await
+            .map_err(|e| anyhow::anyhow!("Could not resolve model config: {}", e))?;
         let (response, _usage) = provider
             .complete(
                 &model_config,
-                "",
+                session_id,
                 system_prompt,
                 conversation.messages(),
                 &[],
@@ -358,7 +393,7 @@ impl ToolInspector for AdversaryInspector {
 
     async fn inspect(
         &self,
-        _session_id: &str,
+        session_id: &str,
         tool_requests: &[ToolRequest],
         messages: &[Message],
         _goose_mode: GooseMode,
@@ -380,6 +415,10 @@ impl ToolInspector for AdversaryInspector {
             }
 
             let tool_description = Self::format_tool_call(request);
+            let tool_call_name = match &request.tool_call {
+                Ok(tc) => tc.name.to_string(),
+                Err(_) => "unknown".to_string(),
+            };
 
             tracing::debug!(
                 tool_request_id = %request.id,
@@ -388,6 +427,7 @@ impl ToolInspector for AdversaryInspector {
 
             match self
                 .consult_llm(
+                    session_id,
                     &tool_description,
                     &original_task,
                     &recent_messages,
@@ -397,9 +437,13 @@ impl ToolInspector for AdversaryInspector {
             {
                 Ok((true, reason)) => {
                     tracing::debug!(
-                        tool_request_id = %request.id,
-                        reason = %reason,
-                        "Adversary: ALLOW"
+                        security.event_type = "adversary_detection",
+                        security.action = "ALLOW",
+                        security.confidence = 1.0_f32,
+                        security.explanation = %reason,
+                        tool.name = %tool_call_name,
+                        tool.request_id = %request.id,
+                        "adversary review: ALLOW"
                     );
                     results.push(InspectionResult {
                         tool_request_id: request.id.clone(),
@@ -412,9 +456,13 @@ impl ToolInspector for AdversaryInspector {
                 }
                 Ok((false, reason)) => {
                     tracing::warn!(
-                        tool_request_id = %request.id,
-                        reason = %reason,
-                        "Adversary: BLOCK"
+                        security.event_type = "adversary_detection",
+                        security.action = "BLOCK",
+                        security.confidence = 1.0_f32,
+                        security.explanation = %reason,
+                        tool.name = %tool_call_name,
+                        tool.request_id = %request.id,
+                        "adversary review: BLOCK"
                     );
                     results.push(InspectionResult {
                         tool_request_id: request.id.clone(),
@@ -427,9 +475,13 @@ impl ToolInspector for AdversaryInspector {
                 }
                 Err(e) => {
                     tracing::warn!(
-                        tool_request_id = %request.id,
-                        error = %e,
-                        "Adversary inspector failed, allowing tool call (fail-open)"
+                        security.event_type = "adversary_detection",
+                        security.action = "ALLOW",
+                        security.confidence = 0.0_f32,
+                        security.explanation = %format!("error (fail-open): {}", e),
+                        tool.name = %tool_call_name,
+                        tool.request_id = %request.id,
+                        "adversary review: error (fail-open)"
                     );
                     results.push(InspectionResult {
                         tool_request_id: request.id.clone(),
@@ -609,7 +661,14 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
 
         let provider: SharedProvider = Arc::new(Mutex::new(None));
-        let inspector = AdversaryInspector::with_config_dir(provider, tmp.path().to_path_buf());
+        let session_manager = Arc::new(crate::session::SessionManager::new(
+            tmp.path().to_path_buf(),
+        ));
+        let inspector = AdversaryInspector::with_config_dir(
+            provider,
+            session_manager,
+            tmp.path().to_path_buf(),
+        );
         assert!(!inspector.is_enabled());
 
         let request = ToolRequest {

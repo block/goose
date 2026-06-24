@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 use goose::agents::extension::{Envs, ExtensionConfig};
 use goose::agents::extension_manager::{ExtensionManager, ExtensionManagerCapabilities};
 use goose::agents::GoosePlatform;
-use goose::model::ModelConfig;
+use goose_providers::model::ModelConfig;
 
 use test_case::test_case;
 
@@ -21,9 +21,9 @@ use async_trait::async_trait;
 use goose::conversation::message::Message;
 use goose::providers::base::{
     stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
-    ProviderUsage, Usage,
 };
-use goose::providers::errors::ProviderError;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::errors::ProviderError;
 use once_cell::sync::Lazy;
 use std::process::Command;
 
@@ -40,29 +40,29 @@ struct Target {
     kind: Vec<String>,
 }
 
-#[derive(Clone)]
-pub struct MockProvider {
-    pub model_config: ModelConfig,
-}
+#[derive(Clone, Default)]
+pub struct MockProvider;
 
 impl MockProvider {
-    pub fn new(model_config: ModelConfig) -> Self {
-        Self { model_config }
+    pub fn new() -> Self {
+        Self
+    }
+}
+
+impl goose::providers::base::ProviderDescriptor for MockProvider {
+    fn metadata() -> ProviderMetadata {
+        ProviderMetadata::empty()
     }
 }
 
 impl ProviderDef for MockProvider {
     type Provider = Self;
 
-    fn metadata() -> ProviderMetadata {
-        ProviderMetadata::empty()
-    }
-
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<goose::config::ExtensionConfig>,
+        _tls_config: Option<goose::providers::api_client::TlsConfig>,
     ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
-        Box::pin(async move { Ok(Self::new(model)) })
+        Box::pin(async move { Ok(Self::new()) })
     }
 }
 
@@ -83,10 +83,6 @@ impl Provider for MockProvider {
         let message = Message::assistant().with_text("\"So we beat on, boats against the current, borne back ceaselessly into the past.\" — F. Scott Fitzgerald, The Great Gatsby (1925)");
         let usage = ProviderUsage::new("mock".to_string(), Usage::default());
         Ok(stream_from_single_message(message, usage))
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model_config.clone()
     }
 }
 
@@ -181,7 +177,11 @@ async fn test_replayed_session(
     tool_calls: Vec<CallToolRequestParams>,
     required_envs: Vec<&str>,
 ) {
-    std::env::set_var("GOOSE_MCP_CLIENT_VERSION", "0.0.0");
+    let _env = env_lock::lock_env([
+        ("GOOSE_MCP_CLIENT_VERSION", Some("0.0.0")),
+        ("GOOSE_PROVIDER", Some("openai")),
+        ("GOOSE_MODEL", Some("gpt-4o")),
+    ]);
 
     // Setup test file for developer extension tests
     let test_file_path = "/tmp/goose_test/goose.txt";
@@ -246,13 +246,14 @@ async fn test_replayed_session(
         envs,
         env_keys: vec![],
         timeout: Some(30),
+        cwd: None,
         bundled: Some(false),
         available_tools: vec![],
     };
 
-    let provider = Arc::new(tokio::sync::Mutex::new(Some(Arc::new(MockProvider {
-        model_config: ModelConfig::new("test-model").unwrap(),
-    }) as Arc<dyn Provider>)));
+    let provider = Arc::new(tokio::sync::Mutex::new(Some(
+        Arc::new(MockProvider::new()) as Arc<dyn Provider>
+    )));
     let temp_dir = tempfile::tempdir().unwrap();
     let session_manager = Arc::new(goose::session::SessionManager::new(
         temp_dir.path().to_path_buf(),

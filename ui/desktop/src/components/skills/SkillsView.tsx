@@ -5,12 +5,12 @@ import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Skeleton } from '../ui/skeleton';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
-import { getSlashCommands } from '../../api';
 import { errorMessage } from '../../utils/conversionUtils';
 import { getInitialWorkingDir } from '../../utils/workingDir';
 import { defineMessages, useIntl } from '../../i18n';
 import { SearchView } from '../conversation/SearchView';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
+import { listSkillSources } from '../../acp/sources';
 
 const i18n = defineMessages({
   errorLoadingSkills: {
@@ -118,16 +118,11 @@ export default function SkillsView() {
       setShowSkeleton(true);
       setShowContent(false);
       setError(null);
-      const response = await getSlashCommands({
-        query: { working_dir: getInitialWorkingDir() },
-        throwOnError: true,
-      });
-      const skillEntries: SkillEntry[] = (response.data?.commands ?? [])
-        .filter((cmd) => cmd.command_type === 'Skill')
-        .map((cmd) => ({
-          name: cmd.command,
-          description: cmd.help,
-        }));
+      const sources = await listSkillSources(getInitialWorkingDir());
+      const skillEntries: SkillEntry[] = sources.map((source) => ({
+        name: source.name,
+        description: source.description,
+      }));
       setSkills(skillEntries);
     } catch (err) {
       setError(errorMessage(err, 'Failed to load skills'));

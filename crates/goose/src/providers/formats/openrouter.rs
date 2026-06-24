@@ -1,6 +1,7 @@
 use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
-use crate::model::{ModelConfig, ThinkingEffort};
-use crate::providers::formats::openai;
+use goose_providers::formats::openai;
+use goose_providers::model::ModelConfig;
+use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::Role;
 use serde_json::{json, Value};
 
@@ -189,7 +190,7 @@ mod tests {
             "messages": [],
             "reasoning_effort": "high"
         });
-        let mut model_config = ModelConfig::new_or_fail("openai/gpt-5");
+        let mut model_config = ModelConfig::new("openai/gpt-5");
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("max"));
         model_config.request_params = Some(params);
@@ -206,7 +207,7 @@ mod tests {
             "model": "x-ai/grok-4",
             "messages": []
         });
-        let mut model_config = ModelConfig::new_or_fail("x-ai/grok-4");
+        let mut model_config = ModelConfig::new("x-ai/grok-4");
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("high"));
         model_config.request_params = Some(params);
@@ -223,7 +224,7 @@ mod tests {
             "model": "anthropic/claude-sonnet-4",
             "messages": []
         });
-        let mut model_config = ModelConfig::new_or_fail("anthropic/claude-sonnet-4");
+        let mut model_config = ModelConfig::new("anthropic/claude-sonnet-4");
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("high"));
         model_config.request_params = Some(params);
@@ -239,7 +240,7 @@ mod tests {
             "model": "openai/gpt-4o",
             "messages": []
         });
-        let mut model_config = ModelConfig::new_or_fail("openai/gpt-4o");
+        let mut model_config = ModelConfig::new("openai/gpt-4o");
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("high"));
         model_config.request_params = Some(params);
@@ -256,7 +257,7 @@ mod tests {
             "model": "x-ai/grok-4",
             "messages": []
         });
-        let mut model_config = ModelConfig::new_or_fail("x-ai/grok-4");
+        let mut model_config = ModelConfig::new("x-ai/grok-4");
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("off"));
         model_config.request_params = Some(params);

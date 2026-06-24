@@ -13,11 +13,14 @@ use rmcp::transport::AuthorizationManager;
 use serde::Deserialize;
 use std::net::SocketAddr;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::{oneshot, Mutex};
 use tracing::warn;
 
 const CALLBACK_TEMPLATE: &str = include_str!("oauth_callback.html");
 const CLIENT_METADATA_URL: &str = "https://goose-docs.ai/oauth/client-metadata.json";
+const DEFAULT_OAUTH_CALLBACK_TIMEOUT_SECS: u64 = 300;
+const OAUTH_CALLBACK_TIMEOUT_ENV: &str = "GOOSE_OAUTH_CALLBACK_TIMEOUT_SECONDS";
 
 #[derive(Clone)]
 struct AppState {
@@ -28,6 +31,55 @@ struct AppState {
 struct CallbackParams {
     code: String,
     state: String,
+}
+
+fn resolve_oauth_callback_timeout(value: Option<&str>) -> Duration {
+    value
+        .and_then(|value| value.trim().parse::<u64>().ok())
+        .filter(|seconds| *seconds > 0)
+        .map(Duration::from_secs)
+        .unwrap_or_else(|| Duration::from_secs(DEFAULT_OAUTH_CALLBACK_TIMEOUT_SECS))
+}
+
+fn oauth_callback_timeout() -> Duration {
+    let timeout = std::env::var(OAUTH_CALLBACK_TIMEOUT_ENV).ok();
+    resolve_oauth_callback_timeout(timeout.as_deref())
+}
+
+fn announce_authorization_url(name: &str, authorization_url: &str) {
+    warn!(
+        "[OAuth:{}] If the browser did not open, authorize manually at: {}",
+        name, authorization_url
+    );
+    eprintln!(
+        "If the browser did not open, authorize {} at:\n  {}",
+        name, authorization_url
+    );
+}
+
+async fn wait_for_callback(
+    code_receiver: oneshot::Receiver<CallbackParams>,
+    timeout_duration: Duration,
+    name: &str,
+    authorization_url: &str,
+) -> Result<CallbackParams, anyhow::Error> {
+    match tokio::time::timeout(timeout_duration, code_receiver).await {
+        Ok(Ok(params)) => Ok(params),
+        Ok(Err(e)) => Err(anyhow::anyhow!(
+            "OAuth authorization for {} ended before the callback was received: {}",
+            name,
+            e
+        )),
+        Err(_) => {
+            let message = format!(
+                "OAuth authorization for {} timed out waiting for the local callback. \
+                 Start the OAuth flow again and open this URL manually if the browser does not open: {}",
+                name, authorization_url
+            );
+            warn!("[OAuth:{}] {}", name, message);
+            Err(anyhow::anyhow!(message))
+        }
+    }
 }
 
 pub async fn oauth_flow(
@@ -83,7 +135,7 @@ pub async fn oauth_flow(
     let addr = SocketAddr::from(([127, 0, 0, 1], port));
     let listener = tokio::net::TcpListener::bind(addr).await?;
     let used_addr = listener.local_addr()?;
-    tokio::spawn(async move {
+    let server_handle = tokio::spawn(async move {
         let result = axum::serve(listener, app).await;
         if let Err(e) = result {
             eprintln!("Callback server error: {}", e);
@@ -103,15 +155,26 @@ pub async fn oauth_flow(
         .await?;
 
     let authorization_url = oauth_state.get_authorization_url().await?;
-    if webbrowser::open(authorization_url.as_str()).is_err() {
-        eprintln!("Open the following URL to authorize {}:", name);
-        eprintln!("  {}", authorization_url);
+    announce_authorization_url(name, authorization_url.as_str());
+    if let Err(e) = webbrowser::open(authorization_url.as_str()) {
+        warn!(
+            "[OAuth:{}] Failed to open browser automatically: {}",
+            name, e
+        );
     }
 
+    let callback_params = wait_for_callback(
+        code_receiver,
+        oauth_callback_timeout(),
+        name,
+        authorization_url.as_str(),
+    )
+    .await;
+    server_handle.abort();
     let CallbackParams {
         code: auth_code,
         state: csrf_token,
-    } = code_receiver.await?;
+    } = callback_params?;
     oauth_state.handle_callback(&auth_code, &csrf_token).await?;
 
     let (client_id, token_response) = oauth_state.get_credentials().await?;
@@ -143,4 +206,75 @@ pub async fn oauth_flow(
     auth_manager.set_credential_store(credential_store);
 
     Ok(auth_manager)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn resolve_oauth_callback_timeout_uses_default_for_missing_or_invalid_values() {
+        assert_eq!(
+            resolve_oauth_callback_timeout(None),
+            Duration::from_secs(DEFAULT_OAUTH_CALLBACK_TIMEOUT_SECS)
+        );
+        assert_eq!(
+            resolve_oauth_callback_timeout(Some("not-a-number")),
+            Duration::from_secs(DEFAULT_OAUTH_CALLBACK_TIMEOUT_SECS)
+        );
+        assert_eq!(
+            resolve_oauth_callback_timeout(Some("0")),
+            Duration::from_secs(DEFAULT_OAUTH_CALLBACK_TIMEOUT_SECS)
+        );
+    }
+
+    #[test]
+    fn resolve_oauth_callback_timeout_uses_positive_values() {
+        assert_eq!(
+            resolve_oauth_callback_timeout(Some("42")),
+            Duration::from_secs(42)
+        );
+    }
+
+    #[tokio::test]
+    async fn wait_for_callback_returns_received_callback_params() {
+        let (sender, receiver) = oneshot::channel();
+        sender
+            .send(CallbackParams {
+                code: "auth-code".to_string(),
+                state: "csrf-state".to_string(),
+            })
+            .unwrap();
+
+        let params = wait_for_callback(
+            receiver,
+            Duration::from_secs(1),
+            "test-server",
+            "https://auth.example/authorize",
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(params.code, "auth-code");
+        assert_eq!(params.state, "csrf-state");
+    }
+
+    #[tokio::test]
+    async fn wait_for_callback_times_out_with_authorization_url() {
+        let (_sender, receiver) = oneshot::channel();
+
+        let error = wait_for_callback(
+            receiver,
+            Duration::from_millis(1),
+            "test-server",
+            "https://auth.example/authorize",
+        )
+        .await
+        .unwrap_err();
+        let message = error.to_string();
+
+        assert!(message.contains("test-server"));
+        assert!(message.contains("timed out"));
+        assert!(message.contains("https://auth.example/authorize"));
+    }
 }

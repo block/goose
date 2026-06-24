@@ -1,10 +1,13 @@
 use crate::conversation::message::{Message, MessageContent};
 use crate::mcp_utils::extract_text_from_resource;
-use crate::model::{ModelConfig, ThinkingEffort};
-use crate::providers::base::Usage;
-use crate::providers::errors::ProviderError;
-use crate::providers::utils::{convert_image, ImageFormat};
+use crate::providers::canonical::maybe_get_canonical_model;
 use anyhow::{anyhow, Result};
+use goose_providers::canonical::ThinkingMode;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::errors::ProviderError;
+use goose_providers::images::{convert_image, ImageFormat};
+use goose_providers::model::ModelConfig;
+use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
 use serde_json::{json, Value};
@@ -12,6 +15,8 @@ use std::collections::HashSet;
 use std::fmt;
 use std::str::FromStr;
 use std::sync::Arc;
+
+pub(crate) const ANTHROPIC_PROVIDER_NAME: &str = "anthropic";
 
 macro_rules! string_enum {
     ($name:ident { $($variant:ident => $str:literal),+ $(,)? }) => {
@@ -47,16 +52,20 @@ pub struct AnthropicFormatOptions {
 impl AnthropicFormatOptions {
     fn for_model(self, model_config: &ModelConfig) -> Self {
         let preserve_thinking_context = model_config
-            .get_config_param::<bool>(
-                "preserve_thinking_context",
-                "ANTHROPIC_PRESERVE_THINKING_CONTEXT",
-            )
+            .request_param::<bool>("preserve_thinking_context")
+            .or_else(|| {
+                crate::config::Config::global()
+                    .get_param("ANTHROPIC_PRESERVE_THINKING_CONTEXT")
+                    .ok()
+            })
             .unwrap_or(self.preserve_thinking_context);
         let preserve_unsigned_thinking = model_config
-            .get_config_param::<bool>(
-                "preserve_unsigned_thinking",
-                "ANTHROPIC_PRESERVE_UNSIGNED_THINKING",
-            )
+            .request_param::<bool>("preserve_unsigned_thinking")
+            .or_else(|| {
+                crate::config::Config::global()
+                    .get_param("ANTHROPIC_PRESERVE_UNSIGNED_THINKING")
+                    .ok()
+            })
             .unwrap_or(self.preserve_unsigned_thinking)
             || preserve_thinking_context;
 
@@ -67,27 +76,51 @@ impl AnthropicFormatOptions {
     }
 }
 
-pub fn supports_adaptive_thinking(model_name: &str) -> bool {
-    let lower = model_name.to_lowercase();
-    lower.contains("claude-opus-4-6") || lower.contains("claude-sonnet-4-6")
+fn canonical_thinking_mode(provider_name: &str, model_name: &str) -> Option<ThinkingMode> {
+    maybe_get_canonical_model(provider_name, model_name).and_then(|model| model.thinking_mode)
+}
+
+fn canonical_reasoning(provider_name: &str, model_config: &ModelConfig) -> Option<bool> {
+    maybe_get_canonical_model(provider_name, &model_config.model_name)
+        .and_then(|model| model.reasoning)
+}
+
+pub fn model_supports_temperature(provider_name: &str, model_config: &ModelConfig) -> bool {
+    maybe_get_canonical_model(provider_name, &model_config.model_name)
+        .and_then(|model| model.temperature)
+        .unwrap_or(true)
 }
 
 pub fn thinking_type(model_config: &ModelConfig) -> ThinkingType {
-    let model_lower = model_config.model_name.to_lowercase();
-    if !model_lower.contains("claude") {
+    thinking_type_for_provider(ANTHROPIC_PROVIDER_NAME, model_config)
+}
+
+pub fn thinking_type_for_provider(provider_name: &str, model_config: &ModelConfig) -> ThinkingType {
+    let mode = canonical_thinking_mode(provider_name, &model_config.model_name);
+    let reasoning = model_config
+        .reasoning
+        .or_else(|| canonical_reasoning(provider_name, model_config));
+
+    if reasoning != Some(true) {
         return ThinkingType::Disabled;
     }
 
-    let is_adaptive_model = supports_adaptive_thinking(&model_config.model_name);
+    if mode == Some(ThinkingMode::AlwaysOnAdaptive) {
+        return ThinkingType::Adaptive;
+    }
+
     let effort = model_config.thinking_effort();
 
     if effort.is_none() && legacy_thinking_budget_tokens().is_some() {
-        return ThinkingType::Enabled;
+        return match mode {
+            Some(ThinkingMode::Adaptive) => ThinkingType::Adaptive,
+            _ => ThinkingType::Enabled,
+        };
     }
 
     match effort.unwrap_or(ThinkingEffort::Off) {
         ThinkingEffort::Off => ThinkingType::Disabled,
-        _ if is_adaptive_model => ThinkingType::Adaptive,
+        _ if mode == Some(ThinkingMode::Adaptive) => ThinkingType::Adaptive,
         _ => ThinkingType::Enabled,
     }
 }
@@ -117,6 +150,8 @@ const EVENT_MESSAGE_STOP: &str = "message_stop";
 const EVENT_CONTENT_BLOCK_START: &str = "content_block_start";
 const EVENT_CONTENT_BLOCK_DELTA: &str = "content_block_delta";
 const EVENT_CONTENT_BLOCK_STOP: &str = "content_block_stop";
+const STOP_REASON_REFUSAL: &str = "refusal";
+const REFUSAL_FALLBACK_DETAILS: &str = "No additional details were provided.";
 
 /// Coerce a tool call's optional arguments into the JSON value Anthropic
 /// expects for the `input` field of a `tool_use` content block.
@@ -409,89 +444,64 @@ pub fn response_to_message(response: &Value) -> Result<Message> {
     Ok(message)
 }
 
-/// Extract usage information from Anthropic's API response
+fn usage_from_anthropic_fields(usage: &Value) -> Usage {
+    let field = |key: &str| {
+        usage
+            .get(key)
+            .and_then(|v| v.as_u64())
+            .map(|v| v.min(i32::MAX as u64) as i32)
+    };
+
+    Usage::from_cache_exclusive_input(
+        Some(field("input_tokens").unwrap_or(0)),
+        Some(field("output_tokens").unwrap_or(0)),
+        None,
+        field("cache_read_input_tokens"),
+        field("cache_creation_input_tokens"),
+    )
+}
+
+/// Merge a `message_delta` usage into the usage captured at `message_start`.
+/// Delta usage is cumulative (input grows during server tool use), so fields
+/// present in the raw delta payload win over the start values.
+fn merge_delta_usage(existing: &Usage, delta: &Usage, delta_data: &Value) -> Usage {
+    let reports = |key: &str| delta_data.get(key).is_some();
+
+    let output = if reports("output_tokens") {
+        delta.output_tokens
+    } else {
+        existing.output_tokens
+    };
+
+    if !reports("input_tokens") {
+        Usage::new(existing.input_tokens, output, None).with_cache_tokens(
+            existing.cache_read_input_tokens,
+            existing.cache_write_input_tokens,
+        )
+    } else if reports("cache_read_input_tokens") || reports("cache_creation_input_tokens") {
+        Usage::new(delta.input_tokens, output, None).with_cache_tokens(
+            delta.cache_read_input_tokens,
+            delta.cache_write_input_tokens,
+        )
+    } else {
+        Usage::from_cache_exclusive_input(
+            delta.input_tokens,
+            output,
+            None,
+            existing.cache_read_input_tokens,
+            existing.cache_write_input_tokens,
+        )
+    }
+}
+
 pub fn get_usage(data: &Value) -> Result<Usage> {
-    // Extract usage data if available
     if let Some(usage) = data.get("usage") {
-        // Get all token fields for analysis
-        let input_tokens = usage
-            .get("input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let cache_creation_tokens = usage
-            .get("cache_creation_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let cache_read_tokens = usage
-            .get("cache_read_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let output_tokens = usage
-            .get("output_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        // IMPORTANT: For display purposes, we want to show the ACTUAL total tokens consumed
-        // The cache pricing should only affect cost calculation, not token count display
-        let total_input_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
-
-        // Convert to i32 with bounds checking
-        let total_input_i32 = total_input_tokens.min(i32::MAX as u64) as i32;
-        let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
-        let total_tokens_i32 =
-            (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
-
-        Ok(Usage::new(
-            Some(total_input_i32),
-            Some(output_tokens_i32),
-            Some(total_tokens_i32),
-        ))
+        Ok(usage_from_anthropic_fields(usage))
     } else if data.as_object().is_some() {
         // Check if the data itself is the usage object (for message_delta events that might have usage at top level)
-        let input_tokens = data
-            .get("input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let cache_creation_tokens = data
-            .get("cache_creation_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let cache_read_tokens = data
-            .get("cache_read_input_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        let output_tokens = data
-            .get("output_tokens")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
-
-        // If we found any token data, process it
-        if input_tokens > 0
-            || cache_creation_tokens > 0
-            || cache_read_tokens > 0
-            || output_tokens > 0
-        {
-            let total_input_tokens = input_tokens + cache_creation_tokens + cache_read_tokens;
-
-            let total_input_i32 = total_input_tokens.min(i32::MAX as u64) as i32;
-            let output_tokens_i32 = output_tokens.min(i32::MAX as u64) as i32;
-            let total_tokens_i32 =
-                (total_input_i32 as i64 + output_tokens_i32 as i64).min(i32::MAX as i64) as i32;
-
-            tracing::debug!("🔍 Anthropic ACTUAL token counts from direct object: input={}, output={}, total={}", 
-                    total_input_i32, output_tokens_i32, total_tokens_i32);
-
-            Ok(Usage::new(
-                Some(total_input_i32),
-                Some(output_tokens_i32),
-                Some(total_tokens_i32),
-            ))
+        let usage = usage_from_anthropic_fields(data);
+        if usage.total_tokens.unwrap_or(0) > 0 {
+            Ok(usage)
         } else {
             tracing::debug!("🔍 Anthropic no token data found in object");
             Ok(Usage::new(None, None, None))
@@ -510,6 +520,13 @@ pub fn thinking_effort(model_config: &ModelConfig) -> ThinkingEffort {
     model_config
         .thinking_effort()
         .unwrap_or(ThinkingEffort::High)
+}
+
+pub fn adaptive_output_effort(model_config: &ModelConfig) -> ThinkingEffort {
+    match thinking_effort(model_config) {
+        ThinkingEffort::Off => ThinkingEffort::High,
+        effort => effort,
+    }
 }
 
 pub fn thinking_budget_tokens(model_config: &ModelConfig) -> i32 {
@@ -548,45 +565,54 @@ fn legacy_thinking_budget_tokens() -> Option<i32> {
     None
 }
 
+// Anthropic counts thinking tokens against max_tokens, so the budget must leave
+// room for a response. Clamp it to preserve at least this many answer tokens, and
+// drop thinking only when even a minimal budget wouldn't fit under the cap.
+const MIN_ANSWER_TOKENS: i32 = 1024;
+
 fn apply_thinking_config(
     payload: &mut Value,
+    provider_name: &str,
     model_config: &ModelConfig,
     max_tokens: i32,
     options: AnthropicFormatOptions,
 ) {
     let obj = payload.as_object_mut().unwrap();
-    match thinking_type(model_config) {
+    match thinking_type_for_provider(provider_name, model_config) {
         ThinkingType::Adaptive => {
             obj.insert("thinking".to_string(), json!({"type": "adaptive"}));
-            let effort = thinking_effort(model_config).to_string();
+            let effort = adaptive_output_effort(model_config).to_string();
             obj.insert("output_config".to_string(), json!({"effort": effort}));
         }
         ThinkingType::Enabled => {
-            let budget_tokens = thinking_budget_tokens(model_config);
-
-            obj.insert("max_tokens".to_string(), json!(max_tokens + budget_tokens));
-            obj.insert(
-                "thinking".to_string(),
-                json!({
-                    "type": "enabled",
-                    "budget_tokens": budget_tokens
-                }),
-            );
+            let budget_tokens = thinking_budget_tokens(model_config)
+                .min(max_tokens.saturating_sub(MIN_ANSWER_TOKENS));
+            if budget_tokens >= MIN_ANSWER_TOKENS {
+                obj.insert(
+                    "thinking".to_string(),
+                    json!({
+                        "type": "enabled",
+                        "budget_tokens": budget_tokens
+                    }),
+                );
+            }
         }
         ThinkingType::Disabled => {}
     }
 
     if options.preserve_thinking_context {
         if !obj.contains_key("thinking") {
-            let budget_tokens = thinking_budget_tokens(model_config);
-            obj.insert("max_tokens".to_string(), json!(max_tokens + budget_tokens));
-            obj.insert(
-                "thinking".to_string(),
-                json!({
-                    "type": "enabled",
-                    "budget_tokens": budget_tokens
-                }),
-            );
+            let budget_tokens = thinking_budget_tokens(model_config)
+                .min(max_tokens.saturating_sub(MIN_ANSWER_TOKENS));
+            if budget_tokens >= MIN_ANSWER_TOKENS {
+                obj.insert(
+                    "thinking".to_string(),
+                    json!({
+                        "type": "enabled",
+                        "budget_tokens": budget_tokens
+                    }),
+                );
+            }
         }
 
         if let Some(thinking) = obj.get_mut("thinking").and_then(|t| t.as_object_mut()) {
@@ -612,6 +638,24 @@ pub fn create_request(
 }
 
 pub fn create_request_with_options(
+    model_config: &ModelConfig,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+    options: AnthropicFormatOptions,
+) -> Result<Value> {
+    create_request_with_options_for_provider(
+        ANTHROPIC_PROVIDER_NAME,
+        model_config,
+        system,
+        messages,
+        tools,
+        options,
+    )
+}
+
+pub fn create_request_with_options_for_provider(
+    provider_name: &str,
     model_config: &ModelConfig,
     system: &str,
     messages: &[Message],
@@ -648,14 +692,22 @@ pub fn create_request_with_options(
             .insert("tools".to_string(), json!(tool_specs));
     }
 
-    if let Some(temp) = model_config.temperature {
-        payload
-            .as_object_mut()
-            .unwrap()
-            .insert("temperature".to_string(), json!(temp));
+    if model_supports_temperature(provider_name, model_config) {
+        if let Some(temp) = model_config.temperature {
+            payload
+                .as_object_mut()
+                .unwrap()
+                .insert("temperature".to_string(), json!(temp));
+        }
     }
 
-    apply_thinking_config(&mut payload, model_config, max_tokens, options);
+    apply_thinking_config(
+        &mut payload,
+        provider_name,
+        model_config,
+        max_tokens,
+        options,
+    );
 
     Ok(payload)
 }
@@ -663,12 +715,7 @@ pub fn create_request_with_options(
 /// Process streaming response from Anthropic's API
 pub fn response_to_streaming_message<S>(
     mut stream: S,
-) -> impl futures::Stream<
-    Item = anyhow::Result<(
-        Option<Message>,
-        Option<crate::providers::base::ProviderUsage>,
-    )>,
-> + 'static
+) -> impl futures::Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> + 'static
 where
     S: futures::Stream<Item = anyhow::Result<String>> + Unpin + Send + 'static,
 {
@@ -702,7 +749,7 @@ where
     try_stream! {
         let mut accumulated_tool_calls: std::collections::HashMap<String, (String, String)> = std::collections::HashMap::new();
         let mut current_tool_id: Option<String> = None;
-        let mut final_usage: Option<crate::providers::base::ProviderUsage> = None;
+        let mut final_usage: Option<ProviderUsage> = None;
         let mut message_id: Option<String> = None;
         let mut thinking: Option<ThinkingState> = None;
 
@@ -744,7 +791,7 @@ where
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown")
                                 .to_string();
-                            final_usage = Some(crate::providers::base::ProviderUsage::new(model, usage));
+                            final_usage = Some(ProviderUsage::new(model, usage));
                         }
                     }
                     continue;
@@ -875,23 +922,41 @@ where
                         let delta_usage = get_usage(usage_data).unwrap_or_default();
 
                         if let Some(existing_usage) = &final_usage {
-                            let merged_input = existing_usage.usage.input_tokens.or(delta_usage.input_tokens);
-                            let merged_output = delta_usage.output_tokens.or(existing_usage.usage.output_tokens);
-                            let merged_total = match (merged_input, merged_output) {
-                                (Some(input), Some(output)) => Some(input + output),
-                                (Some(input), None) => Some(input),
-                                (None, Some(output)) => Some(output),
-                                (None, None) => None,
-                            };
-
-                            let merged_usage = crate::providers::base::Usage::new(merged_input, merged_output, merged_total);
-                            final_usage = Some(crate::providers::base::ProviderUsage::new(existing_usage.model.clone(), merged_usage));
+                            let merged_usage = merge_delta_usage(&existing_usage.usage, &delta_usage, usage_data);
+                            final_usage = Some(ProviderUsage::new(existing_usage.model.clone(), merged_usage));
                         } else {
                             let model = event.data.get("model")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown")
                                 .to_string();
-                            final_usage = Some(crate::providers::base::ProviderUsage::new(model, delta_usage));
+                            final_usage = Some(ProviderUsage::new(model, delta_usage));
+                        }
+                    }
+                    if let Some(delta) = event.data.get("delta") {
+                        let stop_details = delta.get("stop_details").filter(|d| !d.is_null());
+                        if delta.get("stop_reason").and_then(|v| v.as_str()) == Some(STOP_REASON_REFUSAL) {
+                            let str_field = |key: &str| stop_details
+                                .and_then(|d| d.get(key))
+                                .and_then(|v| v.as_str())
+                                .map(str::to_string);
+                            let details = str_field("explanation")
+                                .or_else(|| stop_details.map(|d| d.to_string()))
+                                .unwrap_or_else(|| REFUSAL_FALLBACK_DETAILS.to_string());
+                            let category = str_field("category");
+                            // The refusal delta carries the request's usage;
+                            // flush it so refused turns are still accounted.
+                            if let Some(usage) = final_usage.take() {
+                                yield (None, Some(usage));
+                            }
+                            Err(ProviderError::Refusal { details, category })?;
+                        } else if let Some(details) = stop_details {
+                            // No specific handling for these stop details yet —
+                            // forward them rather than silently dropping the turn.
+                            let mut message = Message::assistant().with_text(format!(
+                                "The provider ended the response with: {details}"
+                            ));
+                            message.id = message_id.clone();
+                            yield (Some(message), None);
                         }
                     }
                     continue;
@@ -903,7 +968,7 @@ where
                             .and_then(|v| v.as_str())
                             .unwrap_or("unknown")
                             .to_string();
-                        final_usage = Some(crate::providers::base::ProviderUsage::new(model, usage));
+                        final_usage = Some(ProviderUsage::new(model, usage));
                     }
                     break;
                 }
@@ -925,7 +990,7 @@ where
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
-    use crate::model::ModelConfig;
+    use goose_providers::model::ModelConfig;
     use rmcp::object;
     use serde_json::json;
 
@@ -962,6 +1027,8 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(24)); // 12 + 12 = 24 actual tokens
         assert_eq!(usage.output_tokens, Some(15));
         assert_eq!(usage.total_tokens, Some(39)); // 24 + 15
+        assert_eq!(usage.cache_read_input_tokens, Some(0));
+        assert_eq!(usage.cache_write_input_tokens, Some(12));
 
         Ok(())
     }
@@ -1005,6 +1072,8 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(30)); // 15 + 15 = 30 actual tokens
         assert_eq!(usage.output_tokens, Some(20));
         assert_eq!(usage.total_tokens, Some(50)); // 30 + 20
+        assert_eq!(usage.cache_read_input_tokens, Some(0));
+        assert_eq!(usage.cache_write_input_tokens, Some(15));
 
         Ok(())
     }
@@ -1182,6 +1251,8 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(15007));
         assert_eq!(usage.output_tokens, Some(50));
         assert_eq!(usage.total_tokens, Some(15057)); // 15007 + 50
+        assert_eq!(usage.cache_read_input_tokens, Some(5000));
+        assert_eq!(usage.cache_write_input_tokens, Some(10000));
 
         Ok(())
     }
@@ -1214,7 +1285,7 @@ mod tests {
         ]);
 
         let mut config = cfg_with_effort("claude-3-7-sonnet-20250219", "high");
-        config.max_tokens = Some(4096);
+        config.max_tokens = Some(64000);
 
         let messages = vec![Message::user().with_text("Hello")];
         let payload = create_request(&config, "system", &messages, &[])?;
@@ -1222,7 +1293,35 @@ mod tests {
         assert_eq!(payload["thinking"]["type"], "enabled");
         let budget = payload["thinking"]["budget_tokens"].as_i64().unwrap();
         assert!(budget > 0);
-        assert_eq!(payload["max_tokens"], 4096 + budget);
+        assert_eq!(payload["max_tokens"], 64000);
+        assert!(budget < 64000);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_create_request_clamps_thinking_budget_to_fit_max_tokens() -> Result<()> {
+        let _guard = env_lock::lock_env([
+            ("GOOSE_THINKING_EFFORT", None::<&str>),
+            ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
+        ]);
+
+        let mut config = cfg_with_effort("claude-3-7-sonnet-20250219", "high");
+        let messages = vec![Message::user().with_text("Hello")];
+
+        // Budget larger than max_tokens is clamped to leave room for a response.
+        config.max_tokens = Some(4096);
+        let payload = create_request(&config, "system", &messages, &[])?;
+        let budget = payload["thinking"]["budget_tokens"].as_i64().unwrap();
+        assert!(budget >= 1024);
+        assert!(budget <= 4096 - 1024);
+        assert_eq!(payload["max_tokens"], 4096);
+
+        // Too small to fit any thinking alongside a response — drop it.
+        config.max_tokens = Some(1500);
+        let payload = create_request(&config, "system", &messages, &[])?;
+        assert!(payload.get("thinking").is_none());
+        assert_eq!(payload["max_tokens"], 1500);
 
         Ok(())
     }
@@ -1256,7 +1355,7 @@ mod tests {
         ]);
 
         let mut config = cfg("glm-4.7");
-        config.max_tokens = Some(4096);
+        config.max_tokens = Some(64000);
         let messages = vec![
             Message::assistant().with_content(MessageContent::thinking("internal", "")),
             Message::user().with_text("Continue"),
@@ -1274,9 +1373,9 @@ mod tests {
         )?;
 
         assert_eq!(payload["thinking"]["type"], "enabled");
-        assert_eq!(payload["thinking"]["budget_tokens"], 16000);
+        assert!(payload["thinking"]["budget_tokens"].as_i64().unwrap() >= 1024);
         assert_eq!(payload["thinking"]["clear_thinking"], false);
-        assert_eq!(payload["max_tokens"], 4096 + 16000);
+        assert_eq!(payload["max_tokens"], 64000);
         assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
         assert_eq!(payload["messages"][0]["content"][0]["thinking"], "internal");
         assert!(payload["messages"][0]["content"][0]
@@ -1302,6 +1401,7 @@ mod tests {
 
         let mut config = cfg("glm-4.7");
         config.request_params = Some(params);
+        config.max_tokens = Some(64000);
         let messages = vec![
             Message::assistant().with_content(MessageContent::thinking("internal", "")),
             Message::user().with_text("Continue"),
@@ -1495,20 +1595,13 @@ mod tests {
     }
 
     fn cfg(name: &str) -> ModelConfig {
-        ModelConfig {
-            model_name: name.to_string(),
-            ..Default::default()
-        }
+        ModelConfig::new(name)
     }
 
     fn cfg_with_effort(name: &str, effort: &str) -> ModelConfig {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!(effort));
-        ModelConfig {
-            model_name: name.to_string(),
-            request_params: Some(params),
-            ..Default::default()
-        }
+        ModelConfig::new(name).with_merged_request_params(params)
     }
 
     #[test]
@@ -1517,6 +1610,14 @@ mod tests {
         // Adaptive model with effort → adaptive
         assert_eq!(
             thinking_type(&cfg_with_effort("claude-opus-4-6", "high")),
+            ThinkingType::Adaptive
+        );
+        assert_eq!(
+            thinking_type(&cfg_with_effort("claude-opus-4-7", "high")),
+            ThinkingType::Adaptive
+        );
+        assert_eq!(
+            thinking_type(&cfg_with_effort("claude-opus-4-8", "high")),
             ThinkingType::Adaptive
         );
         // Adaptive model with off → disabled
@@ -1534,6 +1635,41 @@ mod tests {
             thinking_type(&cfg_with_effort("claude-3-7-sonnet-20250219", "off")),
             ThinkingType::Disabled
         );
+    }
+
+    #[test]
+    fn test_thinking_type_always_on_adaptive() {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
+
+        assert_eq!(
+            thinking_type(&cfg("claude-fable-5")),
+            ThinkingType::Adaptive
+        );
+        assert_eq!(
+            thinking_type(&cfg_with_effort("claude-fable-5", "off")),
+            ThinkingType::Adaptive
+        );
+        assert_eq!(
+            thinking_type(&cfg_with_effort("claude-fable-5", "high")),
+            ThinkingType::Adaptive
+        );
+    }
+
+    #[test]
+    fn test_create_request_fable_5_omits_temperature() -> Result<()> {
+        let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
+        let mut config = cfg("claude-fable-5");
+        config.max_tokens = Some(4096);
+        config.temperature = Some(0.7);
+        let messages = vec![Message::user().with_text("Hello")];
+
+        let payload = create_request(&config, "system", &messages, &[])?;
+
+        assert_eq!(payload["thinking"]["type"], "adaptive");
+        assert!(payload.get("temperature").is_none());
+        assert_eq!(payload["output_config"]["effort"], "high");
+
+        Ok(())
     }
 
     #[test]
@@ -1580,16 +1716,10 @@ mod tests {
     }
 
     async fn collect_stream(events: &str) -> StreamedParts {
-        use futures::StreamExt;
-
-        let lines: Vec<Result<String, anyhow::Error>> =
-            events.lines().map(|l| Ok(l.to_string())).collect();
-        let stream = Box::pin(futures::stream::iter(lines));
-        let mut msg_stream = std::pin::pin!(response_to_streaming_message(stream));
         let mut parts = StreamedParts::default();
 
-        while let Some(Ok((message, _usage))) = msg_stream.next().await {
-            if let Some(msg) = message {
+        for result in collect_stream_results(events).await {
+            if let Ok((Some(msg), _usage)) = result {
                 for c in &msg.content {
                     match c {
                         MessageContent::Thinking(t) => {
@@ -1737,5 +1867,164 @@ mod tests {
         );
         assert_eq!(parts.text, vec!["Let me search for that."]);
         assert_eq!(parts.tool_calls, vec!["search"]);
+    }
+
+    async fn collect_stream_results(
+        events: &str,
+    ) -> Vec<anyhow::Result<(Option<Message>, Option<ProviderUsage>)>> {
+        use futures::StreamExt;
+
+        let lines: Vec<Result<String, anyhow::Error>> =
+            events.lines().map(|l| Ok(l.to_string())).collect();
+        let stream = Box::pin(futures::stream::iter(lines));
+        response_to_streaming_message(stream).collect().await
+    }
+
+    #[tokio::test]
+    async fn test_streaming_preserves_cache_tokens_through_delta_merge() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":7,"cache_creation_input_tokens":10000,"cache_read_input_tokens":5000,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":25}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let usage = collect_stream_results(events)
+            .await
+            .into_iter()
+            .filter_map(|r| r.ok().and_then(|(_, usage)| usage))
+            .next_back()
+            .expect("stream should yield usage");
+
+        assert_eq!(usage.usage.input_tokens, Some(15007));
+        assert_eq!(usage.usage.output_tokens, Some(25));
+        assert_eq!(usage.usage.cache_read_input_tokens, Some(5000));
+        assert_eq!(usage.usage.cache_write_input_tokens, Some(10000));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_delta_usage_is_cumulative_and_wins() {
+        // Server tool use grows input during the turn: the final
+        // message_delta usage is authoritative, not message_start.
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":2679,"cache_creation_input_tokens":100,"cache_read_input_tokens":200,"output_tokens":3}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"Hi"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"input_tokens":10682,"cache_creation_input_tokens":100,"cache_read_input_tokens":200,"output_tokens":510}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let usage = collect_stream_results(events)
+            .await
+            .into_iter()
+            .filter_map(|r| r.ok().and_then(|(_, usage)| usage))
+            .next_back()
+            .expect("stream should yield usage");
+
+        assert_eq!(usage.usage.input_tokens, Some(10982)); // 10682 + 100 + 200
+        assert_eq!(usage.usage.output_tokens, Some(510));
+        assert_eq!(usage.usage.cache_read_input_tokens, Some(200));
+        assert_eq!(usage.usage.cache_write_input_tokens, Some(100));
+    }
+
+    #[test]
+    fn test_merge_delta_usage_raw_input_inherits_start_cache() {
+        let start =
+            Usage::new(Some(15007), Some(3), None).with_cache_tokens(Some(5000), Some(10000));
+        let delta_data = json!({"input_tokens": 8, "output_tokens": 510});
+        let delta = get_usage(&delta_data).unwrap();
+
+        let merged = merge_delta_usage(&start, &delta, &delta_data);
+        assert_eq!(merged.input_tokens, Some(15008)); // 8 + 5000 + 10000
+        assert_eq!(merged.output_tokens, Some(510));
+        assert_eq!(merged.cache_read_input_tokens, Some(5000));
+        assert_eq!(merged.cache_write_input_tokens, Some(10000));
+    }
+
+    fn expect_refusal(
+        results: Vec<anyhow::Result<(Option<Message>, Option<ProviderUsage>)>>,
+    ) -> (String, Option<String>) {
+        let err = results
+            .into_iter()
+            .find_map(|r| r.err())
+            .expect("refusal should surface as a stream error");
+        match err.downcast_ref::<ProviderError>() {
+            Some(ProviderError::Refusal { details, category }) => {
+                (details.clone(), category.clone())
+            }
+            other => panic!("expected ProviderError::Refusal, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_streaming_refusal() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"refusal","stop_details":{"explanation":"This request violates the usage policy.","category":"cyber"}},"usage":{"output_tokens":5}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let results = collect_stream_results(events).await;
+        let usage = results
+            .iter()
+            .filter_map(|r| r.as_ref().ok())
+            .find_map(|(_, usage)| usage.clone())
+            .expect("a refused request should still yield its usage");
+        assert_eq!(usage.usage.input_tokens, Some(10));
+        assert_eq!(usage.usage.output_tokens, Some(5));
+
+        let (details, category) = expect_refusal(results);
+        assert_eq!(details, "This request violates the usage policy.");
+        assert_eq!(category.as_deref(), Some("cyber"));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_refusal_forwards_unrecognized_stop_details() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"refusal","stop_details":{"code":42}},"usage":{"output_tokens":5}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let (details, category) = expect_refusal(collect_stream_results(events).await);
+        assert!(details.contains("\"code\":42"), "details: {details}");
+        assert_eq!(category, None);
+    }
+
+    #[tokio::test]
+    async fn test_streaming_forwards_unhandled_stop_details() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"msg_1","role":"assistant","content":[],"model":"claude-opus-4-6","usage":{"input_tokens":10,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"model_context_window_exceeded","stop_details":{"reason":"context_window"}},"usage":{"output_tokens":5}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let parts = collect_stream(events).await;
+        assert_eq!(parts.text.len(), 1);
+        assert!(
+            parts.text[0].starts_with("The provider ended the response with:"),
+            "text: {}",
+            parts.text[0]
+        );
+        assert!(parts.text[0].contains("context_window"));
     }
 }

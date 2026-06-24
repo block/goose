@@ -1,21 +1,23 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::errors::ProviderError;
+use goose_providers::images::ImageFormat;
 use serde_json::{json, Value};
 use std::collections::HashMap;
 
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{
-    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
+    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::embedding::EmbeddingCapable;
-use super::errors::ProviderError;
 use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat, RequestLog};
+use super::utils::get_model;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 
 const LITELLM_PROVIDER_NAME: &str = "litellm";
@@ -27,7 +29,6 @@ pub struct LiteLLMProvider {
     #[serde(skip)]
     api_client: ApiClient,
     base_path: String,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
     #[serde(skip)]
@@ -35,7 +36,9 @@ pub struct LiteLLMProvider {
 }
 
 impl LiteLLMProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
         let secrets = config
             .get_secrets("LITELLM_API_KEY", &["LITELLM_CUSTOM_HEADERS"])
@@ -61,8 +64,12 @@ impl LiteLLMProvider {
             AuthMethod::BearerToken(api_key)
         };
 
-        let mut api_client =
-            ApiClient::with_timeout(host, auth, std::time::Duration::from_secs(timeout_secs))?;
+        let mut api_client = ApiClient::with_timeout_and_tls(
+            host,
+            auth,
+            std::time::Duration::from_secs(timeout_secs),
+            tls_config,
+        )?;
 
         if let Some(headers) = custom_headers {
             let mut header_map = reqwest::header::HeaderMap::new();
@@ -77,7 +84,6 @@ impl LiteLLMProvider {
         Ok(Self {
             api_client,
             base_path,
-            model,
             name: LITELLM_PROVIDER_NAME.to_string(),
             cached_model_info: tokio::sync::OnceCell::new(),
         })
@@ -144,11 +150,19 @@ impl LiteLLMProvider {
             .await?;
         handle_response_openai_compat(response).await
     }
+
+    async fn supports_cache_control(&self, model: &ModelConfig) -> bool {
+        if let Ok(models) = self.get_or_fetch_models().await {
+            if let Some(model_info) = models.iter().find(|m| m.name == model.model_name) {
+                return model_info.supports_cache_control.unwrap_or(false);
+            }
+        }
+
+        model.model_name.to_lowercase().contains("claude")
+    }
 }
 
-impl ProviderDef for LiteLLMProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for LiteLLMProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             LITELLM_PROVIDER_NAME,
@@ -178,12 +192,16 @@ impl ProviderDef for LiteLLMProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for LiteLLMProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -193,23 +211,25 @@ impl Provider for LiteLLMProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        let mut config = self.model.clone();
+    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
+        if let Some(limit) = model_config.context_limit {
+            return Ok(limit);
+        }
+
         // The cache is populated lazily by the first stream() call (via
         // supports_cache_control). On turn 1 this will be None and we fall
         // back to DEFAULT_CONTEXT_LIMIT, which is fine — the conversation is
         // too small to trigger compaction. From turn 2 onward the real limit
         // from /model/info is used.
-        if config.context_limit.is_none() {
-            if let Some(models) = self.cached_model_info.get() {
-                if let Some(info) = models.iter().find(|m| m.name == config.model_name) {
-                    if info.context_limit > 0 {
-                        config.context_limit = Some(info.context_limit);
-                    }
+        if let Some(models) = self.cached_model_info.get() {
+            if let Some(info) = models.iter().find(|m| m.name == model_config.model_name) {
+                if info.context_limit > 0 {
+                    return Ok(info.context_limit);
                 }
             }
         }
-        config
+
+        Ok(model_config.context_limit())
     }
 
     async fn stream(
@@ -225,7 +245,7 @@ impl Provider for LiteLLMProvider {
         } else {
             Some(session_id)
         };
-        let mut payload = super::formats::openai::create_request(
+        let mut payload = goose_providers::formats::openai::create_request(
             model_config,
             system,
             messages,
@@ -234,7 +254,7 @@ impl Provider for LiteLLMProvider {
             false,
         )?;
 
-        if self.supports_cache_control().await {
+        if self.supports_cache_control(model_config).await {
             payload = update_request_for_cache_control(&payload);
         }
 
@@ -245,10 +265,10 @@ impl Provider for LiteLLMProvider {
             })
             .await?;
 
-        let message = super::formats::openai::response_to_message(&response)?;
-        let usage = super::formats::openai::get_usage(&response);
+        let message = goose_providers::formats::openai::response_to_message(&response)?;
+        let usage = goose_providers::formats::openai::get_usage(&response);
         let response_model = get_model(&response);
-        let mut log = RequestLog::start(model_config, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
         log.write(&response, Some(&usage))?;
         let provider_usage = ProviderUsage::new(response_model, usage);
         Ok(super::base::stream_from_single_message(
@@ -257,65 +277,9 @@ impl Provider for LiteLLMProvider {
         ))
     }
 
-    fn supports_embeddings(&self) -> bool {
-        true
-    }
-
-    async fn supports_cache_control(&self) -> bool {
-        if let Ok(models) = self.get_or_fetch_models().await {
-            if let Some(model_info) = models.iter().find(|m| m.name == self.model.model_name) {
-                return model_info.supports_cache_control.unwrap_or(false);
-            }
-        }
-
-        self.model.model_name.to_lowercase().contains("claude")
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let models = self.get_or_fetch_models().await?;
         Ok(models.iter().map(|m| m.name.clone()).collect())
-    }
-}
-
-#[async_trait]
-impl EmbeddingCapable for LiteLLMProvider {
-    async fn create_embeddings(
-        &self,
-        session_id: &str,
-        texts: Vec<String>,
-    ) -> Result<Vec<Vec<f32>>, anyhow::Error> {
-        let embedding_model = std::env::var("GOOSE_EMBEDDING_MODEL")
-            .unwrap_or_else(|_| "text-embedding-3-small".to_string());
-
-        let payload = json!({
-            "input": texts,
-            "model": embedding_model,
-            "encoding_format": "float"
-        });
-
-        let response = self
-            .api_client
-            .response_post(Some(session_id), "v1/embeddings", &payload)
-            .await?;
-        let response_text = response.text().await?;
-        let response_json: Value = serde_json::from_str(&response_text)?;
-
-        let data = response_json["data"]
-            .as_array()
-            .ok_or_else(|| anyhow::anyhow!("Missing data field"))?;
-
-        let mut embeddings = Vec::new();
-        for item in data {
-            let embedding: Vec<f32> = item["embedding"]
-                .as_array()
-                .ok_or_else(|| anyhow::anyhow!("Missing embedding field"))?
-                .iter()
-                .map(|v| v.as_f64().unwrap_or(0.0) as f32)
-                .collect();
-            embeddings.push(embedding);
-        }
-
-        Ok(embeddings)
     }
 }
 

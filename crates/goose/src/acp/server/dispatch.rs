@@ -95,19 +95,6 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                     Ok(())
                 })
                 .await
-                .if_request({
-                    let agent = agent.clone();
-                    let cx = cx.clone();
-                    |req: ElicitationRespondRequest, responder: Responder<EmptyResponse>| async move {
-                        let cx_spawn = cx.clone();
-                        cx.spawn(async move {
-                            responder.respond_with_result(agent.on_elicitation_respond(&cx_spawn, req).await)?;
-                            Ok(())
-                        })?;
-                        Ok(())
-                    }
-                })
-                .await
                 // set_config_option (SACP 11) and legacy set_mode/set_model; custom _goose/* in otherwise.
                 .if_request({
                     let agent = agent.clone();
@@ -139,6 +126,12 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                 }
                                 "model" => {
                                     match agent.on_set_model(&session_id.0, &value_id.0).await {
+                                        Ok(_) => {}
+                                        Err(e) => { responder.respond_with_error(e)?; return Ok(()); }
+                                    }
+                                }
+                                "thinking_effort" => {
+                                    match agent.on_set_thinking_effort(&session_id.0, &value_id.0).await {
                                         Ok(_) => {}
                                         Err(e) => { responder.respond_with_error(e)?; return Ok(()); }
                                     }
@@ -182,7 +175,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                     let provider_result: Result<Arc<dyn Provider>> =
                                         AssertUnwindSafe(async {
                                             let session_agent =
-                                                agent_bg.get_session_agent(&session_id_bg.0, None).await?;
+                                                agent_bg.get_session_agent(&session_id_bg.0).await?;
                                             let provider = session_agent
                                                 .provider()
                                                 .await
@@ -211,7 +204,9 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                         .await
                                         {
                                             Ok(()) => match AssertUnwindSafe(
-                                                provider.fetch_recommended_models(),
+                                                provider.fetch_recommended_models(
+                                                    crate::model_config::global_toolshim(),
+                                                ),
                                             )
                                             .catch_unwind()
                                             .await

@@ -60,80 +60,6 @@ export GOOSE_PROVIDER__HOST="https://api.anthropic.com"
 export GOOSE_PROVIDER__API_KEY="your-api-key-here"
 ```
 
-### Custom Model Definitions
-
-Define custom model configurations with provider-specific parameters and context limits. This is useful for enabling provider beta features (like extended context windows) or configuring models with specific settings.
-
-| Variable | Purpose | Values | Default |
-|----------|---------|---------|---------|
-| `GOOSE_PREDEFINED_MODELS` | Define custom model configurations | JSON array of model objects | None |
-
-**Model Configuration Fields:**
-
-| Field | Required | Type | Description |
-|-------|----------|------|-------------|
-| `id` | No | number | Optional numeric identifier |
-| `name` | Yes | string | Model name used to reference this configuration |
-| `provider` | Yes | string | Provider name (e.g., "databricks", "openai", "anthropic") |
-| `alias` | No | string | Display name for the model |
-| `subtext` | No | string | Additional descriptive text |
-| `context_limit` | No | number | Override the default context window size in tokens |
-| `request_params` | No | object | Provider-specific parameters included in API requests |
-
-:::info
-The `id`, `alias`, and `subtext` fields are currently not used.
-:::
-
-When a custom model's `context_limit` is specified, it takes precedence over pattern-matching but can still be overridden by explicit environment variables like [`GOOSE_CONTEXT_LIMIT`](#model-context-limit-overrides).
-
-**Examples**
-
-```bash
-# Enable Anthropic's 1M context window with beta header
-export GOOSE_PREDEFINED_MODELS='[
-  {
-    "id": 1,
-    "name": "claude-sonnet-4-1m",
-    "provider": "anthropic",
-    "alias": "Claude Sonnet 4 (1M context)",
-    "subtext": "Anthropic",
-    "context_limit": 1000000,
-    "request_params": {
-      "anthropic_beta": ["context-1m-2025-08-07"]
-    }
-  }
-]'
-
-# Define multiple custom models
-export GOOSE_PREDEFINED_MODELS='[
-  {
-    "id": 1,
-    "name": "gpt-4-custom",
-    "provider": "openai",
-    "alias": "GPT-4 (200k)",
-    "context_limit": 200000
-  },
-  {
-    "id": 2,
-    "name": "internal-model",
-    "provider": "databricks",
-    "alias": "Internal Model (500k)",
-    "context_limit": 500000
-  }
-]'
-
-# Gemini 3 with high thinking level
-export GOOSE_PREDEFINED_MODELS='[
-  {
-    "name": "gemini-3-pro",
-    "provider": "google",
-    "request_params": {"thinking_level": "high"}
-  }
-]'
-```
-
-Custom context limits and request parameters are applied when the model is used. Custom context limits are displayed in goose CLI's [token usage indicator](/docs/guides/sessions/smart-context-management#token-usage).
-
 ### Claude Thinking Configuration
 
 These variables control Claude's reasoning behavior. Supported on Anthropic and Databricks providers.
@@ -590,7 +516,7 @@ These variables configure the `goosed` server process. They are most often used 
 | `GOOSE_HOST` | Interface the server binds to. Use `0.0.0.0` to accept connections from other machines; `localhost` or `127.0.0.1` restricts to the local machine. | Hostname or IP | `127.0.0.1` |
 | `GOOSE_PORT` | TCP port the server listens on | Port number | `3000` |
 | `GOOSE_TLS` | Enable TLS with a self-signed certificate. Required when connecting goose Desktop to a remote `goosed`. | `true`, `false` | `true` |
-| `GOOSE_SERVER__SECRET_KEY` | Shared secret required in the `X-Secret-Key` header on all client requests | Secret string | Random (auto-generated) |
+| `GOOSE_SERVER__SECRET_KEY` | Shared secret required in the `X-Secret-Key` header on all client requests. When set, it is also enforced on the `goose serve` ACP endpoint. | Secret string | Random (auto-generated) |
 
 **Examples**
 

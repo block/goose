@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.37.0"
+    "version": "1.39.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -1731,6 +1731,19 @@
         "operationId": "diagnostics",
         "parameters": [
           {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/DiagnosticsLevel"
+                }
+              ],
+              "nullable": true
+            }
+          },
+          {
             "name": "session_id",
             "in": "path",
             "required": true,
@@ -1741,12 +1754,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Diagnostics zip file",
+            "description": "Diagnostics report",
             "content": {
-              "application/zip": {
+              "application/json": {
                 "schema": {
-                  "type": "string",
-                  "format": "binary"
+                  "$ref": "#/components/schemas/DiagnosticsReport"
                 }
               }
             }
@@ -2414,45 +2426,6 @@
           },
           "401": {
             "description": "Unauthorized - invalid or missing secret"
-          }
-        }
-      }
-    },
-    "/recipes/create": {
-      "post": {
-        "tags": [
-          "Recipe Management"
-        ],
-        "operationId": "create_recipe",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateRecipeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Recipe created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateRecipeResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "412": {
-            "description": "Precondition failed - Agent not available"
-          },
-          "500": {
-            "description": "Internal server error"
           }
         }
       }
@@ -3203,81 +3176,6 @@
         }
       }
     },
-    "/sessions": {
-      "get": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "list_sessions",
-        "responses": {
-          "200": {
-            "description": "List of available sessions retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionListResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/sessions/import": {
-      "post": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "import_session",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ImportSessionRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session imported successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Session"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid JSON"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/import/nostr": {
       "post": {
         "tags": [
@@ -3310,116 +3208,6 @@
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/sessions/insights": {
-      "get": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "get_session_insights",
-        "responses": {
-          "200": {
-            "description": "Session insights retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SessionInsights"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/sessions/search": {
-      "get": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "search_sessions",
-        "parameters": [
-          {
-            "name": "query",
-            "in": "query",
-            "description": "Search query string",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "limit",
-            "in": "query",
-            "description": "Maximum results (default: 10, max: 50)",
-            "required": false,
-            "schema": {
-              "type": "integer",
-              "nullable": true,
-              "minimum": 0
-            }
-          },
-          {
-            "name": "after_date",
-            "in": "query",
-            "description": "Filter after date (ISO 8601)",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          },
-          {
-            "name": "before_date",
-            "in": "query",
-            "description": "Filter before date (ISO 8601)",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Matching sessions",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/Session"
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid query"
-          },
-          "401": {
-            "description": "Unauthorized"
           },
           "500": {
             "description": "Internal server error"
@@ -3577,87 +3365,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Session"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      },
-      "delete": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "delete_session",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Session deleted successfully"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/sessions/{session_id}/export": {
-      "get": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "export_session",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Session exported successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
                 }
               }
             }
@@ -4020,47 +3727,6 @@
         }
       }
     },
-    "/tunnel/start": {
-      "post": {
-        "tags": [
-          "super::routes::tunnel"
-        ],
-        "summary": "Start the tunnel",
-        "operationId": "start_tunnel",
-        "responses": {
-          "200": {
-            "description": "Tunnel started successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TunnelInfo"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/tunnel/status": {
       "get": {
         "tags": [
@@ -4075,30 +3741,6 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/TunnelInfo"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tunnel/stop": {
-      "post": {
-        "tags": [
-          "super::routes::tunnel"
-        ],
-        "summary": "Stop the tunnel",
-        "operationId": "stop_tunnel",
-        "responses": {
-          "200": {
-            "description": "Tunnel stopped successfully"
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
                 }
               }
             }
@@ -4184,6 +3826,9 @@
               "actionType"
             ],
             "properties": {
+              "action": {
+                "type": "string"
+              },
               "actionType": {
                 "type": "string",
                 "enum": [
@@ -4235,19 +3880,6 @@
         }
       },
       "Author": {
-        "type": "object",
-        "properties": {
-          "contact": {
-            "type": "string",
-            "nullable": true
-          },
-          "metadata": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "AuthorRequest": {
         "type": "object",
         "properties": {
           "contact": {
@@ -4745,42 +4377,6 @@
           }
         }
       },
-      "CreateRecipeRequest": {
-        "type": "object",
-        "required": [
-          "session_id"
-        ],
-        "properties": {
-          "author": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AuthorRequest"
-              }
-            ],
-            "nullable": true
-          },
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
-      "CreateRecipeResponse": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string",
-            "nullable": true
-          },
-          "recipe": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Recipe"
-              }
-            ],
-            "nullable": true
-          }
-        }
-      },
       "CreateScheduleRequest": {
         "type": "object",
         "required": [
@@ -4968,6 +4564,200 @@
           }
         }
       },
+      "DiagnosticsConfig": {
+        "type": "object",
+        "required": [
+          "configPath",
+          "truncated"
+        ],
+        "properties": {
+          "configPath": {
+            "type": "string"
+          },
+          "configYaml": {
+            "type": "string",
+            "nullable": true
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DiagnosticsError": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "DiagnosticsExtensions": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DiagnosticsLevel": {
+        "type": "string",
+        "enum": [
+          "summary",
+          "full"
+        ]
+      },
+      "DiagnosticsLogs": {
+        "type": "object",
+        "required": [
+          "llm"
+        ],
+        "properties": {
+          "llm": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticsTextFile"
+            }
+          },
+          "server": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DiagnosticsTextFile"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "DiagnosticsPrompt": {
+        "type": "object",
+        "required": [
+          "name",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "DiagnosticsReport": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "generatedAt",
+          "level",
+          "system",
+          "extensions",
+          "logs",
+          "prompts",
+          "scheduledRecipes",
+          "errors"
+        ],
+        "properties": {
+          "config": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DiagnosticsConfig"
+              }
+            ],
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticsError"
+            }
+          },
+          "extensions": {
+            "$ref": "#/components/schemas/DiagnosticsExtensions"
+          },
+          "generatedAt": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/DiagnosticsLevel"
+          },
+          "logs": {
+            "$ref": "#/components/schemas/DiagnosticsLogs"
+          },
+          "prompts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticsPrompt"
+            }
+          },
+          "schedule": {
+            "nullable": true
+          },
+          "scheduledRecipes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticsScheduledRecipe"
+            }
+          },
+          "schemaVersion": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "session": {
+            "nullable": true
+          },
+          "system": {
+            "$ref": "#/components/schemas/SystemInfo"
+          }
+        }
+      },
+      "DiagnosticsScheduledRecipe": {
+        "type": "object",
+        "required": [
+          "path",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "DiagnosticsTextFile": {
+        "type": "object",
+        "required": [
+          "path",
+          "content",
+          "truncated"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
       "DictationProvider": {
         "type": "string",
         "enum": [
@@ -5020,9 +4810,19 @@
           "spec"
         ],
         "properties": {
+          "backend_id": {
+            "type": "string",
+            "description": "Optional backend id for callers selecting a concrete variant row.",
+            "nullable": true
+          },
           "spec": {
             "type": "string",
-            "description": "Model spec like \"bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M\""
+            "description": "Model spec/download id like \"bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M\" or \"google/gemma-4-31B-it\""
+          },
+          "variant_id": {
+            "type": "string",
+            "description": "Optional backend-specific variant id, such as a GGUF quantization or MLX dtype.",
+            "nullable": true
           }
         }
       },
@@ -5243,6 +5043,10 @@
               },
               "cmd": {
                 "type": "string"
+              },
+              "cwd": {
+                "type": "string",
+                "nullable": true
               },
               "description": {
                 "type": "string"
@@ -5774,6 +5578,77 @@
           },
           "repo_id": {
             "type": "string"
+          },
+          "variants": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HfModelVariant"
+            }
+          }
+        }
+      },
+      "HfModelVariant": {
+        "type": "object",
+        "required": [
+          "variant_id",
+          "label",
+          "backend_id",
+          "format",
+          "model_id",
+          "download_id",
+          "size_bytes",
+          "description",
+          "quality_rank"
+        ],
+        "properties": {
+          "backend_id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "download_id": {
+            "type": "string"
+          },
+          "download_url": {
+            "type": "string",
+            "nullable": true
+          },
+          "filename": {
+            "type": "string",
+            "nullable": true
+          },
+          "format": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "model_id": {
+            "type": "string"
+          },
+          "quality_rank": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "sharded": {
+            "type": "boolean"
+          },
+          "size_bytes": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "supported": {
+            "type": "boolean"
+          },
+          "unsupported_reason": {
+            "type": "string",
+            "nullable": true
+          },
+          "variant_id": {
+            "type": "string"
           }
         }
       },
@@ -5924,17 +5799,6 @@
         ],
         "properties": {
           "deeplink": {
-            "type": "string"
-          }
-        }
-      },
-      "ImportSessionRequest": {
-        "type": "object",
-        "required": [
-          "json"
-        ],
-        "properties": {
-          "json": {
             "type": "string"
           }
         }
@@ -6571,6 +6435,10 @@
             ],
             "nullable": true
           },
+          "steer": {
+            "type": "boolean",
+            "description": "Whether this message is a steer injected into an active run. UI-only:\nsurfaced as `_meta.goose.steer` so clients can mark the steer boundary\nwithout matching user-visible text. Never sent to providers."
+          },
           "userVisible": {
             "type": "boolean",
             "description": "Whether the message should be visible to the user in the UI"
@@ -6856,6 +6724,11 @@
       "ModelSettings": {
         "type": "object",
         "properties": {
+          "backend_id": {
+            "type": "string",
+            "description": "Backend implementation to use for this model. Defaults to llama.cpp.",
+            "nullable": true
+          },
           "chat_template": {
             "$ref": "#/components/schemas/ChatTemplate"
           },
@@ -6864,6 +6737,10 @@
             "format": "int32",
             "nullable": true,
             "minimum": 0
+          },
+          "draft_model": {
+            "type": "string",
+            "nullable": true
           },
           "enable_thinking": {
             "type": "boolean"
@@ -7173,6 +7050,11 @@
           "display_name": {
             "type": "string",
             "description": "Display name for the provider in UIs"
+          },
+          "fast_model": {
+            "type": "string",
+            "description": "The name of a fast/cheap model to use for lightweight tasks (e.g. session naming,\ncompaction). When set, fast-path callers prefer this model over the main model.",
+            "nullable": true
           },
           "known_models": {
             "type": "array",
@@ -7732,7 +7614,8 @@
         "required": [
           "variants",
           "available_memory_bytes",
-          "downloaded_quants"
+          "downloaded_quants",
+          "downloaded_variants"
         ],
         "properties": {
           "available_memory_bytes": {
@@ -7746,6 +7629,12 @@
               "type": "string"
             }
           },
+          "downloaded_variants": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
           "recommended_index": {
             "type": "integer",
             "nullable": true,
@@ -7754,7 +7643,7 @@
           "variants": {
             "type": "array",
             "items": {
-              "$ref": "#/components/schemas/HfQuantVariant"
+              "$ref": "#/components/schemas/HfModelVariant"
             }
           }
         }
@@ -8206,20 +8095,8 @@
             "format": "double",
             "nullable": true
           },
-          "accumulated_input_tokens": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "accumulated_output_tokens": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
-          "accumulated_total_tokens": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
+          "accumulated_usage": {
+            "$ref": "#/components/schemas/Usage"
           },
           "archived_at": {
             "type": "string",
@@ -8247,9 +8124,13 @@
           "id": {
             "type": "string"
           },
-          "input_tokens": {
-            "type": "integer",
-            "format": "int32",
+          "last_message_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "last_message_snippet": {
+            "type": "string",
             "nullable": true
           },
           "message_count": {
@@ -8266,11 +8147,6 @@
           },
           "name": {
             "type": "string"
-          },
-          "output_tokens": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
           },
           "project_id": {
             "type": "string",
@@ -8295,14 +8171,12 @@
           "session_type": {
             "$ref": "#/components/schemas/SessionType"
           },
-          "total_tokens": {
-            "type": "integer",
-            "format": "int32",
-            "nullable": true
-          },
           "updated_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/Usage"
           },
           "user_recipe_values": {
             "type": "object",
@@ -8392,38 +8266,6 @@
             "items": {
               "$ref": "#/components/schemas/ExtensionConfig"
             }
-          }
-        }
-      },
-      "SessionInsights": {
-        "type": "object",
-        "required": [
-          "totalSessions",
-          "totalTokens"
-        ],
-        "properties": {
-          "totalSessions": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "totalTokens": {
-            "type": "integer",
-            "format": "int64"
-          }
-        }
-      },
-      "SessionListResponse": {
-        "type": "object",
-        "required": [
-          "sessions"
-        ],
-        "properties": {
-          "sessions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/Session"
-            },
-            "description": "List of available session information objects"
           }
         }
       },
@@ -8915,6 +8757,14 @@
           "accumulatedTotalTokens"
         ],
         "properties": {
+          "accumulatedCacheReadTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "accumulatedCacheWriteTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
           "accumulatedCost": {
             "type": "number",
             "format": "double",
@@ -8929,6 +8779,14 @@
             "format": "int32"
           },
           "accumulatedTotalTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cacheReadTokens": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "cacheWriteTokens": {
             "type": "integer",
             "format": "int32"
           },
@@ -9452,6 +9310,38 @@
             "items": {
               "$ref": "#/components/schemas/ToolPermission"
             }
+          }
+        }
+      },
+      "Usage": {
+        "type": "object",
+        "description": "`input_tokens` is the total input including cache read/write tokens;\nthe cache fields are breakdown subsets of it. Parsers for providers\nthat report cache tokens separately from input (e.g. Anthropic,\nBedrock) must fold them into `input_tokens`.",
+        "properties": {
+          "cache_read_input_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "cache_write_input_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "input_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "description": "All prompt tokens, including any served from or written to cache.\n`cache_read_input_tokens` and `cache_write_input_tokens` are subsets of this.",
+            "nullable": true
+          },
+          "output_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
+          },
+          "total_tokens": {
+            "type": "integer",
+            "format": "int32",
+            "nullable": true
           }
         }
       },

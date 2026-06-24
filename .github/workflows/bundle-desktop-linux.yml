@@ -39,7 +39,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ inputs.ref || inputs.branch }}
 
@@ -103,6 +103,11 @@ jobs:
           else
             sudo apt-get install -y libasound2
           fi
+
+      - name: Configure RPM packaging
+        run: |
+          echo '%_build_id_links none' > ~/.rpmmacros
+          test "$(rpm --eval '%{_build_id_links}')" = "none"
 
       - name: Setup Flatpak Runtimes
         run: |
@@ -181,6 +186,14 @@ jobs:
             done
           fi
 
+          for package in out/make/rpm/x64/*.rpm; do
+            package_contents="$(rpm -qlp "$package")"
+            if grep -qE '^/usr/lib/\.build-id(/|$)' <<< "$package_contents"; then
+              echo "::error file=$package::RPM contains build-id links"
+              exit 1
+            fi
+          done
+
           echo "Build completed. Checking output..."
           ls -la out/
           find out/ -name "*.deb" -o -name "*.rpm" -o -name "*.flatpak" | head -10
@@ -198,7 +211,7 @@ jobs:
 
       - name: Upload .deb package
         if: matrix.variant == 'standard'
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: Goose-linux-x64-deb
           path: ui/desktop/out/make/deb/x64/*.deb
@@ -206,7 +219,7 @@ jobs:
 
       - name: Upload .deb package (Vulkan)
         if: matrix.variant == 'vulkan'
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: Goose-linux-x64-vulkan-deb
           path: ui/desktop/out/make/deb/x64/*-vulkan.deb
@@ -214,7 +227,7 @@ jobs:
 
       - name: Upload .rpm package
         if: matrix.variant == 'standard'
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: Goose-linux-x64-rpm
           path: ui/desktop/out/make/rpm/x64/*.rpm
@@ -222,7 +235,7 @@ jobs:
 
       - name: Upload .rpm package (Vulkan)
         if: matrix.variant == 'vulkan'
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: Goose-linux-x64-vulkan-rpm
           path: ui/desktop/out/make/rpm/x64/*-vulkan.rpm
@@ -230,7 +243,7 @@ jobs:
 
       - name: Upload .flatpak package
         if: matrix.variant == 'standard'
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: Goose-linux-x64-flatpak
           path: ui/desktop/out/make/flatpak/x86_64/*.flatpak
@@ -238,7 +251,7 @@ jobs:
 
       - name: Upload .flatpak package (Vulkan)
         if: matrix.variant == 'vulkan'
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: Goose-linux-x64-vulkan-flatpak
           path: ui/desktop/out/make/flatpak/x86_64/*-vulkan.flatpak

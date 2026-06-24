@@ -4,12 +4,12 @@ use crate::agents::platform_extensions::developer;
 use crate::agents::ExtensionConfig;
 use crate::config::Config;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
+use crate::providers;
 use crate::providers::base::Provider;
-use crate::providers::{self, errors::ProviderError};
 use crate::session::{
     config_path, latest_llm_log_path, latest_server_log_path, read_capped, read_tail, SystemInfo,
 };
+use goose_providers::errors::ProviderError;
 
 pub async fn run(agent: &crate::agents::Agent, session_id: &str) -> anyhow::Result<Message> {
     if let Some(msg) = ensure_working_provider(agent, session_id).await? {
@@ -78,9 +78,9 @@ async fn ensure_working_provider(
         }
 
         log.push(format!("Looking for alternative models on {} ...", pname));
-        if let Some(working) = try_other_models(pname, mname, &mut log).await {
-            let new_model = working.get_model_config().model_name.clone();
-            save_and_set(agent, session_id, working).await?;
+        if let Some((working, model_config)) = try_other_models(pname, mname, &mut log).await {
+            let new_model = model_config.model_name.clone();
+            save_and_set(agent, session_id, working, model_config).await?;
             let preamble = log.join("\n");
             return Ok(Some(Message::assistant().with_text(format!(
                 "**Goose Doctor**\n\n{}\n\n\
@@ -95,10 +95,10 @@ async fn ensure_working_provider(
 
     log.push("Looking for other configured providers ...".to_string());
     let skip = provider_name.as_deref().unwrap_or("");
-    if let Some(working) = try_other_providers(skip, &mut log).await {
+    if let Some((working, model_config)) = try_other_providers(skip, &mut log).await {
         let name = working.get_name().to_string();
-        let model = working.get_model_config().model_name.clone();
-        save_and_set(agent, session_id, working).await?;
+        let model = model_config.model_name.clone();
+        save_and_set(agent, session_id, working, model_config).await?;
         let preamble = log.join("\n");
         return Ok(Some(Message::assistant().with_text(format!(
             "**Goose Doctor**\n\n{}\n\n\
@@ -139,21 +139,23 @@ async fn save_and_set(
     agent: &crate::agents::Agent,
     session_id: &str,
     provider: Arc<dyn Provider>,
+    model_config: goose_providers::model::ModelConfig,
 ) -> anyhow::Result<()> {
     let config = Config::global();
-    crate::config::set_active_provider(
-        config,
-        provider.get_name(),
-        &provider.get_model_config().model_name,
-    )?;
-    agent.update_provider(provider, session_id).await
+    crate::config::set_active_provider(config, provider.get_name(), &model_config.model_name)?;
+    agent
+        .update_provider(provider, model_config, session_id)
+        .await
 }
 
-async fn test_provider(provider: &dyn Provider) -> Result<(), ProviderError> {
+async fn test_provider(
+    provider: &dyn Provider,
+    model_config: &goose_providers::model::ModelConfig,
+) -> Result<(), ProviderError> {
     let messages = vec![Message::user().with_text("Say 'hello' and nothing else.")];
     provider
         .complete(
-            &provider.get_model_config(),
+            model_config,
             "doctor-check",
             "Respond as briefly as possible.",
             &messages,
@@ -166,27 +168,30 @@ async fn test_provider(provider: &dyn Provider) -> Result<(), ProviderError> {
 async fn try_create_and_test(
     provider_name: &str,
     model_name: &str,
-) -> Result<Arc<dyn Provider>, ProviderError> {
-    let model_config = ModelConfig::new(model_name)
-        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
-        .with_canonical_limits(provider_name);
+) -> Result<(Arc<dyn Provider>, goose_providers::model::ModelConfig), ProviderError> {
+    let model_config =
+        crate::model_config::model_config_from_user_config(provider_name, model_name)
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
 
-    let provider = providers::create(provider_name, model_config, vec![])
+    let provider = providers::create(provider_name, vec![])
         .await
         .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
 
-    test_provider(provider.as_ref()).await?;
-    Ok(provider)
+    test_provider(provider.as_ref(), &model_config).await?;
+    Ok((provider, model_config))
 }
 
 async fn try_other_models(
     provider_name: &str,
     skip_model: &str,
     log: &mut Vec<String>,
-) -> Option<Arc<dyn Provider>> {
+) -> Option<(Arc<dyn Provider>, goose_providers::model::ModelConfig)> {
     let entry = providers::get_from_registry(provider_name).await.ok()?;
     let temp = entry.create_with_default_model(vec![]).await.ok()?;
-    let models = temp.fetch_recommended_models().await.ok()?;
+    let toolshim = Config::global()
+        .get_param::<bool>("GOOSE_TOOLSHIM")
+        .unwrap_or(false);
+    let models = temp.fetch_recommended_models(toolshim).await.ok()?;
 
     for model in models.iter().filter(|m| m.as_str() != skip_model).take(3) {
         log.push(format!("  Trying {} / {} ...", provider_name, model));
@@ -201,7 +206,10 @@ async fn try_other_models(
     None
 }
 
-async fn try_other_providers(skip: &str, log: &mut Vec<String>) -> Option<Arc<dyn Provider>> {
+async fn try_other_providers(
+    skip: &str,
+    log: &mut Vec<String>,
+) -> Option<(Arc<dyn Provider>, goose_providers::model::ModelConfig)> {
     for (meta, _) in providers::providers().await {
         if meta.name == skip {
             continue;
@@ -210,16 +218,21 @@ async fn try_other_providers(skip: &str, log: &mut Vec<String>) -> Option<Arc<dy
             Ok(e) => e,
             Err(_) => continue,
         };
+        let model_name = entry.metadata().default_model.clone();
+        let model_config =
+            match crate::model_config::model_config_from_user_config(&meta.name, &model_name) {
+                Ok(config) => config,
+                Err(_) => continue,
+            };
         let provider = match entry.create_with_default_model(vec![]).await {
             Ok(p) => p,
             Err(_) => continue,
         };
-        let model_name = provider.get_model_config().model_name.clone();
         log.push(format!("  Trying {} / {} ...", meta.name, model_name));
-        match test_provider(provider.as_ref()).await {
+        match test_provider(provider.as_ref(), &model_config).await {
             Ok(()) => {
                 log.push(format!("  ✓ {} / {} works", meta.name, model_name));
-                return Some(provider);
+                return Some((provider, model_config));
             }
             Err(e) => log.push(format!("  ✗ {}", describe_error(&e))),
         }

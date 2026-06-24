@@ -2,6 +2,8 @@ use anyhow::Result;
 use async_trait::async_trait;
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::thinking::ThinkingEffort;
 use serde_json::json;
 use std::collections::HashMap;
 use std::io::Write;
@@ -11,18 +13,16 @@ use tempfile::NamedTempFile;
 use tokio::io::{AsyncBufReadExt, BufReader};
 use tokio::process::Command;
 
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-};
-use super::errors::ProviderError;
-use super::utils::{filter_extensions_from_system_prompt, RequestLog};
-use crate::config::base::{CodexCommand, CodexSkipGitCheck};
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
+use super::utils::filter_extensions_from_system_prompt;
 use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::subprocess::configure_subprocess;
+use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Role;
 use rmcp::model::Tool;
 
@@ -46,11 +46,8 @@ pub const CODEX_REASONING_LEVELS: &[&str] = &["none", "low", "medium", "high", "
 #[derive(Debug, serde::Serialize)]
 pub struct CodexProvider {
     command: PathBuf,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
-    /// Reasoning effort level (none, low, medium, high, xhigh)
-    reasoning_effort: Option<String>,
     /// Whether to skip git repo check
     skip_git_check: bool,
     /// CLI config overrides for MCP servers
@@ -60,25 +57,22 @@ pub struct CodexProvider {
 }
 
 impl CodexProvider {
-    fn legacy_reasoning_effort() -> Option<crate::model::ThinkingEffort> {
+    fn legacy_reasoning_effort() -> Option<ThinkingEffort> {
         Config::global()
             .get_param::<String>("CODEX_REASONING_EFFORT")
             .ok()
             .and_then(|effort| match effort.to_lowercase().as_str() {
-                "none" => Some(crate::model::ThinkingEffort::Off),
-                "low" => Some(crate::model::ThinkingEffort::Low),
-                "medium" => Some(crate::model::ThinkingEffort::Medium),
-                "high" => Some(crate::model::ThinkingEffort::High),
-                "xhigh" => Some(crate::model::ThinkingEffort::Max),
+                "none" => Some(ThinkingEffort::Off),
+                "low" => Some(ThinkingEffort::Low),
+                "medium" => Some(ThinkingEffort::Medium),
+                "high" => Some(ThinkingEffort::High),
+                "xhigh" => Some(ThinkingEffort::Max),
                 _ => None,
             })
     }
 
-    fn map_thinking_effort(
-        _model_name: &str,
-        effort: Option<crate::model::ThinkingEffort>,
-    ) -> Option<String> {
-        use crate::model::ThinkingEffort;
+    fn map_thinking_effort(_model_name: &str, effort: Option<ThinkingEffort>) -> Option<String> {
+        use ThinkingEffort;
         match effort
             .or_else(Self::legacy_reasoning_effort)
             .unwrap_or(ThinkingEffort::High)
@@ -129,6 +123,7 @@ impl CodexProvider {
     /// Execute codex CLI command
     async fn execute_command(
         &self,
+        model: &ModelConfig,
         system: &str,
         messages: &[Message],
         _tools: &[Tool],
@@ -140,10 +135,12 @@ impl CodexProvider {
         let (prompt, temp_files) = prepare_input(system, messages, &image_dir)?;
 
         if std::env::var("GOOSE_CODEX_DEBUG").is_ok() {
+            let reasoning_effort =
+                Self::map_thinking_effort(&model.model_name, model.thinking_effort());
             println!("=== CODEX PROVIDER DEBUG ===");
             println!("Command: {:?}", self.command);
-            println!("Model: {}", self.model.model_name);
-            println!("Reasoning effort: {:?}", self.reasoning_effort);
+            println!("Model: {}", model.model_name);
+            println!("Reasoning effort: {:?}", reasoning_effort);
             println!("Skip git check: {}", self.skip_git_check);
             println!("Prompt length: {} chars", prompt.len());
             println!("Prompt: {}", prompt);
@@ -166,11 +163,13 @@ impl CodexProvider {
 
         // Only pass model parameter if it's in the known models list
         // This allows users to set GOOSE_PROVIDER=codex without needing to specify a model
-        if CODEX_KNOWN_MODELS.contains(&self.model.model_name.as_str()) {
-            cmd.arg("-m").arg(&self.model.model_name);
+        if CODEX_KNOWN_MODELS.contains(&model.model_name.as_str()) {
+            cmd.arg("-m").arg(&model.model_name);
         }
 
-        if let Some(reasoning_effort) = &self.reasoning_effort {
+        if let Some(reasoning_effort) =
+            Self::map_thinking_effort(&model.model_name, model.thinking_effort())
+        {
             cmd.arg("-c")
                 .arg(format!("model_reasoning_effort=\"{}\"", reasoning_effort));
         }
@@ -293,7 +292,7 @@ impl CodexProvider {
         }
     }
 
-    /// Extract usage information from a JSON object
+    /// Codex `input_tokens` already includes `cached_input_tokens`.
     fn extract_usage(usage_info: &serde_json::Value, usage: &mut Usage) {
         if usage.input_tokens.is_none() {
             usage.input_tokens = usage_info
@@ -304,6 +303,12 @@ impl CodexProvider {
         if usage.output_tokens.is_none() {
             usage.output_tokens = usage_info
                 .get("output_tokens")
+                .and_then(|v| v.as_i64())
+                .map(|v| v as i32);
+        }
+        if usage.cache_read_input_tokens.is_none() {
+            usage.cache_read_input_tokens = usage_info
+                .get("cached_input_tokens")
                 .and_then(|v| v.as_i64())
                 .map(|v| v as i32);
         }
@@ -618,9 +623,7 @@ fn codex_mcp_config_overrides(extensions: &[ExtensionConfig]) -> Vec<String> {
     overrides
 }
 
-impl ProviderDef for CodexProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for CodexProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             CODEX_PROVIDER_NAME,
@@ -630,23 +633,24 @@ impl ProviderDef for CodexProvider {
             CODEX_KNOWN_MODELS.to_vec(),
             CODEX_DOC_URL,
             vec![
-                ConfigKey::from_value_type::<CodexCommand>(true, false, true),
-                ConfigKey::from_value_type::<CodexSkipGitCheck>(false, false, true),
+                ConfigKey::new("CODEX_COMMAND", true, false, Some("codex"), true),
+                ConfigKey::new("CODEX_SKIP_GIT_CHECK", false, false, Some("false"), true),
             ],
         )
     }
+}
+
+impl ProviderDef for CodexProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = Config::global();
             let command: String = config.get_codex_command().unwrap_or_default().into();
             let resolved_command = SearchPaths::builder().with_npm().resolve(command)?;
-
-            let reasoning_effort =
-                Self::map_thinking_effort(&model.model_name, model.thinking_effort());
 
             // Get skip_git_check from config, default to false
             let skip_git_check = config
@@ -661,9 +665,7 @@ impl ProviderDef for CodexProvider {
 
             Ok(Self {
                 command: resolved_command,
-                model,
                 name: CODEX_PROVIDER_NAME.to_string(),
-                reasoning_effort,
                 skip_git_check,
                 mcp_config_overrides: codex_mcp_config_overrides(&resolved),
                 mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -676,10 +678,6 @@ impl ProviderDef for CodexProvider {
 impl Provider for CodexProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn stream(
@@ -706,7 +704,7 @@ impl Provider for CodexProvider {
             map.get(session_id).copied().unwrap_or_default()
         };
         let lines = self
-            .execute_command(system, messages, tools, goose_mode)
+            .execute_command(model_config, system, messages, tools, goose_mode)
             .await?;
 
         let (message, usage) = self.parse_response(&lines)?;
@@ -715,14 +713,12 @@ impl Provider for CodexProvider {
         let payload = json!({
             "command": self.command,
             "model": model_config.model_name,
-            "reasoning_effort": self.reasoning_effort,
+            "reasoning_effort": Self::map_thinking_effort(&model_config.model_name, model_config.thinking_effort()),
             "system_length": system.len(),
             "messages_count": messages.len()
         });
 
-        let mut log = RequestLog::start(model_config, &payload).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to start request log: {}", e))
-        })?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = json!({
             "lines": lines.len(),
@@ -757,6 +753,7 @@ impl Provider for CodexProvider {
 mod tests {
     use super::*;
     use crate::agents::extension::Envs;
+    use goose_providers::base::ProviderDescriptor as _;
     use goose_test_support::TEST_IMAGE_B64;
     use std::collections::HashMap;
     use test_case::test_case;
@@ -783,6 +780,7 @@ mod tests {
             env_keys: vec![],
             description: "Lookup".into(),
             timeout: Some(30),
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -839,6 +837,7 @@ mod tests {
             env_keys: vec![],
             description: String::new(),
             timeout: None,
+            cwd: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -933,9 +932,7 @@ mod tests {
     fn test_parse_response_plain_text() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -954,9 +951,7 @@ mod tests {
     fn test_parse_response_json_events() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -982,15 +977,14 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(100));
         assert_eq!(usage.output_tokens, Some(50));
         assert_eq!(usage.total_tokens, Some(150));
+        assert_eq!(usage.cache_read_input_tokens, Some(30));
     }
 
     #[test]
     fn test_parse_response_empty() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -1037,9 +1031,7 @@ mod tests {
     fn test_parse_response_item_completed() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -1063,9 +1055,7 @@ mod tests {
     fn test_parse_response_turn_completed_usage() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -1082,6 +1072,7 @@ mod tests {
         assert_eq!(usage.input_tokens, Some(5000));
         assert_eq!(usage.output_tokens, Some(100));
         assert_eq!(usage.total_tokens, Some(5100));
+        assert_eq!(usage.cache_read_input_tokens, Some(3000));
     }
 
     #[test_case(
@@ -1136,9 +1127,7 @@ mod tests {
     fn test_parse_response_error_event(lines: &[&str], expected: ProviderError) {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -1153,9 +1142,7 @@ mod tests {
     fn test_parse_response_skips_reasoning() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),
@@ -1238,7 +1225,7 @@ mod tests {
 
     #[test]
     fn test_map_thinking_effort() {
-        use crate::model::ThinkingEffort;
+        use ThinkingEffort;
 
         let _guard = env_lock::lock_env([
             ("CODEX_REASONING_EFFORT", None::<&str>),
@@ -1280,9 +1267,7 @@ mod tests {
     fn test_parse_response_multiple_agent_messages() {
         let provider = CodexProvider {
             command: PathBuf::from("codex"),
-            model: ModelConfig::new("gpt-5.2-codex").unwrap(),
             name: "codex".to_string(),
-            reasoning_effort: Some("high".to_string()),
             skip_git_check: false,
             mcp_config_overrides: Vec::new(),
             mode_by_session: tokio::sync::RwLock::new(HashMap::new()),

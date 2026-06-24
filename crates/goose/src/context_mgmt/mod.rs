@@ -2,12 +2,14 @@ use crate::conversation::message::{ActionRequiredData, MessageMetadata};
 use crate::conversation::message::{Message, MessageContent};
 use crate::conversation::{merge_consecutive_messages, Conversation};
 use crate::prompt_template::render_template;
+use crate::providers::base::Provider;
 #[cfg(test)]
 use crate::providers::base::{stream_from_single_message, MessageStream};
-use crate::providers::base::{Provider, ProviderUsage};
-use crate::providers::errors::ProviderError;
 use crate::{config::Config, token_counter::create_token_counter};
 use anyhow::Result;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use indoc::indoc;
 use rmcp::model::Role;
 use serde::Serialize;
@@ -64,6 +66,7 @@ struct SummarizeContext {
 ///   - `ProviderUsage`: Provider usage from summarization
 pub async fn compact_messages(
     provider: &dyn Provider,
+    model_config: &ModelConfig,
     session_id: &str,
     conversation: &Conversation,
     manual_compact: bool,
@@ -127,7 +130,7 @@ pub async fn compact_messages(
     let messages_to_compact = messages.as_slice();
 
     let (summary_message, summarization_usage) =
-        do_compact(provider, session_id, messages_to_compact).await?;
+        do_compact(provider, model_config, session_id, messages_to_compact).await?;
 
     // Create the final message list with updated visibility metadata:
     // 1. Original messages become user_visible but not agent_visible
@@ -200,9 +203,16 @@ pub async fn check_if_compaction_needed(
             .unwrap_or(DEFAULT_COMPACTION_THRESHOLD)
     });
 
-    let context_limit = provider.get_model_config().context_limit();
+    let model_config = session
+        .model_config
+        .clone()
+        .unwrap_or_else(|| ModelConfig::new("unknown"));
+    let context_limit = provider
+        .get_context_limit(&model_config)
+        .await
+        .unwrap_or_else(|_| model_config.context_limit());
 
-    let (current_tokens, _token_source) = match session.total_tokens {
+    let (current_tokens, _token_source) = match session.usage.total_tokens {
         Some(tokens) => (tokens as usize, "session metadata"),
         None => {
             let token_counter = create_token_counter()
@@ -281,6 +291,7 @@ fn filter_tool_responses(messages: &[Message], remove_percent: u32) -> Vec<&Mess
 
 async fn do_compact(
     provider: &dyn Provider,
+    model_config: &ModelConfig,
     session_id: &str,
     messages: &[Message],
 ) -> Result<(Message, ProviderUsage), anyhow::Error> {
@@ -312,17 +323,28 @@ async fn do_compact(
             .with_text("Please summarize the conversation history provided in the system prompt.");
         let summarization_request = vec![user_message];
 
-        match provider
-            .complete_fast(session_id, &system_prompt, &summarization_request, &[])
-            .await
+        match crate::model_config::complete_fast(
+            provider,
+            model_config,
+            session_id,
+            &system_prompt,
+            &summarization_request,
+            &[],
+        )
+        .await
         {
             Ok((mut response, mut provider_usage)) => {
                 response.role = Role::User;
 
-                provider_usage
-                    .ensure_tokens(&system_prompt, &summarization_request, &response, &[])
-                    .await
-                    .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
+                crate::providers::usage_estimator::ensure_usage_tokens(
+                    &mut provider_usage,
+                    &system_prompt,
+                    &summarization_request,
+                    &response,
+                    &[],
+                )
+                .await
+                .map_err(|e| anyhow::anyhow!("Failed to ensure usage tokens: {}", e))?;
 
                 return Ok((response, provider_usage));
             }
@@ -470,6 +492,7 @@ pub fn tool_ids_to_summarize(
 
 pub async fn summarize_tool_call(
     provider: &dyn Provider,
+    model_config: &ModelConfig,
     session_id: &str,
     conversation: &Conversation,
     tool_id: &str,
@@ -516,9 +539,15 @@ pub async fn summarize_tool_call(
                 if that is what it was.
             "#};
 
-    let (mut response, _) = provider
-        .complete_fast(session_id, system_prompt, &summarization_request, &[])
-        .await?;
+    let (mut response, _) = crate::model_config::complete_fast(
+        provider,
+        model_config,
+        session_id,
+        system_prompt,
+        &summarization_request,
+        &[],
+    )
+    .await?;
 
     response.role = Role::User;
     response.created = matching_messages.last().unwrap().created;
@@ -529,6 +558,7 @@ pub async fn summarize_tool_call(
 
 pub fn maybe_summarize_tool_pairs(
     provider: Arc<dyn Provider>,
+    model_config: ModelConfig,
     session_id: String,
     conversation: Conversation,
     cutoff: usize,
@@ -546,7 +576,14 @@ pub fn maybe_summarize_tool_pairs(
     Some(tokio::spawn(async move {
         let mut results = Vec::new();
         for tool_id in tool_ids {
-            match summarize_tool_call(provider.as_ref(), &session_id, &conversation, &tool_id).await
+            match summarize_tool_call(
+                provider.as_ref(),
+                &model_config,
+                &session_id,
+                &conversation,
+                &tool_id,
+            )
+            .await
             {
                 Ok(summary) => results.push((summary, tool_id)),
                 Err(e) => {
@@ -561,11 +598,8 @@ pub fn maybe_summarize_tool_pairs(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        model::ModelConfig,
-        providers::{base::Usage, errors::ProviderError},
-    };
     use async_trait::async_trait;
+    use goose_providers::conversation::token_usage::Usage;
     use rmcp::model::{AnnotateAble, CallToolRequestParams, RawContent, Tool};
 
     fn create_tool_pair(
@@ -609,7 +643,6 @@ mod tests {
                     max_tokens: None,
                     toolshim: false,
                     toolshim_model: None,
-                    fast_model_config: None,
                     request_params: None,
                     reasoning: None,
                 },
@@ -661,8 +694,11 @@ mod tests {
             Ok(stream_from_single_message(message, usage))
         }
 
-        fn get_model_config(&self) -> ModelConfig {
-            self.config.clone()
+        async fn get_context_limit(
+            &self,
+            _model_config: &ModelConfig,
+        ) -> Result<usize, ProviderError> {
+            Ok(self.config.context_limit())
         }
     }
 
@@ -683,10 +719,16 @@ mod tests {
         ];
 
         let conversation = Conversation::new_unvalidated(basic_conversation);
-        let (compacted_conversation, _usage) =
-            compact_messages(&provider, "test-session-id", &conversation, false)
-                .await
-                .unwrap();
+        let model_config = provider.config.clone();
+        let (compacted_conversation, _usage) = compact_messages(
+            &provider,
+            &model_config,
+            "test-session-id",
+            &conversation,
+            false,
+        )
+        .await
+        .unwrap();
 
         let agent_conversation = compacted_conversation.agent_visible_messages();
 
@@ -716,7 +758,15 @@ mod tests {
         }
 
         let conversation = Conversation::new_unvalidated(messages);
-        let result = compact_messages(&provider, "test-session-id", &conversation, false).await;
+        let model_config = provider.config.clone();
+        let result = compact_messages(
+            &provider,
+            &model_config,
+            "test-session-id",
+            &conversation,
+            false,
+        )
+        .await;
 
         assert!(
             result.is_ok(),

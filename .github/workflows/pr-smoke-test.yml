@@ -30,7 +30,7 @@ jobs:
       code: ${{ steps.filter.outputs.code }}
     steps:
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
           fetch-depth: 0
@@ -51,7 +51,7 @@ jobs:
     if: needs.changes.outputs.code == 'true' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 
@@ -70,14 +70,14 @@ jobs:
           cargo build --bin goose --bin goosed
 
       - name: Upload goose binary
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: goose-binary
           path: target/debug/goose
           retention-days: 1
 
       - name: Upload goosed binary
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: goosed-binary
           path: target/debug/goosed
@@ -89,7 +89,7 @@ jobs:
     needs: build-binary
     steps:
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 
@@ -103,7 +103,7 @@ jobs:
         run: chmod +x target/debug/goose
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '22'
 
@@ -142,7 +142,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
 
       - name: Run MCP Tests
         env:
@@ -177,7 +177,7 @@ jobs:
     needs: build-binary
     steps:
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 
@@ -220,7 +220,7 @@ jobs:
     needs: build-binary
     steps:
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 
@@ -239,7 +239,7 @@ jobs:
           python-version: '3.12'
 
       - name: Install uv
-        uses: astral-sh/setup-uv@61cb8a9741eeb8a550a1b8544337180c0fc8476b  # v7.2.0
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39  # v8.2.0
 
       - name: Run Compaction Tests
         env:
@@ -260,7 +260,7 @@ jobs:
     needs: build-binary
     steps:
       - name: Checkout Code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           ref: ${{ github.event.inputs.branch || github.ref }}
 

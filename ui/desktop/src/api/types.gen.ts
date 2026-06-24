@@ -20,6 +20,7 @@ export type ActionRequiredData = {
     message: string;
     requested_schema: unknown;
 } | {
+    action?: string;
     actionType: 'elicitationResponse';
     id: string;
     user_data: unknown;
@@ -37,11 +38,6 @@ export type Annotations = {
 };
 
 export type Author = {
-    contact?: string | null;
-    metadata?: string | null;
-};
-
-export type AuthorRequest = {
     contact?: string | null;
     metadata?: string | null;
 };
@@ -177,16 +173,6 @@ export type CreateCustomProviderResponse = {
     provider_name: string;
 };
 
-export type CreateRecipeRequest = {
-    author?: AuthorRequest | null;
-    session_id: string;
-};
-
-export type CreateRecipeResponse = {
-    error?: string | null;
-    recipe?: Recipe | null;
-};
-
 export type CreateScheduleRequest = {
     cron: string;
     id: string;
@@ -261,6 +247,59 @@ export type DeleteRecipeRequest = {
     id: string;
 };
 
+export type DiagnosticsConfig = {
+    configPath: string;
+    configYaml?: string | null;
+    truncated: boolean;
+};
+
+export type DiagnosticsError = {
+    message: string;
+    path?: string | null;
+};
+
+export type DiagnosticsExtensions = {
+    enabled: Array<string>;
+};
+
+export type DiagnosticsLevel = 'summary' | 'full';
+
+export type DiagnosticsLogs = {
+    llm: Array<DiagnosticsTextFile>;
+    server?: DiagnosticsTextFile | null;
+};
+
+export type DiagnosticsPrompt = {
+    content: string;
+    name: string;
+};
+
+export type DiagnosticsReport = {
+    config?: DiagnosticsConfig | null;
+    errors: Array<DiagnosticsError>;
+    extensions: DiagnosticsExtensions;
+    generatedAt: string;
+    level: DiagnosticsLevel;
+    logs: DiagnosticsLogs;
+    prompts: Array<DiagnosticsPrompt>;
+    schedule?: unknown;
+    scheduledRecipes: Array<DiagnosticsScheduledRecipe>;
+    schemaVersion: number;
+    session?: unknown;
+    system: SystemInfo;
+};
+
+export type DiagnosticsScheduledRecipe = {
+    content: string;
+    path: string;
+};
+
+export type DiagnosticsTextFile = {
+    content: string;
+    path: string;
+    truncated: boolean;
+};
+
 export type DictationProvider = 'openai' | 'elevenlabs' | 'groq' | 'local';
 
 export type DictationProviderStatus = {
@@ -292,9 +331,17 @@ export type DictationProviderStatus = {
 
 export type DownloadModelRequest = {
     /**
-     * Model spec like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M"
+     * Optional backend id for callers selecting a concrete variant row.
+     */
+    backend_id?: string | null;
+    /**
+     * Model spec/download id like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M" or "google/gemma-4-31B-it"
      */
     spec: string;
+    /**
+     * Optional backend-specific variant id, such as a GGUF quantization or MLX dtype.
+     */
+    variant_id?: string | null;
 };
 
 export type DownloadProgress = {
@@ -383,6 +430,7 @@ export type ExtensionConfig = {
     available_tools?: Array<string>;
     bundled?: boolean | null;
     cmd: string;
+    cwd?: string | null;
     description: string;
     env_keys?: Array<string>;
     envs?: Envs;
@@ -558,6 +606,24 @@ export type HfModelInfo = {
     gguf_files: Array<HfGgufFile>;
     model_name: string;
     repo_id: string;
+    variants?: Array<HfModelVariant>;
+};
+
+export type HfModelVariant = {
+    backend_id: string;
+    description: string;
+    download_id: string;
+    download_url?: string | null;
+    filename?: string | null;
+    format: string;
+    label: string;
+    model_id: string;
+    quality_rank: number;
+    sharded?: boolean;
+    size_bytes: number;
+    supported?: boolean;
+    unsupported_reason?: string | null;
+    variant_id: string;
 };
 
 /**
@@ -606,10 +672,6 @@ export type ImportAppResponse = {
 
 export type ImportSessionNostrRequest = {
     deeplink: string;
-};
-
-export type ImportSessionRequest = {
-    json: string;
 };
 
 export type InferenceMetadata = {
@@ -771,6 +833,12 @@ export type MessageMetadata = {
     agentVisible: boolean;
     inference?: InferenceMetadata | null;
     /**
+     * Whether this message is a steer injected into an active run. UI-only:
+     * surfaced as `_meta.goose.steer` so clients can mark the steer boundary
+     * without matching user-visible text. Never sent to providers.
+     */
+    steer?: boolean;
+    /**
      * Whether the message should be visible to the user in the UI
      */
     userVisible: boolean;
@@ -873,8 +941,13 @@ export type ModelInfoResponse = {
 };
 
 export type ModelSettings = {
+    /**
+     * Backend implementation to use for this model. Defaults to llama.cpp.
+     */
+    backend_id?: string | null;
     chat_template?: ChatTemplate;
     context_size?: number | null;
+    draft_model?: string | null;
     enable_thinking?: boolean;
     flash_attention?: boolean | null;
     frequency_penalty?: number;
@@ -1004,6 +1077,11 @@ export type ProviderMetadata = {
      * Display name for the provider in UIs
      */
     display_name: string;
+    /**
+     * The name of a fast/cheap model to use for lightweight tasks (e.g. session naming,
+     * compaction). When set, fast-path callers prefer this model over the main model.
+     */
+    fast_model?: string | null;
     /**
      * A list of currently known models with their capabilities
      */
@@ -1183,8 +1261,9 @@ export type RemoveExtensionRequest = {
 export type RepoVariantsResponse = {
     available_memory_bytes: number;
     downloaded_quants: Array<string>;
+    downloaded_variants: Array<string>;
     recommended_index?: number | null;
-    variants: Array<HfQuantVariant>;
+    variants: Array<HfModelVariant>;
 };
 
 export type ResourceContents = {
@@ -1328,27 +1407,25 @@ export type ScheduledJob = {
 
 export type Session = {
     accumulated_cost?: number | null;
-    accumulated_input_tokens?: number | null;
-    accumulated_output_tokens?: number | null;
-    accumulated_total_tokens?: number | null;
+    accumulated_usage?: Usage;
     archived_at?: string | null;
     conversation?: Conversation | null;
     created_at: string;
     extension_data: ExtensionData;
     goose_mode?: GooseMode;
     id: string;
-    input_tokens?: number | null;
+    last_message_at?: string | null;
+    last_message_snippet?: string | null;
     message_count: number;
     model_config?: ModelConfig | null;
     name: string;
-    output_tokens?: number | null;
     project_id?: string | null;
     provider_name?: string | null;
     recipe?: Recipe | null;
     schedule_id?: string | null;
     session_type?: SessionType;
-    total_tokens?: number | null;
     updated_at: string;
+    usage?: Usage;
     user_recipe_values?: {
         [key: string]: string;
     } | null;
@@ -1373,18 +1450,6 @@ export type SessionDisplayInfo = {
 
 export type SessionExtensionsResponse = {
     extensions: Array<ExtensionConfig>;
-};
-
-export type SessionInsights = {
-    totalSessions: number;
-    totalTokens: number;
-};
-
-export type SessionListResponse = {
-    /**
-     * List of available session information objects
-     */
-    sessions: Array<Session>;
 };
 
 export type SessionReplyRequest = {
@@ -1538,10 +1603,14 @@ export type ThinkingContent = {
 export type ThinkingEffort = 'off' | 'low' | 'medium' | 'high' | 'max';
 
 export type TokenState = {
+    accumulatedCacheReadTokens?: number;
+    accumulatedCacheWriteTokens?: number;
     accumulatedCost?: number | null;
     accumulatedInputTokens: number;
     accumulatedOutputTokens: number;
     accumulatedTotalTokens: number;
+    cacheReadTokens?: number;
+    cacheWriteTokens?: number;
     inputTokens: number;
     outputTokens: number;
     totalTokens: number;
@@ -1749,6 +1818,24 @@ export type UpsertConfigQuery = {
 
 export type UpsertPermissionsQuery = {
     tool_permissions: Array<ToolPermission>;
+};
+
+/**
+ * `input_tokens` is the total input including cache read/write tokens;
+ * the cache fields are breakdown subsets of it. Parsers for providers
+ * that report cache tokens separately from input (e.g. Anthropic,
+ * Bedrock) must fold them into `input_tokens`.
+ */
+export type Usage = {
+    cache_read_input_tokens?: number | null;
+    cache_write_input_tokens?: number | null;
+    /**
+     * All prompt tokens, including any served from or written to cache.
+     * `cache_read_input_tokens` and `cache_write_input_tokens` are subsets of this.
+     */
+    input_tokens?: number | null;
+    output_tokens?: number | null;
+    total_tokens?: number | null;
 };
 
 export type WhisperModelResponse = {
@@ -3065,7 +3152,9 @@ export type DiagnosticsData = {
     path: {
         session_id: string;
     };
-    query?: never;
+    query?: {
+        level?: DiagnosticsLevel | null;
+    };
     url: '/diagnostics/{session_id}';
 };
 
@@ -3078,9 +3167,9 @@ export type DiagnosticsErrors = {
 
 export type DiagnosticsResponses = {
     /**
-     * Diagnostics zip file
+     * Diagnostics report
      */
-    200: Blob | File;
+    200: DiagnosticsReport;
 };
 
 export type DiagnosticsResponse = DiagnosticsResponses[keyof DiagnosticsResponses];
@@ -3601,37 +3690,6 @@ export type McpUiProxyResponses = {
      */
     200: unknown;
 };
-
-export type CreateRecipeData = {
-    body: CreateRecipeRequest;
-    path?: never;
-    query?: never;
-    url: '/recipes/create';
-};
-
-export type CreateRecipeErrors = {
-    /**
-     * Bad request
-     */
-    400: unknown;
-    /**
-     * Precondition failed - Agent not available
-     */
-    412: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type CreateRecipeResponses = {
-    /**
-     * Recipe created successfully
-     */
-    200: CreateRecipeResponse;
-};
-
-export type CreateRecipeResponse2 = CreateRecipeResponses[keyof CreateRecipeResponses];
 
 export type DecodeRecipeData = {
     body: DecodeRecipeRequest;
@@ -4217,64 +4275,6 @@ export type UnpauseScheduleResponses = {
 
 export type UnpauseScheduleResponse = UnpauseScheduleResponses[keyof UnpauseScheduleResponses];
 
-export type ListSessionsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/sessions';
-};
-
-export type ListSessionsErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ListSessionsResponses = {
-    /**
-     * List of available sessions retrieved successfully
-     */
-    200: SessionListResponse;
-};
-
-export type ListSessionsResponse = ListSessionsResponses[keyof ListSessionsResponses];
-
-export type ImportSessionData = {
-    body: ImportSessionRequest;
-    path?: never;
-    query?: never;
-    url: '/sessions/import';
-};
-
-export type ImportSessionErrors = {
-    /**
-     * Bad request - Invalid JSON
-     */
-    400: unknown;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ImportSessionResponses = {
-    /**
-     * Session imported successfully
-     */
-    200: Session;
-};
-
-export type ImportSessionResponse = ImportSessionResponses[keyof ImportSessionResponses];
-
 export type ImportSessionNostrData = {
     body: ImportSessionNostrRequest;
     path?: never;
@@ -4305,81 +4305,6 @@ export type ImportSessionNostrResponses = {
 };
 
 export type ImportSessionNostrResponse = ImportSessionNostrResponses[keyof ImportSessionNostrResponses];
-
-export type GetSessionInsightsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/sessions/insights';
-};
-
-export type GetSessionInsightsErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type GetSessionInsightsResponses = {
-    /**
-     * Session insights retrieved successfully
-     */
-    200: SessionInsights;
-};
-
-export type GetSessionInsightsResponse = GetSessionInsightsResponses[keyof GetSessionInsightsResponses];
-
-export type SearchSessionsData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Search query string
-         */
-        query: string;
-        /**
-         * Maximum results (default: 10, max: 50)
-         */
-        limit?: number | null;
-        /**
-         * Filter after date (ISO 8601)
-         */
-        after_date?: string | null;
-        /**
-         * Filter before date (ISO 8601)
-         */
-        before_date?: string | null;
-    };
-    url: '/sessions/search';
-};
-
-export type SearchSessionsErrors = {
-    /**
-     * Bad request - Invalid query
-     */
-    400: unknown;
-    /**
-     * Unauthorized
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type SearchSessionsResponses = {
-    /**
-     * Matching sessions
-     */
-    200: Array<Session>;
-};
-
-export type SearchSessionsResponse = SearchSessionsResponses[keyof SearchSessionsResponses];
 
 export type SessionCancelData = {
     body: CancelRequest;
@@ -4468,40 +4393,6 @@ export type SessionReplyResponses = {
 
 export type SessionReplyResponse2 = SessionReplyResponses[keyof SessionReplyResponses];
 
-export type DeleteSessionData = {
-    body?: never;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}';
-};
-
-export type DeleteSessionErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type DeleteSessionResponses = {
-    /**
-     * Session deleted successfully
-     */
-    200: unknown;
-};
-
 export type GetSessionData = {
     body?: never;
     path: {
@@ -4537,42 +4428,6 @@ export type GetSessionResponses = {
 };
 
 export type GetSessionResponse = GetSessionResponses[keyof GetSessionResponses];
-
-export type ExportSessionData = {
-    body?: never;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}/export';
-};
-
-export type ExportSessionErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ExportSessionResponses = {
-    /**
-     * Session exported successfully
-     */
-    200: string;
-};
-
-export type ExportSessionResponse = ExportSessionResponses[keyof ExportSessionResponses];
 
 export type GetSessionExtensionsData = {
     body?: never;
@@ -4808,35 +4663,6 @@ export type SendTelemetryEventResponses = {
     202: unknown;
 };
 
-export type StartTunnelData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/tunnel/start';
-};
-
-export type StartTunnelErrors = {
-    /**
-     * Bad request
-     */
-    400: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type StartTunnelError = StartTunnelErrors[keyof StartTunnelErrors];
-
-export type StartTunnelResponses = {
-    /**
-     * Tunnel started successfully
-     */
-    200: TunnelInfo;
-};
-
-export type StartTunnelResponse = StartTunnelResponses[keyof StartTunnelResponses];
-
 export type GetTunnelStatusData = {
     body?: never;
     path?: never;
@@ -4852,26 +4678,3 @@ export type GetTunnelStatusResponses = {
 };
 
 export type GetTunnelStatusResponse = GetTunnelStatusResponses[keyof GetTunnelStatusResponses];
-
-export type StopTunnelData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/tunnel/stop';
-};
-
-export type StopTunnelErrors = {
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type StopTunnelError = StopTunnelErrors[keyof StopTunnelErrors];
-
-export type StopTunnelResponses = {
-    /**
-     * Tunnel stopped successfully
-     */
-    200: unknown;
-};

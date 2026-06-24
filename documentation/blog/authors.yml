@@ -76,6 +76,17 @@ damien:
     linkedin: damienrj
     github: damienrj
 
+douwe:
+  name: Douwe Osinga
+  title: Software Engineer
+  image_url: /img/authors/douwe-osinga.png
+  url: https://douwe.com
+  page: true
+  socials:
+    linkedin: douweosinga
+    github: DOsinga
+    x: dosinga
+
 dean:
   name: Dean Wyatte
   title: Principal Machine Learning Engineer
@@ -244,4 +255,3 @@ codefromthecrypt:
     github: codefromthecrypt
     x: adrianfcole
     linkedin: adrianfcole
-

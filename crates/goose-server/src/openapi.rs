@@ -3,12 +3,19 @@ use goose::agents::extension::ToolInfo;
 use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
+use goose::conversation::token_usage::Usage;
 use goose::conversation::Conversation;
 use goose::download_manager::{DownloadProgress, DownloadStatus};
-use goose::model::{ModelConfig, ThinkingEffort};
-use goose::permission::permission_confirmation::{Permission, PrincipalType};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
-use goose::session::{Session, SessionInsights, SessionType, SystemInfo};
+use goose::session::{
+    DiagnosticsConfig, DiagnosticsError, DiagnosticsExtensions, DiagnosticsLevel, DiagnosticsLogs,
+    DiagnosticsPrompt, DiagnosticsReport, DiagnosticsScheduledRecipe, DiagnosticsTextFile, Session,
+    SessionType, SystemInfo,
+};
+use goose_providers::model::ModelConfig;
+use goose_providers::permission::Permission;
+use goose_providers::permission::PrincipalType;
+use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{
     Annotations, Content, EmbeddedResource, Icon, IconTheme, ImageContent, JsonObject,
     RawAudioContent, RawContent, RawEmbeddedResource, RawImageContent, RawResource, RawTextContent,
@@ -439,14 +446,8 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::session_events::session_events,
         super::routes::session_events::session_reply,
         super::routes::session_events::session_cancel,
-        super::routes::session::list_sessions,
-        super::routes::session::search_sessions,
         super::routes::session::get_session,
-        super::routes::session::get_session_insights,
         super::routes::session::update_session_name,
-        super::routes::session::delete_session,
-        super::routes::session::export_session,
-        super::routes::session::import_session,
         super::routes::session::share_session_nostr,
         super::routes::session::import_session_nostr,
         super::routes::session::update_session_user_recipe_values,
@@ -462,7 +463,6 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::schedule::kill_running_job,
         super::routes::schedule::inspect_running_job,
         super::routes::schedule::sessions_handler,
-        super::routes::recipe::create_recipe,
         super::routes::recipe::encode_recipe,
         super::routes::recipe::decode_recipe,
         super::routes::recipe::scan_recipe,
@@ -476,8 +476,6 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::setup::start_openrouter_setup,
         super::routes::setup::start_tetrate_setup,
         super::routes::setup::start_nanogpt_setup,
-        super::routes::tunnel::start_tunnel,
-        super::routes::tunnel::stop_tunnel,
         super::routes::tunnel::get_tunnel_status,
         super::routes::telemetry::send_telemetry_event,
         super::routes::dictation::transcribe_dictation,
@@ -521,11 +519,9 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::session_events::SessionReplyRequest,
         super::routes::session_events::SessionReplyResponse,
         super::routes::session_events::CancelRequest,
-        super::routes::session::ImportSessionRequest,
         super::routes::session::ShareSessionNostrRequest,
         super::routes::session::ShareSessionNostrResponse,
         super::routes::session::ImportSessionNostrRequest,
-        super::routes::session::SessionListResponse,
         super::routes::session::UpdateSessionNameRequest,
         super::routes::session::UpdateSessionUserRecipeValuesRequest,
         super::routes::session::UpdateSessionUserRecipeValuesResponse,
@@ -537,6 +533,7 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         MessageMetadata,
         InferenceMetadata,
         TokenState,
+        Usage,
         ContentSchema,
         EmbeddedResourceSchema,
         ImageContentSchema,
@@ -585,10 +582,18 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         ThinkingEffort,
         super::routes::config_management::ProviderModelInfoQuery,
         Session,
-        goose::config::goose_mode::GooseMode,
-        SessionInsights,
+        goose_providers::goose_mode::GooseMode,
         SessionType,
         SystemInfo,
+        DiagnosticsConfig,
+        DiagnosticsError,
+        DiagnosticsExtensions,
+        DiagnosticsLevel,
+        DiagnosticsLogs,
+        DiagnosticsPrompt,
+        DiagnosticsReport,
+        DiagnosticsScheduledRecipe,
+        DiagnosticsTextFile,
         Conversation,
         IconSchema,
         IconThemeSchema,
@@ -602,9 +607,6 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::schedule::ListSchedulesResponse,
         super::routes::schedule::SessionsQuery,
         super::routes::schedule::SessionDisplayInfo,
-        super::routes::recipe::CreateRecipeRequest,
-        super::routes::recipe::AuthorRequest,
-        super::routes::recipe::CreateRecipeResponse,
         super::routes::recipe::EncodeRecipeRequest,
         super::routes::recipe::EncodeRecipeResponse,
         super::routes::recipe::DecodeRecipeRequest,
@@ -704,6 +706,7 @@ pub struct ApiDoc;
         super::routes::local_inference::ModelDownloadStatus,
         super::routes::local_inference::DownloadModelRequest,
         goose::providers::local_inference::hf_models::HfModelInfo,
+        goose::providers::local_inference::hf_models::HfModelVariant,
         goose::providers::local_inference::hf_models::HfGgufFile,
         goose::providers::local_inference::hf_models::HfQuantVariant,
         super::routes::local_inference::RepoVariantsResponse,

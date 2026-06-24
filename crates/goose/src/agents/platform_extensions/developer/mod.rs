@@ -1,4 +1,5 @@
 pub mod edit;
+pub mod image;
 pub mod shell;
 pub mod tree;
 
@@ -8,6 +9,7 @@ use crate::agents::ToolCallContext;
 use anyhow::Result;
 use async_trait::async_trait;
 use edit::{EditTools, FileEditParams, FileWriteParams};
+use image::{ImageReadParams, ImageTool};
 use indoc::indoc;
 use rmcp::model::{
     CallToolResult, Content, Implementation, InitializeResult, JsonObject, ListToolsResult,
@@ -27,6 +29,7 @@ pub struct DeveloperClient {
     shell_tool: Arc<ShellTool>,
     edit_tools: Arc<EditTools>,
     tree_tool: Arc<TreeTool>,
+    image_tool: Arc<ImageTool>,
 }
 
 fn developer_instructions() -> &'static str {
@@ -74,6 +77,7 @@ impl DeveloperClient {
             shell_tool: Arc::new(ShellTool::new(context.use_login_shell_path)?),
             edit_tools: Arc::new(EditTools::new()),
             tree_tool: Arc::new(TreeTool::new()),
+            image_tool: Arc::new(ImageTool::new()),
         })
     }
 
@@ -152,6 +156,18 @@ impl DeveloperClient {
                 Some(true),
                 Some(false),
             )),
+            Tool::new(
+                "read_image".to_string(),
+                "Read an image from a local file path or http(s) URL and return it as image content for the model to inspect. Supports png, jpeg, gif, and webp.".to_string(),
+                Self::schema::<ImageReadParams>(),
+            )
+            .annotate(ToolAnnotations::from_raw(
+                Some("Read Image".to_string()),
+                Some(true),
+                Some(false),
+                Some(true),
+                Some(false),
+            )),
         ]
     }
 }
@@ -205,6 +221,16 @@ impl McpClientTrait for DeveloperClient {
                 ))
                 .with_priority(0.0)])),
             },
+            "read_image" => match Self::parse_args::<ImageReadParams>(arguments) {
+                Ok(params) => Ok(self
+                    .image_tool
+                    .image_read_with_cwd(params, working_dir)
+                    .await),
+                Err(error) => Ok(CallToolResult::error(vec![Content::text(format!(
+                    "Error: {error}"
+                ))
+                .with_priority(0.0)])),
+            },
             _ => Ok(CallToolResult::error(vec![Content::text(format!(
                 "Error: Unknown tool: {name}"
             ))
@@ -232,7 +258,7 @@ mod tests {
             .map(|t| t.name.to_string())
             .collect();
 
-        assert_eq!(names, vec!["write", "edit", "shell", "tree"]);
+        assert_eq!(names, vec!["write", "edit", "shell", "tree", "read_image"]);
     }
 
     fn test_context(data_dir: std::path::PathBuf) -> PlatformExtensionContext {

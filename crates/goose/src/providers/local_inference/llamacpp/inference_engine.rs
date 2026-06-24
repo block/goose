@@ -1,9 +1,9 @@
-use crate::providers::base::{FilterOut, ThinkFilter};
-use crate::providers::errors::ProviderError;
 use crate::providers::local_inference::backend::LocalInferenceBackend;
 use crate::providers::local_inference::local_model_registry::ModelSettings;
 use crate::providers::local_inference::multimodal::ExtractedImage;
-use crate::providers::utils::RequestLog;
+use goose_providers::errors::ProviderError;
+use goose_providers::request_log::{LoggerHandleExt, RequestLogHandle};
+use goose_providers::thinking::{FilterOut, ThinkFilter};
 use llama_cpp_2::context::params::LlamaContextParams;
 use llama_cpp_2::llama_batch::LlamaBatch;
 use llama_cpp_2::model::{AddBos, ChatTemplateResult, LlamaChatTemplate, LlamaModel};
@@ -24,7 +24,7 @@ pub(super) struct GenerationContext<'a> {
     pub model_name: String,
     pub message_id: &'a str,
     pub tx: &'a StreamSender,
-    pub log: &'a mut RequestLog,
+    pub log: &'a mut Option<Box<dyn RequestLogHandle>>,
     pub images: &'a [ExtractedImage],
 }
 

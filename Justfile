@@ -45,6 +45,7 @@ release-intel:
 copy-binary BUILD_MODE="release":
     @if [ -f ./target/{{BUILD_MODE}}/goosed ]; then \
         echo "Copying goosed binary from target/{{BUILD_MODE}}..."; \
+        rm -f ./ui/desktop/src/bin/goosed; \
         cp -p ./target/{{BUILD_MODE}}/goosed ./ui/desktop/src/bin/; \
     else \
         echo "Binary not found in target/{{BUILD_MODE}}"; \
@@ -52,6 +53,7 @@ copy-binary BUILD_MODE="release":
     fi
     @if [ -f ./target/{{BUILD_MODE}}/goose ]; then \
         echo "Copying goose CLI binary from target/{{BUILD_MODE}}..."; \
+        rm -f ./ui/desktop/src/bin/goose; \
         cp -p ./target/{{BUILD_MODE}}/goose ./ui/desktop/src/bin/; \
     else \
         echo "goose CLI binary not found in target/{{BUILD_MODE}}"; \
@@ -62,6 +64,7 @@ copy-binary BUILD_MODE="release":
 copy-binary-intel:
     @if [ -f ./target/x86_64-apple-darwin/release/goosed ]; then \
         echo "Copying Intel goosed binary to ui/desktop/src/bin with permissions preserved..."; \
+        rm -f ./ui/desktop/src/bin/goosed; \
         cp -p ./target/x86_64-apple-darwin/release/goosed ./ui/desktop/src/bin/; \
     else \
         echo "Intel release binary not found."; \
@@ -69,6 +72,7 @@ copy-binary-intel:
     fi
     @if [ -f ./target/x86_64-apple-darwin/release/goose ]; then \
         echo "Copying Intel goose CLI binary to ui/desktop/src/bin..."; \
+        rm -f ./ui/desktop/src/bin/goose; \
         cp -p ./target/x86_64-apple-darwin/release/goose ./ui/desktop/src/bin/; \
     else \
         echo "Intel goose CLI binary not found."; \
@@ -330,8 +334,8 @@ prepare-release version:
         ui/desktop/package.json \
         ui/pnpm-lock.yaml \
         ui/desktop/openapi.json \
-        crates/goose/src/providers/canonical/data/canonical_models.json \
-        crates/goose/src/providers/canonical/data/provider_metadata.json
+        crates/goose-providers/src/canonical/data/canonical_models.json \
+        crates/goose-providers/src/canonical/data/provider_metadata.json
     @git commit --message "chore(release): release version {{ version }}"
 
 set-openapi-version version:

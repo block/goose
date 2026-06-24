@@ -20,22 +20,21 @@ use super::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::errors::ProviderError;
 use super::formats::anthropic::{create_request, response_to_streaming_message};
 use super::oauth_device_flow::{
     refresh_device_flow_token, run_device_flow, DeviceFlowConfig, DeviceFlowTokens, RequestEncoding,
 };
 use super::openai_compatible::handle_status;
 use super::retry::ProviderRetry;
-use super::utils::RequestLog;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use futures::future::BoxFuture;
+use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 
 const KIMI_CODE_PROVIDER_NAME: &str = "kimi_code";
 pub const KIMI_CODE_DEFAULT_MODEL: &str = "kimi-for-coding";
-pub const KIMI_CODE_DEFAULT_FAST_MODEL: &str = "kimi-for-coding";
 /// Known models for the provider metadata registration. The live catalogue is
 /// fetched from `/v1/models` at request time; this constant is only used for
 /// `ProviderMetadata`. As of 2025-10 Kimi Code exposes a single model,
@@ -152,7 +151,6 @@ pub struct KimiCodeProvider {
     auth_host: String,
     #[serde(skip)]
     api_base: String,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
 }
@@ -162,8 +160,9 @@ impl KimiCodeProvider {
         TokenCache::new().clear().await
     }
 
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(KIMI_CODE_DEFAULT_FAST_MODEL, KIMI_CODE_PROVIDER_NAME)?;
+    pub async fn from_env(
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let client = Client::builder()
             .timeout(StdDuration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS))
             .build()?;
@@ -175,7 +174,6 @@ impl KimiCodeProvider {
             device_id,
             auth_host: KIMI_AUTH_HOST.to_string(),
             api_base: KIMI_API_BASE.to_string(),
-            model,
             name: KIMI_CODE_PROVIDER_NAME.to_string(),
         })
     }
@@ -336,9 +334,7 @@ impl KimiCodeProvider {
 
 // ── ProviderDef ───────────────────────────────────────────────────────────────
 
-impl ProviderDef for KimiCodeProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for KimiCodeProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             KIMI_CODE_PROVIDER_NAME,
@@ -364,12 +360,16 @@ impl ProviderDef for KimiCodeProvider {
             "Once authorized, Goose will save your token automatically",
         ])
     }
+}
+
+impl ProviderDef for KimiCodeProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -379,10 +379,6 @@ impl ProviderDef for KimiCodeProvider {
 impl Provider for KimiCodeProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn stream(
@@ -400,7 +396,7 @@ impl Provider for KimiCodeProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let mut log = RequestLog::start(model_config, &payload)
+        let mut log = start_log(model_config, &payload)
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
         let response = self
@@ -426,9 +422,7 @@ impl Provider for KimiCodeProvider {
             let message_stream = response_to_streaming_message(framed);
             pin!(message_stream);
             while let Some(message) = futures::StreamExt::next(&mut message_stream).await {
-                let (message, usage) = message.map_err(|e| {
-                    ProviderError::RequestFailed(format!("Stream decode error: {}", e))
-                })?;
+                let (message, usage) = message.map_err(ProviderError::from_stream_error)?;
                 log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
                 yield (message, usage);
             }
@@ -489,6 +483,7 @@ impl Provider for KimiCodeProvider {
 mod tests {
     use super::*;
     use chrono::Utc;
+    use goose_providers::base::ProviderDescriptor as _;
     use serde_json::json;
     use wiremock::matchers::{body_string_contains, method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -504,7 +499,6 @@ mod tests {
             device_id: device_id.to_string(),
             auth_host: server_uri.to_string(),
             api_base: server_uri.to_string(),
-            model: ModelConfig::new(KIMI_CODE_DEFAULT_MODEL).unwrap(),
             name: KIMI_CODE_PROVIDER_NAME.to_string(),
         }
     }

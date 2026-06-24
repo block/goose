@@ -1,9 +1,9 @@
 use goose::conversation::message::Message;
-use goose::model::ModelConfig;
 use goose::providers::api_client::{ApiClient, AuthMethod};
 use goose::providers::base::Provider;
 use goose::providers::openai::OpenAiProvider;
 use goose::session_context::SESSION_ID_HEADER;
+use goose_providers::model::ModelConfig;
 use serde_json::json;
 use std::sync::Arc;
 use std::sync::Mutex;
@@ -36,13 +36,13 @@ impl HeaderCapture {
 }
 
 fn create_test_provider(mock_server_url: &str) -> Box<dyn Provider> {
-    let api_client = ApiClient::new(
+    let api_client = ApiClient::new_with_tls(
         mock_server_url.to_string(),
         AuthMethod::BearerToken("test-key".to_string()),
+        None,
     )
     .unwrap();
-    let model = ModelConfig::new_or_fail("gpt-5-nano");
-    Box::new(OpenAiProvider::new(api_client, model))
+    Box::new(OpenAiProvider::new(api_client))
 }
 
 async fn setup_mock_server() -> (MockServer, HeaderCapture, Box<dyn Provider>) {
@@ -143,7 +143,7 @@ async fn setup_mock_server() -> (MockServer, HeaderCapture, Box<dyn Provider>) {
 
 async fn make_request(provider: &dyn Provider, session_id: &str) {
     let message = Message::user().with_text("test message");
-    let model_config = provider.get_model_config();
+    let model_config = ModelConfig::new("gpt-5-nano");
     let _ = provider
         .complete(
             &model_config,

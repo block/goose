@@ -47,8 +47,6 @@ pub async fn run() -> Result<()> {
     boot_marker("main entered");
     crate::logging::setup_logging(Some("goosed"))?;
 
-    goose::security::set_security_defaults();
-
     let settings = configuration::Settings::new()?;
 
     let secret_key = std::env::var("GOOSE_SERVER__SECRET_KEY")
@@ -56,13 +54,6 @@ pub async fn run() -> Result<()> {
 
     boot_marker("appstate init start");
     let app_state = state::AppState::new(settings.tls).await?;
-
-    // Share the server secret with the tunnel manager so it uses the same
-    // key for forwarded requests, without mutating the process environment.
-    app_state
-        .tunnel_manager
-        .set_server_secret(secret_key.clone())
-        .await;
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -80,6 +71,7 @@ pub async fn run() -> Result<()> {
         config_dir: Paths::config_dir(),
         goose_platform: GoosePlatform::GooseDesktop,
         additional_source_roots: Vec::new(),
+        scheduler: Some(app_state.scheduler()),
     }));
 
     let rest_router = crate::routes::configure(app_state.clone(), secret_key.clone()).layer(
@@ -93,11 +85,6 @@ pub async fn run() -> Result<()> {
     let app = rest_router.merge(acp_router).layer(cors);
 
     let addr = settings.socket_addr();
-
-    let tunnel_manager = app_state.tunnel_manager.clone();
-    tokio::spawn(async move {
-        tunnel_manager.check_auto_start().await;
-    });
 
     let gateway_manager = app_state.gateway_manager.clone();
     tokio::spawn(async move {

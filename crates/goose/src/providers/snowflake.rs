@@ -1,22 +1,23 @@
 use anyhow::Result;
 use async_trait::async_trait;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::images::ImageFormat;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
 use super::api_client::{ApiClient, AuthMethod};
-use super::base::{
-    ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage,
-};
-use super::errors::ProviderError;
+use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::formats::snowflake::{create_request, get_usage, response_to_message};
 use super::openai_compatible::{map_http_error_to_provider_error, sanitize_url};
 use super::retry::ProviderRetry;
-use super::utils::{get_model, ImageFormat, RequestLog};
+use super::utils::get_model;
 use crate::config::ConfigError;
 use crate::conversation::message::Message;
+use goose_providers::errors::ProviderError;
 
-use crate::model::ModelConfig;
 use futures::future::BoxFuture;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 
 const SNOWFLAKE_PROVIDER_NAME: &str = "snowflake";
@@ -51,14 +52,15 @@ impl SnowflakeAuth {
 pub struct SnowflakeProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     image_format: ImageFormat,
     #[serde(skip)]
     name: String,
 }
 
 impl SnowflakeProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
         let mut host: Result<String, ConfigError> = config.get_param("SNOWFLAKE_HOST");
         if host.is_err() {
@@ -102,11 +104,11 @@ impl SnowflakeProvider {
         };
 
         let auth = AuthMethod::BearerToken(token?);
-        let api_client = ApiClient::new(base_url, auth)?.with_header("User-Agent", "goose")?;
+        let api_client = ApiClient::new_with_tls(base_url, auth, tls_config)?
+            .with_header("User-Agent", "goose")?;
 
         Ok(Self {
             api_client,
-            model,
             image_format: ImageFormat::OpenAi,
             name: SNOWFLAKE_PROVIDER_NAME.to_string(),
         })
@@ -298,9 +300,7 @@ impl SnowflakeProvider {
     }
 }
 
-impl ProviderDef for SnowflakeProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for SnowflakeProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             SNOWFLAKE_PROVIDER_NAME,
@@ -315,12 +315,16 @@ impl ProviderDef for SnowflakeProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for SnowflakeProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -328,10 +332,6 @@ impl ProviderDef for SnowflakeProvider {
 impl Provider for SnowflakeProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -356,7 +356,7 @@ impl Provider for SnowflakeProvider {
         };
         let payload = create_request(model_config, system, messages, tools)?;
 
-        let mut log = RequestLog::start(&self.model, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {

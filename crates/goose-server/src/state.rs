@@ -84,27 +84,39 @@ impl AppState {
         tasks.insert(session_id, Arc::new(Mutex::new(Some(task))));
     }
 
+    pub async fn has_extension_loading_task(&self, session_id: &str) -> bool {
+        let tasks = self.extension_loading_tasks.lock().await;
+        tasks.contains_key(session_id)
+    }
+
     pub async fn take_extension_loading_task(
         &self,
         session_id: &str,
-    ) -> Option<Vec<ExtensionLoadResult>> {
+    ) -> Result<Option<Vec<ExtensionLoadResult>>, tokio::task::JoinError> {
         let task_holder = {
             let tasks = self.extension_loading_tasks.lock().await;
             tasks.get(session_id).cloned()
         };
 
         if let Some(holder) = task_holder {
-            let task = holder.lock().await.take();
-            if let Some(handle) = task {
+            let mut task = holder.lock().await;
+            if let Some(handle) = task.as_mut() {
+                // Keep the per-session task locked and discoverable while awaiting so
+                // concurrent routes cannot mutate extensions before background loading finishes.
                 match handle.await {
-                    Ok(results) => return Some(results),
+                    Ok(results) => {
+                        task.take();
+                        return Ok(Some(results));
+                    }
                     Err(e) => {
+                        task.take();
                         tracing::warn!("Background extension loading task failed: {}", e);
+                        return Err(e);
                     }
                 }
             }
         }
-        None
+        Ok(None)
     }
 
     pub async fn remove_extension_loading_task(&self, session_id: &str) {
@@ -147,12 +159,6 @@ impl AppState {
     pub async fn get_event_bus(&self, session_id: &str) -> Option<Arc<SessionEventBus>> {
         let buses = self.session_buses.lock().await;
         buses.get(session_id).cloned()
-    }
-
-    /// Remove the event bus for a session, freeing its replay buffer.
-    pub async fn remove_event_bus(&self, session_id: &str) {
-        let mut buses = self.session_buses.lock().await;
-        buses.remove(session_id);
     }
 
     pub async fn get_agent(&self, session_id: String) -> anyhow::Result<Arc<goose::agents::Agent>> {

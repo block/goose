@@ -25,7 +25,8 @@ use serde_json::{json, Map, Value};
 
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
-use crate::providers::formats::openai_responses::{ResponseOutputItem, ResponsesApiResponse};
+use goose_providers::conversation::token_usage::Usage;
+use goose_providers::formats::openai_responses::{ResponseOutputItem, ResponsesApiResponse};
 
 pub fn convert(content: &str) -> Result<String> {
     let lines: Vec<Value> = content
@@ -61,6 +62,7 @@ pub fn convert(content: &str) -> Result<String> {
     let mut first_user_text: Option<String> = None;
     let mut total_input: i64 = 0;
     let mut total_output: i64 = 0;
+    let mut total_cache_read: i64 = 0;
 
     for (line_idx, line) in lines.iter().enumerate() {
         let line_type = line.get("type").and_then(|v| v.as_str()).unwrap_or("");
@@ -80,8 +82,13 @@ pub fn convert(content: &str) -> Result<String> {
                 .and_then(|p| p.get("usage"))
                 .and_then(|u| u.as_object())
             {
+                // Codex input_tokens already includes cached_input_tokens
                 total_input += usage
                     .get("input_tokens")
+                    .and_then(|v| v.as_i64())
+                    .unwrap_or(0);
+                total_cache_read += usage
+                    .get("cached_input_tokens")
                     .and_then(|v| v.as_i64())
                     .unwrap_or(0);
                 total_output += usage
@@ -140,7 +147,7 @@ pub fn convert(content: &str) -> Result<String> {
                 usage: None,
             };
             if let Ok(decoded) =
-                crate::providers::formats::openai_responses::responses_api_to_message(&stub)
+                goose_providers::formats::openai_responses::responses_api_to_message(&stub)
             {
                 if !decoded.content.is_empty() {
                     let mut msg = Message::assistant();
@@ -239,24 +246,24 @@ pub fn convert(content: &str) -> Result<String> {
     let updated_at = last_ts.unwrap_or(created_at);
     let conversation = Conversation::new_unvalidated(messages);
 
-    let session_json = build_session_json(
-        &session_id,
-        &working_dir,
-        &name,
+    let session_json = super::build_session_json(super::ImportedSession {
+        session_id: &session_id,
+        working_dir: &working_dir,
+        name: &name,
         created_at,
         updated_at,
-        if total_input > 0 {
-            Some(total_input as i32)
-        } else {
-            None
-        },
-        if total_output > 0 {
-            Some(total_output as i32)
-        } else {
-            None
-        },
+        usage: Usage::new(
+            (total_input > 0).then_some(total_input as i32),
+            (total_output > 0).then_some(total_output as i32),
+            None,
+        )
+        .with_cache_tokens(
+            (total_cache_read > 0).then_some(total_cache_read as i32),
+            None,
+        ),
+        accumulated_cost: None,
         conversation,
-    );
+    });
 
     serde_json::to_string_pretty(&session_json).map_err(Into::into)
 }
@@ -287,53 +294,6 @@ fn is_context_blob(text: &str) -> bool {
         || t.starts_with("<app-context>")
         || t.starts_with("<permissions instructions>")
         || t.starts_with("# AGENTS.md")
-}
-
-#[allow(clippy::too_many_arguments)]
-fn build_session_json(
-    session_id: &str,
-    working_dir: &str,
-    name: &str,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-    input_tokens: Option<i32>,
-    output_tokens: Option<i32>,
-    conversation: Conversation,
-) -> Value {
-    let total = match (input_tokens, output_tokens) {
-        (Some(a), Some(b)) => Some(a + b),
-        _ => None,
-    };
-    let mut obj = Map::new();
-    obj.insert("id".into(), json!(session_id));
-    obj.insert("working_dir".into(), json!(working_dir));
-    obj.insert("name".into(), json!(name));
-    obj.insert("user_set_name".into(), json!(false));
-    obj.insert("session_type".into(), json!("user"));
-    obj.insert("created_at".into(), json!(created_at.to_rfc3339()));
-    obj.insert("updated_at".into(), json!(updated_at.to_rfc3339()));
-    obj.insert("extension_data".into(), json!({}));
-    obj.insert("total_tokens".into(), json!(total));
-    obj.insert("input_tokens".into(), json!(input_tokens));
-    obj.insert("output_tokens".into(), json!(output_tokens));
-    obj.insert("accumulated_total_tokens".into(), json!(total));
-    obj.insert("accumulated_input_tokens".into(), json!(input_tokens));
-    obj.insert("accumulated_output_tokens".into(), json!(output_tokens));
-    obj.insert("accumulated_cost".into(), json!(null));
-    obj.insert("schedule_id".into(), json!(null));
-    obj.insert("recipe".into(), json!(null));
-    obj.insert("user_recipe_values".into(), json!(null));
-    obj.insert(
-        "conversation".into(),
-        serde_json::to_value(&conversation).unwrap(),
-    );
-    obj.insert("message_count".into(), json!(conversation.messages().len()));
-    obj.insert("provider_name".into(), json!(null));
-    obj.insert("model_config".into(), json!(null));
-    obj.insert("goose_mode".into(), json!("auto"));
-    obj.insert("archived_at".into(), json!(null));
-    obj.insert("project_id".into(), json!(null));
-    Value::Object(obj)
 }
 
 #[cfg(test)]

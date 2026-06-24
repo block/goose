@@ -19,6 +19,8 @@ mod memory;
 pub mod peekaboo;
 pub mod subprocess;
 pub mod tutorial;
+#[cfg(windows)]
+pub mod windows_job;
 
 pub use autovisualiser::AutoVisualiserRouter;
 pub use computercontroller::ComputerControllerServer;

@@ -354,12 +354,15 @@ impl ToolInspector for EgressInspector {
 
             for dest in &destinations {
                 tracing::info!(
-                    egress_kind = dest.kind.as_str(),
-                    domain = dest.domain.as_str(),
-                    destination = dest.destination.as_str(),
-                    direction = direction.as_str(),
-                    tool_name = name,
-                    "egress destination detected"
+                    security.event_type = "egress",
+                    security.action = "LOG",
+                    security.threat_type = "data_exfiltration",
+                    network.destination = dest.destination.as_str(),
+                    network.domain = dest.domain.as_str(),
+                    network.egress_kind = dest.kind.as_str(),
+                    network.direction = direction.as_str(),
+                    tool.name = name,
+                    "network egress detected"
                 );
             }
 

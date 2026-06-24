@@ -2,6 +2,8 @@ use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::errors::ProviderError;
 use rmcp::model::{Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -17,19 +19,17 @@ use tokio::sync::oneshot;
 
 use super::base::{
     stream_from_single_message, ConfigKey, MessageStream, PermissionRouting, Provider, ProviderDef,
-    ProviderMetadata, ProviderUsage, Usage,
+    ProviderMetadata,
 };
-use super::errors::ProviderError;
 use super::utils::filter_extensions_from_system_prompt;
-use crate::config::base::ClaudeCodeCommand;
 use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, ExtensionConfig, GooseMode};
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::subprocess::configure_subprocess;
+use goose_providers::model::ModelConfig;
 
 use super::cli_common::{error_from_event, extract_usage_tokens};
 
@@ -259,7 +259,6 @@ impl Drop for CliProcess {
 #[derive(Debug, serde::Serialize)]
 pub struct ClaudeCodeProvider {
     command: PathBuf,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
     /// Temp file holding MCP config JSON (auto-deleted on drop).
@@ -364,7 +363,11 @@ impl ClaudeCodeProvider {
         }
     }
 
-    async fn spawn_process(&self, filtered_system: &str) -> Result<CliProcess, ProviderError> {
+    async fn spawn_process(
+        &self,
+        model: &ModelConfig,
+        filtered_system: &str,
+    ) -> Result<CliProcess, ProviderError> {
         let mut cmd = self.build_stream_json_command();
 
         if let Some(f) = &self.mcp_config_file {
@@ -376,7 +379,7 @@ impl ClaudeCodeProvider {
             .arg("--system-prompt")
             .arg(filtered_system)
             .arg("--model")
-            .arg(&self.model.model_name);
+            .arg(&model.model_name);
 
         let control_protocol_enabled = Self::apply_permission_flags(&mut cmd)?;
 
@@ -411,7 +414,7 @@ impl ClaudeCodeProvider {
             stdin: Box::new(stdin),
             reader: BufReader::new(Box::new(stdout)),
             stderr_handle,
-            current_model: self.model.model_name.clone(),
+            current_model: model.model_name.clone(),
             log_model_update: false,
             next_request_id: 0,
             needs_drain: false,
@@ -428,12 +431,13 @@ impl ClaudeCodeProvider {
 
     async fn get_or_init_process(
         &self,
+        model_config: &ModelConfig,
         filtered_system: &str,
     ) -> Result<&Arc<tokio::sync::Mutex<CliProcess>>, ProviderError> {
         self.cli_process
             .get_or_try_init(|| async {
                 Ok(Arc::new(tokio::sync::Mutex::new(
-                    self.spawn_process(filtered_system).await?,
+                    self.spawn_process(model_config, filtered_system).await?,
                 )))
             })
             .await
@@ -582,9 +586,7 @@ fn write_mcp_config_file(state_dir: &Path, json: &str) -> Result<NamedTempFile, 
     Ok(tmp)
 }
 
-impl ProviderDef for ClaudeCodeProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for ClaudeCodeProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             CLAUDE_CODE_PROVIDER_NAME,
@@ -594,15 +596,23 @@ impl ProviderDef for ClaudeCodeProvider {
             // Only a few agentic choices; fetched dynamically via fetch_supported_models.
             vec![],
             CLAUDE_CODE_DOC_URL,
-            vec![ConfigKey::from_value_type::<ClaudeCodeCommand>(
-                true, false, true,
+            vec![ConfigKey::new(
+                "CLAUDE_CODE_COMMAND",
+                true,
+                false,
+                Some("claude"),
+                true,
             )],
         )
     }
+}
+
+impl ProviderDef for ClaudeCodeProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();
@@ -620,7 +630,6 @@ impl ProviderDef for ClaudeCodeProvider {
 
             Ok(Self {
                 command: resolved_command,
-                model,
                 name: CLAUDE_CODE_PROVIDER_NAME.to_string(),
                 mcp_config_file,
                 cli_process: tokio::sync::OnceCell::new(),
@@ -639,10 +648,6 @@ impl Provider for ClaudeCodeProvider {
 
     fn manages_own_context(&self) -> bool {
         true
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -723,7 +728,10 @@ impl Provider for ClaudeCodeProvider {
         }
 
         let filtered_system = filter_extensions_from_system_prompt(system);
-        let process_arc = Arc::clone(self.get_or_init_process(&filtered_system).await?);
+        let process_arc = Arc::clone(
+            self.get_or_init_process(model_config, &filtered_system)
+                .await?,
+        );
 
         // Prepare the payload outside the lock — these don't need the process.
         let blocks = self.last_user_content_blocks(messages);
@@ -825,6 +833,10 @@ impl Provider for ClaudeCodeProvider {
                                                     let new = extract_usage_tokens(usage_info);
                                                     if let Some(i) = new.input_tokens {
                                                         accumulated_usage.input_tokens = Some(i);
+                                                        accumulated_usage.cache_read_input_tokens =
+                                                            new.cache_read_input_tokens;
+                                                        accumulated_usage.cache_write_input_tokens =
+                                                            new.cache_write_input_tokens;
                                                     }
                                                 }
                                             }
@@ -844,11 +856,37 @@ impl Provider for ClaudeCodeProvider {
                                     process.needs_drain = false;
                                     if let Some(usage_info) = parsed.get("usage") {
                                         let new = extract_usage_tokens(usage_info);
-                                        accumulated_usage = Usage::new(
-                                            new.input_tokens.or(accumulated_usage.input_tokens),
-                                            new.output_tokens.or(accumulated_usage.output_tokens),
-                                            None,
-                                        );
+                                        let reports_own_cache = new.cache_read_input_tokens.is_some()
+                                            || new.cache_write_input_tokens.is_some();
+                                        let cache_read = new
+                                            .cache_read_input_tokens
+                                            .or(accumulated_usage.cache_read_input_tokens);
+                                        let cache_write = new
+                                            .cache_write_input_tokens
+                                            .or(accumulated_usage.cache_write_input_tokens);
+                                        // A result with raw input but no cache breakdown
+                                        // inherits the streamed breakdown; fold it back in
+                                        // so input stays inclusive of cache tokens.
+                                        let output_tokens =
+                                            new.output_tokens.or(accumulated_usage.output_tokens);
+                                        accumulated_usage = if new.input_tokens.is_some()
+                                            && !reports_own_cache
+                                        {
+                                            Usage::from_cache_exclusive_input(
+                                                new.input_tokens,
+                                                output_tokens,
+                                                None,
+                                                cache_read,
+                                                cache_write,
+                                            )
+                                        } else {
+                                            Usage::new(
+                                                new.input_tokens.or(accumulated_usage.input_tokens),
+                                                output_tokens,
+                                                None,
+                                            )
+                                            .with_cache_tokens(cache_read, cache_write)
+                                        };
                                     }
                                     break;
                                 }
@@ -961,6 +999,31 @@ mod tests {
         let usage = extract_usage_tokens(&usage_json);
         assert_eq!(usage.input_tokens, expected_input);
         assert_eq!(usage.output_tokens, expected_output);
+    }
+
+    #[tokio::test]
+    async fn test_result_without_cache_fields_keeps_streamed_cache_coherent() {
+        use futures::StreamExt;
+
+        let (_provider, mut stream, _stdin_reader) = stream_with_canned_stdout(&[
+            r#"{"type":"control_response","response":{"subtype":"success","request_id":"req_0"}}"#,
+            r#"{"type":"stream_event","event":{"type":"message_start","message":{"usage":{"input_tokens":7,"cache_read_input_tokens":5000,"cache_creation_input_tokens":1000,"output_tokens":0}}}}"#,
+            r#"{"type":"result","result":"Done","usage":{"input_tokens":10,"output_tokens":50}}"#,
+        ])
+        .await;
+
+        let mut final_usage = None;
+        while let Some(item) = stream.next().await {
+            if let Ok((_, Some(usage))) = item {
+                final_usage = Some(usage);
+            }
+        }
+
+        let usage = final_usage.expect("stream should yield usage").usage;
+        assert_eq!(usage.cache_read_input_tokens, Some(5000));
+        assert_eq!(usage.cache_write_input_tokens, Some(1000));
+        assert_eq!(usage.input_tokens, Some(6010)); // 10 + 5000 + 1000
+        assert_eq!(usage.output_tokens, Some(50));
     }
 
     #[test_case(
@@ -1127,6 +1190,7 @@ mod tests {
             envs: Envs::new([("API_KEY".into(), "secret".into())].into()),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: Some(false),
             available_tools: vec![],
         }],
@@ -1212,9 +1276,6 @@ mod tests {
     fn make_provider() -> ClaudeCodeProvider {
         ClaudeCodeProvider {
             command: PathBuf::from("claude"),
-            model: ModelConfig::new(CLAUDE_CODE_DEFAULT_MODEL)
-                .unwrap()
-                .with_canonical_limits(CLAUDE_CODE_PROVIDER_NAME),
             name: "claude-code".to_string(),
             mcp_config_file: None,
             cli_process: tokio::sync::OnceCell::new(),
@@ -1253,8 +1314,10 @@ mod tests {
         provider.cli_process.set(process_arc).unwrap();
 
         let messages = vec![Message::user().with_text("test")];
+        let model = ModelConfig::new(CLAUDE_CODE_DEFAULT_MODEL)
+            .with_canonical_limits(CLAUDE_CODE_PROVIDER_NAME);
         let stream = provider
-            .stream(&provider.model, "test-session", "", &messages, &[])
+            .stream(&model, "test-session", "", &messages, &[])
             .await
             .unwrap();
         (provider, stream, stdin_reader)
@@ -1461,8 +1524,10 @@ mod tests {
             .insert("stale_1".to_string(), tx);
 
         let messages = vec![Message::user().with_text("test")];
+        let model = ModelConfig::new(CLAUDE_CODE_DEFAULT_MODEL)
+            .with_canonical_limits(CLAUDE_CODE_PROVIDER_NAME);
         let mut stream = provider
-            .stream(&provider.model, "test-session", "", &messages, &[])
+            .stream(&model, "test-session", "", &messages, &[])
             .await
             .unwrap();
 

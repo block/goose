@@ -12,10 +12,10 @@ use futures::StreamExt;
 use goose::acp::{AcpProvider, AcpProviderConfig};
 use goose::config::{GooseMode, PermissionManager};
 use goose::conversation::message::{ActionRequiredData, Message, MessageContent};
-use goose::model::ModelConfig;
 use goose::permission::permission_confirmation::PrincipalType;
 use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::base::Provider;
+use goose_providers::model::ModelConfig;
 use goose_test_support::{ExpectedSessionId, IgnoreSessionId, TEST_MODEL};
 use std::collections::{HashMap, HashSet};
 use std::str::FromStr;
@@ -76,7 +76,7 @@ impl AcpProviderSession {
             .unwrap()
             .get(session_id.as_ref())
             .cloned()
-            .unwrap_or_else(|| provider.get_model_config());
+            .unwrap_or_else(|| ModelConfig::new(TEST_MODEL));
         let mut stream = provider
             .stream(&model_config, &session_id, "", &[message], &[])
             .await?;
@@ -183,6 +183,8 @@ impl Connection for AcpProviderConnection {
             work_dir: cwd_path.clone(),
             mcp_servers,
             session_mode_id: None,
+            session_config_options: vec![],
+            model_config_option_id: None,
             mode_mapping: GooseMode::VARIANTS
                 .iter()
                 .map(|v| {
@@ -203,7 +205,6 @@ impl Connection for AcpProviderConnection {
         };
         let provider = AcpProvider::connect_with_transport(
             "acp-test".to_string(),
-            ModelConfig::new(TEST_MODEL).unwrap(),
             goose_mode,
             provider_config,
             transport,
@@ -237,7 +238,7 @@ impl Connection for AcpProviderConnection {
             let provider = provider.as_ref().unwrap();
             let available_models = provider.fetch_supported_models().await?;
             Some(SessionModelState::new(
-                ModelId::new(provider.get_model_config().model_name.clone()),
+                ModelId::new(TEST_MODEL.to_string()),
                 available_models
                     .into_iter()
                     .map(|model_id| ModelInfo::new(ModelId::new(model_id.clone()), model_id))

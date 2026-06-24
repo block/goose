@@ -835,7 +835,7 @@ async fn execute_job(
     let provider_name = config.get_goose_provider()?;
     let model_name = config.get_goose_model()?;
     let model_config =
-        crate::model::ModelConfig::new(&model_name)?.with_canonical_limits(&provider_name);
+        crate::model_config::model_config_from_user_config(&provider_name, &model_name)?;
 
     let session = agent
         .config
@@ -848,13 +848,20 @@ async fn execute_job(
         )
         .await?;
 
-    let extensions = resolve_extensions_for_new_session(recipe.extensions.as_deref(), None);
+    let mut extensions = resolve_extensions_for_new_session(recipe.extensions.as_deref(), None);
+    if recipe.extensions.is_none() {
+        extensions.extend(crate::plugins::mcp_servers::enabled_plugin_mcp_servers(
+            std::env::current_dir().ok().as_deref(),
+        ));
+    }
     for ext in &extensions {
         agent.add_extension(ext.clone(), &session.id).await?;
     }
 
-    let agent_provider = create(&provider_name, model_config, extensions).await?;
-    agent.update_provider(agent_provider, &session.id).await?;
+    let agent_provider = create(&provider_name, extensions).await?;
+    agent
+        .update_provider(agent_provider, model_config, &session.id)
+        .await?;
 
     let mut jobs_guard = jobs.lock().await;
     if let Some((_, job_def)) = jobs_guard.get_mut(job_id.as_str()) {
@@ -967,7 +974,7 @@ async fn execute_job(
             .session_manager
             .get_session(&session.id, false)
             .await
-            .map(|s| (s.total_tokens.unwrap_or(0), s.message_count))
+            .map(|s| (s.usage.total_tokens.unwrap_or(0), s.message_count))
             .unwrap_or((0, 0));
 
         tracing::info!(

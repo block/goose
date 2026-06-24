@@ -280,9 +280,15 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
         };
 
     if let Some(oldest_user) = user_messages_after_last_assistant.last() {
-        session_manager
-            .truncate_conversation(&session_id, oldest_user.created)
-            .await?;
+        if let Some(message_id) = oldest_user.id.as_deref() {
+            session_manager
+                .truncate_conversation_from_message(&session_id, message_id)
+                .await?;
+        } else {
+            session_manager
+                .truncate_conversation(&session_id, oldest_user.created)
+                .await?;
+        }
     }
 
     let prompt_with_context = if user_messages_after_last_assistant.is_empty() {
@@ -324,7 +330,10 @@ pub async fn handle_term_info() -> Result<()> {
 
     let session_manager = SessionManager::instance();
     let session = session_manager.get_session(&session_id, false).await.ok();
-    let total_tokens = session.as_ref().and_then(|s| s.total_tokens).unwrap_or(0) as usize;
+    let total_tokens = session
+        .as_ref()
+        .and_then(|s| s.usage.total_tokens)
+        .unwrap_or(0) as usize;
 
     let config = goose::config::Config::global();
     let model_name = config
@@ -345,9 +354,7 @@ pub async fn handle_term_info() -> Result<()> {
         .ok()
         .and_then(|model_name| {
             config.get_goose_provider().ok().and_then(|provider_name| {
-                goose::model::ModelConfig::new(&model_name)
-                    .ok()
-                    .map(|c| c.with_canonical_limits(&provider_name))
+                goose::model_config::model_config_from_user_config(&provider_name, &model_name).ok()
             })
         })
         .map(|mc| mc.context_limit())

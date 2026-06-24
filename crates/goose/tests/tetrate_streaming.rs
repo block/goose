@@ -1,9 +1,9 @@
 use anyhow::Result;
 use futures::StreamExt;
 use goose::conversation::message::{Message, MessageContent};
-use goose::model::ModelConfig;
 use goose::providers::base::Provider;
 use goose::providers::tetrate::TetrateProvider;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use rmcp::object;
 use serial_test::serial;
@@ -14,10 +14,7 @@ mod tetrate_streaming_tests {
     use super::*;
 
     async fn create_test_provider() -> Result<TetrateProvider> {
-        // Create a test provider with the default model
-        let model_config =
-            ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
-        TetrateProvider::from_env(model_config).await
+        TetrateProvider::from_env(None).await
     }
 
     #[tokio::test]
@@ -27,7 +24,8 @@ mod tetrate_streaming_tests {
         let provider = create_test_provider().await?;
 
         let messages = vec![Message::user().with_text("Count from 1 to 5, one number at a time.")];
-        let model_config = provider.get_model_config();
+        let model_config =
+            ModelConfig::new("claude-3-5-sonnet-latest").with_canonical_limits("tetrate");
 
         let mut stream = provider
             .stream(
@@ -101,7 +99,8 @@ mod tetrate_streaming_tests {
         );
 
         let messages = vec![Message::user().with_text("What's the weather in San Francisco?")];
-        let model_config = provider.get_model_config();
+        let model_config =
+            ModelConfig::new("claude-3-5-sonnet-latest").with_canonical_limits("tetrate");
 
         let mut stream = provider
             .stream(
@@ -151,7 +150,8 @@ mod tetrate_streaming_tests {
 
         // This might result in a very short or empty response
         let messages = vec![Message::user().with_text("")];
-        let model_config = provider.get_model_config();
+        let model_config =
+            ModelConfig::new("claude-3-5-sonnet-latest").with_canonical_limits("tetrate");
 
         let mut stream = provider
             .stream(
@@ -188,7 +188,8 @@ mod tetrate_streaming_tests {
         let messages = vec![Message::user().with_text(
             "Write a detailed 3-paragraph essay about the importance of streaming in modern APIs.",
         )];
-        let model_config = provider.get_model_config();
+        let model_config =
+            ModelConfig::new("claude-3-5-sonnet-latest").with_canonical_limits("tetrate");
 
         let mut stream = provider
             .stream(
@@ -246,12 +247,11 @@ mod tetrate_streaming_tests {
         // Test with invalid API key to ensure error handling works
         std::env::set_var("TETRATE_API_KEY", "invalid-key-for-testing");
 
-        let model_config =
-            ModelConfig::new("claude-3-5-sonnet-latest")?.with_canonical_limits("tetrate");
-        let provider = TetrateProvider::from_env(model_config).await?;
+        let provider = TetrateProvider::from_env(None).await?;
 
         let messages = vec![Message::user().with_text("Hello")];
-        let model_config = provider.get_model_config();
+        let model_config =
+            ModelConfig::new("claude-3-5-sonnet-latest").with_canonical_limits("tetrate");
 
         let result = provider
             .stream(
@@ -281,7 +281,8 @@ mod tetrate_streaming_tests {
         // Create multiple concurrent streams
         let messages1 = vec![Message::user().with_text("Say 'Stream 1'")];
         let messages2 = vec![Message::user().with_text("Say 'Stream 2'")];
-        let model_config = provider.get_model_config();
+        let model_config =
+            ModelConfig::new("claude-3-5-sonnet-latest").with_canonical_limits("tetrate");
 
         let stream1 = provider
             .stream(

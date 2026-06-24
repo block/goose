@@ -14,6 +14,7 @@ use agent_client_protocol_schema::AGENT_METHOD_NAMES;
 use anyhow::{Context, Result};
 use async_stream::try_stream;
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use rmcp::model::{CallToolRequestParams, CallToolResult, Content as RmcpContent, Role, Tool};
 use std::collections::{HashMap, HashSet};
 use std::future::Future;
@@ -33,12 +34,12 @@ use crate::acp::{map_permission_response, PermissionDecision};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
 use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
-use crate::model::ModelConfig;
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
-use crate::providers::base::{MessageStream, PermissionRouting, Provider, ProviderUsage, Usage};
-use crate::providers::errors::ProviderError;
+use crate::providers::base::{MessageStream, PermissionRouting, Provider};
 use crate::subprocess::configure_subprocess;
+use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 
 /// Sentinel: resolved to the actual model name during connect().
 pub const ACP_CURRENT_MODEL: &str = "current";
@@ -51,6 +52,11 @@ pub struct AcpProviderConfig {
     pub work_dir: PathBuf,
     pub mcp_servers: Vec<McpServer>,
     pub session_mode_id: Option<String>,
+    pub session_config_options: Vec<(String, String)>,
+    /// Config option id used to select the model (e.g. `"model"`). When set, the
+    /// provider re-applies this option from the per-completion `ModelConfig`
+    /// whenever the active session model changes.
+    pub model_config_option_id: Option<String>,
     pub mode_mapping: HashMap<GooseMode, String>,
     pub notification_callback: Option<Arc<dyn Fn(SessionNotification) + Send + Sync>>,
 }
@@ -134,7 +140,6 @@ struct HandoffContextClaim {
 
 pub struct AcpProvider {
     name: String,
-    model: ModelConfig,
     goose_mode: Arc<Mutex<GooseMode>>,
     mode_mapping: HashMap<GooseMode, String>,
 
@@ -146,9 +151,15 @@ pub struct AcpProvider {
     handoff_context_sent: AtomicBool,
     /// Latest `size` reported by the ACP server in a `session/update` →
     /// `usage_update` notification. 0 means no real update has arrived yet,
-    /// in which case `get_model_config()` falls back to the static model
+    /// in which case `get_context_limit()` falls back to the supplied model
     /// configuration's context limit.
     context_size: Arc<AtomicU64>,
+
+    /// Config option id used to select the model, if this agent supports it.
+    model_config_option_id: Option<String>,
+    /// Model currently applied via `model_config_option_id`, used to avoid
+    /// redundant `SetConfigOption` calls.
+    applied_model: Arc<Mutex<Option<String>>>,
 
     tx: Option<mpsc::Sender<ClientRequest>>,
     loop_thread: Option<JoinHandle<()>>,
@@ -158,7 +169,6 @@ impl std::fmt::Debug for AcpProvider {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("AcpProvider")
             .field("name", &self.name)
-            .field("model", &self.model)
             .finish()
     }
 }
@@ -176,13 +186,11 @@ fn spawn_client_loop(fut: impl Future<Output = ()> + Send + 'static) -> JoinHand
 impl AcpProvider {
     pub async fn connect(
         name: String,
-        model: ModelConfig,
         goose_mode: GooseMode,
         config: AcpProviderConfig,
     ) -> Result<Self> {
         Self::start(
             name,
-            model,
             goose_mode,
             config,
             Box::new(|cl, rx, init_tx| Box::pin(cl.spawn(rx, init_tx))),
@@ -193,14 +201,12 @@ impl AcpProvider {
     #[doc(hidden)]
     pub async fn connect_with_transport(
         name: String,
-        model: ModelConfig,
         goose_mode: GooseMode,
         config: AcpProviderConfig,
         transport: impl agent_client_protocol::ConnectTo<Client> + 'static,
     ) -> Result<Self> {
         Self::start(
             name,
-            model,
             goose_mode,
             config,
             Box::new(move |cl, mut rx, init_tx| {
@@ -216,7 +222,6 @@ impl AcpProvider {
 
     async fn start(
         name: String,
-        model: ModelConfig,
         goose_mode: GooseMode,
         config: AcpProviderConfig,
         run: ClientLoopFn,
@@ -224,6 +229,14 @@ impl AcpProvider {
         let (tx, rx) = mpsc::channel(32);
         let (init_tx, init_rx) = oneshot::channel();
         let mode_mapping = config.mode_mapping.clone();
+        let model_config_option_id = config.model_config_option_id.clone();
+        let applied_model = config.model_config_option_id.as_ref().and_then(|id| {
+            config
+                .session_config_options
+                .iter()
+                .find(|(opt_id, _)| opt_id == id)
+                .map(|(_, value)| value.clone())
+        });
         let goose_mode_shared = Arc::new(Mutex::new(goose_mode));
         let pending_tool_updates: Arc<Mutex<HashMap<String, AccumulatedToolCall>>> =
             Arc::new(Mutex::new(HashMap::new()));
@@ -251,21 +264,6 @@ impl AcpProvider {
             .await
             .context("ACP session creation cancelled")??;
 
-        // Resolve model from the session response.
-        let resolved_model = if model.model_name == ACP_CURRENT_MODEL {
-            if let Ok((resolved, _)) = resolve_model_info(&name, &response) {
-                tracing::info!(from = ACP_CURRENT_MODEL, to = %resolved, "resolved ACP model");
-                ModelConfig {
-                    model_name: resolved,
-                    ..model
-                }
-            } else {
-                model
-            }
-        } else {
-            model
-        };
-
         let session = AcpSession {
             id: response.session_id.clone(),
             response,
@@ -273,7 +271,6 @@ impl AcpProvider {
 
         Ok(Self {
             name,
-            model: resolved_model,
             goose_mode: goose_mode_shared,
             mode_mapping,
             session,
@@ -281,6 +278,8 @@ impl AcpProvider {
             pending_tool_updates,
             handoff_context_sent: AtomicBool::new(false),
             context_size,
+            model_config_option_id,
+            applied_model: Arc::new(Mutex::new(applied_model)),
             tx: Some(tx),
             loop_thread: Some(loop_thread),
         })
@@ -326,6 +325,39 @@ impl AcpProvider {
             .await
             .context("ACP client is unavailable")?;
         response_rx.await.context("ACP request cancelled")?
+    }
+
+    /// Re-apply the model selection config option when the active session model
+    /// differs from what was last applied. ACP agents that select their model
+    /// via a config option (e.g. Copilot) need this so resumed or switched
+    /// sessions actually use the requested model instead of the agent default.
+    async fn apply_model_if_changed(&self, model_name: &str) -> Result<()> {
+        let Some(config_id) = self.model_config_option_id.clone() else {
+            return Ok(());
+        };
+        if model_name == ACP_CURRENT_MODEL {
+            return Ok(());
+        }
+
+        {
+            let applied = self
+                .applied_model
+                .lock()
+                .map_err(|_| anyhow::anyhow!("applied_model lock poisoned"))?;
+            if applied.as_deref() == Some(model_name) {
+                return Ok(());
+            }
+        }
+
+        self.send_set_config_option("", config_id, model_name.to_string())
+            .await?;
+
+        let mut applied = self
+            .applied_model
+            .lock()
+            .map_err(|_| anyhow::anyhow!("applied_model lock poisoned"))?;
+        *applied = Some(model_name.to_string());
+        Ok(())
     }
 
     async fn prompt(
@@ -377,13 +409,12 @@ impl Provider for AcpProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        let mut model = self.model.clone();
+    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
         let size = self.context_size.load(Ordering::Relaxed);
         if size > 0 {
-            model.context_limit = Some(size as usize);
+            return Ok(size as usize);
         }
-        model
+        Ok(model_config.context_limit())
     }
 
     async fn update_mode(&self, session_id: &str, mode: GooseMode) -> Result<(), ProviderError> {
@@ -439,6 +470,12 @@ impl Provider for AcpProvider {
         _tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let session_id = self.acp_session_id();
+
+        self.apply_model_if_changed(&model_config.model_name)
+            .await
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to set ACP model option: {e}"))
+            })?;
 
         let claim = self.claim_handoff_context(messages);
         let prompt_blocks = messages_to_prompt(messages, claim.include_context);
@@ -1048,6 +1085,8 @@ async fn handle_requests(
                 let result = match session {
                     Ok(session) => {
                         session_ids.push(session.session_id.clone());
+                        apply_session_config_options(&config, &cx, session.session_id.clone())
+                            .await?;
                         apply_session_mode(&config, &goose_mode, &cx, session).await
                     }
                     Err(err) => Err(anyhow::anyhow!(
@@ -1136,6 +1175,31 @@ async fn handle_requests(
         }
     }
 
+    Ok(())
+}
+
+async fn apply_session_config_options(
+    config: &AcpProviderConfig,
+    cx: &ConnectionTo<Agent>,
+    session_id: SessionId,
+) -> Result<()> {
+    for (config_id, value) in &config.session_config_options {
+        let value_id = agent_client_protocol::schema::SessionConfigValueId::new(value.clone());
+        cx.send_request(SetSessionConfigOptionRequest::new(
+            session_id.clone(),
+            config_id.clone(),
+            value_id,
+        ))
+        .block_task()
+        .await
+        .map_err(|err| {
+            anyhow::anyhow!(
+                "ACP agent rejected {} for '{}': {err}",
+                AGENT_METHOD_NAMES.session_set_config_option,
+                config_id
+            )
+        })?;
+    }
     Ok(())
 }
 
@@ -1530,30 +1594,33 @@ mod tests {
         }
     }
 
-    fn test_provider() -> AcpProvider {
+    fn test_provider() -> (AcpProvider, ModelConfig) {
         test_provider_with_tx(None)
     }
 
-    fn test_provider_with_tx(tx: Option<mpsc::Sender<ClientRequest>>) -> AcpProvider {
-        AcpProvider {
-            name: "acp-test".to_string(),
-            model: ModelConfig {
-                model_name: "test-model".to_string(),
-                ..Default::default()
+    fn test_provider_with_tx(
+        tx: Option<mpsc::Sender<ClientRequest>>,
+    ) -> (AcpProvider, ModelConfig) {
+        (
+            AcpProvider {
+                name: "acp-test".to_string(),
+                goose_mode: Arc::new(Mutex::new(GooseMode::Auto)),
+                mode_mapping: HashMap::new(),
+                session: AcpSession {
+                    id: SessionId::new("test-session"),
+                    response: NewSessionResponse::new("test-session"),
+                },
+                pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
+                pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
+                handoff_context_sent: AtomicBool::new(false),
+                context_size: Arc::new(AtomicU64::new(0)),
+                model_config_option_id: None,
+                applied_model: Arc::new(Mutex::new(None)),
+                tx,
+                loop_thread: None,
             },
-            goose_mode: Arc::new(Mutex::new(GooseMode::Auto)),
-            mode_mapping: HashMap::new(),
-            session: AcpSession {
-                id: SessionId::new("test-session"),
-                response: NewSessionResponse::new("test-session"),
-            },
-            pending_confirmations: Arc::new(TokioMutex::new(HashMap::new())),
-            pending_tool_updates: Arc::new(Mutex::new(HashMap::new())),
-            handoff_context_sent: AtomicBool::new(false),
-            context_size: Arc::new(AtomicU64::new(0)),
-            tx,
-            loop_thread: None,
-        }
+            ModelConfig::new("test-model"),
+        )
     }
 
     #[test]
@@ -1622,7 +1689,7 @@ mod tests {
 
     #[test]
     fn handoff_context_is_sent_only_on_first_provider_prompt() {
-        let provider = test_provider();
+        let (provider, _) = test_provider();
         let messages = vec![
             Message::assistant().with_text("prior answer"),
             Message::user().with_text("current request"),
@@ -1639,7 +1706,7 @@ mod tests {
 
     #[test]
     fn first_prompt_without_history_still_marks_handoff_context_sent() {
-        let provider = test_provider();
+        let (provider, _) = test_provider();
         let first_prompt = vec![Message::user().with_text("new conversation")];
         let later_prompt_with_history = vec![
             Message::assistant().with_text("prior answer"),
@@ -1655,36 +1722,104 @@ mod tests {
         assert!(!later_claim.include_context);
     }
 
-    #[test]
-    fn get_model_config_surfaces_captured_context_size() {
-        let provider = test_provider();
+    #[tokio::test]
+    async fn get_context_limit_surfaces_captured_context_size() {
+        let (provider, model) = test_provider();
         assert_eq!(
-            provider.get_model_config().context_limit(),
-            crate::model::DEFAULT_CONTEXT_LIMIT
+            provider.get_context_limit(&model).await.unwrap(),
+            goose_providers::model::DEFAULT_CONTEXT_LIMIT
         );
 
         provider.context_size.store(200_000, Ordering::Relaxed);
-        assert_eq!(provider.get_model_config().context_limit(), 200_000);
+        assert_eq!(provider.get_context_limit(&model).await.unwrap(), 200_000);
     }
 
     #[tokio::test]
     async fn failed_first_prompt_send_rolls_back_handoff_context_claim() {
         let (tx, rx) = mpsc::channel(1);
         drop(rx);
-        let provider = test_provider_with_tx(Some(tx));
+        let (provider, model) = test_provider_with_tx(Some(tx));
         let messages = vec![
             Message::assistant().with_text("prior answer"),
             Message::user().with_text("current request"),
         ];
 
         let result = provider
-            .stream(&provider.model, "goose-session", "", &messages, &[])
+            .stream(&model, "goose-session", "", &messages, &[])
             .await;
 
         assert!(matches!(result, Err(ProviderError::RequestFailed(_))));
         let next_claim = provider.claim_handoff_context(&messages);
         assert!(next_claim.first_prompt);
         assert!(next_claim.include_context);
+    }
+
+    fn test_provider_with_model_option(
+        tx: mpsc::Sender<ClientRequest>,
+        applied_model: Option<String>,
+    ) -> AcpProvider {
+        let (mut provider, _) = test_provider_with_tx(Some(tx));
+        provider.model_config_option_id = Some("model".to_string());
+        provider.applied_model = Arc::new(Mutex::new(applied_model));
+        provider
+    }
+
+    #[tokio::test]
+    async fn apply_model_if_changed_sends_set_config_option_on_change() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_model_option(tx, Some("old-model".to_string()));
+
+        let handle =
+            tokio::spawn(async move { provider.apply_model_if_changed("new-model").await });
+
+        match rx.recv().await.expect("expected a SetConfigOption request") {
+            ClientRequest::SetConfigOption {
+                config_id,
+                value,
+                response_tx,
+                ..
+            } => {
+                assert_eq!(config_id, "model");
+                assert_eq!(value, "new-model");
+                let _ = response_tx.send(Ok(()));
+            }
+            _ => panic!("unexpected request kind"),
+        }
+
+        handle.await.unwrap().unwrap();
+    }
+
+    #[tokio::test]
+    async fn apply_model_if_changed_skips_when_model_unchanged() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_model_option(tx, Some("same-model".to_string()));
+
+        provider.apply_model_if_changed("same-model").await.unwrap();
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn apply_model_if_changed_noop_without_option_id() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, _) = test_provider_with_tx(Some(tx));
+
+        provider.apply_model_if_changed("any-model").await.unwrap();
+
+        assert!(rx.try_recv().is_err());
+    }
+
+    #[tokio::test]
+    async fn apply_model_if_changed_skips_sentinel_model() {
+        let (tx, mut rx) = mpsc::channel(1);
+        let provider = test_provider_with_model_option(tx, None);
+
+        provider
+            .apply_model_if_changed(ACP_CURRENT_MODEL)
+            .await
+            .unwrap();
+
+        assert!(rx.try_recv().is_err());
     }
 
     #[test]
@@ -1715,6 +1850,7 @@ mod tests {
             envs: Envs::new([("GITHUB_PERSONAL_ACCESS_TOKEN".into(), "ghp_xxxxxxxxxxxx".into())].into()),
             env_keys: vec![],
             timeout: None,
+            cwd: None,
             bundled: Some(false),
             available_tools: vec![],
         },

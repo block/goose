@@ -3,16 +3,15 @@ use super::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use super::errors::ProviderError;
 use super::huggingface_auth;
-use super::inventory::{default_inventory_identity, InventoryIdentityInput};
 use super::openai_compatible::OpenAiCompatibleProvider;
 use crate::config::declarative_providers::DeclarativeProviderConfig;
 use crate::config::{Config, ConfigError};
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use anyhow::{anyhow, Result};
 use futures::future::BoxFuture;
+use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub const HUGGINGFACE_API_HOST: &str = "https://router.huggingface.co/v1";
@@ -73,8 +72,8 @@ impl HuggingFaceProvider {
     }
 
     pub fn from_custom_config(
-        model: ModelConfig,
         config: DeclarativeProviderConfig,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let custom_models = static_model_names(&config);
         if config.dynamic_models == Some(false) && custom_models.is_none() {
@@ -92,10 +91,11 @@ impl HuggingFaceProvider {
         let timeout_secs = config
             .timeout_seconds
             .unwrap_or(DEFAULT_PROVIDER_TIMEOUT_SECS);
-        let mut api_client = ApiClient::with_timeout(
+        let mut api_client = ApiClient::with_timeout_and_tls(
             host,
             auth_method,
             std::time::Duration::from_secs(timeout_secs),
+            tls_config,
         )?
         .with_query(query_params);
 
@@ -109,17 +109,10 @@ impl HuggingFaceProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
-        let model = if let Some(ref fast_model_name) = config.fast_model {
-            model.with_fast(fast_model_name, &config.name)?
-        } else {
-            model
-        };
-
         Ok(Self {
             inner: OpenAiCompatibleProvider::new(
                 config.name.clone(),
                 api_client,
-                model,
                 completions_prefix,
             )
             .with_supports_streaming(config.supports_streaming.unwrap_or(true)),
@@ -137,10 +130,6 @@ impl HuggingFaceProvider {
 impl Provider for HuggingFaceProvider {
     fn get_name(&self) -> &str {
         self.inner.get_name()
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.inner.get_model_config()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -180,9 +169,7 @@ impl Provider for HuggingFaceProvider {
     }
 }
 
-impl ProviderDef for HuggingFaceProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for HuggingFaceProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             huggingface_auth::HUGGINGFACE_PROVIDER_NAME,
@@ -203,10 +190,14 @@ impl ProviderDef for HuggingFaceProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for HuggingFaceProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = Config::global();
@@ -215,33 +206,18 @@ impl ProviderDef for HuggingFaceProvider {
             let host: String = config
                 .get_param("HF_HOST")
                 .unwrap_or_else(|_| HUGGINGFACE_API_HOST.to_string());
-            let api_client = ApiClient::new(host, auth_method)?;
+            let api_client = ApiClient::new_with_tls(host, auth_method, tls_config)?;
 
             Ok(Self {
                 inner: OpenAiCompatibleProvider::new(
                     huggingface_auth::HUGGINGFACE_PROVIDER_NAME.to_string(),
                     api_client,
-                    model,
                     String::new(),
                 ),
                 custom_models: None,
                 dynamic_models: None,
             })
         })
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        let metadata = Self::metadata();
-        Ok(default_inventory_identity(
-            &metadata.name,
-            &metadata.name,
-            &metadata.config_keys,
-            Config::global(),
-        ))
-    }
-
-    fn inventory_configured() -> bool {
-        huggingface_auth::has_configured_token().unwrap_or(false)
     }
 }
 
@@ -385,6 +361,8 @@ fn completions_prefix(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use goose_providers::base::ProviderDescriptor as _;
+
     use super::*;
     use crate::providers::base::ModelInfo;
 
@@ -457,9 +435,7 @@ mod tests {
             ModelInfo::new("static-b".to_string(), 128000),
         ];
 
-        let provider =
-            HuggingFaceProvider::from_custom_config(ModelConfig::new("static-a").unwrap(), config)
-                .unwrap();
+        let provider = HuggingFaceProvider::from_custom_config(config, None).unwrap();
 
         assert_eq!(
             provider.fetch_supported_models().await.unwrap(),
@@ -473,10 +449,7 @@ mod tests {
         config.requires_auth = false;
         config.dynamic_models = Some(false);
 
-        let error = match HuggingFaceProvider::from_custom_config(
-            ModelConfig::new("model").unwrap(),
-            config,
-        ) {
+        let error = match HuggingFaceProvider::from_custom_config(config, None) {
             Ok(_) => panic!("expected dynamic_models: false without static models to fail"),
             Err(error) => error,
         };

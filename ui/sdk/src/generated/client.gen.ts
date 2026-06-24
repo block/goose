@@ -10,7 +10,7 @@ export interface ExtMethodProvider {
 import type { Client } from "@agentclientprotocol/sdk";
 import type {
   AddConfigExtensionRequest_unstable,
-  AddExtensionRequest_unstable,
+  AddSessionExtensionRequest_unstable,
   ArchiveSessionRequest_unstable,
   CreateSourceRequest_unstable,
   CreateSourceResponse_unstable,
@@ -22,11 +22,16 @@ import type {
   CustomProviderReadResponse_unstable,
   CustomProviderUpdateRequest_unstable,
   CustomProviderUpdateResponse_unstable,
+  DecodeRecipeRequest_unstable,
+  DecodeRecipeResponse_unstable,
   DefaultsReadRequest_unstable,
   DefaultsReadResponse_unstable,
   DefaultsSaveRequest_unstable,
+  DeleteRecipeRequest_unstable,
   DeleteSessionRequest,
   DeleteSourceRequest_unstable,
+  DiagnosticsGetRequest_unstable,
+  DiagnosticsGetResponse_unstable,
   DictationConfigRequest_unstable,
   DictationConfigResponse_unstable,
   DictationModelCancelRequest_unstable,
@@ -41,15 +46,20 @@ import type {
   DictationSecretSaveRequest_unstable,
   DictationTranscribeRequest_unstable,
   DictationTranscribeResponse_unstable,
-  ElicitationRespondRequest_unstable,
+  EncodeRecipeRequest_unstable,
+  EncodeRecipeResponse_unstable,
   ExportSessionRequest_unstable,
   ExportSessionResponse_unstable,
   ExportSourceRequest_unstable,
   ExportSourceResponse_unstable,
-  GetExtensionsRequest_unstable,
-  GetExtensionsResponse_unstable,
+  GetAvailableExtensionsRequest_unstable,
+  GetAvailableExtensionsResponse_unstable,
+  GetConfigExtensionsRequest_unstable,
+  GetConfigExtensionsResponse_unstable,
   GetSessionExtensionsRequest_unstable,
   GetSessionExtensionsResponse_unstable,
+  GetSessionInfoRequest_unstable,
+  GetSessionInfoResponse_unstable,
   GetToolsRequest_unstable,
   GetToolsResponse_unstable,
   GooseSessionNotification_unstable,
@@ -59,14 +69,22 @@ import type {
   ImportSessionResponse_unstable,
   ImportSourcesRequest_unstable,
   ImportSourcesResponse_unstable,
+  ListAgentMentionsRequest_unstable,
+  ListAgentMentionsResponse_unstable,
   ListProvidersRequest_unstable,
   ListProvidersResponse_unstable,
+  ListRecipesRequest_unstable,
+  ListRecipesResponse_unstable,
+  ListSlashCommandsRequest_unstable,
+  ListSlashCommandsResponse_unstable,
   ListSourcesRequest_unstable,
   ListSourcesResponse_unstable,
   OnboardingImportApplyRequest_unstable,
   OnboardingImportApplyResponse_unstable,
   OnboardingImportScanRequest_unstable,
   OnboardingImportScanResponse_unstable,
+  ParseRecipeRequest_unstable,
+  ParseRecipeResponse_unstable,
   PreferencesReadRequest_unstable,
   PreferencesReadResponse_unstable,
   PreferencesRemoveRequest_unstable,
@@ -89,13 +107,26 @@ import type {
   ProviderSupportedModelsListResponse_unstable,
   ReadResourceRequest_unstable,
   ReadResourceResponse_unstable,
+  RecipeParamsResponse_unstable,
+  RecipeToYamlRequest_unstable,
+  RecipeToYamlResponse_unstable,
   RefreshProviderInventoryRequest_unstable,
   RefreshProviderInventoryResponse_unstable,
   RemoveConfigExtensionRequest_unstable,
-  RemoveExtensionRequest_unstable,
+  RemoveSessionExtensionRequest_unstable,
   RenameSessionRequest_unstable,
+  RequestRecipeParams_unstable,
+  SaveRecipeRequest_unstable,
+  SaveRecipeResponse_unstable,
+  ScanRecipeRequest_unstable,
+  ScanRecipeResponse_unstable,
+  ScheduleRecipeRequest_unstable,
+  SetConfigExtensionEnabledRequest_unstable,
+  SetRecipeSlashCommandRequest_unstable,
   SetSessionSystemPromptRequest_unstable,
-  ToggleConfigExtensionRequest_unstable,
+  SteerSessionRequest_unstable,
+  SteerSessionResponse_unstable,
+  TruncateSessionConversationRequest_unstable,
   UnarchiveSessionRequest_unstable,
   UpdateSessionProjectRequest_unstable,
   UpdateSourceRequest_unstable,
@@ -108,24 +139,33 @@ import {
   zCustomProviderDeleteResponse_unstable,
   zCustomProviderReadResponse_unstable,
   zCustomProviderUpdateResponse_unstable,
+  zDecodeRecipeResponse_unstable,
   zDefaultsReadResponse_unstable,
+  zDiagnosticsGetResponse_unstable,
   zDictationConfigResponse_unstable,
   zDictationModelDownloadProgressResponse_unstable,
   zDictationModelsListResponse_unstable,
   zDictationTranscribeResponse_unstable,
+  zEncodeRecipeResponse_unstable,
   zExportSessionResponse_unstable,
   zExportSourceResponse_unstable,
-  zGetExtensionsResponse_unstable,
+  zGetAvailableExtensionsResponse_unstable,
+  zGetConfigExtensionsResponse_unstable,
   zGetSessionExtensionsResponse_unstable,
+  zGetSessionInfoResponse_unstable,
   zGetToolsResponse_unstable,
   zGooseSessionNotification_unstable,
   zGooseToolCallResponse_unstable,
   zImportSessionResponse_unstable,
   zImportSourcesResponse_unstable,
+  zListAgentMentionsResponse_unstable,
   zListProvidersResponse_unstable,
+  zListRecipesResponse_unstable,
+  zListSlashCommandsResponse_unstable,
   zListSourcesResponse_unstable,
   zOnboardingImportApplyResponse_unstable,
   zOnboardingImportScanResponse_unstable,
+  zParseRecipeResponse_unstable,
   zPreferencesReadResponse_unstable,
   zProviderCatalogListResponse_unstable,
   zProviderCatalogTemplateResponse_unstable,
@@ -135,7 +175,12 @@ import {
   zProviderSetupCatalogListResponse_unstable,
   zProviderSupportedModelsListResponse_unstable,
   zReadResourceResponse_unstable,
+  zRecipeToYamlResponse_unstable,
   zRefreshProviderInventoryResponse_unstable,
+  zRequestRecipeParams_unstable,
+  zSaveRecipeResponse_unstable,
+  zScanRecipeResponse_unstable,
+  zSteerSessionResponse_unstable,
   zUpdateSourceResponse_unstable,
 } from './zod.gen.js';
 
@@ -143,13 +188,13 @@ export class GooseExtClient {
   constructor(private conn: ExtMethodProvider) {}
 
   async sessionExtensionsAdd_unstable(
-    params: AddExtensionRequest_unstable,
+    params: AddSessionExtensionRequest_unstable,
   ): Promise<void> {
     await this.conn.extMethod("_goose/unstable/session/extensions/add", params);
   }
 
   async sessionExtensionsRemove_unstable(
-    params: RemoveExtensionRequest_unstable,
+    params: RemoveSessionExtensionRequest_unstable,
   ): Promise<void> {
     await this.conn.extMethod(
       "_goose/unstable/session/extensions/remove",
@@ -203,20 +248,56 @@ export class GooseExtClient {
     );
   }
 
+  async sessionSteer_unstable(
+    params: SteerSessionRequest_unstable,
+  ): Promise<SteerSessionResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/session/steer",
+      params,
+    );
+    return zSteerSessionResponse_unstable.parse(
+      raw,
+    ) as SteerSessionResponse_unstable;
+  }
+
+  async diagnosticsGet_unstable(
+    params: DiagnosticsGetRequest_unstable,
+  ): Promise<DiagnosticsGetResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/diagnostics/get",
+      params,
+    );
+    return zDiagnosticsGetResponse_unstable.parse(
+      raw,
+    ) as DiagnosticsGetResponse_unstable;
+  }
+
   async sessionDelete(params: DeleteSessionRequest): Promise<void> {
     await this.conn.extMethod("session/delete", params);
   }
 
   async configExtensionsList_unstable(
-    params: GetExtensionsRequest_unstable,
-  ): Promise<GetExtensionsResponse_unstable> {
+    params: GetConfigExtensionsRequest_unstable,
+  ): Promise<GetConfigExtensionsResponse_unstable> {
     const raw = await this.conn.extMethod(
       "_goose/unstable/config/extensions/list",
       params,
     );
-    return zGetExtensionsResponse_unstable.parse(
+    return zGetConfigExtensionsResponse_unstable.parse(
       raw,
-    ) as GetExtensionsResponse_unstable;
+    ) as GetConfigExtensionsResponse_unstable;
+  }
+
+  async extensionsAvailable_unstable(
+    params: GetAvailableExtensionsRequest_unstable,
+  ): Promise<GetAvailableExtensionsResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/extensions/available",
+      params,
+    );
+    return zGetAvailableExtensionsResponse_unstable.parse(
+      raw,
+    ) as GetAvailableExtensionsResponse_unstable;
   }
 
   async configExtensionsAdd_unstable(
@@ -234,11 +315,11 @@ export class GooseExtClient {
     );
   }
 
-  async configExtensionsToggle_unstable(
-    params: ToggleConfigExtensionRequest_unstable,
+  async configExtensionsSetEnabled_unstable(
+    params: SetConfigExtensionEnabledRequest_unstable,
   ): Promise<void> {
     await this.conn.extMethod(
-      "_goose/unstable/config/extensions/toggle",
+      "_goose/unstable/config/extensions/set-enabled",
       params,
     );
   }
@@ -531,10 +612,127 @@ export class GooseExtClient {
     ) as ImportSessionResponse_unstable;
   }
 
-  async elicitationRespond_unstable(
-    params: ElicitationRespondRequest_unstable,
+  async recipesEncode_unstable(
+    params: EncodeRecipeRequest_unstable,
+  ): Promise<EncodeRecipeResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/recipes/encode",
+      params,
+    );
+    return zEncodeRecipeResponse_unstable.parse(
+      raw,
+    ) as EncodeRecipeResponse_unstable;
+  }
+
+  async recipesDecode_unstable(
+    params: DecodeRecipeRequest_unstable,
+  ): Promise<DecodeRecipeResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/recipes/decode",
+      params,
+    );
+    return zDecodeRecipeResponse_unstable.parse(
+      raw,
+    ) as DecodeRecipeResponse_unstable;
+  }
+
+  async recipesScan_unstable(
+    params: ScanRecipeRequest_unstable,
+  ): Promise<ScanRecipeResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/recipes/scan",
+      params,
+    );
+    return zScanRecipeResponse_unstable.parse(
+      raw,
+    ) as ScanRecipeResponse_unstable;
+  }
+
+  async recipesList_unstable(
+    params: ListRecipesRequest_unstable,
+  ): Promise<ListRecipesResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/recipes/list",
+      params,
+    );
+    return zListRecipesResponse_unstable.parse(
+      raw,
+    ) as ListRecipesResponse_unstable;
+  }
+
+  async recipesDelete_unstable(
+    params: DeleteRecipeRequest_unstable,
   ): Promise<void> {
-    await this.conn.extMethod("_goose/unstable/elicitation/respond", params);
+    await this.conn.extMethod("_goose/unstable/recipes/delete", params);
+  }
+
+  async recipesSchedule_unstable(
+    params: ScheduleRecipeRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/recipes/schedule", params);
+  }
+
+  async recipesSlashCommand_unstable(
+    params: SetRecipeSlashCommandRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/recipes/slash-command", params);
+  }
+
+  async recipesSave_unstable(
+    params: SaveRecipeRequest_unstable,
+  ): Promise<SaveRecipeResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/recipes/save",
+      params,
+    );
+    return zSaveRecipeResponse_unstable.parse(
+      raw,
+    ) as SaveRecipeResponse_unstable;
+  }
+
+  async recipesParse_unstable(
+    params: ParseRecipeRequest_unstable,
+  ): Promise<ParseRecipeResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/recipes/parse",
+      params,
+    );
+    return zParseRecipeResponse_unstable.parse(
+      raw,
+    ) as ParseRecipeResponse_unstable;
+  }
+
+  async recipesToYaml_unstable(
+    params: RecipeToYamlRequest_unstable,
+  ): Promise<RecipeToYamlResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/recipes/to-yaml",
+      params,
+    );
+    return zRecipeToYamlResponse_unstable.parse(
+      raw,
+    ) as RecipeToYamlResponse_unstable;
+  }
+
+  async sessionInfo_unstable(
+    params: GetSessionInfoRequest_unstable,
+  ): Promise<GetSessionInfoResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/session/info",
+      params,
+    );
+    return zGetSessionInfoResponse_unstable.parse(
+      raw,
+    ) as GetSessionInfoResponse_unstable;
+  }
+
+  async sessionConversationTruncate_unstable(
+    params: TruncateSessionConversationRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod(
+      "_goose/unstable/session/conversation/truncate",
+      params,
+    );
   }
 
   async sessionProjectUpdate_unstable(
@@ -583,6 +781,30 @@ export class GooseExtClient {
     return zListSourcesResponse_unstable.parse(
       raw,
     ) as ListSourcesResponse_unstable;
+  }
+
+  async agentMentionsList_unstable(
+    params: ListAgentMentionsRequest_unstable,
+  ): Promise<ListAgentMentionsResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/agent-mentions/list",
+      params,
+    );
+    return zListAgentMentionsResponse_unstable.parse(
+      raw,
+    ) as ListAgentMentionsResponse_unstable;
+  }
+
+  async slashCommandsList_unstable(
+    params: ListSlashCommandsRequest_unstable,
+  ): Promise<ListSlashCommandsResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/slash-commands/list",
+      params,
+    );
+    return zListSlashCommandsResponse_unstable.parse(
+      raw,
+    ) as ListSlashCommandsResponse_unstable;
   }
 
   async sourcesUpdate_unstable(
@@ -733,28 +955,85 @@ export interface GooseExtNotifications {
   ) => Promise<void>;
 }
 
-export type GooseClientCallbacks = Client & GooseExtNotifications;
+export interface GooseExtAgentRequests {
+  unstable_sessionRecipeRequestParams?: (
+    request: RequestRecipeParams_unstable,
+  ) => Promise<RecipeParamsResponse_unstable>;
+}
+
+export type GooseClientCallbacks = Omit<
+  Client,
+  "extNotification" | "extMethod"
+> &
+  Partial<Pick<Client, "extNotification" | "extMethod">> &
+  GooseExtNotifications &
+  GooseExtAgentRequests;
 
 export function installGooseExtNotificationDispatcher(
   callbacks: GooseClientCallbacks,
 ): Client {
-  const { unstable_sessionUpdate, ...rest } = callbacks;
-  const userExtNotification = rest.extNotification;
-  return {
-    ...rest,
+  const dispatcher: Pick<Client, "extNotification"> = {
     extNotification: async (method, params) => {
       switch (method) {
         case "_goose/unstable/session/update": {
           const parsed = zGooseSessionNotification_unstable.parse(
             params,
           ) as GooseSessionNotification_unstable;
-          await unstable_sessionUpdate?.(parsed);
+          await callbacks.unstable_sessionUpdate?.(parsed);
           return;
         }
         default:
-          await userExtNotification?.(method, params);
+          await callbacks.extNotification?.(method, params);
           return;
       }
     },
   };
+  return new Proxy(callbacks, {
+    get(target, property) {
+      if (property === "extNotification") {
+        return dispatcher.extNotification;
+      }
+
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  }) as Client;
+}
+
+export function installGooseExtAgentRequestDispatcher(
+  callbacks: GooseClientCallbacks,
+): Client {
+  const dispatcher: Pick<Client, "extMethod"> = {
+    extMethod: async (method, params) => {
+      switch (method) {
+        case "_goose/unstable/session/recipe/request-params": {
+          if (callbacks.unstable_sessionRecipeRequestParams) {
+            const parsed = zRequestRecipeParams_unstable.parse(
+              params,
+            ) as RequestRecipeParams_unstable;
+            return await callbacks.unstable_sessionRecipeRequestParams(parsed);
+          }
+          if (callbacks.extMethod) {
+            return await callbacks.extMethod(method, params);
+          }
+          throw new Error(`unhandled ext method: ${method}`);
+        }
+        default:
+          if (callbacks.extMethod) {
+            return await callbacks.extMethod(method, params);
+          }
+          throw new Error(`unhandled ext method: ${method}`);
+      }
+    },
+  };
+  return new Proxy(callbacks, {
+    get(target, property) {
+      if (property === "extMethod") {
+        return dispatcher.extMethod;
+      }
+
+      const value = Reflect.get(target, property, target);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  }) as Client;
 }

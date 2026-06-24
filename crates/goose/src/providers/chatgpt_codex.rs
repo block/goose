@@ -1,10 +1,7 @@
 use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::providers::api_client::AuthProvider;
 use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
-use crate::providers::errors::ProviderError;
-use crate::providers::formats::openai_responses::responses_api_to_streaming_message;
 use crate::providers::openai_compatible::handle_status;
 use crate::providers::retry::ProviderRetry;
 use crate::session_context::SESSION_ID_HEADER;
@@ -16,6 +13,9 @@ use base64::Engine;
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
+use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai_responses::responses_api_to_streaming_message;
+use goose_providers::model::ModelConfig;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
 use reqwest::header::{HeaderName, HeaderValue};
@@ -230,7 +230,7 @@ fn get_reasoning_effort(model_name: &str) -> String {
 }
 
 fn reasoning_effort_for_config(model_config: &ModelConfig) -> Option<String> {
-    use crate::model::ThinkingEffort;
+    use goose_providers::thinking::ThinkingEffort;
 
     model_config
         .thinking_effort()
@@ -295,10 +295,6 @@ fn create_codex_request(
         payload_obj.insert("parallel_tool_calls".to_string(), json!(true));
     }
 
-    if let Some(temp) = model_config.temperature {
-        payload_obj.insert("temperature".to_string(), json!(temp));
-    }
-
     if let Some(reasoning_effort) = reasoning_effort {
         payload_obj.insert(
             "reasoning".to_string(),
@@ -319,7 +315,7 @@ struct TokenData {
 }
 
 #[derive(Debug, Clone)]
-struct TokenCache {
+pub(crate) struct TokenCache {
     cache_path: PathBuf,
 }
 
@@ -328,7 +324,7 @@ fn get_cache_path() -> PathBuf {
 }
 
 impl TokenCache {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let cache_path = get_cache_path();
         if let Some(parent) = cache_path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -342,6 +338,9 @@ impl TokenCache {
         } else {
             None
         }
+    }
+    pub(crate) fn has_token(&self) -> bool {
+        self.load().is_some()
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
@@ -880,7 +879,6 @@ impl AuthProvider for ChatGptCodexAuthProvider {
 pub struct ChatGptCodexProvider {
     #[serde(skip)]
     auth_provider: Arc<ChatGptCodexAuthProvider>,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
 }
@@ -891,14 +889,15 @@ impl ChatGptCodexProvider {
         Ok(())
     }
 
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let auth_provider = Arc::new(ChatGptCodexAuthProvider::new(
             ChatGptCodexAuthState::instance(),
         ));
 
         Ok(Self {
             auth_provider,
-            model,
             name: CHATGPT_CODEX_PROVIDER_NAME.to_string(),
         })
     }
@@ -949,9 +948,7 @@ impl ChatGptCodexProvider {
     }
 }
 
-impl ProviderDef for ChatGptCodexProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for ChatGptCodexProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             CHATGPT_CODEX_PROVIDER_NAME,
@@ -969,16 +966,16 @@ impl ProviderDef for ChatGptCodexProvider {
             )],
         )
     }
+}
+
+impl ProviderDef for ChatGptCodexProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
-    }
-
-    fn inventory_configured() -> bool {
-        TokenCache::new().load().is_some()
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -986,10 +983,6 @@ impl ProviderDef for ChatGptCodexProvider {
 impl Provider for ChatGptCodexProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn stream(
@@ -1020,7 +1013,10 @@ impl Provider for ChatGptCodexProvider {
             let message_stream = responses_api_to_streaming_message(framed);
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e| ProviderError::RequestFailed(format!("Stream decode error: {}", e)))?;
+                let (message, usage) = message.map_err(|e| {
+                    e.downcast::<ProviderError>()
+                        .unwrap_or_else(ProviderError::stream_decode_error)
+                })?;
                 yield (message, usage);
             }
         }))
@@ -1095,7 +1091,7 @@ mod tests {
         let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", Some(root_path.as_str()))]);
 
         TokenCache::new().clear();
-        assert!(!ChatGptCodexProvider::inventory_configured());
+        assert!(!TokenCache::new().has_token());
 
         TokenCache::new()
             .save(&TokenData {
@@ -1107,7 +1103,7 @@ mod tests {
             })
             .unwrap();
 
-        assert!(ChatGptCodexProvider::inventory_configured());
+        assert!(TokenCache::new().has_token());
     }
 
     #[test_case(
@@ -1210,7 +1206,7 @@ mod tests {
     fn test_create_codex_request_reasoning_effort_from_unified_thinking() {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!("max"));
-        let mut config = ModelConfig::new("gpt-5.3-codex").unwrap();
+        let mut config = ModelConfig::new("gpt-5.3-codex");
         config.request_params = Some(params);
 
         let payload = create_codex_request(&config, "sys", &[], &[]).unwrap();
@@ -1222,7 +1218,7 @@ mod tests {
     fn test_create_codex_request_caps_unified_thinking_to_supported_level() {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!("max"));
-        let mut config = ModelConfig::new("unknown-model").unwrap();
+        let mut config = ModelConfig::new("unknown-model");
         config.request_params = Some(params);
 
         let payload = create_codex_request(&config, "sys", &[], &[]).unwrap();
@@ -1234,12 +1230,21 @@ mod tests {
     fn test_create_codex_request_off_omits_reasoning_for_codex_models() {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!("off"));
-        let mut config = ModelConfig::new("gpt-5.2-codex").unwrap();
+        let mut config = ModelConfig::new("gpt-5.2-codex");
         config.request_params = Some(params);
 
         let payload = create_codex_request(&config, "sys", &[], &[]).unwrap();
         assert!(payload.get("reasoning").is_none());
         assert!(payload.get("reasoning_effort").is_none());
+    }
+
+    // ChatGPT Codex does not support temperature and will return an error
+    #[test]
+    fn test_create_codex_request_omits_temperature() {
+        let config = ModelConfig::new("gpt-5.5").with_temperature(Some(0.2));
+
+        let payload = create_codex_request(&config, "sys", &[], &[]).unwrap();
+        assert!(payload.get("temperature").is_none());
     }
 
     #[test_case(
@@ -1402,7 +1407,7 @@ mod tests {
 
     #[test]
     fn test_gpt53_preamble_injected() {
-        let model = ModelConfig::new("gpt-5.3-codex").unwrap();
+        let model = ModelConfig::new("gpt-5.3-codex");
         let payload = create_codex_request(&model, "system prompt", &[], &[]).unwrap();
         let instructions = payload["instructions"].as_str().unwrap();
         assert!(instructions.contains(GPT_53_CODEX_TOOL_PREAMBLE));
@@ -1411,7 +1416,7 @@ mod tests {
 
     #[test]
     fn test_other_models_no_preamble() {
-        let model = ModelConfig::new("gpt-5.4").unwrap();
+        let model = ModelConfig::new("gpt-5.4");
         let payload = create_codex_request(&model, "system prompt", &[], &[]).unwrap();
         let instructions = payload["instructions"].as_str().unwrap();
         assert_eq!(instructions, "system prompt");

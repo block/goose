@@ -8,23 +8,20 @@ use crate::acp::{
 };
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, GooseMode};
-use crate::model::ModelConfig;
-use crate::providers::acp_tooling::{acp_adapter_installed, acp_inventory_identity};
-use crate::providers::base::{current_working_dir, ProviderDef, ProviderMetadata};
-use crate::providers::inventory::InventoryIdentityInput;
+use crate::providers::base::{
+    current_working_dir, ProviderDef, ProviderDescriptor, ProviderMetadata,
+};
 
-const COPILOT_ACP_PROVIDER_NAME: &str = "copilot-acp";
+pub(crate) const COPILOT_ACP_PROVIDER_NAME: &str = "copilot-acp";
 const COPILOT_ACP_DOC_URL: &str = "https://github.com/github/copilot-cli";
-const COPILOT_ACP_BINARY: &str = "copilot";
+pub(crate) const COPILOT_ACP_BINARY: &str = "copilot";
 
 const MODE_AGENT: &str = "https://agentclientprotocol.com/protocol/session-modes#agent";
 const MODE_PLAN: &str = "https://agentclientprotocol.com/protocol/session-modes#plan";
 
 pub struct CopilotAcpProvider;
 
-impl ProviderDef for CopilotAcpProvider {
-    type Provider = AcpProvider;
-
+impl goose_providers::base::ProviderDescriptor for CopilotAcpProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             COPILOT_ACP_PROVIDER_NAME,
@@ -42,18 +39,22 @@ impl ProviderDef for CopilotAcpProvider {
             "Restart goose for changes to take effect",
         ])
     }
+}
+
+impl ProviderDef for CopilotAcpProvider {
+    type Provider = AcpProvider;
 
     fn from_env(
-        model: ModelConfig,
         extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<AcpProvider>> {
-        Self::from_env_with_working_dir(model, extensions, current_working_dir())
+        Self::from_env_with_working_dir(extensions, current_working_dir(), tls_config)
     }
 
     fn from_env_with_working_dir(
-        model: ModelConfig,
         extensions: Vec<crate::config::ExtensionConfig>,
         working_dir: PathBuf,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<AcpProvider>> {
         Box::pin(async move {
             let config = Config::global();
@@ -62,12 +63,16 @@ impl ProviderDef for CopilotAcpProvider {
                 .with_npm()
                 .resolve(COPILOT_ACP_BINARY)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
+            let model = config
+                .get_goose_model()
+                .unwrap_or_else(|_| ACP_CURRENT_MODEL.to_string());
 
-            let mut args = vec!["--acp".to_string()];
-            if model.model_name != ACP_CURRENT_MODEL {
-                args.push("--model".to_string());
-                args.push(model.model_name.clone());
-            }
+            let args = vec!["--acp".to_string()];
+            let session_config_options = if model == ACP_CURRENT_MODEL {
+                vec![]
+            } else {
+                vec![("model".to_string(), model)]
+            };
 
             // Copilot modes are full protocol URIs.
             // No approve-specific mode; permissions are handled separately.
@@ -86,24 +91,14 @@ impl ProviderDef for CopilotAcpProvider {
                 work_dir: working_dir,
                 mcp_servers: extension_configs_to_mcp_servers(&extensions),
                 session_mode_id: Some(mode_mapping[&goose_mode].clone()),
+                session_config_options,
+                model_config_option_id: Some("model".to_string()),
                 mode_mapping,
                 notification_callback: None,
             };
 
             let metadata = Self::metadata();
-            AcpProvider::connect(metadata.name, model, goose_mode, provider_config).await
+            AcpProvider::connect(metadata.name, goose_mode, provider_config).await
         })
-    }
-
-    fn supports_inventory_refresh() -> bool {
-        true
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        acp_inventory_identity(COPILOT_ACP_PROVIDER_NAME, COPILOT_ACP_BINARY)
-    }
-
-    fn inventory_configured() -> bool {
-        acp_adapter_installed(COPILOT_ACP_BINARY)
     }
 }

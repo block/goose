@@ -18,8 +18,6 @@ use self::inference_emulated_tools::{
 };
 use self::inference_engine::{GenerationContext, LoadedChatTemplates, LoadedModel};
 use self::inference_native_tools::generate_with_native_tools;
-use crate::providers::errors::ProviderError;
-use crate::providers::formats::openai::format_tools;
 use crate::providers::local_inference::backend::{
     BackendLoadedModel, LocalGenerationRequest, LocalInferenceBackend,
 };
@@ -31,6 +29,8 @@ use crate::providers::local_inference::tool_parsing::compact_tools_json;
 use crate::providers::local_inference::{
     build_openai_messages_json, build_openai_text_messages_json, ResolvedModelPaths,
 };
+use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai::format_tools;
 
 pub(super) const LLAMACPP_BACKEND_ID: &str = "llamacpp";
 
@@ -449,6 +449,7 @@ impl LocalInferenceBackend for LlamaCppBackend {
         } else {
             (Vec::new(), None)
         };
+        let has_media = !images.is_empty();
         let effective_messages = vision_messages.as_deref().unwrap_or(request.messages);
 
         let code_mode_enabled = request.tools.iter().any(|t| t.name == CODE_EXECUTION_TOOL);
@@ -469,7 +470,11 @@ impl LocalInferenceBackend for LlamaCppBackend {
             if matches!(request.settings.tool_calling, ToolCallingMode::Auto)
                 && has_native_tool_payload
             {
-                let messages_json = build_openai_messages_json(request.system, effective_messages);
+                let messages_json = build_openai_messages_json(
+                    request.system,
+                    effective_messages,
+                    has_media.then_some(marker),
+                );
                 if let Some(template) = loaded.templates.tool_use.as_ref() {
                     supports_native_tool_calling(
                         loaded,
@@ -506,9 +511,17 @@ impl LocalInferenceBackend for LlamaCppBackend {
         };
 
         let oai_messages_json = if use_emulator {
-            build_openai_text_messages_json(&system_prompt, effective_messages)
+            build_openai_text_messages_json(
+                &system_prompt,
+                effective_messages,
+                has_media.then_some(marker),
+            )
         } else {
-            build_openai_messages_json(&system_prompt, effective_messages)
+            build_openai_messages_json(
+                &system_prompt,
+                effective_messages,
+                has_media.then_some(marker),
+            )
         };
 
         if !images.is_empty() && loaded.mtmd_ctx.is_none() {

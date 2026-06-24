@@ -342,13 +342,13 @@ mod tests {
         use goose::agents::SessionConfig;
         use goose::config::GooseMode;
         use goose::conversation::message::{Message, MessageContent};
-        use goose::model::ModelConfig;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
-            ProviderUsage, Usage,
         };
-        use goose::providers::errors::ProviderError;
         use goose::session::session_manager::SessionType;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
         use rmcp::model::{CallToolRequestParams, Tool};
         use rmcp::object;
         use std::path::PathBuf;
@@ -361,9 +361,7 @@ mod tests {
             }
         }
 
-        impl ProviderDef for MockToolProvider {
-            type Provider = Self;
-
+        impl goose::providers::base::ProviderDescriptor for MockToolProvider {
             fn metadata() -> ProviderMetadata {
                 ProviderMetadata {
                     name: "mock".to_string(),
@@ -375,12 +373,17 @@ mod tests {
                     config_keys: vec![],
                     setup_steps: vec![],
                     model_selection_hint: None,
+                    fast_model: None,
                 }
             }
+        }
+
+        impl ProviderDef for MockToolProvider {
+            type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
                 Box::pin(async { Ok(Self::new()) })
             }
@@ -408,10 +411,6 @@ mod tests {
                 Ok(stream_from_single_message(message, usage))
             }
 
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model").unwrap()
-            }
-
             fn get_name(&self) -> &str {
                 "mock-test"
             }
@@ -434,7 +433,9 @@ mod tests {
                 )
                 .await?;
 
-            agent.update_provider(provider, &session.id).await?;
+            agent
+                .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
+                .await?;
 
             let session_config = SessionConfig {
                 id: session.id,
@@ -466,6 +467,7 @@ mod tests {
                         responses.push(response);
                     }
                     Ok(AgentEvent::McpNotification(_)) => {}
+                    Ok(AgentEvent::Usage(_)) => {}
                     Ok(AgentEvent::HistoryReplaced(_updated_conversation)) => {
                         // We should update the conversation here, but we're not reading it
                     }
@@ -503,13 +505,13 @@ mod tests {
         use goose::config::base::Config;
         use goose::config::GooseMode;
         use goose::conversation::message::Message;
-        use goose::model::ModelConfig;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
-            ProviderUsage, Usage,
         };
-        use goose::providers::errors::ProviderError;
         use goose::session::session_manager::SessionType;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
         use rmcp::model::{AnnotateAble, CallToolRequestParams, CallToolResult, RawContent, Tool};
         use std::path::PathBuf;
         use std::sync::atomic::{AtomicUsize, Ordering};
@@ -530,9 +532,7 @@ mod tests {
             }
         }
 
-        impl ProviderDef for SummarizationTestProvider {
-            type Provider = Self;
-
+        impl goose::providers::base::ProviderDescriptor for SummarizationTestProvider {
             fn metadata() -> ProviderMetadata {
                 ProviderMetadata {
                     name: "mock-summarization".to_string(),
@@ -544,12 +544,17 @@ mod tests {
                     config_keys: vec![],
                     setup_steps: vec![],
                     model_selection_hint: None,
+                    fast_model: None,
                 }
             }
+        }
+
+        impl ProviderDef for SummarizationTestProvider {
+            type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
                 Box::pin(async { Ok(Self::new()) })
             }
@@ -579,10 +584,6 @@ mod tests {
                     Usage::new(Some(10), Some(5), Some(15)),
                 );
                 Ok(stream_from_single_message(message, usage))
-            }
-
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model").unwrap()
             }
 
             fn get_name(&self) -> &str {
@@ -617,7 +618,9 @@ mod tests {
                 )
                 .await?;
 
-            agent.update_provider(provider, &session.id).await?;
+            agent
+                .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
+                .await?;
 
             // Pre-populate 13 tool pairs (need > cutoff + batch_size = 12 to trigger).
             // Timestamps in the past so DB ordering places summaries before current turn.
@@ -856,13 +859,12 @@ mod tests {
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
         use goose::conversation::message::Message;
-        use goose::model::ModelConfig;
-        use goose::providers::base::{
-            MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage, Usage,
-        };
-        use goose::providers::errors::ProviderError;
+        use goose::providers::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
         use goose::session::session_manager::SessionType;
         use goose::session::SessionManager;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
         use rmcp::model::{CallToolRequestParams, Role, Tool};
         use rmcp::object;
         use std::path::PathBuf;
@@ -883,9 +885,7 @@ mod tests {
             }
         }
 
-        impl ProviderDef for MultiStepProvider {
-            type Provider = Self;
-
+        impl goose::providers::base::ProviderDescriptor for MultiStepProvider {
             fn metadata() -> ProviderMetadata {
                 ProviderMetadata {
                     name: "multi-step-mock".to_string(),
@@ -897,12 +897,17 @@ mod tests {
                     config_keys: vec![],
                     setup_steps: vec![],
                     model_selection_hint: None,
+                    fast_model: None,
                 }
             }
+        }
+
+        impl ProviderDef for MultiStepProvider {
+            type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
                 unimplemented!()
             }
@@ -969,10 +974,6 @@ mod tests {
                 }
             }
 
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model").unwrap()
-            }
-
             fn get_name(&self) -> &str {
                 "multi-step-mock"
             }
@@ -1004,7 +1005,9 @@ mod tests {
                 .await?;
 
             let session_id = session.id.clone();
-            agent.update_provider(provider, &session_id).await?;
+            agent
+                .update_provider(provider, ModelConfig::new("mock-model"), &session_id)
+                .await?;
 
             // ── Single reply: tool call (call 0) → text stream (call 1) → cancelled text (call 2)
             // max_turns=3 allows all three provider calls within one reply().
@@ -1128,14 +1131,14 @@ mod tests {
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
         use goose::conversation::message::Message;
-        use goose::model::ModelConfig;
         use goose::providers::base::{
             stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
-            ProviderUsage, Usage,
         };
-        use goose::providers::errors::ProviderError;
         use goose::session::session_manager::SessionType;
         use goose::session::SessionManager;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
         use rmcp::model::Tool;
         use std::path::PathBuf;
         use std::sync::atomic::{AtomicU32, Ordering};
@@ -1153,9 +1156,7 @@ mod tests {
             }
         }
 
-        impl ProviderDef for GoalTextProvider {
-            type Provider = Self;
-
+        impl goose::providers::base::ProviderDescriptor for GoalTextProvider {
             fn metadata() -> ProviderMetadata {
                 ProviderMetadata {
                     name: "goal-mock".to_string(),
@@ -1167,12 +1168,17 @@ mod tests {
                     config_keys: vec![],
                     setup_steps: vec![],
                     model_selection_hint: None,
+                    fast_model: None,
                 }
             }
+        }
+
+        impl ProviderDef for GoalTextProvider {
+            type Provider = Self;
 
             fn from_env(
-                _model: ModelConfig,
                 _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
             ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
                 Box::pin(async { Ok(Self::new()) })
             }
@@ -1196,10 +1202,6 @@ mod tests {
                     Usage::new(Some(10), Some(5), Some(15)),
                 );
                 Ok(stream_from_single_message(message, usage))
-            }
-
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model").unwrap()
             }
 
             fn get_name(&self) -> &str {
@@ -1237,7 +1239,13 @@ mod tests {
                 )
                 .await?;
 
-            agent.update_provider(provider.clone(), &session.id).await?;
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
             agent
                 .set_goal(Some("Ensure the sky is blue".to_string()))
                 .await;
@@ -1313,7 +1321,13 @@ mod tests {
                 )
                 .await?;
 
-            agent.update_provider(provider.clone(), &session.id).await?;
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
 
             let session_config = SessionConfig {
                 id: session.id.clone(),
@@ -1387,6 +1401,117 @@ mod tests {
 
             Ok(())
         }
+
+        #[tokio::test]
+        async fn test_setting_goal_via_reply_starts_a_turn() -> Result<()> {
+            let temp_dir = TempDir::new()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+            let agent = create_agent_with_session_naming_disabled(session_manager.clone());
+            let provider = Arc::new(GoalTextProvider::new());
+
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "goal-start-turn".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+
+            let session_config = SessionConfig {
+                id: session.id.clone(),
+                schedule_id: None,
+                max_turns: Some(10),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(
+                    Message::user().with_text("/goal make all tests pass"),
+                    session_config,
+                    None,
+                )
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut messages = Vec::new();
+            while let Some(event) = reply_stream.next().await {
+                if let Ok(AgentEvent::Message(msg)) = event {
+                    messages.push(msg);
+                }
+            }
+
+            // The provider must be invoked: setting a goal kicks off a turn
+            // (the goal-checking loop then runs and clears the goal once met).
+            assert!(
+                provider.call_count.load(Ordering::SeqCst) >= 1,
+                "Setting a goal should start an agent turn"
+            );
+
+            // The user still sees the confirmation.
+            assert!(
+                messages
+                    .iter()
+                    .any(|m| m.as_concat_text().contains("Goal set")),
+                "Goal confirmation should be surfaced to the user"
+            );
+
+            Ok(())
+        }
+
+        #[tokio::test]
+        async fn test_querying_goal_via_reply_does_not_start_a_turn() -> Result<()> {
+            let temp_dir = TempDir::new()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+            let agent = create_agent_with_session_naming_disabled(session_manager.clone());
+            let provider = Arc::new(GoalTextProvider::new());
+
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "goal-query-no-turn".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+
+            let session_config = SessionConfig {
+                id: session.id.clone(),
+                schedule_id: None,
+                max_turns: Some(10),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("/goal"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+            while let Some(event) = reply_stream.next().await {
+                let _ = event?;
+            }
+
+            assert_eq!(
+                provider.call_count.load(Ordering::SeqCst),
+                0,
+                "Querying the goal should not start an agent turn"
+            );
+
+            Ok(())
+        }
     }
 
     mod cumulative_token_tests {
@@ -1396,13 +1521,12 @@ mod tests {
         use goose::config::permission::PermissionManager;
         use goose::config::GooseMode;
         use goose::conversation::message::Message;
-        use goose::model::ModelConfig;
-        use goose::providers::base::{
-            stream_from_single_message, MessageStream, Provider, ProviderUsage, Usage,
-        };
-        use goose::providers::errors::ProviderError;
+        use goose::providers::base::{stream_from_single_message, MessageStream, Provider};
         use goose::session::session_manager::SessionType;
         use goose::session::SessionManager;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
         use rmcp::model::Tool;
         use std::path::PathBuf;
         use std::sync::Arc;
@@ -1433,10 +1557,6 @@ mod tests {
                 );
                 let message = Message::assistant().with_text("Hello");
                 Ok(stream_from_single_message(message, usage))
-            }
-
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new("mock-model").unwrap()
             }
 
             fn get_name(&self) -> &str {
@@ -1489,16 +1609,22 @@ mod tests {
                 .await?;
 
             let session_id = session.id.clone();
-            agent.update_provider(provider.clone(), &session_id).await?;
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session_id,
+                )
+                .await?;
 
             run_turn(&agent, &session_id, "Turn 1").await?;
             let after_1 = session_manager.get_session(&session_id, false).await?;
-            assert_eq!(after_1.accumulated_total_tokens, Some(15));
+            assert_eq!(after_1.accumulated_usage.total_tokens, Some(15));
 
             run_turn(&agent, &session_id, "Turn 2").await?;
             let after_2 = session_manager.get_session(&session_id, false).await?;
-            assert_eq!(after_2.accumulated_total_tokens, Some(30));
-            assert_eq!(after_2.total_tokens, Some(15));
+            assert_eq!(after_2.accumulated_usage.total_tokens, Some(30));
+            assert_eq!(after_2.usage.total_tokens, Some(15));
 
             Ok(())
         }

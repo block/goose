@@ -141,7 +141,11 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
         let agent = Arc::new(Agent::with_config(config));
 
         agent
-            .update_provider(task_config.provider.clone(), &session_id)
+            .update_provider(
+                task_config.provider.clone(),
+                task_config.model_config.clone(),
+                &session_id,
+            )
             .await
             .map_err(|e| anyhow!("Failed to set provider on sub agent: {}", e))?;
 
@@ -208,6 +212,7 @@ fn get_agent_messages(params: SubagentRunParams) -> AgentMessagesFuture {
                     }
                     conversation.push(msg);
                 }
+                Ok(AgentEvent::Usage(_)) => {}
                 Ok(AgentEvent::McpNotification(_)) => {}
                 Ok(AgentEvent::HistoryReplaced(updated_conversation)) => {
                     conversation = updated_conversation;

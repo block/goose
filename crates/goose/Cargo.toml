@@ -24,6 +24,7 @@ local-inference = [
     "dep:candle-core",
     "dep:candle-nn",
     "dep:candle-transformers",
+    "dep:hf-hub",
     "dep:llama-cpp-2",
     "dep:llama-cpp-sys-2",
     "dep:tokenizers",
@@ -40,6 +41,7 @@ aws-providers = [
 ]
 cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
 vulkan = ["local-inference", "llama-cpp-2/vulkan"]
+mlx = ["local-inference", "dep:mlx-rs", "dep:mlx-lm", "dep:mlx-lm-utils"]
 rustls-tls = [
     "dep:rustls",
     "reqwest/rustls",
@@ -49,12 +51,10 @@ rustls-tls = [
     "jsonwebtoken/aws_lc_rs",
     "oauth2/reqwest",
     "oauth2/rustls-tls",
+    "hf-hub/rustls-tls",
+    "goose-providers/rustls-tls",
 ]
 native-tls = [
-    "dep:pem",
-    "dep:pkcs1",
-    "dep:pkcs8",
-    "dep:sec1",
     "reqwest/native-tls",
     "rmcp/reqwest-native-tls",
     "smithy-transport-reqwest?/native-tls",
@@ -62,6 +62,7 @@ native-tls = [
     "jsonwebtoken/rust_crypto",
     "oauth2/reqwest",
     "oauth2/native-tls",
+    "goose-providers/native-tls",
 ]
 system-keyring = ["dep:keyring"]
 portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel"]
@@ -89,6 +90,7 @@ reqwest = { workspace = true, features = ["json", "cookies", "gzip", "brotli", "
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_path_to_error = { version = "0.1.8", default-features = false }
 serde_urlencoded = { version = "0.7.1", default-features = false }
 jsonschema = { version = "0.30", default-features = false }
 uuid = { workspace = true, features = ["v7"] }
@@ -97,7 +99,7 @@ async-trait = { workspace = true }
 async-stream = { workspace = true }
 minijinja = { version = "2.18", default-features = false, features = ["loader", "multi_template", "serde"] }
 include_dir = { workspace = true }
-tiktoken-rs = { version = "0.11", default-features = false }
+tiktoken-rs = { version = "0.12", default-features = false }
 chrono = { workspace = true }
 clap = { workspace = true }
 indoc = { workspace = true }
@@ -122,6 +124,7 @@ strum = { workspace = true }
 once_cell = { workspace = true }
 etcetera = { workspace = true }
 fs-err = { version = "3.1", default-features = false }
+goose-providers = { path = "../goose-providers", default-features = false }
 goose-sdk-types = { path = "../goose-sdk-types" }
 rand = { workspace = true }
 utoipa = { workspace = true, features = ["chrono"] }
@@ -162,10 +165,9 @@ candle-core = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
 candle-transformers = { version = "0.10", default-features = false, optional = true }
 byteorder = { version = "1.5", default-features = false, features = ["std"], optional = true }
-tokenizers = { version = "0.22", default-features = false, features = ["onig"], optional = true }
+tokenizers = { version = "0.23", default-features = false, features = ["onig"], optional = true }
 symphonia = { version = "0.5", default-features = false, features = ["aac", "adpcm", "alac", "isomp4", "mkv", "mp3", "pcm", "vorbis", "wav"], optional = true }
 rubato = { version = "0.16", default-features = false, optional = true }
-zip = { workspace = true }
 sys-info = { version = "0.9", default-features = false }
 
 llama-cpp-2 = { workspace = true, optional = true }
@@ -193,10 +195,6 @@ pulldown-cmark = { version = "0.13", default-features = false }
 encoding_rs = { version = "0.8.35", default-features = false }
 pastey = { version = "0.2", default-features = false }
 shell-words = { workspace = true }
-pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
-pkcs1 = { version = "0.7.5", default-features = false, features = ["pkcs8", "std"], optional = true }
-pkcs8 = { version = "0.11.0", default-features = false, features = ["alloc", "std"], optional = true }
-sec1 = { version = "0.7", default-features = false, features = ["der", "pkcs8", "std"], optional = true }
 goose-acp-macros = { path = "../goose-acp-macros", default-features = false }
 tower-http = { workspace = true, features = ["cors"] }
 http-body-util = { version = "0.1.2", default-features = false }
@@ -205,6 +203,10 @@ process-wrap = { version = "9", default-features = false, features = ["std"] }
 nostr = { version = "0.44", default-features = false, features = ["nip44", "std"], optional = true }
 nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"], optional = true }
 rustls = { workspace = true, optional = true }
+hf-hub = { version = "1.0.0-rc.1", default-features = false, optional = true }
+mlx-rs = { version = "0.25.3", default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true }
+mlx-lm = { git = "https://github.com/jh-block/mlx-lm", optional = true }
+mlx-lm-utils = { git = "https://github.com/jh-block/mlx-lm", optional = true }
 
 pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 
@@ -214,9 +216,12 @@ pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 icu_calendar = { version = "=2.1.1", default-features = false }
 icu_locale = { version = "=2.1.1", default-features = false }
 llama-cpp-sys-2 = { workspace = true, optional = true }
+image = { version = "0.24.9", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+subtle = { version = "2.5", default-features = false, features = ["std"] }
+gethostname = "1.1.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { workspace = true }
+winapi = { version = "0.3.9", default-features = false, features = ["wincred", "std", "jobapi2", "winbase", "winnt", "processthreadsapi", "handleapi", "minwindef"] }
 keyring = { workspace = true, features = ["windows-native"], optional = true }
 
 # Platform-specific GPU acceleration for Whisper and local inference
@@ -248,6 +253,7 @@ http = { workspace = true }
 goose-mcp = { path = "../goose-mcp", default-features = false }
 insta = { version = "1", default-features = false }
 dtor = { version = "1.0.5", default-features = false, features = ["proc_macro"] }
+tower = { version = "0.5.2", default-features = false, features = ["util"] }
 
 [[example]]
 name = "agent"
@@ -268,7 +274,7 @@ path = "src/bin/analyze_cli.rs"
 
 [[bin]]
 name = "build_canonical_models"
-path = "src/providers/canonical/build_canonical_models.rs"
+path = "src/bin/build_canonical_models.rs"
 
 [[bin]]
 name = "generate-acp-schema"
