@@ -2,6 +2,7 @@ use crate::agents::ExtensionLoadResult;
 use crate::config::{Config, GooseMode};
 use crate::providers::inventory::{ProviderInventoryEntry, ProviderInventoryService};
 use crate::session::Session;
+use crate::slash_commands::types::{SlashCommandEntry, SlashCommandSource};
 use agent_client_protocol::schema::{
     AvailableCommand, AvailableCommandInput, AvailableCommandsUpdate, ModelId, ModelInfo,
     SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOption, SessionId,
@@ -334,21 +335,48 @@ fn current_thinking_effort_value(model_config: &ModelConfig) -> String {
     }
 }
 
-fn available_commands_update(working_dir: &std::path::Path) -> AvailableCommandsUpdate {
-    let commands = crate::slash_commands::slash_command::list_acp_commands(Some(working_dir))
-        .into_iter()
-        .map(|entry| {
-            let mut command = AvailableCommand::new(entry.name, entry.description);
-            if let Some(input_hint) = entry.input_hint {
-                command = command.input(AvailableCommandInput::Unstructured(
-                    UnstructuredCommandInput::new(input_hint),
-                ));
-            }
-            command
-        })
-        .collect();
+fn slash_command_meta(entry: &SlashCommandEntry) -> serde_json::Map<String, serde_json::Value> {
+    let mut meta = serde_json::Map::new();
+    let command_type = match entry.source {
+        SlashCommandSource::Builtin => "Builtin",
+        SlashCommandSource::Recipe => "Recipe",
+        SlashCommandSource::Skill => "Skill",
+    };
+    meta.insert(
+        "commandType".to_string(),
+        serde_json::Value::String(command_type.to_string()),
+    );
+    if let Some(source_path) = &entry.source_path {
+        meta.insert(
+            "sourcePath".to_string(),
+            serde_json::Value::String(source_path.clone()),
+        );
+    }
+    meta
+}
 
-    AvailableCommandsUpdate::new(commands)
+fn slash_command_to_available_command(entry: SlashCommandEntry) -> AvailableCommand {
+    let meta = slash_command_meta(&entry);
+    let mut command = AvailableCommand::new(entry.name, entry.description);
+    if let Some(input_hint) = entry.input_hint {
+        command = command.input(AvailableCommandInput::Unstructured(
+            UnstructuredCommandInput::new(input_hint),
+        ));
+    }
+    command.meta(meta)
+}
+
+pub(super) fn available_commands_for_working_dir(
+    working_dir: &std::path::Path,
+) -> Vec<AvailableCommand> {
+    crate::slash_commands::slash_command::list_acp_commands(Some(working_dir))
+        .into_iter()
+        .map(slash_command_to_available_command)
+        .collect()
+}
+
+fn available_commands_update(working_dir: &std::path::Path) -> AvailableCommandsUpdate {
+    AvailableCommandsUpdate::new(available_commands_for_working_dir(working_dir))
 }
 
 pub(super) fn send_session_setup_notifications(
@@ -466,6 +494,49 @@ mod tests {
         current_mode: GooseMode,
     ) -> Result<SessionModeState, agent_client_protocol::Error> {
         build_mode_state(current_mode)
+    }
+
+    #[test]
+    fn test_slash_command_to_available_command_maps_core_fields_to_acp() {
+        let cases = [
+            (SlashCommandSource::Builtin, "Builtin", None),
+            (
+                SlashCommandSource::Recipe,
+                "Recipe",
+                Some("/tmp/release.yaml".to_string()),
+            ),
+            (SlashCommandSource::Skill, "Skill", None),
+        ];
+
+        for (source, expected_command_type, expected_source_path) in cases {
+            let command = slash_command_to_available_command(SlashCommandEntry {
+                name: "release".to_string(),
+                description: "Run release workflow".to_string(),
+                source,
+                source_path: expected_source_path.clone(),
+                input_hint: Some("[task]".to_string()),
+            });
+
+            assert_eq!(command.name, "release");
+            assert_eq!(command.description, "Run release workflow");
+
+            match command.input.as_ref() {
+                Some(AvailableCommandInput::Unstructured(input)) => {
+                    assert_eq!(input.hint, "[task]");
+                }
+                other => panic!("unexpected command input: {other:?}"),
+            }
+
+            let meta = command.meta.as_ref().expect("command _meta");
+            let expected_command_type = serde_json::json!(expected_command_type);
+            assert_eq!(meta.get("commandType"), Some(&expected_command_type));
+            if let Some(source_path) = expected_source_path {
+                let expected_source_path = serde_json::json!(source_path);
+                assert_eq!(meta.get("sourcePath"), Some(&expected_source_path));
+            } else {
+                assert!(meta.get("sourcePath").is_none());
+            }
+        }
     }
 
     #[test_case(

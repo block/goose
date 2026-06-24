@@ -11,6 +11,7 @@ pub fn list_builtin_commands() -> Vec<SlashCommandEntry> {
             name: command.name.to_string(),
             description: command.description.to_string(),
             source: SlashCommandSource::Builtin,
+            source_path: None,
             input_hint: None,
         })
         .collect()
@@ -80,6 +81,7 @@ mod tests {
             name: name.to_string(),
             description: format!("{name} description"),
             source,
+            source_path: None,
             input_hint: None,
         }
     }

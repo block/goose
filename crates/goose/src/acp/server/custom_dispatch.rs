@@ -480,6 +480,22 @@ impl GooseAcpAgent {
         self.on_list_sources(req).await
     }
 
+    #[custom_method(ListAgentMentionsRequest)]
+    async fn dispatch_list_agent_mentions(
+        &self,
+        req: ListAgentMentionsRequest,
+    ) -> Result<ListAgentMentionsResponse, agent_client_protocol::Error> {
+        self.on_list_agent_mentions(req).await
+    }
+
+    #[custom_method(ListSlashCommandsRequest)]
+    async fn dispatch_list_slash_commands(
+        &self,
+        req: ListSlashCommandsRequest,
+    ) -> Result<ListSlashCommandsResponse, agent_client_protocol::Error> {
+        self.on_list_slash_commands(req).await
+    }
+
     #[custom_method(UpdateSourceRequest)]
     async fn dispatch_update_source(
         &self,
