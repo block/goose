@@ -2,6 +2,7 @@ use anyhow::Result;
 use axum::http::{HeaderMap, HeaderName, HeaderValue};
 use chrono::{DateTime, Utc};
 use futures::stream::{FuturesUnordered, StreamExt};
+use futures::Stream;
 use futures::{future, FutureExt};
 use once_cell::sync::Lazy;
 use rmcp::service::{ClientInitializeError, ServiceError};
@@ -13,9 +14,11 @@ use rmcp::transport::{
 };
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::pin::Pin;
 use std::process::Stdio;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Arc;
+use std::task::{Context, Poll};
 use std::time::Duration;
 use tempfile::{tempdir, TempDir};
 use tokio::io::AsyncReadExt;
@@ -54,6 +57,49 @@ use schemars::_private::NoSerialize;
 use serde_json::Value;
 
 type McpClientBox = Arc<dyn McpClientTrait>;
+
+struct ActionRequiredStream {
+    inner: ReceiverStream<crate::conversation::message::Message>,
+    session_id: String,
+    tool_call_request_id: String,
+}
+
+impl ActionRequiredStream {
+    fn new(
+        receiver: tokio::sync::mpsc::Receiver<crate::conversation::message::Message>,
+        session_id: String,
+        tool_call_request_id: String,
+    ) -> Self {
+        Self {
+            inner: ReceiverStream::new(receiver),
+            session_id,
+            tool_call_request_id,
+        }
+    }
+}
+
+impl Stream for ActionRequiredStream {
+    type Item = crate::conversation::message::Message;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        Pin::new(&mut self.inner).poll_next(cx)
+    }
+}
+
+impl Drop for ActionRequiredStream {
+    fn drop(&mut self) {
+        let session_id = self.session_id.clone();
+        let tool_call_request_id = self.tool_call_request_id.clone();
+        let Ok(handle) = tokio::runtime::Handle::try_current() else {
+            return;
+        };
+        handle.spawn(async move {
+            ActionRequiredManager::global()
+                .unregister_action_required_stream(&session_id, &tool_call_request_id)
+                .await;
+        });
+    }
+}
 
 static RE_ENV_BRACES: Lazy<regex::Regex> =
     Lazy::new(|| regex::Regex::new(r"\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}").expect("valid regex"));
@@ -1736,31 +1782,31 @@ impl ExtensionManager {
         let notifications_receiver = client.subscribe().await;
         let session_id = ctx.session_id.clone();
         let action_required_tool_call_request_id = ctx.tool_call_request_id.clone();
-        let mut unregister_action_required_stream = false;
-        let action_required_receiver = if let Some(tool_call_request_id) =
-            action_required_tool_call_request_id.clone()
-        {
-            if ActionRequiredManager::global()
-                .has_action_required_stream(&session_id, &tool_call_request_id)
-                .await
-            {
-                None
-            } else {
-                unregister_action_required_stream = true;
-                Some(
-                    ActionRequiredManager::global()
+        let action_required_receiver =
+            if let Some(tool_call_request_id) = action_required_tool_call_request_id.clone() {
+                if ActionRequiredManager::global()
+                    .has_action_required_stream(&session_id, &tool_call_request_id)
+                    .await
+                {
+                    None
+                } else {
+                    let registered_tool_call_request_id = tool_call_request_id.clone();
+                    let receiver = ActionRequiredManager::global()
                         .register_action_required_stream(session_id.clone(), tool_call_request_id)
-                        .await,
-                )
-            }
-        } else {
-            None
-        };
+                        .await;
+                    Some((
+                        receiver,
+                        session_id.clone(),
+                        registered_tool_call_request_id,
+                    ))
+                }
+            } else {
+                None
+            };
         let actual_tool_name = resolved.actual_tool_name.clone();
         let resolved_tool = resolved;
         let should_hydrate_mcp_app = self.host_supports_mcp_apps();
         let read_cancellation_token = cancellation_token.clone();
-        let action_required_session_id = session_id.clone();
         let owned_ctx = ToolCallContext::new(
             ctx.session_id.clone(),
             ctx.working_dir.clone(),
@@ -1783,18 +1829,6 @@ impl ExtensionManager {
                         ErrorData::new(ErrorCode::INTERNAL_ERROR, e.to_string(), e.maybe_to_value())
                     }
                 });
-
-            if unregister_action_required_stream {
-                let Some(tool_call_request_id) = &action_required_tool_call_request_id else {
-                    unreachable!("registered action-required stream without a tool call id")
-                };
-                ActionRequiredManager::global()
-                    .unregister_action_required_stream(
-                        &action_required_session_id,
-                        tool_call_request_id,
-                    )
-                    .await;
-            }
 
             let mut result = call_result?;
 
@@ -1819,8 +1853,15 @@ impl ExtensionManager {
         Ok(ToolCallResult {
             result: Box::new(fut.boxed()),
             notification_stream: Some(Box::new(ReceiverStream::new(notifications_receiver))),
-            action_required_stream: action_required_receiver
-                .map(|rx| Box::new(ReceiverStream::new(rx)) as _),
+            action_required_stream: action_required_receiver.map(
+                |(rx, session_id, tool_call_request_id)| {
+                    Box::new(ActionRequiredStream::new(
+                        rx,
+                        session_id,
+                        tool_call_request_id,
+                    )) as _
+                },
+            ),
         })
     }
 
