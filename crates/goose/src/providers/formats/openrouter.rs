@@ -202,6 +202,25 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_reasoning_config_disables_reasoning_capable_model() {
+        let mut payload = json!({
+            "model": "google/gemini-2.5-flash",
+            "messages": []
+        });
+        // Reasoning-capable model (per canonical) with thinking explicitly off, as a
+        // fast-model config is built: OpenRouter must still emit the disable object.
+        let mut model_config = ModelConfig::new("google/gemini-2.5-flash");
+        model_config.reasoning = Some(true);
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("off"));
+        model_config.request_params = Some(params);
+
+        apply_reasoning_config(&mut payload, &model_config);
+
+        assert_eq!(payload["reasoning"], json!({ "effort": "none" }));
+    }
+
+    #[test]
     fn test_apply_reasoning_config_uses_reasoning_metadata() {
         let mut payload = json!({
             "model": "x-ai/grok-4",

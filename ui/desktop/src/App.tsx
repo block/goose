@@ -183,7 +183,7 @@ const PairRouteWrapper = ({
   return null;
 };
 
-const SettingsRoute = ({ activeSessionId }: { activeSessionId?: string }) => {
+const SettingsRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -199,13 +199,7 @@ const SettingsRoute = ({ activeSessionId }: { activeSessionId?: string }) => {
     viewOptions.section = sectionFromUrl;
   }
 
-  return (
-    <SettingsView
-      onClose={() => navigate('/')}
-      setView={setView}
-      viewOptions={{ ...viewOptions, sessionId: activeSessionId }}
-    />
-  );
+  return <SettingsView onClose={() => navigate('/')} setView={setView} viewOptions={viewOptions} />;
 };
 
 const SessionsRoute = () => {
@@ -506,23 +500,6 @@ export function AppInner() {
     };
   }, []);
 
-  // Show a toast if mesh is the configured provider but isn't running.
-  useEffect(() => {
-    const handler = () => {
-      toast.warn(
-        "Inference Mesh is set as your provider but isn't running. Open Settings → Mesh to start it. Keep goose running to stay connected.",
-        {
-          autoClose: false,
-          toastId: 'mesh-not-running',
-        }
-      );
-    };
-    window.electron.on('mesh-not-running', handler);
-    return () => {
-      window.electron.off('mesh-not-running', handler);
-    };
-  }, []);
-
   // Prevent default drag and drop behavior globally to avoid opening files in new windows
   // but allow our React components to handle drops in designated areas
   useEffect(() => {
@@ -701,14 +678,7 @@ export function AppInner() {
                   />
                 }
               />
-              <Route
-                path="settings"
-                element={
-                  <SettingsRoute
-                    activeSessionId={activeSessions[activeSessions.length - 1]?.sessionId}
-                  />
-                }
-              />
+              <Route path="settings" element={<SettingsRoute />} />
               <Route
                 path="extensions"
                 element={

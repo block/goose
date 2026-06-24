@@ -11,7 +11,6 @@ use goose_providers::formats::openai::{
     openai_reasoning_effort_for_thinking, sanitize_function_name,
 };
 use goose_providers::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
-use goose_providers::json::safely_parse_json;
 use rmcp::model::{
     object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
     ResourceContents, Role, Tool,
@@ -423,21 +422,25 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     };
                     content.push(MessageContent::tool_request(id, Err(error)));
                 } else {
-                    match safely_parse_json(&arguments_str) {
-                        Ok(params) => {
+                    match goose_providers::json::parse_tool_arguments(&arguments_str) {
+                        Some(params) => {
                             content.push(MessageContent::tool_request(
                                 id,
                                 Ok(CallToolRequestParams::new(function_name)
                                     .with_arguments(object(params))),
                             ));
                         }
-                        Err(e) => {
+                        None => {
+                            let message_text =
+                                goose_providers::json::truncation_error_message(&arguments_str)
+                                    .unwrap_or_else(|| {
+                                        format!(
+                                            "Could not interpret tool use parameters for id {id}"
+                                        )
+                                    });
                             let error = ErrorData {
                                 code: ErrorCode::INVALID_PARAMS,
-                                message: Cow::from(format!(
-                                    "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
-                                    id, e, arguments_str
-                                )),
+                                message: Cow::from(message_text),
                                 data: None,
                             };
                             content.push(MessageContent::tool_request(id, Err(error)));
@@ -1025,7 +1028,7 @@ mod tests {
                     message: msg,
                     data: None,
                 }) => {
-                    assert!(msg.starts_with("Could not interpret tool use parameters"));
+                    assert!(msg.contains("tool arguments") || msg.contains("truncated"));
                 }
                 _ => panic!("Expected InvalidParameters error"),
             }

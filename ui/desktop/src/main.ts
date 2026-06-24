@@ -50,7 +50,6 @@ import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client } from './api/client';
 import { GooseApp } from './api';
-import * as mesh from './mesh';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
@@ -1093,19 +1092,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   stopErrorLogCollection();
   errorLog.length = 0;
 
-  // Nudge the user if mesh is their provider but isn't running.
-  // Delay to let the renderer mount before sending the IPC event.
-  setTimeout(() => {
-    mesh
-      .checkProviderRunning(goosedClient)
-      .then((ok) => {
-        if (!ok && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('mesh-not-running');
-        }
-      })
-      .catch(() => {});
-  }, 5000);
-
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);
 
@@ -2037,12 +2023,6 @@ ipcMain.handle('select-import-session-file', async () => {
   }
 });
 
-// ── Mesh-LLM lifecycle (see mesh.ts) ────────────────────────────────
-
-ipcMain.handle('check-mesh', () => mesh.check());
-ipcMain.handle('start-mesh', (_event, args: string[]) => mesh.start(args));
-ipcMain.handle('stop-mesh', () => mesh.stop());
-
 ipcMain.handle('check-ollama', async () => {
   try {
     return new Promise((resolve) => {
@@ -2925,9 +2905,6 @@ async function getAllowList(): Promise<string[]> {
 }
 
 app.on('will-quit', async () => {
-  // Stop the mesh child process if we spawned one.
-  mesh.cleanup();
-
   const goosedLeases = new Set(goosedLeasesByWindowId.values());
   if (goosedLeases.size > 0) {
     log.info(`App quitting, terminating ${goosedLeases.size} goosed server(s)`);

@@ -114,17 +114,6 @@ type ElectronAPI = {
   openInChrome: (url: string) => void;
   reloadApp: () => void;
   checkForOllama: () => Promise<boolean>;
-  checkMesh: () => Promise<{
-    running: boolean;
-    installed: boolean;
-    models: string[];
-    token?: string;
-    peerCount?: number;
-    nodeStatus?: string;
-    binaryPath?: string;
-  }>;
-  startMesh: (args: string[]) => Promise<{ started: boolean; error?: string; pid?: number }>;
-  stopMesh: () => Promise<{ stopped: boolean }>;
   selectFileOrDirectory: (defaultPath?: string) => Promise<string | null>;
   selectImportSessionFile: () => Promise<{
     filePath: string;
@@ -223,9 +212,6 @@ const electronAPI: ElectronAPI = {
   openInChrome: (url: string) => ipcRenderer.send('open-in-chrome', url),
   reloadApp: () => ipcRenderer.send('reload-app'),
   checkForOllama: () => ipcRenderer.invoke('check-ollama'),
-  checkMesh: () => ipcRenderer.invoke('check-mesh'),
-  startMesh: (args: string[]) => ipcRenderer.invoke('start-mesh', args),
-  stopMesh: () => ipcRenderer.invoke('stop-mesh'),
 
   selectFileOrDirectory: (defaultPath?: string) =>
     ipcRenderer.invoke('select-file-or-directory', defaultPath),
