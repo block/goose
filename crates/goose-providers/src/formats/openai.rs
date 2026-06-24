@@ -3177,6 +3177,52 @@ data: [DONE]"#;
     }
 
     #[test]
+    fn test_format_messages_carries_reasoning_through_text_only_chunks() -> anyhow::Result<()> {
+        // Scenario B from the streaming bug: thinking arrives first, then multiple
+        // text-only assistant messages, then a tool call with thinking re-attached
+        // by agent.rs (via the earlier-chunk lookback).
+        // Text-only messages set tool_call_turn_reasoning="" (line 453 else-branch),
+        // but the TC's own Thinking content must repopulate it.
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::thinking("reason", "")),
+            Message::assistant().with_text("partial answer"),
+            Message::assistant().with_text("more text"),
+            // agent.rs attaches the earlier thinking to the TC message
+            Message::assistant()
+                .with_content(MessageContent::thinking("reason", ""))
+                .with_tool_request(
+                    "tool1",
+                    Ok(CallToolRequestParams::new("test_tool").with_arguments(object!({}))),
+                ),
+        ];
+
+        let spec = format_messages_with_options(
+            &messages,
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+            },
+        );
+
+        let tool_call_msgs: Vec<_> = spec
+            .iter()
+            .filter(|m| {
+                m.get("tool_calls")
+                    .and_then(|tc| tc.as_array())
+                    .is_some_and(|a| !a.is_empty())
+            })
+            .collect();
+
+        assert_eq!(tool_call_msgs.len(), 1);
+        assert_eq!(
+            tool_call_msgs[0]["reasoning_content"], "reason",
+            "reasoning_content must survive text-only chunks between thinking and tool call"
+        );
+
+        Ok(())
+    }
+
+    #[test]
     fn test_format_messages_carries_reasoning_to_all_split_tool_calls() -> anyhow::Result<()> {
         // Simulates DeepSeek/Kimi streaming: a thinking-only chunk arrives first,
         // then the agent splits two tool calls into separate messages, each with
