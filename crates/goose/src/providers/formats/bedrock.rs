@@ -15,6 +15,8 @@ use rmcp::model::{
 use serde_json::Value;
 
 use crate::conversation::message::{Message, MessageContent};
+use crate::providers::bedrock::BEDROCK_PROVIDER_NAME;
+use crate::providers::canonical::maybe_get_canonical_model;
 use crate::providers::formats::anthropic::{
     adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
     thinking_type_for_provider, ThinkingType, ANTHROPIC_PROVIDER_NAME, MIN_ANSWER_TOKENS,
@@ -110,8 +112,9 @@ fn strip_bedrock_version_suffix(model_name: &str) -> String {
 ///   real output limit is far higher.
 /// - `temperature` is sent only when set and the model supports it. Support is
 ///   resolved against the Anthropic canonical registry for `anthropic.*` model
-///   ids (the same mapping used for thinking), so reasoning models that reject a
-///   custom temperature keep the server default.
+///   ids (the same mapping used for thinking) and the Bedrock canonical registry
+///   for other known Bedrock ids, so models that reject a custom temperature keep
+///   the server default.
 pub fn bedrock_inference_config(model_config: &ModelConfig) -> bedrock::InferenceConfiguration {
     let mut builder = bedrock::InferenceConfiguration::builder();
 
@@ -130,8 +133,9 @@ pub fn bedrock_inference_config(model_config: &ModelConfig) -> bedrock::Inferenc
 
 /// Whether `temperature` may be sent for this Bedrock model. For `anthropic.*`
 /// ids we resolve against the Anthropic canonical registry (mapping the model
-/// name the same way [`bedrock_anthropic_thinking_type`] does); other models
-/// default to allowing it, matching [`model_supports_temperature`].
+/// name the same way [`bedrock_anthropic_thinking_type`] does); for other known
+/// Bedrock ids we consult the Bedrock canonical registry and otherwise keep the
+/// permissive fallback used by [`model_supports_temperature`].
 fn bedrock_model_supports_temperature(model_config: &ModelConfig) -> bool {
     if let Some((_, anthropic_model)) = model_config.model_name.rsplit_once("anthropic.") {
         let anthropic_config = ModelConfig {
@@ -140,7 +144,9 @@ fn bedrock_model_supports_temperature(model_config: &ModelConfig) -> bool {
         };
         model_supports_temperature(ANTHROPIC_PROVIDER_NAME, &anthropic_config)
     } else {
-        true
+        maybe_get_canonical_model(BEDROCK_PROVIDER_NAME, &model_config.model_name)
+            .and_then(|model| model.temperature)
+            .unwrap_or(true)
     }
 }
 
@@ -1352,5 +1358,16 @@ mod tests {
         } else {
             assert_eq!(inference_config.temperature(), None);
         }
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_omits_temperature_for_bedrock_registry_unsupported_model() {
+        let mut config = ModelConfig::new_or_fail("openai.gpt-5.4");
+        config.temperature = Some(0.5);
+
+        let inference_config = bedrock_inference_config(&config);
+
+        assert!(!bedrock_model_supports_temperature(&config));
+        assert_eq!(inference_config.temperature(), None);
     }
 }
