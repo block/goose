@@ -7,6 +7,7 @@ use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
 use goose::acp::transport::create_acp_router;
 use goose::agents::GoosePlatform;
 use goose::config::paths::Paths;
+use goose::gateway::manager::GatewayManager;
 use goose_server::auth::{check_acp_token, check_token};
 #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
 use goose_server::tls::setup_tls;
@@ -37,8 +38,8 @@ async fn shutdown_signal() {
 }
 
 pub async fn run() -> Result<()> {
-    // Install the rustls crypto provider early, before any spawned tasks (tunnel,
-    // gateways, etc.) try to open TLS connections. Both `ring` and `aws-lc-rs`
+    // Install the rustls crypto provider early, before any spawned tasks (tunnel, etc.)
+    // try to open TLS connections. Both `ring` and `aws-lc-rs`
     // features are enabled on rustls (via different transitive deps), so rustls
     // cannot auto-detect a provider — we must pick one explicitly.
     #[cfg(feature = "rustls-tls")]
@@ -54,6 +55,16 @@ pub async fn run() -> Result<()> {
 
     boot_marker("appstate init start");
     let app_state = state::AppState::new(settings.tls).await?;
+
+    // Auto-start any previously saved gateway configs (e.g. Telegram bot).
+    // The gateway is no longer exposed via REST routes, but existing configs
+    // should still start so users aren't silently broken.
+    if let Ok(gateway_manager) = GatewayManager::new(app_state.agent_manager.clone()) {
+        let gm = std::sync::Arc::new(gateway_manager);
+        tokio::spawn(async move {
+            gm.check_auto_start().await;
+        });
+    }
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
@@ -85,11 +96,6 @@ pub async fn run() -> Result<()> {
     let app = rest_router.merge(acp_router).layer(cors);
 
     let addr = settings.socket_addr();
-
-    let gateway_manager = app_state.gateway_manager.clone();
-    tokio::spawn(async move {
-        gateway_manager.check_auto_start().await;
-    });
 
     if settings.tls {
         #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
