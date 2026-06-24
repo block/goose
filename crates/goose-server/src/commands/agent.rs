@@ -93,11 +93,6 @@ pub async fn run() -> Result<()> {
 
     let addr = settings.socket_addr();
 
-    let tunnel_manager = app_state.tunnel_manager.clone();
-    tokio::spawn(async move {
-        tunnel_manager.check_auto_start().await;
-    });
-
     let gateway_manager = app_state.gateway_manager.clone();
     tokio::spawn(async move {
         gateway_manager.check_auto_start().await;
