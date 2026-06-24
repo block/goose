@@ -19,6 +19,11 @@ function stringMetaValue(
   return typeof value === 'string' && value.trim() ? value : undefined;
 }
 
+function cwdParam(cwd: string): { cwd?: string } {
+  const trimmed = cwd.trim();
+  return trimmed ? { cwd: trimmed } : {};
+}
+
 export function availableCommandToDisplayItem(
   command: AvailableCommand
 ): AutocompleteDisplayItem | null {
@@ -52,14 +57,20 @@ export function agentMentionToDisplayItem(agent: AgentMention): AutocompleteDisp
 
 export async function listSlashCommandItems(cwd: string): Promise<AutocompleteDisplayItem[]> {
   const client = await getAcpClient();
-  const response = await client.goose.slashCommandsList_unstable({ cwd });
+  const response = await client.goose.slashCommandsList_unstable(cwdParam(cwd));
   return response.availableCommands
     .map(availableCommandToDisplayItem)
     .filter((item): item is AutocompleteDisplayItem => item !== null);
 }
 
-export async function listAgentMentionItems(cwd: string): Promise<AutocompleteDisplayItem[]> {
+export async function listAgentMentionItems(
+  cwd: string,
+  sessionId?: string
+): Promise<AutocompleteDisplayItem[]> {
   const client = await getAcpClient();
-  const response = await client.goose.agentMentionsList_unstable({ cwd });
+  const response = await client.goose.agentMentionsList_unstable({
+    ...cwdParam(cwd),
+    ...(sessionId ? { sessionId } : {}),
+  });
   return response.agents.map(agentMentionToDisplayItem);
 }

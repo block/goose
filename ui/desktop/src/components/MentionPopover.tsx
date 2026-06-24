@@ -71,6 +71,7 @@ interface MentionPopoverProps {
   selectedIndex: number;
   onSelectedIndexChange: (index: number) => void;
   workingDir?: string;
+  sessionId?: string | null;
 }
 
 // Enhanced fuzzy matching algorithm
@@ -152,6 +153,7 @@ const MentionPopover = forwardRef<
       selectedIndex,
       onSelectedIndexChange,
       workingDir,
+      sessionId,
     },
     ref
   ) => {
@@ -495,7 +497,7 @@ const MentionPopover = forwardRef<
           } else {
             // Fetch agents from server and scan files in parallel
             const [agentItems, scannedFiles] = await Promise.all([
-              listAgentMentionItems(currentWorkingDir).catch(() => []),
+              listAgentMentionItems(currentWorkingDir, sessionId ?? undefined).catch(() => []),
               scanDirectoryFromRoot(currentWorkingDir || getDefaultStartPath()),
             ]);
             if (cancelled) return;

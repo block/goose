@@ -369,7 +369,13 @@ fn slash_command_to_available_command(entry: SlashCommandEntry) -> AvailableComm
 pub(super) fn available_commands_for_working_dir(
     working_dir: &std::path::Path,
 ) -> Vec<AvailableCommand> {
-    crate::slash_commands::slash_command::list_acp_commands(Some(working_dir))
+    available_commands_for_optional_working_dir(Some(working_dir))
+}
+
+pub(super) fn available_commands_for_optional_working_dir(
+    working_dir: Option<&std::path::Path>,
+) -> Vec<AvailableCommand> {
+    crate::slash_commands::slash_command::list_acp_commands(working_dir)
         .into_iter()
         .map(slash_command_to_available_command)
         .collect()
