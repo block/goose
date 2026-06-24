@@ -390,7 +390,7 @@ export default function ChatInput({
     const hasSendNowInFlight = sendNowInFlightMessageIdsRef.current.size > 0;
 
     if (
-      (becameIdle || becameUnblocked) &&
+      (becameIdle || (becameUnblocked && !isLoading)) &&
       !queueProcessingBlocked &&
       !hasSendNowInFlight &&
       queuedMessages.length > 0
