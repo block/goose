@@ -8,9 +8,9 @@ import {
   useState,
 } from 'react';
 import { ItemIcon } from './ItemIcon';
-import { CommandType, getSlashCommands } from '../api';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { defineMessages, useIntl } from '../i18n';
+import { listAgentMentionItems, listSlashCommandItems } from '../acp/autocomplete';
 
 const i18n = defineMessages({
   scanningFiles: {
@@ -35,7 +35,8 @@ const i18n = defineMessages({
   },
 });
 
-type DisplayItemType = CommandType | 'Directory' | 'File';
+type CommandItemType = 'Builtin' | 'Recipe' | 'Skill' | 'Agent';
+type DisplayItemType = CommandItemType | 'Directory' | 'File';
 
 const typeOrder: Record<DisplayItemType, number> = {
   Agent: 0,
@@ -51,6 +52,7 @@ export interface DisplayItem {
   extra: string;
   itemType: DisplayItemType;
   relativePath: string;
+  insertText?: string;
 }
 
 export interface DisplayItemWithMatch extends DisplayItem {
@@ -452,6 +454,9 @@ const MentionPopover = forwardRef<
     }, [items, query, currentWorkingDir]);
 
     const getSelectionText = (item: DisplayItem): string => {
+      if (item.insertText) {
+        return item.insertText;
+      }
       if (item.itemType === 'Agent') {
         return '@' + item.name + ' ';
       }
@@ -484,38 +489,16 @@ const MentionPopover = forwardRef<
         setIsLoading(true);
         try {
           if (isSlashCommand) {
-            const response = await getSlashCommands({
-              query: { working_dir: currentWorkingDir },
-              throwOnError: true,
-            });
+            const commandItems = await listSlashCommandItems(currentWorkingDir);
             if (cancelled) return;
-            const commandItems: DisplayItem[] = (response.data?.commands || [])
-              .filter((cmd) => cmd.command_type !== 'Agent')
-              .map((cmd) => ({
-                name: cmd.command,
-                extra: cmd.help,
-                itemType: cmd.command_type,
-                relativePath: cmd.command,
-              }));
             setItems(commandItems);
           } else {
             // Fetch agents from server and scan files in parallel
-            const [agentResponse, scannedFiles] = await Promise.all([
-              getSlashCommands({
-                query: { working_dir: currentWorkingDir },
-                throwOnError: true,
-              }).catch(() => null),
+            const [agentItems, scannedFiles] = await Promise.all([
+              listAgentMentionItems(currentWorkingDir).catch(() => []),
               scanDirectoryFromRoot(currentWorkingDir || getDefaultStartPath()),
             ]);
             if (cancelled) return;
-            const agentItems: DisplayItem[] = (agentResponse?.data?.commands || [])
-              .filter((cmd) => cmd.command_type === 'Agent')
-              .map((cmd) => ({
-                name: cmd.command,
-                extra: cmd.help,
-                itemType: cmd.command_type,
-                relativePath: cmd.command,
-              }));
             setItems([...agentItems, ...scannedFiles]);
           }
         } catch (error) {
@@ -610,7 +593,7 @@ const MentionPopover = forwardRef<
               >
                 {displayItems.map((item, index) => (
                   <div
-                    key={`${item.itemType}-${item.name}`}
+                    key={`${item.itemType}-${item.relativePath}-${item.extra}-${item.insertText ?? ''}`}
                     onClick={() => handleItemClick(index)}
                     data-selected={index === selectedIndex}
                     className={`flex items-center gap-3 p-2 rounded-md cursor-pointer transition-colors ${
