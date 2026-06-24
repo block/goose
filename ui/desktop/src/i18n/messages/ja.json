@@ -3296,6 +3296,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "既に実行中のため、スケジュールを実行または変更できません。"
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "セッション: {sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "作成: {date}"
   },
@@ -3316,9 +3319,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "エラー: {error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "セッションの読み込みに失敗しました"
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
@@ -3362,9 +3362,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "メッセージ: {count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "新しいセッション: {sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "スケジュールIDが指定されていません。スケジュール一覧に戻ってください。"
   },
@@ -3401,6 +3398,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "スケジュールを今すぐ実行"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "実行が完了しました"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "スケジュール詳細"
   },
@@ -3419,9 +3419,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "スケジュールを一時停止しました"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "スケジュールを実行しました"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "スケジュールを再開しました"
   },
@@ -3430,9 +3427,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "セッションID: {id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "トークン: {count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "スケジュールを再開"

@@ -3296,6 +3296,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "जब कोई शेड्यूल पहले से चल रहा हो तो उसे ट्रिगर या संशोधित नहीं किया जा सकता।"
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "सत्र: {sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "बनाया गया: {date}"
   },
@@ -3316,9 +3319,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "त्रुटि: {error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "सत्र लोड करने में विफल"
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "आईडी:"
@@ -3362,9 +3362,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "संदेश: {count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "नया सत्र: {sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "कोई शेड्यूल आईडी प्रदान नहीं की गई. शेड्यूल सूची पर लौटें."
   },
@@ -3401,6 +3398,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "अभी शेड्यूल चलाएँ"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "रन पूरा हुआ"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "अनुसूची विवरण"
   },
@@ -3419,9 +3419,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "शेड्यूल रोका गया"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "शेड्यूल ट्रिगर हुआ"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "शेड्यूल अनरोका"
   },
@@ -3430,9 +3427,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "सत्र आईडी: {id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "टोकन: {count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "शेड्यूल को फिर से रोकें"

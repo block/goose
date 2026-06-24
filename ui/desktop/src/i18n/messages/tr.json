@@ -3296,6 +3296,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "Zaten çalışmakta olan bir program tetiklenemez veya değiştirilemez."
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "Oturum: {sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "Oluşturuldu: {date}"
   },
@@ -3316,9 +3319,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "Hata: {error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "Oturum yüklenemedi"
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "Kimlik:"
@@ -3362,9 +3362,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "Mesajlar: {count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "Yeni oturum: {sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "Program kimliği sağlanmadı. Program listesine geri dönün."
   },
@@ -3401,6 +3398,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "Şimdi Planla'yı Çalıştır"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "Çalıştırma tamamlandı"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Program Ayrıntıları"
   },
@@ -3419,9 +3419,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "Plan Duraklatıldı"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "Zamanlama Tetiklendi"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "Duraklatmayı Kaldırmayı Planla"
   },
@@ -3430,9 +3427,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "Oturum Kimliği: {id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "Jetonlar: {count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "Programı Duraklatmayı Kaldır"

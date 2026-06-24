@@ -3296,6 +3296,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "No se puede activar ni modificar una programación mientras se está ejecutando."
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "Sesión: {sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "Creada: {date}"
   },
@@ -3316,9 +3319,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "Error: {error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "No se pudo cargar la sesión"
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
@@ -3362,9 +3362,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "Mensajes: {count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "Nueva sesión: {sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "No se proporcionó ningún ID de programación. Vuelve a la lista de programaciones."
   },
@@ -3401,6 +3398,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "Ejecutar programación ahora"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "Ejecución completada"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Detalles de la programación"
   },
@@ -3419,9 +3419,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "Programación en pausa"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "Programación activada"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "Programación reanudada"
   },
@@ -3430,9 +3427,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "ID de sesión: {id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "Tokens: {count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "Reanudar programación"

@@ -59,7 +59,7 @@ const i18n = defineMessages({
   idLabel: { id: 'scheduleDetailView.idLabel', defaultMessage: 'ID:' },
   jobCancelled: { id: 'scheduleDetailView.jobCancelled', defaultMessage: 'Job Cancelled' },
   jobCancelledMsg: { id: 'scheduleDetailView.jobCancelledMsg', defaultMessage: 'The job was cancelled while starting up.' },
-  scheduleCompleted: { id: 'scheduleDetailView.scheduleCompleted', defaultMessage: 'Schedule Completed' },
+  scheduleCompleted: { id: 'scheduleDetailView.scheduleCompleted', defaultMessage: 'Run completed' },
   completedSession: { id: 'scheduleDetailView.completedSession', defaultMessage: 'Session: {sessionId}' },
   runScheduleError: { id: 'scheduleDetailView.runScheduleError', defaultMessage: 'Run Schedule Error' },
   scheduleUnpaused: { id: 'scheduleDetailView.scheduleUnpaused', defaultMessage: 'Schedule Unpaused' },

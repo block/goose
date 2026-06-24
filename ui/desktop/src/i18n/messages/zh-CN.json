@@ -3296,6 +3296,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "计划正在运行中，无法触发或修改。"
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "会话：{sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "创建于：{date}"
   },
@@ -3316,9 +3319,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "错误：{error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "加载会话失败"
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID："
@@ -3362,9 +3362,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "消息：{count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "新会话：{sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "未提供计划 ID。返回计划列表。"
   },
@@ -3401,6 +3398,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "立即运行计划"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "运行已完成"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "计划详情"
   },
@@ -3419,9 +3419,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "计划已暂停"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "计划已触发"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "计划已恢复"
   },
@@ -3430,9 +3427,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "会话 ID：{id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "令牌：{count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "恢复计划"

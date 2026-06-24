@@ -3296,6 +3296,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "Нельзя запускать или изменять расписание, пока оно выполняется."
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "Сеанс: {sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "Создано: {date}"
   },
@@ -3316,9 +3319,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "Ошибка: {error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "Не удалось загрузить сеанс"
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
@@ -3362,9 +3362,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "Сообщений: {count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "Новый сеанс: {sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "ID расписания не указан. Вернитесь к списку расписаний."
   },
@@ -3401,6 +3398,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "Запустить расписание сейчас"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "Запуск завершен"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Детали расписания"
   },
@@ -3419,9 +3419,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "Расписание приостановлено"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "Расписание запущено"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "Расписание возобновлено"
   },
@@ -3430,9 +3427,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "ID сеанса: {id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "Токенов: {count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "Возобновить расписание"

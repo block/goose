@@ -3296,6 +3296,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "이미 실행 중인 일정은 트리거하거나 수정할 수 없습니다."
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "세션: {sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "생성일: {date}"
   },
@@ -3316,9 +3319,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "오류: {error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "세션을 로드하지 못했습니다."
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
@@ -3362,9 +3362,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "메시지: {count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "새 세션: {sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "제공된 일정 ID가 없습니다. 일정 목록으로 돌아갑니다."
   },
@@ -3401,6 +3398,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "지금 일정 실행"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "실행 완료"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "일정 세부정보"
   },
@@ -3419,9 +3419,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "일정이 일시 중지됨"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "일정이 실행됨"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "일정 일시중지 해제됨"
   },
@@ -3430,9 +3427,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "세션 ID: {id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "토큰: {count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "일정 일시중지 해제"

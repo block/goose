@@ -3399,7 +3399,7 @@
     "defaultMessage": "Run Schedule Now"
   },
   "scheduleDetailView.scheduleCompleted": {
-    "defaultMessage": "Schedule Completed"
+    "defaultMessage": "Run completed"
   },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Schedule Details"
