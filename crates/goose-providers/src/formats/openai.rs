@@ -185,22 +185,32 @@ pub fn format_messages_with_options(
     // Reasoning to propagate across consecutive tool-call messages in the same turn.
     // DeepSeek/Kimi require reasoning_content on every assistant tool-call message.
     let mut tool_call_turn_reasoning = String::new();
+    let mut saw_tool_response = false;
 
     for message in messages {
         if options.preserve_thinking_context && message.role != Role::Assistant {
             pending_assistant_reasoning.clear();
         }
-        // clears the reasoning of the turn as a new message from the user was received.
-        // Tool results are also Role::User but belong to the same assistant turn, so
-        // only clear when the user message is not a tool result.
-        if options.preserve_thinking_context
-            && message.role == Role::User
-            && !message
+
+        if options.preserve_thinking_context && message.role == Role::User {
+            if message
                 .content
                 .iter()
                 .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+            {
+                saw_tool_response = true;
+            } else {
+                tool_call_turn_reasoning.clear();
+                saw_tool_response = false;
+            }
+        }
+
+        // A new assistant message after tool results creates a new turn
+        // To prevent reasoning from the previous turn leaking into the new one.
+        if options.preserve_thinking_context && message.role == Role::Assistant && saw_tool_response
         {
             tool_call_turn_reasoning.clear();
+            saw_tool_response = false;
         }
 
         let mut converted = json!({
@@ -3168,11 +3178,11 @@ data: [DONE]"#;
 
     #[test]
     fn test_format_messages_carries_reasoning_to_all_split_tool_calls() -> anyhow::Result<()> {
-        // Simulates DeepSeek/Kimi streaming: thinking-only chunk arrives first,
-        // then two separate tool-call chunks (agent stores each as its own message).
-        // The formatter must propagate reasoning_content to both tool-call messages
-        // so merge_split_tool_call_messages can merge them and the provider sees
-        // reasoning_content on the combined assistant message.
+        // Simulates DeepSeek/Kimi streaming: a thinking-only chunk arrives first,
+        // then the agent splits two tool calls into separate messages, each with
+        // the same reasoning attached (as agent.rs does via response_thinking).
+        // The formatter must keep reasoning_content on both so that
+        // merge_split_tool_call_messages can reunite them into one assistant message.
         let tool_result1 = Message::user().with_tool_response(
             "tool1",
             Ok(rmcp::model::CallToolResult::success(vec![
@@ -3180,16 +3190,22 @@ data: [DONE]"#;
             ])),
         );
         let messages = vec![
+            // Standalone thinking message (created by agent.rs alongside request_msgs)
             Message::assistant().with_content(MessageContent::thinking("reasoning", "")),
-            Message::assistant().with_tool_request(
-                "tool1",
-                Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({}))),
-            ),
+            // Each request_msg has thinking explicitly attached (agent.rs behaviour)
+            Message::assistant()
+                .with_content(MessageContent::thinking("reasoning", ""))
+                .with_tool_request(
+                    "tool1",
+                    Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({}))),
+                ),
             tool_result1,
-            Message::assistant().with_tool_request(
-                "tool2",
-                Ok(CallToolRequestParams::new("tool_b").with_arguments(object!({}))),
-            ),
+            Message::assistant()
+                .with_content(MessageContent::thinking("reasoning", ""))
+                .with_tool_request(
+                    "tool2",
+                    Ok(CallToolRequestParams::new("tool_b").with_arguments(object!({}))),
+                ),
         ];
 
         let spec = format_messages_with_options(
@@ -3209,6 +3225,81 @@ data: [DONE]"#;
         assert_eq!(assistant_msgs[0]["reasoning_content"], "reasoning");
         let tool_calls = assistant_msgs[0]["tool_calls"].as_array().unwrap();
         assert_eq!(tool_calls.len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sequential_tool_calls_not_merged() -> anyhow::Result<()> {
+        // Verifies that two tool calls from *different* turns are never merged,
+        // even when the second call carries no fresh reasoning (the previous
+        // turn's reasoning must not leak into it).
+        let tool_result1 = Message::user().with_tool_response(
+            "tool1",
+            Ok(rmcp::model::CallToolResult::success(vec![
+                rmcp::model::Content::text("result1"),
+            ])),
+        );
+        let messages = vec![
+            // Turn 1: thinking then tool call
+            Message::assistant().with_content(MessageContent::thinking("turn1_reasoning", "")),
+            Message::assistant().with_tool_request(
+                "tool1",
+                Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({}))),
+            ),
+            tool_result1,
+            // Turn 2: new tool call, no fresh thinking
+            Message::assistant().with_tool_request(
+                "tool2",
+                Ok(CallToolRequestParams::new("tool_b").with_arguments(object!({}))),
+            ),
+        ];
+
+        let spec = format_messages_with_options(
+            &messages,
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+            },
+        );
+
+        let assistant_msgs: Vec<_> = spec
+            .iter()
+            .filter(|m| m.get("role") == Some(&json!("assistant")))
+            .collect();
+
+        // Must remain two separate assistant messages — not merged across turns.
+        assert_eq!(
+            assistant_msgs.len(),
+            2,
+            "sequential tool calls must not be merged"
+        );
+
+        // Turn 1 carries reasoning; turn 2 must not inherit it.
+        assert_eq!(assistant_msgs[0]["reasoning_content"], "turn1_reasoning");
+        assert!(
+            assistant_msgs[1].get("reasoning_content").is_none()
+                || assistant_msgs[1]["reasoning_content"].is_null(),
+            "turn 2 must not inherit stale reasoning from turn 1"
+        );
+
+        // The tool result must appear between the two assistant messages.
+        let tool_idx = spec
+            .iter()
+            .position(|m| m.get("role") == Some(&json!("tool")))
+            .expect("tool result must be present");
+        let asst1_idx = spec
+            .iter()
+            .position(|m| m.get("role") == Some(&json!("assistant")))
+            .unwrap();
+        let asst2_idx = spec
+            .iter()
+            .rposition(|m| m.get("role") == Some(&json!("assistant")))
+            .unwrap();
+        assert!(
+            asst1_idx < tool_idx && tool_idx < asst2_idx,
+            "tool result must sit between the two assistant messages"
+        );
 
         Ok(())
     }
