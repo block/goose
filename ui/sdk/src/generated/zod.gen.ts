@@ -1640,6 +1640,88 @@ export const zListSourcesResponse_unstable = z.object({
 });
 
 /**
+ * List user-facing agent mention targets for `@` autocomplete.
+ */
+export const zListAgentMentionsRequest_unstable = z.object({
+    cwd: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    sessionId: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
+});
+
+/**
+ * A user-facing `@` mention target backed by an agent, recipe, or subrecipe source.
+ */
+export const zAgentMention = z.object({
+    name: z.string(),
+    description: z.string(),
+    sourceType: zSourceType,
+    sourcePath: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    mention: z.string()
+});
+
+export const zListAgentMentionsResponse_unstable = z.object({
+    agents: z.array(zAgentMention)
+});
+
+/**
+ * List slash commands available for `/` autocomplete.
+ */
+export const zListSlashCommandsRequest_unstable = z.object({
+    cwd: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    sessionId: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
+});
+
+/**
+ * All text that was typed after the command name is provided as input.
+ */
+export const zUnstructuredCommandInput = z.object({
+    hint: z.string(),
+    _meta: z.union([
+        z.record(z.unknown()),
+        z.null()
+    ]).optional()
+});
+
+/**
+ * All text that was typed after the command name is provided as input.
+ */
+export const zAvailableCommandInput = zUnstructuredCommandInput;
+
+/**
+ * Information about a command.
+ */
+export const zAvailableCommand = z.object({
+    name: z.string(),
+    description: z.string(),
+    input: z.union([
+        zAvailableCommandInput,
+        z.null()
+    ]).optional(),
+    _meta: z.union([
+        z.record(z.unknown()),
+        z.null()
+    ]).optional()
+});
+
+export const zListSlashCommandsResponse_unstable = z.object({
+    availableCommands: z.array(zAvailableCommand)
+});
+
+/**
  * Update an existing source's name, description, and content by absolute path.
  */
 export const zUpdateSourceRequest_unstable = z.object({
@@ -1982,6 +2064,8 @@ export const zExtRequest = z.object({
             zUnarchiveSessionRequest_unstable,
             zCreateSourceRequest_unstable,
             zListSourcesRequest_unstable,
+            zListAgentMentionsRequest_unstable,
+            zListSlashCommandsRequest_unstable,
             zUpdateSourceRequest_unstable,
             zDeleteSourceRequest_unstable,
             zExportSourceRequest_unstable,
@@ -2047,6 +2131,8 @@ export const zExtResponse = z.union([
                 zGetSessionInfoResponse_unstable,
                 zCreateSourceResponse_unstable,
                 zListSourcesResponse_unstable,
+                zListAgentMentionsResponse_unstable,
+                zListSlashCommandsResponse_unstable,
                 zUpdateSourceResponse_unstable,
                 zExportSourceResponse_unstable,
                 zImportSourcesResponse_unstable,
