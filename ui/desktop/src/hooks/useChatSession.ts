@@ -8,6 +8,7 @@ import type { Session } from '../types/session';
 
 import {
   createUserMessage,
+  type ImageData,
   type Message,
   type NotificationEvent,
   type UserInput,
@@ -274,12 +275,24 @@ export function useChatSession({
   }, [sessionId]);
 
   const onMessageUpdate = useCallback(
-    async (messageId: string, newContent: string, editType: 'fork' | 'edit' = 'fork') => {
+    async (
+      messageId: string,
+      newContent: string,
+      editType: 'fork' | 'edit' = 'fork',
+      keepImages?: ImageData[]
+    ) => {
       try {
-        await acpChatSessionController.updateMessage(sessionId, messageId, newContent, editType, {
-          getCurrentSnapshot,
-          onFinish,
-        });
+        await acpChatSessionController.updateMessage(
+          sessionId,
+          messageId,
+          newContent,
+          editType,
+          keepImages,
+          {
+            getCurrentSnapshot,
+            onFinish,
+          }
+        );
       } catch (error) {
         const errorMsg = errorMessage(error);
         console.error('Failed to edit message:', error);

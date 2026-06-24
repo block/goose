@@ -26,6 +26,7 @@ import RecipeActivities from './recipes/RecipeActivities';
 import {
   getThinkingMessage,
   getTextAndImageContent,
+  type ImageData,
   type Message,
   type UserInput,
 } from '../types/message';
@@ -301,9 +302,10 @@ export default function BaseChat({
         newSessionId: string;
         shouldStartAgent?: boolean;
         editedMessage?: string;
+        editedImages?: ImageData[];
       }>;
       window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
-      const { newSessionId, shouldStartAgent, editedMessage } = customEvent.detail;
+      const { newSessionId, shouldStartAgent, editedMessage, editedImages } = customEvent.detail;
 
       const params = new URLSearchParams();
       params.set('resumeSessionId', newSessionId);
@@ -314,7 +316,10 @@ export default function BaseChat({
       navigate(`/pair?${params.toString()}`, {
         state: {
           disableAnimation: true,
-          initialMessage: editedMessage ? { msg: editedMessage, images: [] } : undefined,
+          initialMessage:
+            editedMessage !== undefined
+              ? { msg: editedMessage, images: editedImages ?? [] }
+              : undefined,
         },
       });
     };

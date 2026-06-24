@@ -1,9 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import ImagePreview from './ImagePreview';
 import MarkdownContent from './MarkdownContent';
-import { getTextAndImageContent, type Message } from '../types/message';
+import {
+  getTextAndImageContent,
+  imageDataFromMessage,
+  type ImageData,
+  type Message,
+} from '../types/message';
 import MessageCopyLink from './MessageCopyLink';
 import { formatMessageTimestamp } from '../utils/timeUtils';
+import Close from './icons/Close';
 import Edit from './icons/Edit';
 import { Button } from './ui/button';
 import { defineMessages, useIntl } from '../i18n';
@@ -23,7 +29,8 @@ const i18n = defineMessages({
   },
   editInPlaceDescription: {
     id: 'userMessage.editInPlaceDescription',
-    defaultMessage: '<b>Edit in Place</b> updates this session • <b>Fork Session</b> creates a new session',
+    defaultMessage:
+      '<b>Edit in Place</b> updates this session • <b>Fork Session</b> creates a new session',
   },
   cancel: {
     id: 'userMessage.cancel',
@@ -69,11 +76,24 @@ const i18n = defineMessages({
     id: 'userMessage.editMessageTitle',
     defaultMessage: 'Edit message',
   },
+  removeImageFromEdit: {
+    id: 'userMessage.removeImageFromEdit',
+    defaultMessage: 'Remove image from message',
+  },
+  editImagesHeading: {
+    id: 'userMessage.editImagesHeading',
+    defaultMessage: 'Attached images:',
+  },
 });
 
 interface UserMessageProps {
   message: Message;
-  onMessageUpdate?: (messageId: string, newContent: string, editType?: 'fork' | 'edit') => void;
+  onMessageUpdate?: (
+    messageId: string,
+    newContent: string,
+    editType?: 'fork' | 'edit',
+    keepImages?: ImageData[]
+  ) => void;
 }
 
 export default function UserMessage({ message, onMessageUpdate }: UserMessageProps) {
@@ -87,6 +107,10 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   const { textContent, imagePaths } = getTextAndImageContent(message);
   const timestamp = formatMessageTimestamp(message.created);
 
+  const messageImages: ImageData[] = imageDataFromMessage(message);
+
+  const [removedImageIndices, setRemovedImageIndices] = useState<Set<number>>(new Set());
+
   // Effect to handle message content changes and ensure persistence
   useEffect(() => {
     // If we're not editing, update the edit content to match the current message
@@ -99,8 +123,17 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
   const initializeEditMode = useCallback(() => {
     setEditContent(textContent);
     setError(null);
+    setRemovedImageIndices(new Set());
     window.electron.logInfo(`Entering edit mode with content: ${textContent}`);
   }, [textContent]);
+
+  const handleRemoveImage = useCallback((index: number) => {
+    setRemovedImageIndices((prev) => {
+      const next = new Set(prev);
+      next.add(index);
+      return next;
+    });
+  }, []);
 
   // Handle edit button click
   const handleEditClick = useCallback(() => {
@@ -137,22 +170,36 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
 
   const handleSave = useCallback(
     (editType: 'fork' | 'edit' = 'fork') => {
-      if (editContent.trim().length === 0) {
+      const keepImages = messageImages.filter((_, index) => !removedImageIndices.has(index));
+
+      if (editContent.trim().length === 0 && keepImages.length === 0) {
         setError(intl.formatMessage(i18n.emptyError));
         return;
       }
 
       setIsEditing(false);
 
-      if (editType === 'edit' && editContent.trim() === textContent.trim()) {
+      if (
+        editType === 'edit' &&
+        editContent.trim() === textContent.trim() &&
+        keepImages.length === messageImages.length
+      ) {
         return;
       }
 
       if (onMessageUpdate && message.id) {
-        onMessageUpdate(message.id, editContent, editType);
+        onMessageUpdate(message.id, editContent, editType, keepImages);
       }
     },
-    [editContent, textContent, onMessageUpdate, message.id, intl]
+    [
+      editContent,
+      textContent,
+      onMessageUpdate,
+      message.id,
+      intl,
+      messageImages,
+      removedImageIndices,
+    ]
   );
 
   // Handle cancel action
@@ -215,6 +262,31 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
               aria-label={intl.formatMessage(i18n.editAriaLabel)}
               aria-describedby={error ? `error-${message.id}` : undefined}
             />
+            {messageImages.length > 0 && (
+              <div className="mt-3">
+                <p className="text-xs text-text-secondary mb-2">
+                  {intl.formatMessage(i18n.editImagesHeading)}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {messageImages.map((img, index) => {
+                    if (removedImageIndices.has(index)) return null;
+                    const dataUrl = `data:${img.mimeType};base64,${img.data}`;
+                    return (
+                      <div key={index} className="relative group/image">
+                        <ImagePreview src={dataUrl} />
+                        <button
+                          onClick={() => handleRemoveImage(index)}
+                          className="absolute -top-1.5 -right-1.5 bg-text-primary text-background-primary rounded-full p-0.5 transition-opacity hover:cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-400"
+                          aria-label={intl.formatMessage(i18n.removeImageFromEdit)}
+                        >
+                          <Close className="h-3 w-3" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
             {/* Error message */}
             {error && (
               <div
@@ -233,7 +305,11 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                 })}
               </div>
               <div className="flex gap-3">
-                <Button onClick={handleCancel} variant="ghost" aria-label={intl.formatMessage(i18n.cancelAriaLabel)}>
+                <Button
+                  onClick={handleCancel}
+                  variant="ghost"
+                  aria-label={intl.formatMessage(i18n.cancelAriaLabel)}
+                >
                   {intl.formatMessage(i18n.cancel)}
                 </Button>
                 <Button
@@ -292,7 +368,9 @@ export default function UserMessage({ message, onMessageUpdate }: UserMessagePro
                         }
                       }}
                       className="flex items-center gap-1 text-xs text-text-secondary hover:cursor-pointer hover:text-text-primary transition-all duration-200 opacity-0 group-hover:opacity-100 -translate-y-4 group-hover:translate-y-0 focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-opacity-50 rounded"
-                      aria-label={intl.formatMessage(i18n.editMessageAriaLabel, { preview: `${textContent.substring(0, 50)}${textContent.length > 50 ? '...' : ''}` })}
+                      aria-label={intl.formatMessage(i18n.editMessageAriaLabel, {
+                        preview: `${textContent.substring(0, 50)}${textContent.length > 50 ? '...' : ''}`,
+                      })}
                       aria-expanded={isEditing}
                       title={intl.formatMessage(i18n.editMessageTitle)}
                     >

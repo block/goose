@@ -8,6 +8,8 @@ import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
 import {
   createUserMessage,
   getPendingToolConfirmationIds,
+  imageDataFromMessage,
+  type ImageData,
   type Message,
 } from '../types/message';
 import {
@@ -59,6 +61,7 @@ export interface AcpChatSessionController {
     messageId: string,
     newContent: string,
     editType: 'fork' | 'edit' | undefined,
+    keepImages: ImageData[] | undefined,
     options: AcpSubmitMessageOptions
   ): Promise<void>;
 }
@@ -90,7 +93,8 @@ function assertNoPendingPromptCancellation(sessionId: string): void {
 async function forkSessionWithEditedMessage(
   sessionId: string,
   message: Message,
-  editedMessage: string
+  editedMessage: string,
+  editedImages: ImageData[]
 ): Promise<void> {
   const targetSessionId = await acpForkSession(sessionId, message.created);
 
@@ -99,6 +103,7 @@ async function forkSessionWithEditedMessage(
       newSessionId: targetSessionId,
       shouldStartAgent: true,
       editedMessage,
+      editedImages,
     },
   });
   window.dispatchEvent(event);
@@ -226,6 +231,7 @@ async function updateMessage(
   messageId: string,
   newContent: string,
   editType: 'fork' | 'edit' | undefined,
+  keepImages: ImageData[] | undefined,
   options: AcpSubmitMessageOptions
 ): Promise<void> {
   assertNoPendingPromptCancellation(sessionId);
@@ -242,7 +248,12 @@ async function updateMessage(
   }
 
   if (resolvedEditType === 'fork') {
-    await forkSessionWithEditedMessage(sessionId, message, newContent);
+    await forkSessionWithEditedMessage(
+      sessionId,
+      message,
+      newContent,
+      keepImages ?? imageDataFromMessage(message)
+    );
     return;
   }
 
@@ -295,13 +306,8 @@ async function updateMessage(
     await acpTruncateSessionConversation(sessionId, message.created);
 
     const truncatedMessages = currentMessages.filter((m) => m.created < message.created);
-    const updatedUserMessage = createUserMessage(newContent);
-
-    for (const content of message.content) {
-      if (content.type === 'image') {
-        updatedUserMessage.content.push(content);
-      }
-    }
+    const images = keepImages ?? imageDataFromMessage(message);
+    const updatedUserMessage = createUserMessage(newContent, images);
 
     const messagesForUI = [...truncatedMessages, updatedUserMessage];
     acpChatSessionActions.setMessages(sessionId, messagesForUI);

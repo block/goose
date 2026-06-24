@@ -254,9 +254,24 @@ export type ToolConfirmationRequestContent = ToolConfirmationRequest & {
 };
 export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 
+export type ImageMessageContent = Extract<Message['content'][number], { type: 'image' }>;
+
 export interface ImageData {
   data: string; // base64 encoded image data
   mimeType: string;
+  _meta?: ImageMessageContent['_meta'];
+  annotations?: ImageMessageContent['annotations'];
+}
+
+export function imageDataFromMessage(message: Message): ImageData[] {
+  return message.content
+    .filter((c): c is ImageMessageContent => c.type === 'image')
+    .map((c) => ({
+      data: c.data,
+      mimeType: c.mimeType,
+      ...(c._meta ? { _meta: c._meta } : {}),
+      ...(c.annotations ? { annotations: c.annotations } : {}),
+    }));
 }
 
 export interface UserInput {
@@ -277,6 +292,8 @@ export function createUserMessage(text: string, images?: ImageData[]): Message {
         type: 'image',
         data: img.data,
         mimeType: img.mimeType,
+        ...(img._meta ? { _meta: img._meta } : {}),
+        ...(img.annotations ? { annotations: img.annotations } : {}),
       });
     });
   }
