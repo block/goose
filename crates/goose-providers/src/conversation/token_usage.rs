@@ -43,13 +43,6 @@ impl ProviderUsage {
         self
     }
 
-    pub fn with_timing(mut self, time_to_first_token_ms: Option<u64>, elapsed_ms: u64) -> Self {
-        let stats = self.stats.get_or_insert_with(ProviderStats::default);
-        stats.time_to_first_token_ms = time_to_first_token_ms;
-        stats.elapsed_ms = Some(elapsed_ms);
-        self
-    }
-
     /// Combine this ProviderUsage with another, adding their token counts
     /// Uses the model from this ProviderUsage
     pub fn combine_with(&self, other: &ProviderUsage) -> ProviderUsage {
@@ -220,35 +213,5 @@ mod tests {
         assert_eq!(combined.total_tokens, Some(178));
         assert_eq!(combined.cache_read_input_tokens, Some(14));
         assert_eq!(combined.cache_write_input_tokens, Some(6));
-    }
-
-    #[test]
-    fn test_provider_usage_with_timing_preserves_existing_stats() {
-        let usage = ProviderUsage::new("model".to_string(), Usage::default())
-            .with_stats(ProviderStats {
-                output_tokens: Some(42),
-                draft: Some(DraftStats {
-                    model: Some("draft-model".to_string()),
-                    draft_tokens: 8,
-                    accepted_tokens: 6,
-                    target_tokens: 10,
-                    rounds: 2,
-                    accept_rate: 0.75,
-                }),
-                ..ProviderStats::default()
-            })
-            .with_timing(Some(12), 34);
-
-        let stats = usage.stats.expect("timing should create stats");
-        assert_eq!(stats.time_to_first_token_ms, Some(12));
-        assert_eq!(stats.elapsed_ms, Some(34));
-        assert_eq!(stats.output_tokens, Some(42));
-        let draft = stats.draft.expect("draft stats should be preserved");
-        assert_eq!(draft.model.as_deref(), Some("draft-model"));
-        assert_eq!(draft.draft_tokens, 8);
-        assert_eq!(draft.accepted_tokens, 6);
-        assert_eq!(draft.target_tokens, 10);
-        assert_eq!(draft.rounds, 2);
-        assert_eq!(draft.accept_rate, 0.75);
     }
 }

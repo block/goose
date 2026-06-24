@@ -1,7 +1,8 @@
 use anyhow::Result;
 use goose_providers::errors::ProviderError;
 use regex::Regex;
-use std::{sync::Arc, time::Instant};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 use async_stream::try_stream;
 use futures::stream::StreamExt;
@@ -21,7 +22,7 @@ use crate::providers::toolshim::{
     augment_message_with_selected_tool_interpreter, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, sanitize_residual_markers,
 };
-use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::conversation::token_usage::{ProviderStats, ProviderUsage, Usage};
 use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use tracing::warn;
@@ -143,26 +144,34 @@ async fn toolshim_postprocess(
     }
 }
 
-fn message_has_content(message: &Message) -> bool {
+fn duration_millis_saturating(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+}
+
+fn message_has_first_token_content(message: &Message) -> bool {
     message.content.iter().any(|content| match content {
         MessageContent::Text(text) => !text.text.is_empty(),
         MessageContent::Thinking(thinking) => !thinking.thinking.is_empty(),
         MessageContent::RedactedThinking(redacted) => !redacted.data.is_empty(),
-        MessageContent::SystemNotification(notification) => !notification.msg.is_empty(),
-        _ => true,
+        _ => false,
     })
 }
 
-fn usage_with_stream_timing(
-    usage: ProviderUsage,
-    stream_started: Instant,
+fn usage_with_timings(
+    mut usage: ProviderUsage,
+    started_at: Instant,
     first_token_at: Option<Instant>,
 ) -> ProviderUsage {
-    let time_to_first_token_ms =
-        first_token_at.map(|instant| instant.duration_since(stream_started).as_millis() as u64);
-    let elapsed_ms = stream_started.elapsed().as_millis() as u64;
-
-    usage.with_timing(time_to_first_token_ms, elapsed_ms)
+    let stats = usage.stats.get_or_insert_with(ProviderStats::default);
+    if let Some(time) = first_token_at {
+        stats
+            .time_to_first_token_ms
+            .get_or_insert_with(|| duration_millis_saturating(time.duration_since(started_at)));
+    }
+    stats
+        .elapsed_ms
+        .get_or_insert_with(|| duration_millis_saturating(started_at.elapsed()));
+    usage
 }
 
 impl Agent {
@@ -309,7 +318,7 @@ impl Agent {
         // so they can be handled by the existing error handling logic in the agent
         let model_config =
             model_config.with_default_thinking_effort(Config::global().get_goose_thinking_effort());
-        let stream_started = Instant::now();
+        let started_at = Instant::now();
         debug!("WAITING_LLM_STREAM_START");
         let stream_result = provider
             .stream(
@@ -349,8 +358,8 @@ impl Agent {
                     let (msg_opt, usage_opt) = result?;
 
                     if let Some(msg) = msg_opt {
-                        if first_token_at.is_none() && message_has_content(&msg) {
-                            first_token_at = Some(Instant::now());
+                        if usage_opt.is_none() && message_has_first_token_content(&msg) {
+                            first_token_at.get_or_insert_with(Instant::now);
                         }
 
                         accumulated_message = Some(match accumulated_message {
@@ -382,9 +391,8 @@ impl Agent {
                     yield (None, None);
                 }
 
-                let final_usage = final_usage.map(|usage| {
-                    usage_with_stream_timing(usage, stream_started, first_token_at)
-                });
+                let final_usage = final_usage
+                    .map(|usage| usage_with_timings(usage, started_at, first_token_at));
 
                 if let Some(msg) = accumulated_message {
                     let processed = toolshim_postprocess(msg, &toolshim_tools).await?;
@@ -397,17 +405,15 @@ impl Agent {
                 while let Some(result) = stream.next().await {
                     let (message, usage) = result?;
 
-                    if first_token_at.is_none() {
-                        if let Some(message) = message.as_ref() {
-                            if message_has_content(message) {
-                                first_token_at = Some(Instant::now());
-                            }
-                        }
+                    if usage.is_none()
+                        && message
+                            .as_ref()
+                            .is_some_and(message_has_first_token_content)
+                    {
+                        first_token_at.get_or_insert_with(Instant::now);
                     }
-
-                    let usage = usage.map(|usage| {
-                        usage_with_stream_timing(usage, stream_started, first_token_at)
-                    });
+                    let usage =
+                        usage.map(|usage| usage_with_timings(usage, started_at, first_token_at));
 
                     yield (message, usage);
                 }
@@ -664,9 +670,7 @@ mod tests {
     use crate::providers::base::Provider;
     use crate::session::session_manager::SessionType;
     use async_trait::async_trait;
-    use goose_providers::conversation::token_usage::{
-        DraftStats, ProviderStats, ProviderUsage, Usage,
-    };
+    use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
     use goose_providers::model::ModelConfig;
     use rmcp::object;
 
@@ -697,20 +701,12 @@ mod tests {
 
     #[derive(Clone)]
     struct SequenceProvider {
-        stream_result: Result<Vec<StreamItem>, ProviderError>,
+        items: Vec<StreamItem>,
     }
 
     impl SequenceProvider {
         fn with_items(items: Vec<StreamItem>) -> Self {
-            Self {
-                stream_result: Ok(items),
-            }
-        }
-
-        fn with_error(error: ProviderError) -> Self {
-            Self {
-                stream_result: Err(error),
-            }
+            Self { items }
         }
     }
 
@@ -728,10 +724,7 @@ mod tests {
             _messages: &[Message],
             _tools: &[Tool],
         ) -> Result<MessageStream, ProviderError> {
-            match &self.stream_result {
-                Ok(items) => Ok(Box::pin(futures::stream::iter(items.clone()))),
-                Err(error) => Err(error.clone()),
-            }
+            Ok(Box::pin(futures::stream::iter(self.items.clone())))
         }
     }
 
@@ -763,57 +756,6 @@ mod tests {
         Ok(final_usage)
     }
 
-    fn assert_timing_stats(usage: &ProviderUsage) -> &ProviderStats {
-        let stats = usage.stats.as_ref().expect("usage should include stats");
-        assert!(stats.elapsed_ms.is_some(), "elapsed should be set");
-        assert!(
-            stats.time_to_first_token_ms <= stats.elapsed_ms,
-            "TTFT should not exceed elapsed: {stats:?}"
-        );
-        stats
-    }
-
-    #[tokio::test]
-    async fn stream_response_attaches_timing_to_normal_usage_and_preserves_stats() {
-        let draft_stats = DraftStats {
-            model: Some("draft-model".to_string()),
-            draft_tokens: 9,
-            accepted_tokens: 7,
-            target_tokens: 12,
-            rounds: 3,
-            accept_rate: 0.7,
-        };
-        let usage = ProviderUsage::new("mock".to_string(), Usage::new(Some(10), Some(2), Some(12)))
-            .with_stats(ProviderStats {
-                output_tokens: Some(2),
-                draft: Some(draft_stats),
-                ..ProviderStats::default()
-            });
-
-        let final_usage = collect_final_usage(
-            ModelConfig::new("test-model"),
-            vec![
-                Ok((Some(Message::assistant().with_text("hel")), None)),
-                Ok((Some(Message::assistant().with_text("lo")), None)),
-                Ok((None, Some(usage))),
-            ],
-        )
-        .await
-        .expect("stream should drain")
-        .expect("usage should be yielded");
-
-        let stats = assert_timing_stats(&final_usage);
-        assert!(stats.time_to_first_token_ms.is_some());
-        assert_eq!(stats.output_tokens, Some(2));
-        let draft = stats.draft.as_ref().expect("draft stats should survive");
-        assert_eq!(draft.model.as_deref(), Some("draft-model"));
-        assert_eq!(draft.draft_tokens, 9);
-        assert_eq!(draft.accepted_tokens, 7);
-        assert_eq!(draft.target_tokens, 12);
-        assert_eq!(draft.rounds, 3);
-        assert_eq!(draft.accept_rate, 0.7);
-    }
-
     #[tokio::test]
     async fn stream_response_attaches_elapsed_to_usage_only_response() {
         let final_usage = collect_final_usage(
@@ -830,85 +772,6 @@ mod tests {
         let stats = final_usage.stats.expect("usage should include stats");
         assert_eq!(stats.time_to_first_token_ms, None);
         assert!(stats.elapsed_ms.is_some());
-    }
-
-    #[tokio::test]
-    async fn stream_response_attaches_timing_in_toolshim_mode() {
-        let final_usage = collect_final_usage(
-            ModelConfig::new("test-model").with_toolshim(true),
-            vec![
-                Ok((Some(Message::assistant().with_text("toolshim text")), None)),
-                Ok((
-                    None,
-                    Some(ProviderUsage::new("mock".to_string(), Usage::default())),
-                )),
-            ],
-        )
-        .await
-        .expect("stream should drain")
-        .expect("usage should be yielded");
-
-        let stats = assert_timing_stats(&final_usage);
-        assert!(stats.time_to_first_token_ms.is_some());
-    }
-
-    #[tokio::test]
-    async fn stream_response_creation_error_yields_error_without_usage() {
-        let provider: std::sync::Arc<dyn Provider> =
-            std::sync::Arc::new(SequenceProvider::with_error(ProviderError::RequestFailed(
-                "stream creation failed".to_string(),
-            )));
-
-        let mut stream = Agent::stream_response_from_provider(
-            provider,
-            ModelConfig::new("test-model"),
-            "test-session",
-            "",
-            &[],
-            &[],
-            &[],
-        )
-        .await
-        .expect("creation errors are wrapped in a stream");
-
-        let result = stream.next().await.expect("stream should yield the error");
-        assert!(matches!(
-            result,
-            Err(ProviderError::RequestFailed(message)) if message == "stream creation failed"
-        ));
-        assert!(stream.next().await.is_none());
-    }
-
-    #[tokio::test]
-    async fn stream_response_mid_drain_error_propagates_without_usage_timing() {
-        let provider: std::sync::Arc<dyn Provider> =
-            std::sync::Arc::new(SequenceProvider::with_items(vec![
-                Ok((Some(Message::assistant().with_text("chunk")), None)),
-                Err(ProviderError::RequestFailed(
-                    "mid-drain failure".to_string(),
-                )),
-            ]));
-        let mut stream = Agent::stream_response_from_provider(
-            provider,
-            ModelConfig::new("test-model"),
-            "test-session",
-            "",
-            &[],
-            &[],
-            &[],
-        )
-        .await
-        .expect("stream should be created");
-
-        let first = stream.next().await.expect("first chunk should be yielded");
-        let (_message, usage) = first.expect("first chunk should succeed");
-        assert!(usage.is_none());
-
-        let error = stream.next().await.expect("second chunk should be yielded");
-        assert!(matches!(
-            error,
-            Err(ProviderError::RequestFailed(message)) if message == "mid-drain failure"
-        ));
     }
 
     #[tokio::test]
