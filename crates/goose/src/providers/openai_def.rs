@@ -359,26 +359,6 @@ fn is_direct_openai_host(host: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn derive_base_path(url_path: &str) -> String {
-    let stripped = url_path.trim_start_matches('/');
-    let normalized = stripped.trim_end_matches('/');
-    if normalized.is_empty() {
-        "v1/chat/completions".to_string()
-    } else if normalized.ends_with("chat/completions") {
-        stripped.to_string()
-    } else if ends_with_version_segment(normalized) {
-        format!("{}/chat/completions", normalized)
-    } else {
-        format!("{}/v1/chat/completions", normalized)
-    }
-}
-
-fn ends_with_version_segment(path: &str) -> bool {
-    let last = path.rsplit('/').next().unwrap_or(path);
-    last.strip_prefix('v')
-        .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

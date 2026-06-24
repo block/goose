@@ -4,7 +4,10 @@ use anyhow::Result;
 use serde::{Deserialize, Deserializer, Serialize};
 use utoipa::ToSchema;
 
-use crate::base::ModelInfo;
+use crate::{
+    api_client::TlsConfig,
+    base::{ModelInfo, Provider},
+};
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct EnvVarConfig {
@@ -106,5 +109,37 @@ impl DeclarativeProviderConfig {
 
     pub fn models(&self) -> &[ModelInfo] {
         &self.models
+    }
+}
+
+pub trait KeyResolver {
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    fn resolve_key(&self, key: &str) -> std::result::Result<String, Self::Error>;
+}
+
+pub struct EnvKeyResolver;
+
+impl KeyResolver for EnvKeyResolver {
+    type Error = std::env::VarError;
+
+    fn resolve_key(&self, key: &str) -> std::result::Result<String, Self::Error> {
+        std::env::var(key)
+    }
+}
+
+pub fn from_json(
+    json: &str,
+    tls_config: Option<TlsConfig>,
+    key_resolver: impl KeyResolver,
+) -> Result<impl Provider> {
+    let config: DeclarativeProviderConfig = serde_json::from_str(json)?;
+
+    match config.engine {
+        ProviderEngine::OpenAI => {
+            crate::openai::from_custom_config(config, tls_config, key_resolver)
+        }
+        ProviderEngine::Ollama => todo!(),
+        ProviderEngine::Anthropic => todo!(),
     }
 }

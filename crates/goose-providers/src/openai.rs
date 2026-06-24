@@ -1,8 +1,10 @@
 use super::api_client::ApiClient;
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderMetadata};
 use super::retry::ProviderRetry;
+use crate::api_client::{AuthMethod, TlsConfig};
 use crate::conversation::message::Message;
 use crate::conversation::token_usage::ProviderUsage;
+use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
 use crate::errors::ProviderError;
 use crate::formats::openai::is_openai_responses_model;
 use crate::formats::openai::{
@@ -61,6 +63,7 @@ pub const OPEN_AI_KNOWN_MODELS: &[(&str, usize)] = &[
 ];
 
 pub const OPEN_AI_DOC_URL: &str = "https://platform.openai.com/docs/models";
+const DEFAULT_TIMEOUT_SECONDS: u64 = 600;
 
 type OpenAiBaseUrlParts = (String, Vec<(String, String)>, bool);
 
@@ -687,6 +690,96 @@ impl Provider for OpenAiProvider {
     }
 }
 
+pub fn from_custom_config(
+    config: DeclarativeProviderConfig,
+    tls_config: Option<TlsConfig>,
+    key_resolver: impl KeyResolver,
+) -> Result<OpenAiProvider> {
+    let custom_models = if !config.models.is_empty() {
+        Some(
+            config
+                .models
+                .iter()
+                .map(|m| m.name.clone())
+                .collect::<Vec<String>>(),
+        )
+    } else {
+        None
+    };
+
+    if config.dynamic_models == Some(false) && custom_models.is_none() {
+        return Err(anyhow::anyhow!(
+            "Provider '{}' has dynamic_models: false but no static models listed; \
+             at least one entry in `models` is required.",
+            config.name
+        ));
+    }
+
+    let api_key = if config.api_key_env.is_empty() {
+        None
+    } else {
+        Some(
+            key_resolver
+                .resolve_key(config.api_key_env.as_str())
+                .map_err(|e| anyhow::Error::from(e))?,
+        )
+    };
+
+    let normalized_base_url = ensure_url_scheme(&config.base_url);
+    let url = url::Url::parse(&normalized_base_url)
+        .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
+
+    let host = if let Some(port) = url.port() {
+        format!(
+            "{}://{}:{}",
+            url.scheme(),
+            url.host_str().unwrap_or(""),
+            port
+        )
+    } else {
+        format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
+    };
+    let base_path = if let Some(ref explicit_path) = config.base_path {
+        explicit_path.trim_start_matches('/').to_string()
+    } else {
+        derive_base_path(url.path())
+    };
+
+    let timeout_secs = config.timeout_seconds.unwrap_or(DEFAULT_TIMEOUT_SECONDS);
+
+    let auth = match api_key {
+        Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
+        _ => AuthMethod::NoAuth,
+    };
+    let mut api_client = ApiClient::with_timeout_and_tls(
+        host,
+        auth,
+        std::time::Duration::from_secs(timeout_secs),
+        tls_config,
+    )?;
+
+    if let Some(headers) = &config.headers {
+        let mut header_map = reqwest::header::HeaderMap::new();
+        for (key, value) in headers {
+            let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+            let header_value = reqwest::header::HeaderValue::from_str(value)?;
+            header_map.insert(header_name, header_value);
+        }
+        api_client = api_client.with_headers(header_map)?;
+    }
+
+    Ok(OpenAiProviderBuilder::new(api_client)
+        .base_path(base_path)
+        .custom_headers(config.headers)
+        .supports_streaming(config.supports_streaming.unwrap_or(true))
+        .name(config.name.clone())
+        .custom_models(custom_models)
+        .dynamic_models(config.dynamic_models)
+        .skip_canonical_filtering(config.skip_canonical_filtering)
+        .preserve_thinking_context(config.preserves_thinking)
+        .build())
+}
+
 pub fn parse_custom_headers(s: String) -> HashMap<String, String> {
     s.split(',')
         .filter_map(|header| {
@@ -696,6 +789,26 @@ pub fn parse_custom_headers(s: String) -> HashMap<String, String> {
             Some((key, value))
         })
         .collect()
+}
+
+fn derive_base_path(url_path: &str) -> String {
+    let stripped = url_path.trim_start_matches('/');
+    let normalized = stripped.trim_end_matches('/');
+    if normalized.is_empty() {
+        "v1/chat/completions".to_string()
+    } else if normalized.ends_with("chat/completions") {
+        stripped.to_string()
+    } else if ends_with_version_segment(normalized) {
+        format!("{}/chat/completions", normalized)
+    } else {
+        format!("{}/v1/chat/completions", normalized)
+    }
+}
+
+fn ends_with_version_segment(path: &str) -> bool {
+    let last = path.rsplit('/').next().unwrap_or(path);
+    last.strip_prefix('v')
+        .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()))
 }
 
 #[cfg(test)]
