@@ -205,8 +205,8 @@ pub fn format_messages_with_options(
             }
         }
 
-        // A new assistant message after tool results creates a new turn
-        // To prevent reasoning from the previous turn leaking into the new one.
+        // A new assistant message after tool results creates a new turn.
+        // Prevents reasoning from the previous turn leaking into the new one.
         if options.preserve_thinking_context && message.role == Role::Assistant && saw_tool_response
         {
             tool_call_turn_reasoning.clear();

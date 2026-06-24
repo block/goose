@@ -1491,6 +1491,195 @@ mod tests {
             assert_formatter_adds_reasoning_to_tool_calls(&messages, "combined-thinking-tool");
             Ok(())
         }
+
+        /// Simulates the DeepSeek/Kimi multi-tool-call case: thinking arrives as a
+        /// separate stream chunk, then both tool calls arrive together in a second
+        /// chunk with no thinking.  Before the fix, the second tool-call message
+        /// (asst(TC2)) received no reasoning_content because lines 210-213 in
+        /// format_messages_with_options cleared tool_call_turn_reasoning after the
+        /// first tool result.
+        struct MultiToolThinkingProvider {
+            call_count: AtomicUsize,
+        }
+
+        impl MultiToolThinkingProvider {
+            fn new() -> Self {
+                Self {
+                    call_count: AtomicUsize::new(0),
+                }
+            }
+        }
+
+        impl goose::providers::base::ProviderDescriptor for MultiToolThinkingProvider {
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "multi-tool-thinking-mock".to_string(),
+                    display_name: "Multi Tool Thinking Mock".to_string(),
+                    description: "Mock for multi-tool thinking preservation".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                    model_selection_hint: None,
+                    fast_model: None,
+                }
+            }
+        }
+
+        impl ProviderDef for MultiToolThinkingProvider {
+            type Provider = Self;
+
+            fn from_env(
+                _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                unimplemented!()
+            }
+        }
+
+        #[async_trait]
+        impl Provider for MultiToolThinkingProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _session_id: &str,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let call = self.call_count.fetch_add(1, Ordering::SeqCst);
+                let usage = ProviderUsage::new(
+                    "mock-model".to_string(),
+                    Usage::new(Some(10), Some(20), Some(30)),
+                );
+                match call {
+                    0 => {
+                        // Chunk 1: reasoning only (no tool calls)
+                        let thinking =
+                            Message::assistant().with_thinking("multi-tool reasoning", "sig_0");
+                        // Chunk 2: two tool calls, no reasoning — the multi-tool bug scenario
+                        let tc1 = CallToolRequestParams::new("tool_a")
+                            .with_arguments(object!({"p": "1"}));
+                        let tc2 = CallToolRequestParams::new("tool_b")
+                            .with_arguments(object!({"p": "2"}));
+                        let tool_msg = Message::assistant()
+                            .with_tool_request("call_1", Ok(tc1))
+                            .with_tool_request("call_2", Ok(tc2));
+                        let stream = futures::stream::iter(vec![
+                            Ok((Some(thinking), None)),
+                            Ok((Some(tool_msg), Some(usage))),
+                        ]);
+                        Ok(Box::pin(stream))
+                    }
+                    _ => {
+                        let msg = Message::assistant().with_text("Done.");
+                        Ok(Box::pin(futures::stream::once(async move {
+                            Ok((Some(msg), Some(usage)))
+                        })))
+                    }
+                }
+            }
+
+            fn get_name(&self) -> &str {
+                "multi-tool-thinking-mock"
+            }
+        }
+
+        #[tokio::test]
+        async fn test_reasoning_preserved_on_all_tool_calls_when_thinking_in_separate_chunk(
+        ) -> Result<()> {
+            use goose_providers::formats::openai::{
+                format_messages_with_options, OpenAiFormatOptions,
+            };
+            use goose_providers::images::ImageFormat;
+
+            let temp_dir = tempfile::tempdir()?;
+            let session_manager = Arc::new(SessionManager::new(temp_dir.path().to_path_buf()));
+            let config = AgentConfig::new(
+                session_manager.clone(),
+                PermissionManager::instance(),
+                None,
+                GooseMode::Auto,
+                true,
+                GoosePlatform::GooseCli,
+            );
+            let agent = Agent::with_config(config);
+            let provider = Arc::new(MultiToolThinkingProvider::new());
+
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "multi-tool-thinking-test".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+
+            let session_id = session.id.clone();
+            agent
+                .update_provider(provider, ModelConfig::new("mock-model"), &session_id)
+                .await?;
+
+            let session_config = SessionConfig {
+                id: session_id.clone(),
+                schedule_id: None,
+                max_turns: Some(2),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(
+                    Message::user().with_text("Use both tools"),
+                    session_config,
+                    None,
+                )
+                .await?;
+            tokio::pin!(reply_stream);
+            while let Some(event) = reply_stream.next().await {
+                event?;
+            }
+
+            let reloaded = session_manager.get_session(&session_id, true).await?;
+            let messages = reloaded
+                .conversation
+                .expect("should have conversation")
+                .messages()
+                .to_vec();
+
+            let spec = format_messages_with_options(
+                &messages,
+                &ImageFormat::OpenAi,
+                OpenAiFormatOptions {
+                    preserve_thinking_context: true,
+                },
+            );
+
+            // Both tool calls must end up in one merged assistant message with reasoning_content.
+            let assistant_msgs: Vec<_> = spec
+                .iter()
+                .filter(|m| m.get("role") == Some(&serde_json::json!("assistant")))
+                .filter(|m| {
+                    m.get("tool_calls")
+                        .and_then(|tc| tc.as_array())
+                        .is_some_and(|a| !a.is_empty())
+                })
+                .collect();
+
+            assert_eq!(
+                assistant_msgs.len(),
+                1,
+                "both tool calls must be merged into one assistant message"
+            );
+            assert_eq!(
+                assistant_msgs[0]["reasoning_content"], "multi-tool reasoning",
+                "merged message must carry reasoning_content"
+            );
+            let tool_calls = assistant_msgs[0]["tool_calls"].as_array().unwrap();
+            assert_eq!(tool_calls.len(), 2, "both tool calls must be present");
+
+            Ok(())
+        }
     }
 
     #[cfg(test)]

@@ -2214,7 +2214,7 @@ impl Agent {
                                 // Preserve thinking/reasoning content from the original response.
                                 // Gemini (and other thinking models) require thinking to be echoed back.
                                 // Kimi/DeepSeek require reasoning_content on assistant tool call messages.
-                                let response_thinking: Vec<MessageContent> = response
+                                let direct_thinking: Vec<MessageContent> = response
                                     .content
                                     .iter()
                                     .filter(|c| {
@@ -2226,15 +2226,39 @@ impl Agent {
                                     })
                                     .cloned()
                                     .collect();
-                                if !response_thinking.is_empty() {
+                                if !direct_thinking.is_empty() {
                                     let thinking_msg = Message::new(
                                         response.role.clone(),
                                         response.created,
-                                        response_thinking.clone(),
+                                        direct_thinking.clone(),
                                     )
                                     .with_id(format!("msg_{}", Uuid::new_v4()));
                                     messages_to_add.push(thinking_msg);
                                 }
+                                // When thinking arrived in an earlier stream chunk (stored as a
+                                // thinking-only message) and this chunk has only tool calls,
+                                // reuse that thinking so each split request_msg carries it.
+                                let response_thinking = if direct_thinking.is_empty() {
+                                    messages_to_add
+                                        .messages()
+                                        .iter()
+                                        .rev()
+                                        .find(|m| {
+                                            m.role == response.role
+                                                && !m.content.is_empty()
+                                                && m.content.iter().all(|c| {
+                                                    matches!(
+                                                        c,
+                                                        MessageContent::Thinking(_)
+                                                            | MessageContent::RedactedThinking(_)
+                                                    )
+                                                })
+                                        })
+                                        .map(|m| m.content.clone())
+                                        .unwrap_or_default()
+                                } else {
+                                    direct_thinking
+                                };
 
                                 for request in frontend_requests.iter().chain(remaining_requests.iter()) {
                                     if request.tool_call.is_ok() {
