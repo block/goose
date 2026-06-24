@@ -3,6 +3,7 @@ pub mod api_client;
 pub mod base;
 pub mod canonical;
 pub mod conversation;
+pub mod declarative;
 pub mod errors;
 pub mod formats;
 pub mod goose_mode;
