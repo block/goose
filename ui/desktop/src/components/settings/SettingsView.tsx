@@ -77,7 +77,6 @@ export type SettingsViewOptions = {
   deepLinkConfig?: ExtensionConfig;
   showEnvVars?: boolean;
   section?: string;
-  sessionId?: string;
 };
 
 export default function SettingsView({
@@ -290,7 +289,7 @@ export default function SettingsView({
                   value="chat"
                   className="mt-0 focus-visible:outline-none focus-visible:ring-0"
                 >
-                  <ChatSettingsSection sessionId={viewOptions.sessionId} />
+                  <ChatSettingsSection />
                 </TabsContent>
 
                 <TabsContent

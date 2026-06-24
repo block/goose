@@ -207,10 +207,10 @@
     "defaultMessage": "Waiting for images to save..."
   },
   "chatSettings.modeDescription": {
-    "defaultMessage": "Configure how Goose interacts with tools and extensions"
+    "defaultMessage": "Choose the default mode Goose uses for new sessions. Existing sessions keep their current mode."
   },
   "chatSettings.modeTitle": {
-    "defaultMessage": "Mode"
+    "defaultMessage": "Default Mode"
   },
   "chatSettings.responseStylesDescription": {
     "defaultMessage": "Choose how Goose should format and style its responses"

@@ -183,7 +183,7 @@ const PairRouteWrapper = ({
   return null;
 };
 
-const SettingsRoute = ({ activeSessionId }: { activeSessionId?: string }) => {
+const SettingsRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -199,13 +199,7 @@ const SettingsRoute = ({ activeSessionId }: { activeSessionId?: string }) => {
     viewOptions.section = sectionFromUrl;
   }
 
-  return (
-    <SettingsView
-      onClose={() => navigate('/')}
-      setView={setView}
-      viewOptions={{ ...viewOptions, sessionId: activeSessionId }}
-    />
-  );
+  return <SettingsView onClose={() => navigate('/')} setView={setView} viewOptions={viewOptions} />;
 };
 
 const SessionsRoute = () => {
@@ -701,14 +695,7 @@ export function AppInner() {
                   />
                 }
               />
-              <Route
-                path="settings"
-                element={
-                  <SettingsRoute
-                    activeSessionId={activeSessions[activeSessions.length - 1]?.sessionId}
-                  />
-                }
-              />
+              <Route path="settings" element={<SettingsRoute />} />
               <Route
                 path="extensions"
                 element={
