@@ -175,12 +175,12 @@ fn recent_llm_log_paths() -> Vec<PathBuf> {
         })
         .collect();
 
-    paths.sort_by(compare_llm_log_paths);
+    paths.sort_by(|left, right| compare_llm_log_paths(left.as_path(), right.as_path()));
     paths.truncate(LOGS_TO_KEEP);
     paths
 }
 
-fn compare_llm_log_paths(left: &PathBuf, right: &PathBuf) -> std::cmp::Ordering {
+fn compare_llm_log_paths(left: &std::path::Path, right: &std::path::Path) -> std::cmp::Ordering {
     match (llm_log_index(left), llm_log_index(right)) {
         (None, None) => llm_log_modified(right)
             .cmp(&llm_log_modified(left))
