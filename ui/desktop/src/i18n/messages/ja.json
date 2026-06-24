@@ -1235,66 +1235,6 @@
   "freeOptionCards.unexpectedError": {
     "defaultMessage": "セットアップ中に予期しないエラーが発生しました。"
   },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "スマートフォンで @BotFather を開き、/newbot を送信して、指示に従ってボットに名前を付けます。BotFather から API トークンが届くので、下に貼り付けてください。"
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "閉じる"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "{time} 後に期限切れ"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "ペアリングコードの生成に失敗しました"
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "削除に失敗しました"
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "開始に失敗しました"
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "停止に失敗しました"
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "ユーザーのペアリング解除に失敗しました"
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "読み込み中..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "デバイスをペアリング"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "ペアリング済みユーザー"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "ペアリングコード"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "ボットトークンをここに貼り付け"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "削除"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "実行中"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "ペアリングするには、このコードを {gatewayType} ボットに送信してください。"
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "開始"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "停止"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "停止中"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "Telegram"
-  },
   "goosehintsModal.close": {
     "defaultMessage": "閉じる"
   },

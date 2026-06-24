@@ -1235,66 +1235,6 @@
   "freeOptionCards.unexpectedError": {
     "defaultMessage": "An unexpected error occurred during setup."
   },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "Open @BotFather on your phone, send /newbot, and follow the prompts to name your bot. BotFather will reply with an API token — paste it below."
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "Close"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "Expires in {time}"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "Failed to generate pairing code"
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "Failed to remove"
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "Failed to start"
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "Failed to stop"
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "Failed to unpair user"
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "Loading..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "Pair Device"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "Paired Users"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "Pairing Code"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "Paste bot token here"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "Remove"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "Running"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "Send this code to your {gatewayType} bot to pair."
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "Start"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "Stop"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "Stopped"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "Telegram"
-  },
   "goosehintsModal.close": {
     "defaultMessage": "Close"
   },

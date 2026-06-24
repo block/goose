@@ -1235,66 +1235,6 @@
   "freeOptionCards.unexpectedError": {
     "defaultMessage": "Во время настройки произошла непредвиденная ошибка."
   },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "Откройте @BotFather на телефоне, отправьте /newbot и следуйте подсказкам, чтобы назвать бота. BotFather ответит API-токеном — вставьте его ниже."
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "Закрыть"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "Истекает через {time}"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "Не удалось создать код подключения"
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "Не удалось удалить"
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "Не удалось запустить"
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "Не удалось остановить"
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "Не удалось отменить подключение пользователя"
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "Загрузка..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "Подключить устройство"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "Подключенные пользователи"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "Код подключения"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "Вставьте токен бота здесь"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "Удалить"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "Выполняется"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "Отправьте этот код вашему боту {gatewayType} для подключения."
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "Запустить"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "Остановить"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "Остановлено"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "Telegram"
-  },
   "goosehintsModal.close": {
     "defaultMessage": "Закрыть"
   },

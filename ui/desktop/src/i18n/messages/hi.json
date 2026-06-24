@@ -1235,66 +1235,6 @@
   "freeOptionCards.unexpectedError": {
     "defaultMessage": "सेटअप के दौरान एक अप्रत्याशित त्रुटि उत्पन्न हुई."
   },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "अपने फ़ोन पर @BotFather खोलें, /newbot भेजें, और अपने बॉट को नाम देने के लिए संकेतों का पालन करें। BotFather एक API टोकन के साथ उत्तर देगा - इसे नीचे चिपकाएँ।"
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "बंद करें"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "{time} में समाप्त होता है"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "युग्मन कोड जनरेट करने में विफल"
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "हटाने में विफल"
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "प्रारंभ करने में विफल"
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "रोकने में विफल"
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "उपयोगकर्ता को अयुग्मित करने में विफल"
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "लोड हो रहा है..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "जोड़ी डिवाइस"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "युग्मित उपयोगकर्ता"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "युग्मन कोड"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "यहां बॉट टोकन चिपकाएं"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "हटाओ"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "चल रहा है"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "जोड़ी बनाने के लिए इस कोड को अपने {gatewayType} बॉट पर भेजें।"
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "प्रारंभ करें"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "रुकें"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "रुक गया"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "टेलीग्राम"
-  },
   "goosehintsModal.close": {
     "defaultMessage": "बंद करें"
   },

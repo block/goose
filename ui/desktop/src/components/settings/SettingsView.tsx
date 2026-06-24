@@ -20,8 +20,6 @@ import {
   KeyRound,
 } from 'lucide-react';
 import { useState, useEffect, useRef } from 'react';
-import GatewaySettingsSection from './gateways/GatewaySettingsSection';
-import { getTunnelStatus } from '../../api/sdk.gen';
 import ChatSettingsSection from './chat/ChatSettingsSection';
 import KeyboardShortcutsSection from './keyboard/KeyboardShortcutsSection';
 import AuthSettingsSection from './auth/AuthSettingsSection';
@@ -86,7 +84,6 @@ export default function SettingsView({
   viewOptions: SettingsViewOptions;
 }) {
   const [activeTab, setActiveTab] = useState('models');
-  const [tunnelDisabled, setTunnelDisabled] = useState(false);
   const hasTrackedInitialTab = useRef(false);
   const { localInference } = useFeatures();
   const intl = useIntl();
@@ -112,7 +109,6 @@ export default function SettingsView({
         prompts: 'prompts',
         keyboard: 'keyboard',
         auth: 'auth',
-        gateway: 'sharing',
         'local-inference': 'local-inference',
       };
 
@@ -136,16 +132,6 @@ export default function SettingsView({
       hasTrackedInitialTab.current = true;
     }
   }, [activeTab]);
-
-  useEffect(() => {
-    getTunnelStatus()
-      .then(({ data }) => {
-        setTunnelDisabled(data?.state === 'disabled');
-      })
-      .catch(() => {
-        setTunnelDisabled(false);
-      });
-  }, []);
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -269,7 +255,6 @@ export default function SettingsView({
                   <div className="space-y-8 pb-8">
                     <SessionSharingSection />
                     <ExternalBackendSection />
-                    {!tunnelDisabled && <GatewaySettingsSection />}
                   </div>
                 </TabsContent>
 

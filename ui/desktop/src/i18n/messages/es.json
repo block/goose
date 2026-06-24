@@ -1235,66 +1235,6 @@
   "freeOptionCards.unexpectedError": {
     "defaultMessage": "Ocurrió un error inesperado durante la configuración."
   },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "Abre @BotFather en tu teléfono, envía /newbot y sigue las indicaciones para nombrar tu bot. BotFather te responderá con un token de API — pégalo abajo."
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "Cerrar"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "Expira en {time}"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "No se pudo generar el código de emparejamiento"
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "No se pudo quitar"
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "No se pudo iniciar"
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "No se pudo detener"
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "No se pudo desemparejar al usuario"
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "Cargando..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "Emparejar dispositivo"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "Usuarios emparejados"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "Código de emparejamiento"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "Pega aquí el token del bot"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "Quitar"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "En ejecución"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "Envía este código a tu bot de {gatewayType} para emparejar."
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "Iniciar"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "Detener"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "Detenido"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "Telegram"
-  },
   "goosehintsModal.close": {
     "defaultMessage": "Cerrar"
   },

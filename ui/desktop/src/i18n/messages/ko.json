@@ -1235,66 +1235,6 @@
   "freeOptionCards.unexpectedError": {
     "defaultMessage": "설정 중에 예상치 못한 오류가 발생했습니다."
   },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "휴대폰에서 @BotFather를 열고 /newbot을 보낸 뒤, 안내에 따라 봇 이름을 지정하세요. BotFather가 API 토큰을 보내면 아래에 붙여넣으세요."
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "닫기"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "{time} 후 만료"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "페어링 코드를 생성하지 못했습니다."
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "제거하지 못했습니다."
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "시작하지 못했습니다."
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "중지하지 못했습니다."
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "사용자 페어링을 해제하지 못했습니다."
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "로드 중..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "기기 페어링"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "페어링된 사용자"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "페어링 코드"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "봇 토큰을 여기에 붙여넣으세요"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "제거"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "실행 중"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "페어링하려면 이 코드를 {gatewayType} 봇에 보내세요."
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "시작"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "중지"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "중지됨"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "Telegram"
-  },
   "goosehintsModal.close": {
     "defaultMessage": "닫기"
   },

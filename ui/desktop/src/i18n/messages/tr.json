@@ -1235,66 +1235,6 @@
   "freeOptionCards.unexpectedError": {
     "defaultMessage": "Kurulum sırasında beklenmeyen bir hata oluştu."
   },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "Telefonunuzda @BotFather'ı açın, /newbot gönderin ve botunuza isim vermek için talimatları izleyin. BotFather bir API jetonuyla yanıt verecektir; bunu aşağıya yapıştırın."
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "Kapat"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "Süresi {time}'de doluyor"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "Eşleştirme kodu oluşturulamadı"
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "Kaldırılamadı"
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "Başlatılamadı"
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "Durdurulamadı"
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "Kullanıcının eşlemesi kaldırılamadı"
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "Yükleniyor..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "Cihazı Eşleştir"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "Eşlenen Kullanıcılar"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "Eşleştirme Kodu"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "Bot jetonunu buraya yapıştırın"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "Kaldır"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "Koşu"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "Eşleştirmek için bu kodu {gatewayType} botunuza gönderin."
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "Başlat"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "Durdur"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "Durduruldu"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "Telgraf"
-  },
   "goosehintsModal.close": {
     "defaultMessage": "Kapat"
   },
