@@ -20,11 +20,13 @@ impl GooseAcpAgent {
             .map(str::trim)
             .filter(|session_id| !session_id.is_empty())
         {
-            self.context
-                .session_manager
+            self.session_manager
                 .get_session(session_id, false)
                 .await
-                .map_err(|e| agent_client_protocol::Error::invalid_params().data(e.to_string()))?
+                .map_err(|_| {
+                    agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
+                        .data(format!("Session not found: {}", session_id))
+                })?
                 .working_dir
         } else {
             return Err(agent_client_protocol::Error::invalid_params()
