@@ -1,3 +1,4 @@
+use crate::agents::ExtensionLoadResult;
 use crate::config::{Config, GooseMode};
 use crate::providers::inventory::{ProviderInventoryEntry, ProviderInventoryService};
 use crate::session::Session;
@@ -74,6 +75,31 @@ pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_j
             serde_json::Value::String(snippet.clone()),
         );
     }
+    meta
+}
+
+pub(super) fn session_response_meta(
+    session: &Session,
+    extension_results: &[ExtensionLoadResult],
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut meta = serde_json::Map::new();
+    if let Some(recipe) = &session.recipe {
+        if let Ok(v) = serde_json::to_value(recipe) {
+            meta.insert("recipe".to_string(), v);
+        }
+    }
+    if let Some(values) = &session.user_recipe_values {
+        if let Ok(v) = serde_json::to_value(values) {
+            meta.insert("userRecipeValues".to_string(), v);
+        }
+    }
+    if let Ok(v) = serde_json::to_value(extension_results) {
+        meta.insert("extensionResults".to_string(), v);
+    }
+    meta.insert(
+        "workingDir".to_string(),
+        serde_json::Value::String(session.working_dir.to_string_lossy().to_string()),
+    );
     meta
 }
 
@@ -524,14 +550,11 @@ mod tests {
         provider_options: Vec<SessionConfigSelectOption>,
         model_state: SessionModelState,
     ) -> Vec<SessionConfigOption> {
-        let model_config = ModelConfig {
-            model_name: model_state.current_model_id.0.to_string(),
-            request_params: Some(std::collections::HashMap::from([(
+        let model_config = ModelConfig::new(model_state.current_model_id.0.as_ref())
+            .with_merged_request_params(std::collections::HashMap::from([(
                 "thinking_effort".to_string(),
                 serde_json::json!("off"),
-            )])),
-            ..Default::default()
-        };
+            )]));
         build_config_options(
             &mode_state,
             &model_state,
@@ -551,14 +574,12 @@ mod tests {
                 "claude-sonnet-4",
             )],
         );
-        let model_config = ModelConfig {
-            model_name: "claude-sonnet-4".to_string(),
-            request_params: Some(std::collections::HashMap::from([(
+        let model_config = ModelConfig::new("claude-sonnet-4").with_merged_request_params(
+            std::collections::HashMap::from([(
                 "thinking_effort".to_string(),
                 serde_json::json!("high"),
-            )])),
-            ..Default::default()
-        };
+            )]),
+        );
 
         let options = build_config_options(
             &mode_state,
@@ -586,15 +607,11 @@ mod tests {
             ModelId::new("gpt-4"),
             vec![ModelInfo::new(ModelId::new("gpt-4"), "gpt-4")],
         );
-        let model_config = ModelConfig {
-            model_name: "gpt-4".to_string(),
-            request_params: Some(std::collections::HashMap::from([(
-                "thinking_effort".to_string(),
-                serde_json::json!("high"),
-            )])),
-            reasoning: Some(false),
-            ..Default::default()
-        };
+        let mut model_config =
+            ModelConfig::new("gpt-4").with_merged_request_params(std::collections::HashMap::from(
+                [("thinking_effort".to_string(), serde_json::json!("high"))],
+            ));
+        model_config.reasoning = Some(false);
 
         let options = build_config_options(
             &mode_state,

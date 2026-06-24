@@ -3,7 +3,6 @@ use super::base::{ConfigKey, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
 use anyhow::Result;
 use futures::future::BoxFuture;
-use goose_providers::model::ModelConfig;
 
 const XAI_PROVIDER_NAME: &str = "xai";
 pub const XAI_API_HOST: &str = "https://api.x.ai/v1";
@@ -33,9 +32,7 @@ pub const XAI_DOC_URL: &str = "https://docs.x.ai/docs/overview";
 
 pub struct XaiProvider;
 
-impl ProviderDef for XaiProvider {
-    type Provider = OpenAiCompatibleProvider;
-
+impl goose_providers::base::ProviderDescriptor for XaiProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             XAI_PROVIDER_NAME,
@@ -50,9 +47,12 @@ impl ProviderDef for XaiProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for XaiProvider {
+    type Provider = OpenAiCompatibleProvider;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<OpenAiCompatibleProvider>> {
@@ -69,7 +69,6 @@ impl ProviderDef for XaiProvider {
             Ok(OpenAiCompatibleProvider::new(
                 XAI_PROVIDER_NAME.to_string(),
                 api_client,
-                model,
                 String::new(),
             ))
         })

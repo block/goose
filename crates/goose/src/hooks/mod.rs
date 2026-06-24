@@ -59,8 +59,6 @@ pub enum HookEvent {
     BeforeShellExecution,
     AfterShellExecution,
     Stop,
-    SubagentStart,
-    SubagentStop,
 }
 
 impl HookEvent {
@@ -77,8 +75,6 @@ impl HookEvent {
             HookEvent::BeforeShellExecution => "BeforeShellExecution",
             HookEvent::AfterShellExecution => "AfterShellExecution",
             HookEvent::Stop => "Stop",
-            HookEvent::SubagentStart => "SubagentStart",
-            HookEvent::SubagentStop => "SubagentStop",
         }
     }
 
@@ -95,8 +91,6 @@ impl HookEvent {
             "BeforeShellExecution" => HookEvent::BeforeShellExecution,
             "AfterShellExecution" => HookEvent::AfterShellExecution,
             "Stop" => HookEvent::Stop,
-            "SubagentStart" => HookEvent::SubagentStart,
-            "SubagentStop" => HookEvent::SubagentStop,
             _ => return None,
         })
     }

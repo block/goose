@@ -18,7 +18,6 @@ use super::base::{
 };
 use super::databricks_auth::{DatabricksAuth, DatabricksAuthProvider};
 use super::formats::databricks::{create_request_for_provider, DATABRICKS_PROVIDER_NAME};
-use super::formats::openai_responses::create_responses_request;
 use super::openai_compatible::{
     handle_status, map_http_error_to_provider_error, sanitize_url, stream_openai_compat,
     stream_responses_compat,
@@ -32,6 +31,7 @@ use crate::providers::retry::{
     DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
 };
 use goose_providers::errors::ProviderError;
+use goose_providers::formats::openai_responses::create_responses_request;
 use goose_providers::model::ModelConfig;
 use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
@@ -63,7 +63,7 @@ static DATABRICKS_ENDPOINT_INFO_CACHE: LazyLock<
     Mutex<std::collections::HashMap<String, CachedDatabricksEndpointInfo>>,
 > = LazyLock::new(|| Mutex::new(std::collections::HashMap::new()));
 pub const DATABRICKS_DEFAULT_MODEL: &str = "databricks-claude-sonnet-4";
-const DATABRICKS_DEFAULT_FAST_MODEL: &str = "databricks-claude-haiku-4-5";
+pub const DATABRICKS_DEFAULT_FAST_MODEL: &str = "databricks-claude-haiku-4-5";
 pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
     "databricks-claude-sonnet-4-5",
     "databricks-meta-llama-3-3-70b-instruct",
@@ -80,7 +80,6 @@ pub struct DatabricksProvider {
     #[serde(skip)]
     host: String,
     auth: DatabricksAuth,
-    model: ModelConfig,
     image_format: ImageFormat,
     #[serde(skip)]
     retry_config: RetryConfig,
@@ -98,7 +97,6 @@ impl DatabricksProvider {
     }
 
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -141,23 +139,16 @@ impl DatabricksProvider {
             tls_config.clone(),
         )?;
 
-        let mut provider = Self {
+        Ok(Self {
             api_client,
             host,
             auth,
-            model: model.clone(),
             image_format: ImageFormat::OpenAi,
             retry_config,
             name: DATABRICKS_PROVIDER_NAME.to_string(),
             token_cache,
             instance_id: Self::resolve_instance_id(),
-        };
-        provider.model = crate::model_config::with_configured_fast_model(
-            model,
-            DATABRICKS_PROVIDER_NAME,
-            DATABRICKS_DEFAULT_FAST_MODEL,
-        )?;
-        Ok(provider)
+        })
     }
 
     fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
@@ -487,12 +478,12 @@ impl DatabricksProvider {
 
     fn model_info_from_endpoint(info: DatabricksEndpointInfo) -> ModelInfo {
         let context_model = info.upstream_model_name.as_deref().unwrap_or(&info.name);
-        let context_limit = ModelConfig::new_or_fail(context_model)
+        let context_limit = ModelConfig::new(context_model)
             .with_canonical_limits(DATABRICKS_PROVIDER_NAME)
             .context_limit();
         let reasoning = info
             .reasoning
-            .unwrap_or_else(|| ModelConfig::new_or_fail(context_model).is_reasoning_model());
+            .unwrap_or_else(|| ModelConfig::new(context_model).is_reasoning_model());
 
         ModelInfo {
             name: info.name,
@@ -525,9 +516,7 @@ impl DatabricksProvider {
     }
 }
 
-impl ProviderDef for DatabricksProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for DatabricksProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             DATABRICKS_PROVIDER_NAME,
@@ -541,14 +530,18 @@ impl ProviderDef for DatabricksProvider {
                 ConfigKey::new("DATABRICKS_TOKEN", false, true, None, true),
             ],
         )
+        .with_fast_model(DATABRICKS_DEFAULT_FAST_MODEL)
     }
+}
+
+impl ProviderDef for DatabricksProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -567,10 +560,6 @@ impl Provider for DatabricksProvider {
         *self.token_cache.lock().unwrap() = None;
         tracing::info!("Invalidated secrets cache and token cache for credential refresh");
         Ok(())
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn stream(
@@ -810,7 +799,10 @@ impl Provider for DatabricksProvider {
         Ok(Self::model_info_from_endpoint(endpoint_info))
     }
 
-    async fn fetch_recommended_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+    async fn fetch_recommended_model_info(
+        &self,
+        _toolshim: bool,
+    ) -> Result<Vec<ModelInfo>, ProviderError> {
         self.fetch_supported_model_info().await
     }
 }

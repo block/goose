@@ -351,13 +351,13 @@ goose session export --path ./my-session.jsonl -o exported.md
 ---
 
 #### session diagnostics [options]
-Generate a comprehensive diagnostics bundle for troubleshooting issues with a specific session.
+Generate a comprehensive diagnostics JSON report for troubleshooting issues with a specific session.
 
 **Options:**
 - **`--session-id <session_id>`**: Generate diagnostics for a specific session by ID
 - **`-n, --name <name>`**: Generate diagnostics for a specific session by name
 - **`--path <path>`**: Generate diagnostics for a specific session by file path (legacy)
-- **`-o, --output <file>`**: Save diagnostics bundle to a specific file path (default: `diagnostics_{session_id}.zip`)
+- **`-o, --output <file>`**: Save diagnostics report to a specific file path (default: `diagnostics_{session_id}.json`)
 
 **What's included:**
 - **System Information**: App version, operating system, architecture, and timestamp
@@ -374,18 +374,18 @@ goose session diagnostics --session-id 20251108_5
 goose session diagnostics -n my-project-session
 
 # Save diagnostics to a custom location
-goose session diagnostics --session-id 20251108_5 -o /path/to/my-diagnostics.zip
+goose session diagnostics --session-id 20251108_5 -o /path/to/my-diagnostics.json
 
 # Interactive selection (prompts you to choose a session)
 goose session diagnostics
 ```
 
 :::warning Privacy Notice
-Diagnostics bundles contain your session messages and system information. If your session includes sensitive data (API keys, personal information, proprietary code), review the contents before sharing publicly.
+Diagnostics reports contain your session messages and system information. If your session includes sensitive data (API keys, personal information, proprietary code), review the contents before sharing publicly.
 :::
 
 :::tip
-Generate diagnostics before reporting bugs to provide technical details that help with faster resolution. The ZIP file can be attached to GitHub issues or shared with support.
+Generate diagnostics before reporting bugs to provide technical details that help with faster resolution. The JSON file can be attached to GitHub issues or shared with support.
 :::
 
 ---

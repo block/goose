@@ -247,6 +247,59 @@ export type DeleteRecipeRequest = {
     id: string;
 };
 
+export type DiagnosticsConfig = {
+    configPath: string;
+    configYaml?: string | null;
+    truncated: boolean;
+};
+
+export type DiagnosticsError = {
+    message: string;
+    path?: string | null;
+};
+
+export type DiagnosticsExtensions = {
+    enabled: Array<string>;
+};
+
+export type DiagnosticsLevel = 'summary' | 'full';
+
+export type DiagnosticsLogs = {
+    llm: Array<DiagnosticsTextFile>;
+    server?: DiagnosticsTextFile | null;
+};
+
+export type DiagnosticsPrompt = {
+    content: string;
+    name: string;
+};
+
+export type DiagnosticsReport = {
+    config?: DiagnosticsConfig | null;
+    errors: Array<DiagnosticsError>;
+    extensions: DiagnosticsExtensions;
+    generatedAt: string;
+    level: DiagnosticsLevel;
+    logs: DiagnosticsLogs;
+    prompts: Array<DiagnosticsPrompt>;
+    schedule?: unknown;
+    scheduledRecipes: Array<DiagnosticsScheduledRecipe>;
+    schemaVersion: number;
+    session?: unknown;
+    system: SystemInfo;
+};
+
+export type DiagnosticsScheduledRecipe = {
+    content: string;
+    path: string;
+};
+
+export type DiagnosticsTextFile = {
+    content: string;
+    path: string;
+    truncated: boolean;
+};
+
 export type DictationProvider = 'openai' | 'elevenlabs' | 'groq' | 'local';
 
 export type DictationProviderStatus = {
@@ -1024,6 +1077,11 @@ export type ProviderMetadata = {
      * Display name for the provider in UIs
      */
     display_name: string;
+    /**
+     * The name of a fast/cheap model to use for lightweight tasks (e.g. session naming,
+     * compaction). When set, fast-path callers prefer this model over the main model.
+     */
+    fast_model?: string | null;
     /**
      * A list of currently known models with their capabilities
      */
@@ -3093,7 +3151,9 @@ export type DiagnosticsData = {
     path: {
         session_id: string;
     };
-    query?: never;
+    query?: {
+        level?: DiagnosticsLevel | null;
+    };
     url: '/diagnostics/{session_id}';
 };
 
@@ -3106,9 +3166,9 @@ export type DiagnosticsErrors = {
 
 export type DiagnosticsResponses = {
     /**
-     * Diagnostics zip file
+     * Diagnostics report
      */
-    200: Blob | File;
+    200: DiagnosticsReport;
 };
 
 export type DiagnosticsResponse = DiagnosticsResponses[keyof DiagnosticsResponses];

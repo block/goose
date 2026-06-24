@@ -1,15 +1,15 @@
 use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::token_usage::{ProviderUsage, Usage};
+use crate::errors::ProviderError;
+use crate::formats::openai::{
+    extract_reasoning_effort, is_openai_responses_model, openai_reasoning_effort_for_thinking,
+};
 use crate::mcp_utils::extract_text_from_resource;
+use crate::model::ModelConfig;
 use anyhow::Error;
 use async_stream::try_stream;
 use chrono;
 use futures::Stream;
-use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
-use goose_providers::errors::ProviderError;
-use goose_providers::formats::openai::{
-    extract_reasoning_effort, is_openai_responses_model, openai_reasoning_effort_for_thinking,
-};
-use goose_providers::model::ModelConfig;
 use rmcp::model::{object, CallToolRequestParams, RawContent, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -962,8 +962,8 @@ where
 mod tests {
     use super::*;
     use crate::conversation::message::MessageContent;
+    use crate::model::ModelConfig;
     use futures::StreamExt;
-    use goose_providers::model::ModelConfig;
     use rmcp::model::CallToolRequestParams;
     use rmcp::object;
 
@@ -1200,7 +1200,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1292,7 +1291,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1336,7 +1334,6 @@ mod tests {
                 max_tokens: None,
                 toolshim: false,
                 toolshim_model: None,
-                fast_model_config: None,
                 request_params: None,
                 reasoning: None,
             };
@@ -1358,7 +1355,7 @@ mod tests {
 
     #[test]
     fn test_responses_request_with_normalized_effort_suffix() {
-        let model_config = ModelConfig::new("o3-mini-high").unwrap();
+        let model_config = ModelConfig::new("o3-mini-high");
 
         let result = create_responses_request(&model_config, "You are helpful.", &[], &[]).unwrap();
 
@@ -1377,7 +1374,6 @@ mod tests {
                 max_tokens: None,
                 toolshim: false,
                 toolshim_model: None,
-                fast_model_config: None,
                 request_params: None,
                 reasoning: None,
             };
@@ -1403,7 +1399,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1432,7 +1427,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1479,7 +1473,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1516,7 +1509,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1548,7 +1540,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1579,7 +1570,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1614,7 +1604,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1651,7 +1640,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1677,7 +1665,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1709,7 +1696,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1741,7 +1727,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1863,7 +1848,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1901,7 +1885,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1939,7 +1922,6 @@ mod tests {
             max_tokens: None,
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };

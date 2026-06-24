@@ -35,7 +35,10 @@ pub fn canonical_name(provider: &str, model: &str) -> String {
 }
 
 fn is_meta_provider(provider: &str) -> bool {
-    matches!(provider, "databricks" | "tetrate" | "bedrock" | "azure")
+    matches!(
+        provider,
+        "databricks" | "databricks_v2" | "tetrate" | "bedrock" | "azure"
+    )
 }
 
 pub fn map_provider_name(provider: &str) -> &str {
@@ -46,6 +49,7 @@ pub fn map_provider_name(provider: &str) -> &str {
         "aws_bedrock" => "amazon-bedrock",
         "gcp_vertex_ai" => "google-vertex",
         "gemini_oauth" => "google",
+        "databricks_v2" => "databricks",
         "zhipu" => "zhipuai",
         "novita" => "novita-ai",
         "opencode_go" => "opencode-go",
@@ -117,6 +121,21 @@ pub fn map_to_canonical_model(
     if let Some((extracted_provider, extracted_model)) = extract_provider_prefix(&model_stripped) {
         let normalized = strip_version_suffix(extracted_model);
         if let Some(canonical) = registry.get(extracted_provider, &normalized) {
+            return Some(canonical.id.clone());
+        }
+    }
+
+    // Fallback for meta-providers: some native aliases are keyed under the
+    // meta-provider itself (e.g. "databricks/databricks-gpt-oss-120b") and do
+    // not infer back to a first-party provider. Only try this after inference,
+    // so models that DO infer (e.g. databricks-claude-* -> anthropic/*) keep
+    // resolving to the richer first-party catalog entry.
+    if is_meta_provider(provider) {
+        if let Some(canonical) = registry.get(registry_provider, model) {
+            return Some(canonical.id.clone());
+        }
+        let normalized_model = strip_version_suffix(model);
+        if let Some(canonical) = registry.get(registry_provider, &normalized_model) {
             return Some(canonical.id.clone());
         }
     }
@@ -535,6 +554,38 @@ mod tests {
         assert_eq!(
             map_to_canonical_model("gcp_vertex_ai", "claude-haiku-4-5@20251001", r),
             Some("google-vertex/claude-haiku-4.5".to_string())
+        );
+    }
+
+    // Databricks-native open-weight ids are keyed under the meta-provider itself
+    // (e.g. "databricks/databricks-gpt-oss-120b") and do not infer back to another
+    // provider, so they must resolve via the direct meta-provider lookup. These
+    // particular ids are unversioned, so the assertions are not catalog-version brittle.
+    #[test]
+    fn test_databricks_native_open_weight_ids_resolve() {
+        let r = super::super::CanonicalModelRegistry::bundled().unwrap();
+
+        assert_eq!(
+            map_to_canonical_model("databricks_v2", "databricks-gpt-oss-120b", r),
+            Some("databricks/databricks-gpt-oss-120b".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("databricks_v2", "databricks-gpt-oss-20b", r),
+            Some("databricks/databricks-gpt-oss-20b".to_string())
+        );
+        // Legacy provider name resolves identically.
+        assert_eq!(
+            map_to_canonical_model("databricks", "databricks-gpt-oss-120b", r),
+            Some("databricks/databricks-gpt-oss-120b".to_string())
+        );
+
+        // Regression guard: the meta-provider lookup must remain a *fallback*
+        // after inference. databricks-claude-* aliases infer back to the richer
+        // first-party "anthropic/*" entry (which carries thinking_mode used for
+        // adaptive thinking), not the metadata-poor "databricks/databricks-*" one.
+        assert_eq!(
+            map_to_canonical_model("databricks", "databricks-claude-opus-4-7", r),
+            Some("anthropic/claude-opus-4.7".to_string())
         );
     }
 }

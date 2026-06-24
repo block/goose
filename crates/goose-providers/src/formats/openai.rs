@@ -1452,10 +1452,7 @@ mod tests {
     use tokio_stream::{self, StreamExt};
 
     fn test_model_config(model_name: &str) -> ModelConfig {
-        ModelConfig {
-            model_name: model_name.to_string(),
-            ..Default::default()
-        }
+        ModelConfig::new(model_name)
     }
 
     #[test]

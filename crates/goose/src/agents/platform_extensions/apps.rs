@@ -272,7 +272,7 @@ impl AppsManagerClient {
         let messages = vec![Message::user().with_text(&user_prompt)];
         let tools = vec![Self::create_app_content_tool()];
 
-        let model_config = provider.get_model_config();
+        let model_config = self.context.model_config_for_session(session_id).await?;
 
         let (response, usage) = provider
             .complete(&model_config, session_id, &system_prompt, &messages, &tools)
@@ -315,7 +315,7 @@ impl AppsManagerClient {
         let messages = vec![Message::user().with_text(&user_prompt)];
         let tools = vec![Self::update_app_content_tool()];
 
-        let model_config = provider.get_model_config();
+        let model_config = self.context.model_config_for_session(session_id).await?;
 
         let (response, usage) = provider
             .complete(&model_config, session_id, &system_prompt, &messages, &tools)

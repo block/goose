@@ -4,6 +4,9 @@ use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+mod recipe;
+pub use recipe::*;
+
 /// Schema descriptor for a single custom method, produced by the
 /// `#[custom_methods]` macro's generated `custom_method_schemas()` function.
 ///
@@ -160,6 +163,31 @@ pub struct SteerSessionResponse {
     /// `messageId` on the streamed `UserMessageChunk` (with `_meta.goose.steer`),
     /// letting clients correlate a queued steer with its pickup.
     pub message_id: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/diagnostics/get",
+    response = DiagnosticsGetResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct DiagnosticsGetRequest {
+    pub session_id: String,
+    #[serde(default)]
+    pub level: DiagnosticsReportLevel,
+}
+
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum DiagnosticsReportLevel {
+    #[default]
+    Summary,
+    Full,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct DiagnosticsGetResponse {
+    pub report: serde_json::Value,
 }
 
 /// Delete a session.

@@ -937,11 +937,11 @@ pub async fn get_provider_models(
         )));
     }
 
-    let model_config =
-        goose::model_config::model_config_from_user_config(&name, &metadata.default_model)?;
-    let provider = goose::providers::create(&name, model_config, Vec::new()).await?;
+    let provider = goose::providers::create(&name, Vec::new()).await?;
 
-    let models_result = provider.fetch_recommended_model_info().await;
+    let models_result = provider
+        .fetch_recommended_model_info(goose::model_config::global_toolshim())
+        .await;
 
     match models_result {
         Ok(models) => Ok(Json(models)),
@@ -973,7 +973,7 @@ pub async fn resolve_provider_model_info(
     }
 
     let model_config = goose::model_config::model_config_from_user_config(name, model)?;
-    let provider = goose::providers::create(name, model_config.clone(), Vec::new()).await?;
+    let provider = goose::providers::create(name, Vec::new()).await?;
     match provider.fetch_model_info(model).await {
         Ok(info) => Ok(info),
         Err(error) => {
@@ -1124,7 +1124,7 @@ pub async fn get_canonical_model_info(
         max_output_tokens: canonical_model.limit.output,
         reasoning: canonical_model
             .reasoning
-            .unwrap_or_else(|| ModelConfig::new_or_fail(&query.model).is_reasoning_model()),
+            .unwrap_or_else(|| ModelConfig::new(&query.model).is_reasoning_model()),
         // Costs are per million tokens - client handles division for display
         input_token_cost: canonical_model.cost.input,
         output_token_cost: canonical_model.cost.output,
@@ -1440,20 +1440,13 @@ pub async fn configure_provider_oauth(
         return Ok(Json("OAuth configuration completed".to_string()));
     }
 
-    let temp_model = goose::model_config::model_config_from_user_config(&provider_name, "temp")
-        .map_err(|e| {
-            ErrorResponse::bad_request(format!("Failed to create temporary model config: {}", e))
-        })?;
-
     // OAuth configuration does not use extensions.
-    let provider = create(&provider_name, temp_model, Vec::new())
-        .await
-        .map_err(|e| {
-            ErrorResponse::bad_request(format!(
-                "Failed to create provider '{}': {}",
-                provider_name, e
-            ))
-        })?;
+    let provider = create(&provider_name, Vec::new()).await.map_err(|e| {
+        ErrorResponse::bad_request(format!(
+            "Failed to create provider '{}': {}",
+            provider_name, e
+        ))
+    })?;
 
     provider.configure_oauth().await.map_err(|e| {
         ErrorResponse::bad_request(format!(
