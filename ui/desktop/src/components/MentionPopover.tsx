@@ -522,7 +522,7 @@ const MentionPopover = forwardRef<
       return () => {
         cancelled = true;
       };
-    }, [isOpen, isSlashCommand, scanDirectoryFromRoot, currentWorkingDir]);
+    }, [isOpen, isSlashCommand, scanDirectoryFromRoot, currentWorkingDir, sessionId]);
 
     useEffect(() => {
       const handleClickOutside = (event: MouseEvent) => {
