@@ -4,7 +4,11 @@ use goose_sdk_types::custom_requests::{AgentMention, SourceEntry, SourceType};
 use std::collections::HashSet;
 use std::path::PathBuf;
 
-fn add_session_subrecipes(session: &Session, sources: &mut Vec<SourceEntry>) {
+fn add_session_subrecipes(
+    session: &Session,
+    sources: &mut Vec<SourceEntry>,
+    seen: &mut HashSet<String>,
+) {
     let Some(sub_recipes) = session
         .recipe
         .as_ref()
@@ -13,7 +17,6 @@ fn add_session_subrecipes(session: &Session, sources: &mut Vec<SourceEntry>) {
         return;
     };
 
-    let mut seen: HashSet<String> = sources.iter().map(|source| source.name.clone()).collect();
     for sub_recipe in sub_recipes {
         if !seen.insert(sub_recipe.name.clone()) {
             continue;
@@ -73,10 +76,19 @@ impl GooseAcpAgent {
                 .data("Either cwd or sessionId is required"));
         };
 
-        let mut sources =
+        let filesystem_sources =
             crate::agents::platform_extensions::summon::discover_filesystem_sources(&cwd);
+        let mut sources = Vec::new();
+        let mut seen = HashSet::new();
+
         if let Some(session) = &session {
-            add_session_subrecipes(session, &mut sources);
+            add_session_subrecipes(session, &mut sources, &mut seen);
+        }
+
+        for source in filesystem_sources {
+            if seen.insert(source.name.clone()) {
+                sources.push(source);
+            }
         }
 
         let agents = sources
