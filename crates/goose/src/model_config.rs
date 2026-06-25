@@ -32,12 +32,20 @@ pub fn model_config_from_user_config_with_session_settings(
         .with_inherited_session_settings_from(previous, request_params)
         .with_default_thinking_effort(config.get_goose_thinking_effort());
 
-    Ok(model.with_canonical_limits(provider_name))
+    // Canonical first, then GOOSE_CONTEXT_LIMIT only as a last-resort default.
+    Ok(model
+        .with_canonical_limits(provider_name)
+        .with_default_context_limit(config.get_goose_context_limit()?))
 }
 
 pub fn materialize_model_config(provider_name: &str, model: ModelConfig) -> Result<ModelConfig> {
+    let config = Config::global();
     let model = materialize_model_config_inner(model, true)?;
-    Ok(model.with_canonical_limits(provider_name))
+    // Canonical (model-specific) limits win; GOOSE_CONTEXT_LIMIT is only a
+    // last-resort default for models with no known limit, never a cap over them.
+    Ok(model
+        .with_canonical_limits(provider_name)
+        .with_default_context_limit(config.get_goose_context_limit()?))
 }
 
 fn materialize_model_config_inner(
@@ -54,9 +62,9 @@ fn materialize_model_config_inner(
         model = model.with_toolshim_model(get_goose_toolshim_model(config)?);
     }
 
-    model = model
-        .with_default_context_limit(config.get_goose_context_limit()?)
-        .with_default_max_tokens(config.get_goose_max_tokens()?);
+    // GOOSE_CONTEXT_LIMIT is applied later, after canonical limits, so a model's
+    // known context window is never overridden by the global default.
+    model = model.with_default_max_tokens(config.get_goose_max_tokens()?);
 
     if include_default_thinking_effort {
         model = model.with_default_thinking_effort(config.get_goose_thinking_effort());
