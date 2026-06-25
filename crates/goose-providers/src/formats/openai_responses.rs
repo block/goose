@@ -1272,7 +1272,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_responses_stream_ignores_keepalive_while_assembling_payload() -> anyhow::Result<()> {
+    async fn test_responses_stream_ignores_keepalive_while_assembling_payload() -> anyhow::Result<()>
+    {
         let response_body = serde_json::json!({
             "id": "resp_keepalive",
             "object": "response",
@@ -1287,7 +1288,9 @@ mod tests {
             "response": response_body,
         });
         let completed_json = serde_json::to_string(&completed_event)?;
-        let split_at = completed_json.find("\"model\"").expect("model field present");
+        let split_at = completed_json
+            .find("\"model\"")
+            .expect("model field present");
         let (first, second) = completed_json.split_at(split_at);
 
         let lines = vec![
@@ -1319,9 +1322,10 @@ mod tests {
             r#"{{"type":"response.output_text.delta","sequence_number":1,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"{padding}"}}"#
         );
         let sse_line = format!("data: {payload}\n");
-        let reader = tokio_util::io::StreamReader::new(futures::stream::iter(vec![Ok::<_, std::io::Error>(
-            Bytes::from(sse_line),
-        )]));
+        let reader =
+            tokio_util::io::StreamReader::new(futures::stream::iter(vec![
+                Ok::<_, std::io::Error>(Bytes::from(sse_line)),
+            ]));
         let mut framed = FramedRead::new(reader, openai_sse_lines_codec());
         let line: String = framed
             .next()
@@ -1354,7 +1358,9 @@ mod tests {
             "response": response_body,
         });
         let completed_json = serde_json::to_string(&completed_event)?;
-        let split_at = completed_json.find("\"status\"").expect("status field present");
+        let split_at = completed_json
+            .find("\"status\"")
+            .expect("status field present");
         let (first, second) = completed_json.split_at(split_at);
 
         let lines = vec![
