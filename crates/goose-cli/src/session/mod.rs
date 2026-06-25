@@ -975,6 +975,23 @@ impl CliSession {
                 .then_with(|| a.0.to_lowercase().cmp(&b.0.to_lowercase()))
         });
 
+        // cliclack returns only the selected label, so two entries sharing an
+        // identical label (a custom/declarative provider with the same display
+        // name and model id as another) would make the lookup below ambiguous
+        // and resolve to the wrong provider. Disambiguate any collision with the
+        // internal provider name so every label maps back to exactly one entry.
+        let mut label_counts: std::collections::HashMap<String, usize> =
+            std::collections::HashMap::new();
+        for (label, _, _) in &entries {
+            *label_counts.entry(label.clone()).or_insert(0) += 1;
+        }
+        for (label, provider, _) in entries.iter_mut() {
+            if label_counts.get(label.as_str()).copied().unwrap_or(0) > 1 {
+                let suffix = format!("  ({provider})");
+                label.push_str(&suffix);
+            }
+        }
+
         let labels: Vec<String> = entries.iter().map(|(l, _, _)| l.clone()).collect();
         let chosen_label = match crate::commands::configure::interactive_model_search(&labels, None)
         {
@@ -1009,6 +1026,20 @@ impl CliSession {
         let new_provider = goose::providers::create(&chosen_provider, new_model_config, extensions)
             .await
             .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
+
+        // Switching INTO a provider that manages its own context (Claude Code,
+        // Gemini CLI) would silently drop the conversation so far: unlike the
+        // ACP providers it keeps no handoff path and forwards only the latest
+        // user message, so the existing transcript never reaches it. Refuse when
+        // there is history to lose, mirroring the current-provider guard in
+        // handle_model. ACP targets report manages_own_context() == false and
+        // carry their own handoff, so they stay switchable.
+        if new_provider.manages_own_context() && !self.messages.is_empty() {
+            output::render_error(&format!(
+                "Can't switch to '{chosen_provider}' mid-session: it manages its own conversation context and would drop the current history. Keeping '{current_model_name}'. Start a new session to use it."
+            ));
+            return Ok(());
+        }
 
         // Probe the model before committing the switch: some providers list
         // models their account can't actually run (e.g. NVIDIA returns 404
