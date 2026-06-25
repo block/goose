@@ -344,10 +344,12 @@ mod tests {
             let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
             let permission_manager = Arc::new(PermissionManager::new(data_dir));
 
-            let mut session = Session::default();
-            session.id = "session-123".to_string();
-            session.message_count = 37;
-            session.conversation = None;
+            let session = Session {
+                id: "session-123".to_string(),
+                message_count: 37,
+                conversation: None,
+                ..Default::default()
+            };
 
             let mock_scheduler = Arc::new(SessionsMockScheduler::new(vec![(
                 "session-123".to_string(),
