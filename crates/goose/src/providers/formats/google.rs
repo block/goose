@@ -538,6 +538,24 @@ struct GoogleRequest<'a> {
 }
 
 fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
+    if model_config.reasoning == Some(false)
+        || model_config.thinking_effort() == Some(ThinkingEffort::Off)
+    {
+        // Gemini 2.5 Flash defaults to dynamic thinking; only an explicit budget
+        // of 0 turns it off. Other families can't be disabled, so leave them unset.
+        if model_config
+            .model_name
+            .to_lowercase()
+            .starts_with("gemini-2.5-flash")
+        {
+            return Some(ThinkingConfig {
+                thinking_level: None,
+                thinking_budget: Some(0),
+                include_thoughts: false,
+            });
+        }
+        return None;
+    }
     let model_name = model_config.model_name.to_lowercase();
     let is_gemini_3 = model_name.starts_with("gemini-3");
     let is_gemini_25 = model_name.starts_with("gemini-2.5");
@@ -1395,6 +1413,19 @@ data: [DONE]"#;
         let schema = &result[0]["parametersJsonSchema"];
         assert_eq!(schema["properties"]["field"]["$ref"], "#/$defs/MyType");
         assert!(schema.get("$defs").is_some());
+    }
+
+    #[test]
+    fn test_get_thinking_config_disabled_reasoning() {
+        use goose_providers::model::ModelConfig;
+
+        let config = ModelConfig::new("gemini-2.5-flash").with_thinking_effort(ThinkingEffort::Off);
+        let thinking_config = get_thinking_config(&config).unwrap();
+        assert_eq!(thinking_config.thinking_budget, Some(0));
+        assert!(!thinking_config.include_thoughts);
+
+        let config = ModelConfig::new("gemini-2.5-pro").with_thinking_effort(ThinkingEffort::Off);
+        assert!(get_thinking_config(&config).is_none());
     }
 
     #[test]

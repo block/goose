@@ -47,6 +47,7 @@ string_enum!(ThinkingType { Adaptive => "adaptive", Enabled => "enabled", Disabl
 pub struct AnthropicFormatOptions {
     pub preserve_unsigned_thinking: bool,
     pub preserve_thinking_context: bool,
+    pub thinking_disabled: bool,
 }
 
 impl AnthropicFormatOptions {
@@ -68,10 +69,13 @@ impl AnthropicFormatOptions {
             })
             .unwrap_or(self.preserve_unsigned_thinking)
             || preserve_thinking_context;
+        let thinking_disabled = model_config.reasoning == Some(false)
+            || model_config.thinking_effort() == Some(ThinkingEffort::Off);
 
         Self {
             preserve_unsigned_thinking,
             preserve_thinking_context,
+            thinking_disabled,
         }
     }
 }
@@ -257,24 +261,31 @@ fn format_messages_with_options(
                     // Skip
                 }
                 MessageContent::Thinking(thinking) => {
-                    if !thinking.signature.is_empty() {
-                        content.push(json!({
-                            TYPE_FIELD: THINKING_TYPE,
-                            THINKING_TYPE: thinking.thinking,
-                            SIGNATURE_FIELD: thinking.signature
-                        }));
-                    } else if options.preserve_unsigned_thinking && !thinking.thinking.is_empty() {
-                        content.push(json!({
-                            TYPE_FIELD: THINKING_TYPE,
-                            THINKING_TYPE: thinking.thinking
-                        }));
+                    // Anthropic rejects thinking blocks sent without a matching thinking config.
+                    if !options.thinking_disabled {
+                        if !thinking.signature.is_empty() {
+                            content.push(json!({
+                                TYPE_FIELD: THINKING_TYPE,
+                                THINKING_TYPE: thinking.thinking,
+                                SIGNATURE_FIELD: thinking.signature
+                            }));
+                        } else if options.preserve_unsigned_thinking
+                            && !thinking.thinking.is_empty()
+                        {
+                            content.push(json!({
+                                TYPE_FIELD: THINKING_TYPE,
+                                THINKING_TYPE: thinking.thinking
+                            }));
+                        }
                     }
                 }
                 MessageContent::RedactedThinking(redacted) => {
-                    content.push(json!({
-                        TYPE_FIELD: REDACTED_THINKING_TYPE,
-                        DATA_FIELD: redacted.data
-                    }));
+                    if !options.thinking_disabled {
+                        content.push(json!({
+                            TYPE_FIELD: REDACTED_THINKING_TYPE,
+                            DATA_FIELD: redacted.data
+                        }));
+                    }
                 }
                 MessageContent::Image(image) => {
                     content.push(convert_image(image, &ImageFormat::Anthropic));
@@ -600,7 +611,7 @@ fn apply_thinking_config(
         ThinkingType::Disabled => {}
     }
 
-    if options.preserve_thinking_context {
+    if options.preserve_thinking_context && !options.thinking_disabled {
         if !obj.contains_key("thinking") {
             let budget_tokens = thinking_budget_tokens(model_config)
                 .min(max_tokens.saturating_sub(MIN_ANSWER_TOKENS));
@@ -1195,6 +1206,7 @@ mod tests {
             AnthropicFormatOptions {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: false,
+                thinking_disabled: false,
             },
         );
 
@@ -1409,6 +1421,7 @@ mod tests {
             AnthropicFormatOptions {
                 preserve_unsigned_thinking: true,
                 preserve_thinking_context: true,
+                thinking_disabled: false,
             },
         )?;
 

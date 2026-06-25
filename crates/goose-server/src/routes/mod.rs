@@ -4,7 +4,6 @@ pub mod config_management;
 pub mod dictation;
 pub mod errors;
 pub mod features;
-pub mod gateway;
 #[cfg(feature = "local-inference")]
 pub mod local_inference;
 pub mod mcp_app_proxy;
@@ -42,7 +41,6 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(setup::routes(state.clone()))
         .merge(telemetry::routes(state.clone()))
         .merge(tunnel::routes(state.clone()))
-        .merge(gateway::routes(state.clone()))
         .merge(mcp_ui_proxy::routes(secret_key.clone()))
         .merge(mcp_app_proxy::routes(secret_key))
         .merge(session_events::routes(state.clone()))

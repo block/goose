@@ -232,11 +232,10 @@ function useDebounce<T>(value: T, delay: number): T {
 
 interface SessionListViewProps {
   onSelectSession: (sessionId: string) => void;
-  selectedSessionId?: string | null;
 }
 
 const SessionListView: React.FC<SessionListViewProps> = React.memo(
-  ({ onSelectSession, selectedSessionId }) => {
+  ({ onSelectSession }) => {
     const intl = useIntl();
     const [sessions, setSessions] = useState<SessionListItem[]>([]);
     const [isPrefetchingSessions, setIsPrefetchingSessions] = useState(false);
@@ -273,16 +272,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const containerRef = useRef<HTMLDivElement>(null);
     const loadGenerationRef = useRef(0);
     const hasLoadedRef = useRef(false);
-
-    // Track session to element ref
-    const sessionRefs = useRef<Record<string, HTMLElement>>({});
-    const setSessionRefs = (itemId: string, element: HTMLDivElement | null) => {
-      if (element) {
-        sessionRefs.current[itemId] = element;
-      } else {
-        delete sessionRefs.current[itemId];
-      }
-    };
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -434,18 +423,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         setDateGroups(memoizedDateGroups);
       });
     }, [memoizedDateGroups]);
-
-    // Scroll to the selected session when returning from session history view
-    useEffect(() => {
-      if (selectedSessionId) {
-        const element = sessionRefs.current[selectedSessionId];
-        if (element) {
-          element.scrollIntoView({
-            block: 'center',
-          });
-        }
-      }
-    }, [selectedSessionId, sessions]);
 
     // Handle immediate search input (updates search term for debouncing).
     const handleSearch = useCallback((term: string) => {
@@ -727,7 +704,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         <Card
           onClick={handleCardClick}
           className="h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
-          ref={(el) => setSessionRefs(session.id, el)}
         >
           <div>
             <h3 className="text-base break-words line-clamp-2 w-full mb-1">{displayName}</h3>

@@ -37,8 +37,8 @@ async fn shutdown_signal() {
 }
 
 pub async fn run() -> Result<()> {
-    // Install the rustls crypto provider early, before any spawned tasks (tunnel,
-    // gateways, etc.) try to open TLS connections. Both `ring` and `aws-lc-rs`
+    // Install the rustls crypto provider early, before any spawned tasks (tunnel, etc.)
+    // try to open TLS connections. Both `ring` and `aws-lc-rs`
     // features are enabled on rustls (via different transitive deps), so rustls
     // cannot auto-detect a provider — we must pick one explicitly.
     #[cfg(feature = "rustls-tls")]
@@ -85,11 +85,6 @@ pub async fn run() -> Result<()> {
     let app = rest_router.merge(acp_router).layer(cors);
 
     let addr = settings.socket_addr();
-
-    let gateway_manager = app_state.gateway_manager.clone();
-    tokio::spawn(async move {
-        gateway_manager.check_auto_start().await;
-    });
 
     if settings.tls {
         #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]

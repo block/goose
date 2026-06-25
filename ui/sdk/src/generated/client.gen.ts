@@ -18,6 +18,8 @@ import type {
   AppsListRequest_unstable,
   AppsListResponse_unstable,
   ArchiveSessionRequest_unstable,
+  CreateScheduleRequest_unstable,
+  CreateScheduleResponse_unstable,
   CreateSourceRequest_unstable,
   CreateSourceResponse_unstable,
   CustomProviderCreateRequest_unstable,
@@ -34,6 +36,7 @@ import type {
   DefaultsReadResponse_unstable,
   DefaultsSaveRequest_unstable,
   DeleteRecipeRequest_unstable,
+  DeleteScheduleRequest_unstable,
   DeleteSessionRequest,
   DeleteSourceRequest_unstable,
   DiagnosticsGetRequest_unstable,
@@ -75,12 +78,20 @@ import type {
   ImportSessionResponse_unstable,
   ImportSourcesRequest_unstable,
   ImportSourcesResponse_unstable,
+  InspectRunningJobRequest_unstable,
+  InspectRunningJobResponse_unstable,
+  KillRunningJobRequest_unstable,
+  KillRunningJobResponse_unstable,
   ListAgentMentionsRequest_unstable,
   ListAgentMentionsResponse_unstable,
   ListProvidersRequest_unstable,
   ListProvidersResponse_unstable,
   ListRecipesRequest_unstable,
   ListRecipesResponse_unstable,
+  ListScheduleSessionsRequest_unstable,
+  ListScheduleSessionsResponse_unstable,
+  ListSchedulesRequest_unstable,
+  ListSchedulesResponse_unstable,
   ListSlashCommandsRequest_unstable,
   ListSlashCommandsResponse_unstable,
   ListSourcesRequest_unstable,
@@ -91,6 +102,7 @@ import type {
   OnboardingImportScanResponse_unstable,
   ParseRecipeRequest_unstable,
   ParseRecipeResponse_unstable,
+  PauseScheduleRequest_unstable,
   PreferencesReadRequest_unstable,
   PreferencesReadResponse_unstable,
   PreferencesRemoveRequest_unstable,
@@ -122,6 +134,8 @@ import type {
   RemoveSessionExtensionRequest_unstable,
   RenameSessionRequest_unstable,
   RequestRecipeParams_unstable,
+  RunScheduleNowRequest_unstable,
+  RunScheduleNowResponse_unstable,
   SaveRecipeRequest_unstable,
   SaveRecipeResponse_unstable,
   ScanRecipeRequest_unstable,
@@ -134,6 +148,9 @@ import type {
   SteerSessionResponse_unstable,
   TruncateSessionConversationRequest_unstable,
   UnarchiveSessionRequest_unstable,
+  UnpauseScheduleRequest_unstable,
+  UpdateScheduleRequest_unstable,
+  UpdateScheduleResponse_unstable,
   UpdateSessionProjectRequest_unstable,
   UpdateSourceRequest_unstable,
   UpdateSourceResponse_unstable,
@@ -143,6 +160,7 @@ import {
   zAppsExportResponse_unstable,
   zAppsImportResponse_unstable,
   zAppsListResponse_unstable,
+  zCreateScheduleResponse_unstable,
   zCreateSourceResponse_unstable,
   zCustomProviderCreateResponse_unstable,
   zCustomProviderDeleteResponse_unstable,
@@ -167,9 +185,13 @@ import {
   zGooseToolCallResponse_unstable,
   zImportSessionResponse_unstable,
   zImportSourcesResponse_unstable,
+  zInspectRunningJobResponse_unstable,
+  zKillRunningJobResponse_unstable,
   zListAgentMentionsResponse_unstable,
   zListProvidersResponse_unstable,
   zListRecipesResponse_unstable,
+  zListScheduleSessionsResponse_unstable,
+  zListSchedulesResponse_unstable,
   zListSlashCommandsResponse_unstable,
   zListSourcesResponse_unstable,
   zOnboardingImportApplyResponse_unstable,
@@ -187,9 +209,11 @@ import {
   zRecipeToYamlResponse_unstable,
   zRefreshProviderInventoryResponse_unstable,
   zRequestRecipeParams_unstable,
+  zRunScheduleNowResponse_unstable,
   zSaveRecipeResponse_unstable,
   zScanRecipeResponse_unstable,
   zSteerSessionResponse_unstable,
+  zUpdateScheduleResponse_unstable,
   zUpdateSourceResponse_unstable,
 } from './zod.gen.js';
 
@@ -752,6 +776,108 @@ export class GooseExtClient {
     return zRecipeToYamlResponse_unstable.parse(
       raw,
     ) as RecipeToYamlResponse_unstable;
+  }
+
+  async schedulesList_unstable(
+    params: ListSchedulesRequest_unstable,
+  ): Promise<ListSchedulesResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/schedules/list",
+      params,
+    );
+    return zListSchedulesResponse_unstable.parse(
+      raw,
+    ) as ListSchedulesResponse_unstable;
+  }
+
+  async schedulesSessionsList_unstable(
+    params: ListScheduleSessionsRequest_unstable,
+  ): Promise<ListScheduleSessionsResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/schedules/sessions/list",
+      params,
+    );
+    return zListScheduleSessionsResponse_unstable.parse(
+      raw,
+    ) as ListScheduleSessionsResponse_unstable;
+  }
+
+  async schedulesCreate_unstable(
+    params: CreateScheduleRequest_unstable,
+  ): Promise<CreateScheduleResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/schedules/create",
+      params,
+    );
+    return zCreateScheduleResponse_unstable.parse(
+      raw,
+    ) as CreateScheduleResponse_unstable;
+  }
+
+  async schedulesDelete_unstable(
+    params: DeleteScheduleRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/schedules/delete", params);
+  }
+
+  async schedulesPause_unstable(
+    params: PauseScheduleRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/schedules/pause", params);
+  }
+
+  async schedulesUnpause_unstable(
+    params: UnpauseScheduleRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/schedules/unpause", params);
+  }
+
+  async schedulesUpdate_unstable(
+    params: UpdateScheduleRequest_unstable,
+  ): Promise<UpdateScheduleResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/schedules/update",
+      params,
+    );
+    return zUpdateScheduleResponse_unstable.parse(
+      raw,
+    ) as UpdateScheduleResponse_unstable;
+  }
+
+  async schedulesRunNow_unstable(
+    params: RunScheduleNowRequest_unstable,
+  ): Promise<RunScheduleNowResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/schedules/run-now",
+      params,
+    );
+    return zRunScheduleNowResponse_unstable.parse(
+      raw,
+    ) as RunScheduleNowResponse_unstable;
+  }
+
+  async schedulesRunningJobKill_unstable(
+    params: KillRunningJobRequest_unstable,
+  ): Promise<KillRunningJobResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/schedules/running-job/kill",
+      params,
+    );
+    return zKillRunningJobResponse_unstable.parse(
+      raw,
+    ) as KillRunningJobResponse_unstable;
+  }
+
+  async schedulesRunningJobInspect_unstable(
+    params: InspectRunningJobRequest_unstable,
+  ): Promise<InspectRunningJobResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/schedules/running-job/inspect",
+      params,
+    );
+    return zInspectRunningJobResponse_unstable.parse(
+      raw,
+    ) as InspectRunningJobResponse_unstable;
   }
 
   async sessionInfo_unstable(

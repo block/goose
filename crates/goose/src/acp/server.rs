@@ -100,6 +100,7 @@ mod onboarding;
 mod providers;
 mod recipe;
 mod resources;
+mod schedule;
 mod slash_commands;
 mod sources;
 mod tool_notifications;
