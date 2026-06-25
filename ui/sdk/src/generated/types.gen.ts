@@ -1155,7 +1155,7 @@ export type ExportSessionResponse_unstable = {
  */
 export type ImportSessionRequest_unstable = {
     input: string;
-    source?: SessionImportSource;
+    source: SessionImportSource;
 };
 
 export type SessionImportSource = 'auto' | 'json' | 'nostr';
@@ -1172,7 +1172,7 @@ export type ImportSessionResponse_unstable = {
 
 export type ShareSessionNostrRequest_unstable = {
     sessionId: string;
-    relays?: Array<string>;
+    relays: Array<string>;
 };
 
 export type ShareSessionNostrResponse_unstable = {

@@ -525,7 +525,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         e.stopPropagation();
         setSharingSessionId(session.id);
         try {
-          const response = await acpShareSessionNostr(session.id);
+          const response = await acpShareSessionNostr(session.id, []);
           setShareLink(response.deeplink);
           setShowShareLinkModal(true);
           toast.success(intl.formatMessage(i18n.shareNostrSuccess));

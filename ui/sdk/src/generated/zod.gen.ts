@@ -1158,7 +1158,7 @@ export const zSessionImportSource = z.enum([
  */
 export const zImportSessionRequest_unstable = z.object({
     input: z.string(),
-    source: zSessionImportSource.optional().default('auto')
+    source: zSessionImportSource
 });
 
 /**
@@ -1179,7 +1179,7 @@ export const zImportSessionResponse_unstable = z.object({
 
 export const zShareSessionNostrRequest_unstable = z.object({
     sessionId: z.string(),
-    relays: z.array(z.string()).optional().default([])
+    relays: z.array(z.string())
 });
 
 export const zShareSessionNostrResponse_unstable = z.object({

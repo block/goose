@@ -2770,12 +2770,12 @@
           "type": "string"
         },
         "source": {
-          "$ref": "#/$defs/SessionImportSource",
-          "default": "auto"
+          "$ref": "#/$defs/SessionImportSource"
         }
       },
       "required": [
-        "input"
+        "input",
+        "source"
       ],
       "description": "Import a session from a JSON string or share link.",
       "x-side": "agent",
@@ -2830,12 +2830,12 @@
           "type": "array",
           "items": {
             "type": "string"
-          },
-          "default": []
+          }
         }
       },
       "required": [
-        "sessionId"
+        "sessionId",
+        "relays"
       ],
       "x-side": "agent",
       "x-method": "_goose/unstable/session/share/nostr"

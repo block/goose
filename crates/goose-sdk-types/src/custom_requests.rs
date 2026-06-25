@@ -624,7 +624,6 @@ pub struct ExportSessionResponse {
 #[serde(rename_all = "camelCase")]
 pub struct ImportSessionRequest {
     pub input: String,
-    #[serde(default)]
     pub source: SessionImportSource,
 }
 
@@ -645,7 +644,6 @@ pub enum SessionImportSource {
 #[serde(rename_all = "camelCase")]
 pub struct ShareSessionNostrRequest {
     pub session_id: String,
-    #[serde(default)]
     pub relays: Vec<String>,
 }
 
