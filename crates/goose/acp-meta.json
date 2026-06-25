@@ -251,6 +251,56 @@
       "responseType": "RecipeToYamlResponse_unstable"
     },
     {
+      "method": "_goose/unstable/schedules/list",
+      "requestType": "ListSchedulesRequest_unstable",
+      "responseType": "ListSchedulesResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/schedules/sessions/list",
+      "requestType": "ListScheduleSessionsRequest_unstable",
+      "responseType": "ListScheduleSessionsResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/schedules/create",
+      "requestType": "CreateScheduleRequest_unstable",
+      "responseType": "CreateScheduleResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/schedules/delete",
+      "requestType": "DeleteScheduleRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/schedules/pause",
+      "requestType": "PauseScheduleRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/schedules/unpause",
+      "requestType": "UnpauseScheduleRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/schedules/update",
+      "requestType": "UpdateScheduleRequest_unstable",
+      "responseType": "UpdateScheduleResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/schedules/run-now",
+      "requestType": "RunScheduleNowRequest_unstable",
+      "responseType": "RunScheduleNowResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/schedules/running-job/kill",
+      "requestType": "KillRunningJobRequest_unstable",
+      "responseType": "KillRunningJobResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/schedules/running-job/inspect",
+      "requestType": "InspectRunningJobRequest_unstable",
+      "responseType": "InspectRunningJobResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/session/info",
       "requestType": "GetSessionInfoRequest_unstable",
       "responseType": "GetSessionInfoResponse_unstable"
@@ -289,6 +339,16 @@
       "method": "_goose/unstable/sources/list",
       "requestType": "ListSourcesRequest_unstable",
       "responseType": "ListSourcesResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/agent-mentions/list",
+      "requestType": "ListAgentMentionsRequest_unstable",
+      "responseType": "ListAgentMentionsResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/slash-commands/list",
+      "requestType": "ListSlashCommandsRequest_unstable",
+      "responseType": "ListSlashCommandsResponse_unstable"
     },
     {
       "method": "_goose/unstable/sources/update",

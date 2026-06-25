@@ -416,6 +416,86 @@ impl GooseAcpAgent {
         self.on_recipe_to_yaml(req).await
     }
 
+    #[custom_method(ListSchedulesRequest)]
+    async fn dispatch_list_schedules(
+        &self,
+        req: ListSchedulesRequest,
+    ) -> Result<ListSchedulesResponse, agent_client_protocol::Error> {
+        self.on_list_schedules(req).await
+    }
+
+    #[custom_method(ListScheduleSessionsRequest)]
+    async fn dispatch_list_schedule_sessions(
+        &self,
+        req: ListScheduleSessionsRequest,
+    ) -> Result<ListScheduleSessionsResponse, agent_client_protocol::Error> {
+        self.on_list_schedule_sessions(req).await
+    }
+
+    #[custom_method(CreateScheduleRequest)]
+    async fn dispatch_create_schedule(
+        &self,
+        req: CreateScheduleRequest,
+    ) -> Result<CreateScheduleResponse, agent_client_protocol::Error> {
+        self.on_create_schedule(req).await
+    }
+
+    #[custom_method(DeleteScheduleRequest)]
+    async fn dispatch_delete_schedule(
+        &self,
+        req: DeleteScheduleRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_delete_schedule(req).await
+    }
+
+    #[custom_method(PauseScheduleRequest)]
+    async fn dispatch_pause_schedule(
+        &self,
+        req: PauseScheduleRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_pause_schedule(req).await
+    }
+
+    #[custom_method(UnpauseScheduleRequest)]
+    async fn dispatch_unpause_schedule(
+        &self,
+        req: UnpauseScheduleRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_unpause_schedule(req).await
+    }
+
+    #[custom_method(UpdateScheduleRequest)]
+    async fn dispatch_update_schedule(
+        &self,
+        req: UpdateScheduleRequest,
+    ) -> Result<UpdateScheduleResponse, agent_client_protocol::Error> {
+        self.on_update_schedule(req).await
+    }
+
+    #[custom_method(RunScheduleNowRequest)]
+    async fn dispatch_run_schedule_now(
+        &self,
+        req: RunScheduleNowRequest,
+    ) -> Result<RunScheduleNowResponse, agent_client_protocol::Error> {
+        self.on_run_schedule_now(req).await
+    }
+
+    #[custom_method(KillRunningJobRequest)]
+    async fn dispatch_kill_running_job(
+        &self,
+        req: KillRunningJobRequest,
+    ) -> Result<KillRunningJobResponse, agent_client_protocol::Error> {
+        self.on_kill_running_job(req).await
+    }
+
+    #[custom_method(InspectRunningJobRequest)]
+    async fn dispatch_inspect_running_job(
+        &self,
+        req: InspectRunningJobRequest,
+    ) -> Result<InspectRunningJobResponse, agent_client_protocol::Error> {
+        self.on_inspect_running_job(req).await
+    }
+
     #[custom_method(GetSessionInfoRequest)]
     async fn dispatch_get_session_info(
         &self,
@@ -478,6 +558,22 @@ impl GooseAcpAgent {
         req: ListSourcesRequest,
     ) -> Result<ListSourcesResponse, agent_client_protocol::Error> {
         self.on_list_sources(req).await
+    }
+
+    #[custom_method(ListAgentMentionsRequest)]
+    async fn dispatch_list_agent_mentions(
+        &self,
+        req: ListAgentMentionsRequest,
+    ) -> Result<ListAgentMentionsResponse, agent_client_protocol::Error> {
+        self.on_list_agent_mentions(req).await
+    }
+
+    #[custom_method(ListSlashCommandsRequest)]
+    async fn dispatch_list_slash_commands(
+        &self,
+        req: ListSlashCommandsRequest,
+    ) -> Result<ListSlashCommandsResponse, agent_client_protocol::Error> {
+        self.on_list_slash_commands(req).await
     }
 
     #[custom_method(UpdateSourceRequest)]

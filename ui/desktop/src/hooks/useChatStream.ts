@@ -1180,6 +1180,7 @@ export function useChatStream({
     tokenState: state.tokenState,
     notifications: notificationsMap,
     pauseQueueOnStop: false,
+    queueProcessingBlocked: false,
     onMessageUpdate,
   };
 }

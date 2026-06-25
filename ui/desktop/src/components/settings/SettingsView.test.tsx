@@ -34,20 +34,8 @@ vi.mock('./chat/ChatSettingsSection', () => ({
   default: () => <div>Chat section</div>,
 }));
 
-vi.mock('./sessions/SessionSharingSection', () => ({
-  default: () => <div>Session sharing section</div>,
-}));
-
 vi.mock('./app/ExternalBackendSection', () => ({
   default: () => <div>External backend section</div>,
-}));
-
-vi.mock('./tunnel/TunnelSection', () => ({
-  default: () => <div>Tunnel section</div>,
-}));
-
-vi.mock('./gateways/GatewaySettingsSection', () => ({
-  default: () => <div>Gateway settings section</div>,
 }));
 
 vi.mock('./PromptsSettingsSection', () => ({

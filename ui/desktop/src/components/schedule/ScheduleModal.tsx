@@ -1,8 +1,8 @@
 import React, { useState, useEffect, FormEvent, useCallback } from 'react';
+import type { ScheduledJobDto } from '@aaif/goose-sdk';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
-import { ScheduledJob } from '../../schedule';
 import { CronPicker } from './CronPicker';
 import { Recipe, parseDeeplink, parseRecipeFromFile } from '../../recipe';
 import { getStorageDirectory } from '../../recipe/recipe_management';
@@ -47,7 +47,7 @@ interface ScheduleModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSubmit: (payload: NewSchedulePayload | string) => Promise<void>;
-  schedule: ScheduledJob | null;
+  schedule: ScheduledJobDto | null;
   isLoadingExternally: boolean;
   apiErrorExternally: string | null;
   initialDeepLink: string | null;

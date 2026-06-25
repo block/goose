@@ -15,6 +15,7 @@ export interface UseChatSessionResult {
   setChatState: (state: ChatState) => void;
   updateSession: (updater: (session: Session) => Session) => void;
   handleSubmit: (input: UserInput) => Promise<void>;
+  onSteerQueuedMessage?: (input: UserInput) => Promise<boolean>;
   submitElicitationResponse: (
     elicitationId: string,
     userData: Record<string, unknown>
@@ -25,6 +26,7 @@ export interface UseChatSessionResult {
   tokenState: TokenState;
   notifications: Map<string, NotificationEvent[]>;
   pauseQueueOnStop: boolean;
+  queueProcessingBlocked: boolean;
   onMessageUpdate: (
     messageId: string,
     newContent: string,

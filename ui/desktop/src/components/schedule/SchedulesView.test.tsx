@@ -10,15 +10,15 @@ vi.mock('react-router-dom', () => ({
   useLocation: () => ({ state: null }),
 }));
 
-vi.mock('../../schedule', () => ({
-  listSchedules: vi.fn().mockResolvedValue([]),
-  createSchedule: vi.fn(),
-  deleteSchedule: vi.fn(),
-  pauseSchedule: vi.fn(),
-  unpauseSchedule: vi.fn(),
-  updateSchedule: vi.fn(),
-  killRunningJob: vi.fn(),
-  inspectRunningJob: vi.fn(),
+vi.mock('../../acp/schedules', () => ({
+  acpListSchedules: vi.fn().mockResolvedValue([]),
+  acpCreateSchedule: vi.fn(),
+  acpDeleteSchedule: vi.fn(),
+  acpPauseSchedule: vi.fn(),
+  acpUnpauseSchedule: vi.fn(),
+  acpUpdateSchedule: vi.fn(),
+  acpKillRunningJob: vi.fn(),
+  acpInspectRunningJob: vi.fn(),
 }));
 
 vi.mock('../Layout/MainPanelLayout', () => ({
