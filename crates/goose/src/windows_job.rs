@@ -16,9 +16,8 @@ mod windows_impl {
 
     use winapi::shared::minwindef::FALSE;
     use winapi::um::handleapi::CloseHandle;
-    use winapi::um::jobapi2::{AssignProcessToJobObject, CreateJobObjectW};
+    use winapi::um::jobapi2::{AssignProcessToJobObject, CreateJobObjectW, SetInformationJobObject};
     use winapi::um::processthreadsapi::OpenProcess;
-    use winapi::um::winbase::SetInformationJobObject;
     use winapi::um::winnt::{
         JobObjectExtendedLimitInformation, HANDLE, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
         JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE, PROCESS_SET_QUOTA, PROCESS_TERMINATE,

@@ -3,3 +3,23 @@ packages:
   - 'text'
   - 'desktop'
   - 'goose-binary/*'
+
+onlyBuiltDependencies:
+  - '@modelcontextprotocol/ext-apps'
+  - electron
+  - electron-winstaller
+  - esbuild
+
+overrides:
+  react: ^19.2.4
+  react-dom: ^19.2.4
+
+blockExoticSubdeps: false
+
+nodeLinker: hoisted
+
+allowBuilds:
+  '@modelcontextprotocol/ext-apps': true
+  electron: true
+  electron-winstaller: true
+  esbuild: true
