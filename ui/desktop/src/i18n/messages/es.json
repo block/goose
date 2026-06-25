@@ -3689,30 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Ver el JSON de la sesión"
   },
-  "sessionHistory.empty.description": {
-    "defaultMessage": "Esta sesión no contiene ningún mensaje"
-  },
-  "sessionHistory.empty.title": {
-    "defaultMessage": "No se encontraron mensajes"
-  },
-  "sessionHistory.error.loading": {
-    "defaultMessage": "Error al cargar los detalles de la sesión"
-  },
-  "sessionHistory.error.tryAgain": {
-    "defaultMessage": "Reintentar"
-  },
-  "sessionHistory.loading": {
-    "defaultMessage": "Cargando detalles de la sesión..."
-  },
-  "sessionHistory.resume": {
-    "defaultMessage": "Reanudar"
-  },
-  "sessionHistory.searchPlaceholder": {
-    "defaultMessage": "Buscar en el historial..."
-  },
-  "sessionHistory.toast.launchFailed": {
-    "defaultMessage": "No se pudo abrir la sesión: {error}"
-  },
   "sessionIndicators.error": {
     "defaultMessage": "La sesión encontró un error"
   },
@@ -3871,12 +3847,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "Descripción de la sesión actualizada correctamente"
-  },
-  "sessionsView.error.failedToLoad": {
-    "defaultMessage": "No se pudieron cargar los detalles de la sesión. Inténtalo de nuevo más tarde."
-  },
-  "sessionsView.loading": {
-    "defaultMessage": "Cargando..."
   },
   "settings.appearance.description": {
     "defaultMessage": "Configura cómo se ve goose en tu sistema"

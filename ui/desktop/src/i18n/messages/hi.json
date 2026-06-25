@@ -3689,30 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"
   },
-  "sessionHistory.empty.description": {
-    "defaultMessage": "इस सत्र में कोई संदेश नहीं है"
-  },
-  "sessionHistory.empty.title": {
-    "defaultMessage": "कोई संदेश नहीं मिला"
-  },
-  "sessionHistory.error.loading": {
-    "defaultMessage": "सत्र विवरण लोड करने में त्रुटि"
-  },
-  "sessionHistory.error.tryAgain": {
-    "defaultMessage": "पुनः प्रयास करें"
-  },
-  "sessionHistory.loading": {
-    "defaultMessage": "सत्र विवरण लोड हो रहा है..."
-  },
-  "sessionHistory.resume": {
-    "defaultMessage": "बायोडाटा"
-  },
-  "sessionHistory.searchPlaceholder": {
-    "defaultMessage": "खोज इतिहास..."
-  },
-  "sessionHistory.toast.launchFailed": {
-    "defaultMessage": "सत्र लॉन्च नहीं किया जा सका: {error}"
-  },
   "sessionIndicators.error": {
     "defaultMessage": "सत्र में एक त्रुटि आई"
   },
@@ -3871,12 +3847,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "सत्र विवरण सफलतापूर्वक अपडेट किया गया"
-  },
-  "sessionsView.error.failedToLoad": {
-    "defaultMessage": "सत्र विवरण लोड करने में विफल. कृपया बाद में पुन: प्रयास करें।"
-  },
-  "sessionsView.loading": {
-    "defaultMessage": "लोड हो रहा है..."
   },
   "settings.appearance.description": {
     "defaultMessage": "कॉन्फ़िगर करें कि goose आपके सिस्टम पर कैसे दिखाई देता है"

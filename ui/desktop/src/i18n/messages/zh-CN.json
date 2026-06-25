@@ -3689,30 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"
   },
-  "sessionHistory.empty.description": {
-    "defaultMessage": "此会话不包含任何消息"
-  },
-  "sessionHistory.empty.title": {
-    "defaultMessage": "未找到消息"
-  },
-  "sessionHistory.error.loading": {
-    "defaultMessage": "加载会话详情出错"
-  },
-  "sessionHistory.error.tryAgain": {
-    "defaultMessage": "重试"
-  },
-  "sessionHistory.loading": {
-    "defaultMessage": "正在加载会话详情…"
-  },
-  "sessionHistory.resume": {
-    "defaultMessage": "恢复"
-  },
-  "sessionHistory.searchPlaceholder": {
-    "defaultMessage": "搜索历史…"
-  },
-  "sessionHistory.toast.launchFailed": {
-    "defaultMessage": "无法启动会话：{error}"
-  },
   "sessionIndicators.error": {
     "defaultMessage": "会话发生错误"
   },
@@ -3871,12 +3847,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "会话描述更新成功"
-  },
-  "sessionsView.error.failedToLoad": {
-    "defaultMessage": "加载会话详情失败，请稍后重试。"
-  },
-  "sessionsView.loading": {
-    "defaultMessage": "加载中…"
   },
   "settings.appearance.description": {
     "defaultMessage": "配置 goose 在你系统中的外观"

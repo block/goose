@@ -3689,30 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"
   },
-  "sessionHistory.empty.description": {
-    "defaultMessage": "This session doesn't contain any messages"
-  },
-  "sessionHistory.empty.title": {
-    "defaultMessage": "No messages found"
-  },
-  "sessionHistory.error.loading": {
-    "defaultMessage": "Error Loading Session Details"
-  },
-  "sessionHistory.error.tryAgain": {
-    "defaultMessage": "Try Again"
-  },
-  "sessionHistory.loading": {
-    "defaultMessage": "Loading session details..."
-  },
-  "sessionHistory.resume": {
-    "defaultMessage": "Resume"
-  },
-  "sessionHistory.searchPlaceholder": {
-    "defaultMessage": "Search history..."
-  },
-  "sessionHistory.toast.launchFailed": {
-    "defaultMessage": "Could not launch session: {error}"
-  },
   "sessionIndicators.error": {
     "defaultMessage": "Session encountered an error"
   },
@@ -3871,12 +3847,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "Session description updated successfully"
-  },
-  "sessionsView.error.failedToLoad": {
-    "defaultMessage": "Failed to load session details. Please try again later."
-  },
-  "sessionsView.loading": {
-    "defaultMessage": "Loading..."
   },
   "settings.appearance.description": {
     "defaultMessage": "Configure how goose appears on your system"

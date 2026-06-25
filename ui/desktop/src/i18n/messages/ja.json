@@ -3689,30 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "セッションJSONを表示"
   },
-  "sessionHistory.empty.description": {
-    "defaultMessage": "このセッションにはメッセージがありません"
-  },
-  "sessionHistory.empty.title": {
-    "defaultMessage": "メッセージが見つかりません"
-  },
-  "sessionHistory.error.loading": {
-    "defaultMessage": "セッション詳細の読み込みエラー"
-  },
-  "sessionHistory.error.tryAgain": {
-    "defaultMessage": "再試行"
-  },
-  "sessionHistory.loading": {
-    "defaultMessage": "セッション詳細を読み込み中..."
-  },
-  "sessionHistory.resume": {
-    "defaultMessage": "再開"
-  },
-  "sessionHistory.searchPlaceholder": {
-    "defaultMessage": "履歴を検索..."
-  },
-  "sessionHistory.toast.launchFailed": {
-    "defaultMessage": "セッションを起動できませんでした: {error}"
-  },
   "sessionIndicators.error": {
     "defaultMessage": "セッションでエラーが発生しました"
   },
@@ -3871,12 +3847,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "セッションの説明を更新しました"
-  },
-  "sessionsView.error.failedToLoad": {
-    "defaultMessage": "セッションの詳細を読み込めませんでした。後でもう一度お試しください。"
-  },
-  "sessionsView.loading": {
-    "defaultMessage": "読み込み中..."
   },
   "settings.appearance.description": {
     "defaultMessage": "システム上でのgooseの表示を設定します"
