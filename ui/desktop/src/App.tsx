@@ -396,7 +396,7 @@ export function AppInner() {
   useEffect(() => {
     const handleOpenSessionShare = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const link = args[0] as string;
-      window.electron.logInfo(`Opening session deep link ${link}`);
+      window.electron.logInfo('Opening session share link');
       try {
         if (link.startsWith('goose://sessions/nostr')) {
           await importNostrSessionFromDeepLink(link);
