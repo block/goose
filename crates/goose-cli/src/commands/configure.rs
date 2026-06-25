@@ -367,48 +367,125 @@ async fn handle_oauth_configuration(provider_name: &str, key_name: &str) -> anyh
 
 const UNLISTED_MODEL_KEY: &str = "__unlisted__";
 
-/// Searchable model menu. Shows the list immediately so it can be navigated with
-/// the arrow keys and selected without typing, with cliclack's inline filter
-/// (type to fuzzy-match) and a scrolling viewport so a long catalog stays usable.
-/// Shared by the per-provider configure flow and the cross-provider bare-`/model`
-/// picker (which passes `provider_meta: None`, so there is no "unlisted" entry).
-/// Esc cancels via `io::ErrorKind::Interrupted`, which callers catch to return
-/// to their prompt rather than aborting.
+const SEARCH_KEY: &str = "__search__";
+const CLEAR_FILTER_KEY: &str = "__clear_filter__";
+
+/// Searchable model menu. Shows the list immediately (arrow-navigable and
+/// selectable without typing) in a scrolling viewport, plus an explicit "Search"
+/// item that opens a filter prompt. Deliberately avoids cliclack's `filter_mode`,
+/// whose scroll offset is shared with the filtered list and is not reset when the
+/// list shrinks, which can render an empty window while Enter still selects an
+/// off-screen row. Shared by the per-provider configure flow and the
+/// cross-provider bare-`/model` picker (`provider_meta: None` means no "unlisted"
+/// entry). Esc cancels via `io::ErrorKind::Interrupted`, which callers catch.
 pub(crate) fn interactive_model_search(
     models: &[String],
     provider_meta: Option<&goose::providers::base::ProviderMetadata>,
 ) -> anyhow::Result<String> {
-    const MAX_VISIBLE: usize = 12;
+    const MAX_VISIBLE: usize = 15;
 
     if models.is_empty() && provider_meta.is_none() {
         anyhow::bail!("No models to choose from");
     }
 
-    let mut items: Vec<(String, String, &str)> =
-        models.iter().map(|m| (m.clone(), m.clone(), "")).collect();
-    if provider_meta.is_some() {
+    let mut query = String::new();
+    loop {
+        let filtered: Vec<&String> = if query.is_empty() {
+            models.iter().collect()
+        } else {
+            let q = query.to_lowercase();
+            models
+                .iter()
+                .filter(|m| m.to_lowercase().contains(&q))
+                .collect()
+        };
+
+        if filtered.is_empty() {
+            let _ = cliclack::log::warning(format!("No models match \"{query}\"."));
+            let mut items: Vec<(String, String, &str)> =
+                vec![(SEARCH_KEY.to_string(), "🔍 Search again…".to_string(), "")];
+            if provider_meta.is_some() {
+                items.push((
+                    UNLISTED_MODEL_KEY.to_string(),
+                    "Enter a model not listed…".to_string(),
+                    "",
+                ));
+            }
+            let selection = cliclack::select("No matching models:")
+                .items(&items)
+                .interact()?;
+            if selection == UNLISTED_MODEL_KEY {
+                if let Some(meta) = provider_meta {
+                    return prompt_unlisted_model(meta);
+                }
+            }
+            query = prompt_model_filter(&query)?;
+            continue;
+        }
+
+        let prompt = if query.is_empty() {
+            format!("Select a model ({} available):", models.len())
+        } else {
+            format!(
+                "Select a model ({}/{} match \"{}\"):",
+                filtered.len(),
+                models.len(),
+                query
+            )
+        };
+
+        let mut items: Vec<(String, String, &str)> = Vec::with_capacity(filtered.len() + 3);
         items.push((
-            UNLISTED_MODEL_KEY.to_string(),
-            "Enter a model not listed…".to_string(),
-            "",
+            SEARCH_KEY.to_string(),
+            if query.is_empty() {
+                "🔍 Search by name…".to_string()
+            } else {
+                format!("🔍 Search (current: \"{query}\")")
+            },
+            "filter the list",
         ));
-    }
+        if !query.is_empty() {
+            items.push((
+                CLEAR_FILTER_KEY.to_string(),
+                "↺ Clear filter".to_string(),
+                "",
+            ));
+        }
+        for m in &filtered {
+            items.push(((*m).clone(), (*m).clone(), ""));
+        }
+        if provider_meta.is_some() {
+            items.push((
+                UNLISTED_MODEL_KEY.to_string(),
+                "Enter a model not listed…".to_string(),
+                "",
+            ));
+        }
 
-    let selection = cliclack::select(format!(
-        "Select a model ({} available, type to filter):",
-        models.len()
-    ))
-    .items(&items)
-    .filter_mode()
-    .max_rows(MAX_VISIBLE)
-    .interact()?;
+        let selection = cliclack::select(prompt)
+            .items(&items)
+            .max_rows(MAX_VISIBLE)
+            .interact()?;
 
-    if selection == UNLISTED_MODEL_KEY {
-        if let Some(meta) = provider_meta {
-            return prompt_unlisted_model(meta);
+        match selection.as_str() {
+            SEARCH_KEY => query = prompt_model_filter(&query)?,
+            CLEAR_FILTER_KEY => query.clear(),
+            UNLISTED_MODEL_KEY => {
+                if let Some(meta) = provider_meta {
+                    return prompt_unlisted_model(meta);
+                }
+            }
+            _ => return Ok(selection),
         }
     }
-    Ok(selection)
+}
+
+fn prompt_model_filter(current: &str) -> anyhow::Result<String> {
+    let input: String = cliclack::input("Filter by name (Enter to apply, Esc to cancel)")
+        .placeholder("e.g. kimi, gpt, sonnet, llama")
+        .default_input(current)
+        .interact()?;
+    Ok(input.trim().to_string())
 }
 
 fn select_model_from_list(
