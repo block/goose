@@ -14,7 +14,9 @@ use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use futures::{StreamExt, TryStreamExt};
 use goose_providers::errors::ProviderError;
-use goose_providers::formats::openai_responses::responses_api_to_streaming_message;
+use goose_providers::formats::openai_responses::{
+    openai_sse_lines_codec, responses_api_to_streaming_message,
+};
 use goose_providers::model::ModelConfig;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
@@ -30,7 +32,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, LazyLock};
 use tokio::pin;
 use tokio::sync::{oneshot, Mutex as TokioMutex};
-use tokio_util::codec::{FramedRead, LinesCodec};
+use tokio_util::codec::FramedRead;
 use tokio_util::io::StreamReader;
 
 const CLIENT_ID: &str = "app_EMoamEEZ73f0CkXaXp7hrann";
@@ -1008,7 +1010,7 @@ impl Provider for ChatGptCodexProvider {
 
         Ok(Box::pin(try_stream! {
             let stream_reader = StreamReader::new(stream);
-            let framed = FramedRead::new(stream_reader, LinesCodec::new()).map_err(anyhow::Error::from);
+            let framed = FramedRead::new(stream_reader, openai_sse_lines_codec()).map_err(anyhow::Error::from);
 
             let message_stream = responses_api_to_streaming_message(framed);
             pin!(message_stream);

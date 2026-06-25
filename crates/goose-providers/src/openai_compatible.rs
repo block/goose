@@ -9,7 +9,7 @@ use reqwest::StatusCode;
 use serde_json::Value;
 use tokio::pin;
 use tokio_stream::StreamExt;
-use tokio_util::codec::{FramedRead, LinesCodec};
+use tokio_util::codec::FramedRead;
 use tokio_util::io::StreamReader;
 
 use super::api_client::ApiClient;
@@ -20,7 +20,9 @@ use crate::errors::ProviderError;
 use crate::formats::openai::{
     create_request, get_usage, response_to_message, response_to_streaming_message,
 };
-use crate::formats::openai_responses::responses_api_to_streaming_message;
+use crate::formats::openai_responses::{
+    openai_sse_lines_codec, responses_api_to_streaming_message,
+};
 use crate::model::ModelConfig;
 use crate::request_log::{start_log, LoggerHandleExt, RequestLogHandle};
 use rmcp::model::Tool;
@@ -174,7 +176,7 @@ pub fn stream_openai_compat(
 
     Ok(Box::pin(try_stream! {
         let stream_reader = StreamReader::new(stream);
-        let framed = FramedRead::new(stream_reader, LinesCodec::new())
+        let framed = FramedRead::new(stream_reader, openai_sse_lines_codec())
             .map_err(Error::from);
 
         let message_stream = response_to_streaming_message(framed);
@@ -198,7 +200,7 @@ pub fn stream_responses_compat(
 
     Ok(Box::pin(try_stream! {
         let stream_reader = StreamReader::new(stream);
-        let framed = FramedRead::new(stream_reader, LinesCodec::new())
+        let framed = FramedRead::new(stream_reader, openai_sse_lines_codec())
             .map_err(Error::from);
 
         let message_stream = responses_api_to_streaming_message(framed);

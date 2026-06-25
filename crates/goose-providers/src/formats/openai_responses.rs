@@ -14,6 +14,7 @@ use rmcp::model::{object, CallToolRequestParams, RawContent, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::ops::Deref;
+use tokio_util::codec::LinesCodec;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ResponsesApiResponse {
@@ -250,6 +251,14 @@ pub enum ResponsesStreamEvent {
     },
 }
 
+/// Responses API `response.completed` events can embed large nested payloads (e.g. long
+/// agent instructions). The default `LinesCodec` limit is 8 KiB, which is too small.
+pub const RESPONSES_SSE_MAX_LINE_LENGTH: usize = 1024 * 1024;
+
+pub fn openai_sse_lines_codec() -> LinesCodec {
+    LinesCodec::new_with_max_length(RESPONSES_SSE_MAX_LINE_LENGTH)
+}
+
 fn is_known_responses_stream_event_type(event_type: &str) -> bool {
     matches!(
         event_type,
@@ -270,6 +279,81 @@ fn is_known_responses_stream_event_type(event_type: &str) -> bool {
             | "error"
             | "keepalive"
     )
+}
+
+fn strip_responses_sse_data_line(response_str: &str) -> Option<&str> {
+    if response_str.trim().is_empty() || response_str.starts_with(':') {
+        return None;
+    }
+    if response_str.starts_with("event: ") || response_str.starts_with("event:") {
+        return None;
+    }
+
+    // SSE spec allows both "data: value" and "data:value" (space after colon is optional)
+    if let Some(data_line) = response_str.strip_prefix("data: ") {
+        Some(data_line)
+    } else if let Some(data_line) = response_str.strip_prefix("data:") {
+        Some(data_line)
+    } else {
+        Some(response_str)
+    }
+}
+
+fn is_incomplete_responses_stream_payload(err: &anyhow::Error) -> bool {
+    if err
+        .downcast_ref::<serde_json::Error>()
+        .is_some_and(|e| e.is_eof())
+    {
+        return true;
+    }
+
+    err.chain().any(|cause| {
+        cause
+            .downcast_ref::<serde_json::Error>()
+            .is_some_and(|e| e.is_eof())
+    }) || err.to_string().contains("EOF while parsing")
+}
+
+fn is_ignorable_interleaved_responses_event(event: &ResponsesStreamEvent) -> bool {
+    matches!(event, ResponsesStreamEvent::Keepalive { .. })
+}
+
+fn parse_buffered_responses_stream_event(
+    pending: &mut String,
+    data_line: &str,
+) -> anyhow::Result<Option<Option<ResponsesStreamEvent>>> {
+    if !pending.is_empty() {
+        if let Ok(Some(event)) = parse_responses_stream_event(data_line) {
+            if is_ignorable_interleaved_responses_event(&event) {
+                return Ok(Some(None));
+            }
+            return Err(ProviderError::stream_decode_error(format!(
+                "Failed to parse Responses stream event: incomplete SSE data payload before new event: {:?}",
+                pending
+            ))
+            .into());
+        }
+    }
+
+    if !data_line.is_empty() {
+        if pending.len() + data_line.len() > RESPONSES_SSE_MAX_LINE_LENGTH {
+            return Err(ProviderError::stream_decode_error(format!(
+                "Responses SSE data payload exceeds {} bytes",
+                RESPONSES_SSE_MAX_LINE_LENGTH
+            ))
+            .into());
+        }
+        pending.push_str(data_line);
+    }
+
+    match parse_responses_stream_event(pending) {
+        Ok(event) => {
+            pending.clear();
+            Ok(Some(event))
+        }
+        Err(err) if is_incomplete_responses_stream_payload(&err) => Ok(None),
+        Err(err) => Err(err),
+    }
 }
 
 fn parse_responses_stream_event(data_line: &str) -> anyhow::Result<Option<ResponsesStreamEvent>> {
@@ -804,38 +888,31 @@ where
         let mut final_usage: Option<ProviderUsage> = None;
         let mut output_items: Vec<ResponseOutputItemInfo> = Vec::new();
         let mut is_text_response = false;
+        let mut pending_data_line = String::new();
 
         'outer: while let Some(response) = stream.next().await {
             let response_str = response?;
 
-            // Skip empty lines
-            if response_str.trim().is_empty() {
+            let Some(data_line) = strip_responses_sse_data_line(&response_str) else {
                 continue;
-            }
-            if response_str.starts_with(':') {
-                continue;
-            }
-
-            // Parse SSE format: "event: <type>\ndata: <json>"
-            // For now, we only care about the data line
-            // SSE spec allows both "data: value" and "data:value" (space after colon is optional)
-            let data_line = if response_str.starts_with("data: ") {
-                response_str.strip_prefix("data: ").unwrap()
-            } else if response_str.starts_with("data:") {
-                response_str.strip_prefix("data:").unwrap()
-            } else if response_str.starts_with("event: ") || response_str.starts_with("event:") {
-                // Skip event type lines
-                continue;
-            } else {
-                // Try to parse as-is when there's no prefix
-                &response_str
             };
 
             if data_line == "[DONE]" {
+                if !pending_data_line.is_empty() {
+                    Err::<(), ProviderError>(ProviderError::stream_decode_error(format!(
+                        "Failed to parse Responses stream event: incomplete SSE data payload: {:?}",
+                        pending_data_line
+                    )))?;
+                }
                 break 'outer;
             }
 
-            let Some(event) = parse_responses_stream_event(data_line)? else {
+            let Some(maybe_event) = parse_buffered_responses_stream_event(&mut pending_data_line, data_line)?
+            else {
+                continue;
+            };
+
+            let Some(event) = maybe_event else {
                 continue;
             };
 
@@ -941,6 +1018,13 @@ where
                     // Ignore other event types (OutputItemAdded, ContentPartAdded, ContentPartDone)
                 }
             }
+        }
+
+        if !pending_data_line.is_empty() {
+            Err::<(), ProviderError>(ProviderError::stream_decode_error(format!(
+                "Failed to parse Responses stream event: incomplete SSE data payload: {:?}",
+                pending_data_line
+            )))?;
         }
 
         // Process final output items and yield usage data
@@ -1162,6 +1246,138 @@ mod tests {
         );
         assert_eq!(thinking_parts.join(""), "Let me think step by step.");
         assert!(text_parts.concat().contains("Paris."));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_rejects_invalid_json_without_buffering() -> anyhow::Result<()> {
+        let lines = vec![
+            "data: {\"type\":\"response.completed\",\"response\": {".to_string(),
+            "data: [DONE]".to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let result = messages.next().await.expect("stream should emit an error");
+        assert!(result.is_err());
+        assert!(result
+            .expect_err("expected error")
+            .to_string()
+            .contains("incomplete SSE data payload"));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_ignores_keepalive_while_assembling_payload() -> anyhow::Result<()> {
+        let response_body = serde_json::json!({
+            "id": "resp_keepalive",
+            "object": "response",
+            "created_at": 1737368310,
+            "status": "completed",
+            "model": "gpt-5.2-pro",
+            "output": [],
+        });
+        let completed_event = serde_json::json!({
+            "type": "response.completed",
+            "sequence_number": 2,
+            "response": response_body,
+        });
+        let completed_json = serde_json::to_string(&completed_event)?;
+        let split_at = completed_json.find("\"model\"").expect("model field present");
+        let (first, second) = completed_json.split_at(split_at);
+
+        let lines = vec![
+            format!("data: {first}"),
+            r#"data: {"type":"keepalive"}"#.to_string(),
+            format!("data: {second}"),
+            "data: [DONE]".to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        while let Some(item) = messages.next().await {
+            item?;
+        }
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_openai_sse_lines_codec_accepts_large_single_line_payload() -> anyhow::Result<()> {
+        use futures::StreamExt;
+        use tokio_util::bytes::Bytes;
+        use tokio_util::codec::FramedRead;
+
+        let padding = "x".repeat(9000);
+        let payload = format!(
+            r#"{{"type":"response.output_text.delta","sequence_number":1,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"{padding}"}}"#
+        );
+        let sse_line = format!("data: {payload}\n");
+        let reader = tokio_util::io::StreamReader::new(futures::stream::iter(vec![Ok::<_, std::io::Error>(
+            Bytes::from(sse_line),
+        )]));
+        let mut framed = FramedRead::new(reader, openai_sse_lines_codec());
+        let line: String = framed
+            .next()
+            .await
+            .expect("line should decode")
+            .expect("codec should succeed");
+        assert!(line.contains(&padding));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_assembles_multiline_sse_data_payload() -> anyhow::Result<()> {
+        let response_body = serde_json::json!({
+            "id": "resp_split",
+            "object": "response",
+            "created_at": 1737368310,
+            "status": "completed",
+            "model": "gpt-5.2-pro",
+            "output": [],
+            "usage": {
+                "input_tokens": 10,
+                "output_tokens": 4,
+                "total_tokens": 14
+            }
+        });
+        let completed_event = serde_json::json!({
+            "type": "response.completed",
+            "sequence_number": 2,
+            "response": response_body,
+        });
+        let completed_json = serde_json::to_string(&completed_event)?;
+        let split_at = completed_json.find("\"status\"").expect("status field present");
+        let (first, second) = completed_json.split_at(split_at);
+
+        let lines = vec![
+            format!("data: {first}"),
+            format!("data: {second}"),
+            "data: [DONE]".to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let mut usage: Option<ProviderUsage> = None;
+        while let Some(item) = messages.next().await {
+            let (_, maybe_usage) = item?;
+            if let Some(final_usage) = maybe_usage {
+                usage = Some(final_usage);
+            }
+        }
+
+        let usage = usage.expect("usage should be present after split payload");
+        assert_eq!(usage.model, "gpt-5.2-pro");
+        assert_eq!(usage.usage.total_tokens, Some(14));
 
         Ok(())
     }
