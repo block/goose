@@ -8,36 +8,41 @@ use tokio::time::timeout;
 
 const PROVIDER_TEST_TIMEOUT: Duration = Duration::from_secs(60);
 
-pub fn toolshim_settings_from_env() -> (bool, Option<String>) {
+pub fn toolshim_settings_from_env() -> (Option<bool>, Option<String>) {
     let toolshim_enabled = std::env::var("GOOSE_TOOLSHIM")
         .map(|val| val == "1" || val.to_lowercase() == "true")
-        .unwrap_or(false);
+        .ok();
     let toolshim_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
     (toolshim_enabled, toolshim_model)
 }
 
 pub async fn test_provider_model(provider_name: &str, model: &str) -> Result<()> {
-    let (toolshim_enabled, toolshim_model) = toolshim_settings_from_env();
-    test_provider_configuration(provider_name, model, toolshim_enabled, toolshim_model).await
+    test_provider_configuration(provider_name, model, None, None).await
 }
 
 pub async fn test_provider_configuration(
     provider_name: &str,
     model: &str,
-    toolshim_enabled: bool,
+    toolshim_enabled: Option<bool>,
     toolshim_model: Option<String>,
 ) -> Result<()> {
-    let model_config = crate::model_config::model_config_from_user_config(provider_name, model)?
-        .with_max_tokens(Some(50))
-        .with_toolshim(toolshim_enabled)
-        .with_toolshim_model(toolshim_model);
+    let mut model_config =
+        crate::model_config::model_config_from_user_config(provider_name, model)?
+            .with_max_tokens(Some(50));
+
+    if let Some(toolshim_enabled) = toolshim_enabled {
+        model_config = model_config.with_toolshim(toolshim_enabled);
+    }
+    if toolshim_model.is_some() {
+        model_config = model_config.with_toolshim_model(toolshim_model);
+    }
 
     let provider = create(provider_name, Vec::new()).await?;
 
     let messages =
         vec![Message::user().with_text("What is the weather like in San Francisco today?")];
 
-    let tools = if !toolshim_enabled {
+    let tools = if !model_config.toolshim {
         vec![create_sample_weather_tool()]
     } else {
         vec![]

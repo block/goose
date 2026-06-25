@@ -251,18 +251,11 @@ impl BedrockProvider {
             return false;
         }
 
-        let has_text_input = summary
-            .input_modalities()
-            .iter()
-            .any(|modality| *modality == ModelModality::Text);
-        let has_text_output = summary
-            .output_modalities()
-            .iter()
-            .any(|modality| *modality == ModelModality::Text);
+        let has_text_input = summary.input_modalities().contains(&ModelModality::Text);
+        let has_text_output = summary.output_modalities().contains(&ModelModality::Text);
         let has_embedding_output = summary
             .output_modalities()
-            .iter()
-            .any(|modality| *modality == ModelModality::Embedding);
+            .contains(&ModelModality::Embedding);
         let streaming = summary.response_streaming_supported().unwrap_or(false);
         let not_legacy = summary
             .model_lifecycle()
@@ -1310,7 +1303,16 @@ mod tests {
             .region(aws_config::Region::new("us-east-1"))
             .build();
 
-        let model = ModelConfig::new("openai.gpt-5.5").unwrap();
+        let model = ModelConfig {
+            model_name: "openai.gpt-5.5".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            request_params: None,
+            reasoning: None,
+        };
         let provider = BedrockProvider {
             client: BedrockRuntimeClient::new(&sdk_config),
             control_plane_client: BedrockControlClient::new(&sdk_config),
@@ -1762,7 +1764,7 @@ mod tests {
 
     #[test]
     fn test_skip_canonical_filtering_enabled() {
-        let provider = create_mock_provider("test");
+        let (provider, _) = create_mock_provider_and_model("test");
         assert!(provider.skip_canonical_filtering());
     }
 
