@@ -257,6 +257,21 @@ fn meta_string(
     Ok(Some(value.to_string()))
 }
 
+fn agent_capabilities_meta() -> Option<Meta> {
+    let mut goose = serde_json::Map::new();
+    if cfg!(feature = "local-inference") {
+        goose.insert("localInference".to_string(), serde_json::json!({}));
+    }
+
+    if goose.is_empty() {
+        return None;
+    }
+
+    let mut meta = serde_json::Map::new();
+    meta.insert("goose".to_string(), serde_json::Value::Object(goose));
+    Some(meta)
+}
+
 fn spawn_session_name_update_notifier(
     cx: ConnectionTo<Client>,
 ) -> tokio::sync::mpsc::UnboundedSender<crate::session::SessionNameUpdate> {
@@ -2206,7 +2221,8 @@ impl GooseAcpAgent {
                     .audio(false)
                     .embedded_context(true),
             )
-            .mcp_capabilities(McpCapabilities::new().http(true));
+            .mcp_capabilities(McpCapabilities::new().http(true))
+            .meta(agent_capabilities_meta());
         Ok(InitializeResponse::new(args.protocol_version)
             .agent_info(Implementation::new("goose", env!("CARGO_PKG_VERSION")))
             .agent_capabilities(capabilities)

@@ -473,7 +473,6 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::telemetry::send_telemetry_event,
         super::routes::dictation::transcribe_dictation,
         super::routes::dictation::get_dictation_config,
-        super::routes::features::get_features,
     ),
     components(schemas(
         super::routes::config_management::UpsertConfigQuery,
@@ -654,7 +653,6 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::dictation::TranscribeResponse,
         goose::dictation::providers::DictationProvider,
         super::routes::dictation::DictationProviderStatus,
-        super::routes::features::FeaturesResponse,
         DownloadProgress,
         DownloadStatus,
     ))

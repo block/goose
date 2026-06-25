@@ -1703,26 +1703,6 @@
         }
       }
     },
-    "/features": {
-      "get": {
-        "tags": [
-          "super::routes::features"
-        ],
-        "operationId": "get_features",
-        "responses": {
-          "200": {
-            "description": "Compile-time feature flags",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeaturesResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/handle_nanogpt": {
       "post": {
         "tags": [
@@ -4982,21 +4962,6 @@
             "type": "array",
             "items": {
               "type": "string"
-            }
-          }
-        }
-      },
-      "FeaturesResponse": {
-        "type": "object",
-        "required": [
-          "features"
-        ],
-        "properties": {
-          "features": {
-            "type": "object",
-            "description": "Map of feature name to enabled status",
-            "additionalProperties": {
-              "type": "boolean"
             }
           }
         }
