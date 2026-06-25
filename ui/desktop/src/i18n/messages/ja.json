@@ -2351,6 +2351,9 @@
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "gooseサーバーに接続できません"
   },
+  "onboardingGuard.openSettings": {
+    "defaultMessage": "設定を開く"
+  },
   "onboardingGuard.retry": {
     "defaultMessage": "再試行"
   },

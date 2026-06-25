@@ -2351,6 +2351,9 @@
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "Goose 서버에 접속할 수 없습니다"
   },
+  "onboardingGuard.openSettings": {
+    "defaultMessage": "설정 열기"
+  },
   "onboardingGuard.retry": {
     "defaultMessage": "다시 시도"
   },

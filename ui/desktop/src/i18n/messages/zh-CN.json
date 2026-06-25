@@ -2351,6 +2351,9 @@
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "无法连接到 Goose 服务器"
   },
+  "onboardingGuard.openSettings": {
+    "defaultMessage": "打开设置"
+  },
   "onboardingGuard.retry": {
     "defaultMessage": "重试"
   },

@@ -2351,6 +2351,9 @@
   "onboardingGuard.checkProviderErrorTitle": {
     "defaultMessage": "Goose सर्वर से कनेक्ट करने में असमर्थ"
   },
+  "onboardingGuard.openSettings": {
+    "defaultMessage": "Settings खोलें"
+  },
   "onboardingGuard.retry": {
     "defaultMessage": "पुनः प्रयास करें"
   },
