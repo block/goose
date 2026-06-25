@@ -82,7 +82,6 @@ pub struct ProvidersResponse {
     pub providers: Vec<ProviderDetails>,
 }
 
-
 #[derive(Deserialize, ToSchema)]
 pub struct UpdateCustomProviderRequest {
     pub engine: String,
@@ -1127,7 +1126,6 @@ pub async fn get_canonical_model_info(
         source: "canonical".to_string(),
     })
 }
-
 
 #[utoipa::path(
     get,
