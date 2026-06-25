@@ -200,6 +200,10 @@ export type RemoveSessionExtensionRequest_unstable = {
  */
 export type GetToolsRequest_unstable = {
     sessionId: string;
+    /**
+     * Filter tools to those belonging to this extension.
+     */
+    extensionName?: string | null;
 };
 
 /**

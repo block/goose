@@ -167,7 +167,11 @@ export const zRemoveSessionExtensionRequest_unstable = z.object({
  * List all tools available in a session.
  */
 export const zGetToolsRequest_unstable = z.object({
-    sessionId: z.string()
+    sessionId: z.string(),
+    extensionName: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
 });
 
 /**

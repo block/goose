@@ -51,6 +51,9 @@ pub struct RemoveSessionExtensionRequest {
 #[serde(rename_all = "camelCase")]
 pub struct GetToolsRequest {
     pub session_id: String,
+    /// Filter tools to those belonging to this extension.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
 }
 
 /// Tools response.

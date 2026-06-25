@@ -1,4 +1,6 @@
 use super::*;
+use crate::agents::extension::ToolInfo;
+use crate::agents::extension_manager::get_parameter_names;
 use crate::agents::reply_parts::is_tool_visible_to_app;
 use crate::config::permission::PermissionLevel;
 use goose_sdk_types::custom_requests::ToolPermissionLevel;
@@ -11,13 +13,47 @@ impl GooseAcpAgent {
     ) -> Result<GetToolsResponse, agent_client_protocol::Error> {
         let session_id = &req.session_id;
         let agent = self.get_session_agent(&req.session_id).await?;
-        let tools = agent.list_tools(session_id, None).await;
-        let tools_json = tools
+        let goose_mode = agent.goose_mode().await;
+        let permission_manager = self.permission_manager();
+
+        let mut tools: Vec<serde_json::Value> = agent
+            .list_tools(session_id, req.extension_name)
+            .await
             .into_iter()
-            .map(|t| serde_json::to_value(&t))
+            .map(|tool| {
+                let permission = permission_manager
+                    .get_user_permission(&tool.name)
+                    .or_else(|| {
+                        if goose_mode == GooseMode::SmartApprove {
+                            permission_manager.get_smart_approve_permission(&tool.name)
+                        } else if goose_mode == GooseMode::Approve {
+                            Some(PermissionLevel::AskBefore)
+                        } else {
+                            None
+                        }
+                    });
+                let info = ToolInfo::new(
+                    &tool.name,
+                    tool.description
+                        .as_ref()
+                        .map(|d| d.as_ref())
+                        .unwrap_or_default(),
+                    get_parameter_names(&tool),
+                    permission,
+                )
+                .with_input_schema(serde_json::Value::Object(
+                    tool.input_schema.as_ref().clone(),
+                ));
+                serde_json::to_value(&info)
+            })
             .collect::<Result<Vec<_>, _>>()
             .internal_err()?;
-        Ok(GetToolsResponse { tools: tools_json })
+        tools.sort_by(|a, b| {
+            a.get("name")
+                .and_then(|v| v.as_str())
+                .cmp(&b.get("name").and_then(|v| v.as_str()))
+        });
+        Ok(GetToolsResponse { tools })
     }
 
     pub(super) async fn on_call_tool(

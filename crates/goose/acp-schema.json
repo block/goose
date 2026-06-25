@@ -383,6 +383,13 @@
       "properties": {
         "sessionId": {
           "type": "string"
+        },
+        "extensionName": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Filter tools to those belonging to this extension."
         }
       },
       "required": [
