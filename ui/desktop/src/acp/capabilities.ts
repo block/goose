@@ -16,7 +16,12 @@ export async function getAcpFeatureCapabilities(): Promise<AcpFeatureCapabilitie
 export function hasLocalInferenceCapability(
   initializeResponse: Pick<InitializeResponse, 'agentCapabilities'>
 ): boolean {
-  const meta = initializeResponse.agentCapabilities._meta;
+  const agentCapabilities = initializeResponse.agentCapabilities;
+  if (!agentCapabilities) {
+    return false;
+  }
+
+  const meta = agentCapabilities._meta;
   if (!isRecord(meta)) {
     return false;
   }
