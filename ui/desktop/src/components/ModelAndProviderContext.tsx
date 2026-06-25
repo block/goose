@@ -81,7 +81,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
             },
           });
           if (response.error) {
-            throw new Error(`Failed to update agent provider: ${response.error}`);
+            throw new Error(`Failed to update agent provider: ${errorMessage(response.error)}`);
           }
         }
 
@@ -113,13 +113,14 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
         return true;
       } catch (error) {
         console.error(`Failed to change model at ${phase} step -- ${modelName} ${providerName}`);
+        const message = errorMessage(error);
         toastError({
           title: intl.formatMessage(i18n.modelChangeFailed, {
             provider: providerName,
             model: modelName,
           }),
-          msg: `${error}`,
-          traceback: errorMessage(error),
+          msg: message,
+          traceback: message,
         });
         return false;
       }
