@@ -85,7 +85,7 @@ impl GooseAcpAgent {
         &self,
         req: SetToolPermissionsRequest,
     ) -> Result<SetToolPermissionsResponse, agent_client_protocol::Error> {
-        let permission_manager = crate::config::PermissionManager::instance();
+        let permission_manager = self.permission_manager();
         for entry in &req.tool_permissions {
             let level = match entry.permission {
                 ToolPermissionLevel::AlwaysAllow => PermissionLevel::AlwaysAllow,
