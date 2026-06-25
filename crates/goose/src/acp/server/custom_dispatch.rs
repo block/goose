@@ -42,6 +42,14 @@ impl GooseAcpAgent {
         self.on_get_tools(req).await
     }
 
+    #[custom_method(SetToolPermissionsRequest)]
+    async fn dispatch_set_tool_permissions(
+        &self,
+        req: SetToolPermissionsRequest,
+    ) -> Result<SetToolPermissionsResponse, agent_client_protocol::Error> {
+        self.on_set_tool_permissions(req).await
+    }
+
     #[custom_method(GooseToolCallRequest)]
     async fn dispatch_call_tool(
         &self,

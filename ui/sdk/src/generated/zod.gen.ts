@@ -178,6 +178,32 @@ export const zGetToolsResponse_unstable = z.object({
 });
 
 /**
+ * Permission level for a tool.
+ */
+export const zToolPermissionLevel = z.enum([
+    'always_allow',
+    'ask_before',
+    'never_allow'
+]);
+
+/**
+ * A single tool permission entry.
+ */
+export const zToolPermissionEntry = z.object({
+    tool_name: z.string(),
+    permission: zToolPermissionLevel
+});
+
+/**
+ * Set permission levels for one or more tools.
+ */
+export const zSetToolPermissionsRequest_unstable = z.object({
+    tool_permissions: z.array(zToolPermissionEntry)
+});
+
+export const zSetToolPermissionsResponse_unstable = z.record(z.unknown());
+
+/**
  * Call a tool from an extension.
  */
 export const zGooseToolCallRequest_unstable = z.object({
@@ -2164,6 +2190,7 @@ export const zExtRequest = z.object({
             zAddSessionExtensionRequest_unstable,
             zRemoveSessionExtensionRequest_unstable,
             zGetToolsRequest_unstable,
+            zSetToolPermissionsRequest_unstable,
             zGooseToolCallRequest_unstable,
             zReadResourceRequest_unstable,
             zAppsListRequest_unstable,
@@ -2264,6 +2291,7 @@ export const zExtResponse = z.union([
             z.union([
                 zEmptyResponse,
                 zGetToolsResponse_unstable,
+                zSetToolPermissionsResponse_unstable,
                 zGooseToolCallResponse_unstable,
                 zReadResourceResponse_unstable,
                 zAppsListResponse_unstable,

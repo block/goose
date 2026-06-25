@@ -1620,3 +1620,30 @@ pub struct DictationModelSelectRequest {
     pub provider: String,
     pub model_id: String,
 }
+
+/// Permission level for a tool.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolPermissionLevel {
+    AlwaysAllow,
+    #[default]
+    AskBefore,
+    NeverAllow,
+}
+
+/// A single tool permission entry.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+pub struct ToolPermissionEntry {
+    pub tool_name: String,
+    pub permission: ToolPermissionLevel,
+}
+
+/// Set permission levels for one or more tools.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/tools/permissions/set", response = SetToolPermissionsResponse)]
+pub struct SetToolPermissionsRequest {
+    pub tool_permissions: Vec<ToolPermissionEntry>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct SetToolPermissionsResponse {}

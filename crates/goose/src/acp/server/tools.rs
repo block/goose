@@ -1,5 +1,7 @@
 use super::*;
 use crate::agents::reply_parts::is_tool_visible_to_app;
+use crate::config::permission::PermissionLevel;
+use goose_sdk_types::custom_requests::ToolPermissionLevel;
 use rmcp::model::CallToolRequestParams;
 
 impl GooseAcpAgent {
@@ -77,5 +79,21 @@ impl GooseAcpAgent {
             is_error: result.is_error.unwrap_or(false),
             meta: result.meta.and_then(|m| serde_json::to_value(m).ok()),
         })
+    }
+
+    pub(super) async fn on_set_tool_permissions(
+        &self,
+        req: SetToolPermissionsRequest,
+    ) -> Result<SetToolPermissionsResponse, agent_client_protocol::Error> {
+        let permission_manager = crate::config::PermissionManager::instance();
+        for entry in &req.tool_permissions {
+            let level = match entry.permission {
+                ToolPermissionLevel::AlwaysAllow => PermissionLevel::AlwaysAllow,
+                ToolPermissionLevel::AskBefore => PermissionLevel::AskBefore,
+                ToolPermissionLevel::NeverAllow => PermissionLevel::NeverAllow,
+            };
+            permission_manager.update_user_permission(&entry.tool_name, level);
+        }
+        Ok(SetToolPermissionsResponse {})
     }
 }

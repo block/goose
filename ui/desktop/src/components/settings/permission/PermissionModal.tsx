@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../ui/button';
 import { ChevronDownIcon, SlidersHorizontal, AlertCircle } from 'lucide-react';
-import { getTools, PermissionLevel, ToolInfo, upsertPermissions } from '../../../api';
+import { getTools, PermissionLevel, ToolInfo } from '../../../api';
+import { setToolPermissions } from '../../../acp/permissions';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import {
   DropdownMenu,
@@ -156,14 +157,8 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
         return;
       }
 
-      const response = await upsertPermissions({
-        body: payload,
-      });
-      if (response.error) {
-        console.error('Failed to save permissions:', response.error);
-      } else {
-        onClose();
-      }
+      await setToolPermissions(payload.tool_permissions);
+      onClose();
     } catch (err) {
       console.error('Error saving permissions:', err);
     }
