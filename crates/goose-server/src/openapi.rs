@@ -418,7 +418,6 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::config_management::cleanup_provider_cache,
         super::routes::config_management::check_provider,
         super::routes::config_management::set_config_provider,
-        super::routes::config_management::configure_provider_oauth,
         super::routes::config_management::get_canonical_model_info,
         super::routes::prompts::get_prompts,
         super::routes::prompts::get_prompt,

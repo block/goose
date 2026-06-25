@@ -19,7 +19,6 @@ use goose::providers::catalog::{
     ProviderTemplate,
 };
 use goose::providers::create_with_default_model;
-use goose::providers::huggingface_auth;
 use goose::providers::providers as get_providers;
 use goose::{
     agents::execute_commands, agents::ExtensionConfig, slash_commands::recipe_slash_command,
@@ -241,38 +240,6 @@ fn mask_secret(secret: Value) -> String {
     let mask = "*".repeat(chars.len() - show_len);
 
     format!("{}{}", visible, mask)
-}
-
-fn mark_provider_configured(config: &Config, provider_name: &str) -> Result<(), ConfigError> {
-    if let Some(mut entry) = goose::config::get_provider_entry(config, provider_name) {
-        entry.configured = true;
-        goose::config::set_provider_entry(config, provider_name, &entry)?;
-    } else {
-        let model = if goose::config::get_active_provider(config).as_deref() == Some(provider_name)
-        {
-            config.get_goose_model().unwrap_or_default()
-        } else {
-            String::new()
-        };
-        goose::config::set_provider_entry(
-            config,
-            provider_name,
-            &goose::config::ProviderEntry {
-                enabled: true,
-                model,
-                configured: true,
-            },
-        )?;
-    }
-
-    Ok(())
-}
-
-fn is_valid_provider_name(provider_name: &str) -> bool {
-    !provider_name.is_empty()
-        && provider_name
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
 }
 
 #[utoipa::path(
@@ -942,60 +909,6 @@ pub async fn get_provider_catalog_template(
     Ok(Json(template))
 }
 
-#[utoipa::path(
-    post,
-    path = "/config/providers/{name}/oauth",
-    params(
-        ("name" = String, Path, description = "Provider name")
-    ),
-    responses(
-        (status = 200, description = "OAuth configuration completed"),
-        (status = 400, description = "OAuth configuration failed")
-    )
-)]
-pub async fn configure_provider_oauth(
-    Path(provider_name): Path<String>,
-) -> Result<Json<String>, ErrorResponse> {
-    use goose::providers::create;
-
-    if !is_valid_provider_name(&provider_name) {
-        return Err(ErrorResponse::bad_request(format!(
-            "Invalid provider name: '{}'",
-            provider_name
-        )));
-    }
-
-    if provider_name == huggingface_auth::HUGGINGFACE_PROVIDER_NAME {
-        huggingface_auth::configure_oauth().await.map_err(|e| {
-            ErrorResponse::bad_request(format!(
-                "OAuth configuration failed for provider '{}': {}",
-                provider_name, e
-            ))
-        })?;
-        mark_provider_configured(goose::config::Config::global(), &provider_name)?;
-        return Ok(Json("OAuth configuration completed".to_string()));
-    }
-
-    // OAuth configuration does not use extensions.
-    let provider = create(&provider_name, Vec::new()).await.map_err(|e| {
-        ErrorResponse::bad_request(format!(
-            "Failed to create provider '{}': {}",
-            provider_name, e
-        ))
-    })?;
-
-    provider.configure_oauth().await.map_err(|e| {
-        ErrorResponse::bad_request(format!(
-            "OAuth configuration failed for provider '{}': {}",
-            provider_name, e
-        ))
-    })?;
-
-    mark_provider_configured(goose::config::Config::global(), &provider_name)?;
-
-    Ok(Json("OAuth configuration completed".to_string()))
-}
-
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/config", get(read_all_config))
@@ -1040,9 +953,5 @@ pub fn routes(state: Arc<AppState>) -> Router {
         .route("/config/custom-providers/{id}", get(get_custom_provider))
         .route("/config/check_provider", post(check_provider))
         .route("/config/set_provider", post(set_config_provider))
-        .route(
-            "/config/providers/{name}/oauth",
-            post(configure_provider_oauth),
-        )
         .with_state(state)
 }
