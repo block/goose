@@ -7,7 +7,6 @@ use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
 use goose::acp::transport::create_acp_router;
 use goose::agents::GoosePlatform;
 use goose::config::paths::Paths;
-use goose::gateway::manager::GatewayManager;
 use goose_server::auth::{check_acp_token, check_token};
 #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
 use goose_server::tls::setup_tls;
@@ -55,16 +54,6 @@ pub async fn run() -> Result<()> {
 
     boot_marker("appstate init start");
     let app_state = state::AppState::new(settings.tls).await?;
-
-    // Auto-start any previously saved gateway configs (e.g. Telegram bot).
-    // The gateway is no longer exposed via REST routes, but existing configs
-    // should still start so users aren't silently broken.
-    if let Ok(gateway_manager) = GatewayManager::new(app_state.agent_manager.clone()) {
-        let gm = std::sync::Arc::new(gateway_manager);
-        tokio::spawn(async move {
-            gm.check_auto_start().await;
-        });
-    }
 
     let cors = CorsLayer::new()
         .allow_origin(Any)
