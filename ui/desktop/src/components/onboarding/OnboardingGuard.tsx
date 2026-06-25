@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { useConfig } from '../ConfigContext';
 import { useModelAndProvider } from '../ModelAndProviderContext';
 import { Goose } from '../icons';
@@ -36,6 +36,10 @@ const i18n = defineMessages({
     id: 'onboardingGuard.retry',
     defaultMessage: 'Retry',
   },
+  openSettings: {
+    id: 'onboardingGuard.openSettings',
+    defaultMessage: 'Open Settings',
+  },
 });
 
 const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
@@ -47,6 +51,7 @@ interface OnboardingGuardProps {
 export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   const intl = useIntl();
   const navigate = useNavigate();
+  const location = useLocation();
   const { read, upsert, getProviders } = useConfig();
   const { getFallbackModelAndProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
 
@@ -150,6 +155,10 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
   }
 
   if (checkProviderError) {
+    if (location.pathname === '/settings') {
+      return <>{children}</>;
+    }
+
     return (
       <div className="h-screen w-full bg-background-default flex flex-col items-center justify-center">
         <div className="text-center max-w-md">
@@ -158,9 +167,14 @@ export default function OnboardingGuard({ children }: OnboardingGuardProps) {
           </div>
           <h1 className="text-xl font-light mb-3">{intl.formatMessage(i18n.checkProviderErrorTitle)}</h1>
           <p className="text-text-muted mb-6">{intl.formatMessage(i18n.checkProviderErrorDescription)}</p>
-          <Button onClick={() => checkProvider()}>
-            {intl.formatMessage(i18n.retry)}
-          </Button>
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
+            <Button onClick={() => navigate('/settings?section=sharing')}>
+              {intl.formatMessage(i18n.openSettings)}
+            </Button>
+            <Button variant="outline" onClick={() => checkProvider()}>
+              {intl.formatMessage(i18n.retry)}
+            </Button>
+          </div>
         </div>
       </div>
     );

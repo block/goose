@@ -872,6 +872,7 @@ interface CreateChatOptions {
   dir?: string;
   resumeSessionId?: string;
   viewType?: string;
+  settingsSection?: string;
   recipeDeeplink?: string;
   recipeId?: string;
   scheduledJobId?: string;
@@ -885,6 +886,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     dir,
     resumeSessionId,
     viewType,
+    settingsSection,
     recipeDeeplink,
     recipeId,
     scheduledJobId,
@@ -1052,19 +1054,27 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
         type: 'error',
         title: 'External Backend Unreachable',
         message: `Could not connect to external backend at ${settings.externalGoosed?.url}`,
-        detail: 'The external goosed server may not be running.',
-        buttons: ['Disable External Backend & Retry', 'Quit'],
+        detail:
+          'The external goosed server may not be running. Open Settings to fix the Goose Server configuration.',
+        buttons: ['Open Settings', 'Disable External Backend & Retry', 'Quit'],
         defaultId: 0,
-        cancelId: 1,
+        cancelId: 2,
       });
 
-      if (response === 0) {
+      if (response === 0 || response === 1) {
         updateSettings((s) => {
           if (s.externalGoosed) {
             s.externalGoosed.enabled = false;
           }
         });
         mainWindow.destroy();
+        if (response === 0) {
+          return createChat(app, {
+            viewType: 'settings',
+            settingsSection: 'sharing',
+            dir,
+          });
+        }
         return createChat(app, { initialMessage, dir });
       }
     } else {
@@ -1212,6 +1222,9 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     if (appPath === '/') {
       appPath = '/pair';
     }
+  }
+  if (settingsSection) {
+    searchParams.set('section', settingsSection);
   }
 
   // Goose's react app uses HashRouter, so the path + search params follow a #/
