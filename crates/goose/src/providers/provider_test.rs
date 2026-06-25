@@ -48,26 +48,32 @@ pub async fn test_provider_configuration(
         vec![]
     };
 
-    let mut stream = provider
-        .stream(
-            &model_config,
-            "test-session-id",
-            "You are an AI agent called goose. You use tools of connected extensions to solve problems.",
-            &messages,
-            &tools.into_iter().collect::<Vec<_>>(),
-        )
-        .await?;
+    timeout(PROVIDER_TEST_TIMEOUT, async {
+        let mut stream = provider
+            .stream(
+                &model_config,
+                "test-session-id",
+                "You are an AI agent called goose. You use tools of connected extensions to solve problems.",
+                &messages,
+                &tools.into_iter().collect::<Vec<_>>(),
+            )
+            .await?;
 
-    let first_chunk = timeout(PROVIDER_TEST_TIMEOUT, stream.next())
+        let first_chunk = stream
+            .next()
+            .await
+            .ok_or_else(|| anyhow::anyhow!("Provider test stream returned no events"))?;
+        first_chunk?;
+
+        Ok::<(), anyhow::Error>(())
+    })
         .await
         .map_err(|_| {
             anyhow::anyhow!(
                 "Provider configuration test timed out after {}s",
                 PROVIDER_TEST_TIMEOUT.as_secs()
             )
-        })?
-        .ok_or_else(|| anyhow::anyhow!("Provider test stream returned no events"))?;
-    first_chunk?;
+        })??;
 
     Ok(())
 }

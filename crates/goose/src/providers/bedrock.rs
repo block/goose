@@ -265,11 +265,8 @@ impl BedrockProvider {
         has_text_input && has_text_output && !has_embedding_output && streaming && not_legacy
     }
 
-    fn is_mantle_model_name(model_name: &str) -> bool {
-        model_name
-            .strip_prefix("openai.")
-            .unwrap_or(model_name)
-            .starts_with("gpt-")
+    fn is_mantle_model_id(model_id: &str) -> bool {
+        BEDROCK_MANTLE_MODELS.contains(&model_id)
     }
 
     async fn fetch_inference_profile_ids(&self) -> Result<Vec<String>, ProviderError> {
@@ -948,7 +945,7 @@ impl Provider for BedrockProvider {
         let (base_name, effort) = extract_reasoning_effort(without_prefix);
         let bedrock_model_id = format!("openai.{}", base_name);
 
-        let is_mantle_model = Self::is_mantle_model_name(&model_config.model_name);
+        let is_mantle_model = Self::is_mantle_model_id(&bedrock_model_id);
 
         if is_mantle_model {
             let mut normalized_config = ModelConfig {
@@ -1754,10 +1751,13 @@ mod tests {
     }
 
     #[test]
-    fn test_is_mantle_model_name() {
-        assert!(BedrockProvider::is_mantle_model_name("openai.gpt-5.5"));
-        assert!(BedrockProvider::is_mantle_model_name("gpt-5.4"));
-        assert!(!BedrockProvider::is_mantle_model_name(
+    fn test_is_mantle_model_id() {
+        assert!(BedrockProvider::is_mantle_model_id("openai.gpt-5.5"));
+        assert!(BedrockProvider::is_mantle_model_id("openai.gpt-5.4"));
+        assert!(!BedrockProvider::is_mantle_model_id(
+            "openai.gpt-oss-120b-1:0"
+        ));
+        assert!(!BedrockProvider::is_mantle_model_id(
             "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
         ));
     }
