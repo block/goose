@@ -1,5 +1,5 @@
 import { v7 as uuidv7 } from 'uuid';
-import { updateSessionUserRecipeValues, type Message, type Session } from '../api';
+import type { Message, Session } from '../api';
 import type { GooseExtension } from '@aaif/goose-sdk';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
@@ -56,11 +56,6 @@ export interface AcpChatSessionController {
     newContent: string,
     editType: 'fork' | 'edit' | undefined,
     options: AcpSubmitMessageOptions
-  ): Promise<void>;
-  setRecipeUserParams(
-    sessionId: string,
-    userRecipeValues: Record<string, string>,
-    options: AcpSnapshotOptions
   ): Promise<void>;
 }
 
@@ -271,42 +266,10 @@ async function updateMessage(
   }
 }
 
-async function setRecipeUserParams(
-  sessionId: string,
-  userRecipeValues: Record<string, string>,
-  options: AcpSnapshotOptions
-): Promise<void> {
-  const currentSession =
-    options.getCurrentSnapshot()?.session ?? acpChatSessionStore.getSnapshot(sessionId)?.session;
-
-  if (currentSession) {
-    await updateSessionUserRecipeValues({
-      path: {
-        session_id: sessionId,
-      },
-      body: {
-        userRecipeValues,
-      },
-      throwOnError: true,
-    });
-    const updatedSession = {
-      ...currentSession,
-      user_recipe_values: userRecipeValues,
-    };
-    acpChatSessionActions.setSessionMetadata(sessionId, updatedSession);
-  } else {
-    acpChatSessionActions.setSessionLoadError(
-      sessionId,
-      "can't call setRecipeParams without a session"
-    );
-  }
-}
-
 export const acpChatSessionController: AcpChatSessionController = {
   createSession,
   loadSession,
   submitMessage,
   stop,
   updateMessage,
-  setRecipeUserParams,
 };

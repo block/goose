@@ -263,14 +263,9 @@ export function useAcpChatSession({
     [getCurrentSnapshot, sessionId]
   );
 
-  const setRecipeUserParams = useCallback(
-    async (user_recipe_values: Record<string, string>) => {
-      await acpChatSessionController.setRecipeUserParams(sessionId, user_recipe_values, {
-        getCurrentSnapshot,
-      });
-    },
-    [getCurrentSnapshot, sessionId]
-  );
+  const setRecipeUserParams = useCallback((_userRecipeValues: Record<string, string>) => {
+    return Promise.reject(new Error('ACP recipe parameters are handled during session creation'));
+  }, []);
 
   useEffect(() => {
     if (session) {
