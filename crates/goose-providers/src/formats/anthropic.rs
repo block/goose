@@ -302,7 +302,6 @@ fn format_messages_with_options(
         }
     }
 
-    // If no messages, add a default one
     if anthropic_messages.is_empty() {
         anthropic_messages.push(json!({
             ROLE_FIELD: USER_ROLE,
@@ -313,23 +312,33 @@ fn format_messages_with_options(
         }));
     }
 
-    // Add "cache_control" to the last and second-to-last "user" messages.
-    // During each turn, we mark the final message with cache_control so the conversation can be
-    // incrementally cached. The second-to-last user message is also marked for caching with the
-    // cache_control parameter, so that this checkpoint can read from the previous cache.
+    // The volatile turn-context must sit after every cache breakpoint, or it invalidates the
+    // message-level cached prefix (Anthropic hashes tools -> system -> messages). Move it to the
+    // tail and place cache_control on the last non-turn-context block.
+    relocate_turn_context_to_tail(&mut anthropic_messages);
+
     let mut user_count = 0;
     for message in anthropic_messages.iter_mut().rev() {
-        if message.get(ROLE_FIELD) == Some(&json!(USER_ROLE)) {
-            if let Some(content) = message.get_mut(CONTENT_FIELD) {
-                if let Some(content_array) = content.as_array_mut() {
-                    if let Some(last_content) = content_array.last_mut() {
-                        last_content.as_object_mut().unwrap().insert(
-                            CACHE_CONTROL_FIELD.to_string(),
-                            json!({ TYPE_FIELD: "ephemeral" }),
-                        );
-                    }
-                }
-            }
+        if message.get(ROLE_FIELD) != Some(&json!(USER_ROLE)) {
+            continue;
+        }
+        let Some(content_array) = message
+            .get_mut(CONTENT_FIELD)
+            .and_then(|content| content.as_array_mut())
+        else {
+            continue;
+        };
+        let Some(target) = cache_control_target_index(content_array) else {
+            continue;
+        };
+        if let Some(block) = content_array
+            .get_mut(target)
+            .and_then(|b| b.as_object_mut())
+        {
+            block.insert(
+                CACHE_CONTROL_FIELD.to_string(),
+                json!({ TYPE_FIELD: "ephemeral" }),
+            );
             user_count += 1;
             if user_count >= 2 {
                 break;
@@ -338,6 +347,52 @@ fn format_messages_with_options(
     }
 
     anthropic_messages
+}
+
+fn relocate_turn_context_to_tail(messages: &mut [Value]) {
+    let Some(last) = messages.len().checked_sub(1) else {
+        return;
+    };
+    let source = messages.iter().enumerate().rev().find_map(|(mi, m)| {
+        m.get(CONTENT_FIELD)
+            .and_then(|c| c.as_array())
+            .and_then(|a| a.iter().position(is_turn_context_block))
+            .map(|bi| (mi, bi))
+    });
+    let Some((mi, bi)) = source else {
+        return;
+    };
+    if mi != last
+        && messages[mi]
+            .get(CONTENT_FIELD)
+            .and_then(|c| c.as_array())
+            .map_or(0, |a| a.len())
+            <= 1
+    {
+        return;
+    }
+    let block = messages[mi][CONTENT_FIELD]
+        .as_array_mut()
+        .unwrap()
+        .remove(bi);
+    messages[last][CONTENT_FIELD]
+        .as_array_mut()
+        .unwrap()
+        .push(block);
+}
+
+fn cache_control_target_index(content_array: &[Value]) -> Option<usize> {
+    content_array
+        .iter()
+        .rposition(|block| !is_turn_context_block(block))
+}
+
+fn is_turn_context_block(block: &Value) -> bool {
+    block.get(TYPE_FIELD).and_then(Value::as_str) == Some(TEXT_TYPE)
+        && block
+            .get(TEXT_TYPE)
+            .and_then(Value::as_str)
+            .is_some_and(crate::conversation::is_turn_context_text)
 }
 
 fn anthropic_flavored_input_schema(input_schema: Arc<JsonObject>) -> Arc<JsonObject> {
