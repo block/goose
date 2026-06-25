@@ -384,11 +384,7 @@ mod tests {
     fn test_apply_ollama_options_preserves_stream_options_by_default() {
         use crate::formats::ollama::create_request;
 
-        let options = OllamaOptions {
-            input_limit: None,
-            stream_usage: false,
-            chunk_timeout_secs: 120,
-        };
+        let options = OllamaOptions::default();
         let model_config = ModelConfig::new("llama3.1").with_max_tokens(Some(4096));
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
 
