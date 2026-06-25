@@ -62,6 +62,8 @@ function snapshotWithName(name: string): AcpChatSessionSnapshot {
     chatState: ChatState.Idle,
     sessionLoadError: undefined,
     activePromptAttemptId: null,
+    activeRunId: null,
+    pendingCancelPromptAttemptId: null,
   };
 }
 
@@ -81,6 +83,8 @@ function snapshotWithoutSession(): AcpChatSessionSnapshot {
     chatState: ChatState.Idle,
     sessionLoadError: undefined,
     activePromptAttemptId: null,
+    activeRunId: null,
+    pendingCancelPromptAttemptId: null,
   };
 }
 

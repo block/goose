@@ -30,20 +30,29 @@ export function applyContentChunk(
 
   if (existing) {
     const lastContent = existing.content[existing.content.length - 1];
+    if (reconcileLocalSteerTextChunk(state, existing, content, gooseMeta.steer)) {
+      return messagesChangeWithLocalSteerConfirmation(state, existing, gooseMeta.steer);
+    }
+
     if (lastContent?.type === 'text' && content.type === 'text') {
       lastContent.text += content.text;
     } else if (content.type === 'image' && hasImageContent(existing, content)) {
-      return messagesChange(state);
+      return messagesChangeWithLocalSteerConfirmation(state, existing, gooseMeta.steer);
     } else {
       existing.content.push(content);
     }
+
+    return messagesChangeWithLocalSteerConfirmation(state, existing, gooseMeta.steer);
   } else {
     state.messages.push({
       ...(messageId ? { id: messageId } : {}),
       role,
       created: gooseMeta.created ?? Math.floor(Date.now() / 1000),
       content: [content],
-      metadata: { ...DEFAULT_VISIBLE_MESSAGE_METADATA },
+      metadata: {
+        ...DEFAULT_VISIBLE_MESSAGE_METADATA,
+        ...(gooseMeta.steer ? { steer: true } : {}),
+      },
     });
   }
 
@@ -147,4 +156,45 @@ function hasImageContent(message: Message, image: Extract<MessageContent, { type
     (content) =>
       content.type === 'image' && content.data === image.data && content.mimeType === image.mimeType
   );
+}
+
+function messagesChangeWithLocalSteerConfirmation(
+  state: AdapterState,
+  message: Message,
+  isSteerChunk: boolean | undefined
+): AcpChatStateChange[] {
+  const changes = messagesChange(state);
+  if (isSteerChunk && message.metadata.steer && message.role === 'user' && message.id) {
+    changes.push({ type: 'localSteerConfirmed', messageId: message.id });
+  }
+  return changes;
+}
+
+function reconcileLocalSteerTextChunk(
+  state: AdapterState,
+  message: Message,
+  content: MessageContent,
+  isSteerChunk: boolean | undefined
+): boolean {
+  if (!isSteerChunk || !message.metadata.steer || message.role !== 'user') {
+    return false;
+  }
+
+  if (
+    content.type !== 'text' ||
+    message.content.length === 0 ||
+    message.content[0].type !== 'text'
+  ) {
+    return false;
+  }
+
+  const text = (message.id ? state.localSteerTextByMessageId.get(message.id) : undefined) ?? '';
+  const nextText = text + content.text;
+  if (message.id) {
+    state.localSteerTextByMessageId.set(message.id, nextText);
+  }
+
+  message.content = [{ ...content, text: nextText }, ...message.content.slice(1)];
+  message.metadata = { ...message.metadata, steer: true };
+  return true;
 }

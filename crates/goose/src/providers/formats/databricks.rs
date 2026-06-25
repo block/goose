@@ -11,7 +11,6 @@ use goose_providers::formats::openai::{
     openai_reasoning_effort_for_thinking, sanitize_function_name,
 };
 use goose_providers::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
-use goose_providers::json::safely_parse_json;
 use rmcp::model::{
     object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
     ResourceContents, Role, Tool,
@@ -435,9 +434,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     };
                     content.push(MessageContent::tool_request(id, Err(error)));
                 } else {
-                    match safely_parse_json(&arguments_str) {
-                        // Valid JSON, and an object: the normal path.
-                        Ok(params) if params.is_object() => {
+                    match goose_providers::json::parse_tool_arguments(&arguments_str) {
+                        Some(params) if params.is_object() => {
                             content.push(MessageContent::tool_request(
                                 id,
                                 Ok(CallToolRequestParams::new(function_name)
@@ -447,7 +445,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         // Valid JSON but NOT an object (a bare array/string/number).
                         // Surface a tool error so the model retries instead of
                         // crashing the run (rmcp's `object()` debug-asserts).
-                        Ok(_) => {
+                        Some(_) => {
                             let error = ErrorData {
                                 code: ErrorCode::INVALID_PARAMS,
                                 message: Cow::from(format!(
@@ -458,13 +456,17 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                             };
                             content.push(MessageContent::tool_request(id, Err(error)));
                         }
-                        Err(e) => {
+                        None => {
+                            let message_text =
+                                goose_providers::json::truncation_error_message(&arguments_str)
+                                    .unwrap_or_else(|| {
+                                        format!(
+                                            "Could not interpret tool use parameters for id {id}"
+                                        )
+                                    });
                             let error = ErrorData {
                                 code: ErrorCode::INVALID_PARAMS,
-                                message: Cow::from(format!(
-                                    "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
-                                    id, e, arguments_str
-                                )),
+                                message: Cow::from(message_text),
                                 data: None,
                             };
                             content.push(MessageContent::tool_request(id, Err(error)));
@@ -1052,7 +1054,7 @@ mod tests {
                     message: msg,
                     data: None,
                 }) => {
-                    assert!(msg.starts_with("Could not interpret tool use parameters"));
+                    assert!(msg.contains("tool arguments") || msg.contains("truncated"));
                 }
                 _ => panic!("Expected InvalidParameters error"),
             }
@@ -1125,7 +1127,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1160,7 +1161,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: Some(params),
             reasoning: None,
         };
@@ -1180,7 +1180,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: Some(params),
             reasoning: None,
         };
@@ -1201,7 +1200,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: Some(params),
             reasoning: None,
         };
@@ -1220,7 +1218,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1239,7 +1236,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1258,7 +1254,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1270,7 +1265,7 @@ mod tests {
 
     #[test]
     fn test_create_request_adaptive_thinking_for_46_models() -> anyhow::Result<()> {
-        let mut model_config = ModelConfig::new_or_fail("databricks-claude-opus-4-6");
+        let mut model_config = ModelConfig::new("databricks-claude-opus-4-6");
         model_config.max_tokens = Some(4096);
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("low"));
@@ -1297,7 +1292,7 @@ mod tests {
             "databricks-claude-fable-5",
             "global.anthropic.claude-fable-5",
         ] {
-            let mut model_config = ModelConfig::new_or_fail(name);
+            let mut model_config = ModelConfig::new(name);
             model_config.max_tokens = Some(4096);
             let mut params = std::collections::HashMap::new();
             params.insert("thinking_effort".to_string(), serde_json::json!("high"));
@@ -1318,7 +1313,7 @@ mod tests {
     fn test_create_request_always_on_adaptive_off_effort_falls_back_to_high() -> anyhow::Result<()>
     {
         let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
-        let mut model_config = ModelConfig::new_or_fail("databricks-claude-fable-5");
+        let mut model_config = ModelConfig::new("databricks-claude-fable-5");
         model_config.max_tokens = Some(4096);
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("off"));
@@ -1334,7 +1329,7 @@ mod tests {
 
     #[test]
     fn test_create_request_enabled_thinking_with_budget() -> anyhow::Result<()> {
-        let mut model_config = ModelConfig::new_or_fail("databricks-claude-3-7-sonnet");
+        let mut model_config = ModelConfig::new("databricks-claude-3-7-sonnet");
         model_config.max_tokens = Some(4096);
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("high"));
@@ -1359,7 +1354,7 @@ mod tests {
             ("high", 16000),
             ("max", 32000),
         ] {
-            let mut model_config = ModelConfig::new_or_fail("databricks-claude-3-7-sonnet");
+            let mut model_config = ModelConfig::new("databricks-claude-3-7-sonnet");
             model_config.max_tokens = Some(4096);
             let mut params = std::collections::HashMap::new();
             params.insert("thinking_effort".to_string(), serde_json::json!(effort));
@@ -1748,7 +1743,6 @@ mod tests {
             max_tokens: Some(8192),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1801,7 +1795,6 @@ mod tests {
             max_tokens: Some(4096),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };

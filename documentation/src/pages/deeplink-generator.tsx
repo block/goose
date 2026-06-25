@@ -2,13 +2,20 @@ import React, { useState, useCallback, useEffect } from 'react';
 import Layout from "@theme/Layout";
 import { Copy, Check, Plus, X } from "lucide-react";
 import { Button } from "@site/src/components/ui/button";
-import Link from "@docusaurus/Link";
 
 interface EnvironmentVariable {
   name: string;
   description: string;
   required: boolean;
 }
+
+interface RequestHeader {
+  name: string;
+  description: string;
+  required: boolean;
+}
+
+type ExtensionType = 'stdio' | 'streamable_http';
 
 interface ServerConfig {
   is_builtin: boolean;
@@ -17,30 +24,34 @@ interface ServerConfig {
   description?: string;
   command?: string;
   url?: string;
+  type?: ExtensionType;
   environmentVariables: EnvironmentVariable[];
+  headers?: RequestHeader[];
 }
 
 export default function DeeplinkGenerator() {
-  // State management
   const [activeTab, setActiveTab] = useState<'form' | 'json'>('form');
   const [isBuiltin, setIsBuiltin] = useState(false);
+  const [extensionType, setExtensionType] = useState<ExtensionType>('stdio');
   const [id, setId] = useState('');
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [command, setCommand] = useState('');
+  const [endpointUrl, setEndpointUrl] = useState('');
   const [envVars, setEnvVars] = useState<EnvironmentVariable[]>([]);
+  const [headers, setHeaders] = useState<RequestHeader[]>([]);
   const [generatedLink, setGeneratedLink] = useState('');
   const [jsonInput, setJsonInput] = useState('');
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState('');
 
-  // Initialize JSON input with sample data
   useEffect(() => {
     const sampleJson = {
       is_builtin: false,
+      type: "stdio",
       id: "example-extension",
       name: "Example Extension",
-      description: "An example Goose extension",
+      description: "An example goose extension",
       command: "npx @gooseai/example-extension",
       environmentVariables: [
         {
@@ -53,12 +64,10 @@ export default function DeeplinkGenerator() {
     setJsonInput(JSON.stringify(sampleJson, null, 2));
   }, []);
 
-  // Process URL parameters if present
   useEffect(() => {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.toString()) {
       try {
-        // Check if this is a built-in extension request
         if (urlParams.get('cmd') === 'goosed' && urlParams.getAll('arg').includes('mcp')) {
           const args = urlParams.getAll('arg');
           const extensionId = args[args.indexOf('mcp') + 1];
@@ -66,7 +75,7 @@ export default function DeeplinkGenerator() {
             throw new Error('Missing extension ID in args');
           }
 
-          const server = {
+          const server: ServerConfig = {
             is_builtin: true,
             id: extensionId,
             environmentVariables: []
@@ -76,7 +85,49 @@ export default function DeeplinkGenerator() {
           return;
         }
 
-        // Handle custom extension
+        const remoteUrl = urlParams.get('url');
+        if (remoteUrl) {
+          const id = urlParams.get('id');
+          const name = urlParams.get('name');
+          const description = urlParams.get('description');
+          if (!id || !name || !description) {
+            throw new Error('Missing required parameters. Need: id, name, and description');
+          }
+          const server: ServerConfig = {
+            is_builtin: false,
+            type: 'streamable_http',
+            id,
+            name,
+            description,
+            url: remoteUrl,
+            environmentVariables: [],
+            headers: [],
+          };
+          urlParams.getAll('env').forEach(env => {
+            const separatorIndex = env.indexOf('=');
+            if (separatorIndex > 0) {
+              server.environmentVariables.push({
+                name: env.slice(0, separatorIndex),
+                description: env.slice(separatorIndex + 1),
+                required: true,
+              });
+            }
+          });
+          urlParams.getAll('header').forEach(header => {
+            const separatorIndex = header.indexOf('=');
+            if (separatorIndex > 0) {
+              server.headers.push({
+                name: header.slice(0, separatorIndex),
+                description: header.slice(separatorIndex + 1),
+                required: true,
+              });
+            }
+          });
+          const link = generateDeeplink(server);
+          handleGeneratedLink(link, true);
+          return;
+        }
+
         const cmd = urlParams.get('cmd');
         if (!cmd) {
           throw new Error('Missing required parameter: cmd');
@@ -92,8 +143,9 @@ export default function DeeplinkGenerator() {
           throw new Error('Missing required parameters. Need: id, name, and description');
         }
 
-        const server = {
+        const server: ServerConfig = {
           is_builtin: false,
+          type: 'stdio',
           id,
           name,
           description,
@@ -101,15 +153,14 @@ export default function DeeplinkGenerator() {
           environmentVariables: []
         };
 
-        // Handle environment variables if present
         const envVars = urlParams.getAll('env');
         if (envVars.length > 0) {
           envVars.forEach(env => {
-            const [name, description] = env.split('=');
-            if (name && description) {
+            const separatorIndex = env.indexOf('=');
+            if (separatorIndex > 0) {
               server.environmentVariables.push({
-                name,
-                description,
+                name: env.slice(0, separatorIndex),
+                description: env.slice(separatorIndex + 1),
                 required: true
               });
             }
@@ -144,17 +195,22 @@ export default function DeeplinkGenerator() {
       return `goose://extension?${queryParams}`;
     }
 
-    // Handle the case where the command is a URL
-    if (server.url) {
+    if (server.url || server.type === 'streamable_http') {
       const queryParams = [
-        `url=${encodeURIComponent(server.url)}`,
+        `type=streamable_http`,
+        `url=${encodeURIComponent(server.url || '')}`,
         `id=${encodeURIComponent(server.id)}`,
         `name=${encodeURIComponent(server.name)}`,
         `description=${encodeURIComponent(server.description)}`,
-        ...server.environmentVariables
+        ...(server.environmentVariables || [])
           .filter((env) => env.required)
           .map(
             (env) => `env=${encodeURIComponent(`${env.name}=${env.description}`)}`
+          ),
+        ...(server.headers || [])
+          .filter((header) => header.required)
+          .map(
+            (header) => `header=${encodeURIComponent(`${header.name}=${header.description}`)}`
           ),
       ].join("&");
 
@@ -170,7 +226,7 @@ export default function DeeplinkGenerator() {
       `id=${encodeURIComponent(server.id)}`,
       `name=${encodeURIComponent(server.name)}`,
       `description=${encodeURIComponent(server.description)}`,
-      ...server.environmentVariables
+      ...(server.environmentVariables || [])
         .filter((env) => env.required)
         .map(
           (env) => `env=${encodeURIComponent(`${env.name}=${env.description}`)}`
@@ -184,11 +240,14 @@ export default function DeeplinkGenerator() {
     e.preventDefault();
     const server: ServerConfig = {
       is_builtin: isBuiltin,
+      type: extensionType,
       id,
       name,
       description,
-      command,
-      environmentVariables: envVars
+      command: extensionType === 'stdio' ? command : undefined,
+      url: extensionType === 'streamable_http' ? endpointUrl : undefined,
+      environmentVariables: envVars,
+      headers: extensionType === 'streamable_http' ? headers : undefined,
     };
 
     try {
@@ -197,7 +256,7 @@ export default function DeeplinkGenerator() {
     } catch (error) {
       setError(error.message);
     }
-  }, [isBuiltin, id, name, description, command, envVars]);
+  }, [isBuiltin, extensionType, id, name, description, command, endpointUrl, envVars, headers]);
 
   const handleJsonSubmit = useCallback(() => {
     try {
@@ -218,8 +277,22 @@ export default function DeeplinkGenerator() {
   }, []);
 
   const handleEnvVarChange = useCallback((index: number, field: 'name' | 'description', value: string) => {
-    setEnvVars(prev => prev.map((env, i) => 
+    setEnvVars(prev => prev.map((env, i) =>
       i === index ? { ...env, [field]: value } : env
+    ));
+  }, []);
+
+  const handleAddHeader = useCallback(() => {
+    setHeaders(prev => [...prev, { name: '', description: '', required: true }]);
+  }, []);
+
+  const handleRemoveHeader = useCallback((index: number) => {
+    setHeaders(prev => prev.filter((_, i) => i !== index));
+  }, []);
+
+  const handleHeaderChange = useCallback((index: number, field: 'name' | 'description', value: string) => {
+    setHeaders(prev => prev.map((h, i) =>
+      i === index ? { ...h, [field]: value } : h
     ));
   }, []);
 
@@ -240,7 +313,7 @@ export default function DeeplinkGenerator() {
             Deeplink Generator
           </h1>
           <p className="text-textProminent">
-            Generate installation deeplinks for Goose extensions that can be shared with others.
+            Generate installation deeplinks for goose extensions that can be shared with others.
           </p>
         </div>
 
@@ -336,17 +409,63 @@ export default function DeeplinkGenerator() {
 
                   <div>
                     <label className="block text-sm font-medium text-textStandard mb-2">
-                      Command <span className="text-red-500">*</span>
+                      Extension Type <span className="text-red-500">*</span>
                     </label>
-                    <input
-                      type="text"
-                      value={command}
-                      onChange={(e) => setCommand(e.target.value)}
-                      required
-                      className="w-full p-3 border border-borderSubtle rounded-lg bg-bgSubtle text-textStandard"
-                      placeholder="npx @gooseai/example-extension"
-                    />
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="extensionType"
+                          value="stdio"
+                          checked={extensionType === 'stdio'}
+                          onChange={() => setExtensionType('stdio')}
+                          className="accent-secondary"
+                        />
+                        <span className="text-sm text-textStandard">STDIO</span>
+                      </label>
+                      <label className="flex items-center gap-2 cursor-pointer">
+                        <input
+                          type="radio"
+                          name="extensionType"
+                          value="streamable_http"
+                          checked={extensionType === 'streamable_http'}
+                          onChange={() => setExtensionType('streamable_http')}
+                          className="accent-secondary"
+                        />
+                        <span className="text-sm text-textStandard">Streamable HTTP</span>
+                      </label>
+                    </div>
                   </div>
+
+                  {extensionType === 'stdio' ? (
+                    <div>
+                      <label className="block text-sm font-medium text-textStandard mb-2">
+                        Command <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={command}
+                        onChange={(e) => setCommand(e.target.value)}
+                        required
+                        className="w-full p-3 border border-borderSubtle rounded-lg bg-bgSubtle text-textStandard"
+                        placeholder="npx @gooseai/example-extension"
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block text-sm font-medium text-textStandard mb-2">
+                        Endpoint URL <span className="text-red-500">*</span>
+                      </label>
+                      <input
+                        type="url"
+                        value={endpointUrl}
+                        onChange={(e) => setEndpointUrl(e.target.value)}
+                        required
+                        className="w-full p-3 border border-borderSubtle rounded-lg bg-bgSubtle text-textStandard"
+                        placeholder="https://example.com/mcp"
+                      />
+                    </div>
+                  )}
 
                   <div>
                     <label className="block text-sm font-medium text-textStandard mb-2">
@@ -388,6 +507,49 @@ export default function DeeplinkGenerator() {
                       </Button>
                     </div>
                   </div>
+
+                  {extensionType === 'streamable_http' && (
+                    <div>
+                      <label className="block text-sm font-medium text-textStandard mb-2">
+                        Request Headers
+                      </label>
+                      <div className="space-y-3">
+                        {headers.map((header, index) => (
+                          <div key={index} className="flex gap-2">
+                            <input
+                              type="text"
+                              value={header.name}
+                              onChange={(e) => handleHeaderChange(index, 'name', e.target.value)}
+                              className="flex-1 p-3 border border-borderSubtle rounded-lg bg-bgSubtle text-textStandard"
+                              placeholder="Header Name"
+                            />
+                            <input
+                              type="text"
+                              value={header.description}
+                              onChange={(e) => handleHeaderChange(index, 'description', e.target.value)}
+                              className="flex-1 p-3 border border-borderSubtle rounded-lg bg-bgSubtle text-textStandard"
+                              placeholder="Description"
+                            />
+                            <Button
+                              type="button"
+                              onClick={() => handleRemoveHeader(index)}
+                              className="p-3"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                        <Button
+                          type="button"
+                          onClick={handleAddHeader}
+                          className="w-full flex items-center justify-center gap-2"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add Header
+                        </Button>
+                      </div>
+                    </div>
+                  )}
                 </>
               )}
 
@@ -456,12 +618,13 @@ export default function DeeplinkGenerator() {
             <li>For custom extensions:
               <ul className="list-disc pl-6 mt-2">
                 <li>Provide a unique ID, name, and description</li>
-                <li>Enter the command used to run your extension</li>
+                <li>Choose <strong>STDIO</strong> and enter the command to run your extension (e.g. <code>npx @gooseai/my-ext</code>), or choose <strong>Streamable HTTP</strong> and enter the endpoint URL</li>
                 <li>Add any required environment variables</li>
+                <li>For Streamable HTTP, add any required request headers</li>
               </ul>
             </li>
             <li>Click "Generate Deeplink" to create your installation deeplink.</li>
-            <li>Copy and share the generated deeplink - when users click it, it will open Goose Desktop and prompt them to install your extension.</li>
+            <li>Copy and share the generated deeplink — when users click it, it will open goose Desktop and prompt them to install your extension.</li>
           </ol>
         </div>
       </div>

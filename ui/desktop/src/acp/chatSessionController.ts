@@ -22,6 +22,7 @@ import {
   acpTruncateSessionConversation,
   isAcpSessionLoadInFlight,
   sessionInfoToSession,
+  type AcpRecipeOptions,
 } from './sessions';
 
 export interface AcpLoadSessionOptions {
@@ -37,7 +38,11 @@ export interface AcpSubmitMessageOptions extends AcpSnapshotOptions {
 }
 
 export interface AcpChatSessionController {
-  createSession(cwd: string, gooseExtensions: GooseExtension[]): Promise<Session>;
+  createSession(
+    cwd: string,
+    gooseExtensions: GooseExtension[],
+    recipe?: AcpRecipeOptions
+  ): Promise<Session>;
   loadSession(sessionId: string, options?: AcpLoadSessionOptions): Promise<void>;
   submitMessage(
     sessionId: string,
@@ -76,8 +81,26 @@ function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Mess
   };
 }
 
-async function createSession(cwd: string, gooseExtensions: GooseExtension[]): Promise<Session> {
-  const { sessionId, sessionInfo, meta } = await acpNewSession(cwd, gooseExtensions);
+function assertNoPendingPromptCancellation(sessionId: string): void {
+  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
+  if (snapshot?.pendingCancelPromptAttemptId) {
+    throw new Error('Cannot submit while prompt cancellation is pending');
+  }
+}
+
+function assertNoActivePromptAttempt(sessionId: string): void {
+  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
+  if (snapshot?.activePromptAttemptId) {
+    throw new Error('Cannot update message while prompt is active');
+  }
+}
+
+async function createSession(
+  cwd: string,
+  gooseExtensions: GooseExtension[],
+  recipe?: AcpRecipeOptions
+): Promise<Session> {
+  const { sessionId, sessionInfo, meta } = await acpNewSession(cwd, gooseExtensions, recipe);
   const session = sessionInfoToSession(sessionInfo, meta);
 
   showExtensionLoadResults(meta.extensionResults);
@@ -122,7 +145,10 @@ async function submitMessage(
   userMessage: Message,
   options: AcpSubmitMessageOptions
 ): Promise<void> {
-  if (acpChatSessionStore.getSnapshot(sessionId)?.activePromptAttemptId) {
+  assertNoPendingPromptCancellation(sessionId);
+
+  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
+  if (snapshot?.activePromptAttemptId) {
     return;
   }
 
@@ -131,10 +157,17 @@ async function submitMessage(
 
   try {
     await acpPromptSession(sessionId, userMessage);
+    if (acpChatSessionActions.clearPromptCancellation(sessionId, promptAttemptId)) {
+      return;
+    }
     if (acpChatSessionActions.finishPromptAttemptIfCurrent(sessionId, promptAttemptId)) {
       void options.onFinish();
     }
   } catch (error) {
+    if (acpChatSessionActions.clearPromptCancellation(sessionId, promptAttemptId)) {
+      return;
+    }
+
     const creditsExhaustedError = parseAcpCreditsExhaustedError(error);
     if (creditsExhaustedError) {
       if (!acpChatSessionActions.isCurrentPromptAttempt(sessionId, promptAttemptId)) {
@@ -166,7 +199,7 @@ function stop(sessionId: string): void {
   const hasStoredAcpPrompt = storedPromptAttemptId !== null && storedPromptAttemptId !== undefined;
 
   if (hasStoredAcpPrompt) {
-    acpChatSessionActions.clearActivePromptAttempt(sessionId);
+    acpChatSessionActions.startPromptCancellation(sessionId, storedPromptAttemptId);
     cancelAcpPermissionRequestsForSession(sessionId);
     cancelAcpElicitationRequestsForSession(sessionId);
     acpCancelPrompt(sessionId).catch((error) => {
@@ -185,6 +218,9 @@ async function updateMessage(
   editType: 'fork' | 'edit' | undefined,
   options: AcpSubmitMessageOptions
 ): Promise<void> {
+  assertNoPendingPromptCancellation(sessionId);
+  assertNoActivePromptAttempt(sessionId);
+
   const resolvedEditType = editType ?? 'fork';
   const currentSnapshot = options.getCurrentSnapshot();
 

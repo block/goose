@@ -443,16 +443,8 @@ impl GooseAcpAgent {
         &self,
         req: ProviderSupportedModelsListRequest,
     ) -> Result<ProviderSupportedModelsListResponse, agent_client_protocol::Error> {
-        let entry = crate::providers::get_from_registry(&req.provider_id)
-            .await
-            .invalid_params_err_ctx("Unknown provider")?;
-        let model_config = crate::model_config::model_config_from_user_config(
-            &req.provider_id,
-            &entry.metadata().default_model,
-        )
-        .invalid_params_err_ctx("Invalid default model")?;
         let provider = self
-            .create_provider(&req.provider_id, model_config, Vec::new(), None)
+            .create_provider(&req.provider_id, Vec::new(), None)
             .await
             .internal_err_ctx("Failed to initialize provider")?;
         let models = provider
@@ -722,35 +714,33 @@ impl GooseAcpAgent {
             tokio::spawn(async move {
                 let mut refresh_guard = provider_inventory.refresh_guard(&identity);
                 let provider_result = AssertUnwindSafe(async {
-                    let metadata = crate::providers::get_from_registry(&provider_id).await?;
-                    let model_config = crate::model_config::model_config_from_user_config(
-                        &provider_id,
-                        &metadata.metadata().default_model,
-                    )?;
-                    provider_factory(provider_id.clone(), model_config, Vec::new(), None).await
+                    provider_factory(provider_id.clone(), Vec::new(), None).await
                 })
                 .catch_unwind()
                 .await;
 
-                let fetch_result: Result<Vec<String>> = match provider_result {
-                    Ok(Ok(provider)) => {
-                        match ensure_refresh_identity_current(&provider_id, &identity).await {
-                            Ok(()) => match AssertUnwindSafe(provider.fetch_recommended_models())
+                let fetch_result: Result<Vec<String>> =
+                    match provider_result {
+                        Ok(Ok(provider)) => {
+                            match ensure_refresh_identity_current(&provider_id, &identity).await {
+                                Ok(()) => match AssertUnwindSafe(provider.fetch_recommended_models(
+                                    crate::model_config::global_toolshim(),
+                                ))
                                 .catch_unwind()
                                 .await
-                            {
-                                Ok(Ok(models)) => Ok(models),
-                                Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
-                                Err(_) => {
-                                    Err(anyhow::anyhow!("provider inventory refresh task panicked"))
-                                }
-                            },
-                            Err(error) => Err(error),
+                                {
+                                    Ok(Ok(models)) => Ok(models),
+                                    Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),
+                                    Err(_) => Err(anyhow::anyhow!(
+                                        "provider inventory refresh task panicked"
+                                    )),
+                                },
+                                Err(error) => Err(error),
+                            }
                         }
-                    }
-                    Ok(Err(error)) => Err(error),
-                    Err(_) => Err(anyhow::anyhow!("provider inventory refresh task panicked")),
-                };
+                        Ok(Err(error)) => Err(error),
+                        Err(_) => Err(anyhow::anyhow!("provider inventory refresh task panicked")),
+                    };
 
                 match fetch_result {
                     Ok(models) => match provider_inventory

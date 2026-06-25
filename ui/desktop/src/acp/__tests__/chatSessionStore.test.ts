@@ -129,6 +129,44 @@ function agentMessageChunkNotification(
   };
 }
 
+function userSteerChunkNotification(
+  sessionId: string,
+  messageId: string,
+  text: string
+): SessionNotification {
+  return {
+    sessionId,
+    update: {
+      sessionUpdate: 'user_message_chunk',
+      messageId,
+      content: {
+        type: 'text',
+        text,
+      },
+      _meta: {
+        goose: {
+          messageId,
+          steer: true,
+        },
+      },
+    } as SessionNotification['update'],
+  };
+}
+
+function activeRunNotification(sessionId: string, activeRunId: string | null): SessionNotification {
+  return {
+    sessionId,
+    update: {
+      sessionUpdate: 'session_info_update',
+      _meta: {
+        goose: {
+          activeRunId,
+        },
+      },
+    } as SessionNotification['update'],
+  };
+}
+
 describe('acpChatSessionStore', () => {
   const sessionIds = new Set<string>();
   const sessionId = (id: string): string => {
@@ -222,6 +260,149 @@ describe('acpChatSessionStore', () => {
 
     expect(snapshot.activePromptAttemptId).toBe('attempt-1');
     expect(snapshot.chatState).toBe(ChatState.Streaming);
+  });
+
+  it('tracks prompt cancellation separately from visible prompt activity', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    const cancellationSnapshot = acpChatSessionActions.startPromptCancellation(
+      currentSessionId,
+      'attempt-1'
+    );
+
+    expect(cancellationSnapshot).toMatchObject({
+      activePromptAttemptId: null,
+      pendingCancelPromptAttemptId: 'attempt-1',
+      chatState: ChatState.Idle,
+    });
+
+    const staleClearSnapshot = acpChatSessionActions.clearPromptCancellation(
+      currentSessionId,
+      'attempt-2'
+    );
+    expect(staleClearSnapshot).toBeUndefined();
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)?.pendingCancelPromptAttemptId).toBe(
+      'attempt-1'
+    );
+
+    const clearedSnapshot = acpChatSessionActions.clearPromptCancellation(
+      currentSessionId,
+      'attempt-1'
+    );
+
+    expect(clearedSnapshot?.pendingCancelPromptAttemptId).toBeNull();
+  });
+
+  it('removes pending local steer messages when cancellation starts', () => {
+    const currentSessionId = sessionId('session-1');
+    const localSteerMessage = {
+      ...message('steer-1', 'hello'),
+      metadata: { userVisible: true, agentVisible: true, steer: true },
+    };
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    acpChatSessionActions.addPendingLocalSteerMessage(currentSessionId, localSteerMessage);
+
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)?.messages).toHaveLength(1);
+
+    const cancellationSnapshot = acpChatSessionActions.startPromptCancellation(
+      currentSessionId,
+      'attempt-1'
+    );
+
+    expect(cancellationSnapshot?.messages).toEqual([]);
+  });
+
+  it('keeps confirmed local steer messages when cancellation starts', () => {
+    const currentSessionId = sessionId('session-1');
+    const localSteerMessage = {
+      ...message('steer-1', 'hello'),
+      metadata: { userVisible: true, agentVisible: true, steer: true },
+    };
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    acpChatSessionActions.addPendingLocalSteerMessage(currentSessionId, localSteerMessage);
+    acpChatSessionActions.applyAcpSessionNotification(
+      userSteerChunkNotification(currentSessionId, 'steer-1', 'hello')
+    );
+
+    const cancellationSnapshot = acpChatSessionActions.startPromptCancellation(
+      currentSessionId,
+      'attempt-1'
+    );
+
+    expect(cancellationSnapshot?.messages).toHaveLength(1);
+    expect(cancellationSnapshot?.messages[0].id).toBe('steer-1');
+  });
+
+  it('preserves steer text accumulation when another local steer is added', () => {
+    const currentSessionId = sessionId('session-1');
+    const firstSteerMessage = {
+      ...message('steer-1', 'hello'),
+      metadata: { userVisible: true, agentVisible: true, steer: true },
+    };
+    const secondSteerMessage = {
+      ...message('steer-2', 'second'),
+      metadata: { userVisible: true, agentVisible: true, steer: true },
+    };
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    acpChatSessionActions.addPendingLocalSteerMessage(currentSessionId, firstSteerMessage);
+    acpChatSessionActions.applyAcpSessionNotification(
+      userSteerChunkNotification(currentSessionId, 'steer-1', 'hel')
+    );
+
+    acpChatSessionActions.addPendingLocalSteerMessage(currentSessionId, secondSteerMessage);
+    const snapshot = acpChatSessionActions.applyAcpSessionNotification(
+      userSteerChunkNotification(currentSessionId, 'steer-1', 'lo')
+    );
+
+    const firstMessage = snapshot.messages.find((item) => item.id === 'steer-1');
+    expect(firstMessage?.content[0]).toMatchObject({ type: 'text', text: 'hello' });
+  });
+
+  it('stores active run ids from session info notifications', () => {
+    const currentSessionId = sessionId('session-1');
+
+    const snapshot = acpChatSessionActions.applyAcpSessionNotification(
+      activeRunNotification(currentSessionId, 'run-1')
+    );
+
+    expect(snapshot.activeRunId).toBe('run-1');
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)?.activeRunId).toBe('run-1');
+
+    const clearedSnapshot = acpChatSessionActions.applyAcpSessionNotification(
+      activeRunNotification(currentSessionId, null)
+    );
+
+    expect(clearedSnapshot.activeRunId).toBeNull();
+  });
+
+  it('clears active run ids when the prompt attempt finishes', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    acpChatSessionActions.applyAcpSessionNotification(
+      activeRunNotification(currentSessionId, 'run-1')
+    );
+
+    expect(acpChatSessionActions.finishPromptAttemptIfCurrent(currentSessionId, 'attempt-1')).toBe(
+      true
+    );
+    expect(acpChatSessionStore.getSnapshot(currentSessionId)?.activeRunId).toBeNull();
+  });
+
+  it('clears active run ids before replaying a session load', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.applyAcpSessionNotification(
+      activeRunNotification(currentSessionId, 'run-1')
+    );
+
+    const snapshot = acpChatSessionActions.startSessionLoad(currentSessionId);
+
+    expect(snapshot.activeRunId).toBeNull();
   });
 
   it('stores ACP tool notifications and clears them for a new prompt attempt', () => {

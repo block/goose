@@ -80,7 +80,7 @@ mod tests {
     //     run_scenario(
     //         "context_length_exceeded",
     //         Box::new(|provider| {
-    //             let model_config = provider.get_model_config();
+    //             let model_config = resolve_global_model_config();
     //             let context_length = model_config.context_limit.unwrap_or(300_000);
     //             // "hello " is only one token in most models, since the hello and space often
     //             // occur together in the training data.

@@ -7,7 +7,11 @@ use goose::conversation::token_usage::Usage;
 use goose::conversation::Conversation;
 use goose::download_manager::{DownloadProgress, DownloadStatus};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
-use goose::session::{Session, SessionType, SystemInfo};
+use goose::session::{
+    DiagnosticsConfig, DiagnosticsError, DiagnosticsExtensions, DiagnosticsLevel, DiagnosticsLogs,
+    DiagnosticsPrompt, DiagnosticsReport, DiagnosticsScheduledRecipe, DiagnosticsTextFile, Session,
+    SessionType, SystemInfo,
+};
 use goose_providers::model::ModelConfig;
 use goose_providers::permission::Permission;
 use goose_providers::permission::PrincipalType;
@@ -472,8 +476,6 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::setup::start_openrouter_setup,
         super::routes::setup::start_tetrate_setup,
         super::routes::setup::start_nanogpt_setup,
-        super::routes::tunnel::start_tunnel,
-        super::routes::tunnel::stop_tunnel,
         super::routes::tunnel::get_tunnel_status,
         super::routes::telemetry::send_telemetry_event,
         super::routes::dictation::transcribe_dictation,
@@ -583,6 +585,15 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         goose_providers::goose_mode::GooseMode,
         SessionType,
         SystemInfo,
+        DiagnosticsConfig,
+        DiagnosticsError,
+        DiagnosticsExtensions,
+        DiagnosticsLevel,
+        DiagnosticsLogs,
+        DiagnosticsPrompt,
+        DiagnosticsReport,
+        DiagnosticsScheduledRecipe,
+        DiagnosticsTextFile,
         Conversation,
         IconSchema,
         IconThemeSchema,

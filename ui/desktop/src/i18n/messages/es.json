@@ -185,9 +185,6 @@
   "chatInput.send": {
     "defaultMessage": "Enviar"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "Demasiadas herramientas pueden degradar el rendimiento. Cantidad de herramientas: {toolCount} (recomendado: {recommended})"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "Transcribiendo..."
   },
@@ -200,8 +197,8 @@
   "chatInput.viewEditRecipe": {
     "defaultMessage": "Ver/Editar Receta"
   },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "Ver extensiones"
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "Esperando a que finalice la cancelación"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "Esperando a que se guarden las imágenes..."
@@ -1231,66 +1228,6 @@
   },
   "freeOptionCards.unexpectedError": {
     "defaultMessage": "Ocurrió un error inesperado durante la configuración."
-  },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "Abre @BotFather en tu teléfono, envía /newbot y sigue las indicaciones para nombrar tu bot. BotFather te responderá con un token de API — pégalo abajo."
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "Cerrar"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "Expira en {time}"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "No se pudo generar el código de emparejamiento"
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "No se pudo quitar"
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "No se pudo iniciar"
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "No se pudo detener"
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "No se pudo desemparejar al usuario"
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "Cargando..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "Emparejar dispositivo"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "Usuarios emparejados"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "Código de emparejamiento"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "Pega aquí el token del bot"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "Quitar"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "En ejecución"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "Envía este código a tu bot de {gatewayType} para emparejar."
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "Iniciar"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "Detener"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "Detenido"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "Telegram"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Cerrar"
@@ -3299,6 +3236,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "No se puede activar ni modificar una programación mientras se está ejecutando."
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "Sesión: {sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "Creada: {date}"
   },
@@ -3319,9 +3259,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "Error: {error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "No se pudo cargar la sesión"
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
@@ -3365,9 +3302,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "Mensajes: {count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "Nueva sesión: {sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "No se proporcionó ningún ID de programación. Vuelve a la lista de programaciones."
   },
@@ -3404,6 +3338,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "Ejecutar programación ahora"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "Ejecución completada"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Detalles de la programación"
   },
@@ -3422,9 +3359,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "Programación en pausa"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "Programación activada"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "Programación reanudada"
   },
@@ -3433,9 +3367,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "ID de sesión: {id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "Tokens: {count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "Reanudar programación"
@@ -3758,57 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Ver el JSON de la sesión"
   },
-  "sessionHistory.cancel": {
-    "defaultMessage": "Cancelar"
-  },
-  "sessionHistory.copy": {
-    "defaultMessage": "Copiar"
-  },
-  "sessionHistory.empty.description": {
-    "defaultMessage": "Esta sesión no contiene ningún mensaje"
-  },
-  "sessionHistory.empty.title": {
-    "defaultMessage": "No se encontraron mensajes"
-  },
-  "sessionHistory.error.loading": {
-    "defaultMessage": "Error al cargar los detalles de la sesión"
-  },
-  "sessionHistory.error.tryAgain": {
-    "defaultMessage": "Reintentar"
-  },
-  "sessionHistory.loading": {
-    "defaultMessage": "Cargando detalles de la sesión..."
-  },
-  "sessionHistory.resume": {
-    "defaultMessage": "Reanudar"
-  },
-  "sessionHistory.searchPlaceholder": {
-    "defaultMessage": "Buscar en el historial..."
-  },
-  "sessionHistory.share": {
-    "defaultMessage": "Compartir"
-  },
-  "sessionHistory.shareModal.description": {
-    "defaultMessage": "Comparte este enlace de sesión para dar a otros una vista de solo lectura de tu chat de goose."
-  },
-  "sessionHistory.shareModal.title": {
-    "defaultMessage": "Compartir sesión (beta)"
-  },
-  "sessionHistory.shareTooltip": {
-    "defaultMessage": "Para habilitar el uso compartido de sesiones, ve a <b>Ajustes</b> > <b>Sesión</b> > <b>Compartir sesión</b>."
-  },
-  "sessionHistory.sharing": {
-    "defaultMessage": "Compartiendo..."
-  },
-  "sessionHistory.toast.copyFailed": {
-    "defaultMessage": "No se pudo copiar el enlace al portapapeles"
-  },
-  "sessionHistory.toast.launchFailed": {
-    "defaultMessage": "No se pudo abrir la sesión: {error}"
-  },
-  "sessionHistory.toast.shareFailed": {
-    "defaultMessage": "No se pudo compartir la sesión: {error}"
-  },
   "sessionIndicators.error": {
     "defaultMessage": "La sesión encontró un error"
   },
@@ -3817,57 +3697,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
-  },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "El uso compartido de sesiones ya se configuró"
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "URL base"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "Falló la conexión."
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "¡Conexión exitosa!"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "Se agotó el tiempo de conexión. Puede que el servidor esté lento o inaccesible."
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "El uso compartido de sesiones está configurado pero es totalmente opcional: tus sesiones solo se comparten cuando haces clic explícitamente en el botón de compartir."
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "Puedes habilitar el uso compartido de sesiones para compartir tus sesiones con otros."
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "Habilitar el uso compartido de sesiones"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "Formato de URL no válido. Ingresa una URL válida (p. ej., https://example.com/api)."
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "Error del servidor: HTTP {status}. Puede que el servidor no esté configurado correctamente."
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "Probar conexión"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "Probando..."
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "Probando la conexión..."
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "Compartir sesión"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "Ocurrió un error desconocido."
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "No se pudo conectar con el servidor. Revisa la URL y tu conexión de red."
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
   },
   "sessionViewComponents.empty.description": {
     "defaultMessage": "Esta sesión no contiene ningún mensaje"
@@ -4018,12 +3847,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "Descripción de la sesión actualizada correctamente"
-  },
-  "sessionsView.error.failedToLoad": {
-    "defaultMessage": "No se pudieron cargar los detalles de la sesión. Inténtalo de nuevo más tarde."
-  },
-  "sessionsView.loading": {
-    "defaultMessage": "Cargando..."
   },
   "settings.appearance.description": {
     "defaultMessage": "Configura cómo se ve goose en tu sistema"
@@ -4195,12 +4018,6 @@
   },
   "settingsView.title": {
     "defaultMessage": "Ajustes"
-  },
-  "sharedSession.loading": {
-    "defaultMessage": "Cargando detalles de la sesión..."
-  },
-  "sharedSession.title": {
-    "defaultMessage": "Sesión compartida"
   },
   "sheet.close": {
     "defaultMessage": "Cerrar"
@@ -4606,96 +4423,6 @@
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose quiere invocar {toolName}. ¿Permitir?"
-  },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "Escanea este código QR con la cámara de tu iPhone para instalar la app móvil de goose desde la App Store"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "Cerrar"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "Detalles de conexión"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "Descargar la app de goose para iOS"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "No se pudo cargar el estado del túnel"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "No se pudo iniciar el túnel"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "No se pudo detener el túnel"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "Obtén la app para iOS"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "App móvil"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "Conexión de la app móvil"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "Abrir en la App Store"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "o"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "Activa el acceso remoto a goose desde dispositivos móviles mediante un túnel seguro."
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "Función en vista previa:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "Escanea este código QR con la app móvil de goose. No compartas este código con nadie, ya que es para tu acceso personal."
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "Reintentar"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "escanear código QR"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "Clave secreta"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "Mostrar código QR"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Iniciar túnel"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "Iniciando..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "El túnel está desactivado"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "El túnel encontró un error"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "El túnel no está en ejecución"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "El túnel está activo"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "Iniciando el túnel..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "Detener túnel"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "Estado del túnel"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "URL del túnel"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL:"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "La actualización se descargará automáticamente en segundo plano."

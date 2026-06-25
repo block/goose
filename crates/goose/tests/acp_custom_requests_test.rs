@@ -47,7 +47,6 @@ fn write_acp_global_config(contents: &str) -> PathBuf {
 
 struct MockProvider {
     name: String,
-    model_config: ModelConfig,
     recommended_models: Vec<String>,
     supported_models: Vec<String>,
 }
@@ -69,11 +68,10 @@ impl Provider for MockProvider {
         unimplemented!()
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model_config.clone()
-    }
-
-    async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+    async fn fetch_recommended_models(
+        &self,
+        _toolshim: bool,
+    ) -> Result<Vec<String>, ProviderError> {
         Ok(self.recommended_models.clone())
     }
 
@@ -1040,11 +1038,10 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let provider_factory: AcpProviderFactory =
-            Arc::new(|provider_name, model_config, _extensions, _working_dir| {
+            Arc::new(|provider_name, _extensions, _working_dir| {
                 Box::pin(async move {
                     Ok(Arc::new(MockProvider {
                         name: provider_name,
-                        model_config,
                         recommended_models: vec!["canonical-filtered-model".to_string()],
                         supported_models: vec![
                             "goose-claude-opus-4-8".to_string(),

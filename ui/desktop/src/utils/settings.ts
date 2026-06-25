@@ -23,11 +23,6 @@ export type DefaultKeyboardShortcuts = {
   [K in keyof KeyboardShortcuts]: string;
 };
 
-export interface SessionSharingConfig {
-  enabled: boolean;
-  baseUrl: string;
-}
-
 export type LanguageSetting = 'system' | 'en' | 'es' | 'hi' | 'ja' | 'ko' | 'ru' | 'tr' | 'zh-CN';
 
 export interface Settings {
@@ -48,7 +43,6 @@ export interface Settings {
   language: LanguageSetting;
   responseStyle: string;
   showPricing: boolean;
-  sessionSharing: SessionSharingConfig;
   seenAnnouncementIds: string[];
 }
 
@@ -89,10 +83,6 @@ export const defaultSettings: Settings = {
   language: 'system',
   responseStyle: 'concise',
   showPricing: true,
-  sessionSharing: {
-    enabled: false,
-    baseUrl: '',
-  },
   seenAnnouncementIds: [],
 };
 

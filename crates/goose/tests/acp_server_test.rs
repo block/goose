@@ -2,8 +2,9 @@
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 use agent_client_protocol::schema::{
-    ListSessionsRequest, ListSessionsResponse, SessionConfigKind, SessionConfigOptionCategory,
-    SessionConfigOptionValue, SessionInfo, SetSessionConfigOptionRequest,
+    ListSessionsRequest, ListSessionsResponse, NewSessionRequest, SessionConfigKind,
+    SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo,
+    SetSessionConfigOptionRequest,
 };
 use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::AcpServerConnection;
@@ -25,6 +26,8 @@ use common_tests::{
 use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageMetadata};
 use goose::custom_requests::{GetSessionInfoRequest, GetSessionInfoResponse};
+use goose::recipe::{Recipe, Settings};
+use goose::recipe_deeplink;
 use goose::session::{SessionManager, SessionType};
 use std::path::Path;
 
@@ -590,6 +593,91 @@ fn test_new_session_returns_initial_config() {
 #[test]
 fn test_new_session_uses_current_config_mode() {
     run_test(async { run_new_session_uses_current_config_mode::<AcpServerConnection>().await });
+}
+
+#[test]
+fn test_new_session_honors_recipe_model_without_recipe_provider() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let conn = new_connection(data_root.path()).await;
+        let work_dir = tempfile::tempdir().unwrap();
+        let recipe_model = "gpt-4.1";
+        let recipe = Recipe::builder()
+            .title("Recipe model")
+            .description("A recipe that only overrides the model")
+            .instructions("Use the requested model")
+            .settings(Settings {
+                goose_provider: None,
+                goose_model: Some(recipe_model.to_string()),
+                temperature: None,
+                max_turns: None,
+            })
+            .build()
+            .unwrap();
+        let mut meta = serde_json::Map::new();
+        meta.insert(
+            "recipeDeeplink".to_string(),
+            serde_json::Value::String(recipe_deeplink::encode(&recipe).unwrap()),
+        );
+
+        let response = conn
+            .cx()
+            .send_request(NewSessionRequest::new(work_dir.path()).meta(meta))
+            .block_task()
+            .await
+            .unwrap();
+        let session_info = get_session_info_request(
+            &conn,
+            GetSessionInfoRequest {
+                session_id: response.session_id.0.to_string(),
+            },
+        )
+        .await
+        .unwrap();
+        let meta = session_info
+            .session
+            .meta
+            .expect("session info should include meta");
+
+        assert_eq!(
+            meta.get("modelId").and_then(|v| v.as_str()),
+            Some(recipe_model)
+        );
+        assert_eq!(
+            meta.get("providerId").and_then(|v| v.as_str()),
+            Some("openai")
+        );
+    });
+}
+
+#[test]
+fn test_new_session_cleans_up_when_config_fails() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let conn = new_connection(data_root.path()).await;
+        let work_dir = tempfile::tempdir().unwrap();
+        let mut meta = serde_json::Map::new();
+        meta.insert(
+            "enabledExtensions".to_string(),
+            serde_json::Value::String("invalid".to_string()),
+        );
+
+        let error: anyhow::Error = conn
+            .cx()
+            .send_request(NewSessionRequest::new(work_dir.path()).meta(meta))
+            .block_task()
+            .await
+            .unwrap_err()
+            .into();
+
+        assert_invalid_params(error);
+
+        let sessions = SessionManager::new(data_root.path().to_path_buf())
+            .list_all_sessions()
+            .await
+            .unwrap();
+        assert!(sessions.is_empty());
+    });
 }
 
 #[test]

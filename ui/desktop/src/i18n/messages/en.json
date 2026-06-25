@@ -185,9 +185,6 @@
   "chatInput.send": {
     "defaultMessage": "Send"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "Too many tools can degrade performance. Tool count: {toolCount} (recommend: {recommended})"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "Transcribing..."
   },
@@ -200,17 +197,17 @@
   "chatInput.viewEditRecipe": {
     "defaultMessage": "View/Edit Recipe"
   },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "View extensions"
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "Waiting for cancellation to finish"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "Waiting for images to save..."
   },
   "chatSettings.modeDescription": {
-    "defaultMessage": "Configure how Goose interacts with tools and extensions"
+    "defaultMessage": "Choose the default mode Goose uses for new sessions. Existing sessions keep their current mode."
   },
   "chatSettings.modeTitle": {
-    "defaultMessage": "Mode"
+    "defaultMessage": "Default Mode"
   },
   "chatSettings.responseStylesDescription": {
     "defaultMessage": "Choose how Goose should format and style its responses"
@@ -804,10 +801,10 @@
     "defaultMessage": "Configuration settings"
   },
   "diagnosticsModal.description": {
-    "defaultMessage": "You can download a diagnostics zip file to share with the team, or file a bug directly on GitHub with your system details pre-filled. A diagnostics report contains the following:"
+    "defaultMessage": "You can download a diagnostics JSON report to share with the team, or file a bug directly on GitHub with your system details pre-filled. A diagnostics report contains the following:"
   },
   "diagnosticsModal.diagnosticsErrorMsg": {
-    "defaultMessage": "Failed to download diagnostics"
+    "defaultMessage": "Failed to download diagnostics report"
   },
   "diagnosticsModal.diagnosticsErrorTitle": {
     "defaultMessage": "Diagnostics Error"
@@ -1231,66 +1228,6 @@
   },
   "freeOptionCards.unexpectedError": {
     "defaultMessage": "An unexpected error occurred during setup."
-  },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "Open @BotFather on your phone, send /newbot, and follow the prompts to name your bot. BotFather will reply with an API token — paste it below."
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "Close"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "Expires in {time}"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "Failed to generate pairing code"
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "Failed to remove"
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "Failed to start"
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "Failed to stop"
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "Failed to unpair user"
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "Loading..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "Pair Device"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "Paired Users"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "Pairing Code"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "Paste bot token here"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "Remove"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "Running"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "Send this code to your {gatewayType} bot to pair."
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "Start"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "Stop"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "Stopped"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "Telegram"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Close"
@@ -3299,6 +3236,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "Cannot trigger or modify a schedule while it's already running."
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "Session: {sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "Created: {date}"
   },
@@ -3319,9 +3259,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "Error: {error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "Failed to load session"
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
@@ -3365,9 +3302,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "Messages: {count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "New session: {sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "No schedule ID provided. Return to schedules list."
   },
@@ -3404,6 +3338,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "Run Schedule Now"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "Run completed"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Schedule Details"
   },
@@ -3422,9 +3359,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "Schedule Paused"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "Schedule Triggered"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "Schedule Unpaused"
   },
@@ -3433,9 +3367,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "Session ID: {id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "Tokens: {count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "Unpause Schedule"
@@ -3758,57 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"
   },
-  "sessionHistory.cancel": {
-    "defaultMessage": "Cancel"
-  },
-  "sessionHistory.copy": {
-    "defaultMessage": "Copy"
-  },
-  "sessionHistory.empty.description": {
-    "defaultMessage": "This session doesn't contain any messages"
-  },
-  "sessionHistory.empty.title": {
-    "defaultMessage": "No messages found"
-  },
-  "sessionHistory.error.loading": {
-    "defaultMessage": "Error Loading Session Details"
-  },
-  "sessionHistory.error.tryAgain": {
-    "defaultMessage": "Try Again"
-  },
-  "sessionHistory.loading": {
-    "defaultMessage": "Loading session details..."
-  },
-  "sessionHistory.resume": {
-    "defaultMessage": "Resume"
-  },
-  "sessionHistory.searchPlaceholder": {
-    "defaultMessage": "Search history..."
-  },
-  "sessionHistory.share": {
-    "defaultMessage": "Share"
-  },
-  "sessionHistory.shareModal.description": {
-    "defaultMessage": "Share this session link to give others a read only view of your goose chat."
-  },
-  "sessionHistory.shareModal.title": {
-    "defaultMessage": "Share Session (beta)"
-  },
-  "sessionHistory.shareTooltip": {
-    "defaultMessage": "To enable session sharing, go to <b>Settings</b> > <b>Session</b> > <b>Session Sharing</b>."
-  },
-  "sessionHistory.sharing": {
-    "defaultMessage": "Sharing..."
-  },
-  "sessionHistory.toast.copyFailed": {
-    "defaultMessage": "Failed to copy link to clipboard"
-  },
-  "sessionHistory.toast.launchFailed": {
-    "defaultMessage": "Could not launch session: {error}"
-  },
-  "sessionHistory.toast.shareFailed": {
-    "defaultMessage": "Failed to share session: {error}"
-  },
   "sessionIndicators.error": {
     "defaultMessage": "Session encountered an error"
   },
@@ -3817,57 +3697,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
-  },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "Session sharing has already been configured"
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "Base URL"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "Connection failed."
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "Connection successful!"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "Connection timed out. The server may be slow or unreachable."
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "Session sharing is configured but fully opt-in — your sessions are only shared when you explicitly click the share button."
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "You can enable session sharing to share your sessions with others."
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "Enable session sharing"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "Invalid URL format. Please enter a valid URL (e.g. https://example.com/api)."
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "Server error: HTTP {status}. The server may not be configured correctly."
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "Test Connection"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "Testing..."
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "Testing connection..."
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "Session Sharing"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "Unknown error occurred."
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "Unable to reach the server. Please check the URL and your network connection."
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
   },
   "sessionViewComponents.empty.description": {
     "defaultMessage": "This session doesn't contain any messages"
@@ -4018,12 +3847,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "Session description updated successfully"
-  },
-  "sessionsView.error.failedToLoad": {
-    "defaultMessage": "Failed to load session details. Please try again later."
-  },
-  "sessionsView.loading": {
-    "defaultMessage": "Loading..."
   },
   "settings.appearance.description": {
     "defaultMessage": "Configure how goose appears on your system"
@@ -4195,12 +4018,6 @@
   },
   "settingsView.title": {
     "defaultMessage": "Settings"
-  },
-  "sharedSession.loading": {
-    "defaultMessage": "Loading session details..."
-  },
-  "sharedSession.title": {
-    "defaultMessage": "Shared Session"
   },
   "sheet.close": {
     "defaultMessage": "Close"
@@ -4607,98 +4424,8 @@
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose would like to call {toolName}. Allow?"
   },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "Scan this QR code with your iPhone camera to install the goose mobile app from the App Store"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "Close"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "Connection Details"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "Download goose iOS App"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "Failed to load tunnel status"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "Failed to start tunnel"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "Failed to stop tunnel"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "Get the iOS app"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "Mobile App"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "Mobile App Connection"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "Open in App Store"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "or"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "Enable remote access to goose from mobile devices using secure tunneling."
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "Preview feature:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "Scan this QR code with the goose mobile app. Do not share this code with anyone else as it is for your personal access."
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "Retry"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "scan QR code"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "Secret Key"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "Show QR Code"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "Start Tunnel"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "Starting..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "Tunnel is disabled"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "Tunnel encountered an error"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "Tunnel is not running"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "Tunnel is active"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "Starting tunnel..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "Stop Tunnel"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "Tunnel Status"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "Tunnel URL"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL:"
-  },
   "updateSection.autoDownload": {
-    "defaultMessage": "Update will be downloaded automatically in the background."
+    "defaultMessage": "Goose will download the update in the background and install it the next time you quit or restart."
   },
   "updateSection.autoDownloadDisabledByEnv": {
     "defaultMessage": "Automatic downloads are disabled via the GOOSE_DISABLE_AUTO_DOWNLOAD environment variable."
@@ -4707,7 +4434,7 @@
     "defaultMessage": "Automatic download is disabled. Click \"Download Now\" to download manually."
   },
   "updateSection.autoInstallNote": {
-    "defaultMessage": "The update will be installed automatically when you quit the app."
+    "defaultMessage": "No manual install is needed."
   },
   "updateSection.checkForUpdates": {
     "defaultMessage": "Check for Updates"
@@ -4740,7 +4467,7 @@
     "defaultMessage": "Install & Restart"
   },
   "updateSection.installNowHint": {
-    "defaultMessage": "Or click \"Install & Restart\" to update now."
+    "defaultMessage": "Click \"Install & Restart\" to update now."
   },
   "updateSection.latestVersion": {
     "defaultMessage": "You are running the latest version!"
@@ -4755,7 +4482,7 @@
     "defaultMessage": "Manual installation required for this update method."
   },
   "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Update is ready! It will be installed when you quit Goose."
+    "defaultMessage": "✓ Update is ready. Restart Goose to finish installing it, or quit when you're done."
   },
   "updateSection.readyInstallManual": {
     "defaultMessage": "✓ Update is ready! Click \"Install & Restart\" for installation instructions."

@@ -167,6 +167,7 @@ impl GooseCompleter {
             "/model",
             "/recipe",
             "/skills",
+            "/status",
         ];
 
         // Find commands that match the prefix

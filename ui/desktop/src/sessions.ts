@@ -3,7 +3,6 @@ import { DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
 import type { setViewType } from './hooks/useNavigation';
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
-import { decodeRecipe, Recipe } from './recipe';
 import { USE_ACP_CHAT } from './acpChatFeatureFlag';
 import { acpChatSessionController } from './acp/chatSessionController';
 import { getConfiguredGooseExtensions, gooseExtensionName } from './acp/extensions';
@@ -76,21 +75,23 @@ async function createAcpSession(
           .filter((entry) => selectedNames.has(gooseExtensionName(entry.extension)))
           .map((entry) => entry.extension)
       : [];
-  return acpChatSessionController.createSession(workingDir, gooseExtensions);
+  return acpChatSessionController.createSession(workingDir, gooseExtensions, {
+    recipeId: options?.recipeId,
+    recipeDeeplink: options?.recipeDeeplink,
+  });
 }
 
 export async function createSession(
   workingDir: string,
   options?: CreateSessionOptions
 ): Promise<Session> {
-  const hasRecipe = Boolean(options?.recipeId || options?.recipeDeeplink);
-  if (USE_ACP_CHAT && !hasRecipe) {
+  if (USE_ACP_CHAT) {
     return createAcpSession(workingDir, options);
   }
 
   const body: {
     working_dir: string;
-    recipe?: Recipe;
+    recipe_deeplink?: string;
     recipe_id?: string;
     extension_overrides?: ExtensionConfig[];
   } = {
@@ -100,7 +101,7 @@ export async function createSession(
   if (options?.recipeId) {
     body.recipe_id = options.recipeId;
   } else if (options?.recipeDeeplink) {
-    body.recipe = await decodeRecipe(options.recipeDeeplink);
+    body.recipe_deeplink = options.recipeDeeplink;
   }
 
   const extensionConfigs = selectedExtensionConfigs(options);

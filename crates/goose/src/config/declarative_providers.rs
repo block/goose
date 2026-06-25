@@ -6,7 +6,7 @@ use crate::providers::huggingface::HuggingFaceProvider;
 use crate::providers::huggingface_auth;
 use crate::providers::inventory::declarative_inventory_identity;
 use crate::providers::ollama::OllamaProvider;
-use crate::providers::openai::OpenAiProvider;
+use crate::providers::openai_def::OpenAiProviderDef;
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
 use once_cell::sync::Lazy;
@@ -585,10 +585,10 @@ pub fn register_declarative_provider(
                         &config,
                         provider_type,
                         config.dynamic_models.unwrap_or(false),
-                        move |model, tls_config| {
+                        move |tls_config| {
                             let mut cfg = captured.clone();
                             resolve_config(&mut cfg)?;
-                            HuggingFaceProvider::from_custom_config(model, cfg, tls_config)
+                            HuggingFaceProvider::from_custom_config(cfg, tls_config)
                         },
                         move || {
                             let mut cfg = identity_config.clone();
@@ -604,14 +604,14 @@ pub fn register_declarative_provider(
                         },
                     );
             } else {
-                registry.register_with_name::<OpenAiProvider, _, _>(
+                registry.register_with_name::<OpenAiProviderDef, _, _>(
                     &config,
                     provider_type,
                     config.dynamic_models.unwrap_or(false),
-                    move |model, tls_config| {
+                    move |tls_config| {
                         let mut cfg = captured.clone();
                         resolve_config(&mut cfg)?;
-                        OpenAiProvider::from_custom_config(model, cfg, tls_config)
+                        crate::providers::openai_def::from_custom_config(cfg, tls_config)
                     },
                     move || {
                         let mut cfg = identity_config.clone();
@@ -628,10 +628,10 @@ pub fn register_declarative_provider(
                 &config,
                 provider_type,
                 config.dynamic_models.unwrap_or(false),
-                move |model, tls_config| {
+                move |tls_config| {
                     let mut cfg = captured.clone();
                     resolve_config(&mut cfg)?;
-                    OllamaProvider::from_custom_config(model, cfg, tls_config)
+                    OllamaProvider::from_custom_config(cfg, tls_config)
                 },
                 move || {
                     let mut cfg = identity_config.clone();
@@ -647,10 +647,10 @@ pub fn register_declarative_provider(
                 &config,
                 provider_type,
                 config.dynamic_models.unwrap_or(false),
-                move |model, tls_config| {
+                move |tls_config| {
                     let mut cfg = captured.clone();
                     resolve_config(&mut cfg)?;
-                    AnthropicProvider::from_custom_config(model, cfg, tls_config)
+                    AnthropicProvider::from_custom_config(cfg, tls_config)
                 },
                 move || {
                     let mut cfg = identity_config.clone();

@@ -6,8 +6,8 @@
 
 use std::time::{Duration, SystemTime};
 
+use crate::errors::ProviderError;
 use chrono::{DateTime, NaiveDateTime, TimeZone, Utc};
-use goose_providers::errors::ProviderError;
 use reqwest::header::{HeaderMap, RETRY_AFTER};
 use reqwest::{Response, StatusCode};
 use serde_json::Value;
@@ -107,7 +107,7 @@ fn parse_http_date(value: &str) -> Option<SystemTime> {
     None
 }
 
-pub(crate) fn is_context_length_exceeded_message(text: &str) -> bool {
+pub fn is_context_length_exceeded_message(text: &str) -> bool {
     let text_lower = text.to_lowercase();
 
     let direct_context_phrases = [

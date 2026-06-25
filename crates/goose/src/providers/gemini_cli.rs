@@ -12,7 +12,6 @@ use super::base::{
 };
 use super::cli_common::{error_from_event, extract_usage_tokens};
 use super::utils::filter_extensions_from_system_prompt;
-use crate::config::base::GeminiCliCommand;
 use crate::config::search_path::SearchPaths;
 use crate::config::Config;
 use crate::conversation::message::{Message, MessageContent};
@@ -39,7 +38,6 @@ pub const GEMINI_CLI_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs";
 #[derive(Debug, serde::Serialize)]
 pub struct GeminiCliProvider {
     command: PathBuf,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
     #[serde(skip)]
@@ -48,7 +46,6 @@ pub struct GeminiCliProvider {
 
 impl GeminiCliProvider {
     pub async fn from_env(
-        model: ModelConfig,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = Config::global();
@@ -57,7 +54,6 @@ impl GeminiCliProvider {
 
         Ok(Self {
             command: resolved_command,
-            model,
             name: GEMINI_CLI_PROVIDER_NAME.to_string(),
             cli_session_id: Arc::new(OnceLock::new()),
         })
@@ -157,9 +153,7 @@ impl GeminiCliProvider {
     }
 }
 
-impl ProviderDef for GeminiCliProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for GeminiCliProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             GEMINI_CLI_PROVIDER_NAME,
@@ -168,18 +162,25 @@ impl ProviderDef for GeminiCliProvider {
             GEMINI_CLI_DEFAULT_MODEL,
             GEMINI_CLI_KNOWN_MODELS.to_vec(),
             GEMINI_CLI_DOC_URL,
-            vec![ConfigKey::from_value_type::<GeminiCliCommand>(
-                true, false, true,
+            vec![ConfigKey::new(
+                "GEMINI_CLI_COMMAND",
+                true,
+                false,
+                Some("gemini"),
+                true,
             )],
         )
     }
+}
+
+impl ProviderDef for GeminiCliProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -191,10 +192,6 @@ impl Provider for GeminiCliProvider {
 
     fn manages_own_context(&self) -> bool {
         true
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -331,7 +328,6 @@ mod tests {
     fn make_provider() -> GeminiCliProvider {
         GeminiCliProvider {
             command: PathBuf::from("gemini"),
-            model: ModelConfig::new("gemini-2.5-pro").unwrap(),
             name: "gemini-cli".to_string(),
             cli_session_id: Arc::new(OnceLock::new()),
         }

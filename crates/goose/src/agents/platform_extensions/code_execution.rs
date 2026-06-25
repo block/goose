@@ -143,7 +143,7 @@ impl CodeExecutionClient {
     /// Build a PctxRegistry with all tool callbacks registered
     fn build_callback_registry(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         code_mode: &CodeMode,
     ) -> Result<PctxRegistry, String> {
         let manager = self
@@ -163,7 +163,7 @@ impl CodeExecutionClient {
                     .unwrap_or_default(),
                 &cfg.name
             );
-            let callback = create_tool_callback(session_id.to_string(), full_name, manager.clone());
+            let callback = create_tool_callback(ctx.clone(), full_name, manager.clone());
             registry
                 .add_callback(&cfg.id(), callback)
                 .map_err(|e| format!("Failed to register callback: {e}"))?;
@@ -236,7 +236,7 @@ impl CodeExecutionClient {
     /// Handle the execute typescript tool call
     async fn handle_execute_typescript(
         &self,
-        session_id: &str,
+        ctx: &ToolCallContext,
         arguments: Option<JsonObject>,
     ) -> Result<Vec<Content>, String> {
         let args: ExecuteWithToolGraph = arguments
@@ -245,8 +245,9 @@ impl CodeExecutionClient {
             .map_err(|e| format!("Failed to parse arguments: {e}"))?
             .ok_or("Missing arguments for execute_typescript")?;
 
+        let session_id = &ctx.session_id;
         let code_mode = self.get_code_mode(session_id).await?;
-        let registry = self.build_callback_registry(session_id, &code_mode)?;
+        let registry = self.build_callback_registry(ctx, &code_mode)?;
         let code = args.input.code.clone();
         let disclosure = self.disclosure;
 
@@ -273,12 +274,12 @@ impl CodeExecutionClient {
 }
 
 fn create_tool_callback(
-    session_id: String,
+    ctx: ToolCallContext,
     full_name: String,
     manager: Arc<crate::agents::ExtensionManager>,
 ) -> CallbackFn {
     Arc::new(move |args: Option<Value>| {
-        let session_id = session_id.clone();
+        let ctx = ctx.clone();
         let full_name = full_name.clone();
         let manager = manager.clone();
         Box::pin(async move {
@@ -289,7 +290,6 @@ fn create_tool_callback(
                 }
                 params
             };
-            let ctx = crate::agents::ToolCallContext::new(session_id, None, None);
             match manager
                 .dispatch_tool_call(&ctx, tool_call, CancellationToken::new())
                 .await
@@ -457,7 +457,7 @@ impl McpClientTrait for CodeExecutionClient {
                     .await
             }
             "execute_bash" => self.handle_execute_bash(session_id, arguments).await,
-            "execute_typescript" => self.handle_execute_typescript(session_id, arguments).await,
+            "execute_typescript" => self.handle_execute_typescript(ctx, arguments).await,
             _ => Err(format!("Unknown tool: {name}")),
         };
 

@@ -8,6 +8,13 @@ impl GooseAcpAgent {
         method: &str,
         params: serde_json::Value,
     ) -> Result<serde_json::Value, agent_client_protocol::Error> {
+        if <SaveRecipeRequest as agent_client_protocol::JsonRpcMessage>::matches_method(method) {
+            let req = recipe::deserialize_save_recipe_request(params)?;
+            let result = self.on_save_recipe(req).await?;
+            return serde_json::to_value(&result)
+                .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()));
+        }
+
         self.handle_custom_request(method, params).await
     }
 
@@ -73,6 +80,14 @@ impl GooseAcpAgent {
         req: SteerSessionRequest,
     ) -> Result<SteerSessionResponse, agent_client_protocol::Error> {
         self.on_steer_session(req).await
+    }
+
+    #[custom_method(DiagnosticsGetRequest)]
+    async fn dispatch_get_diagnostics(
+        &self,
+        req: DiagnosticsGetRequest,
+    ) -> Result<DiagnosticsGetResponse, agent_client_protocol::Error> {
+        self.on_get_diagnostics(req).await
     }
 
     #[custom_method(DeleteSessionRequest)]
@@ -321,6 +336,166 @@ impl GooseAcpAgent {
         self.on_import_session(req).await
     }
 
+    #[custom_method(EncodeRecipeRequest)]
+    async fn dispatch_encode_recipe(
+        &self,
+        req: EncodeRecipeRequest,
+    ) -> Result<EncodeRecipeResponse, agent_client_protocol::Error> {
+        self.on_encode_recipe(req).await
+    }
+
+    #[custom_method(DecodeRecipeRequest)]
+    async fn dispatch_decode_recipe(
+        &self,
+        req: DecodeRecipeRequest,
+    ) -> Result<DecodeRecipeResponse, agent_client_protocol::Error> {
+        self.on_decode_recipe(req).await
+    }
+
+    #[custom_method(ScanRecipeRequest)]
+    async fn dispatch_scan_recipe(
+        &self,
+        req: ScanRecipeRequest,
+    ) -> Result<ScanRecipeResponse, agent_client_protocol::Error> {
+        self.on_scan_recipe(req).await
+    }
+
+    #[custom_method(ListRecipesRequest)]
+    async fn dispatch_list_recipes(
+        &self,
+        req: ListRecipesRequest,
+    ) -> Result<ListRecipesResponse, agent_client_protocol::Error> {
+        self.on_list_recipes(req).await
+    }
+
+    #[custom_method(DeleteRecipeRequest)]
+    async fn dispatch_delete_recipe(
+        &self,
+        req: DeleteRecipeRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_delete_recipe(req).await
+    }
+
+    #[custom_method(ScheduleRecipeRequest)]
+    async fn dispatch_schedule_recipe(
+        &self,
+        req: ScheduleRecipeRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_schedule_recipe(req).await
+    }
+
+    #[custom_method(SetRecipeSlashCommandRequest)]
+    async fn dispatch_set_recipe_slash_command(
+        &self,
+        req: SetRecipeSlashCommandRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_set_recipe_slash_command(req).await
+    }
+
+    #[custom_method(SaveRecipeRequest)]
+    async fn dispatch_save_recipe(
+        &self,
+        req: SaveRecipeRequest,
+    ) -> Result<SaveRecipeResponse, agent_client_protocol::Error> {
+        self.on_save_recipe(req).await
+    }
+
+    #[custom_method(ParseRecipeRequest)]
+    async fn dispatch_parse_recipe(
+        &self,
+        req: ParseRecipeRequest,
+    ) -> Result<ParseRecipeResponse, agent_client_protocol::Error> {
+        self.on_parse_recipe(req).await
+    }
+
+    #[custom_method(RecipeToYamlRequest)]
+    async fn dispatch_recipe_to_yaml(
+        &self,
+        req: RecipeToYamlRequest,
+    ) -> Result<RecipeToYamlResponse, agent_client_protocol::Error> {
+        self.on_recipe_to_yaml(req).await
+    }
+
+    #[custom_method(ListSchedulesRequest)]
+    async fn dispatch_list_schedules(
+        &self,
+        req: ListSchedulesRequest,
+    ) -> Result<ListSchedulesResponse, agent_client_protocol::Error> {
+        self.on_list_schedules(req).await
+    }
+
+    #[custom_method(ListScheduleSessionsRequest)]
+    async fn dispatch_list_schedule_sessions(
+        &self,
+        req: ListScheduleSessionsRequest,
+    ) -> Result<ListScheduleSessionsResponse, agent_client_protocol::Error> {
+        self.on_list_schedule_sessions(req).await
+    }
+
+    #[custom_method(CreateScheduleRequest)]
+    async fn dispatch_create_schedule(
+        &self,
+        req: CreateScheduleRequest,
+    ) -> Result<CreateScheduleResponse, agent_client_protocol::Error> {
+        self.on_create_schedule(req).await
+    }
+
+    #[custom_method(DeleteScheduleRequest)]
+    async fn dispatch_delete_schedule(
+        &self,
+        req: DeleteScheduleRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_delete_schedule(req).await
+    }
+
+    #[custom_method(PauseScheduleRequest)]
+    async fn dispatch_pause_schedule(
+        &self,
+        req: PauseScheduleRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_pause_schedule(req).await
+    }
+
+    #[custom_method(UnpauseScheduleRequest)]
+    async fn dispatch_unpause_schedule(
+        &self,
+        req: UnpauseScheduleRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_unpause_schedule(req).await
+    }
+
+    #[custom_method(UpdateScheduleRequest)]
+    async fn dispatch_update_schedule(
+        &self,
+        req: UpdateScheduleRequest,
+    ) -> Result<UpdateScheduleResponse, agent_client_protocol::Error> {
+        self.on_update_schedule(req).await
+    }
+
+    #[custom_method(RunScheduleNowRequest)]
+    async fn dispatch_run_schedule_now(
+        &self,
+        req: RunScheduleNowRequest,
+    ) -> Result<RunScheduleNowResponse, agent_client_protocol::Error> {
+        self.on_run_schedule_now(req).await
+    }
+
+    #[custom_method(KillRunningJobRequest)]
+    async fn dispatch_kill_running_job(
+        &self,
+        req: KillRunningJobRequest,
+    ) -> Result<KillRunningJobResponse, agent_client_protocol::Error> {
+        self.on_kill_running_job(req).await
+    }
+
+    #[custom_method(InspectRunningJobRequest)]
+    async fn dispatch_inspect_running_job(
+        &self,
+        req: InspectRunningJobRequest,
+    ) -> Result<InspectRunningJobResponse, agent_client_protocol::Error> {
+        self.on_inspect_running_job(req).await
+    }
+
     #[custom_method(GetSessionInfoRequest)]
     async fn dispatch_get_session_info(
         &self,
@@ -383,6 +558,22 @@ impl GooseAcpAgent {
         req: ListSourcesRequest,
     ) -> Result<ListSourcesResponse, agent_client_protocol::Error> {
         self.on_list_sources(req).await
+    }
+
+    #[custom_method(ListAgentMentionsRequest)]
+    async fn dispatch_list_agent_mentions(
+        &self,
+        req: ListAgentMentionsRequest,
+    ) -> Result<ListAgentMentionsResponse, agent_client_protocol::Error> {
+        self.on_list_agent_mentions(req).await
+    }
+
+    #[custom_method(ListSlashCommandsRequest)]
+    async fn dispatch_list_slash_commands(
+        &self,
+        req: ListSlashCommandsRequest,
+    ) -> Result<ListSlashCommandsResponse, agent_client_protocol::Error> {
+        self.on_list_slash_commands(req).await
     }
 
     #[custom_method(UpdateSourceRequest)]

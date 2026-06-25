@@ -62,7 +62,7 @@ urlencoding = { workspace = true }
 clap_complete = { version = "4", default-features = false }
 comfy-table = { version = "7", default-features = false }
 sha2 = { workspace = true }
-sigstore-verify = { version = "0.8", default-features = false, optional = true }
+sigstore-verify = { version = "0.9", default-features = false, optional = true }
 axum.workspace = true
 clap_complete_nushell = { version = "4", default-features = false }
 

@@ -547,7 +547,7 @@ mod tests {
     fn test_bedrock_anthropic_thinking_fields_enabled() {
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("low"));
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
         config.request_params = Some(params);
         config.reasoning = Some(true);
 
@@ -565,7 +565,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_anthropic_thinking_fields_disabled() {
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
         config.reasoning = Some(true);
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
@@ -577,7 +577,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_anthropic_thinking_fields_always_on_adaptive() {
-        let mut config = ModelConfig::new_or_fail("global.anthropic.claude-fable-5");
+        let mut config = ModelConfig::new("global.anthropic.claude-fable-5");
         config.reasoning = Some(true);
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
@@ -596,7 +596,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_anthropic_thinking_fields_adaptive_with_effort() {
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-opus-4.7");
+        let mut config = ModelConfig::new("us.anthropic.claude-opus-4.7");
         config.reasoning = Some(true);
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
@@ -615,7 +615,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_anthropic_thinking_fields_adaptive_with_version_suffix() {
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-opus-4-7-20251101-v1:0");
+        let mut config = ModelConfig::new("us.anthropic.claude-opus-4-7-20251101-v1:0");
         config.reasoning = Some(true);
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
@@ -634,7 +634,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_thinking_fields_skipped_for_non_anthropic() {
-        let mut config = ModelConfig::new_or_fail("us.deepseek.r1-v1:0");
+        let mut config = ModelConfig::new("us.deepseek.r1-v1:0");
         config.reasoning = Some(true);
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),

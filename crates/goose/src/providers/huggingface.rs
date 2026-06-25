@@ -72,7 +72,6 @@ impl HuggingFaceProvider {
     }
 
     pub fn from_custom_config(
-        model: ModelConfig,
         config: DeclarativeProviderConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
@@ -110,17 +109,10 @@ impl HuggingFaceProvider {
             api_client = api_client.with_headers(header_map)?;
         }
 
-        let model = if let Some(ref fast_model_name) = config.fast_model {
-            crate::model_config::with_configured_fast_model(model, &config.name, fast_model_name)?
-        } else {
-            model
-        };
-
         Ok(Self {
             inner: OpenAiCompatibleProvider::new(
                 config.name.clone(),
                 api_client,
-                model,
                 completions_prefix,
             )
             .with_supports_streaming(config.supports_streaming.unwrap_or(true)),
@@ -138,10 +130,6 @@ impl HuggingFaceProvider {
 impl Provider for HuggingFaceProvider {
     fn get_name(&self) -> &str {
         self.inner.get_name()
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.inner.get_model_config()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -181,9 +169,7 @@ impl Provider for HuggingFaceProvider {
     }
 }
 
-impl ProviderDef for HuggingFaceProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for HuggingFaceProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             huggingface_auth::HUGGINGFACE_PROVIDER_NAME,
@@ -204,9 +190,12 @@ impl ProviderDef for HuggingFaceProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for HuggingFaceProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
@@ -223,7 +212,6 @@ impl ProviderDef for HuggingFaceProvider {
                 inner: OpenAiCompatibleProvider::new(
                     huggingface_auth::HUGGINGFACE_PROVIDER_NAME.to_string(),
                     api_client,
-                    model,
                     String::new(),
                 ),
                 custom_models: None,
@@ -373,6 +361,8 @@ fn completions_prefix(path: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+    use goose_providers::base::ProviderDescriptor as _;
+
     use super::*;
     use crate::providers::base::ModelInfo;
 
@@ -445,12 +435,7 @@ mod tests {
             ModelInfo::new("static-b".to_string(), 128000),
         ];
 
-        let provider = HuggingFaceProvider::from_custom_config(
-            ModelConfig::new("static-a").unwrap(),
-            config,
-            None,
-        )
-        .unwrap();
+        let provider = HuggingFaceProvider::from_custom_config(config, None).unwrap();
 
         assert_eq!(
             provider.fetch_supported_models().await.unwrap(),
@@ -464,11 +449,7 @@ mod tests {
         config.requires_auth = false;
         config.dynamic_models = Some(false);
 
-        let error = match HuggingFaceProvider::from_custom_config(
-            ModelConfig::new("model").unwrap(),
-            config,
-            None,
-        ) {
+        let error = match HuggingFaceProvider::from_custom_config(config, None) {
             Ok(_) => panic!("expected dynamic_models: false without static models to fail"),
             Err(error) => error,
         };

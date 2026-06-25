@@ -18,14 +18,14 @@ import { useNavigationContextSafe } from './Layout/NavigationContext';
 import { cn } from '../utils';
 import { useChatSession } from '../hooks/useChatSession';
 import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
-import { acpUpdateWorkingDir } from '../acp/sessions';
+import { acpDeleteSession, acpUpdateWorkingDir } from '../acp/sessions';
 import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
+import type { Recipe } from '../recipe';
 import { UserInput } from '../types/message';
 import RecipeActivities from './recipes/RecipeActivities';
-import { useToolCount } from './alerts/useToolCount';
 import { getThinkingMessage, getTextAndImageContent } from '../types/message';
 import ParameterInputModal from './ParameterInputModal';
 import { substituteParameters } from '../utils/parameterSubstitution';
@@ -94,6 +94,7 @@ export default function BaseChat({
     setChatState,
     updateSession,
     handleSubmit,
+    onSteerQueuedMessage,
     submitElicitationResponse,
     stopStreaming,
     sessionLoadError,
@@ -101,6 +102,7 @@ export default function BaseChat({
     tokenState,
     notifications: toolCallNotifications,
     pauseQueueOnStop,
+    queueProcessingBlocked,
     onMessageUpdate,
   } = useChatSession({
     sessionId,
@@ -127,7 +129,7 @@ export default function BaseChat({
     [session, sessionId, updateSession]
   );
 
-  const recipe = session?.recipe;
+  const recipe = session?.recipe as Recipe | null | undefined;
 
   const resolvedInitialMessage = useMemo((): UserInput | undefined => {
     if (!initialMessage) return undefined;
@@ -240,9 +242,18 @@ export default function BaseChat({
     if (recipe && accept) {
       await window.electron.recordRecipeHash(recipe);
       setHasNotAcceptedRecipe(false);
-    } else {
-      setView('chat');
+      return;
     }
+
+    if (sessionId) {
+      try {
+        await acpDeleteSession(sessionId);
+        window.dispatchEvent(new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId } }));
+      } catch (error) {
+        console.error('Failed to delete declined recipe session:', error);
+      }
+    }
+    setView('chat');
   };
 
   // Track if this is the initial render for session resuming
@@ -262,8 +273,6 @@ export default function BaseChat({
       }
     }
   }, [messages.length]);
-
-  const toolCount = useToolCount(sessionId);
 
   // Listen for global scroll-to-bottom requests (e.g., from MCP UI prompt actions)
   useEffect(() => {
@@ -495,7 +504,9 @@ export default function BaseChat({
             chatState={chatState}
             setChatState={setChatState}
             onStop={stopStreaming}
+            onSteerQueuedMessage={onSteerQueuedMessage}
             pauseQueueOnStop={pauseQueueOnStop}
+            queueProcessingBlocked={queueProcessingBlocked}
             commandHistory={commandHistory}
             initialValue={initialPrompt}
             setView={setView}
@@ -518,7 +529,6 @@ export default function BaseChat({
             recipe={recipe}
             recipeAccepted={!hasNotAcceptedRecipe}
             initialPrompt={initialPrompt}
-            toolCount={toolCount || 0}
             sessionModel={sessionModel}
             sessionProvider={sessionProvider}
             sessionLoaded={sessionLoaded}

@@ -51,23 +51,22 @@ pub async fn inject_moim(
         .get_session(session_id, false)
         .await
         .ok();
-    let provider_context_limit =
-        extension_manager
-            .get_provider()
-            .try_lock()
-            .ok()
-            .and_then(|provider| {
-                provider
-                    .as_ref()
-                    .map(|provider| provider.get_model_config().context_limit())
-            });
-    let session_context_limit = session.as_ref().and_then(|session| {
-        session
-            .model_config
-            .as_ref()
-            .map(|config| config.context_limit())
-    });
-    let context_limit = provider_context_limit.or(session_context_limit);
+    let session_model_config = session
+        .as_ref()
+        .and_then(|session| session.model_config.clone());
+    let context_limit = if let Some(model_config) = session_model_config.as_ref() {
+        let provider = extension_manager.get_provider().lock().await.clone();
+        match provider {
+            Some(provider) => provider
+                .get_context_limit(model_config)
+                .await
+                .ok()
+                .or_else(|| Some(model_config.context_limit())),
+            None => Some(model_config.context_limit()),
+        }
+    } else {
+        None
+    };
     if should_skip_moim(context_limit) {
         return conversation;
     }
