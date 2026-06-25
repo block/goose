@@ -8,7 +8,8 @@ import type {
 import type { GooseExtension } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
-import type { ExtensionLoadResult, Recipe, Session } from '../api';
+import type { ExtensionLoadResult, Session } from '../api';
+import type { Recipe } from '../recipe';
 
 interface GooseSessionInfoMeta {
   messageCount?: number;
@@ -100,7 +101,7 @@ export function sessionInfoToSession(s: SessionInfo, loadMeta: LoadSessionMeta =
     provider_name: meta.providerId,
     model_config: modelConfig,
     session_type: meta.sessionType,
-    recipe: loadMeta.recipe,
+    recipe: loadMeta.recipe as Session['recipe'],
     user_recipe_values: loadMeta.userRecipeValues,
     user_set_name: meta.userSetName,
     last_message_snippet: meta.lastMessageSnippet,

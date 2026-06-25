@@ -29,23 +29,16 @@ pub struct OpenAiCompatibleProvider {
     name: String,
     /// Client targeted at the base URL (e.g. `https://api.x.ai/v1`)
     api_client: ApiClient,
-    model: ModelConfig,
     /// Path prefix prepended to `chat/completions` (e.g. `"deployments/{name}/"` for Azure).
     completions_prefix: String,
     supports_streaming: bool,
 }
 
 impl OpenAiCompatibleProvider {
-    pub fn new(
-        name: String,
-        api_client: ApiClient,
-        model: ModelConfig,
-        completions_prefix: String,
-    ) -> Self {
+    pub fn new(name: String, api_client: ApiClient, completions_prefix: String) -> Self {
         Self {
             name,
             api_client,
-            model,
             completions_prefix,
             supports_streaming: true,
         }
@@ -80,10 +73,6 @@ impl OpenAiCompatibleProvider {
 impl Provider for OpenAiCompatibleProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -312,13 +301,13 @@ mod tests {
                 None,
             )
             .unwrap(),
-            ModelConfig::new_or_fail("test-model"),
             String::new(),
         )
         .with_supports_streaming(false);
 
+        let model = ModelConfig::new("test-model");
         let payload = provider
-            .build_request(&provider.model, "", &[], &[], provider.supports_streaming)
+            .build_request(&model, "", &[], &[], provider.supports_streaming)
             .unwrap();
 
         assert_eq!(payload.get("stream"), None);

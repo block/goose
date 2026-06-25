@@ -973,6 +973,41 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/session/steer"
     },
+    "DiagnosticsGetRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "level": {
+          "$ref": "#/$defs/DiagnosticsReportLevel",
+          "default": "summary"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/diagnostics/get"
+    },
+    "DiagnosticsReportLevel": {
+      "type": "string",
+      "enum": [
+        "summary",
+        "full"
+      ]
+    },
+    "DiagnosticsGetResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "report": {}
+      },
+      "required": [
+        "report"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/diagnostics/get"
+    },
     "DeleteSessionRequest": {
       "type": "object",
       "properties": {
@@ -2692,6 +2727,799 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/session/import"
     },
+    "EncodeRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        }
+      },
+      "required": [
+        "recipe"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/encode"
+    },
+    "RecipeDto": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "default": "1.0.0"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "instructions": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prompt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extensions": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/RecipeExtensionDto"
+          }
+        },
+        "settings": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecipeSettingsDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "activities": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "author": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecipeAuthorDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parameters": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/RecipeParameterDto"
+          }
+        },
+        "response": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecipeResponseDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sub_recipes": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/SubRecipeDto"
+          }
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecipeRetryConfigDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "title",
+        "description"
+      ]
+    },
+    "RecipeExtensionDto": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "timeout": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "builtin"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "platform"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cmd": {
+              "type": "string"
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "envs": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "env_keys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "timeout": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "cwd": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "stdio"
+            }
+          },
+          "required": [
+            "type",
+            "name",
+            "cmd"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            },
+            "envs": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "env_keys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "headers": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "timeout": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "socket": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "streamable_http"
+            }
+          },
+          "required": [
+            "type",
+            "name",
+            "uri"
+          ]
+        }
+      ]
+    },
+    "RecipeSettingsDto": {
+      "type": "object",
+      "properties": {
+        "goose_provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "goose_model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "temperature": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "max_turns": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "RecipeAuthorDto": {
+      "type": "object",
+      "properties": {
+        "contact": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metadata": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "RecipeParameterDto": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "input_type": {
+          "$ref": "#/$defs/RecipeParameterInputTypeDto"
+        },
+        "requirement": {
+          "$ref": "#/$defs/RecipeParameterRequirementDto"
+        },
+        "description": {
+          "type": "string"
+        },
+        "default": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "options": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "key",
+        "input_type",
+        "requirement",
+        "description"
+      ]
+    },
+    "RecipeParameterInputTypeDto": {
+      "type": "string",
+      "enum": [
+        "string",
+        "number",
+        "boolean",
+        "date",
+        "file",
+        "select"
+      ]
+    },
+    "RecipeParameterRequirementDto": {
+      "type": "string",
+      "enum": [
+        "required",
+        "optional",
+        "user_prompt"
+      ]
+    },
+    "RecipeResponseDto": {
+      "type": "object",
+      "properties": {
+        "json_schema": {}
+      }
+    },
+    "SubRecipeDto": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "values": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "sequential_when_repeated": {
+          "type": "boolean",
+          "default": false
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "path"
+      ]
+    },
+    "RecipeRetryConfigDto": {
+      "type": "object",
+      "properties": {
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecipeSuccessCheckDto"
+          },
+          "default": []
+        },
+        "on_failure": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timeout_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "on_failure_timeout_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "required": [
+        "max_retries"
+      ]
+    },
+    "RecipeSuccessCheckDto": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "shell"
+            }
+          },
+          "required": [
+            "type",
+            "command"
+          ]
+        }
+      ]
+    },
+    "EncodeRecipeResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "deeplink": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "deeplink"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/encode"
+    },
+    "DecodeRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "deeplink": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "deeplink"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/decode"
+    },
+    "DecodeRecipeResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        }
+      },
+      "required": [
+        "recipe"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/decode"
+    },
+    "ScanRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        }
+      },
+      "required": [
+        "recipe"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/scan"
+    },
+    "ScanRecipeResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "has_security_warnings": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "has_security_warnings"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/scan"
+    },
+    "ListRecipesRequest_unstable": {
+      "type": "object",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/list"
+    },
+    "ListRecipesResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "recipes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecipeListEntryDto"
+          }
+        }
+      },
+      "required": [
+        "recipes"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/list"
+    },
+    "RecipeListEntryDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        },
+        "file_path": {
+          "type": "string"
+        },
+        "last_modified": {
+          "type": "string"
+        },
+        "schedule_cron": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "slash_command": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "recipe",
+        "file_path",
+        "last_modified"
+      ]
+    },
+    "DeleteRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/delete"
+    },
+    "ScheduleRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "cron_schedule": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/schedule"
+    },
+    "SetRecipeSlashCommandRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "slash_command": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/slash-command"
+    },
+    "SaveRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "recipe"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/save"
+    },
+    "SaveRecipeResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "file_name": {
+          "type": "string"
+        },
+        "file_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "file_name",
+        "file_path"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/save"
+    },
+    "ParseRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/parse"
+    },
+    "ParseRecipeResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        }
+      },
+      "required": [
+        "recipe"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/parse"
+    },
+    "RecipeToYamlRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        }
+      },
+      "required": [
+        "recipe"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/to-yaml"
+    },
+    "RecipeToYamlResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "yaml": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "yaml"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/to-yaml"
+    },
     "GetSessionInfoRequest_unstable": {
       "type": "object",
       "properties": {
@@ -3700,7 +4528,7 @@
         "parameters": {
           "type": "array",
           "items": {
-            "$ref": "#/$defs/RecipeParameter"
+            "$ref": "#/$defs/RecipeParameterDto"
           }
         }
       },
@@ -3710,71 +4538,6 @@
       ],
       "x-side": "client",
       "x-method": "_goose/unstable/session/recipe/request-params"
-    },
-    "RecipeParameter": {
-      "type": "object",
-      "properties": {
-        "key": {
-          "type": "string"
-        },
-        "input_type": {
-          "$ref": "#/$defs/RecipeParameterInputType"
-        },
-        "requirement": {
-          "$ref": "#/$defs/RecipeParameterRequirement"
-        },
-        "description": {
-          "type": "string"
-        },
-        "default": {
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "options": {
-          "type": [
-            "array",
-            "null"
-          ],
-          "items": {
-            "type": "string"
-          }
-        }
-      },
-      "required": [
-        "key",
-        "input_type",
-        "requirement",
-        "description"
-      ]
-    },
-    "RecipeParameterInputType": {
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "string",
-            "number",
-            "boolean",
-            "date",
-            "select"
-          ]
-        },
-        {
-          "type": "string",
-          "const": "file",
-          "description": "File parameter that imports content from a file path.\nCannot have default values to prevent importing sensitive user files."
-        }
-      ]
-    },
-    "RecipeParameterRequirement": {
-      "type": "string",
-      "enum": [
-        "required",
-        "optional",
-        "user_prompt"
-      ]
     },
     "RecipeParamsResponse_unstable": {
       "type": "object",
@@ -3884,6 +4647,15 @@
                   ],
                   "description": "Params for _goose/unstable/session/steer",
                   "title": "SteerSessionRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DiagnosticsGetRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/diagnostics/get",
+                  "title": "DiagnosticsGetRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -4167,6 +4939,96 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/EncodeRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/encode",
+                  "title": "EncodeRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DecodeRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/decode",
+                  "title": "DecodeRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ScanRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/scan",
+                  "title": "ScanRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ListRecipesRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/list",
+                  "title": "ListRecipesRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DeleteRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/delete",
+                  "title": "DeleteRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ScheduleRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/schedule",
+                  "title": "ScheduleRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SetRecipeSlashCommandRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/slash-command",
+                  "title": "SetRecipeSlashCommandRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SaveRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/save",
+                  "title": "SaveRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ParseRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/parse",
+                  "title": "ParseRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/RecipeToYamlRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/to-yaml",
+                  "title": "RecipeToYamlRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/GetSessionInfoRequest_unstable"
                     }
                   ],
@@ -4435,6 +5297,14 @@
                     {
                       "allOf": [
                         {
+                          "$ref": "#/$defs/DiagnosticsGetResponse_unstable"
+                        }
+                      ],
+                      "title": "DiagnosticsGetResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
                           "$ref": "#/$defs/GetConfigExtensionsResponse_unstable"
                         }
                       ],
@@ -4607,6 +5477,62 @@
                         }
                       ],
                       "title": "ImportSessionResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/EncodeRecipeResponse_unstable"
+                        }
+                      ],
+                      "title": "EncodeRecipeResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/DecodeRecipeResponse_unstable"
+                        }
+                      ],
+                      "title": "DecodeRecipeResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ScanRecipeResponse_unstable"
+                        }
+                      ],
+                      "title": "ScanRecipeResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListRecipesResponse_unstable"
+                        }
+                      ],
+                      "title": "ListRecipesResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/SaveRecipeResponse_unstable"
+                        }
+                      ],
+                      "title": "SaveRecipeResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ParseRecipeResponse_unstable"
+                        }
+                      ],
+                      "title": "ParseRecipeResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/RecipeToYamlResponse_unstable"
+                        }
+                      ],
+                      "title": "RecipeToYamlResponse_unstable"
                     },
                     {
                       "allOf": [

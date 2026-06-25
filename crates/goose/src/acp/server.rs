@@ -33,6 +33,7 @@ use crate::providers::inventory::{
     ProviderInventoryEntry, ProviderInventoryService, RefreshJobPlan, RefreshPlan,
     RefreshSkipReason,
 };
+use crate::scheduler_trait::SchedulerTrait;
 use crate::session::{
     EnabledExtensionsState, ExtensionData, ExtensionState, Session, SessionManager,
 };
@@ -41,7 +42,7 @@ use crate::utils::sanitize_unicode_tags;
 use agent_client_protocol::schema::{
     AgentCapabilities, Annotations, AuthMethod, AuthMethodAgent, AuthenticateRequest,
     AuthenticateResponse, BlobResourceContents, CancelNotification, CloseSessionRequest,
-    CloseSessionResponse, ConfigOptionUpdate, Content, ContentBlock, ContentChunk,
+    CloseSessionResponse, ConfigOptionUpdate, Content, ContentBlock, ContentChunk, Cost,
     CurrentModeUpdate, EmbeddedResource, EmbeddedResourceResource, FileSystemCapabilities,
     ForkSessionRequest, ForkSessionResponse, ImageContent, Implementation, InitializeRequest,
     InitializeResponse, ListSessionsRequest, ListSessionsResponse, LoadSessionRequest,
@@ -83,6 +84,7 @@ mod agent_requests;
 pub use agent_requests::agent_request_schemas;
 mod config;
 mod custom_dispatch;
+mod diagnostics;
 mod dictation;
 mod dispatch;
 mod elicitation;
@@ -103,7 +105,6 @@ mod tools;
 pub type AcpProviderFactory = Arc<
     dyn Fn(
             String,
-            goose_providers::model::ModelConfig,
             Vec<ExtensionConfig>,
             Option<PathBuf>,
         ) -> BoxFuture<'static, Result<Arc<dyn Provider>>>
@@ -200,6 +201,7 @@ pub struct GooseAcpAgentOptions {
     pub disable_session_naming: bool,
     pub goose_platform: GoosePlatform,
     pub additional_source_roots: Vec<SourceRoot>,
+    pub scheduler: Arc<dyn SchedulerTrait>,
 }
 
 pub struct GooseAcpAgent {
@@ -832,7 +834,13 @@ pub(super) fn build_usage_updates(session: &Session) -> Option<UsageUpdates> {
                 accumulated_cost: session.accumulated_cost,
             }),
         },
-        standard: UsageUpdate::new(used, ctx_limit),
+        standard: {
+            let mut standard = UsageUpdate::new(used, ctx_limit);
+            if let Some(amount) = session.accumulated_cost {
+                standard = standard.cost(Cost::new(amount, "USD"));
+            }
+            standard
+        },
     })
 }
 
@@ -891,7 +899,7 @@ impl GooseAcpAgent {
         let agent_config = AgentConfig::new(
             Arc::clone(&session_manager),
             Arc::clone(&permission_manager),
-            None,
+            Some(options.scheduler),
             Config::global().get_goose_mode().unwrap_or_default(),
             options.disable_session_naming,
             options.goose_platform.clone(),
@@ -930,17 +938,10 @@ impl GooseAcpAgent {
     async fn create_provider(
         &self,
         provider_name: &str,
-        model_config: goose_providers::model::ModelConfig,
         extensions: Vec<ExtensionConfig>,
         working_dir: Option<PathBuf>,
     ) -> Result<Arc<dyn Provider>> {
-        (self.provider_factory)(
-            provider_name.to_string(),
-            model_config,
-            extensions,
-            working_dir,
-        )
-        .await
+        (self.provider_factory)(provider_name.to_string(), extensions, working_dir).await
     }
 
     async fn maybe_refresh_provider_inventory_with_agent(
@@ -1460,6 +1461,19 @@ impl GooseAcpAgent {
                              checking network connectivity, listing files in src directory";
                         let user_text = format!("Tool: {name}\nArguments: {args_json}");
                         let message = Message::user().with_text(&user_text);
+                        let model_config = match agent.model_config_for_session(&sid.0).await {
+                            Ok(config) => config,
+                            Err(_) => return,
+                        };
+                        let fast_model_config = match crate::model_config::get_fast_model(
+                            provider.get_name(),
+                            &model_config,
+                        )
+                        .await
+                        {
+                            Ok(config) => config,
+                            Err(_) => return,
+                        };
                         // The fast model occasionally returns an empty response
                         // under load (rate limiting, transient network). One
                         // retry with a short backoff is enough to recover the
@@ -1467,7 +1481,13 @@ impl GooseAcpAgent {
                         let mut llm_outcome: Option<String> = None;
                         for attempt in 0..2 {
                             match provider
-                                .complete_fast(&sid.0, system, std::slice::from_ref(&message), &[])
+                                .complete(
+                                    &fast_model_config,
+                                    &sid.0,
+                                    system,
+                                    std::slice::from_ref(&message),
+                                    &[],
+                                )
                                 .await
                             {
                                 Ok((response, _)) => {
@@ -1734,6 +1754,16 @@ impl GooseAcpAgent {
                 user_text.push_str(&format!("Step {}: {} {}\n", i + 1, name, args));
             }
             let message = Message::user().with_text(&user_text);
+            let model_config = match agent.model_config_for_session(&sid.0).await {
+                Ok(config) => config,
+                Err(_) => return,
+            };
+            let fast_model_config =
+                match crate::model_config::get_fast_model(provider.get_name(), &model_config).await
+                {
+                    Ok(config) => config,
+                    Err(_) => return,
+                };
 
             // Match the per-tool retry policy: one retry on empty/error keeps
             // the chain header reliable when the fast model is rate-limited or
@@ -1741,7 +1771,13 @@ impl GooseAcpAgent {
             let mut summary: Option<String> = None;
             for attempt in 0..2 {
                 match provider
-                    .complete_fast(&sid.0, system, std::slice::from_ref(&message), &[])
+                    .complete(
+                        &fast_model_config,
+                        &sid.0,
+                        system,
+                        std::slice::from_ref(&message),
+                        &[],
+                    )
                     .await
                 {
                     Ok((response, _)) => {
@@ -2702,7 +2738,10 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to get provider")?;
         let provider_name = current_provider.get_name().to_string();
-        let current_model_config = current_provider.get_model_config();
+        let current_model_config = agent
+            .model_config_for_session(session_id)
+            .await
+            .internal_err_ctx("Failed to resolve model config")?;
         let model_config =
             crate::model_config::model_config_from_user_config_with_session_settings(
                 &provider_name,
@@ -2735,7 +2774,10 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to get provider")?;
         let provider_name = provider.get_name().to_string();
-        let current_model_config = provider.get_model_config();
+        let current_model_config = agent
+            .model_config_for_session(&session_id.0)
+            .await
+            .internal_err_ctx("Failed to resolve model config")?;
         let current_model = current_model_config.model_name.clone();
         let goose_mode = agent.goose_mode().await;
         let inventory = self
@@ -2820,7 +2862,10 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to get provider")?;
         let current_provider_name = current_provider.get_name();
-        let current_model_config = current_provider.get_model_config();
+        let current_model_config = agent
+            .model_config_for_session(session_id)
+            .await
+            .internal_err_ctx("Failed to resolve model config")?;
         let current_model = current_model_config.model_name.clone();
         let use_default_provider = provider_name == DEFAULT_PROVIDER_ID;
         let resolved_provider_name = if use_default_provider {
@@ -2941,6 +2986,7 @@ pub async fn run(builtins: Vec<String>) -> Result<()> {
             config_dir: Paths::config_dir(),
             goose_platform: GoosePlatform::GooseCli,
             additional_source_roots: Vec::new(),
+            scheduler: None,
         },
     );
     let agent = server.create_agent().await?;
@@ -3750,7 +3796,6 @@ print(\"hello, world\")
         );
         session.model_config = Some(
             goose_providers::model::ModelConfig::new("test-model")
-                .unwrap()
                 .with_context_limit(Some(258_000)),
         );
         let updates = build_usage_updates(&session).expect("usage updates should be present");

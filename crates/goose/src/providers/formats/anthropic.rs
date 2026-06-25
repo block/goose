@@ -1595,20 +1595,13 @@ mod tests {
     }
 
     fn cfg(name: &str) -> ModelConfig {
-        ModelConfig {
-            model_name: name.to_string(),
-            ..Default::default()
-        }
+        ModelConfig::new(name)
     }
 
     fn cfg_with_effort(name: &str, effort: &str) -> ModelConfig {
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), json!(effort));
-        ModelConfig {
-            model_name: name.to_string(),
-            request_params: Some(params),
-            ..Default::default()
-        }
+        ModelConfig::new(name).with_merged_request_params(params)
     }
 
     #[test]

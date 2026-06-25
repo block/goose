@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useForm } from '@tanstack/react-form';
-import { Recipe, generateDeepLink, Parameter } from '../../recipe';
+import { generateDeepLink } from '../../recipe';
+import type { Recipe, Parameter, RecipeExtension, RecipeSettings } from '../../recipe';
 import { Check, ExternalLink, Play, Save, X } from 'lucide-react';
 import { Geese } from '../icons/Geese';
 import Copy from '../icons/Copy';
-import { ExtensionConfig } from '../ConfigContext';
 import { Button } from '../ui/button';
-import type { Settings } from '../../api';
 
 import { RecipeFormFields } from './shared/RecipeFormFields';
 import { RecipeFormData } from './shared/recipeFormSchema';
@@ -258,13 +257,18 @@ export default function CreateEditRecipeModal({
         : undefined;
 
     const cleanedExtensions = extensions?.map(
-      (extension: ExtensionConfig & { envs?: unknown; enabled?: boolean }) => {
-        const { envs: _envs, enabled: _enabled, ...rest } = extension;
+      (
+        extension: RecipeExtension & {
+          enabled?: boolean;
+          available_tools?: unknown;
+        }
+      ) => {
+        const { enabled: _enabled, available_tools: _availableTools, ...rest } = extension;
         return rest;
       }
-    ) as ExtensionConfig[] | undefined;
+    ) as RecipeExtension[] | undefined;
 
-    const mergedSettings: Settings = {
+    const mergedSettings: RecipeSettings = {
       ...(recipe?.settings || {}),
     };
     if (model !== undefined) {

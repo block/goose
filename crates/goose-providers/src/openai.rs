@@ -20,6 +20,7 @@ use anyhow::Result;
 use async_trait::async_trait;
 use reqwest::StatusCode;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 
 use crate::base::{MessageStream, ProviderDescriptor};
 use crate::model::ModelConfig;
@@ -125,7 +126,6 @@ pub struct OpenAiProvider {
     base_path: String,
     organization: Option<String>,
     project: Option<String>,
-    model: ModelConfig,
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
@@ -133,6 +133,8 @@ pub struct OpenAiProvider {
     dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     preserve_thinking_context: bool,
+    #[serde(skip)]
+    n_ctx_cache: Arc<Mutex<HashMap<String, Option<usize>>>>,
 }
 
 /// Builder for [`OpenAiProvider`].
@@ -145,7 +147,6 @@ pub struct OpenAiProviderBuilder {
     base_path: String,
     organization: Option<String>,
     project: Option<String>,
-    model: ModelConfig,
     custom_headers: Option<HashMap<String, String>>,
     supports_streaming: bool,
     name: String,
@@ -156,13 +157,12 @@ pub struct OpenAiProviderBuilder {
 }
 
 impl OpenAiProviderBuilder {
-    pub fn new(api_client: ApiClient, model: ModelConfig) -> Self {
+    pub fn new(api_client: ApiClient) -> Self {
         Self {
             api_client,
             base_path: OPEN_AI_DEFAULT_BASE_PATH.to_string(),
             organization: None,
             project: None,
-            model,
             custom_headers: None,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
@@ -190,11 +190,6 @@ impl OpenAiProviderBuilder {
 
     pub fn project(mut self, project: Option<String>) -> Self {
         self.project = project;
-        self
-    }
-
-    pub fn model(mut self, model: ModelConfig) -> Self {
-        self.model = model;
         self
     }
 
@@ -239,7 +234,6 @@ impl OpenAiProviderBuilder {
             base_path: self.base_path,
             organization: self.organization,
             project: self.project,
-            model: self.model,
             custom_headers: self.custom_headers,
             supports_streaming: self.supports_streaming,
             name: self.name,
@@ -247,19 +241,19 @@ impl OpenAiProviderBuilder {
             dynamic_models: self.dynamic_models,
             skip_canonical_filtering: self.skip_canonical_filtering,
             preserve_thinking_context: self.preserve_thinking_context,
+            n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
 
 impl OpenAiProvider {
     #[doc(hidden)]
-    pub fn new(api_client: ApiClient, model: ModelConfig) -> Self {
+    pub fn new(api_client: ApiClient) -> Self {
         Self {
             api_client,
             base_path: OPEN_AI_DEFAULT_BASE_PATH.to_string(),
             organization: None,
             project: None,
-            model,
             custom_headers: None,
             supports_streaming: true,
             name: OPEN_AI_PROVIDER_NAME.to_string(),
@@ -267,6 +261,7 @@ impl OpenAiProvider {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 
@@ -387,28 +382,6 @@ impl OpenAiProvider {
             format!("/{}", fallback.trim_start_matches('/'))
         } else {
             fallback.to_string()
-        }
-    }
-
-    /// Fill the model's context limit from the API when it isn't already set.
-    ///
-    /// An existing value may be an explicit GOOSE_CONTEXT_LIMIT, an ACP/server
-    /// per-session override, or a GOOSE_PREDEFINED_MODELS entry, none of which we
-    /// should overwrite. llama.cpp and Ollama report the real allocated window via
-    /// the non-standard meta.n_ctx field; reading it fixes auto-compaction for local
-    /// servers that would otherwise fall back to DEFAULT_CONTEXT_LIMIT. The probe is
-    /// bounded by a short timeout so a hung /v1/models can't stall provider
-    /// construction (the shared ApiClient uses OPENAI_TIMEOUT, up to 600s).
-    pub async fn probe_context_limit_if_unset(&mut self) {
-        if self.model.context_limit.is_some() {
-            return;
-        }
-        const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
-        let model_name = self.model.model_name.clone();
-        if let Ok(Some(n_ctx)) =
-            tokio::time::timeout(N_CTX_PROBE_TIMEOUT, self.fetch_n_ctx_from_api(&model_name)).await
-        {
-            self.model.context_limit = Some(n_ctx);
         }
     }
 
@@ -546,8 +519,41 @@ impl Provider for OpenAiProvider {
         self.skip_canonical_filtering
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
+    /// Resolve the effective context limit. When the config carries an explicit
+    /// limit (GOOSE_CONTEXT_LIMIT, a session override, or a known/canonical
+    /// value) it is used as-is. Otherwise probe `/v1/models`: llama.cpp and
+    /// Ollama report the real allocated window via the non-standard
+    /// `meta.n_ctx` field, which fixes auto-compaction for local servers that
+    /// would otherwise fall back to DEFAULT_CONTEXT_LIMIT. The probe is bounded
+    /// by a short timeout so a hung endpoint can't stall the caller.
+    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
+        if let Some(limit) = model_config.context_limit {
+            return Ok(limit);
+        }
+
+        if let Some(cached) = self
+            .n_ctx_cache
+            .lock()
+            .ok()
+            .and_then(|cache| cache.get(&model_config.model_name).copied())
+        {
+            return Ok(cached.unwrap_or_else(|| model_config.context_limit()));
+        }
+
+        const N_CTX_PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(5);
+        let probed = tokio::time::timeout(
+            N_CTX_PROBE_TIMEOUT,
+            self.fetch_n_ctx_from_api(&model_config.model_name),
+        )
+        .await
+        .ok()
+        .flatten();
+
+        if let Ok(mut cache) = self.n_ctx_cache.lock() {
+            cache.insert(model_config.model_name.clone(), probed);
+        }
+
+        Ok(probed.unwrap_or_else(|| model_config.context_limit()))
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -715,7 +721,6 @@ mod tests {
             base_path: "v1/chat/completions".to_string(),
             organization: None,
             project: None,
-            model: ModelConfig::new_or_fail("test-model"),
             custom_headers: None,
             supports_streaming: true,
             name: name.to_string(),
@@ -723,6 +728,7 @@ mod tests {
             dynamic_models: None,
             skip_canonical_filtering: false,
             preserve_thinking_context: false,
+            n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 

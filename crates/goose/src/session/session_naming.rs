@@ -112,6 +112,7 @@ fn get_preprompt_context(messages: &Conversation) -> String {
 /// Creates a prompt asking for a concise description in 4 words or less.
 pub(crate) async fn generate_session_name(
     provider: &dyn Provider,
+    model_config: &goose_providers::model::ModelConfig,
     session_id: &str,
     messages: &Conversation,
 ) -> Result<String> {
@@ -144,9 +145,15 @@ pub(crate) async fn generate_session_name(
         SESSION_NAME_SUFFIX,
     );
     let message = Message::user().with_text(&user_text);
-    let result = provider
-        .complete_fast(session_id, &system, &[message], &[])
-        .await?;
+    let result = crate::model_config::complete_fast(
+        provider,
+        model_config,
+        session_id,
+        &system,
+        &[message],
+        &[],
+    )
+    .await?;
 
     let raw: String = result
         .0

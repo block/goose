@@ -14,8 +14,8 @@ use tokio_util::io::StreamReader;
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata};
 use super::formats::anthropic::{
-    create_request_with_options_for_provider, response_to_streaming_message, thinking_type,
-    AnthropicFormatOptions, ThinkingType, ANTHROPIC_PROVIDER_NAME,
+    create_request_with_options_for_provider, response_to_streaming_message,
+    AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME,
 };
 use super::openai_compatible::handle_status;
 use super::openai_compatible::map_http_error_to_provider_error;
@@ -27,7 +27,6 @@ use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 
 pub const ANTHROPIC_DEFAULT_MODEL: &str = "claude-sonnet-4-5";
-const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
     // Claude 4.6 models
     "claude-opus-4-6",
@@ -48,12 +47,12 @@ const ANTHROPIC_KNOWN_MODELS: &[&str] = &[
 
 const ANTHROPIC_DOC_URL: &str = "https://docs.anthropic.com/en/docs/about-claude/models";
 const ANTHROPIC_API_VERSION: &str = "2023-06-01";
+const ANTHROPIC_DEFAULT_FAST_MODEL: &str = "claude-haiku-4-5";
 
 #[derive(serde::Serialize)]
 pub struct AnthropicProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     supports_streaming: bool,
     name: String,
     custom_models: Option<Vec<String>>,
@@ -65,15 +64,8 @@ pub struct AnthropicProvider {
 
 impl AnthropicProvider {
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
-        let model = crate::model_config::with_configured_fast_model(
-            model,
-            ANTHROPIC_PROVIDER_NAME,
-            ANTHROPIC_DEFAULT_FAST_MODEL,
-        )?;
-
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("ANTHROPIC_API_KEY")?;
         let host: String = config
@@ -90,7 +82,6 @@ impl AnthropicProvider {
 
         Ok(Self {
             api_client,
-            model,
             supports_streaming: true,
             name: ANTHROPIC_PROVIDER_NAME.to_string(),
             custom_models: None,
@@ -101,7 +92,6 @@ impl AnthropicProvider {
     }
 
     pub fn from_custom_config(
-        model: ModelConfig,
         config: DeclarativeProviderConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
@@ -159,15 +149,8 @@ impl AnthropicProvider {
             ));
         }
 
-        let model = if let Some(ref fast_model_name) = config.fast_model {
-            crate::model_config::with_configured_fast_model(model, &config.name, fast_model_name)?
-        } else {
-            model
-        };
-
         Ok(Self {
             api_client,
-            model,
             supports_streaming,
             name: config.name.clone(),
             custom_models,
@@ -182,19 +165,6 @@ impl AnthropicProvider {
             preserve_unsigned_thinking: preserves_thinking,
             preserve_thinking_context: preserves_thinking,
         }
-    }
-
-    fn get_conditional_headers(&self) -> Vec<(&str, &str)> {
-        let mut headers = Vec::new();
-
-        if self.model.model_name.starts_with("claude-3-7-sonnet-") {
-            if thinking_type(&self.model) == ThinkingType::Enabled {
-                headers.push(("anthropic-beta", "output-128k-2025-02-19"));
-            }
-            headers.push(("anthropic-beta", "token-efficient-tools-2025-02-19"));
-        }
-
-        headers
     }
 
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
@@ -265,6 +235,7 @@ impl ProviderDescriptor for AnthropicProvider {
             "Click 'Create Key'",
             "Copy the key and paste it above",
         ])
+        .with_fast_model(ANTHROPIC_DEFAULT_FAST_MODEL)
     }
 }
 
@@ -272,11 +243,10 @@ impl ProviderDef for AnthropicProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -288,10 +258,6 @@ impl Provider for AnthropicProvider {
 
     fn skip_canonical_filtering(&self) -> bool {
         self.skip_canonical_filtering
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -337,15 +303,11 @@ impl Provider for AnthropicProvider {
             .unwrap()
             .insert("stream".to_string(), Value::Bool(true));
 
-        let conditional_headers = self.get_conditional_headers();
         let mut log = start_log(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
-                let mut request = self.api_client.request(Some(session_id), "v1/messages");
-                for (key, value) in &conditional_headers {
-                    request = request.header(key, value)?;
-                }
+                let request = self.api_client.request(Some(session_id), "v1/messages");
                 let resp = request.response_post(&payload).await?;
                 handle_status(resp).await
             })
@@ -393,7 +355,6 @@ mod tests {
             .unwrap();
         AnthropicProvider {
             api_client,
-            model: ModelConfig::new_or_fail("claude-test"),
             supports_streaming: true,
             name: "custom_anthropic".to_string(),
             custom_models,
@@ -452,13 +413,9 @@ mod tests {
     #[test]
     fn from_custom_config_rejects_static_only_without_models() {
         let config = base_declarative_config(vec![], Some(false));
-        let err = AnthropicProvider::from_custom_config(
-            ModelConfig::new_or_fail("claude-test"),
-            config,
-            None,
-        )
-        .err()
-        .expect("expected construction error for dynamic_models: false with empty models");
+        let err = AnthropicProvider::from_custom_config(config, None)
+            .err()
+            .expect("expected construction error for dynamic_models: false with empty models");
         let msg = err.to_string();
         assert!(
             msg.contains("dynamic_models: false"),

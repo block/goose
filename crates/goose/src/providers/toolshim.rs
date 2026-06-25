@@ -571,7 +571,7 @@ impl LocalInterpreter {
             .with_toolshim(false)
             .with_toolshim_model(None);
 
-        let provider = crate::providers::init::create("local", model_config, vec![])
+        let provider = crate::providers::init::create("local", vec![])
             .await
             .map_err(|e| {
                 ProviderError::RequestFailed(format!(
@@ -581,13 +581,7 @@ impl LocalInterpreter {
 
         let request_messages = vec![Message::user().with_text(format_instruction)];
         let mut stream = provider
-            .stream(
-                &provider.get_model_config(),
-                "toolshim-local",
-                "",
-                &request_messages,
-                &[],
-            )
+            .stream(&model_config, "toolshim-local", "", &request_messages, &[])
             .await?;
 
         let mut content = String::new();

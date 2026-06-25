@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import { Parameter } from '../../../recipe';
+import type { Parameter, RecipeExtension } from '../../../recipe';
 import { ChevronDown } from 'lucide-react';
-import { ExtensionConfig } from '../../../api';
 import { defineMessages, useIntl } from '../../../i18n';
 
 const i18n = defineMessages({
@@ -577,7 +576,7 @@ export function RecipeFormFields({
 
           {/* Extensions Field */}
           <form.Field name="extensions">
-            {(field: FormFieldApi<ExtensionConfig[] | undefined>) => (
+            {(field: FormFieldApi<RecipeExtension[] | undefined>) => (
               <RecipeExtensionSelector
                 selectedExtensions={field.state.value || []}
                 onExtensionsChange={(extensions) =>

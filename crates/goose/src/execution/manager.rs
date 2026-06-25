@@ -238,8 +238,21 @@ impl AgentManager {
 
         if agent.provider().await.is_err() {
             if let Some(provider) = &*self.default_provider.read().await {
+                let config = crate::config::Config::global();
+                let model_config = config
+                    .get_goose_provider()
+                    .ok()
+                    .zip(config.get_goose_model().ok())
+                    .and_then(|(provider_name, model_name)| {
+                        crate::model_config::model_config_from_user_config(
+                            &provider_name,
+                            &model_name,
+                        )
+                        .ok()
+                    })
+                    .unwrap_or_else(|| goose_providers::model::ModelConfig::new("unknown"));
                 agent
-                    .update_provider(Arc::clone(provider), session_id)
+                    .update_provider(Arc::clone(provider), model_config, session_id)
                     .await?;
                 provider
                     .update_mode(session_id, mode)
@@ -620,10 +633,6 @@ mod tests {
         impl Provider for FailingProvider {
             fn get_name(&self) -> &str {
                 "failing-test-provider"
-            }
-
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new_or_fail("test-model")
             }
 
             async fn stream(

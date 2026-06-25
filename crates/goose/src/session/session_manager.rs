@@ -451,6 +451,16 @@ impl SessionManager {
             .await
     }
 
+    pub async fn truncate_conversation_from_message(
+        &self,
+        session_id: &str,
+        message_id: &str,
+    ) -> Result<()> {
+        self.storage
+            .truncate_conversation_from_message(session_id, message_id)
+            .await
+    }
+
     async fn system_generated_name_update(
         &self,
         id: &str,
@@ -495,6 +505,21 @@ impl SessionManager {
             return Ok(Some(self.system_generated_name_update(id, name).await?));
         }
 
+        let model_config = match session.model_config.clone() {
+            Some(model_config) => model_config,
+            None => {
+                let model_name =
+                    crate::config::Config::global()
+                        .get_goose_model()
+                        .map_err(|_| {
+                            anyhow::anyhow!("Could not resolve model config: missing model")
+                        })?;
+                crate::model_config::model_config_from_user_config(
+                    provider.get_name(),
+                    &model_name,
+                )?
+            }
+        };
         let conversation = session
             .conversation
             .ok_or_else(|| anyhow::anyhow!("No messages found"))?;
@@ -506,7 +531,8 @@ impl SessionManager {
             .count();
 
         if user_message_count <= MSG_COUNT_FOR_SESSION_NAME_GENERATION {
-            let name = generate_session_name(provider.as_ref(), id, &conversation).await?;
+            let name =
+                generate_session_name(provider.as_ref(), &model_config, id, &conversation).await?;
             return Ok(Some(self.system_generated_name_update(id, name).await?));
         }
         Ok(None)
@@ -1932,6 +1958,38 @@ impl SessionStorage {
         Ok(())
     }
 
+    async fn truncate_conversation_from_message(
+        &self,
+        session_id: &str,
+        message_id: &str,
+    ) -> Result<()> {
+        let pool = self.pool().await?;
+        let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
+
+        let boundary = sqlx::query_as::<_, (i64, i64)>(
+            "SELECT id, created_timestamp FROM messages WHERE session_id = ? AND message_id = ? ORDER BY created_timestamp, id LIMIT 1",
+        )
+        .bind(session_id)
+        .bind(message_id)
+        .fetch_optional(&mut *tx)
+        .await?;
+
+        if let Some((boundary_id, boundary_timestamp)) = boundary {
+            sqlx::query(
+                "DELETE FROM messages WHERE session_id = ? AND (created_timestamp > ? OR (created_timestamp = ? AND id >= ?))",
+            )
+            .bind(session_id)
+            .bind(boundary_timestamp)
+            .bind(boundary_timestamp)
+            .bind(boundary_id)
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
+        Ok(())
+    }
+
     async fn search_chat_history(
         &self,
         query: &str,
@@ -2089,9 +2147,7 @@ mod tests {
     const NUM_CONCURRENT_SESSIONS: i32 = 10;
     const GENERATED_SESSION_NAME: &str = "Generated session name";
 
-    struct NamingTestProvider {
-        model_config: ModelConfig,
-    }
+    struct NamingTestProvider;
 
     #[async_trait::async_trait]
     impl Provider for NamingTestProvider {
@@ -2107,15 +2163,12 @@ mod tests {
             _messages: &[Message],
             _tools: &[rmcp::model::Tool],
         ) -> std::result::Result<MessageStream, goose_providers::errors::ProviderError> {
-            unimplemented!("session naming calls complete_fast")
+            unimplemented!("session naming calls complete")
         }
 
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
-        }
-
-        async fn complete_fast(
+        async fn complete(
             &self,
+            _model_config: &ModelConfig,
             _session_id: &str,
             _system: &str,
             _messages: &[Message],
@@ -2129,9 +2182,7 @@ mod tests {
     }
 
     fn naming_test_provider() -> Arc<dyn Provider> {
-        Arc::new(NamingTestProvider {
-            model_config: ModelConfig::new("test-model").unwrap(),
-        })
+        Arc::new(NamingTestProvider)
     }
 
     fn test_recipe(title: &str) -> Recipe {
@@ -2218,10 +2269,88 @@ mod tests {
         .unwrap();
     }
 
+    async fn set_message_timestamp(
+        sm: &SessionManager,
+        session_id: &str,
+        message_id: &str,
+        timestamp: &str,
+    ) {
+        let pool = sm.storage().pool().await.unwrap();
+        let timestamp = chrono::DateTime::parse_from_rfc3339(timestamp).unwrap();
+        let timestamp_string = timestamp.format("%Y-%m-%d %H:%M:%S").to_string();
+
+        sqlx::query(
+            "UPDATE messages SET timestamp = ?, created_timestamp = ? WHERE session_id = ? AND message_id = ?",
+        )
+        .bind(&timestamp_string)
+        .bind(timestamp.timestamp())
+        .bind(session_id)
+        .bind(message_id)
+        .execute(pool)
+        .await
+        .unwrap();
+    }
+
     async fn add_user_message(sm: &SessionManager, session_id: &str) {
         sm.add_message(session_id, &Message::user().with_text("hello world"))
             .await
             .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_truncate_conversation_from_message_keeps_same_second_previous_rows() {
+        let temp_dir = TempDir::new().unwrap();
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        let session = sm
+            .create_session(
+                temp_dir.path().to_path_buf(),
+                "Same second truncation".to_string(),
+                SessionType::User,
+                GooseMode::default(),
+            )
+            .await
+            .unwrap();
+
+        let timestamp = "2026-06-23T12:00:00Z";
+        sm.add_message(
+            &session.id,
+            &Message::assistant()
+                .with_text("assistant reply")
+                .with_id("assistant"),
+        )
+        .await
+        .unwrap();
+        set_message_timestamp(&sm, &session.id, "assistant", timestamp).await;
+
+        sm.add_message(
+            &session.id,
+            &Message::user()
+                .with_text("terminal history")
+                .with_id("terminal-history"),
+        )
+        .await
+        .unwrap();
+        set_message_timestamp(&sm, &session.id, "terminal-history", timestamp).await;
+
+        sm.add_message(
+            &session.id,
+            &Message::user()
+                .with_text("next prompt")
+                .with_id("next-prompt"),
+        )
+        .await
+        .unwrap();
+        set_message_timestamp(&sm, &session.id, "next-prompt", timestamp).await;
+
+        sm.truncate_conversation_from_message(&session.id, "terminal-history")
+            .await
+            .unwrap();
+
+        let reloaded = sm.get_session(&session.id, true).await.unwrap();
+        let messages = reloaded.conversation.unwrap().messages().to_vec();
+        assert_eq!(messages.len(), 1);
+        assert_eq!(messages[0].id.as_deref(), Some("assistant"));
+        assert_eq!(messages[0].as_concat_text(), "assistant reply");
     }
 
     #[tokio::test]

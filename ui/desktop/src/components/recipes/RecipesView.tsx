@@ -1,5 +1,13 @@
 import { useState, useEffect, useMemo } from 'react';
-import { listSavedRecipes, convertToLocaleDateString } from '../../recipe/recipe_management';
+import {
+  convertToLocaleDateString,
+  deleteRecipe,
+  listSavedRecipes,
+  recipeToYaml,
+  scheduleRecipe,
+  setRecipeSlashCommand,
+} from '../../recipe/recipe_management';
+import type { RecipeManifest } from '../../recipe';
 import {
   FileText,
   Edit,
@@ -22,13 +30,6 @@ import { Skeleton } from '../ui/skeleton';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { toastSuccess, toastError } from '../../toasts';
 import { useEscapeKey } from '../../hooks/useEscapeKey';
-import {
-  deleteRecipe,
-  RecipeManifest,
-  scheduleRecipe,
-  setRecipeSlashCommand,
-  recipeToYaml,
-} from '../../api';
 import { createSession } from '../../sessions';
 import { isRecipeParamsCancelled } from '../../acp/errors';
 import ImportRecipeForm, { ImportRecipeButton } from './ImportRecipeForm';
@@ -432,7 +433,7 @@ export default function RecipesView() {
     }
 
     try {
-      await deleteRecipe({ body: { id: recipeManifest.id } });
+      await deleteRecipe(recipeManifest.id);
       trackRecipeDeleted(true);
       await loadSavedRecipes();
       toastSuccess({
@@ -481,16 +482,13 @@ export default function RecipesView() {
 
   const handleCopyYaml = async (recipeManifest: RecipeManifest) => {
     try {
-      const response = await recipeToYaml({
-        body: { recipe: recipeManifest.recipe },
-        throwOnError: true,
-      });
+      const yaml = await recipeToYaml(recipeManifest.recipe);
 
-      if (!response.data?.yaml) {
+      if (!yaml) {
         throw new Error('No YAML data returned from API');
       }
 
-      await navigator.clipboard.writeText(response.data.yaml);
+      await navigator.clipboard.writeText(yaml);
       trackRecipeYamlCopied(true);
       toastSuccess({
         title: intl.formatMessage(i18n.yamlCopiedTitle),
@@ -508,12 +506,9 @@ export default function RecipesView() {
 
   const handleExportFile = async (recipeManifest: RecipeManifest) => {
     try {
-      const response = await recipeToYaml({
-        body: { recipe: recipeManifest.recipe },
-        throwOnError: true,
-      });
+      const yaml = await recipeToYaml(recipeManifest.recipe);
 
-      if (!response.data?.yaml) {
+      if (!yaml) {
         throw new Error('No YAML data returned from API');
       }
 
@@ -534,7 +529,7 @@ export default function RecipesView() {
       });
 
       if (!result.canceled && result.filePath) {
-        await window.electron.writeFile(result.filePath, response.data.yaml);
+        await window.electron.writeFile(result.filePath, yaml);
         trackRecipeExportedToFile(true);
         toastSuccess({
           title: intl.formatMessage(i18n.recipeExportedTitle),
@@ -563,12 +558,7 @@ export default function RecipesView() {
     const action = scheduleRecipeManifest.schedule_cron ? 'edit' : 'add';
 
     try {
-      await scheduleRecipe({
-        body: {
-          id: scheduleRecipeManifest.id,
-          cron_schedule: scheduleCron,
-        },
-      });
+      await scheduleRecipe(scheduleRecipeManifest.id, scheduleCron);
 
       trackRecipeScheduled(true, action);
       toastSuccess({
@@ -591,12 +581,7 @@ export default function RecipesView() {
     if (!scheduleRecipeManifest) return;
 
     try {
-      await scheduleRecipe({
-        body: {
-          id: scheduleRecipeManifest.id,
-          cron_schedule: null,
-        },
-      });
+      await scheduleRecipe(scheduleRecipeManifest.id, null);
 
       trackRecipeScheduled(true, 'remove');
       toastSuccess({
@@ -631,12 +616,7 @@ export default function RecipesView() {
       : 'remove';
 
     try {
-      await setRecipeSlashCommand({
-        body: {
-          id: slashCommandRecipeManifest.id,
-          slash_command: slashCommand || null,
-        },
-      });
+      await setRecipeSlashCommand(slashCommandRecipeManifest.id, slashCommand || null);
 
       trackRecipeSlashCommandSet(true, action);
       toastSuccess({
@@ -661,12 +641,7 @@ export default function RecipesView() {
     if (!slashCommandRecipeManifest) return;
 
     try {
-      await setRecipeSlashCommand({
-        body: {
-          id: slashCommandRecipeManifest.id,
-          slash_command: null,
-        },
-      });
+      await setRecipeSlashCommand(slashCommandRecipeManifest.id, null);
 
       trackRecipeSlashCommandSet(true, 'remove');
       toastSuccess({

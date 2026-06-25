@@ -60,22 +60,14 @@ pub const GOOGLE_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs/models";
 pub struct GoogleProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
 }
 
 impl GoogleProvider {
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
-        let model = crate::model_config::with_configured_fast_model(
-            model,
-            GOOGLE_PROVIDER_NAME,
-            GOOGLE_DEFAULT_FAST_MODEL,
-        )?;
-
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GOOGLE_API_KEY")?;
         let host: String = config
@@ -92,7 +84,6 @@ impl GoogleProvider {
 
         Ok(Self {
             api_client,
-            model,
             name: GOOGLE_PROVIDER_NAME.to_string(),
         })
     }
@@ -126,6 +117,7 @@ impl goose_providers::base::ProviderDescriptor for GoogleProvider {
                 ConfigKey::new("GOOGLE_HOST", false, false, Some(GOOGLE_API_HOST), false),
             ],
         )
+        .with_fast_model(GOOGLE_DEFAULT_FAST_MODEL)
         .with_setup_steps(vec![
             "Go to https://aistudio.google.com and sign in with your Google account",
             "Click 'Get API key' on the left sidebar",
@@ -139,11 +131,10 @@ impl ProviderDef for GoogleProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -151,10 +142,6 @@ impl ProviderDef for GoogleProvider {
 impl Provider for GoogleProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {

@@ -52,7 +52,6 @@ impl SnowflakeAuth {
 pub struct SnowflakeProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     image_format: ImageFormat,
     #[serde(skip)]
     name: String,
@@ -60,7 +59,6 @@ pub struct SnowflakeProvider {
 
 impl SnowflakeProvider {
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -111,7 +109,6 @@ impl SnowflakeProvider {
 
         Ok(Self {
             api_client,
-            model,
             image_format: ImageFormat::OpenAi,
             name: SNOWFLAKE_PROVIDER_NAME.to_string(),
         })
@@ -324,11 +321,10 @@ impl ProviderDef for SnowflakeProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -336,10 +332,6 @@ impl ProviderDef for SnowflakeProvider {
 impl Provider for SnowflakeProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -364,7 +356,7 @@ impl Provider for SnowflakeProvider {
         };
         let payload = create_request(model_config, system, messages, tools)?;
 
-        let mut log = start_log(&self.model, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {

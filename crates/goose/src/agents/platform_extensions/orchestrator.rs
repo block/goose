@@ -141,6 +141,21 @@ impl OrchestratorClient {
             .ok_or_else(|| "Provider not available".to_string())
     }
 
+    async fn parent_model_config(
+        &self,
+        provider_name: &str,
+    ) -> Result<goose_providers::model::ModelConfig, String> {
+        if let Some(session) = self.context.session.as_ref() {
+            return self.context.model_config_for_session(&session.id).await;
+        }
+
+        let model_name = Config::global()
+            .get_goose_model()
+            .map_err(|_| "Could not resolve model config: missing model".to_string())?;
+        crate::model_config::model_config_from_user_config(provider_name, &model_name)
+            .map_err(|e| format!("Could not resolve model config: {e}"))
+    }
+
     fn parent_extensions(&self) -> Vec<ExtensionConfig> {
         let extension_data = self.context.session.as_ref().map(|s| &s.extension_data);
         EnabledExtensionsState::extensions_or_default(extension_data, Config::global())
@@ -337,10 +352,17 @@ impl OrchestratorClient {
             conversation_text
         ));
 
-        let (response, _usage) = provider
-            .complete_fast(session_id, system, &[user_message], &[])
-            .await
-            .map_err(|e| format!("LLM summarization failed: {}", e))?;
+        let model_config = self.parent_model_config(provider.get_name()).await?;
+        let (response, _usage) = crate::model_config::complete_fast(
+            provider.as_ref(),
+            &model_config,
+            session_id,
+            system,
+            &[user_message],
+            &[],
+        )
+        .await
+        .map_err(|e| format!("LLM summarization failed: {}", e))?;
 
         Ok(response
             .content
@@ -406,15 +428,12 @@ impl OrchestratorClient {
 
         let parent_provider = self.get_provider().await?;
         let extensions = self.parent_extensions();
-        let provider = providers::create(
-            parent_provider.get_name(),
-            parent_provider.get_model_config(),
-            extensions,
-        )
-        .await
-        .map_err(|e| format!("Failed to create provider for new agent: {}", e))?;
+        let model_config = self.parent_model_config(parent_provider.get_name()).await?;
+        let provider = providers::create(parent_provider.get_name(), extensions)
+            .await
+            .map_err(|e| format!("Failed to create provider for new agent: {}", e))?;
         agent
-            .update_provider(provider, &session.id)
+            .update_provider(provider, model_config, &session.id)
             .await
             .map_err(|e| format!("Failed to set provider on new agent: {}", e))?;
 
@@ -448,15 +467,12 @@ impl OrchestratorClient {
         if agent.provider().await.is_err() {
             if let Ok(parent_provider) = self.get_provider().await {
                 let extensions = self.parent_extensions();
-                if let Ok(provider) = providers::create(
-                    parent_provider.get_name(),
-                    parent_provider.get_model_config(),
-                    extensions,
-                )
-                .await
+                let model_config = self.parent_model_config(parent_provider.get_name()).await?;
+                if let Ok(provider) =
+                    providers::create(parent_provider.get_name(), extensions).await
                 {
                     agent
-                        .update_provider(provider, &session_id)
+                        .update_provider(provider, model_config, &session_id)
                         .await
                         .map_err(|e| format!("Failed to set provider: {}", e))?;
                 }

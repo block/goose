@@ -10,12 +10,12 @@ async fn main() -> Result<()> {
 
     std::env::remove_var("DATABRICKS_TOKEN");
 
-    let provider =
-        create_with_named_model("databricks", DATABRICKS_DEFAULT_MODEL, Vec::new()).await?;
+    let provider = create_with_named_model("databricks", Vec::new()).await?;
 
     let message = Message::user().with_text("Tell me a short joke about programming.");
 
-    let model_config = provider.get_model_config();
+    let model_config =
+        goose::model_config::model_config_from_user_config("databricks", DATABRICKS_DEFAULT_MODEL)?;
     let (response, usage) = provider
         .complete(
             &model_config,

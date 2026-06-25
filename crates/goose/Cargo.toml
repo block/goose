@@ -90,6 +90,7 @@ reqwest = { workspace = true, features = ["json", "cookies", "gzip", "brotli", "
 tokio = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_path_to_error = { version = "0.1.8", default-features = false }
 serde_urlencoded = { version = "0.7.1", default-features = false }
 jsonschema = { version = "0.30", default-features = false }
 uuid = { workspace = true, features = ["v7"] }
@@ -167,7 +168,6 @@ byteorder = { version = "1.5", default-features = false, features = ["std"], opt
 tokenizers = { version = "0.23", default-features = false, features = ["onig"], optional = true }
 symphonia = { version = "0.5", default-features = false, features = ["aac", "adpcm", "alac", "isomp4", "mkv", "mp3", "pcm", "vorbis", "wav"], optional = true }
 rubato = { version = "0.16", default-features = false, optional = true }
-zip = { workspace = true }
 sys-info = { version = "0.9", default-features = false }
 
 llama-cpp-2 = { workspace = true, optional = true }

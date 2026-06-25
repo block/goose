@@ -858,8 +858,10 @@ async fn execute_job(
         agent.add_extension(ext.clone(), &session.id).await?;
     }
 
-    let agent_provider = create(&provider_name, model_config, extensions).await?;
-    agent.update_provider(agent_provider, &session.id).await?;
+    let agent_provider = create(&provider_name, extensions).await?;
+    agent
+        .update_provider(agent_provider, model_config, &session.id)
+        .await?;
 
     let mut jobs_guard = jobs.lock().await;
     if let Some((_, job_def)) = jobs_guard.get_mut(job_id.as_str()) {

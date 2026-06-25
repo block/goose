@@ -1065,7 +1065,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1100,7 +1099,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: Some(params),
             reasoning: None,
         };
@@ -1120,7 +1118,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: Some(params),
             reasoning: None,
         };
@@ -1141,7 +1138,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: Some(params),
             reasoning: None,
         };
@@ -1160,7 +1156,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1179,7 +1174,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1198,7 +1192,6 @@ mod tests {
             max_tokens: Some(1024),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1210,7 +1203,7 @@ mod tests {
 
     #[test]
     fn test_create_request_adaptive_thinking_for_46_models() -> anyhow::Result<()> {
-        let mut model_config = ModelConfig::new_or_fail("databricks-claude-opus-4-6");
+        let mut model_config = ModelConfig::new("databricks-claude-opus-4-6");
         model_config.max_tokens = Some(4096);
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("low"));
@@ -1237,7 +1230,7 @@ mod tests {
             "databricks-claude-fable-5",
             "global.anthropic.claude-fable-5",
         ] {
-            let mut model_config = ModelConfig::new_or_fail(name);
+            let mut model_config = ModelConfig::new(name);
             model_config.max_tokens = Some(4096);
             let mut params = std::collections::HashMap::new();
             params.insert("thinking_effort".to_string(), serde_json::json!("high"));
@@ -1258,7 +1251,7 @@ mod tests {
     fn test_create_request_always_on_adaptive_off_effort_falls_back_to_high() -> anyhow::Result<()>
     {
         let _guard = env_lock::lock_env([("GOOSE_THINKING_EFFORT", None::<&str>)]);
-        let mut model_config = ModelConfig::new_or_fail("databricks-claude-fable-5");
+        let mut model_config = ModelConfig::new("databricks-claude-fable-5");
         model_config.max_tokens = Some(4096);
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("off"));
@@ -1274,7 +1267,7 @@ mod tests {
 
     #[test]
     fn test_create_request_enabled_thinking_with_budget() -> anyhow::Result<()> {
-        let mut model_config = ModelConfig::new_or_fail("databricks-claude-3-7-sonnet");
+        let mut model_config = ModelConfig::new("databricks-claude-3-7-sonnet");
         model_config.max_tokens = Some(4096);
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("high"));
@@ -1299,7 +1292,7 @@ mod tests {
             ("high", 16000),
             ("max", 32000),
         ] {
-            let mut model_config = ModelConfig::new_or_fail("databricks-claude-3-7-sonnet");
+            let mut model_config = ModelConfig::new("databricks-claude-3-7-sonnet");
             model_config.max_tokens = Some(4096);
             let mut params = std::collections::HashMap::new();
             params.insert("thinking_effort".to_string(), serde_json::json!(effort));
@@ -1643,7 +1636,6 @@ mod tests {
             max_tokens: Some(8192),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };
@@ -1696,7 +1688,6 @@ mod tests {
             max_tokens: Some(4096),
             toolshim: false,
             toolshim_model: None,
-            fast_model_config: None,
             request_params: None,
             reasoning: None,
         };

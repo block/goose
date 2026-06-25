@@ -195,7 +195,6 @@ pub struct GithubCopilotProvider {
     cache: DiskCache,
     #[serde(skip)]
     mu: tokio::sync::Mutex<RefCell<Option<CopilotState>>>,
-    model: ModelConfig,
     #[serde(skip)]
     urls: GithubCopilotUrls,
     #[serde(skip)]
@@ -232,7 +231,6 @@ impl GithubCopilotProvider {
     }
 
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = Config::global();
@@ -255,7 +253,6 @@ impl GithubCopilotProvider {
             client,
             cache,
             mu,
-            model,
             urls,
             client_id,
             name: GITHUB_COPILOT_PROVIDER_NAME.to_string(),
@@ -553,11 +550,10 @@ impl ProviderDef for GithubCopilotProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -565,10 +561,6 @@ impl ProviderDef for GithubCopilotProvider {
 impl Provider for GithubCopilotProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     #[tracing::instrument(

@@ -550,14 +550,11 @@ mod tests {
         provider_options: Vec<SessionConfigSelectOption>,
         model_state: SessionModelState,
     ) -> Vec<SessionConfigOption> {
-        let model_config = ModelConfig {
-            model_name: model_state.current_model_id.0.to_string(),
-            request_params: Some(std::collections::HashMap::from([(
+        let model_config = ModelConfig::new(model_state.current_model_id.0.as_ref())
+            .with_merged_request_params(std::collections::HashMap::from([(
                 "thinking_effort".to_string(),
                 serde_json::json!("off"),
-            )])),
-            ..Default::default()
-        };
+            )]));
         build_config_options(
             &mode_state,
             &model_state,
@@ -577,14 +574,12 @@ mod tests {
                 "claude-sonnet-4",
             )],
         );
-        let model_config = ModelConfig {
-            model_name: "claude-sonnet-4".to_string(),
-            request_params: Some(std::collections::HashMap::from([(
+        let model_config = ModelConfig::new("claude-sonnet-4").with_merged_request_params(
+            std::collections::HashMap::from([(
                 "thinking_effort".to_string(),
                 serde_json::json!("high"),
-            )])),
-            ..Default::default()
-        };
+            )]),
+        );
 
         let options = build_config_options(
             &mode_state,
@@ -612,15 +607,11 @@ mod tests {
             ModelId::new("gpt-4"),
             vec![ModelInfo::new(ModelId::new("gpt-4"), "gpt-4")],
         );
-        let model_config = ModelConfig {
-            model_name: "gpt-4".to_string(),
-            request_params: Some(std::collections::HashMap::from([(
-                "thinking_effort".to_string(),
-                serde_json::json!("high"),
-            )])),
-            reasoning: Some(false),
-            ..Default::default()
-        };
+        let mut model_config =
+            ModelConfig::new("gpt-4").with_merged_request_params(std::collections::HashMap::from(
+                [("thinking_effort".to_string(), serde_json::json!("high"))],
+            ));
+        model_config.reasoning = Some(false);
 
         let options = build_config_options(
             &mode_state,
