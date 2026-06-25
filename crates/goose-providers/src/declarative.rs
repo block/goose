@@ -5,8 +5,10 @@ use serde::{Deserialize, Deserializer, Serialize};
 use utoipa::ToSchema;
 
 use crate::{
+    anthropic,
     api_client::TlsConfig,
     base::{ModelInfo, Provider},
+    ollama, openai,
 };
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
@@ -138,15 +140,17 @@ pub fn from_json(
     json: &str,
     tls_config: Option<TlsConfig>,
     key_resolver: impl KeyResolver,
-) -> Result<impl Provider> {
+) -> Result<Box<dyn Provider>> {
     let config: DeclarativeProviderConfig = serde_json::from_str(json)?;
 
     match config.engine {
-        ProviderEngine::OpenAI => {
-            crate::openai::from_custom_config(config, tls_config, key_resolver)
-                .map(|builder| builder.build())
+        ProviderEngine::OpenAI => openai::from_custom_config(config, tls_config, key_resolver)
+            .map(|provider| Box::new(provider.build()) as Box<dyn Provider>),
+        ProviderEngine::Ollama => ollama::from_custom_config(config, tls_config, key_resolver)
+            .map(|provider| Box::new(provider) as Box<dyn Provider>),
+        ProviderEngine::Anthropic => {
+            anthropic::from_custom_config(config, tls_config, key_resolver)
+                .map(|provider| Box::new(provider.build()) as Box<dyn Provider>)
         }
-        ProviderEngine::Ollama => todo!(),
-        ProviderEngine::Anthropic => todo!(),
     }
 }

@@ -1,5 +1,5 @@
 {
-  "name": "custom_deepseek",
+  "name": "deepseek",
   "engine": "openai",
   "display_name": "DeepSeek",
   "description": "Custom DeepSeek provider",
