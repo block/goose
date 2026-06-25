@@ -35,6 +35,7 @@ local-inference = [
 aws-providers = [
     "dep:aws-config",
     "dep:aws-smithy-types",
+    "dep:aws-sdk-bedrock",
     "dep:aws-sdk-bedrockruntime",
     "dep:aws-sdk-sagemakerruntime",
     "dep:smithy-transport-reqwest",
@@ -218,6 +219,7 @@ llama-cpp-sys-2 = { workspace = true, optional = true }
 image = { version = "0.24.9", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 subtle = { version = "2.5", default-features = false, features = ["std"] }
 gethostname = "1.1.0"
+aws-sdk-bedrock = { version = "1.132", default-features = false, features = ["rt-tokio"], optional = true }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { version = "0.3.9", default-features = false, features = ["wincred", "std", "jobapi2", "winbase", "winnt", "processthreadsapi", "handleapi", "minwindef"] }

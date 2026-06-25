@@ -3,6 +3,23 @@ use anyhow::Result;
 use futures::StreamExt;
 use rmcp::model::ToolAnnotations;
 use rmcp::{model::Tool, object};
+use std::time::Duration;
+use tokio::time::timeout;
+
+const PROVIDER_TEST_TIMEOUT: Duration = Duration::from_secs(60);
+
+pub fn toolshim_settings_from_env() -> (bool, Option<String>) {
+    let toolshim_enabled = std::env::var("GOOSE_TOOLSHIM")
+        .map(|val| val == "1" || val.to_lowercase() == "true")
+        .unwrap_or(false);
+    let toolshim_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
+    (toolshim_enabled, toolshim_model)
+}
+
+pub async fn test_provider_model(provider_name: &str, model: &str) -> Result<()> {
+    let (toolshim_enabled, toolshim_model) = toolshim_settings_from_env();
+    test_provider_configuration(provider_name, model, toolshim_enabled, toolshim_model).await
+}
 
 pub async fn test_provider_configuration(
     provider_name: &str,
@@ -36,9 +53,14 @@ pub async fn test_provider_configuration(
         )
         .await?;
 
-    let first_chunk = stream
-        .next()
+    let first_chunk = timeout(PROVIDER_TEST_TIMEOUT, stream.next())
         .await
+        .map_err(|_| {
+            anyhow::anyhow!(
+                "Provider configuration test timed out after {}s",
+                PROVIDER_TEST_TIMEOUT.as_secs()
+            )
+        })?
         .ok_or_else(|| anyhow::anyhow!("Provider test stream returned no events"))?;
     first_chunk?;
 

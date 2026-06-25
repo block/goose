@@ -21,6 +21,7 @@ use goose::providers::catalog::{
 };
 use goose::providers::create_with_default_model;
 use goose::providers::huggingface_auth;
+use goose::providers::provider_test::test_provider_model;
 use goose::providers::providers as get_providers;
 use goose::{
     agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
@@ -1341,20 +1342,22 @@ pub async fn check_provider(
 pub async fn set_config_provider(
     Json(SetProviderRequest { provider, model }): Json<SetProviderRequest>,
 ) -> Result<(), ErrorResponse> {
-    // Provider validation does not use extensions.
-    create_with_default_model(&provider, Vec::new())
+    test_provider_model(&provider, &model)
         .await
-        .and_then(|_| {
-            let config = Config::global();
-            goose::config::set_active_provider(config, &provider, &model)
-                .map_err(|e| anyhow::anyhow!(e))
-        })
         .map_err(|err| {
             ErrorResponse::bad_request(format!(
                 "Failed to set provider to '{}' with model '{}': {}",
                 provider, model, err
             ))
         })?;
+
+    let config = Config::global();
+    goose::config::set_active_provider(config, &provider, &model).map_err(|err| {
+        ErrorResponse::bad_request(format!(
+            "Failed to set provider to '{}' with model '{}': {}",
+            provider, model, err
+        ))
+    })?;
     Ok(())
 }
 

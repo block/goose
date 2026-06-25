@@ -6,6 +6,8 @@ use crate::config::Config;
 use crate::providers::acp_tooling::{acp_adapter_installed, resolved_acp_command};
 use crate::providers::amp_acp::{AMP_ACP_BINARY, AMP_ACP_PROVIDER_NAME};
 use crate::providers::base::ProviderDescriptor;
+#[cfg(feature = "aws-providers")]
+use crate::providers::bedrock::{BedrockProvider, BEDROCK_PROVIDER_NAME};
 use crate::providers::chatgpt_codex::TokenCache as ChatGptCodexTokenCache;
 use crate::providers::claude_acp::{CLAUDE_ACP_BINARY, CLAUDE_ACP_PROVIDER_NAME};
 use crate::providers::codex_acp::CODEX_ACP_PROVIDER_NAME;
@@ -119,6 +121,20 @@ pub fn ollama_inventory() -> InventoryRegistration {
         )
     })
     .with_configured(|| ollama_host_configured(Config::global()))
+}
+
+#[cfg(feature = "aws-providers")]
+pub fn bedrock_inventory() -> InventoryRegistration {
+    InventoryRegistration::new(true, || {
+        let config = Config::global();
+        let metadata = BedrockProvider::metadata();
+        Ok(default_inventory_identity(
+            BEDROCK_PROVIDER_NAME,
+            BEDROCK_PROVIDER_NAME,
+            &metadata.config_keys,
+            config,
+        ))
+    })
 }
 
 pub fn huggingface_inventory() -> InventoryRegistration {

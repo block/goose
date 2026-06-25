@@ -127,6 +127,10 @@ const i18n = defineMessages({
     id: 'switchModelModal.loadingModels',
     defaultMessage: 'Loading models…',
   },
+  checkingModel: {
+    id: 'switchModelModal.checkingModel',
+    defaultMessage: 'Checking model…',
+  },
   selectModelPlaceholder: {
     id: 'switchModelModal.selectModelPlaceholder',
     defaultMessage: 'Select a model, type to search',
@@ -298,6 +302,7 @@ export const SwitchModelModal = ({
   const [selectedPredefinedModel, setSelectedPredefinedModel] = useState<Model | null>(null);
   const [predefinedModels, setPredefinedModels] = useState<Model[]>([]);
   const [loadingModels, setLoadingModels] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [userClearedModel, setUserClearedModel] = useState(false);
   const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
   const [providerWarnings, setProviderWarnings] = useState<Record<string, string>>({});
@@ -393,41 +398,47 @@ export const SwitchModelModal = ({
     setAttemptedSubmit(true);
     const isFormValid = validateForm();
 
-    if (isFormValid) {
-      let modelObj: Model;
+    if (!isFormValid) {
+      return;
+    }
 
-      if (usePredefinedModels && selectedPredefinedModel) {
-        modelObj = selectedPredefinedModel;
-      } else {
-        const providerMetaData = await getProviderMetadata(provider || '', getProviders);
-        const providerDisplayName = providerMetaData.display_name;
-        modelObj = {
-          name: model,
-          provider: provider,
-          subtext: providerDisplayName,
-        } as Model;
-      }
+    let modelObj: Model;
+
+    if (usePredefinedModels && selectedPredefinedModel) {
+      modelObj = selectedPredefinedModel;
+    } else {
+      const providerMetaData = await getProviderMetadata(provider || '', getProviders);
+      const providerDisplayName = providerMetaData.display_name;
+      modelObj = {
+        name: model,
+        provider: provider,
+        subtext: providerDisplayName,
+      } as Model;
+    }
+    modelObj = {
+      ...modelObj,
+      reasoning: selectedModelReasoning ?? modelObj.reasoning,
+    };
+
+    if (showThinkingControl) {
+      const effort = thinkingEffort ?? modelObj.request_params?.thinking_effort ?? 'off';
       modelObj = {
         ...modelObj,
-        reasoning: selectedModelReasoning ?? modelObj.reasoning,
+        request_params: { ...modelObj.request_params, thinking_effort: effort },
       };
+      upsert('GOOSE_THINKING_EFFORT', effort, false).catch(console.warn);
+    }
 
-      if (showThinkingControl) {
-        const effort = thinkingEffort ?? modelObj.request_params?.thinking_effort ?? 'off';
-        modelObj = {
-          ...modelObj,
-          request_params: { ...modelObj.request_params, thinking_effort: effort },
-        };
-        upsert('GOOSE_THINKING_EFFORT', effort, false).catch(console.warn);
-      }
-
+    setIsSubmitting(true);
+    try {
       const success = await changeModel(sessionId, modelObj);
       if (success) {
         onModelSelected?.(modelObj.name, modelObj.provider || '');
         trackModelChanged(modelObj.provider || '', modelObj.name);
+        onClose();
       }
-
-      onClose();
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -963,11 +974,13 @@ export const SwitchModelModal = ({
             {intl.formatMessage(i18n.quickStartGuide)}
           </a>
           <div className="flex gap-2">
-            <Button variant="outline" onClick={handleClose} type="button">
+            <Button variant="outline" onClick={handleClose} type="button" disabled={isSubmitting}>
               {intl.formatMessage(i18n.cancel)}
             </Button>
-            <Button onClick={handleSubmit} disabled={!isValid}>
-              {intl.formatMessage(i18n.selectModelButton)}
+            <Button onClick={handleSubmit} disabled={!isValid || isSubmitting}>
+              {isSubmitting
+                ? intl.formatMessage(i18n.checkingModel)
+                : intl.formatMessage(i18n.selectModelButton)}
             </Button>
           </div>
         </DialogFooter>
