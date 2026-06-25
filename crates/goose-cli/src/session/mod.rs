@@ -976,14 +976,18 @@ impl CliSession {
         });
 
         let labels: Vec<String> = entries.iter().map(|(l, _, _)| l.clone()).collect();
-        let chosen_label: String = if labels.len() > 12 {
-            crate::commands::configure::interactive_model_search(&labels, None)?
-        } else {
-            let items: Vec<(String, String, &str)> =
-                labels.iter().map(|l| (l.clone(), l.clone(), "")).collect();
-            cliclack::select("Select a model:")
-                .items(&items)
-                .interact()?
+        let chosen_label = match crate::commands::configure::interactive_model_search(&labels, None)
+        {
+            Ok(label) => label,
+            // Esc / Ctrl-C in the picker: cancel the switch and return to the
+            // session prompt rather than bubbling up and tearing down the TUI.
+            Err(e) if is_prompt_cancel(&e) => {
+                output::goose_mode_message(&format!(
+                    "Keeping current model '{current_model_name}'"
+                ));
+                return Ok(());
+            }
+            Err(e) => return Err(e),
         };
 
         let (_, chosen_provider, chosen_model) =
@@ -2443,6 +2447,14 @@ fn format_elapsed_time(duration: std::time::Duration) -> String {
         let seconds = total_secs % 60;
         format!("{}m {:02}s", minutes, seconds)
     }
+}
+
+/// Whether a prompt error is a user cancellation (Esc / Ctrl-C), which cliclack
+/// reports as `io::ErrorKind::Interrupted`. Lets interactive flows treat a
+/// cancel as "go back" rather than bubbling it up as a fatal session error.
+fn is_prompt_cancel(err: &anyhow::Error) -> bool {
+    err.downcast_ref::<std::io::Error>()
+        .is_some_and(|e| e.kind() == std::io::ErrorKind::Interrupted)
 }
 
 fn build_switched_model_config(
