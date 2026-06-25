@@ -1,7 +1,7 @@
 use crate::routes::errors::ErrorResponse;
 use crate::routes::recipe_utils::{apply_recipe_to_agent, build_recipe_with_parameter_values};
 use crate::state::AppState;
-use axum::extract::{DefaultBodyLimit, State};
+use axum::extract::State;
 use axum::routing::post;
 use axum::{
     extract::Path,
@@ -11,10 +11,6 @@ use axum::{
 };
 use goose::agents::ExtensionConfig;
 use goose::recipe::Recipe;
-#[cfg(feature = "nostr")]
-use goose::session::nostr_share;
-#[cfg(feature = "nostr")]
-use goose::session::session_manager::SessionType;
 use goose::session::{EnabledExtensionsState, Session};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -38,30 +34,6 @@ pub struct UpdateSessionUserRecipeValuesRequest {
 #[derive(Debug, Serialize, ToSchema)]
 pub struct UpdateSessionUserRecipeValuesResponse {
     recipe: Recipe,
-}
-
-#[cfg_attr(not(feature = "nostr"), allow(dead_code))]
-#[derive(Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ShareSessionNostrRequest {
-    #[serde(default)]
-    relays: Vec<String>,
-}
-
-#[derive(Serialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ShareSessionNostrResponse {
-    deeplink: String,
-    nevent: String,
-    event_id: String,
-    relays: Vec<String>,
-}
-
-#[cfg_attr(not(feature = "nostr"), allow(dead_code))]
-#[derive(Deserialize, ToSchema)]
-#[serde(rename_all = "camelCase")]
-pub struct ImportSessionNostrRequest {
-    deeplink: String,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -229,93 +201,6 @@ async fn update_session_user_recipe_values(
     }
 }
 
-#[cfg_attr(not(feature = "nostr"), allow(unused_variables))]
-#[utoipa::path(
-    post,
-    path = "/sessions/{session_id}/share/nostr",
-    request_body = ShareSessionNostrRequest,
-    params(
-        ("session_id" = String, Path, description = "Unique identifier for the session")
-    ),
-    responses(
-        (status = 200, description = "Session shared to Nostr successfully", body = ShareSessionNostrResponse),
-        (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 404, description = "Session not found"),
-        (status = 500, description = "Internal server error")
-    ),
-    security(
-        ("api_key" = [])
-    ),
-    tag = "Session Management"
-)]
-async fn share_session_nostr(
-    State(state): State<Arc<AppState>>,
-    Path(session_id): Path<String>,
-    Json(request): Json<ShareSessionNostrRequest>,
-) -> Result<Json<ShareSessionNostrResponse>, StatusCode> {
-    #[cfg(feature = "nostr")]
-    {
-        let exported = state
-            .session_manager()
-            .export_session(&session_id)
-            .await
-            .map_err(|_| StatusCode::NOT_FOUND)?;
-
-        let relays = nostr_share::resolve_relays(request.relays, goose::config::Config::global());
-        let share = nostr_share::publish_session_json(&exported, relays)
-            .await
-            .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
-
-        Ok(Json(ShareSessionNostrResponse {
-            deeplink: share.deeplink,
-            nevent: share.nevent,
-            event_id: share.event_id,
-            relays: share.relays,
-        }))
-    }
-
-    #[cfg(not(feature = "nostr"))]
-    Err(StatusCode::NOT_FOUND)
-}
-
-#[cfg_attr(not(feature = "nostr"), allow(unused_variables))]
-#[utoipa::path(
-    post,
-    path = "/sessions/import/nostr",
-    request_body = ImportSessionNostrRequest,
-    responses(
-        (status = 200, description = "Nostr shared session imported successfully", body = Session),
-        (status = 401, description = "Unauthorized - Invalid or missing API key"),
-        (status = 400, description = "Bad request - Invalid Nostr share link"),
-        (status = 500, description = "Internal server error")
-    ),
-    security(
-        ("api_key" = [])
-    ),
-    tag = "Session Management"
-)]
-async fn import_session_nostr(
-    State(state): State<Arc<AppState>>,
-    Json(request): Json<ImportSessionNostrRequest>,
-) -> Result<Json<Session>, StatusCode> {
-    #[cfg(feature = "nostr")]
-    {
-        let json = nostr_share::import_session_json_from_deeplink(&request.deeplink)
-            .await
-            .map_err(|_| StatusCode::BAD_REQUEST)?;
-        let session = state
-            .session_manager()
-            .import_session(&json, Some(SessionType::User))
-            .await
-            .map_err(|_| StatusCode::BAD_REQUEST)?;
-
-        Ok(Json(session))
-    }
-
-    #[cfg(not(feature = "nostr"))]
-    Err(StatusCode::NOT_FOUND)
-}
-
 #[utoipa::path(
     post,
     path = "/sessions/{session_id}/fork",
@@ -453,14 +338,6 @@ async fn get_session_extensions(
 pub fn routes(state: Arc<AppState>) -> Router {
     Router::new()
         .route("/sessions/{session_id}", get(get_session))
-        .route(
-            "/sessions/{session_id}/share/nostr",
-            post(share_session_nostr).layer(DefaultBodyLimit::max(25 * 1024 * 1024)),
-        )
-        .route(
-            "/sessions/import/nostr",
-            post(import_session_nostr).layer(DefaultBodyLimit::max(25 * 1024 * 1024)),
-        )
         .route("/sessions/{session_id}/name", put(update_session_name))
         .route(
             "/sessions/{session_id}/user_recipe_values",

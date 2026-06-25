@@ -1147,11 +1147,18 @@ export const zExportSessionResponse_unstable = z.object({
     data: z.string()
 });
 
+export const zSessionImportSource = z.enum([
+    'auto',
+    'json',
+    'nostr'
+]);
+
 /**
- * Import a session from a JSON string.
+ * Import a session from a JSON string or share link.
  */
 export const zImportSessionRequest_unstable = z.object({
-    data: z.string()
+    input: z.string(),
+    source: zSessionImportSource.optional().default('auto')
 });
 
 /**
@@ -1168,6 +1175,18 @@ export const zImportSessionResponse_unstable = z.object({
         z.null()
     ]).optional(),
     messageCount: z.number().int().gte(0)
+});
+
+export const zShareSessionNostrRequest_unstable = z.object({
+    sessionId: z.string(),
+    relays: z.array(z.string()).optional().default([])
+});
+
+export const zShareSessionNostrResponse_unstable = z.object({
+    deeplink: z.string(),
+    nevent: z.string(),
+    eventId: z.string(),
+    relays: z.array(z.string())
 });
 
 export const zRecipeExtensionDto = z.union([
@@ -2185,6 +2204,7 @@ export const zExtRequest = z.object({
             zOnboardingImportApplyRequest_unstable,
             zExportSessionRequest_unstable,
             zImportSessionRequest_unstable,
+            zShareSessionNostrRequest_unstable,
             zEncodeRecipeRequest_unstable,
             zDecodeRecipeRequest_unstable,
             zScanRecipeRequest_unstable,
@@ -2273,6 +2293,7 @@ export const zExtResponse = z.union([
                 zOnboardingImportApplyResponse_unstable,
                 zExportSessionResponse_unstable,
                 zImportSessionResponse_unstable,
+                zShareSessionNostrResponse_unstable,
                 zEncodeRecipeResponse_unstable,
                 zDecodeRecipeResponse_unstable,
                 zScanRecipeResponse_unstable,

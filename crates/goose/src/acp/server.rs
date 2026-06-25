@@ -35,7 +35,7 @@ use crate::providers::inventory::{
 };
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::{
-    EnabledExtensionsState, ExtensionData, ExtensionState, Session, SessionManager,
+    EnabledExtensionsState, ExtensionData, ExtensionState, Session, SessionManager, SessionType,
 };
 use crate::source_roots::SourceRoot;
 use crate::utils::sanitize_unicode_tags;

@@ -2894,50 +2894,6 @@
         }
       }
     },
-    "/sessions/import/nostr": {
-      "post": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "import_session_nostr",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ImportSessionNostrRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Nostr shared session imported successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Session"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid Nostr share link"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/{id}/cancel": {
       "post": {
         "tags": [
@@ -3240,61 +3196,6 @@
           },
           "400": {
             "description": "Bad request - Name too long (max 200 characters)"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/sessions/{session_id}/share/nostr": {
-      "post": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "share_session_nostr",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ShareSessionNostrRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session shared to Nostr successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ShareSessionNostrResponse"
-                }
-              }
-            }
           },
           "401": {
             "description": "Unauthorized - Invalid or missing API key"
@@ -5439,17 +5340,6 @@
             "type": "string"
           },
           "mimeType": {
-            "type": "string"
-          }
-        }
-      },
-      "ImportSessionNostrRequest": {
-        "type": "object",
-        "required": [
-          "deeplink"
-        ],
-        "properties": {
-          "deeplink": {
             "type": "string"
           }
         }
@@ -7977,43 +7867,6 @@
           },
           "success": {
             "type": "boolean"
-          }
-        }
-      },
-      "ShareSessionNostrRequest": {
-        "type": "object",
-        "properties": {
-          "relays": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "ShareSessionNostrResponse": {
-        "type": "object",
-        "required": [
-          "deeplink",
-          "nevent",
-          "eventId",
-          "relays"
-        ],
-        "properties": {
-          "deeplink": {
-            "type": "string"
-          },
-          "eventId": {
-            "type": "string"
-          },
-          "nevent": {
-            "type": "string"
-          },
-          "relays": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         }
       },
