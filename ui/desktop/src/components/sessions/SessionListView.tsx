@@ -548,7 +548,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             toast.error(intl.formatMessage(i18n.importFailed, { error: result.error }));
             return;
           }
-          await acpImportSession(result.contents);
+          await acpImportSession(result.contents, 'json');
           toast.success(intl.formatMessage(i18n.importSuccess));
           window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
           await loadSessions();
@@ -598,7 +598,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
         try {
           const json = await file.text();
-          await acpImportSession(json);
+          await acpImportSession(json, 'json');
 
           toast.success(intl.formatMessage(i18n.importSuccess));
           window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));

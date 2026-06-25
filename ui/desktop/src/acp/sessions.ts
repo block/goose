@@ -303,7 +303,7 @@ export async function acpExportSession(sessionId: string): Promise<string> {
 
 export async function acpImportSession(
   input: string,
-  source: SessionImportSource = 'auto'
+  source: SessionImportSource
 ): Promise<void> {
   const client = await getAcpClient();
   await client.goose.sessionImport_unstable({ input, source });
