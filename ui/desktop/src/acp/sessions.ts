@@ -168,6 +168,12 @@ export async function acpListRecentSessions(maxSessions: number): Promise<Sessio
   return response.sessions.slice(0, maxSessions).map(sessionInfoToListItem);
 }
 
+export async function acpGetSessionListItem(sessionId: string): Promise<SessionListItem> {
+  const client = await getAcpClient();
+  const response = await client.goose.sessionInfo_unstable({ sessionId });
+  return sessionInfoToListItem(response.session);
+}
+
 export async function acpLoadSession(sessionId: string): Promise<AcpLoadSessionResult> {
   const pendingLoad = inFlightSessionLoads.get(sessionId);
   if (pendingLoad) {
