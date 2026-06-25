@@ -3689,12 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"
   },
-  "sessionHistory.cancel": {
-    "defaultMessage": "Отмена"
-  },
-  "sessionHistory.copy": {
-    "defaultMessage": "Копировать"
-  },
   "sessionHistory.empty.description": {
     "defaultMessage": "Этот сеанс не содержит сообщений"
   },
@@ -3716,29 +3710,8 @@
   "sessionHistory.searchPlaceholder": {
     "defaultMessage": "Поиск по истории..."
   },
-  "sessionHistory.share": {
-    "defaultMessage": "Поделиться"
-  },
-  "sessionHistory.shareModal.description": {
-    "defaultMessage": "Поделитесь ссылкой на этот сеанс, чтобы другие могли просматривать ваш чат goose только для чтения."
-  },
-  "sessionHistory.shareModal.title": {
-    "defaultMessage": "Поделиться сеансом (бета)"
-  },
-  "sessionHistory.shareTooltip": {
-    "defaultMessage": "Чтобы включить общий доступ к сеансам, перейдите в <b>Настройки</b> > <b>Сеанс</b> > <b>Общий доступ к сеансам</b>."
-  },
-  "sessionHistory.sharing": {
-    "defaultMessage": "Публикация..."
-  },
-  "sessionHistory.toast.copyFailed": {
-    "defaultMessage": "Не удалось скопировать ссылку в буфер обмена"
-  },
   "sessionHistory.toast.launchFailed": {
     "defaultMessage": "Не удалось запустить сеанс: {error}"
-  },
-  "sessionHistory.toast.shareFailed": {
-    "defaultMessage": "Не удалось поделиться сеансом: {error}"
   },
   "sessionIndicators.error": {
     "defaultMessage": "В сеансе возникла ошибка"
@@ -3748,57 +3721,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Потоковая передача"
-  },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "Общий доступ к сеансам уже настроен"
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "Базовый URL"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "Соединение не удалось."
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "Соединение успешно!"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "Время соединения истекло. Сервер может быть медленным или недоступным."
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "Общий доступ к сеансам настроен, но полностью доброволен — сеансы публикуются только когда вы явно нажимаете кнопку «Поделиться»."
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "Вы можете включить общий доступ к сеансам, чтобы делиться ими с другими."
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "Включить общий доступ к сеансам"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "Неверный формат URL. Введите корректный URL (например, https://example.com/api)."
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "Ошибка сервера: HTTP {status}. Возможно, сервер настроен неверно."
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "Проверить соединение"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "Проверка..."
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "Проверка соединения..."
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "Общий доступ к сеансам"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "Произошла неизвестная ошибка."
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "Не удалось связаться с сервером. Проверьте URL и сетевое подключение."
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
   },
   "sessionViewComponents.empty.description": {
     "defaultMessage": "Этот сеанс не содержит сообщений"
@@ -4126,12 +4048,6 @@
   },
   "settingsView.title": {
     "defaultMessage": "Настройки"
-  },
-  "sharedSession.loading": {
-    "defaultMessage": "Загрузка сведений о сеансе..."
-  },
-  "sharedSession.title": {
-    "defaultMessage": "Общий сеанс"
   },
   "sheet.close": {
     "defaultMessage": "Закрыть"

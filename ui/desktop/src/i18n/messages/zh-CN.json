@@ -3689,12 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"
   },
-  "sessionHistory.cancel": {
-    "defaultMessage": "取消"
-  },
-  "sessionHistory.copy": {
-    "defaultMessage": "复制"
-  },
   "sessionHistory.empty.description": {
     "defaultMessage": "此会话不包含任何消息"
   },
@@ -3716,29 +3710,8 @@
   "sessionHistory.searchPlaceholder": {
     "defaultMessage": "搜索历史…"
   },
-  "sessionHistory.share": {
-    "defaultMessage": "分享"
-  },
-  "sessionHistory.shareModal.description": {
-    "defaultMessage": "分享此会话链接，让其他人只读查看你的 goose 聊天。"
-  },
-  "sessionHistory.shareModal.title": {
-    "defaultMessage": "分享会话（测试版）"
-  },
-  "sessionHistory.shareTooltip": {
-    "defaultMessage": "若要启用会话分享，请前往 <b>设置</b> > <b>会话</b> > <b>会话分享</b>。"
-  },
-  "sessionHistory.sharing": {
-    "defaultMessage": "分享中…"
-  },
-  "sessionHistory.toast.copyFailed": {
-    "defaultMessage": "复制链接到剪贴板失败"
-  },
   "sessionHistory.toast.launchFailed": {
     "defaultMessage": "无法启动会话：{error}"
-  },
-  "sessionHistory.toast.shareFailed": {
-    "defaultMessage": "分享会话失败：{error}"
   },
   "sessionIndicators.error": {
     "defaultMessage": "会话发生错误"
@@ -3748,57 +3721,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "流式传输中"
-  },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "会话分享已配置"
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "基础 URL"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "连接失败。"
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "连接成功！"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "连接超时。服务器可能响应缓慢或无法访问。"
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "会话分享已配置，但完全是可选的 —— 你的会话只在你明确点击分享按钮时才会被分享。"
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "你可以启用会话分享，把会话分享给他人。"
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "启用会话分享"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "URL 格式无效。请输入有效的 URL（例如 https://example.com/api）。"
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "服务器错误：HTTP {status}。服务器可能未正确配置。"
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "测试连接"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "测试中…"
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "正在测试连接…"
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "会话分享"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "发生未知错误。"
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "无法连接到服务器。请检查 URL 和网络连接。"
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
   },
   "sessionViewComponents.empty.description": {
     "defaultMessage": "此会话不包含任何消息"
@@ -4126,12 +4048,6 @@
   },
   "settingsView.title": {
     "defaultMessage": "设置"
-  },
-  "sharedSession.loading": {
-    "defaultMessage": "正在加载会话详情…"
-  },
-  "sharedSession.title": {
-    "defaultMessage": "共享会话"
   },
   "sheet.close": {
     "defaultMessage": "关闭"

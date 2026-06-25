@@ -3689,12 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"
   },
-  "sessionHistory.cancel": {
-    "defaultMessage": "रद्द करें"
-  },
-  "sessionHistory.copy": {
-    "defaultMessage": "प्रतिलिपि"
-  },
   "sessionHistory.empty.description": {
     "defaultMessage": "इस सत्र में कोई संदेश नहीं है"
   },
@@ -3716,29 +3710,8 @@
   "sessionHistory.searchPlaceholder": {
     "defaultMessage": "खोज इतिहास..."
   },
-  "sessionHistory.share": {
-    "defaultMessage": "साझा करें"
-  },
-  "sessionHistory.shareModal.description": {
-    "defaultMessage": "दूसरों को अपनी goose चैट का केवल पढ़ने योग्य दृश्य देने के लिए इस सत्र लिंक को साझा करें।"
-  },
-  "sessionHistory.shareModal.title": {
-    "defaultMessage": "शेयर सत्र (बीटा)"
-  },
-  "sessionHistory.shareTooltip": {
-    "defaultMessage": "सत्र साझाकरण सक्षम करने के लिए, <b>Settings</b> > <b>सत्र</b> > <b>सत्र साझाकरण</b> पर जाएं।"
-  },
-  "sessionHistory.sharing": {
-    "defaultMessage": "साझा कर रहा हूँ..."
-  },
-  "sessionHistory.toast.copyFailed": {
-    "defaultMessage": "क्लिपबोर्ड पर लिंक कॉपी करने में विफल"
-  },
   "sessionHistory.toast.launchFailed": {
     "defaultMessage": "सत्र लॉन्च नहीं किया जा सका: {error}"
-  },
-  "sessionHistory.toast.shareFailed": {
-    "defaultMessage": "सत्र साझा करने में विफल: {error}"
   },
   "sessionIndicators.error": {
     "defaultMessage": "सत्र में एक त्रुटि आई"
@@ -3748,57 +3721,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "स्ट्रीमिंग"
-  },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "सत्र साझाकरण पहले ही कॉन्फ़िगर किया जा चुका है"
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "आधार URL"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "कनेक्शन विफल।"
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "कनेक्शन सफल!"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "कनेक्शन का समय समाप्त। सर्वर धीमा या पहुंच योग्य नहीं हो सकता है."
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "सत्र साझाकरण कॉन्फ़िगर किया गया है लेकिन पूरी तरह से ऑप्ट-इन है - आपके सत्र केवल तभी साझा किए जाते हैं जब आप स्पष्ट रूप से शेयर बटन पर क्लिक करते हैं।"
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "आप अपने सत्रों को दूसरों के साथ साझा करने के लिए सत्र साझाकरण सक्षम कर सकते हैं।"
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "सत्र साझाकरण सक्षम करें"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "अमान्य URL प्रारूप. कृपया वैध URL दर्ज करें (उदा. https://example.com/api)."
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "सर्वर त्रुटि: HTTP {status}। हो सकता है कि सर्वर ठीक से कॉन्फ़िगर न किया गया हो."
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "परीक्षण कनेक्शन"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "परीक्षण..."
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "कनेक्शन का परीक्षण किया जा रहा है..."
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "सत्र साझाकरण"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "अज्ञात त्रुटि उत्पन्न हुई."
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "सर्वर तक पहुंचने में असमर्थ. कृपया URL और अपने नेटवर्क कनेक्शन की जाँच करें।"
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
   },
   "sessionViewComponents.empty.description": {
     "defaultMessage": "इस सत्र में कोई संदेश नहीं है"
@@ -4126,12 +4048,6 @@
   },
   "settingsView.title": {
     "defaultMessage": "Settings"
-  },
-  "sharedSession.loading": {
-    "defaultMessage": "सत्र विवरण लोड हो रहा है..."
-  },
-  "sharedSession.title": {
-    "defaultMessage": "साझा सत्र"
   },
   "sheet.close": {
     "defaultMessage": "बंद करें"

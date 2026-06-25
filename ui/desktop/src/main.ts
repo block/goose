@@ -205,10 +205,6 @@ function getSettings(): Settings {
         ...defaultSettings.keyboardShortcuts,
         ...(stored.keyboardShortcuts ?? {}),
       },
-      sessionSharing: {
-        ...defaultSettings.sessionSharing,
-        ...(stored.sessionSharing ?? {}),
-      },
     };
   }
   return defaultSettings;
@@ -565,7 +561,7 @@ async function processProtocolUrl(url: string, parsedUrl: URL, window: BrowserWi
   if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', url);
   } else if (parsedUrl.hostname === 'sessions') {
-    window.webContents.send('open-shared-session', url);
+    window.webContents.send('open-session-share', url);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     const deeplinkData = parseRecipeDeeplink(url);
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
@@ -643,7 +639,7 @@ app.on('open-url', async (_event, url) => {
       if (parsedUrl.hostname === 'extension') {
         targetWindow.webContents.send('add-extension', url);
       } else if (parsedUrl.hostname === 'sessions') {
-        targetWindow.webContents.send('open-shared-session', url);
+        targetWindow.webContents.send('open-session-share', url);
       }
     } else {
       openUrlHandledLaunch = true;
@@ -747,7 +743,6 @@ interface BundledConfig {
   defaultProvider?: string;
   defaultModel?: string;
   predefinedModels?: string;
-  baseUrlShare?: string;
   version?: string;
 }
 
@@ -759,13 +754,11 @@ const getBundledConfig = (): BundledConfig => {
     defaultProvider: process.env.GOOSE_DEFAULT_PROVIDER,
     defaultModel: process.env.GOOSE_DEFAULT_MODEL,
     predefinedModels: process.env.GOOSE_PREDEFINED_MODELS,
-    baseUrlShare: process.env.GOOSE_BASE_URL_SHARE,
     version: process.env.GOOSE_VERSION,
   };
 };
 
-const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version } =
-  getBundledConfig();
+const { defaultProvider, defaultModel, predefinedModels, version } = getBundledConfig();
 
 const resolveGoosePathRoot = (): string | undefined => {
   const pathRoot = process.env.GOOSE_PATH_ROOT?.trim();
@@ -985,7 +978,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
           GOOSE_API_HOST: baseUrl,
           GOOSE_WORKING_DIR: workingDir,
           REQUEST_DIR: dir,
-          GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
           recipeDeeplink: recipeDeeplink,
           recipeId: recipeId,
@@ -1202,7 +1194,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     skills: '/skills',
     permission: '/permission',
     ConfigureProviders: '/configure-providers',
-    sharedSession: '/shared-session',
   };
 
   if (viewType) {
@@ -1661,7 +1652,7 @@ ipcMain.on('react-ready', (event) => {
       if (parsedUrl.hostname === 'extension') {
         window.webContents.send('add-extension', deepLinkUrl);
       } else if (parsedUrl.hostname === 'sessions') {
-        window.webContents.send('open-shared-session', deepLinkUrl);
+        window.webContents.send('open-session-share', deepLinkUrl);
       }
     } catch (error) {
       log.error('Error processing pending deep link:', error);
@@ -1721,7 +1712,6 @@ const validSettingKeys: Set<string> = new Set([
   'language',
   'responseStyle',
   'showPricing',
-  'sessionSharing',
   'seenAnnouncementIds',
   'disableAutoDownload',
 ]);
