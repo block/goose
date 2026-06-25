@@ -1625,7 +1625,7 @@ pub struct DictationModelSelectRequest {
 }
 
 /// Permission level for a tool.
-#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum ToolPermissionLevel {
     AlwaysAllow,
