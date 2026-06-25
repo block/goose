@@ -139,13 +139,27 @@ impl Drop for SymlinkCleanup {
     }
 }
 
+/// Split an editor command into program and arguments.
+///
+/// Uses shell-word splitting only when the command contains quotes, so values like
+/// `"/Applications/Sublime Text.app/.../subl" -w` work. Unquoted commands are split on
+/// whitespace to avoid shlex stripping backslashes from Windows paths like
+/// `C:\Windows\System32\notepad.exe`.
+fn split_editor_command(editor_cmd: &str) -> Result<Vec<String>> {
+    if editor_cmd.contains(['"', '\'']) {
+        shlex::split(editor_cmd).ok_or_else(|| {
+            anyhow::anyhow!("Invalid editor command: unmatched quotes in '{editor_cmd}'")
+        })
+    } else {
+        Ok(editor_cmd.split_whitespace().map(String::from).collect())
+    }
+}
+
 /// Launch editor and wait for completion
 fn launch_editor(editor_cmd: &str, file_path: &PathBuf) -> Result<()> {
     use std::process::Stdio;
 
-    let parts: Vec<String> = shlex::split(editor_cmd).ok_or_else(|| {
-        anyhow::anyhow!("Invalid editor command: unmatched quotes in '{editor_cmd}'")
-    })?;
+    let parts = split_editor_command(editor_cmd)?;
     if parts.is_empty() {
         return Err(anyhow::anyhow!("Empty editor command"));
     }
@@ -498,6 +512,32 @@ with multiple lines.
             resolve_editor_or_default_from_sources(Some(""), Some(""), Some("")),
             default_val
         );
+    }
+
+    #[test]
+    fn test_split_editor_command() {
+        assert_eq!(
+            split_editor_command("code --wait").unwrap(),
+            vec!["code", "--wait"]
+        );
+
+        assert_eq!(
+            split_editor_command(
+                r#""/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl" -w"#
+            )
+            .unwrap(),
+            vec![
+                "/Applications/Sublime Text.app/Contents/SharedSupport/bin/subl",
+                "-w"
+            ]
+        );
+
+        assert_eq!(
+            split_editor_command(r"C:\Windows\System32\notepad.exe").unwrap(),
+            vec![r"C:\Windows\System32\notepad.exe"]
+        );
+
+        assert!(split_editor_command(r#"code --wait "unclosed"#).is_err());
     }
 
     // --- build_template edge case tests ---
