@@ -31,10 +31,14 @@ function metaField(record: JsonRecord): McpAppResourceResponse['_meta'] {
 }
 
 function decodeBase64Text(blob: string): string {
+  let bytes: Uint8Array;
   if (typeof globalThis.atob === 'function') {
-    return globalThis.atob(blob);
+    const binary = globalThis.atob(blob);
+    bytes = Uint8Array.from(binary, (char) => char.charCodeAt(0));
+  } else {
+    bytes = Uint8Array.from(Buffer.from(blob, 'base64'));
   }
-  return Buffer.from(blob, 'base64').toString('utf8');
+  return new TextDecoder().decode(bytes);
 }
 
 function flattenReadResourceResult(result: unknown, fallbackUri: string): McpAppResourceResponse {

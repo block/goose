@@ -80,6 +80,24 @@ describe('ACP MCP app helpers', () => {
     });
   });
 
+  it('decodes blob resources as UTF-8 text', async () => {
+    client.goose.resourcesRead_unstable.mockResolvedValue({
+      result: {
+        contents: [
+          {
+            uri: 'ui://weather/panel',
+            mimeType: 'text/html;profile=mcp-app',
+            blob: Buffer.from('<main>São Paulo 東京</main>', 'utf8').toString('base64'),
+          },
+        ],
+      },
+    });
+
+    const resource = await readMcpAppResource('session-1', 'weather', 'ui://weather/panel');
+
+    expect(resource.text).toBe('<main>São Paulo 東京</main>');
+  });
+
   it('prefixes app tool calls before sending them over ACP', async () => {
     client.goose.toolsCall_unstable.mockResolvedValue({
       content: [{ type: 'text', text: 'done' }],
