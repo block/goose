@@ -561,7 +561,7 @@ async function processProtocolUrl(url: string, parsedUrl: URL, window: BrowserWi
   if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', url);
   } else if (parsedUrl.hostname === 'sessions') {
-    window.webContents.send('open-session-share', url);
+    window.webContents.send('open-shared-session', url);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     const deeplinkData = parseRecipeDeeplink(url);
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
@@ -639,7 +639,7 @@ app.on('open-url', async (_event, url) => {
       if (parsedUrl.hostname === 'extension') {
         targetWindow.webContents.send('add-extension', url);
       } else if (parsedUrl.hostname === 'sessions') {
-        targetWindow.webContents.send('open-session-share', url);
+        targetWindow.webContents.send('open-shared-session', url);
       }
     } else {
       openUrlHandledLaunch = true;
@@ -1652,7 +1652,7 @@ ipcMain.on('react-ready', (event) => {
       if (parsedUrl.hostname === 'extension') {
         window.webContents.send('add-extension', deepLinkUrl);
       } else if (parsedUrl.hostname === 'sessions') {
-        window.webContents.send('open-session-share', deepLinkUrl);
+        window.webContents.send('open-shared-session', deepLinkUrl);
       }
     } catch (error) {
       log.error('Error processing pending deep link:', error);

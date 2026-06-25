@@ -417,9 +417,9 @@ export function AppInner() {
         navigate('/sessions');
       }
     };
-    window.electron.on('open-session-share', handleOpenSessionShare);
+    window.electron.on('open-shared-session', handleOpenSessionShare);
     return () => {
-      window.electron.off('open-session-share', handleOpenSessionShare);
+      window.electron.off('open-shared-session', handleOpenSessionShare);
     };
   }, [navigate]);
 
