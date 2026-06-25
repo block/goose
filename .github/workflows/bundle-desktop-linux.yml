@@ -148,6 +148,19 @@ jobs:
           chmod +x ui/desktop/src/bin/goosed
           ls -la ui/desktop/src/bin/
 
+      - name: Free Rust build artifacts before packaging
+        run: |
+          source ./bin/activate-hermit
+          echo "=== Disk usage before Rust cleanup ==="
+          df -h
+          du -sh target .hermit/rust 2>/dev/null || true
+
+          cargo clean
+
+          echo "=== Disk usage after Rust cleanup ==="
+          df -h
+          du -sh target .hermit/rust 2>/dev/null || true
+
       - name: Cache pnpm dependencies
         uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
         with:
@@ -169,10 +182,19 @@ jobs:
       - name: Build Linux packages
         env:
           GOOSE_DESKTOP_LINUX_VARIANT: ${{ matrix.variant }}
+          DEBUG: "@malept/flatpak-bundler,electron-installer-flatpak"
         run: |
           source ./bin/activate-hermit
           cd ui/desktop
           echo "Building Linux packages (.deb, .rpm, and .flatpak) for ${{ matrix.variant }}..."
+          trap 'echo "=== Disk usage after Linux packaging failure ==="; df -h; du -sh ../../target ../node_modules node_modules out ~/.local/share/flatpak 2>/dev/null || true' ERR
+          echo "=== Disk usage before Linux packaging ==="
+          df -h
+          du -sh ../../target ../node_modules node_modules out ~/.local/share/flatpak 2>/dev/null || true
+          echo "=== Flatpak tool versions ==="
+          flatpak --version
+          flatpak-builder --version
+          flatpak remotes --user --show-details || true
 
           # Build all configured packages
           pnpm run make --platform=linux --arch=x64
