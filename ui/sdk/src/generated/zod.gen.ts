@@ -190,7 +190,7 @@ export const zToolPermissionLevel = z.enum([
  * A single tool permission entry.
  */
 export const zToolPermissionEntry = z.object({
-    tool_name: z.string(),
+    toolName: z.string(),
     permission: zToolPermissionLevel
 });
 
@@ -198,7 +198,7 @@ export const zToolPermissionEntry = z.object({
  * Set permission levels for one or more tools.
  */
 export const zSetToolPermissionsRequest_unstable = z.object({
-    tool_permissions: z.array(zToolPermissionEntry)
+    toolPermissions: z.array(zToolPermissionEntry)
 });
 
 export const zSetToolPermissionsResponse_unstable = z.record(z.unknown());

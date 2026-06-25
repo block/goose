@@ -3,6 +3,7 @@ import { Button } from '../../ui/button';
 import { ChevronDownIcon, SlidersHorizontal, AlertCircle } from 'lucide-react';
 import { getTools, PermissionLevel, ToolInfo } from '../../../api';
 import { setToolPermissions } from '../../../acp/permissions';
+import type { ToolPermissionLevel } from '../../../acp/permissions';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import {
   DropdownMenu,
@@ -145,19 +146,17 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
 
   const handleSave = async () => {
     try {
-      const payload = {
-        tool_permissions: Object.entries(updatedPermissions).map(([toolName, permission]) => ({
-          tool_name: toolName,
-          permission: permission as PermissionLevel,
-        })),
-      };
+      const toolPermissions = Object.entries(updatedPermissions).map(([toolName, permission]) => ({
+        toolName,
+        permission: permission as ToolPermissionLevel,
+      }));
 
-      if (payload.tool_permissions.length === 0) {
+      if (toolPermissions.length === 0) {
         onClose();
         return;
       }
 
-      await setToolPermissions(payload.tool_permissions);
+      await setToolPermissions(toolPermissions);
       onClose();
     } catch (err) {
       console.error('Error saving permissions:', err);

@@ -1633,6 +1633,7 @@ pub enum ToolPermissionLevel {
 
 /// A single tool permission entry.
 #[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
 pub struct ToolPermissionEntry {
     pub tool_name: String,
     pub permission: ToolPermissionLevel,
@@ -1641,6 +1642,7 @@ pub struct ToolPermissionEntry {
 /// Set permission levels for one or more tools.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/tools/permissions/set", response = SetToolPermissionsResponse)]
+#[serde(rename_all = "camelCase")]
 pub struct SetToolPermissionsRequest {
     pub tool_permissions: Vec<ToolPermissionEntry>,
 }

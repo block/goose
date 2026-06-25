@@ -411,7 +411,7 @@
     "SetToolPermissionsRequest_unstable": {
       "type": "object",
       "properties": {
-        "tool_permissions": {
+        "toolPermissions": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/ToolPermissionEntry"
@@ -419,7 +419,7 @@
         }
       },
       "required": [
-        "tool_permissions"
+        "toolPermissions"
       ],
       "description": "Set permission levels for one or more tools.",
       "x-side": "agent",
@@ -428,7 +428,7 @@
     "ToolPermissionEntry": {
       "type": "object",
       "properties": {
-        "tool_name": {
+        "toolName": {
           "type": "string"
         },
         "permission": {
@@ -436,7 +436,7 @@
         }
       },
       "required": [
-        "tool_name",
+        "toolName",
         "permission"
       ],
       "description": "A single tool permission entry."

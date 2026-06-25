@@ -1,12 +1,9 @@
-import type { PermissionLevel } from '../api';
+import type { ToolPermissionEntry, ToolPermissionLevel } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
 
-export interface ToolPermissionEntry {
-  tool_name: string;
-  permission: PermissionLevel;
-}
+export type { ToolPermissionEntry, ToolPermissionLevel };
 
 export async function setToolPermissions(toolPermissions: ToolPermissionEntry[]): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.toolsPermissionsSet_unstable({ tool_permissions: toolPermissions });
+  await client.goose.toolsPermissionsSet_unstable({ toolPermissions });
 }

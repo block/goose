@@ -216,14 +216,14 @@ export type GetToolsResponse_unstable = {
  * Set permission levels for one or more tools.
  */
 export type SetToolPermissionsRequest_unstable = {
-    tool_permissions: Array<ToolPermissionEntry>;
+    toolPermissions: Array<ToolPermissionEntry>;
 };
 
 /**
  * A single tool permission entry.
  */
 export type ToolPermissionEntry = {
-    tool_name: string;
+    toolName: string;
     permission: ToolPermissionLevel;
 };
 
