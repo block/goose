@@ -271,7 +271,7 @@ impl Provider for AnthropicProvider {
             system,
             messages,
             tools,
-            self.format_options,
+            self.format_options.clone(),
         )?;
         payload
             .as_object_mut()
