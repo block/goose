@@ -2,36 +2,58 @@
 
 
 /**
- * Persist a new extension to the user's global goose config.
- */
-export type AddConfigExtensionRequest_unstable = {
-    enabled?: boolean;
-    extension: GooseExtension;
-};
-
-/**
  * Add an extension to an active session.
  */
 export type AddSessionExtensionRequest_unstable = {
-    extension: GooseExtension;
     sessionId: string;
+    extension: GooseExtension;
 };
 
-/**
- * A user-facing `@` mention target backed by an agent, recipe, or subrecipe source.
- */
-export type AgentMention = {
-    description: string;
-    mention: string;
+export type GooseExtension = {
     name: string;
-    sourcePath?: string | null;
-    sourceType: SourceType;
+    description?: string | null;
+    display_name?: string | null;
+    timeout?: number | null;
+    bundled?: boolean | null;
+    type: 'builtin';
+} | {
+    name: string;
+    description?: string | null;
+    display_name?: string | null;
+    bundled?: boolean | null;
+    type: 'platform';
+} | {
+    server: McpServer;
+    envKeys?: Array<string>;
+    description?: string | null;
+    timeout?: number | null;
+    socket?: string | null;
+    bundled?: boolean | null;
+    type: 'mcp';
 };
 
 /**
- * Optional annotations for the client. The client can use annotations to inform how objects are used or displayed
+ * Configuration for connecting to an MCP (Model Context Protocol) server.
+ *
+ * MCP servers provide tools and context that the agent can use when
+ * processing prompts.
+ *
+ * See protocol docs: [MCP Servers](https://agentclientprotocol.com/protocol/session-setup#mcp-servers)
  */
-export type Annotations = {
+export type McpServer = McpServerHttp | McpServerSse | McpServerStdio;
+
+/**
+ * An HTTP header to set when making requests to the MCP server.
+ */
+export type HttpHeader = {
+    /**
+     * The name of the HTTP header.
+     */
+    name: string;
+    /**
+     * The value to set for the HTTP header.
+     */
+    value: string;
     /**
      * The _meta property is reserved by ACP to allow clients and agents to attach additional
      * metadata to their interactions. Implementations MUST NOT make assumptions about values at
@@ -42,9 +64,198 @@ export type Annotations = {
     _meta?: {
         [key: string]: unknown;
     } | null;
-    audience?: Array<Role> | null;
-    lastModified?: string | null;
-    priority?: number | null;
+};
+
+/**
+ * HTTP transport configuration for MCP.
+ */
+export type McpServerHttp = {
+    /**
+     * Human-readable name identifying this MCP server.
+     */
+    name: string;
+    /**
+     * URL to the MCP server.
+     */
+    url: string;
+    /**
+     * HTTP headers to set when making requests to the MCP server.
+     */
+    headers: Array<HttpHeader>;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+    type: 'http';
+};
+
+/**
+ * SSE transport configuration for MCP.
+ */
+export type McpServerSse = {
+    /**
+     * Human-readable name identifying this MCP server.
+     */
+    name: string;
+    /**
+     * URL to the MCP server.
+     */
+    url: string;
+    /**
+     * HTTP headers to set when making requests to the MCP server.
+     */
+    headers: Array<HttpHeader>;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+    type: 'sse';
+};
+
+/**
+ * Stdio transport configuration for MCP.
+ */
+export type McpServerStdio = {
+    /**
+     * Human-readable name identifying this MCP server.
+     */
+    name: string;
+    /**
+     * Path to the MCP server executable.
+     */
+    command: string;
+    /**
+     * Command-line arguments to pass to the MCP server.
+     */
+    args: Array<string>;
+    /**
+     * Environment variables to set when launching the MCP server.
+     */
+    env: Array<EnvVariable>;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * An environment variable to set when launching an MCP server.
+ */
+export type EnvVariable = {
+    /**
+     * The name of the environment variable.
+     */
+    name: string;
+    /**
+     * The value to set for the environment variable.
+     */
+    value: string;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * Empty success response for operations that return no data.
+ */
+export type EmptyResponse = {
+    [key: string]: unknown;
+};
+
+/**
+ * Remove an extension from an active session.
+ */
+export type RemoveSessionExtensionRequest_unstable = {
+    sessionId: string;
+    name: string;
+};
+
+/**
+ * List all tools available in a session.
+ */
+export type GetToolsRequest_unstable = {
+    sessionId: string;
+};
+
+/**
+ * Tools response.
+ */
+export type GetToolsResponse_unstable = {
+    /**
+     * Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`.
+     */
+    tools: Array<unknown>;
+};
+
+/**
+ * Call a tool from an extension.
+ */
+export type GooseToolCallRequest_unstable = {
+    sessionId: string;
+    name: string;
+    arguments?: unknown;
+};
+
+/**
+ * Tool call response.
+ */
+export type GooseToolCallResponse_unstable = {
+    content?: Array<unknown>;
+    structuredContent?: unknown;
+    isError: boolean;
+    _meta?: unknown;
+};
+
+/**
+ * Read a resource from an extension.
+ */
+export type ReadResourceRequest_unstable = {
+    sessionId: string;
+    uri: string;
+    extensionName: string;
+};
+
+/**
+ * Resource read response.
+ */
+export type ReadResourceResponse_unstable = {
+    /**
+     * The resource result from the extension (MCP ReadResourceResult).
+     */
+    result?: unknown;
+};
+
+export type AppsListRequest_unstable = {
+    sessionId?: string | null;
+};
+
+export type AppsListResponse_unstable = {
+    apps?: Array<unknown>;
 };
 
 export type AppsExportRequest_unstable = {
@@ -60,94 +271,44 @@ export type AppsImportRequest_unstable = {
 };
 
 export type AppsImportResponse_unstable = {
+    name: string;
     message: string;
-    name: string;
-};
-
-export type AppsListRequest_unstable = {
-    sessionId?: string | null;
-};
-
-export type AppsListResponse_unstable = {
-    apps?: Array<unknown>;
 };
 
 /**
- * Archive a session (soft delete).
+ * Update the working directory for a session.
  */
-export type ArchiveSessionRequest_unstable = {
+export type UpdateWorkingDirRequest_unstable = {
     sessionId: string;
+    workingDir: string;
 };
 
 /**
- * Audio provided to or from an LLM.
+ * Set, append, or clear system prompt text for a session.
+ *
+ * `mode: "set"` replaces Goose's base system prompt. `mode: "append"` adds an
+ * instruction under "Additional Instructions". Reusing a key replaces the
+ * previous value for that mode/key; sending empty text clears it.
  */
-export type AudioContent = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
-        [key: string]: unknown;
-    } | null;
-    annotations?: Annotations | null;
-    data: string;
-    mimeType: string;
+export type SetSessionSystemPromptRequest_unstable = {
+    sessionId: string;
+    mode?: SessionSystemPromptMode;
+    key?: string | null;
+    text: string;
 };
 
 /**
- * Information about a command.
+ * How a session system prompt update should be applied.
  */
-export type AvailableCommand = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Human-readable description of what the command does.
-     */
-    description: string;
-    /**
-     * Input for the command if required
-     */
-    input?: AvailableCommandInput | null;
-    /**
-     * Command name (e.g., `create_plan`, `research_codebase`).
-     */
-    name: string;
-};
+export type SessionSystemPromptMode = 'set' | 'append';
 
 /**
- * All text that was typed after the command name is provided as input.
+ * Add user input to the currently active prompt without starting a new prompt.
  */
-export type AvailableCommandInput = UnstructuredCommandInput;
-
-/**
- * Binary resource contents.
- */
-export type BlobResourceContents = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
-        [key: string]: unknown;
-    } | null;
-    blob: string;
-    mimeType?: string | null;
-    uri: string;
+export type SteerSessionRequest_unstable = {
+    sessionId: string;
+    prompt?: Array<ContentBlock>;
+    expectedRunId: string;
 };
 
 /**
@@ -178,78 +339,668 @@ export type ContentBlock = ({
     type: 'EmbeddedResource';
 } & EmbeddedResource);
 
-export type CreateScheduleRequest_unstable = {
-    cron: string;
-    id: string;
-    recipe: RecipeDto;
-};
-
-export type CreateScheduleResponse_unstable = {
-    job: ScheduledJobDto;
+/**
+ * Optional annotations for the client. The client can use annotations to inform how objects are used or displayed
+ */
+export type Annotations = {
+    audience?: Array<Role> | null;
+    lastModified?: string | null;
+    priority?: number | null;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
 };
 
 /**
- * Create a new source in an explicit target scope (global or project-scoped).
+ * The sender or recipient of messages and data in a conversation.
  */
-export type CreateSourceRequest_unstable = {
-    content: string;
+export type Role = 'assistant' | 'user';
+
+/**
+ * Text provided to or from an LLM.
+ */
+export type TextContent = {
+    annotations?: Annotations | null;
+    text: string;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * An image provided to or from an LLM.
+ */
+export type ImageContent = {
+    annotations?: Annotations | null;
+    data: string;
+    mimeType: string;
+    uri?: string | null;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * Audio provided to or from an LLM.
+ */
+export type AudioContent = {
+    annotations?: Annotations | null;
+    data: string;
+    mimeType: string;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * A resource that the server is capable of reading, included in a prompt or tool call result.
+ */
+export type ResourceLink = {
+    annotations?: Annotations | null;
+    description?: string | null;
+    mimeType?: string | null;
+    name: string;
+    size?: number | null;
+    title?: string | null;
+    uri: string;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * Resource content that can be embedded in a message.
+ */
+export type EmbeddedResourceResource = TextResourceContents | BlobResourceContents;
+
+/**
+ * Text-based resource contents.
+ */
+export type TextResourceContents = {
+    mimeType?: string | null;
+    text: string;
+    uri: string;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * Binary resource contents.
+ */
+export type BlobResourceContents = {
+    blob: string;
+    mimeType?: string | null;
+    uri: string;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * The contents of a resource, embedded into a prompt or tool call result.
+ */
+export type EmbeddedResource = {
+    annotations?: Annotations | null;
+    resource: EmbeddedResourceResource;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+export type SteerSessionResponse_unstable = {
+    runId: string;
+    /**
+     * Stable id of the queued steer message. The same id later appears as
+     * `messageId` on the streamed `UserMessageChunk` (with `_meta.goose.steer`),
+     * letting clients correlate a queued steer with its pickup.
+     */
+    messageId: string;
+};
+
+export type DiagnosticsGetRequest_unstable = {
+    sessionId: string;
+    level?: DiagnosticsReportLevel;
+};
+
+export type DiagnosticsReportLevel = 'summary' | 'full';
+
+export type DiagnosticsGetResponse_unstable = {
+    report: unknown;
+};
+
+/**
+ * List all available Goose prompt templates.
+ */
+export type ListPromptsRequest_unstable = {
+    [key: string]: unknown;
+};
+
+export type ListPromptsResponse_unstable = {
+    prompts: Array<PromptTemplateEntry>;
+};
+
+/**
+ * Information about a prompt template, including its default content and customization status.
+ */
+export type PromptTemplateEntry = {
+    name: string;
     description: string;
+    defaultContent: string;
+    userContent?: string | null;
+    isCustomized: boolean;
+};
+
+/**
+ * Read a Goose prompt template.
+ */
+export type GetPromptRequest_unstable = {
+    name: string;
+};
+
+export type GetPromptResponse_unstable = {
+    name: string;
+    content: string;
+    defaultContent: string;
+    isCustomized: boolean;
+};
+
+/**
+ * Save a custom Goose prompt template.
+ */
+export type SavePromptRequest_unstable = {
+    name: string;
+    content: string;
+};
+
+export type PromptOperationResponse_unstable = {
+    message: string;
+};
+
+/**
+ * Reset a Goose prompt template to its default content.
+ */
+export type ResetPromptRequest_unstable = {
+    name: string;
+};
+
+/**
+ * Delete a session.
+ */
+export type DeleteSessionRequest = {
+    sessionId: string;
+};
+
+/**
+ * List configured extensions and any warnings.
+ */
+export type GetConfigExtensionsRequest_unstable = {
+    [key: string]: unknown;
+};
+
+/**
+ * List configured extensions and any warnings.
+ */
+export type GetConfigExtensionsResponse_unstable = {
+    extensions: Array<GooseExtensionEntry>;
+    warnings?: Array<string>;
+};
+
+export type GooseExtensionEntry = {
+    extension: GooseExtension;
+    enabled: boolean;
+    configKey?: string | null;
+};
+
+/**
+ * List Goose-owned extension definitions available to configure or enable.
+ */
+export type GetAvailableExtensionsRequest_unstable = {
+    [key: string]: unknown;
+};
+
+export type GetAvailableExtensionsResponse_unstable = {
+    extensions: Array<GooseExtension>;
+};
+
+/**
+ * Persist a new extension to the user's global goose config.
+ */
+export type AddConfigExtensionRequest_unstable = {
+    extension: GooseExtension;
+    enabled?: boolean;
+};
+
+/**
+ * Remove a persisted extension from the user's global goose config.
+ */
+export type RemoveConfigExtensionRequest_unstable = {
+    configKey: string;
+};
+
+/**
+ * Set the `enabled` flag for a persisted extension in the user's global goose config.
+ */
+export type SetConfigExtensionEnabledRequest_unstable = {
+    configKey: string;
+    enabled: boolean;
+};
+
+export type GetSessionExtensionsRequest_unstable = {
+    sessionId: string;
+};
+
+export type GetSessionExtensionsResponse_unstable = {
+    extensions: Array<GooseExtension>;
+};
+
+/**
+ * List providers with setup metadata and the current model inventory snapshot.
+ */
+export type ListProvidersRequest_unstable = {
+    /**
+     * Only return entries for these providers. Empty means all.
+     */
+    providerIds?: Array<string>;
+};
+
+/**
+ * Provider list response.
+ */
+export type ListProvidersResponse_unstable = {
+    entries: Array<ProviderInventoryEntryDto>;
+};
+
+/**
+ * Provider inventory entry.
+ */
+export type ProviderInventoryEntryDto = {
+    /**
+     * Provider identifier.
+     */
+    providerId: string;
+    /**
+     * Human-readable provider name.
+     */
+    providerName: string;
+    /**
+     * Description of the provider's capabilities.
+     */
+    description: string;
+    /**
+     * The default/recommended model for this provider.
+     */
+    defaultModel: string;
+    /**
+     * Whether Goose has enough configuration to use this provider.
+     */
+    configured: boolean;
+    /**
+     * Provider classification such as `Preferred`, `Builtin`, `Declarative`, or `Custom`.
+     */
+    providerType: string;
+    /**
+     * Whether this inventory entry represents an agent provider or a model provider.
+     */
+    category: ProviderSetupCategoryDto;
+    /**
+     * Required configuration keys and setup metadata.
+     */
+    configKeys: Array<ProviderConfigKey>;
+    /**
+     * Step-by-step setup instructions, when present.
+     */
+    setupSteps: Array<string>;
+    /**
+     * Whether this provider supports background inventory refresh.
+     */
+    supportsRefresh: boolean;
+    /**
+     * Whether a refresh is currently in flight.
+     */
+    refreshing: boolean;
+    /**
+     * The list of available models.
+     */
+    models: Array<ProviderInventoryModelDto>;
+    /**
+     * When this entry was last successfully refreshed (ISO 8601).
+     */
+    lastUpdatedAt?: string | null;
+    /**
+     * When a refresh was most recently attempted (ISO 8601).
+     */
+    lastRefreshAttemptAt?: string | null;
+    /**
+     * The last refresh failure message, if any.
+     */
+    lastRefreshError?: string | null;
+    /**
+     * Whether we believe this data may be outdated.
+     */
+    stale: boolean;
+    /**
+     * Guidance message shown when this provider manages its own model selection externally.
+     */
+    modelSelectionHint?: string | null;
+};
+
+export type ProviderSetupCategoryDto = 'agent' | 'model';
+
+export type ProviderConfigKey = {
+    name: string;
+    required: boolean;
+    secret: boolean;
+    default?: string | null;
+    oauthFlow?: boolean;
+    deviceCodeFlow?: boolean;
+    primary?: boolean;
+};
+
+/**
+ * A single model in provider inventory.
+ */
+export type ProviderInventoryModelDto = {
+    /**
+     * Model identifier as the provider knows it.
+     */
+    id: string;
+    /**
+     * Human-readable display name.
+     */
     name: string;
     /**
-     * Arbitrary key/value metadata.
+     * Model family for grouping in UI.
      */
-    properties?: {
-        [key: string]: unknown;
-    };
-    target: SourceScope;
-    type: SourceType;
+    family?: string | null;
+    /**
+     * Context window size in tokens.
+     */
+    contextLimit?: number | null;
+    /**
+     * Whether the model supports reasoning/extended thinking.
+     */
+    reasoning?: boolean | null;
+    /**
+     * Whether this model should appear in the compact recommended picker.
+     */
+    recommended?: boolean;
 };
 
-export type CreateSourceResponse_unstable = {
-    source: SourceEntry;
-};
-
-export type CustomProviderConfigDto = {
-    apiKeyEnv?: string | null;
-    apiKeySet: boolean;
-    apiUrl: string;
-    basePath?: string | null;
-    catalogProviderId?: string | null;
-    displayName: string;
-    engine: string;
-    headers?: {
-        [key: string]: string;
-    };
-    models?: Array<string>;
-    preservesThinking: boolean;
+/**
+ * List the raw model identifiers returned by a provider's live supported-models API.
+ */
+export type ProviderSupportedModelsListRequest_unstable = {
     providerId: string;
-    requiresAuth: boolean;
-    supportsStreaming?: boolean | null;
+};
+
+export type ProviderSupportedModelsListResponse_unstable = {
+    providerId: string;
+    models: Array<string>;
+};
+
+/**
+ * List custom-provider catalog entries. Omit `format` to list all formats.
+ */
+export type ProviderCatalogListRequest_unstable = {
+    format?: string | null;
+};
+
+export type ProviderCatalogListResponse_unstable = {
+    providers: Array<ProviderTemplateCatalogEntryDto>;
+};
+
+export type ProviderTemplateCatalogEntryDto = {
+    providerId: string;
+    name: string;
+    format: string;
+    apiUrl: string;
+    modelCount: number;
+    docUrl: string;
+    envVar: string;
+};
+
+/**
+ * List provider setup catalog entries
+ */
+export type ProviderSetupCatalogListRequest_unstable = {
+    [key: string]: unknown;
+};
+
+export type ProviderSetupCatalogListResponse_unstable = {
+    providers: Array<ProviderSetupCatalogEntryDto>;
+};
+
+export type ProviderSetupCatalogEntryDto = {
+    providerId: string;
+    name: string;
+    category: ProviderSetupCategoryDto;
+    description: string;
+    setupMethod: ProviderSetupMethodDto;
+    nativeConnectQuery?: string | null;
+    fields?: Array<ProviderSetupFieldDto>;
+    binaryName?: string | null;
+    docUrl?: string | null;
+    group: ProviderSetupGroupDto;
+    showOnlyWhenInstalled: boolean;
+    aliases?: Array<string>;
+    supportsInstall: boolean;
+    supportsAuth: boolean;
+    supportsAuthStatus: boolean;
+};
+
+export type ProviderSetupMethodDto = 'none' | 'single_api_key' | 'config_fields' | 'host_with_oauth_fallback' | 'oauth_browser' | 'oauth_device_code' | 'cloud_credentials' | 'local' | 'cli_auth';
+
+export type ProviderSetupFieldDto = {
+    key: string;
+    label: string;
+    secret: boolean;
+    required: boolean;
+    placeholder?: string | null;
+    defaultValue?: string | null;
+};
+
+export type ProviderSetupGroupDto = 'default' | 'additional';
+
+/**
+ * Return the editable template for one catalog provider.
+ */
+export type ProviderCatalogTemplateRequest_unstable = {
+    providerId: string;
+};
+
+export type ProviderCatalogTemplateResponse_unstable = {
+    template: ProviderTemplateDto;
+};
+
+export type ProviderTemplateDto = {
+    providerId: string;
+    name: string;
+    format: string;
+    apiUrl: string;
+    models: Array<ProviderTemplateModelDto>;
+    supportsStreaming: boolean;
+    envVar: string;
+    docUrl: string;
+};
+
+export type ProviderTemplateModelDto = {
+    id: string;
+    name: string;
+    contextLimit: number;
+    capabilities: ProviderTemplateCapabilitiesDto;
+    deprecated: boolean;
+};
+
+export type ProviderTemplateCapabilitiesDto = {
+    toolCall: boolean;
+    reasoning: boolean;
+    attachment: boolean;
+    temperature: boolean;
 };
 
 /**
  * Create a custom provider backed by Goose's declarative provider store.
  */
 export type CustomProviderCreateRequest_unstable = {
-    apiKey?: string | null;
-    apiUrl: string;
-    basePath?: string | null;
-    catalogProviderId?: string | null;
-    displayName: string;
     engine: string;
+    displayName: string;
+    apiUrl: string;
+    apiKey?: string | null;
+    models?: Array<string>;
+    supportsStreaming?: boolean | null;
     headers?: {
         [key: string]: string;
     };
-    models?: Array<string>;
-    preservesThinking?: boolean | null;
     requiresAuth: boolean;
-    supportsStreaming?: boolean | null;
+    catalogProviderId?: string | null;
+    basePath?: string | null;
+    preservesThinking?: boolean | null;
 };
 
 export type CustomProviderCreateResponse_unstable = {
     providerId: string;
-    refresh: RefreshProviderInventoryResponse_unstable;
     status: ProviderConfigStatusDto;
+    refresh: RefreshProviderInventoryResponse_unstable;
+};
+
+export type ProviderConfigStatusDto = {
+    providerId: string;
+    isConfigured: boolean;
+};
+
+/**
+ * Refresh acknowledgement.
+ */
+export type RefreshProviderInventoryResponse_unstable = {
+    /**
+     * Which providers will be refreshed.
+     */
+    started: Array<string>;
+    /**
+     * Which providers were skipped and why.
+     */
+    skipped?: Array<RefreshProviderInventorySkipDto>;
+};
+
+export type RefreshProviderInventorySkipDto = {
+    providerId: string;
+    reason: RefreshProviderInventorySkipReasonDto;
+};
+
+export type RefreshProviderInventorySkipReasonDto = 'unknown_provider' | 'not_configured' | 'does_not_support_refresh' | 'already_refreshing';
+
+/**
+ * Read a declarative provider config. Custom configs are editable; bundled configs are read-only.
+ */
+export type CustomProviderReadRequest_unstable = {
+    providerId: string;
+};
+
+export type CustomProviderReadResponse_unstable = {
+    provider: CustomProviderConfigDto;
+    editable: boolean;
+    status: ProviderConfigStatusDto;
+};
+
+export type CustomProviderConfigDto = {
+    providerId: string;
+    engine: string;
+    displayName: string;
+    apiUrl: string;
+    models?: Array<string>;
+    supportsStreaming?: boolean | null;
+    headers?: {
+        [key: string]: string;
+    };
+    requiresAuth: boolean;
+    catalogProviderId?: string | null;
+    basePath?: string | null;
+    apiKeyEnv?: string | null;
+    apiKeySet: boolean;
+    preservesThinking: boolean;
+};
+
+/**
+ * Update a custom provider backed by Goose's declarative provider store.
+ */
+export type CustomProviderUpdateRequest_unstable = {
+    providerId: string;
+    engine: string;
+    displayName: string;
+    apiUrl: string;
+    apiKey?: string | null;
+    models?: Array<string>;
+    supportsStreaming?: boolean | null;
+    headers?: {
+        [key: string]: string;
+    };
+    requiresAuth: boolean;
+    catalogProviderId?: string | null;
+    basePath?: string | null;
+    preservesThinking?: boolean | null;
+};
+
+export type CustomProviderUpdateResponse_unstable = {
+    providerId: string;
+    status: ProviderConfigStatusDto;
+    refresh: RefreshProviderInventoryResponse_unstable;
 };
 
 /**
@@ -265,50 +1016,107 @@ export type CustomProviderDeleteResponse_unstable = {
 };
 
 /**
- * Read a declarative provider config. Custom configs are editable; bundled configs are read-only.
+ * Trigger a background refresh of provider inventories.
  */
-export type CustomProviderReadRequest_unstable = {
-    providerId: string;
-};
-
-export type CustomProviderReadResponse_unstable = {
-    editable: boolean;
-    provider: CustomProviderConfigDto;
-    status: ProviderConfigStatusDto;
+export type RefreshProviderInventoryRequest_unstable = {
+    /**
+     * Which providers to refresh. Empty means all known providers.
+     */
+    providerIds?: Array<string>;
 };
 
 /**
- * Update a custom provider backed by Goose's declarative provider store.
+ * Read saved configuration field values for one provider.
  */
-export type CustomProviderUpdateRequest_unstable = {
-    apiKey?: string | null;
-    apiUrl: string;
-    basePath?: string | null;
-    catalogProviderId?: string | null;
-    displayName: string;
-    engine: string;
-    headers?: {
-        [key: string]: string;
-    };
-    models?: Array<string>;
-    preservesThinking?: boolean | null;
+export type ProviderConfigReadRequest_unstable = {
     providerId: string;
-    requiresAuth: boolean;
-    supportsStreaming?: boolean | null;
 };
 
-export type CustomProviderUpdateResponse_unstable = {
+export type ProviderConfigReadResponse_unstable = {
+    fields: Array<ProviderConfigFieldValueDto>;
+};
+
+export type ProviderConfigFieldValueDto = {
+    key: string;
+    value?: string | null;
+    isSet: boolean;
+    isSecret: boolean;
+    required: boolean;
+};
+
+/**
+ * Return provider configured statuses. Empty provider_ids means all providers.
+ */
+export type ProviderConfigStatusRequest_unstable = {
+    providerIds?: Array<string>;
+};
+
+export type ProviderConfigStatusResponse_unstable = {
+    statuses: Array<ProviderConfigStatusDto>;
+};
+
+/**
+ * Save provider configuration fields and start an inventory refresh when supported.
+ */
+export type ProviderConfigSaveRequest_unstable = {
     providerId: string;
-    refresh: RefreshProviderInventoryResponse_unstable;
+    fields: Array<ProviderConfigFieldUpdate>;
+};
+
+export type ProviderConfigFieldUpdate = {
+    key: string;
+    value: string;
+};
+
+export type ProviderConfigChangeResponse_unstable = {
     status: ProviderConfigStatusDto;
+    refresh: RefreshProviderInventoryResponse_unstable;
 };
 
-export type DecodeRecipeRequest_unstable = {
-    deeplink: string;
+/**
+ * Delete provider configuration fields and start an inventory refresh when supported.
+ */
+export type ProviderConfigDeleteRequest_unstable = {
+    providerId: string;
 };
 
-export type DecodeRecipeResponse_unstable = {
-    recipe: RecipeDto;
+/**
+ * Run a provider-owned native authentication flow and start an inventory refresh when supported.
+ */
+export type ProviderConfigAuthenticateRequest_unstable = {
+    providerId: string;
+};
+
+/**
+ * Read allowlisted user preferences. Empty `keys` means all supported preferences.
+ */
+export type PreferencesReadRequest_unstable = {
+    keys?: Array<PreferenceKey>;
+};
+
+export type PreferenceKey = 'autoCompactThreshold' | 'gooseThinkingEffort' | 'voiceAutoSubmitPhrases' | 'voiceDictationProvider' | 'voiceDictationPreferredMic';
+
+export type PreferencesReadResponse_unstable = {
+    values: Array<PreferenceValue>;
+};
+
+export type PreferenceValue = {
+    key: PreferenceKey;
+    value?: unknown;
+};
+
+/**
+ * Save allowlisted user preferences.
+ */
+export type PreferencesSaveRequest_unstable = {
+    values?: Array<PreferenceValue>;
+};
+
+/**
+ * Remove allowlisted user preferences.
+ */
+export type PreferencesRemoveRequest_unstable = {
+    keys?: Array<PreferenceKey>;
 };
 
 /**
@@ -319,177 +1127,747 @@ export type DefaultsReadRequest_unstable = {
 };
 
 export type DefaultsReadResponse_unstable = {
-    modelId?: string | null;
     providerId?: string | null;
+    modelId?: string | null;
 };
 
 /**
  * Save Goose default provider and model configuration.
  */
 export type DefaultsSaveRequest_unstable = {
-    modelId?: string | null;
     providerId: string;
+    modelId?: string | null;
+};
+
+/**
+ * Scan for existing Goose and compatible app data that onboarding can import.
+ */
+export type OnboardingImportScanRequest_unstable = {
+    /**
+     * Empty means all supported import sources.
+     */
+    sources?: Array<OnboardingImportSourceKind>;
+};
+
+/**
+ * Sources that onboarding knows how to discover and import.
+ */
+export type OnboardingImportSourceKind = 'goose_config' | 'claude_desktop';
+
+export type OnboardingImportScanResponse_unstable = {
+    candidates: Array<OnboardingImportCandidate>;
+};
+
+export type OnboardingImportCandidate = {
+    id: string;
+    sourceKind: OnboardingImportSourceKind;
+    displayName: string;
+    path: string;
+    counts: OnboardingImportCounts;
+    warnings?: Array<string>;
+};
+
+export type OnboardingImportCounts = {
+    providers: number;
+    extensions: number;
+    sessions: number;
+    skills: number;
+    projects: number;
+    preferences: number;
+};
+
+/**
+ * Import selected onboarding candidates.
+ */
+export type OnboardingImportApplyRequest_unstable = {
+    candidateIds?: Array<string>;
+    enableImportedExtensions?: boolean;
+};
+
+export type OnboardingImportApplyResponse_unstable = {
+    imported: OnboardingImportCounts;
+    skipped: OnboardingImportCounts;
+    warnings?: Array<string>;
+    providerDefaults?: DefaultsReadResponse_unstable | null;
+};
+
+/**
+ * Export a session as a JSON string.
+ */
+export type ExportSessionRequest_unstable = {
+    sessionId: string;
+};
+
+/**
+ * Export session response — raw JSON of the goose session with `conversation`.
+ */
+export type ExportSessionResponse_unstable = {
+    data: string;
+};
+
+/**
+ * Import a session from a JSON string or share link.
+ */
+export type ImportSessionRequest_unstable = {
+    input: string;
+    source: SessionImportSource;
+};
+
+export type SessionImportSource = 'auto' | 'json' | 'nostr';
+
+/**
+ * Import session response — metadata about the newly created session.
+ */
+export type ImportSessionResponse_unstable = {
+    sessionId: string;
+    title?: string | null;
+    updatedAt?: string | null;
+    messageCount: number;
+};
+
+export type ShareSessionNostrRequest_unstable = {
+    sessionId: string;
+    relays: Array<string>;
+};
+
+export type ShareSessionNostrResponse_unstable = {
+    deeplink: string;
+    nevent: string;
+    eventId: string;
+    relays: Array<string>;
+};
+
+export type EncodeRecipeRequest_unstable = {
+    recipe: RecipeDto;
+};
+
+export type RecipeDto = {
+    version?: string;
+    title: string;
+    description: string;
+    instructions?: string | null;
+    prompt?: string | null;
+    extensions?: Array<RecipeExtensionDto> | null;
+    settings?: RecipeSettingsDto | null;
+    activities?: Array<string> | null;
+    author?: RecipeAuthorDto | null;
+    parameters?: Array<RecipeParameterDto> | null;
+    response?: RecipeResponseDto | null;
+    sub_recipes?: Array<SubRecipeDto> | null;
+    retry?: RecipeRetryConfigDto | null;
+};
+
+export type RecipeExtensionDto = {
+    name: string;
+    description?: string | null;
+    display_name?: string | null;
+    timeout?: number | null;
+    bundled?: boolean | null;
+    type: 'builtin';
+} | {
+    name: string;
+    description?: string | null;
+    display_name?: string | null;
+    bundled?: boolean | null;
+    type: 'platform';
+} | {
+    name: string;
+    description?: string | null;
+    cmd: string;
+    args?: Array<string>;
+    envs?: {
+        [key: string]: string;
+    };
+    env_keys?: Array<string>;
+    timeout?: number | null;
+    cwd?: string | null;
+    bundled?: boolean | null;
+    type: 'stdio';
+} | {
+    name: string;
+    description?: string | null;
+    uri: string;
+    envs?: {
+        [key: string]: string;
+    };
+    env_keys?: Array<string>;
+    headers?: {
+        [key: string]: string;
+    };
+    timeout?: number | null;
+    socket?: string | null;
+    bundled?: boolean | null;
+    type: 'streamable_http';
+};
+
+export type RecipeSettingsDto = {
+    goose_provider?: string | null;
+    goose_model?: string | null;
+    temperature?: number | null;
+    max_turns?: number | null;
+};
+
+export type RecipeAuthorDto = {
+    contact?: string | null;
+    metadata?: string | null;
+};
+
+export type RecipeParameterDto = {
+    key: string;
+    input_type: RecipeParameterInputTypeDto;
+    requirement: RecipeParameterRequirementDto;
+    description: string;
+    default?: string | null;
+    options?: Array<string> | null;
+};
+
+export type RecipeParameterInputTypeDto = 'string' | 'number' | 'boolean' | 'date' | 'file' | 'select';
+
+export type RecipeParameterRequirementDto = 'required' | 'optional' | 'user_prompt';
+
+export type RecipeResponseDto = {
+    json_schema?: unknown;
+};
+
+export type SubRecipeDto = {
+    name: string;
+    path: string;
+    values?: {
+        [key: string]: string;
+    } | null;
+    sequential_when_repeated?: boolean;
+    description?: string | null;
+};
+
+export type RecipeRetryConfigDto = {
+    max_retries: number;
+    checks?: Array<RecipeSuccessCheckDto>;
+    on_failure?: string | null;
+    timeout_seconds?: number | null;
+    on_failure_timeout_seconds?: number | null;
+};
+
+export type RecipeSuccessCheckDto = {
+    command: string;
+    type: 'shell';
+};
+
+export type EncodeRecipeResponse_unstable = {
+    deeplink: string;
+};
+
+export type DecodeRecipeRequest_unstable = {
+    deeplink: string;
+};
+
+export type DecodeRecipeResponse_unstable = {
+    recipe: RecipeDto;
+};
+
+export type ScanRecipeRequest_unstable = {
+    recipe: RecipeDto;
+};
+
+export type ScanRecipeResponse_unstable = {
+    has_security_warnings: boolean;
+};
+
+export type ListRecipesRequest_unstable = {
+    [key: string]: unknown;
+};
+
+export type ListRecipesResponse_unstable = {
+    recipes: Array<RecipeListEntryDto>;
+};
+
+export type RecipeListEntryDto = {
+    id: string;
+    recipe: RecipeDto;
+    file_path: string;
+    last_modified: string;
+    schedule_cron?: string | null;
+    slash_command?: string | null;
 };
 
 export type DeleteRecipeRequest_unstable = {
     id: string;
 };
 
+export type ScheduleRecipeRequest_unstable = {
+    id: string;
+    cron_schedule?: string | null;
+};
+
+export type SetRecipeSlashCommandRequest_unstable = {
+    id: string;
+    slash_command?: string | null;
+};
+
+export type SaveRecipeRequest_unstable = {
+    recipe: RecipeDto;
+    id?: string | null;
+};
+
+export type SaveRecipeResponse_unstable = {
+    id: string;
+    file_name: string;
+    file_path: string;
+};
+
+export type ParseRecipeRequest_unstable = {
+    content: string;
+};
+
+export type ParseRecipeResponse_unstable = {
+    recipe: RecipeDto;
+};
+
+export type RecipeToYamlRequest_unstable = {
+    recipe: RecipeDto;
+};
+
+export type RecipeToYamlResponse_unstable = {
+    yaml: string;
+};
+
+export type ListSchedulesRequest_unstable = {
+    [key: string]: unknown;
+};
+
+export type ListSchedulesResponse_unstable = {
+    jobs: Array<ScheduledJobDto>;
+};
+
+export type ScheduledJobDto = {
+    id: string;
+    source: string;
+    cron: string;
+    lastRun?: string | null;
+    currentlyRunning: boolean;
+    paused: boolean;
+    currentSessionId?: string | null;
+    jobStartTime?: string | null;
+};
+
+export type ListScheduleSessionsRequest_unstable = {
+    scheduleId: string;
+    limit: number;
+};
+
+export type ListScheduleSessionsResponse_unstable = {
+    sessions: Array<SessionInfo>;
+};
+
+/**
+ * Information about a session returned by session/list
+ */
+export type SessionInfo = {
+    /**
+     * Unique identifier for the session
+     */
+    sessionId: SessionId;
+    /**
+     * The working directory for this session. Must be an absolute path.
+     */
+    cwd: string;
+    /**
+     * **UNSTABLE**
+     *
+     * This capability is not part of the spec yet, and may be removed or changed at any point.
+     *
+     * Authoritative ordered additional workspace roots for this session. Each path must be absolute.
+     *
+     * When omitted or empty, there are no additional roots for the session.
+     */
+    additionalDirectories?: Array<string>;
+    /**
+     * Human-readable title for the session
+     */
+    title?: string | null;
+    /**
+     * ISO 8601 timestamp of last activity
+     */
+    updatedAt?: string | null;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * A unique identifier for a conversation session between a client and agent.
+ *
+ * Sessions maintain their own context, conversation history, and state,
+ * allowing multiple independent interactions with the same agent.
+ *
+ * See protocol docs: [Session ID](https://agentclientprotocol.com/protocol/session-setup#session-id)
+ */
+export type SessionId = string;
+
+export type CreateScheduleRequest_unstable = {
+    id: string;
+    recipe: RecipeDto;
+    cron: string;
+};
+
+export type CreateScheduleResponse_unstable = {
+    job: ScheduledJobDto;
+};
+
 export type DeleteScheduleRequest_unstable = {
     scheduleId: string;
 };
 
+export type PauseScheduleRequest_unstable = {
+    scheduleId: string;
+};
+
+export type UnpauseScheduleRequest_unstable = {
+    scheduleId: string;
+};
+
+export type UpdateScheduleRequest_unstable = {
+    scheduleId: string;
+    cron: string;
+};
+
+export type UpdateScheduleResponse_unstable = {
+    job: ScheduledJobDto;
+};
+
+export type RunScheduleNowRequest_unstable = {
+    scheduleId: string;
+};
+
+export type RunScheduleNowResponse_unstable = {
+    status: RunScheduleNowStatus;
+    sessionId?: string | null;
+};
+
+export type RunScheduleNowStatus = 'completed' | 'cancelled';
+
+export type KillRunningJobRequest_unstable = {
+    jobId: string;
+};
+
+export type KillRunningJobResponse_unstable = {
+    message: string;
+};
+
+export type InspectRunningJobRequest_unstable = {
+    jobId: string;
+};
+
+export type InspectRunningJobResponse_unstable = {
+    running: boolean;
+    sessionId?: string | null;
+    jobStartTime?: string | null;
+    runningDurationSeconds?: number | null;
+};
+
 /**
- * Delete a session.
+ * Return list-style metadata for a single session without loading the conversation.
  */
-export type DeleteSessionRequest = {
+export type GetSessionInfoRequest_unstable = {
     sessionId: string;
+};
+
+export type GetSessionInfoResponse_unstable = {
+    session: SessionInfo;
+};
+
+/**
+ * Truncate a session conversation from the given message timestamp onward.
+ */
+export type TruncateSessionConversationRequest_unstable = {
+    sessionId: string;
+    truncateFrom: number;
+};
+
+/**
+ * Update the project association for a session.
+ */
+export type UpdateSessionProjectRequest_unstable = {
+    sessionId: string;
+    projectId?: string | null;
+};
+
+/**
+ * Rename a session.
+ */
+export type RenameSessionRequest_unstable = {
+    sessionId: string;
+    title: string;
+};
+
+/**
+ * Archive a session (soft delete).
+ */
+export type ArchiveSessionRequest_unstable = {
+    sessionId: string;
+};
+
+/**
+ * Unarchive a previously archived session.
+ */
+export type UnarchiveSessionRequest_unstable = {
+    sessionId: string;
+};
+
+/**
+ * Create a new source in an explicit target scope (global or project-scoped).
+ */
+export type CreateSourceRequest_unstable = {
+    type: SourceType;
+    name: string;
+    description: string;
+    content: string;
+    target: SourceScope;
+    /**
+     * Arbitrary key/value metadata.
+     */
+    properties?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * The type of source entity.
+ */
+export type SourceType = 'skill' | 'builtinSkill' | 'recipe' | 'subrecipe' | 'agent' | 'project';
+
+/**
+ * Target scope for creating or importing sources.
+ */
+export type SourceScope = {
+    scope: 'global';
+} | {
+    projectDir: string;
+    scope: 'projectDir';
+} | {
+    projectId: string;
+    scope: 'projectId';
+};
+
+export type CreateSourceResponse_unstable = {
+    source: SourceEntry;
+};
+
+/**
+ * A source discovered by Goose. Filesystem sources use an on-disk path;
+ * built-in sources use a stable synthetic path. Sources may be either
+ * `global` (shared across all projects) or project-specific.
+ */
+export type SourceEntry = {
+    type: SourceType;
+    name: string;
+    description: string;
+    content: string;
+    /**
+     * Stable on-disk path identifying this source. Pass it back to
+     * update/delete/export to operate on this entry. Skills use the directory
+     * containing `SKILL.md`; projects use the project file path; built-in
+     * skills use `builtin://skills/<name>` synthetic paths.
+     */
+    path: string;
+    /**
+     * True when the source lives in the user's global sources directory; false
+     * when it lives inside a specific project.
+     */
+    global: boolean;
+    /**
+     * True when this source can be modified through source CRUD methods.
+     * Client-provided bundled sources are returned as read-only.
+     */
+    writable?: boolean;
+    /**
+     * Paths (absolute) of additional files that live alongside the source.
+     * Only skills currently populate this; empty for other source types.
+     */
+    supportingFiles?: Array<string>;
+    /**
+     * Arbitrary key/value pairs for type-specific metadata (e.g. icon, color,
+     * preferredProvider for projects). Stored in the frontmatter.
+     */
+    properties?: {
+        [key: string]: unknown;
+    };
+};
+
+/**
+ * List discovered sources.
+ *
+ * If `type` is omitted or `skill`, this lists filesystem/plugin skills only.
+ * Both global and project-scoped skills are included when `project_dir` is
+ * set. If `type` is `builtinSkill`, this lists shipped read-only built-in
+ * skills.
+ */
+export type ListSourcesRequest_unstable = {
+    type?: SourceType | null;
+    projectDir?: string | null;
+    /**
+     * When true, also scan the working directories of all known projects for
+     * project-scoped sources (e.g. skills stored under `{workingDir}/.agents/skills/`).
+     */
+    includeProjectSources?: boolean;
+};
+
+export type ListSourcesResponse_unstable = {
+    sources: Array<SourceEntry>;
+};
+
+/**
+ * List user-facing agent mention targets for `@` autocomplete.
+ */
+export type ListAgentMentionsRequest_unstable = {
+    cwd?: string | null;
+    sessionId?: string | null;
+};
+
+export type ListAgentMentionsResponse_unstable = {
+    agents: Array<AgentMention>;
+};
+
+/**
+ * A user-facing `@` mention target backed by an agent, recipe, or subrecipe source.
+ */
+export type AgentMention = {
+    name: string;
+    description: string;
+    sourceType: SourceType;
+    sourcePath?: string | null;
+    mention: string;
+};
+
+/**
+ * List slash commands available for `/` autocomplete.
+ */
+export type ListSlashCommandsRequest_unstable = {
+    cwd?: string | null;
+    sessionId?: string | null;
+};
+
+export type ListSlashCommandsResponse_unstable = {
+    availableCommands: Array<AvailableCommand>;
+};
+
+/**
+ * Information about a command.
+ */
+export type AvailableCommand = {
+    /**
+     * Command name (e.g., `create_plan`, `research_codebase`).
+     */
+    name: string;
+    /**
+     * Human-readable description of what the command does.
+     */
+    description: string;
+    /**
+     * Input for the command if required
+     */
+    input?: AvailableCommandInput | null;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * All text that was typed after the command name is provided as input.
+ */
+export type AvailableCommandInput = UnstructuredCommandInput;
+
+/**
+ * All text that was typed after the command name is provided as input.
+ */
+export type UnstructuredCommandInput = {
+    /**
+     * A hint to display when the input hasn't been provided yet
+     */
+    hint: string;
+    /**
+     * The _meta property is reserved by ACP to allow clients and agents to attach additional
+     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
+     * these keys.
+     *
+     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
+     */
+    _meta?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+/**
+ * Update an existing source's name, description, and content by absolute path.
+ */
+export type UpdateSourceRequest_unstable = {
+    type: SourceType;
+    path: string;
+    name: string;
+    description: string;
+    content: string;
+    /**
+     * When `Some`, replaces all stored properties on the source. When
+     * `None` (or omitted), the source's existing properties are
+     * preserved. Callers that don't model the full property bag (e.g.
+     * the skills editor, which only edits name/description/content)
+     * should omit this so per-skill metadata isn't silently erased.
+     */
+    properties?: {
+        [key: string]: unknown;
+    } | null;
+};
+
+export type UpdateSourceResponse_unstable = {
+    source: SourceEntry;
 };
 
 /**
  * Delete a source and its on-disk directory by absolute path.
  */
 export type DeleteSourceRequest_unstable = {
-    path: string;
     type: SourceType;
-};
-
-export type DiagnosticsGetRequest_unstable = {
-    level?: DiagnosticsReportLevel;
-    sessionId: string;
-};
-
-export type DiagnosticsGetResponse_unstable = {
-    report: unknown;
-};
-
-export type DiagnosticsReportLevel = 'summary' | 'full';
-
-/**
- * Get the configuration status of all dictation providers.
- */
-export type DictationConfigRequest_unstable = {
-    [key: string]: unknown;
+    path: string;
 };
 
 /**
- * Dictation config response — map of provider name to status.
+ * Export a source at an absolute path as a portable JSON payload.
  */
-export type DictationConfigResponse_unstable = {
-    providers: {
-        [key: string]: DictationProviderStatusEntry;
-    };
+export type ExportSourceRequest_unstable = {
+    type: SourceType;
+    path: string;
 };
 
-export type DictationDownloadProgress = {
-    bytesDownloaded: number;
-    error?: string | null;
-    progressPercent: number;
-    /**
-     * serde lowercase of DownloadStatus: "downloading" | "completed" | "failed" | "cancelled"
-     */
-    status: string;
-    totalBytes: number;
-};
-
-export type DictationLocalModelStatus = {
-    description: string;
-    downloadInProgress: boolean;
-    downloaded: boolean;
-    id: string;
-    label: string;
-    sizeMb: number;
+export type ExportSourceResponse_unstable = {
+    json: string;
+    filename: string;
 };
 
 /**
- * Cancel an in-flight download.
+ * Import a source from a JSON export payload produced by `_goose/unstable/sources/export`.
+ * The imported source is written into the explicit target scope; on name
+ * collisions a `-imported` suffix is appended.
  */
-export type DictationModelCancelRequest_unstable = {
-    modelId: string;
+export type ImportSourcesRequest_unstable = {
+    data: string;
+    target: SourceScope;
 };
 
-/**
- * Delete a downloaded local Whisper model from disk.
- */
-export type DictationModelDeleteRequest_unstable = {
-    modelId: string;
-};
-
-/**
- * Poll the progress of an in-flight download.
- */
-export type DictationModelDownloadProgressRequest_unstable = {
-    modelId: string;
-};
-
-export type DictationModelDownloadProgressResponse_unstable = {
-    /**
-     * None when no download is active for this model id.
-     */
-    progress?: DictationDownloadProgress | null;
-};
-
-/**
- * Kick off a background download of a local Whisper model.
- */
-export type DictationModelDownloadRequest_unstable = {
-    modelId: string;
-};
-
-export type DictationModelOption = {
-    description: string;
-    id: string;
-    label: string;
-};
-
-/**
- * Persist the user's model selection for a given provider.
- */
-export type DictationModelSelectRequest_unstable = {
-    modelId: string;
-    provider: string;
-};
-
-/**
- * List available local Whisper models with their download status.
- */
-export type DictationModelsListRequest_unstable = {
-    [key: string]: unknown;
-};
-
-export type DictationModelsListResponse_unstable = {
-    models: Array<DictationLocalModelStatus>;
-};
-
-/**
- * Per-provider configuration status.
- */
-export type DictationProviderStatusEntry = {
-    availableModels?: Array<DictationModelOption>;
-    configKey?: string | null;
-    configured: boolean;
-    defaultModel?: string | null;
-    description: string;
-    host?: string | null;
-    modelConfigKey?: string | null;
-    selectedModel?: string | null;
-    settingsPath?: string | null;
-    usesProviderConfig: boolean;
-};
-
-/**
- * Remove a dictation provider secret value.
- */
-export type DictationSecretDeleteRequest_unstable = {
-    provider: string;
-};
-
-/**
- * Set a dictation provider secret value.
- */
-export type DictationSecretSaveRequest_unstable = {
-    provider: string;
-    value: string;
+export type ImportSourcesResponse_unstable = {
+    sources: Array<SourceEntry>;
 };
 
 /**
@@ -518,244 +1896,130 @@ export type DictationTranscribeResponse_unstable = {
 };
 
 /**
- * The contents of a resource, embedded into a prompt or tool call result.
+ * Get the configuration status of all dictation providers.
  */
-export type EmbeddedResource = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
-        [key: string]: unknown;
-    } | null;
-    annotations?: Annotations | null;
-    resource: EmbeddedResourceResource;
-};
-
-/**
- * Resource content that can be embedded in a message.
- */
-export type EmbeddedResourceResource = TextResourceContents | BlobResourceContents;
-
-/**
- * Empty success response for operations that return no data.
- */
-export type EmptyResponse = {
+export type DictationConfigRequest_unstable = {
     [key: string]: unknown;
 };
 
-export type EncodeRecipeRequest_unstable = {
-    recipe: RecipeDto;
-};
-
-export type EncodeRecipeResponse_unstable = {
-    deeplink: string;
+/**
+ * Dictation config response — map of provider name to status.
+ */
+export type DictationConfigResponse_unstable = {
+    providers: {
+        [key: string]: DictationProviderStatusEntry;
+    };
 };
 
 /**
- * An environment variable to set when launching an MCP server.
+ * Per-provider configuration status.
  */
-export type EnvVariable = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * The name of the environment variable.
-     */
-    name: string;
-    /**
-     * The value to set for the environment variable.
-     */
+export type DictationProviderStatusEntry = {
+    configured: boolean;
+    host?: string | null;
+    description: string;
+    usesProviderConfig: boolean;
+    settingsPath?: string | null;
+    configKey?: string | null;
+    modelConfigKey?: string | null;
+    defaultModel?: string | null;
+    selectedModel?: string | null;
+    availableModels?: Array<DictationModelOption>;
+};
+
+export type DictationModelOption = {
+    id: string;
+    label: string;
+    description: string;
+};
+
+/**
+ * Set a dictation provider secret value.
+ */
+export type DictationSecretSaveRequest_unstable = {
+    provider: string;
     value: string;
 };
 
 /**
- * Export a session as a JSON string.
+ * Remove a dictation provider secret value.
  */
-export type ExportSessionRequest_unstable = {
-    sessionId: string;
+export type DictationSecretDeleteRequest_unstable = {
+    provider: string;
 };
 
 /**
- * Export session response — raw JSON of the goose session with `conversation`.
+ * List available local Whisper models with their download status.
  */
-export type ExportSessionResponse_unstable = {
-    data: string;
-};
-
-/**
- * Export a source at an absolute path as a portable JSON payload.
- */
-export type ExportSourceRequest_unstable = {
-    path: string;
-    type: SourceType;
-};
-
-export type ExportSourceResponse_unstable = {
-    filename: string;
-    json: string;
-};
-
-export type ExtAgentRequest = {
-    id: string;
-    method: string;
-    params?: RequestRecipeParams_unstable | {
-        [key: string]: unknown;
-    } | null;
-};
-
-export type ExtAgentResponse = {
-    id: string;
-    result?: RecipeParamsResponse_unstable | unknown;
-} | {
-    error: {
-        code: number;
-        data?: unknown;
-        message: string;
-    };
-    id: string;
-};
-
-export type ExtNotification = {
-    method: string;
-    params?: GooseSessionNotification_unstable | {
-        [key: string]: unknown;
-    } | null;
-};
-
-export type ExtRequest = {
-    id: string;
-    method: string;
-    params?: AddSessionExtensionRequest_unstable | RemoveSessionExtensionRequest_unstable | GetToolsRequest_unstable | GooseToolCallRequest_unstable | ReadResourceRequest_unstable | AppsListRequest_unstable | AppsExportRequest_unstable | AppsImportRequest_unstable | UpdateWorkingDirRequest_unstable | SetSessionSystemPromptRequest_unstable | SteerSessionRequest_unstable | DiagnosticsGetRequest_unstable | ListPromptsRequest_unstable | GetPromptRequest_unstable | SavePromptRequest_unstable | ResetPromptRequest_unstable | DeleteSessionRequest | GetConfigExtensionsRequest_unstable | GetAvailableExtensionsRequest_unstable | AddConfigExtensionRequest_unstable | RemoveConfigExtensionRequest_unstable | SetConfigExtensionEnabledRequest_unstable | GetSessionExtensionsRequest_unstable | ListProvidersRequest_unstable | ProviderSupportedModelsListRequest_unstable | ProviderCatalogListRequest_unstable | ProviderSetupCatalogListRequest_unstable | ProviderCatalogTemplateRequest_unstable | CustomProviderCreateRequest_unstable | CustomProviderReadRequest_unstable | CustomProviderUpdateRequest_unstable | CustomProviderDeleteRequest_unstable | RefreshProviderInventoryRequest_unstable | ProviderConfigReadRequest_unstable | ProviderConfigStatusRequest_unstable | ProviderConfigSaveRequest_unstable | ProviderConfigDeleteRequest_unstable | ProviderConfigAuthenticateRequest_unstable | PreferencesReadRequest_unstable | PreferencesSaveRequest_unstable | PreferencesRemoveRequest_unstable | DefaultsReadRequest_unstable | DefaultsSaveRequest_unstable | OnboardingImportScanRequest_unstable | OnboardingImportApplyRequest_unstable | ExportSessionRequest_unstable | ImportSessionRequest_unstable | ShareSessionNostrRequest_unstable | EncodeRecipeRequest_unstable | DecodeRecipeRequest_unstable | ScanRecipeRequest_unstable | ListRecipesRequest_unstable | DeleteRecipeRequest_unstable | ScheduleRecipeRequest_unstable | SetRecipeSlashCommandRequest_unstable | SaveRecipeRequest_unstable | ParseRecipeRequest_unstable | RecipeToYamlRequest_unstable | ListSchedulesRequest_unstable | ListScheduleSessionsRequest_unstable | CreateScheduleRequest_unstable | DeleteScheduleRequest_unstable | PauseScheduleRequest_unstable | UnpauseScheduleRequest_unstable | UpdateScheduleRequest_unstable | RunScheduleNowRequest_unstable | KillRunningJobRequest_unstable | InspectRunningJobRequest_unstable | GetSessionInfoRequest_unstable | TruncateSessionConversationRequest_unstable | UpdateSessionProjectRequest_unstable | RenameSessionRequest_unstable | ArchiveSessionRequest_unstable | UnarchiveSessionRequest_unstable | CreateSourceRequest_unstable | ListSourcesRequest_unstable | ListAgentMentionsRequest_unstable | ListSlashCommandsRequest_unstable | UpdateSourceRequest_unstable | DeleteSourceRequest_unstable | ExportSourceRequest_unstable | ImportSourcesRequest_unstable | DictationTranscribeRequest_unstable | DictationConfigRequest_unstable | DictationSecretSaveRequest_unstable | DictationSecretDeleteRequest_unstable | DictationModelsListRequest_unstable | DictationModelDownloadRequest_unstable | DictationModelDownloadProgressRequest_unstable | DictationModelCancelRequest_unstable | DictationModelDeleteRequest_unstable | DictationModelSelectRequest_unstable | {
-        [key: string]: unknown;
-    } | null;
-};
-
-export type ExtResponse = {
-    id: string;
-    result?: EmptyResponse | GetToolsResponse_unstable | GooseToolCallResponse_unstable | ReadResourceResponse_unstable | AppsListResponse_unstable | AppsExportResponse_unstable | AppsImportResponse_unstable | SteerSessionResponse_unstable | DiagnosticsGetResponse_unstable | ListPromptsResponse_unstable | GetPromptResponse_unstable | PromptOperationResponse_unstable | GetConfigExtensionsResponse_unstable | GetAvailableExtensionsResponse_unstable | GetSessionExtensionsResponse_unstable | ListProvidersResponse_unstable | ProviderSupportedModelsListResponse_unstable | ProviderCatalogListResponse_unstable | ProviderSetupCatalogListResponse_unstable | ProviderCatalogTemplateResponse_unstable | CustomProviderCreateResponse_unstable | CustomProviderReadResponse_unstable | CustomProviderUpdateResponse_unstable | CustomProviderDeleteResponse_unstable | RefreshProviderInventoryResponse_unstable | ProviderConfigReadResponse_unstable | ProviderConfigStatusResponse_unstable | ProviderConfigChangeResponse_unstable | PreferencesReadResponse_unstable | DefaultsReadResponse_unstable | OnboardingImportScanResponse_unstable | OnboardingImportApplyResponse_unstable | ExportSessionResponse_unstable | ImportSessionResponse_unstable | ShareSessionNostrResponse_unstable | EncodeRecipeResponse_unstable | DecodeRecipeResponse_unstable | ScanRecipeResponse_unstable | ListRecipesResponse_unstable | SaveRecipeResponse_unstable | ParseRecipeResponse_unstable | RecipeToYamlResponse_unstable | ListSchedulesResponse_unstable | ListScheduleSessionsResponse_unstable | CreateScheduleResponse_unstable | UpdateScheduleResponse_unstable | RunScheduleNowResponse_unstable | KillRunningJobResponse_unstable | InspectRunningJobResponse_unstable | GetSessionInfoResponse_unstable | CreateSourceResponse_unstable | ListSourcesResponse_unstable | ListAgentMentionsResponse_unstable | ListSlashCommandsResponse_unstable | UpdateSourceResponse_unstable | ExportSourceResponse_unstable | ImportSourcesResponse_unstable | DictationTranscribeResponse_unstable | DictationConfigResponse_unstable | DictationModelsListResponse_unstable | DictationModelDownloadProgressResponse_unstable | unknown;
-} | {
-    error: {
-        code: number;
-        data?: unknown;
-        message: string;
-    };
-    id: string;
-};
-
-/**
- * List Goose-owned extension definitions available to configure or enable.
- */
-export type GetAvailableExtensionsRequest_unstable = {
+export type DictationModelsListRequest_unstable = {
     [key: string]: unknown;
 };
 
-export type GetAvailableExtensionsResponse_unstable = {
-    extensions: Array<GooseExtension>;
+export type DictationModelsListResponse_unstable = {
+    models: Array<DictationLocalModelStatus>;
+};
+
+export type DictationLocalModelStatus = {
+    id: string;
+    label: string;
+    description: string;
+    sizeMb: number;
+    downloaded: boolean;
+    downloadInProgress: boolean;
 };
 
 /**
- * List configured extensions and any warnings.
+ * Kick off a background download of a local Whisper model.
  */
-export type GetConfigExtensionsRequest_unstable = {
-    [key: string]: unknown;
+export type DictationModelDownloadRequest_unstable = {
+    modelId: string;
 };
 
 /**
- * List configured extensions and any warnings.
+ * Poll the progress of an in-flight download.
  */
-export type GetConfigExtensionsResponse_unstable = {
-    extensions: Array<GooseExtensionEntry>;
-    warnings?: Array<string>;
+export type DictationModelDownloadProgressRequest_unstable = {
+    modelId: string;
 };
 
-/**
- * Read a Goose prompt template.
- */
-export type GetPromptRequest_unstable = {
-    name: string;
-};
-
-export type GetPromptResponse_unstable = {
-    content: string;
-    defaultContent: string;
-    isCustomized: boolean;
-    name: string;
-};
-
-export type GetSessionExtensionsRequest_unstable = {
-    sessionId: string;
-};
-
-export type GetSessionExtensionsResponse_unstable = {
-    extensions: Array<GooseExtension>;
-};
-
-/**
- * Return list-style metadata for a single session without loading the conversation.
- */
-export type GetSessionInfoRequest_unstable = {
-    sessionId: string;
-};
-
-export type GetSessionInfoResponse_unstable = {
-    session: SessionInfo;
-};
-
-/**
- * List all tools available in a session.
- */
-export type GetToolsRequest_unstable = {
-    sessionId: string;
-};
-
-/**
- * Tools response.
- */
-export type GetToolsResponse_unstable = {
+export type DictationModelDownloadProgressResponse_unstable = {
     /**
-     * Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`.
+     * None when no download is active for this model id.
      */
-    tools: Array<unknown>;
+    progress?: DictationDownloadProgress | null;
 };
 
-export type GooseExtension = {
-    bundled?: boolean | null;
-    description?: string | null;
-    display_name?: string | null;
-    name: string;
-    timeout?: number | null;
-    type: 'builtin';
-} | {
-    bundled?: boolean | null;
-    description?: string | null;
-    display_name?: string | null;
-    name: string;
-    type: 'platform';
-} | {
-    bundled?: boolean | null;
-    description?: string | null;
-    envKeys?: Array<string>;
-    server: McpServer;
-    socket?: string | null;
-    timeout?: number | null;
-    type: 'mcp';
+export type DictationDownloadProgress = {
+    bytesDownloaded: number;
+    totalBytes: number;
+    progressPercent: number;
+    /**
+     * serde lowercase of DownloadStatus: "downloading" | "completed" | "failed" | "cancelled"
+     */
+    status: string;
+    error?: string | null;
 };
 
-export type GooseExtensionEntry = {
-    configKey?: string | null;
-    enabled: boolean;
-    extension: GooseExtension;
+/**
+ * Cancel an in-flight download.
+ */
+export type DictationModelCancelRequest_unstable = {
+    modelId: string;
+};
+
+/**
+ * Delete a downloaded local Whisper model from disk.
+ */
+export type DictationModelDeleteRequest_unstable = {
+    modelId: string;
+};
+
+/**
+ * Persist the user's model selection for a given provider.
+ */
+export type DictationModelSelectRequest_unstable = {
+    provider: string;
+    modelId: string;
 };
 
 /**
@@ -782,1185 +2046,15 @@ export type GooseSessionUpdate = ({
 } & StatusMessageUpdate);
 
 /**
- * Call a tool from an extension.
- */
-export type GooseToolCallRequest_unstable = {
-    arguments?: unknown;
-    name: string;
-    sessionId: string;
-};
-
-/**
- * Tool call response.
- */
-export type GooseToolCallResponse_unstable = {
-    _meta?: unknown;
-    content?: Array<unknown>;
-    isError: boolean;
-    structuredContent?: unknown;
-};
-
-/**
- * An HTTP header to set when making requests to the MCP server.
- */
-export type HttpHeader = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * The name of the HTTP header.
-     */
-    name: string;
-    /**
-     * The value to set for the HTTP header.
-     */
-    value: string;
-};
-
-/**
- * An image provided to or from an LLM.
- */
-export type ImageContent = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
-        [key: string]: unknown;
-    } | null;
-    annotations?: Annotations | null;
-    data: string;
-    mimeType: string;
-    uri?: string | null;
-};
-
-/**
- * Import a session from a JSON string or share link.
- */
-export type ImportSessionRequest_unstable = {
-    input: string;
-    source: SessionImportSource;
-};
-
-/**
- * Import session response — metadata about the newly created session.
- */
-export type ImportSessionResponse_unstable = {
-    messageCount: number;
-    sessionId: string;
-    title?: string | null;
-    updatedAt?: string | null;
-};
-
-/**
- * Import a source from a JSON export payload produced by `_goose/unstable/sources/export`.
- * The imported source is written into the explicit target scope; on name
- * collisions a `-imported` suffix is appended.
- */
-export type ImportSourcesRequest_unstable = {
-    data: string;
-    target: SourceScope;
-};
-
-export type ImportSourcesResponse_unstable = {
-    sources: Array<SourceEntry>;
-};
-
-export type InspectRunningJobRequest_unstable = {
-    jobId: string;
-};
-
-export type InspectRunningJobResponse_unstable = {
-    jobStartTime?: string | null;
-    running: boolean;
-    runningDurationSeconds?: number | null;
-    sessionId?: string | null;
-};
-
-export type KillRunningJobRequest_unstable = {
-    jobId: string;
-};
-
-export type KillRunningJobResponse_unstable = {
-    message: string;
-};
-
-/**
- * List user-facing agent mention targets for `@` autocomplete.
- */
-export type ListAgentMentionsRequest_unstable = {
-    cwd?: string | null;
-    sessionId?: string | null;
-};
-
-export type ListAgentMentionsResponse_unstable = {
-    agents: Array<AgentMention>;
-};
-
-/**
- * List all available Goose prompt templates.
- */
-export type ListPromptsRequest_unstable = {
-    [key: string]: unknown;
-};
-
-export type ListPromptsResponse_unstable = {
-    prompts: Array<PromptTemplateEntry>;
-};
-
-/**
- * List providers with setup metadata and the current model inventory snapshot.
- */
-export type ListProvidersRequest_unstable = {
-    /**
-     * Only return entries for these providers. Empty means all.
-     */
-    providerIds?: Array<string>;
-};
-
-/**
- * Provider list response.
- */
-export type ListProvidersResponse_unstable = {
-    entries: Array<ProviderInventoryEntryDto>;
-};
-
-export type ListRecipesRequest_unstable = {
-    [key: string]: unknown;
-};
-
-export type ListRecipesResponse_unstable = {
-    recipes: Array<RecipeListEntryDto>;
-};
-
-export type ListScheduleSessionsRequest_unstable = {
-    limit: number;
-    scheduleId: string;
-};
-
-export type ListScheduleSessionsResponse_unstable = {
-    sessions: Array<SessionInfo>;
-};
-
-export type ListSchedulesRequest_unstable = {
-    [key: string]: unknown;
-};
-
-export type ListSchedulesResponse_unstable = {
-    jobs: Array<ScheduledJobDto>;
-};
-
-/**
- * List slash commands available for `/` autocomplete.
- */
-export type ListSlashCommandsRequest_unstable = {
-    cwd?: string | null;
-    sessionId?: string | null;
-};
-
-export type ListSlashCommandsResponse_unstable = {
-    availableCommands: Array<AvailableCommand>;
-};
-
-/**
- * List discovered sources.
- *
- * If `type` is omitted or `skill`, this lists filesystem/plugin skills only.
- * Both global and project-scoped skills are included when `project_dir` is
- * set. If `type` is `builtinSkill`, this lists shipped read-only built-in
- * skills.
- */
-export type ListSourcesRequest_unstable = {
-    /**
-     * When true, also scan the working directories of all known projects for
-     * project-scoped sources (e.g. skills stored under `{workingDir}/.agents/skills/`).
-     */
-    includeProjectSources?: boolean;
-    projectDir?: string | null;
-    type?: SourceType | null;
-};
-
-export type ListSourcesResponse_unstable = {
-    sources: Array<SourceEntry>;
-};
-
-/**
- * Configuration for connecting to an MCP (Model Context Protocol) server.
- *
- * MCP servers provide tools and context that the agent can use when
- * processing prompts.
- *
- * See protocol docs: [MCP Servers](https://agentclientprotocol.com/protocol/session-setup#mcp-servers)
- */
-export type McpServer = McpServerHttp | McpServerSse | McpServerStdio;
-
-/**
- * HTTP transport configuration for MCP.
- */
-export type McpServerHttp = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * HTTP headers to set when making requests to the MCP server.
-     */
-    headers: Array<HttpHeader>;
-    /**
-     * Human-readable name identifying this MCP server.
-     */
-    name: string;
-    type: 'http';
-    /**
-     * URL to the MCP server.
-     */
-    url: string;
-};
-
-/**
- * SSE transport configuration for MCP.
- */
-export type McpServerSse = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * HTTP headers to set when making requests to the MCP server.
-     */
-    headers: Array<HttpHeader>;
-    /**
-     * Human-readable name identifying this MCP server.
-     */
-    name: string;
-    type: 'sse';
-    /**
-     * URL to the MCP server.
-     */
-    url: string;
-};
-
-/**
- * Stdio transport configuration for MCP.
- */
-export type McpServerStdio = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * Command-line arguments to pass to the MCP server.
-     */
-    args: Array<string>;
-    /**
-     * Path to the MCP server executable.
-     */
-    command: string;
-    /**
-     * Environment variables to set when launching the MCP server.
-     */
-    env: Array<EnvVariable>;
-    /**
-     * Human-readable name identifying this MCP server.
-     */
-    name: string;
-};
-
-/**
- * Import selected onboarding candidates.
- */
-export type OnboardingImportApplyRequest_unstable = {
-    candidateIds?: Array<string>;
-    enableImportedExtensions?: boolean;
-};
-
-export type OnboardingImportApplyResponse_unstable = {
-    imported: OnboardingImportCounts;
-    providerDefaults?: DefaultsReadResponse_unstable | null;
-    skipped: OnboardingImportCounts;
-    warnings?: Array<string>;
-};
-
-export type OnboardingImportCandidate = {
-    counts: OnboardingImportCounts;
-    displayName: string;
-    id: string;
-    path: string;
-    sourceKind: OnboardingImportSourceKind;
-    warnings?: Array<string>;
-};
-
-export type OnboardingImportCounts = {
-    extensions: number;
-    preferences: number;
-    projects: number;
-    providers: number;
-    sessions: number;
-    skills: number;
-};
-
-/**
- * Scan for existing Goose and compatible app data that onboarding can import.
- */
-export type OnboardingImportScanRequest_unstable = {
-    /**
-     * Empty means all supported import sources.
-     */
-    sources?: Array<OnboardingImportSourceKind>;
-};
-
-export type OnboardingImportScanResponse_unstable = {
-    candidates: Array<OnboardingImportCandidate>;
-};
-
-/**
- * Sources that onboarding knows how to discover and import.
- */
-export type OnboardingImportSourceKind = 'goose_config' | 'claude_desktop';
-
-export type ParseRecipeRequest_unstable = {
-    content: string;
-};
-
-export type ParseRecipeResponse_unstable = {
-    recipe: RecipeDto;
-};
-
-export type PauseScheduleRequest_unstable = {
-    scheduleId: string;
-};
-
-export type PreferenceKey = 'autoCompactThreshold' | 'gooseThinkingEffort' | 'voiceAutoSubmitPhrases' | 'voiceDictationProvider' | 'voiceDictationPreferredMic';
-
-export type PreferenceValue = {
-    key: PreferenceKey;
-    value?: unknown;
-};
-
-/**
- * Read allowlisted user preferences. Empty `keys` means all supported preferences.
- */
-export type PreferencesReadRequest_unstable = {
-    keys?: Array<PreferenceKey>;
-};
-
-export type PreferencesReadResponse_unstable = {
-    values: Array<PreferenceValue>;
-};
-
-/**
- * Remove allowlisted user preferences.
- */
-export type PreferencesRemoveRequest_unstable = {
-    keys?: Array<PreferenceKey>;
-};
-
-/**
- * Save allowlisted user preferences.
- */
-export type PreferencesSaveRequest_unstable = {
-    values?: Array<PreferenceValue>;
-};
-
-export type PromptOperationResponse_unstable = {
-    message: string;
-};
-
-/**
- * Information about a prompt template, including its default content and customization status.
- */
-export type PromptTemplateEntry = {
-    defaultContent: string;
-    description: string;
-    isCustomized: boolean;
-    name: string;
-    userContent?: string | null;
-};
-
-/**
- * List custom-provider catalog entries. Omit `format` to list all formats.
- */
-export type ProviderCatalogListRequest_unstable = {
-    format?: string | null;
-};
-
-export type ProviderCatalogListResponse_unstable = {
-    providers: Array<ProviderTemplateCatalogEntryDto>;
-};
-
-/**
- * Return the editable template for one catalog provider.
- */
-export type ProviderCatalogTemplateRequest_unstable = {
-    providerId: string;
-};
-
-export type ProviderCatalogTemplateResponse_unstable = {
-    template: ProviderTemplateDto;
-};
-
-/**
- * Run a provider-owned native authentication flow and start an inventory refresh when supported.
- */
-export type ProviderConfigAuthenticateRequest_unstable = {
-    providerId: string;
-};
-
-export type ProviderConfigChangeResponse_unstable = {
-    refresh: RefreshProviderInventoryResponse_unstable;
-    status: ProviderConfigStatusDto;
-};
-
-/**
- * Delete provider configuration fields and start an inventory refresh when supported.
- */
-export type ProviderConfigDeleteRequest_unstable = {
-    providerId: string;
-};
-
-export type ProviderConfigFieldUpdate = {
-    key: string;
-    value: string;
-};
-
-export type ProviderConfigFieldValueDto = {
-    isSecret: boolean;
-    isSet: boolean;
-    key: string;
-    required: boolean;
-    value?: string | null;
-};
-
-export type ProviderConfigKey = {
-    default?: string | null;
-    deviceCodeFlow?: boolean;
-    name: string;
-    oauthFlow?: boolean;
-    primary?: boolean;
-    required: boolean;
-    secret: boolean;
-};
-
-/**
- * Read saved configuration field values for one provider.
- */
-export type ProviderConfigReadRequest_unstable = {
-    providerId: string;
-};
-
-export type ProviderConfigReadResponse_unstable = {
-    fields: Array<ProviderConfigFieldValueDto>;
-};
-
-/**
- * Save provider configuration fields and start an inventory refresh when supported.
- */
-export type ProviderConfigSaveRequest_unstable = {
-    fields: Array<ProviderConfigFieldUpdate>;
-    providerId: string;
-};
-
-export type ProviderConfigStatusDto = {
-    isConfigured: boolean;
-    providerId: string;
-};
-
-/**
- * Return provider configured statuses. Empty provider_ids means all providers.
- */
-export type ProviderConfigStatusRequest_unstable = {
-    providerIds?: Array<string>;
-};
-
-export type ProviderConfigStatusResponse_unstable = {
-    statuses: Array<ProviderConfigStatusDto>;
-};
-
-/**
- * Provider inventory entry.
- */
-export type ProviderInventoryEntryDto = {
-    /**
-     * Whether this inventory entry represents an agent provider or a model provider.
-     */
-    category: ProviderSetupCategoryDto;
-    /**
-     * Required configuration keys and setup metadata.
-     */
-    configKeys: Array<ProviderConfigKey>;
-    /**
-     * Whether Goose has enough configuration to use this provider.
-     */
-    configured: boolean;
-    /**
-     * The default/recommended model for this provider.
-     */
-    defaultModel: string;
-    /**
-     * Description of the provider's capabilities.
-     */
-    description: string;
-    /**
-     * When a refresh was most recently attempted (ISO 8601).
-     */
-    lastRefreshAttemptAt?: string | null;
-    /**
-     * The last refresh failure message, if any.
-     */
-    lastRefreshError?: string | null;
-    /**
-     * When this entry was last successfully refreshed (ISO 8601).
-     */
-    lastUpdatedAt?: string | null;
-    /**
-     * Guidance message shown when this provider manages its own model selection externally.
-     */
-    modelSelectionHint?: string | null;
-    /**
-     * The list of available models.
-     */
-    models: Array<ProviderInventoryModelDto>;
-    /**
-     * Provider identifier.
-     */
-    providerId: string;
-    /**
-     * Human-readable provider name.
-     */
-    providerName: string;
-    /**
-     * Provider classification such as `Preferred`, `Builtin`, `Declarative`, or `Custom`.
-     */
-    providerType: string;
-    /**
-     * Whether a refresh is currently in flight.
-     */
-    refreshing: boolean;
-    /**
-     * Step-by-step setup instructions, when present.
-     */
-    setupSteps: Array<string>;
-    /**
-     * Whether we believe this data may be outdated.
-     */
-    stale: boolean;
-    /**
-     * Whether this provider supports background inventory refresh.
-     */
-    supportsRefresh: boolean;
-};
-
-/**
- * A single model in provider inventory.
- */
-export type ProviderInventoryModelDto = {
-    /**
-     * Context window size in tokens.
-     */
-    contextLimit?: number | null;
-    /**
-     * Model family for grouping in UI.
-     */
-    family?: string | null;
-    /**
-     * Model identifier as the provider knows it.
-     */
-    id: string;
-    /**
-     * Human-readable display name.
-     */
-    name: string;
-    /**
-     * Whether the model supports reasoning/extended thinking.
-     */
-    reasoning?: boolean | null;
-    /**
-     * Whether this model should appear in the compact recommended picker.
-     */
-    recommended?: boolean;
-};
-
-export type ProviderSetupCatalogEntryDto = {
-    aliases?: Array<string>;
-    binaryName?: string | null;
-    category: ProviderSetupCategoryDto;
-    description: string;
-    docUrl?: string | null;
-    fields?: Array<ProviderSetupFieldDto>;
-    group: ProviderSetupGroupDto;
-    name: string;
-    nativeConnectQuery?: string | null;
-    providerId: string;
-    setupMethod: ProviderSetupMethodDto;
-    showOnlyWhenInstalled: boolean;
-    supportsAuth: boolean;
-    supportsAuthStatus: boolean;
-    supportsInstall: boolean;
-};
-
-/**
- * List provider setup catalog entries
- */
-export type ProviderSetupCatalogListRequest_unstable = {
-    [key: string]: unknown;
-};
-
-export type ProviderSetupCatalogListResponse_unstable = {
-    providers: Array<ProviderSetupCatalogEntryDto>;
-};
-
-export type ProviderSetupCategoryDto = 'agent' | 'model';
-
-export type ProviderSetupFieldDto = {
-    defaultValue?: string | null;
-    key: string;
-    label: string;
-    placeholder?: string | null;
-    required: boolean;
-    secret: boolean;
-};
-
-export type ProviderSetupGroupDto = 'default' | 'additional';
-
-export type ProviderSetupMethodDto = 'none' | 'single_api_key' | 'config_fields' | 'host_with_oauth_fallback' | 'oauth_browser' | 'oauth_device_code' | 'cloud_credentials' | 'local' | 'cli_auth';
-
-/**
- * List the raw model identifiers returned by a provider's live supported-models API.
- */
-export type ProviderSupportedModelsListRequest_unstable = {
-    providerId: string;
-};
-
-export type ProviderSupportedModelsListResponse_unstable = {
-    models: Array<string>;
-    providerId: string;
-};
-
-export type ProviderTemplateCapabilitiesDto = {
-    attachment: boolean;
-    reasoning: boolean;
-    temperature: boolean;
-    toolCall: boolean;
-};
-
-export type ProviderTemplateCatalogEntryDto = {
-    apiUrl: string;
-    docUrl: string;
-    envVar: string;
-    format: string;
-    modelCount: number;
-    name: string;
-    providerId: string;
-};
-
-export type ProviderTemplateDto = {
-    apiUrl: string;
-    docUrl: string;
-    envVar: string;
-    format: string;
-    models: Array<ProviderTemplateModelDto>;
-    name: string;
-    providerId: string;
-    supportsStreaming: boolean;
-};
-
-export type ProviderTemplateModelDto = {
-    capabilities: ProviderTemplateCapabilitiesDto;
-    contextLimit: number;
-    deprecated: boolean;
-    id: string;
-    name: string;
-};
-
-/**
- * Read a resource from an extension.
- */
-export type ReadResourceRequest_unstable = {
-    extensionName: string;
-    sessionId: string;
-    uri: string;
-};
-
-/**
- * Resource read response.
- */
-export type ReadResourceResponse_unstable = {
-    /**
-     * The resource result from the extension (MCP ReadResourceResult).
-     */
-    result?: unknown;
-};
-
-export type RecipeAuthorDto = {
-    contact?: string | null;
-    metadata?: string | null;
-};
-
-export type RecipeDto = {
-    activities?: Array<string> | null;
-    author?: RecipeAuthorDto | null;
-    description: string;
-    extensions?: Array<RecipeExtensionDto> | null;
-    instructions?: string | null;
-    parameters?: Array<RecipeParameterDto> | null;
-    prompt?: string | null;
-    response?: RecipeResponseDto | null;
-    retry?: RecipeRetryConfigDto | null;
-    settings?: RecipeSettingsDto | null;
-    sub_recipes?: Array<SubRecipeDto> | null;
-    title: string;
-    version?: string;
-};
-
-export type RecipeExtensionDto = {
-    bundled?: boolean | null;
-    description?: string | null;
-    display_name?: string | null;
-    name: string;
-    timeout?: number | null;
-    type: 'builtin';
-} | {
-    bundled?: boolean | null;
-    description?: string | null;
-    display_name?: string | null;
-    name: string;
-    type: 'platform';
-} | {
-    args?: Array<string>;
-    bundled?: boolean | null;
-    cmd: string;
-    cwd?: string | null;
-    description?: string | null;
-    env_keys?: Array<string>;
-    envs?: {
-        [key: string]: string;
-    };
-    name: string;
-    timeout?: number | null;
-    type: 'stdio';
-} | {
-    bundled?: boolean | null;
-    description?: string | null;
-    env_keys?: Array<string>;
-    envs?: {
-        [key: string]: string;
-    };
-    headers?: {
-        [key: string]: string;
-    };
-    name: string;
-    socket?: string | null;
-    timeout?: number | null;
-    type: 'streamable_http';
-    uri: string;
-};
-
-export type RecipeListEntryDto = {
-    file_path: string;
-    id: string;
-    last_modified: string;
-    recipe: RecipeDto;
-    schedule_cron?: string | null;
-    slash_command?: string | null;
-};
-
-export type RecipeParameterDto = {
-    default?: string | null;
-    description: string;
-    input_type: RecipeParameterInputTypeDto;
-    key: string;
-    options?: Array<string> | null;
-    requirement: RecipeParameterRequirementDto;
-};
-
-export type RecipeParameterInputTypeDto = 'string' | 'number' | 'boolean' | 'date' | 'file' | 'select';
-
-export type RecipeParameterRequirementDto = 'required' | 'optional' | 'user_prompt';
-
-export type RecipeParamsAction = 'submit' | 'cancel';
-
-export type RecipeParamsResponse_unstable = {
-    action?: RecipeParamsAction;
-    values?: {
-        [key: string]: string;
-    };
-};
-
-export type RecipeResponseDto = {
-    json_schema?: unknown;
-};
-
-export type RecipeRetryConfigDto = {
-    checks?: Array<RecipeSuccessCheckDto>;
-    max_retries: number;
-    on_failure?: string | null;
-    on_failure_timeout_seconds?: number | null;
-    timeout_seconds?: number | null;
-};
-
-export type RecipeSettingsDto = {
-    goose_model?: string | null;
-    goose_provider?: string | null;
-    max_turns?: number | null;
-    temperature?: number | null;
-};
-
-export type RecipeSuccessCheckDto = {
-    command: string;
-    type: 'shell';
-};
-
-export type RecipeToYamlRequest_unstable = {
-    recipe: RecipeDto;
-};
-
-export type RecipeToYamlResponse_unstable = {
-    yaml: string;
-};
-
-/**
- * Trigger a background refresh of provider inventories.
- */
-export type RefreshProviderInventoryRequest_unstable = {
-    /**
-     * Which providers to refresh. Empty means all known providers.
-     */
-    providerIds?: Array<string>;
-};
-
-/**
- * Refresh acknowledgement.
- */
-export type RefreshProviderInventoryResponse_unstable = {
-    /**
-     * Which providers were skipped and why.
-     */
-    skipped?: Array<RefreshProviderInventorySkipDto>;
-    /**
-     * Which providers will be refreshed.
-     */
-    started: Array<string>;
-};
-
-export type RefreshProviderInventorySkipDto = {
-    providerId: string;
-    reason: RefreshProviderInventorySkipReasonDto;
-};
-
-export type RefreshProviderInventorySkipReasonDto = 'unknown_provider' | 'not_configured' | 'does_not_support_refresh' | 'already_refreshing';
-
-/**
- * Remove a persisted extension from the user's global goose config.
- */
-export type RemoveConfigExtensionRequest_unstable = {
-    configKey: string;
-};
-
-/**
- * Remove an extension from an active session.
- */
-export type RemoveSessionExtensionRequest_unstable = {
-    name: string;
-    sessionId: string;
-};
-
-/**
- * Rename a session.
- */
-export type RenameSessionRequest_unstable = {
-    sessionId: string;
-    title: string;
-};
-
-export type RequestRecipeParams_unstable = {
-    parameters: Array<RecipeParameterDto>;
-    sessionId: string;
-};
-
-/**
- * Reset a Goose prompt template to its default content.
- */
-export type ResetPromptRequest_unstable = {
-    name: string;
-};
-
-/**
- * A resource that the server is capable of reading, included in a prompt or tool call result.
- */
-export type ResourceLink = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
-        [key: string]: unknown;
-    } | null;
-    annotations?: Annotations | null;
-    description?: string | null;
-    mimeType?: string | null;
-    name: string;
-    size?: number | null;
-    title?: string | null;
-    uri: string;
-};
-
-/**
- * The sender or recipient of messages and data in a conversation.
- */
-export type Role = 'assistant' | 'user';
-
-export type RunScheduleNowRequest_unstable = {
-    scheduleId: string;
-};
-
-export type RunScheduleNowResponse_unstable = {
-    sessionId?: string | null;
-    status: RunScheduleNowStatus;
-};
-
-export type RunScheduleNowStatus = 'completed' | 'cancelled';
-
-/**
- * Save a custom Goose prompt template.
- */
-export type SavePromptRequest_unstable = {
-    content: string;
-    name: string;
-};
-
-export type SaveRecipeRequest_unstable = {
-    id?: string | null;
-    recipe: RecipeDto;
-};
-
-export type SaveRecipeResponse_unstable = {
-    file_name: string;
-    file_path: string;
-    id: string;
-};
-
-export type ScanRecipeRequest_unstable = {
-    recipe: RecipeDto;
-};
-
-export type ScanRecipeResponse_unstable = {
-    has_security_warnings: boolean;
-};
-
-export type ScheduleRecipeRequest_unstable = {
-    cron_schedule?: string | null;
-    id: string;
-};
-
-export type ScheduledJobDto = {
-    cron: string;
-    currentSessionId?: string | null;
-    currentlyRunning: boolean;
-    id: string;
-    jobStartTime?: string | null;
-    lastRun?: string | null;
-    paused: boolean;
-    source: string;
-};
-
-/**
- * A unique identifier for a conversation session between a client and agent.
- *
- * Sessions maintain their own context, conversation history, and state,
- * allowing multiple independent interactions with the same agent.
- *
- * See protocol docs: [Session ID](https://agentclientprotocol.com/protocol/session-setup#session-id)
- */
-export type SessionId = string;
-
-export type SessionImportSource = 'auto' | 'json' | 'nostr';
-
-/**
- * Information about a session returned by session/list
- */
-export type SessionInfo = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
-        [key: string]: unknown;
-    } | null;
-    /**
-     * **UNSTABLE**
-     *
-     * This capability is not part of the spec yet, and may be removed or changed at any point.
-     *
-     * Authoritative ordered additional workspace roots for this session. Each path must be absolute.
-     *
-     * When omitted or empty, there are no additional roots for the session.
-     */
-    additionalDirectories?: Array<string>;
-    /**
-     * The working directory for this session. Must be an absolute path.
-     */
-    cwd: string;
-    /**
-     * Unique identifier for the session
-     */
-    sessionId: SessionId;
-    /**
-     * Human-readable title for the session
-     */
-    title?: string | null;
-    /**
-     * ISO 8601 timestamp of last activity
-     */
-    updatedAt?: string | null;
-};
-
-/**
- * How a session system prompt update should be applied.
- */
-export type SessionSystemPromptMode = 'set' | 'append';
-
-/**
  * Streaming context-window usage update for a session.
  */
 export type SessionUsageUpdate = {
-    accumulatedCost?: number | null;
+    used: number;
+    contextLimit: number;
     accumulatedInputTokens: number;
     accumulatedOutputTokens: number;
-    contextLimit: number;
-    used: number;
+    accumulatedCost?: number | null;
 };
-
-/**
- * Set the `enabled` flag for a persisted extension in the user's global goose config.
- */
-export type SetConfigExtensionEnabledRequest_unstable = {
-    configKey: string;
-    enabled: boolean;
-};
-
-export type SetRecipeSlashCommandRequest_unstable = {
-    id: string;
-    slash_command?: string | null;
-};
-
-/**
- * Set, append, or clear system prompt text for a session.
- *
- * `mode: "set"` replaces Goose's base system prompt. `mode: "append"` adds an
- * instruction under "Additional Instructions". Reusing a key replaces the
- * previous value for that mode/key; sending empty text clears it.
- */
-export type SetSessionSystemPromptRequest_unstable = {
-    key?: string | null;
-    mode?: SessionSystemPromptMode;
-    sessionId: string;
-    text: string;
-};
-
-export type ShareSessionNostrRequest_unstable = {
-    relays: Array<string>;
-    sessionId: string;
-};
-
-export type ShareSessionNostrResponse_unstable = {
-    deeplink: string;
-    eventId: string;
-    nevent: string;
-    relays: Array<string>;
-};
-
-/**
- * A source discovered by Goose. Filesystem sources use an on-disk path;
- * built-in sources use a stable synthetic path. Sources may be either
- * `global` (shared across all projects) or project-specific.
- */
-export type SourceEntry = {
-    content: string;
-    description: string;
-    /**
-     * True when the source lives in the user's global sources directory; false
-     * when it lives inside a specific project.
-     */
-    global: boolean;
-    name: string;
-    /**
-     * Stable on-disk path identifying this source. Pass it back to
-     * update/delete/export to operate on this entry. Skills use the directory
-     * containing `SKILL.md`; projects use the project file path; built-in
-     * skills use `builtin://skills/<name>` synthetic paths.
-     */
-    path: string;
-    /**
-     * Arbitrary key/value pairs for type-specific metadata (e.g. icon, color,
-     * preferredProvider for projects). Stored in the frontmatter.
-     */
-    properties?: {
-        [key: string]: unknown;
-    };
-    /**
-     * Paths (absolute) of additional files that live alongside the source.
-     * Only skills currently populate this; empty for other source types.
-     */
-    supportingFiles?: Array<string>;
-    type: SourceType;
-    /**
-     * True when this source can be modified through source CRUD methods.
-     * Client-provided bundled sources are returned as read-only.
-     */
-    writable?: boolean;
-};
-
-/**
- * Target scope for creating or importing sources.
- */
-export type SourceScope = {
-    scope: 'global';
-} | {
-    projectDir: string;
-    scope: 'projectDir';
-} | {
-    projectId: string;
-    scope: 'projectId';
-};
-
-/**
- * The type of source entity.
- */
-export type SourceType = 'skill' | 'builtinSkill' | 'recipe' | 'subrecipe' | 'agent' | 'project';
 
 export type StatusMessage = {
     message: string;
@@ -1978,157 +2072,63 @@ export type StatusMessageUpdate = {
     status: StatusMessage;
 };
 
-/**
- * Add user input to the currently active prompt without starting a new prompt.
- */
-export type SteerSessionRequest_unstable = {
-    expectedRunId: string;
-    prompt?: Array<ContentBlock>;
+export type RequestRecipeParams_unstable = {
     sessionId: string;
+    parameters: Array<RecipeParameterDto>;
 };
 
-export type SteerSessionResponse_unstable = {
-    /**
-     * Stable id of the queued steer message. The same id later appears as
-     * `messageId` on the streamed `UserMessageChunk` (with `_meta.goose.steer`),
-     * letting clients correlate a queued steer with its pickup.
-     */
-    messageId: string;
-    runId: string;
-};
-
-export type SubRecipeDto = {
-    description?: string | null;
-    name: string;
-    path: string;
-    sequential_when_repeated?: boolean;
+export type RecipeParamsResponse_unstable = {
+    action?: RecipeParamsAction;
     values?: {
         [key: string]: string;
-    } | null;
+    };
 };
 
-/**
- * Text provided to or from an LLM.
- */
-export type TextContent = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
+export type RecipeParamsAction = 'submit' | 'cancel';
+
+export type ExtRequest = {
+    id: string;
+    method: string;
+    params?: AddSessionExtensionRequest_unstable | RemoveSessionExtensionRequest_unstable | GetToolsRequest_unstable | GooseToolCallRequest_unstable | ReadResourceRequest_unstable | AppsListRequest_unstable | AppsExportRequest_unstable | AppsImportRequest_unstable | UpdateWorkingDirRequest_unstable | SetSessionSystemPromptRequest_unstable | SteerSessionRequest_unstable | DiagnosticsGetRequest_unstable | ListPromptsRequest_unstable | GetPromptRequest_unstable | SavePromptRequest_unstable | ResetPromptRequest_unstable | DeleteSessionRequest | GetConfigExtensionsRequest_unstable | GetAvailableExtensionsRequest_unstable | AddConfigExtensionRequest_unstable | RemoveConfigExtensionRequest_unstable | SetConfigExtensionEnabledRequest_unstable | GetSessionExtensionsRequest_unstable | ListProvidersRequest_unstable | ProviderSupportedModelsListRequest_unstable | ProviderCatalogListRequest_unstable | ProviderSetupCatalogListRequest_unstable | ProviderCatalogTemplateRequest_unstable | CustomProviderCreateRequest_unstable | CustomProviderReadRequest_unstable | CustomProviderUpdateRequest_unstable | CustomProviderDeleteRequest_unstable | RefreshProviderInventoryRequest_unstable | ProviderConfigReadRequest_unstable | ProviderConfigStatusRequest_unstable | ProviderConfigSaveRequest_unstable | ProviderConfigDeleteRequest_unstable | ProviderConfigAuthenticateRequest_unstable | PreferencesReadRequest_unstable | PreferencesSaveRequest_unstable | PreferencesRemoveRequest_unstable | DefaultsReadRequest_unstable | DefaultsSaveRequest_unstable | OnboardingImportScanRequest_unstable | OnboardingImportApplyRequest_unstable | ExportSessionRequest_unstable | ImportSessionRequest_unstable | ShareSessionNostrRequest_unstable | EncodeRecipeRequest_unstable | DecodeRecipeRequest_unstable | ScanRecipeRequest_unstable | ListRecipesRequest_unstable | DeleteRecipeRequest_unstable | ScheduleRecipeRequest_unstable | SetRecipeSlashCommandRequest_unstable | SaveRecipeRequest_unstable | ParseRecipeRequest_unstable | RecipeToYamlRequest_unstable | ListSchedulesRequest_unstable | ListScheduleSessionsRequest_unstable | CreateScheduleRequest_unstable | DeleteScheduleRequest_unstable | PauseScheduleRequest_unstable | UnpauseScheduleRequest_unstable | UpdateScheduleRequest_unstable | RunScheduleNowRequest_unstable | KillRunningJobRequest_unstable | InspectRunningJobRequest_unstable | GetSessionInfoRequest_unstable | TruncateSessionConversationRequest_unstable | UpdateSessionProjectRequest_unstable | RenameSessionRequest_unstable | ArchiveSessionRequest_unstable | UnarchiveSessionRequest_unstable | CreateSourceRequest_unstable | ListSourcesRequest_unstable | ListAgentMentionsRequest_unstable | ListSlashCommandsRequest_unstable | UpdateSourceRequest_unstable | DeleteSourceRequest_unstable | ExportSourceRequest_unstable | ImportSourcesRequest_unstable | DictationTranscribeRequest_unstable | DictationConfigRequest_unstable | DictationSecretSaveRequest_unstable | DictationSecretDeleteRequest_unstable | DictationModelsListRequest_unstable | DictationModelDownloadRequest_unstable | DictationModelDownloadProgressRequest_unstable | DictationModelCancelRequest_unstable | DictationModelDeleteRequest_unstable | DictationModelSelectRequest_unstable | {
         [key: string]: unknown;
     } | null;
-    annotations?: Annotations | null;
-    text: string;
 };
 
-/**
- * Text-based resource contents.
- */
-export type TextResourceContents = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
+export type ExtResponse = {
+    id: string;
+    result?: EmptyResponse | GetToolsResponse_unstable | GooseToolCallResponse_unstable | ReadResourceResponse_unstable | AppsListResponse_unstable | AppsExportResponse_unstable | AppsImportResponse_unstable | SteerSessionResponse_unstable | DiagnosticsGetResponse_unstable | ListPromptsResponse_unstable | GetPromptResponse_unstable | PromptOperationResponse_unstable | GetConfigExtensionsResponse_unstable | GetAvailableExtensionsResponse_unstable | GetSessionExtensionsResponse_unstable | ListProvidersResponse_unstable | ProviderSupportedModelsListResponse_unstable | ProviderCatalogListResponse_unstable | ProviderSetupCatalogListResponse_unstable | ProviderCatalogTemplateResponse_unstable | CustomProviderCreateResponse_unstable | CustomProviderReadResponse_unstable | CustomProviderUpdateResponse_unstable | CustomProviderDeleteResponse_unstable | RefreshProviderInventoryResponse_unstable | ProviderConfigReadResponse_unstable | ProviderConfigStatusResponse_unstable | ProviderConfigChangeResponse_unstable | PreferencesReadResponse_unstable | DefaultsReadResponse_unstable | OnboardingImportScanResponse_unstable | OnboardingImportApplyResponse_unstable | ExportSessionResponse_unstable | ImportSessionResponse_unstable | ShareSessionNostrResponse_unstable | EncodeRecipeResponse_unstable | DecodeRecipeResponse_unstable | ScanRecipeResponse_unstable | ListRecipesResponse_unstable | SaveRecipeResponse_unstable | ParseRecipeResponse_unstable | RecipeToYamlResponse_unstable | ListSchedulesResponse_unstable | ListScheduleSessionsResponse_unstable | CreateScheduleResponse_unstable | UpdateScheduleResponse_unstable | RunScheduleNowResponse_unstable | KillRunningJobResponse_unstable | InspectRunningJobResponse_unstable | GetSessionInfoResponse_unstable | CreateSourceResponse_unstable | ListSourcesResponse_unstable | ListAgentMentionsResponse_unstable | ListSlashCommandsResponse_unstable | UpdateSourceResponse_unstable | ExportSourceResponse_unstable | ImportSourcesResponse_unstable | DictationTranscribeResponse_unstable | DictationConfigResponse_unstable | DictationModelsListResponse_unstable | DictationModelDownloadProgressResponse_unstable | unknown;
+} | {
+    error: {
+        code: number;
+        message: string;
+        data?: unknown;
+    };
+    id: string;
+};
+
+export type ExtNotification = {
+    method: string;
+    params?: GooseSessionNotification_unstable | {
         [key: string]: unknown;
     } | null;
-    mimeType?: string | null;
-    text: string;
-    uri: string;
 };
 
-/**
- * Truncate a session conversation from the given message timestamp onward.
- */
-export type TruncateSessionConversationRequest_unstable = {
-    sessionId: string;
-    truncateFrom: number;
-};
-
-/**
- * Unarchive a previously archived session.
- */
-export type UnarchiveSessionRequest_unstable = {
-    sessionId: string;
-};
-
-export type UnpauseScheduleRequest_unstable = {
-    scheduleId: string;
-};
-
-/**
- * All text that was typed after the command name is provided as input.
- */
-export type UnstructuredCommandInput = {
-    /**
-     * The _meta property is reserved by ACP to allow clients and agents to attach additional
-     * metadata to their interactions. Implementations MUST NOT make assumptions about values at
-     * these keys.
-     *
-     * See protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)
-     */
-    _meta?: {
+export type ExtAgentRequest = {
+    id: string;
+    method: string;
+    params?: RequestRecipeParams_unstable | {
         [key: string]: unknown;
     } | null;
-    /**
-     * A hint to display when the input hasn't been provided yet
-     */
-    hint: string;
 };
 
-export type UpdateScheduleRequest_unstable = {
-    cron: string;
-    scheduleId: string;
-};
-
-export type UpdateScheduleResponse_unstable = {
-    job: ScheduledJobDto;
-};
-
-/**
- * Update the project association for a session.
- */
-export type UpdateSessionProjectRequest_unstable = {
-    projectId?: string | null;
-    sessionId: string;
-};
-
-/**
- * Update an existing source's name, description, and content by absolute path.
- */
-export type UpdateSourceRequest_unstable = {
-    content: string;
-    description: string;
-    name: string;
-    path: string;
-    /**
-     * When `Some`, replaces all stored properties on the source. When
-     * `None` (or omitted), the source's existing properties are
-     * preserved. Callers that don't model the full property bag (e.g.
-     * the skills editor, which only edits name/description/content)
-     * should omit this so per-skill metadata isn't silently erased.
-     */
-    properties?: {
-        [key: string]: unknown;
-    } | null;
-    type: SourceType;
-};
-
-export type UpdateSourceResponse_unstable = {
-    source: SourceEntry;
-};
-
-/**
- * Update the working directory for a session.
- */
-export type UpdateWorkingDirRequest_unstable = {
-    sessionId: string;
-    workingDir: string;
+export type ExtAgentResponse = {
+    id: string;
+    result?: RecipeParamsResponse_unstable | unknown;
+} | {
+    error: {
+        code: number;
+        message: string;
+        data?: unknown;
+    };
+    id: string;
 };
