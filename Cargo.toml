@@ -102,7 +102,7 @@ tree-sitter-typescript = { version = "0.23", default-features = false }
 
 # llama-cpp-2 doesn't pin the version of its sys crate, so we do it here. it also has breaking changes in patch releases, so we use an exact version pin
 llama-cpp-2 = { version = "=0.1.146", default-features = false, features = ["sampler", "mtmd"] }
-llama-cpp-sys-2 = { version = "=0.1.146", default-features = false }
+llama-cpp-sys-2 = { version = "=0.1.150", default-features = false }
 
 # These are needed because temporal_rs 0.1 (a transitive dep via PCTX) enables unstable features on icu_calendar without pinning the dependency version
 # A fix is available in temporal_rs 0.2 but PCTX has not updated
