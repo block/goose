@@ -358,7 +358,7 @@ impl Agent {
                     let (msg_opt, usage_opt) = result?;
 
                     if let Some(msg) = msg_opt {
-                        if usage_opt.is_none() && message_has_first_token_content(&msg) {
+                        if message_has_first_token_content(&msg) {
                             first_token_at.get_or_insert_with(Instant::now);
                         }
 
@@ -405,10 +405,9 @@ impl Agent {
                 while let Some(result) = stream.next().await {
                     let (message, usage) = result?;
 
-                    if usage.is_none()
-                        && message
-                            .as_ref()
-                            .is_some_and(message_has_first_token_content)
+                    if message
+                        .as_ref()
+                        .is_some_and(message_has_first_token_content)
                     {
                         first_token_at.get_or_insert_with(Instant::now);
                     }
@@ -771,6 +770,24 @@ mod tests {
 
         let stats = final_usage.stats.expect("usage should include stats");
         assert_eq!(stats.time_to_first_token_ms, None);
+        assert!(stats.elapsed_ms.is_some());
+    }
+
+    #[tokio::test]
+    async fn stream_response_sets_first_token_when_content_and_usage_share_a_chunk() {
+        let final_usage = collect_final_usage(
+            ModelConfig::new("test-model"),
+            vec![Ok((
+                Some(Message::assistant().with_text("hello")),
+                Some(ProviderUsage::new("mock".to_string(), Usage::default())),
+            ))],
+        )
+        .await
+        .expect("stream should drain")
+        .expect("usage should be yielded");
+
+        let stats = final_usage.stats.expect("usage should include stats");
+        assert!(stats.time_to_first_token_ms.is_some());
         assert!(stats.elapsed_ms.is_some());
     }
 
