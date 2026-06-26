@@ -153935,5 +153935,458 @@
       "context": 32000
     },
     "release_date": "2026-02-02"
+  },
+  {
+    "id": "cortecs/gemini-2.5-flash",
+    "name": "Gemini 2.5 Flash",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "audio"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.268,
+      "output": 2.236
+    },
+    "limit": {
+      "context": 1048576
+    },
+    "release_date": "2025-03-16"
+  },
+  {
+    "id": "cortecs/gemini-3.1-flash-lite",
+    "name": "Gemini 3.1 Flash Lite",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "audio"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.244,
+      "output": 1.464
+    },
+    "limit": {
+      "context": 1048576
+    },
+    "release_date": "2026-05-18"
+  },
+  {
+    "id": "cortecs/gemini-3.5-flash",
+    "name": "Gemini 3.5 Flash",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "audio"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 1.331,
+      "output": 7.987
+    },
+    "limit": {
+      "context": 1048576
+    },
+    "release_date": "2026-05-20"
+  },
+  {
+    "id": "cortecs/gemma-4-26b-a4b-it",
+    "name": "Gemma 4 26B A4B IT",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.25,
+      "output": 0.5
+    },
+    "limit": {
+      "context": 262000
+    },
+    "release_date": "2026-05-07"
+  },
+  {
+    "id": "cortecs/gemma-4-31b-it",
+    "name": "Gemma 4 31B IT",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.2,
+      "output": 0.35
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2026-06-19"
+  },
+  {
+    "id": "cortecs/gpt-4.1-mini",
+    "name": "GPT 4.1 Mini",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.39,
+      "output": 1.53
+    },
+    "limit": {
+      "context": 1047576
+    },
+    "release_date": "2025-04-14"
+  },
+  {
+    "id": "cortecs/gpt-4.1-nano",
+    "name": "GPT 4.1 Nano",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.1,
+      "output": 0.39
+    },
+    "limit": {
+      "context": 1047576
+    },
+    "release_date": "2025-04-14"
+  },
+  {
+    "id": "cortecs/gpt-4o",
+    "name": "GPT 4o",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 2.387,
+      "output": 9.547
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2024-11-20"
+  },
+  {
+    "id": "cortecs/gpt-4o-mini",
+    "name": "GPT 4o Mini",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.143,
+      "output": 0.573
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2024-07-18"
+  },
+  {
+    "id": "cortecs/gpt-5",
+    "name": "GPT 5",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 1.234,
+      "output": 9.838
+    },
+    "limit": {
+      "context": 400000
+    },
+    "release_date": "2025-08-07"
+  },
+  {
+    "id": "cortecs/gpt-5-mini",
+    "name": "GPT 5 Mini",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.25,
+      "output": 1.968
+    },
+    "limit": {
+      "context": 400000
+    },
+    "release_date": "2024-11-20"
+  },
+  {
+    "id": "cortecs/gpt-5-nano",
+    "name": "GPT 5 Nano",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.054,
+      "output": 0.394
+    },
+    "limit": {
+      "context": 400000
+    },
+    "release_date": "2024-11-20"
+  },
+  {
+    "id": "cortecs/gpt-5.1",
+    "name": "GPT 5.1",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 1.234,
+      "output": 9.838
+    },
+    "limit": {
+      "context": 400000
+    },
+    "release_date": "2025-11-15"
+  },
+  {
+    "id": "cortecs/ministral-3b",
+    "name": "Ministral 3B",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.1,
+      "output": 0.1
+    },
+    "limit": {
+      "context": 256000
+    },
+    "release_date": "2025-12-03"
+  },
+  {
+    "id": "cortecs/ministral-8b",
+    "name": "Ministral 8B",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.15,
+      "output": 0.15
+    },
+    "limit": {
+      "context": 256000
+    },
+    "release_date": "2025-12-03"
+  },
+  {
+    "id": "cortecs/mistral-medium",
+    "name": "Mistral Medium",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.4,
+      "output": 2.0
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2024-08-07"
+  },
+  {
+    "id": "cortecs/mistral-small",
+    "name": "Mistral Small",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.128,
+      "output": 0.51
+    },
+    "limit": {
+      "context": 256000
+    },
+    "release_date": "2026-03-17"
+  },
+  {
+    "id": "cortecs/pixtral-large",
+    "name": "Pixtral Large",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 1.789,
+      "output": 5.366
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2025-05-26"
   }
 ]

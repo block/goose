@@ -240,7 +240,7 @@
     "env": [
       "CORTECS_API_KEY"
     ],
-    "model_count": 90
+    "model_count": 108
   },
   {
     "id": "crof",
