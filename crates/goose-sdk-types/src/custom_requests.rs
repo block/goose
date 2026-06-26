@@ -1,4 +1,4 @@
-use agent_client_protocol::schema::{ContentBlock, McpServer, SessionInfo};
+use agent_client_protocol::schema::{AvailableCommand, ContentBlock, McpServer, SessionInfo};
 use agent_client_protocol::{JsonRpcRequest, JsonRpcResponse};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -6,6 +6,8 @@ use std::collections::HashMap;
 
 mod recipe;
 pub use recipe::*;
+mod schedule;
+pub use schedule::*;
 
 /// Schema descriptor for a single custom method, produced by the
 /// `#[custom_methods]` macro's generated `custom_method_schemas()` function.
@@ -99,6 +101,45 @@ pub struct GooseToolCallResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "_meta")]
     pub meta: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/apps/list", response = AppsListResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct AppsListRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct AppsListResponse {
+    #[serde(default)]
+    pub apps: Vec<serde_json::Value>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/apps/export", response = AppsExportResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct AppsExportRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct AppsExportResponse {
+    pub html: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/apps/import", response = AppsImportResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct AppsImportRequest {
+    pub html: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct AppsImportResponse {
+    pub name: String,
+    pub message: String,
 }
 
 /// Update the working directory for a session.
@@ -577,11 +618,42 @@ pub struct ExportSessionResponse {
     pub data: String,
 }
 
-/// Import a session from a JSON string.
+/// Import a session from a JSON string or share link.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/session/import", response = ImportSessionResponse)]
+#[serde(rename_all = "camelCase")]
 pub struct ImportSessionRequest {
-    pub data: String,
+    pub input: String,
+    pub source: SessionImportSource,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionImportSource {
+    #[default]
+    Auto,
+    Json,
+    Nostr,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/session/share/nostr",
+    response = ShareSessionNostrResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareSessionNostrRequest {
+    pub session_id: String,
+    pub relays: Vec<String>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareSessionNostrResponse {
+    pub deeplink: String,
+    pub nevent: String,
+    pub event_id: String,
+    pub relays: Vec<String>,
 }
 
 /// Import session response — metadata about the newly created session.
@@ -1132,6 +1204,58 @@ pub struct ListSourcesRequest {
 #[serde(rename_all = "camelCase")]
 pub struct ListSourcesResponse {
     pub sources: Vec<SourceEntry>,
+}
+
+/// A user-facing `@` mention target backed by an agent, recipe, or subrecipe source.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct AgentMention {
+    pub name: String,
+    pub description: String,
+    pub source_type: SourceType,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub source_path: Option<String>,
+    pub mention: String,
+}
+
+/// List user-facing agent mention targets for `@` autocomplete.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/agent-mentions/list",
+    response = ListAgentMentionsResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ListAgentMentionsRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ListAgentMentionsResponse {
+    pub agents: Vec<AgentMention>,
+}
+
+/// List slash commands available for `/` autocomplete.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/slash-commands/list",
+    response = ListSlashCommandsResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ListSlashCommandsRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cwd: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ListSlashCommandsResponse {
+    pub available_commands: Vec<AvailableCommand>,
 }
 
 /// Update an existing source's name, description, and content by absolute path.

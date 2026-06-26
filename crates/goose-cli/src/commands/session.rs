@@ -70,7 +70,8 @@ fn prompt_interactive_session_removal(sessions: &[Session]) -> Result<Vec<Sessio
                 &s.name
             };
             let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
-            let display_text = format!("{} - {} ({})", s.updated_at, truncated_desc, s.id);
+            let display_text =
+                format!("{} - {} ({})", session_activity_at(s), truncated_desc, s.id);
             (display_text, s.clone())
         })
         .collect();
@@ -150,6 +151,10 @@ fn write_line_or_broken_pipe_ok<W: Write>(out: &mut W, line: &str) -> Result<boo
     }
 }
 
+fn session_activity_at(session: &Session) -> chrono::DateTime<chrono::Utc> {
+    session.last_message_at.unwrap_or(session.updated_at)
+}
+
 pub async fn handle_session_list(
     format: String,
     ascending: bool,
@@ -170,9 +175,9 @@ pub async fn handle_session_list(
     }
 
     if ascending {
-        sessions.sort_by(|a, b| a.updated_at.cmp(&b.updated_at));
+        sessions.sort_by_key(session_activity_at);
     } else {
-        sessions.sort_by(|a, b| b.updated_at.cmp(&a.updated_at));
+        sessions.sort_by_key(|b| std::cmp::Reverse(session_activity_at(b)));
     }
 
     if let Some(n) = limit {
@@ -206,7 +211,7 @@ pub async fn handle_session_list(
                     "{} - {} - {} - {}",
                     session.id,
                     session.name,
-                    session.updated_at,
+                    session_activity_at(&session),
                     display_path_with_tilde(&session.working_dir)
                 );
                 if !write_line_or_broken_pipe_ok(&mut out, &output)? {

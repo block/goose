@@ -26,7 +26,7 @@ import type {
 import type { CallToolResult, JSONRPCRequest, Tool } from '@modelcontextprotocol/sdk/types.js';
 import { GripHorizontal, Maximize2, PictureInPicture2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { callTool, readResource } from '../../api';
+import { callMcpAppTool, readMcpAppResource } from '../../acp/mcp-apps';
 import { getCachedTools } from './toolsCache';
 import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -453,18 +453,11 @@ export default function McpAppRenderer({
         if (cancelled) return;
 
         try {
-          const response = await readResource({
-            body: {
-              session_id: sessionId,
-              uri: resourceUri,
-              extension_name: extensionName,
-            },
-          });
+          const content = await readMcpAppResource(sessionId, extensionName, resourceUri);
 
           if (cancelled) return;
 
-          if (response.data) {
-            const content = response.data;
+          if (content) {
             const rawMeta = content._meta as
               | {
                   ui?: {
@@ -548,33 +541,36 @@ export default function McpAppRenderer({
     });
   }, [state.status, pendingCsp, intl]);
 
-  const handleOpenLink = useCallback(async ({ url }: { url: string }) => {
-    if (isProtocolSafe(url)) {
+  const handleOpenLink = useCallback(
+    async ({ url }: { url: string }) => {
+      if (isProtocolSafe(url)) {
+        await window.electron.openExternal(url);
+        return { status: 'success' as const };
+      }
+
+      const protocol = getProtocol(url);
+      if (!protocol) {
+        return { status: 'error' as const, message: intl.formatMessage(i18n.invalidUrl) };
+      }
+
+      const result = await window.electron.showMessageBox({
+        type: 'question',
+        buttons: [intl.formatMessage(i18n.cancelButton), intl.formatMessage(i18n.openButton)],
+        defaultId: 0,
+        title: intl.formatMessage(i18n.openExternalLinkTitle),
+        message: intl.formatMessage(i18n.openProtocolLink, { protocol }),
+        detail: intl.formatMessage(i18n.openLinkDetail, { url }),
+      });
+
+      if (result.response !== 1) {
+        return { status: 'error' as const, message: 'User cancelled' };
+      }
+
       await window.electron.openExternal(url);
       return { status: 'success' as const };
-    }
-
-    const protocol = getProtocol(url);
-    if (!protocol) {
-      return { status: 'error' as const, message: intl.formatMessage(i18n.invalidUrl) };
-    }
-
-    const result = await window.electron.showMessageBox({
-      type: 'question',
-      buttons: [intl.formatMessage(i18n.cancelButton), intl.formatMessage(i18n.openButton)],
-      defaultId: 0,
-      title: intl.formatMessage(i18n.openExternalLinkTitle),
-      message: intl.formatMessage(i18n.openProtocolLink, { protocol }),
-      detail: intl.formatMessage(i18n.openLinkDetail, { url }),
-    });
-
-    if (result.response !== 1) {
-      return { status: 'error' as const, message: 'User cancelled' };
-    }
-
-    await window.electron.openExternal(url);
-    return { status: 'success' as const };
-  }, [intl]);
+    },
+    [intl]
+  );
 
   const handleMessage = useCallback(
     async ({ content }: { content: Array<{ type: string; text?: string }> }) => {
@@ -606,24 +602,7 @@ export default function McpAppRenderer({
       if (!sessionId) {
         throw new Error('Session not initialized for MCP request');
       }
-
-      const fullToolName = `${extensionName}__${name}`;
-      const response = await callTool({
-        body: {
-          session_id: sessionId,
-          name: fullToolName,
-          arguments: args || {},
-        },
-      });
-
-      return {
-        content: (response.data?.content || []) as unknown as CallToolResult['content'],
-        isError: response.data?.isError || false,
-        structuredContent: response.data?.structuredContent as
-          | { [key: string]: unknown }
-          | undefined,
-        _meta: response.data?._meta as { [key: string]: unknown } | undefined,
-      };
+      return callMcpAppTool(sessionId, extensionName, name, args);
     },
     [sessionId, extensionName]
   );
@@ -633,14 +612,7 @@ export default function McpAppRenderer({
       if (!sessionId) {
         throw new Error('Session not initialized for MCP request');
       }
-      const response = await readResource({
-        body: {
-          session_id: sessionId,
-          uri,
-          extension_name: extensionName,
-        },
-      });
-      const data = response.data;
+      const data = await readMcpAppResource(sessionId, extensionName, uri);
       if (!data) {
         return { contents: [] };
       }

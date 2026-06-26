@@ -8,8 +8,7 @@ import {
   useLocation,
   useSearchParams,
 } from 'react-router-dom';
-import { openSharedSessionFromDeepLink, importNostrSessionFromDeepLink } from './sessionLinks';
-import { type SharedSessionDetails } from './sharedSessions';
+import { importNostrSessionFromDeepLink } from './sessionLinks';
 import { ErrorUI } from './components/ErrorBoundary';
 import { ExtensionInstallModal } from './components/ExtensionInstallModal';
 import RecipeParamsModalContainer from './components/RecipeParamsModalContainer';
@@ -31,7 +30,6 @@ interface PairRouteState {
 }
 import SettingsView, { SettingsViewOptions } from './components/settings/SettingsView';
 import SessionsView from './components/sessions/SessionsView';
-import SharedSessionView from './components/sessions/SharedSessionView';
 import SchedulesView from './components/schedule/SchedulesView';
 import ProviderSettings from './components/settings/providers/ProviderSettingsPage';
 import { AppLayout } from './components/Layout/AppLayout';
@@ -183,7 +181,7 @@ const PairRouteWrapper = ({
   return null;
 };
 
-const SettingsRoute = ({ activeSessionId }: { activeSessionId?: string }) => {
+const SettingsRoute = () => {
   const location = useLocation();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -199,13 +197,7 @@ const SettingsRoute = ({ activeSessionId }: { activeSessionId?: string }) => {
     viewOptions.section = sectionFromUrl;
   }
 
-  return (
-    <SettingsView
-      onClose={() => navigate('/')}
-      setView={setView}
-      viewOptions={{ ...viewOptions, sessionId: activeSessionId }}
-    />
-  );
+  return <SettingsView onClose={() => navigate('/')} setView={setView} viewOptions={viewOptions} />;
 };
 
 const SessionsRoute = () => {
@@ -278,47 +270,6 @@ const ConfigureProvidersRoute = () => {
   );
 };
 
-// Wrapper component for SharedSessionRoute to access parent state
-const SharedSessionRouteWrapper = ({
-  isLoadingSharedSession,
-  setIsLoadingSharedSession,
-  sharedSessionError,
-}: {
-  isLoadingSharedSession: boolean;
-  setIsLoadingSharedSession: (loading: boolean) => void;
-  sharedSessionError: string | null;
-}) => {
-  const location = useLocation();
-  const setView = useNavigation();
-
-  const historyState = window.history.state;
-  const sessionDetails = (location.state?.sessionDetails ||
-    historyState?.sessionDetails) as SharedSessionDetails | null;
-  const error = location.state?.error || historyState?.error || sharedSessionError;
-  const shareToken = location.state?.shareToken || historyState?.shareToken;
-  const baseUrl = location.state?.baseUrl || historyState?.baseUrl;
-
-  return (
-    <SharedSessionView
-      session={sessionDetails}
-      isLoading={isLoadingSharedSession}
-      error={error}
-      onRetry={async () => {
-        if (shareToken && baseUrl) {
-          setIsLoadingSharedSession(true);
-          try {
-            await openSharedSessionFromDeepLink(`goose://sessions/${shareToken}`, setView, baseUrl);
-          } catch (error) {
-            console.error('Failed to retry loading shared session:', error);
-          } finally {
-            setIsLoadingSharedSession(false);
-          }
-        }
-      }}
-    />
-  );
-};
-
 const ExtensionsRoute = () => {
   const navigate = useNavigate();
   const location = useLocation();
@@ -354,8 +305,6 @@ const ExtensionsRoute = () => {
 
 export function AppInner() {
   const [fatalError, setFatalError] = useState<string | null>(null);
-  const [isLoadingSharedSession, setIsLoadingSharedSession] = useState(false);
-  const [sharedSessionError, setSharedSessionError] = useState<string | null>(null);
 
   const navigate = useNavigate();
   const setView = useNavigation();
@@ -445,46 +394,32 @@ export function AppInner() {
   }, []);
 
   useEffect(() => {
-    const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
+    const handleOpenSessionShare = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const link = args[0] as string;
-      window.electron.logInfo(`Opening shared session from deep link ${link}`);
-      setIsLoadingSharedSession(true);
-      setSharedSessionError(null);
+      window.electron.logInfo('Opening session share link');
       try {
         if (link.startsWith('goose://sessions/nostr')) {
           await importNostrSessionFromDeepLink(link);
           navigate('/sessions');
           return;
         }
-        await openSharedSessionFromDeepLink(link, (_view: View, options?: ViewOptions) => {
-          navigate('/shared-session', { state: options });
-        });
+
+        toast.error('Unsupported session share link');
+        navigate('/sessions');
       } catch (error) {
-        console.error('Unexpected error opening shared session:', error);
+        console.error('Unexpected error opening Nostr session share:', error);
         trackErrorWithContext(error, {
           component: 'AppInner',
-          action: 'open_shared_session',
+          action: 'open_nostr_session_share',
           recoverable: true,
         });
-        if (link.startsWith('goose://sessions/nostr')) {
-          toast.error(`Failed to import Nostr session: ${errorMessage(error, 'Unknown error')}`);
-          navigate('/sessions');
-        } else {
-          const shareToken = link.replace('goose://sessions/', '');
-          const options = {
-            sessionDetails: null,
-            error: errorMessage(error, 'Unknown error'),
-            shareToken,
-          };
-          navigate('/shared-session', { state: options });
-        }
-      } finally {
-        setIsLoadingSharedSession(false);
+        toast.error(`Failed to import Nostr session: ${errorMessage(error, 'Unknown error')}`);
+        navigate('/sessions');
       }
     };
-    window.electron.on('open-shared-session', handleOpenSharedSession);
+    window.electron.on('open-shared-session', handleOpenSessionShare);
     return () => {
-      window.electron.off('open-shared-session', handleOpenSharedSession);
+      window.electron.off('open-shared-session', handleOpenSessionShare);
     };
   }, [navigate]);
 
@@ -503,23 +438,6 @@ export function AppInner() {
     window.addEventListener('keydown', handleKeyDown);
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
-    };
-  }, []);
-
-  // Show a toast if mesh is the configured provider but isn't running.
-  useEffect(() => {
-    const handler = () => {
-      toast.warn(
-        "Inference Mesh is set as your provider but isn't running. Open Settings → Mesh to start it. Keep goose running to stay connected.",
-        {
-          autoClose: false,
-          toastId: 'mesh-not-running',
-        }
-      );
-    };
-    window.electron.on('mesh-not-running', handler);
-    return () => {
-      window.electron.off('mesh-not-running', handler);
     };
   }, []);
 
@@ -701,14 +619,7 @@ export function AppInner() {
                   />
                 }
               />
-              <Route
-                path="settings"
-                element={
-                  <SettingsRoute
-                    activeSessionId={activeSessions[activeSessions.length - 1]?.sessionId}
-                  />
-                }
-              />
+              <Route path="settings" element={<SettingsRoute />} />
               <Route
                 path="extensions"
                 element={
@@ -722,16 +633,6 @@ export function AppInner() {
               <Route path="schedules" element={<SchedulesRoute />} />
               <Route path="recipes" element={<RecipesRoute />} />
               <Route path="skills" element={<SkillsRoute />} />
-              <Route
-                path="shared-session"
-                element={
-                  <SharedSessionRouteWrapper
-                    isLoadingSharedSession={isLoadingSharedSession}
-                    setIsLoadingSharedSession={setIsLoadingSharedSession}
-                    sharedSessionError={sharedSessionError}
-                  />
-                }
-              />
               <Route path="permission" element={<PermissionRoute />} />
             </Route>
           </Routes>

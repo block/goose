@@ -191,6 +191,7 @@ impl GooseAcpAgent {
 
         let replay_tool_requests = replay_conversation_to_client(cx, &session)?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
+        self.apply_session_recipe(&agent, &session).await?;
         self.register_acp_session(session_id_str.clone(), agent.clone(), replay_tool_requests)
             .await;
 

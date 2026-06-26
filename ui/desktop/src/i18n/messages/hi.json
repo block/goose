@@ -185,9 +185,6 @@
   "chatInput.send": {
     "defaultMessage": "भेजें"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "बहुत सारे उपकरण प्रदर्शन को ख़राब कर सकते हैं. उपकरण संख्या: {toolCount} (अनुशंसा: {recommended})"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "प्रतिलेखन..."
   },
@@ -200,8 +197,8 @@
   "chatInput.viewEditRecipe": {
     "defaultMessage": "रेसिपी देखें/संपादित करें"
   },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "एक्सटेंशन देखें"
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "रद्दीकरण समाप्त होने की प्रतीक्षा की जा रही है"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "छवियों को सहेजने की प्रतीक्षा की जा रही है..."
@@ -1231,66 +1228,6 @@
   },
   "freeOptionCards.unexpectedError": {
     "defaultMessage": "सेटअप के दौरान एक अप्रत्याशित त्रुटि उत्पन्न हुई."
-  },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "अपने फ़ोन पर @BotFather खोलें, /newbot भेजें, और अपने बॉट को नाम देने के लिए संकेतों का पालन करें। BotFather एक API टोकन के साथ उत्तर देगा - इसे नीचे चिपकाएँ।"
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "बंद करें"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "{time} में समाप्त होता है"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "युग्मन कोड जनरेट करने में विफल"
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "हटाने में विफल"
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "प्रारंभ करने में विफल"
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "रोकने में विफल"
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "उपयोगकर्ता को अयुग्मित करने में विफल"
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "लोड हो रहा है..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "जोड़ी डिवाइस"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "युग्मित उपयोगकर्ता"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "युग्मन कोड"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "यहां बॉट टोकन चिपकाएं"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "हटाओ"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "चल रहा है"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "जोड़ी बनाने के लिए इस कोड को अपने {gatewayType} बॉट पर भेजें।"
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "प्रारंभ करें"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "रुकें"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "रुक गया"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "टेलीग्राम"
   },
   "goosehintsModal.close": {
     "defaultMessage": "बंद करें"
@@ -3299,6 +3236,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "जब कोई शेड्यूल पहले से चल रहा हो तो उसे ट्रिगर या संशोधित नहीं किया जा सकता।"
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "सत्र: {sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "बनाया गया: {date}"
   },
@@ -3319,9 +3259,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "त्रुटि: {error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "सत्र लोड करने में विफल"
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "आईडी:"
@@ -3365,9 +3302,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "संदेश: {count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "नया सत्र: {sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "कोई शेड्यूल आईडी प्रदान नहीं की गई. शेड्यूल सूची पर लौटें."
   },
@@ -3404,6 +3338,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "अभी शेड्यूल चलाएँ"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "रन पूरा हुआ"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "अनुसूची विवरण"
   },
@@ -3422,9 +3359,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "शेड्यूल रोका गया"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "शेड्यूल ट्रिगर हुआ"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "शेड्यूल अनरोका"
   },
@@ -3433,9 +3367,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "सत्र आईडी: {id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "टोकन: {count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "शेड्यूल को फिर से रोकें"
@@ -3758,57 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"
   },
-  "sessionHistory.cancel": {
-    "defaultMessage": "रद्द करें"
-  },
-  "sessionHistory.copy": {
-    "defaultMessage": "प्रतिलिपि"
-  },
-  "sessionHistory.empty.description": {
-    "defaultMessage": "इस सत्र में कोई संदेश नहीं है"
-  },
-  "sessionHistory.empty.title": {
-    "defaultMessage": "कोई संदेश नहीं मिला"
-  },
-  "sessionHistory.error.loading": {
-    "defaultMessage": "सत्र विवरण लोड करने में त्रुटि"
-  },
-  "sessionHistory.error.tryAgain": {
-    "defaultMessage": "पुनः प्रयास करें"
-  },
-  "sessionHistory.loading": {
-    "defaultMessage": "सत्र विवरण लोड हो रहा है..."
-  },
-  "sessionHistory.resume": {
-    "defaultMessage": "बायोडाटा"
-  },
-  "sessionHistory.searchPlaceholder": {
-    "defaultMessage": "खोज इतिहास..."
-  },
-  "sessionHistory.share": {
-    "defaultMessage": "साझा करें"
-  },
-  "sessionHistory.shareModal.description": {
-    "defaultMessage": "दूसरों को अपनी goose चैट का केवल पढ़ने योग्य दृश्य देने के लिए इस सत्र लिंक को साझा करें।"
-  },
-  "sessionHistory.shareModal.title": {
-    "defaultMessage": "शेयर सत्र (बीटा)"
-  },
-  "sessionHistory.shareTooltip": {
-    "defaultMessage": "सत्र साझाकरण सक्षम करने के लिए, <b>Settings</b> > <b>सत्र</b> > <b>सत्र साझाकरण</b> पर जाएं।"
-  },
-  "sessionHistory.sharing": {
-    "defaultMessage": "साझा कर रहा हूँ..."
-  },
-  "sessionHistory.toast.copyFailed": {
-    "defaultMessage": "क्लिपबोर्ड पर लिंक कॉपी करने में विफल"
-  },
-  "sessionHistory.toast.launchFailed": {
-    "defaultMessage": "सत्र लॉन्च नहीं किया जा सका: {error}"
-  },
-  "sessionHistory.toast.shareFailed": {
-    "defaultMessage": "सत्र साझा करने में विफल: {error}"
-  },
   "sessionIndicators.error": {
     "defaultMessage": "सत्र में एक त्रुटि आई"
   },
@@ -3817,57 +3697,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "स्ट्रीमिंग"
-  },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "सत्र साझाकरण पहले ही कॉन्फ़िगर किया जा चुका है"
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "आधार URL"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "कनेक्शन विफल।"
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "कनेक्शन सफल!"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "कनेक्शन का समय समाप्त। सर्वर धीमा या पहुंच योग्य नहीं हो सकता है."
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "सत्र साझाकरण कॉन्फ़िगर किया गया है लेकिन पूरी तरह से ऑप्ट-इन है - आपके सत्र केवल तभी साझा किए जाते हैं जब आप स्पष्ट रूप से शेयर बटन पर क्लिक करते हैं।"
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "आप अपने सत्रों को दूसरों के साथ साझा करने के लिए सत्र साझाकरण सक्षम कर सकते हैं।"
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "सत्र साझाकरण सक्षम करें"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "अमान्य URL प्रारूप. कृपया वैध URL दर्ज करें (उदा. https://example.com/api)."
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "सर्वर त्रुटि: HTTP {status}। हो सकता है कि सर्वर ठीक से कॉन्फ़िगर न किया गया हो."
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "परीक्षण कनेक्शन"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "परीक्षण..."
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "कनेक्शन का परीक्षण किया जा रहा है..."
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "सत्र साझाकरण"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "अज्ञात त्रुटि उत्पन्न हुई."
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "सर्वर तक पहुंचने में असमर्थ. कृपया URL और अपने नेटवर्क कनेक्शन की जाँच करें।"
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
   },
   "sessionViewComponents.empty.description": {
     "defaultMessage": "इस सत्र में कोई संदेश नहीं है"
@@ -4018,12 +3847,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "सत्र विवरण सफलतापूर्वक अपडेट किया गया"
-  },
-  "sessionsView.error.failedToLoad": {
-    "defaultMessage": "सत्र विवरण लोड करने में विफल. कृपया बाद में पुन: प्रयास करें।"
-  },
-  "sessionsView.loading": {
-    "defaultMessage": "लोड हो रहा है..."
   },
   "settings.appearance.description": {
     "defaultMessage": "कॉन्फ़िगर करें कि goose आपके सिस्टम पर कैसे दिखाई देता है"
@@ -4195,12 +4018,6 @@
   },
   "settingsView.title": {
     "defaultMessage": "Settings"
-  },
-  "sharedSession.loading": {
-    "defaultMessage": "सत्र विवरण लोड हो रहा है..."
-  },
-  "sharedSession.title": {
-    "defaultMessage": "साझा सत्र"
   },
   "sheet.close": {
     "defaultMessage": "बंद करें"
@@ -4606,96 +4423,6 @@
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "Goose {toolName} को कॉल करना चाहेंगे। अनुमति दें?"
-  },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "ऐप स्टोर से goose मोबाइल ऐप इंस्टॉल करने के लिए इस QR कोड को अपने iPhone कैमरे से स्कैन करें"
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "बंद करें"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "कनेक्शन विवरण"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "goose iOS ऐप डाउनलोड करें"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "सुरंग स्थिति लोड करने में विफल"
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "सुरंग प्रारंभ करने में विफल"
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "सुरंग रोकने में विफल"
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "आईओएस ऐप प्राप्त करें"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "मोबाइल ऐप"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "मोबाइल ऐप कनेक्शन"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "ऐप स्टोर में खोलें"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "या"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "सुरक्षित टनलिंग का उपयोग करके मोबाइल उपकरणों से goose तक दूरस्थ पहुंच सक्षम करें।"
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "पूर्वावलोकन सुविधा:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "इस QR कोड को goose मोबाइल ऐप से स्कैन करें। इस कोड को किसी और के साथ साझा न करें क्योंकि यह आपकी व्यक्तिगत पहुंच के लिए है।"
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "पुनः प्रयास करें"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "QR कोड स्कैन करें"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "गुप्त कुंजी"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "QR कोड दिखाएँ"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "सुरंग प्रारंभ करें"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "प्रारंभ..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "सुरंग अक्षम है"
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "टनल में एक त्रुटि आई"
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "सुरंग नहीं चल रही है"
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "सुरंग सक्रिय है"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "सुरंग शुरू हो रही है..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "सुरंग बंद करो"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "सुरंग की स्थिति"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "सुरंग URL"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL:"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "अपडेट बैकग्राउंड में अपने आप डाउनलोड हो जाएगा."

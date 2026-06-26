@@ -3,6 +3,7 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
+use goose_providers::formats::anthropic::{AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME};
 use goose_providers::formats::openai::{self, extract_reasoning_effort, is_openai_responses_model};
 use goose_providers::images::ImageFormat;
 use serde::Serialize;
@@ -291,7 +292,14 @@ impl DatabricksV2Provider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = anthropic::create_request(model_config, system, messages, tools)?;
+        let mut payload = anthropic::create_request(
+            ANTHROPIC_PROVIDER_NAME,
+            model_config,
+            system,
+            messages,
+            tools,
+            AnthropicFormatOptions::default(),
+        )?;
         payload["stream"] = Value::Bool(true);
         let mut log = start_log(model_config, &payload)?;
 

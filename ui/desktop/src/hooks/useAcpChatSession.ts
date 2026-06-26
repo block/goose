@@ -3,7 +3,7 @@ import { defineMessages, useIntl } from '../i18n';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 
-import { Message, Session, TokenState, updateFromSession } from '../api';
+import { Message, Session, TokenState } from '../api';
 
 import { createUserMessage, NotificationEvent, UserInput } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
@@ -15,6 +15,7 @@ import {
   acpChatSessionStore,
   useAcpChatSessionSnapshot,
 } from '../acp/chatSessionStore';
+import { acpSteerSession } from '../acp/prompt';
 
 const initialTokenState: TokenState = {
   inputTokens: 0,
@@ -27,6 +28,10 @@ const initialTokenState: TokenState = {
 
 function isClearCommand(message: string): boolean {
   return message.trim() === '/clear';
+}
+
+function isSlashCommand(message: string): boolean {
+  return message.trim().startsWith('/');
 }
 
 const i18n = defineMessages({
@@ -52,6 +57,7 @@ export function useAcpChatSession({
   const chatState = acpSnapshot?.chatState ?? ChatState.LoadingConversation;
   const sessionLoadError = acpSnapshot?.sessionLoadError;
   const tokenState = acpSnapshot?.tokenState ?? initialTokenState;
+  const queueProcessingBlocked = acpSnapshot?.pendingCancelPromptAttemptId != null;
 
   const snapshotRef = useRef(acpSnapshot);
   snapshotRef.current = acpSnapshot;
@@ -145,7 +151,8 @@ export function useAcpChatSession({
         currentSnapshot.chatState === ChatState.LoadingConversation ||
         currentSnapshot.chatState === ChatState.Streaming ||
         currentSnapshot.chatState === ChatState.Thinking ||
-        currentSnapshot.chatState === ChatState.Compacting
+        currentSnapshot.chatState === ChatState.Compacting ||
+        currentSnapshot.pendingCancelPromptAttemptId !== null
       ) {
         return;
       }
@@ -182,6 +189,59 @@ export function useAcpChatSession({
     [getCurrentSnapshot, sessionId, submitToAcpSession]
   );
 
+  const onSteerQueuedMessage = useCallback(
+    async (input: UserInput): Promise<boolean> => {
+      const { msg: userMessage, images } = input;
+      const hasTextContent = userMessage.trim().length > 0;
+      const hasNewMessage = hasTextContent || images.length > 0;
+      if (!hasNewMessage) {
+        return false;
+      }
+
+      // ACP confirms picked-up steers with user text chunks; image-only steers cannot confirm pickup.
+      if (!hasTextContent) {
+        return false;
+      }
+
+      if (isSlashCommand(userMessage)) {
+        return false;
+      }
+
+      const activeRunId =
+        acpChatSessionStore.getSnapshot(sessionId)?.activeRunId ??
+        getCurrentSnapshot()?.activeRunId;
+      if (!activeRunId) {
+        return false;
+      }
+
+      try {
+        const steeredMessage = createUserMessage(userMessage, images);
+        const response = await acpSteerSession(sessionId, steeredMessage, activeRunId);
+        const localSteerMessage: Message = {
+          ...steeredMessage,
+          id: response.messageId,
+          metadata: { ...steeredMessage.metadata, steer: true },
+        };
+        const latestSnapshot = acpChatSessionStore.getSnapshot(sessionId) ?? getCurrentSnapshot();
+        if (latestSnapshot?.activeRunId !== activeRunId) {
+          return false;
+        }
+
+        const currentMessages = latestSnapshot.messages;
+
+        if (!currentMessages.some((message) => message.id === response.messageId)) {
+          acpChatSessionActions.addPendingLocalSteerMessage(sessionId, localSteerMessage);
+        }
+
+        return true;
+      } catch (error) {
+        console.warn('Failed to steer ACP session:', error);
+        return false;
+      }
+    },
+    [getCurrentSnapshot, sessionId]
+  );
+
   const submitElicitationResponse = useCallback(
     async (elicitationId: string, userData: Record<string, unknown>) => {
       const currentSnapshot = getCurrentSnapshot();
@@ -203,25 +263,9 @@ export function useAcpChatSession({
     [getCurrentSnapshot, sessionId]
   );
 
-  const setRecipeUserParams = useCallback(
-    async (user_recipe_values: Record<string, string>) => {
-      await acpChatSessionController.setRecipeUserParams(sessionId, user_recipe_values, {
-        getCurrentSnapshot,
-      });
-    },
-    [getCurrentSnapshot, sessionId]
-  );
-
-  useEffect(() => {
-    if (session) {
-      updateFromSession({
-        body: {
-          session_id: session.id,
-        },
-        throwOnError: true,
-      });
-    }
-  }, [session]);
+  const setRecipeUserParams = useCallback((_userRecipeValues: Record<string, string>) => {
+    return Promise.reject(new Error('ACP recipe parameters are handled during session creation'));
+  }, []);
 
   const stopStreaming = useCallback(() => {
     acpChatSessionController.stop(sessionId);
@@ -283,12 +327,14 @@ export function useAcpChatSession({
     setChatState,
     updateSession,
     handleSubmit,
+    onSteerQueuedMessage,
     submitElicitationResponse,
     stopStreaming,
     setRecipeUserParams,
     tokenState,
     notifications: notificationsMap,
-    pauseQueueOnStop: true,
+    pauseQueueOnStop: false,
+    queueProcessingBlocked,
     onMessageUpdate,
   };
 }

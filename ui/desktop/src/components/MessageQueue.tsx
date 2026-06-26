@@ -103,6 +103,7 @@ interface MessageQueueProps {
   onTriggerQueueProcessing?: () => void;
   editingMessageIdRef?: React.MutableRefObject<string | null>;
   onReorderMessages?: (reorderedMessages: QueuedMessage[]) => void;
+  sendingMessageIds?: ReadonlySet<string>;
   className?: string;
   isPaused?: boolean;
 }
@@ -116,6 +117,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
   onTriggerQueueProcessing,
   editingMessageIdRef,
   onReorderMessages,
+  sendingMessageIds,
   className = '',
   isPaused = false,
 }) => {
@@ -126,18 +128,28 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
   const [hoveredMessage, setHoveredMessage] = useState<string | null>(null);
   const [editingMessage, setEditingMessage] = useState<string | null>(null);
   const [editContent, setEditContent] = useState<string>('');
+  const isSendingMessage = (messageId: string) => sendingMessageIds?.has(messageId) ?? false;
 
   if (queuedMessages.length === 0) {
     return null;
   }
 
   const handleDragStart = (e: React.DragEvent, messageId: string) => {
+    if (isSendingMessage(messageId)) {
+      e.preventDefault();
+      return;
+    }
+
     setDraggedItem(messageId);
     e.dataTransfer.effectAllowed = 'move';
     e.dataTransfer.setData('text/html', messageId);
   };
 
   const handleDragOver = (e: React.DragEvent, messageId: string) => {
+    if (isSendingMessage(messageId)) {
+      return;
+    }
+
     e.preventDefault();
     e.dataTransfer.dropEffect = 'move';
     setDragOverItem(messageId);
@@ -150,7 +162,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
   const handleDrop = (e: React.DragEvent, targetMessageId: string) => {
     e.preventDefault();
 
-    if (!draggedItem || !onReorderMessages) return;
+    if (!draggedItem || !onReorderMessages || isSendingMessage(targetMessageId)) return;
 
     const draggedIndex = queuedMessages.findIndex((msg) => msg.id === draggedItem);
     const targetIndex = queuedMessages.findIndex((msg) => msg.id === targetMessageId);
@@ -185,6 +197,8 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
 
   const nextMessage = queuedMessages[0];
   const remainingCount = queuedMessages.length - 1;
+  const nextMessageIsSending = isSendingMessage(nextMessage.id);
+  const hasSendingMessages = queuedMessages.some((message) => isSendingMessage(message.id));
 
   // Compact View
   if (!isExpanded) {
@@ -232,8 +246,10 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
                 size="sm"
                 onClick={(e) => {
                   e.stopPropagation();
+                  if (nextMessageIsSending) return;
                   onStopAndSend(nextMessage.id);
                 }}
+                disabled={nextMessageIsSending}
                 className="h-7 px-2 text-xs text-info hover:text-info/80 hover:bg-info/10"
                 title={intl.formatMessage(i18n.sendNow)}
               >
@@ -287,12 +303,16 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
           </div>
           <div className="flex flex-col">
             <span className="text-sm font-medium text-foreground">
-              {isPaused ? intl.formatMessage(i18n.queuePaused) : intl.formatMessage(i18n.messageQueue)}
+              {isPaused
+                ? intl.formatMessage(i18n.queuePaused)
+                : intl.formatMessage(i18n.messageQueue)}
             </span>
             <span className="text-xs text-muted-foreground">
               {intl.formatMessage(i18n.messageCount, {
                 count: queuedMessages.length,
-                status: isPaused ? intl.formatMessage(i18n.waiting) : intl.formatMessage(i18n.queued),
+                status: isPaused
+                  ? intl.formatMessage(i18n.waiting)
+                  : intl.formatMessage(i18n.queued),
               })}
             </span>
           </div>
@@ -304,6 +324,7 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
               variant="ghost"
               size="sm"
               onClick={onClearQueue}
+              disabled={hasSendingMessages}
               className="text-xs h-7 px-3 text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
             >
               {intl.formatMessage(i18n.clearAll)}
@@ -328,184 +349,193 @@ export const MessageQueue: React.FC<MessageQueueProps> = ({
         <div className="px-4 py-2 bg-amber-50/80 dark:bg-amber-900/20 border-b border-amber-200/50 dark:border-amber-800/50">
           <div className="flex items-center gap-2 text-sm text-amber-800 dark:text-amber-200">
             <Zap className="w-4 h-4" />
-            <span>
-              {intl.formatMessage(i18n.queuePausedExpanded)}
-            </span>
+            <span>{intl.formatMessage(i18n.queuePausedExpanded)}</span>
           </div>
         </div>
       )}
 
       {/* Message Bubbles */}
       <div className="p-4 space-y-3 bg-background max-h-80 overflow-y-auto">
-        {queuedMessages.map((message, index) => (
-          <div
-            key={message.id}
-            className="group relative"
-            draggable={onReorderMessages ? true : false}
-            onDragStart={(e) => handleDragStart(e, message.id)}
-            onDragOver={(e) => handleDragOver(e, message.id)}
-            onDragLeave={handleDragLeave}
-            onDrop={(e) => handleDrop(e, message.id)}
-            onDragEnd={handleDragEnd}
-            onMouseEnter={() => setHoveredMessage(message.id)}
-            onMouseLeave={() => setHoveredMessage(null)}
-          >
-            {/* Main message bubble */}
+        {queuedMessages.map((message, index) => {
+          const isSending = isSendingMessage(message.id);
+          const isEditing = editingMessage === message.id;
+          return (
             <div
-              className={`relative flex items-center gap-3 rounded-xl px-4 py-3 border transition-all duration-300 ease-out ${
-                draggedItem === message.id
-                  ? 'bg-info/20 border-info opacity-60 scale-105 shadow-lg rotate-2'
-                  : dragOverItem === message.id
-                    ? 'bg-green-100/80 border-green-400 shadow-lg dark:bg-green-950/50 dark:border-green-600 scale-102'
-                    : hoveredMessage === message.id
-                      ? 'bg-muted/90 border-border shadow-md scale-101'
-                      : 'bg-muted/60 hover:bg-muted/80 border-border/60 hover:border-border dark:border-border/60 dark:hover:border-border'
-              } backdrop-blur-sm`}
+              key={message.id}
+              className="group relative"
+              draggable={Boolean(onReorderMessages && !isSending)}
+              onDragStart={(e) => handleDragStart(e, message.id)}
+              onDragOver={(e) => handleDragOver(e, message.id)}
+              onDragLeave={handleDragLeave}
+              onDrop={(e) => handleDrop(e, message.id)}
+              onDragEnd={handleDragEnd}
+              onMouseEnter={() => setHoveredMessage(message.id)}
+              onMouseLeave={() => setHoveredMessage(null)}
             >
-              {/* Priority indicator */}
-              <div className="flex items-center gap-2">
-                <div
-                  className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold transition-colors ${
-                    index === 0
-                      ? 'bg-blue-500 text-white shadow-md'
-                      : 'bg-muted text-muted-foreground'
-                  }`}
-                >
-                  {index + 1}
-                </div>
-
-                {/* Drag handle */}
-                {onReorderMessages && (
+              {/* Main message bubble */}
+              <div
+                className={`relative flex items-center gap-3 rounded-xl px-4 py-3 border transition-all duration-300 ease-out ${
+                  draggedItem === message.id
+                    ? 'bg-info/20 border-info opacity-60 scale-105 shadow-lg rotate-2'
+                    : dragOverItem === message.id
+                      ? 'bg-green-100/80 border-green-400 shadow-lg dark:bg-green-950/50 dark:border-green-600 scale-102'
+                      : hoveredMessage === message.id
+                        ? 'bg-muted/90 border-border shadow-md scale-101'
+                        : 'bg-muted/60 hover:bg-muted/80 border-border/60 hover:border-border dark:border-border/60 dark:hover:border-border'
+                } ${isSending ? 'opacity-60' : ''} backdrop-blur-sm`}
+              >
+                {/* Priority indicator */}
+                <div className="flex items-center gap-2">
                   <div
-                    className={`opacity-0 group-hover:opacity-60 hover:opacity-100 transition-all duration-200 cursor-grab active:cursor-grabbing ${
-                      hoveredMessage === message.id ? 'opacity-40' : ''
+                    className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-semibold transition-colors ${
+                      index === 0
+                        ? 'bg-blue-500 text-white shadow-md'
+                        : 'bg-muted text-muted-foreground'
                     }`}
                   >
-                    <GripVertical className="w-4 h-4 text-muted-foreground hover:text-foreground" />
+                    {index + 1}
                   </div>
-                )}
-              </div>
 
-              {/* Message content */}
-              <div className="flex-1 min-w-0">
-                {editingMessage === message.id ? (
-                  <div className="space-y-2">
-                    <textarea
-                      value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
-                      className="w-full text-sm bg-background border border-border rounded-md px-2 py-1 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                      rows={Math.min(Math.ceil(editContent.length / 60), 4)}
-                      autoFocus
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => {
-                          if (onEditMessage) {
-                            onEditMessage(message.id, editContent);
-                          }
-                          setEditingMessage(null);
-                          if (editingMessageIdRef) editingMessageIdRef.current = null;
-                          // Trigger queue processing if system is ready
-                          if (onTriggerQueueProcessing) {
-                            setTimeout(onTriggerQueueProcessing, 100);
-                          }
-                          setEditContent('');
-                        }}
-                        className="h-6 px-2 text-xs"
-                      >
-                        {intl.formatMessage(i18n.save)}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => {
-                          setEditingMessage(null);
-                          if (editingMessageIdRef) editingMessageIdRef.current = null;
-                          // Trigger queue processing if system is ready
-                          if (onTriggerQueueProcessing) {
-                            setTimeout(onTriggerQueueProcessing, 100);
-                          }
-                          setEditContent('');
-                        }}
-                        className="h-6 px-2 text-xs"
-                      >
-                        {intl.formatMessage(i18n.cancel)}
-                      </Button>
+                  {/* Drag handle */}
+                  {onReorderMessages && !isSending && (
+                    <div
+                      className={`opacity-0 group-hover:opacity-60 hover:opacity-100 transition-all duration-200 cursor-grab active:cursor-grabbing ${
+                        hoveredMessage === message.id ? 'opacity-40' : ''
+                      }`}
+                    >
+                      <GripVertical className="w-4 h-4 text-muted-foreground hover:text-foreground" />
                     </div>
-                  </div>
-                ) : (
-                  <p
-                    className="text-sm text-foreground leading-relaxed cursor-pointer hover:bg-muted/30 rounded px-1 py-0.5 transition-colors"
-                    title={intl.formatMessage(i18n.clickToEdit, { content: message.content })}
-                    onClick={() => {
-                      setEditingMessage(message.id);
-                      if (editingMessageIdRef) editingMessageIdRef.current = message.id;
-                      setEditContent(message.content);
-                    }}
-                  >
-                    {message.content.length > 80
-                      ? `${message.content.substring(0, 80)}...`
-                      : message.content}
-                  </p>
-                )}
-              </div>
+                  )}
+                </div>
 
-              {/* Right side actions */}
-              <div className="flex items-center gap-2 flex-shrink-0">
-                <span className="text-xs text-muted-foreground font-mono">
-                  {formatTimestamp(message.timestamp)}
-                </span>
+                {/* Message content */}
+                <div className="flex-1 min-w-0">
+                  {isEditing ? (
+                    <div className="space-y-2">
+                      <textarea
+                        value={editContent}
+                        onChange={(e) => setEditContent(e.target.value)}
+                        disabled={isSending}
+                        className="w-full text-sm bg-background border border-border rounded-md px-2 py-1 resize-none focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                        rows={Math.min(Math.ceil(editContent.length / 60), 4)}
+                        autoFocus
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={isSending}
+                          onClick={() => {
+                            if (isSending) return;
+                            if (onEditMessage) {
+                              onEditMessage(message.id, editContent);
+                            }
+                            setEditingMessage(null);
+                            if (editingMessageIdRef) editingMessageIdRef.current = null;
+                            // Trigger queue processing if system is ready
+                            if (onTriggerQueueProcessing) {
+                              setTimeout(onTriggerQueueProcessing, 100);
+                            }
+                            setEditContent('');
+                          }}
+                          className="h-6 px-2 text-xs"
+                        >
+                          {intl.formatMessage(i18n.save)}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setEditingMessage(null);
+                            if (editingMessageIdRef) editingMessageIdRef.current = null;
+                            // Trigger queue processing if system is ready
+                            if (onTriggerQueueProcessing) {
+                              setTimeout(onTriggerQueueProcessing, 100);
+                            }
+                            setEditContent('');
+                          }}
+                          className="h-6 px-2 text-xs"
+                        >
+                          {intl.formatMessage(i18n.cancel)}
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p
+                      className={`text-sm text-foreground leading-relaxed rounded px-1 py-0.5 transition-colors ${
+                        isSending ? 'cursor-not-allowed' : 'cursor-pointer hover:bg-muted/30'
+                      }`}
+                      title={intl.formatMessage(i18n.clickToEdit, { content: message.content })}
+                      onClick={() => {
+                        if (isSending) return;
+                        setEditingMessage(message.id);
+                        if (editingMessageIdRef) editingMessageIdRef.current = message.id;
+                        setEditContent(message.content);
+                      }}
+                    >
+                      {message.content.length > 80
+                        ? `${message.content.substring(0, 80)}...`
+                        : message.content}
+                    </p>
+                  )}
+                </div>
 
-                {/* Send Now button - inline */}
-                {onStopAndSend && (
+                {/* Right side actions */}
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <span className="text-xs text-muted-foreground font-mono">
+                    {formatTimestamp(message.timestamp)}
+                  </span>
+
+                  {/* Send Now button - inline */}
+                  {onStopAndSend && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => onStopAndSend(message.id)}
+                      disabled={isEditing || isSending}
+                      className={`h-7 w-7 p-0 rounded-full transition-all duration-200 ${
+                        isEditing || isSending
+                          ? 'opacity-30 cursor-not-allowed'
+                          : 'hover:bg-muted/50'
+                      }`}
+                      title={
+                        isEditing
+                          ? intl.formatMessage(i18n.cannotSendWhileEditing)
+                          : intl.formatMessage(i18n.stopAndSend)
+                      }
+                    >
+                      <Send className="w-3 h-3" />
+                    </Button>
+                  )}
+
+                  {/* Remove button */}
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => onStopAndSend(message.id)}
-                    disabled={editingMessage === message.id}
-                    className={`h-7 w-7 p-0 rounded-full transition-all duration-200 ${
-                      editingMessage === message.id
-                        ? 'opacity-30 cursor-not-allowed'
-                        : 'hover:bg-muted/50'
-                    }`}
-                    title={
-                      editingMessage === message.id
-                        ? intl.formatMessage(i18n.cannotSendWhileEditing)
-                        : intl.formatMessage(i18n.stopAndSend)
-                    }
+                    disabled={isSending}
+                    onClick={() => onRemoveMessage(message.id)}
+                    className="opacity-60 hover:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-destructive/20 hover:text-destructive rounded-full"
+                    title={intl.formatMessage(i18n.removeFromQueue)}
                   >
-                    <Send className="w-3 h-3" />
+                    <X className="w-3 h-3" />
                   </Button>
-                )}
-
-                {/* Remove button */}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => onRemoveMessage(message.id)}
-                  className="opacity-60 hover:opacity-100 transition-opacity h-6 w-6 p-0 hover:bg-destructive/20 hover:text-destructive rounded-full"
-                  title={intl.formatMessage(i18n.removeFromQueue)}
-                >
-                  <X className="w-3 h-3" />
-                </Button>
+                </div>
               </div>
+
+              {/* Drop indicator with enhanced visuals */}
+              {dragOverItem === message.id && draggedItem !== message.id && (
+                <div className="absolute inset-0 border-2 border-green-400 rounded-xl pointer-events-none animate-pulse bg-green-100/20 dark:bg-green-900/20" />
+              )}
+
+              {/* Next up indicator */}
+              {index === 0 && !isPaused && (
+                <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-medium shadow-md">
+                  {intl.formatMessage(i18n.next)}
+                </div>
+              )}
             </div>
-
-            {/* Drop indicator with enhanced visuals */}
-            {dragOverItem === message.id && draggedItem !== message.id && (
-              <div className="absolute inset-0 border-2 border-green-400 rounded-xl pointer-events-none animate-pulse bg-green-100/20 dark:bg-green-900/20" />
-            )}
-
-            {/* Next up indicator */}
-            {index === 0 && !isPaused && (
-              <div className="absolute -top-2 -right-2 bg-blue-500 text-white text-xs px-2 py-1 rounded-full font-medium shadow-md">
-                {intl.formatMessage(i18n.next)}
-              </div>
-            )}
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Drag instructions */}

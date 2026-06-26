@@ -1,5 +1,5 @@
 import { v7 as uuidv7 } from 'uuid';
-import { updateSessionUserRecipeValues, type Message, type Session } from '../api';
+import type { Message, Session } from '../api';
 import type { GooseExtension } from '@aaif/goose-sdk';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
@@ -57,11 +57,6 @@ export interface AcpChatSessionController {
     editType: 'fork' | 'edit' | undefined,
     options: AcpSubmitMessageOptions
   ): Promise<void>;
-  setRecipeUserParams(
-    sessionId: string,
-    userRecipeValues: Record<string, string>,
-    options: AcpSnapshotOptions
-  ): Promise<void>;
 }
 
 function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Message {
@@ -79,6 +74,20 @@ function createAcpCreditsExhaustedMessage(error: AcpCreditsExhaustedError): Mess
     ],
     metadata: { userVisible: true, agentVisible: false },
   };
+}
+
+function assertNoPendingPromptCancellation(sessionId: string): void {
+  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
+  if (snapshot?.pendingCancelPromptAttemptId) {
+    throw new Error('Cannot submit while prompt cancellation is pending');
+  }
+}
+
+function assertNoActivePromptAttempt(sessionId: string): void {
+  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
+  if (snapshot?.activePromptAttemptId) {
+    throw new Error('Cannot update message while prompt is active');
+  }
 }
 
 async function createSession(
@@ -131,7 +140,10 @@ async function submitMessage(
   userMessage: Message,
   options: AcpSubmitMessageOptions
 ): Promise<void> {
-  if (acpChatSessionStore.getSnapshot(sessionId)?.activePromptAttemptId) {
+  assertNoPendingPromptCancellation(sessionId);
+
+  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
+  if (snapshot?.activePromptAttemptId) {
     return;
   }
 
@@ -140,10 +152,17 @@ async function submitMessage(
 
   try {
     await acpPromptSession(sessionId, userMessage);
+    if (acpChatSessionActions.clearPromptCancellation(sessionId, promptAttemptId)) {
+      return;
+    }
     if (acpChatSessionActions.finishPromptAttemptIfCurrent(sessionId, promptAttemptId)) {
       void options.onFinish();
     }
   } catch (error) {
+    if (acpChatSessionActions.clearPromptCancellation(sessionId, promptAttemptId)) {
+      return;
+    }
+
     const creditsExhaustedError = parseAcpCreditsExhaustedError(error);
     if (creditsExhaustedError) {
       if (!acpChatSessionActions.isCurrentPromptAttempt(sessionId, promptAttemptId)) {
@@ -175,7 +194,7 @@ function stop(sessionId: string): void {
   const hasStoredAcpPrompt = storedPromptAttemptId !== null && storedPromptAttemptId !== undefined;
 
   if (hasStoredAcpPrompt) {
-    acpChatSessionActions.clearActivePromptAttempt(sessionId);
+    acpChatSessionActions.startPromptCancellation(sessionId, storedPromptAttemptId);
     cancelAcpPermissionRequestsForSession(sessionId);
     cancelAcpElicitationRequestsForSession(sessionId);
     acpCancelPrompt(sessionId).catch((error) => {
@@ -194,6 +213,9 @@ async function updateMessage(
   editType: 'fork' | 'edit' | undefined,
   options: AcpSubmitMessageOptions
 ): Promise<void> {
+  assertNoPendingPromptCancellation(sessionId);
+  assertNoActivePromptAttempt(sessionId);
+
   const resolvedEditType = editType ?? 'fork';
   const currentSnapshot = options.getCurrentSnapshot();
 
@@ -244,42 +266,10 @@ async function updateMessage(
   }
 }
 
-async function setRecipeUserParams(
-  sessionId: string,
-  userRecipeValues: Record<string, string>,
-  options: AcpSnapshotOptions
-): Promise<void> {
-  const currentSession =
-    options.getCurrentSnapshot()?.session ?? acpChatSessionStore.getSnapshot(sessionId)?.session;
-
-  if (currentSession) {
-    await updateSessionUserRecipeValues({
-      path: {
-        session_id: sessionId,
-      },
-      body: {
-        userRecipeValues,
-      },
-      throwOnError: true,
-    });
-    const updatedSession = {
-      ...currentSession,
-      user_recipe_values: userRecipeValues,
-    };
-    acpChatSessionActions.setSessionMetadata(sessionId, updatedSession);
-  } else {
-    acpChatSessionActions.setSessionLoadError(
-      sessionId,
-      "can't call setRecipeParams without a session"
-    );
-  }
-}
-
 export const acpChatSessionController: AcpChatSessionController = {
   createSession,
   loadSession,
   submitMessage,
   stop,
   updateMessage,
-  setRecipeUserParams,
 };

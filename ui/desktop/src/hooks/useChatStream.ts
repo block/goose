@@ -14,8 +14,8 @@ import {
   TokenState,
   updateFromSession,
   updateSessionUserRecipeValues,
-  listApps,
 } from '../api';
+import { listMcpApps } from '../acp/mcp-apps';
 
 import {
   createUserMessage,
@@ -823,10 +823,7 @@ export function useChatStream({
           });
         }
 
-        listApps({
-          throwOnError: true,
-          query: { session_id: sessionId },
-        }).catch((err) => {
+        listMcpApps(sessionId).catch((err) => {
           console.warn('Failed to populate apps cache:', err);
         });
 
@@ -1180,6 +1177,7 @@ export function useChatStream({
     tokenState: state.tokenState,
     notifications: notificationsMap,
     pauseQueueOnStop: false,
+    queueProcessingBlocked: false,
     onMessageUpdate,
   };
 }

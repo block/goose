@@ -85,7 +85,6 @@ url = { workspace = true }
 rand = { workspace = true }
 hex = { version = "0.4.3", default-features = false, features = ["std"] }
 socket2 = { version = "0.6", default-features = false }
-fs2 = { workspace = true }
 rustls = { workspace = true, optional = true }
 uuid = { workspace = true }
 rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "crypto", "pem"] }

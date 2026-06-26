@@ -185,9 +185,6 @@
   "chatInput.send": {
     "defaultMessage": "보내기"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "도구가 너무 많으면 성능이 저하될 수 있습니다. 도구 수: {toolCount} (권장: {recommended})"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "음성을 텍스트로 변환 중..."
   },
@@ -200,8 +197,8 @@
   "chatInput.viewEditRecipe": {
     "defaultMessage": "레시피 보기/편집"
   },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "익스텐션 보기"
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "취소가 완료될 때까지 기다리는 중"
   },
   "chatInput.waitingForImages": {
     "defaultMessage": "이미지 저장을 기다리는 중..."
@@ -1231,66 +1228,6 @@
   },
   "freeOptionCards.unexpectedError": {
     "defaultMessage": "설정 중에 예상치 못한 오류가 발생했습니다."
-  },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "휴대폰에서 @BotFather를 열고 /newbot을 보낸 뒤, 안내에 따라 봇 이름을 지정하세요. BotFather가 API 토큰을 보내면 아래에 붙여넣으세요."
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "닫기"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "{time} 후 만료"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "페어링 코드를 생성하지 못했습니다."
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "제거하지 못했습니다."
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "시작하지 못했습니다."
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "중지하지 못했습니다."
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "사용자 페어링을 해제하지 못했습니다."
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "로드 중..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "기기 페어링"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "페어링된 사용자"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "페어링 코드"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "봇 토큰을 여기에 붙여넣으세요"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "제거"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "실행 중"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "페어링하려면 이 코드를 {gatewayType} 봇에 보내세요."
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "시작"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "중지"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "중지됨"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "Telegram"
   },
   "goosehintsModal.close": {
     "defaultMessage": "닫기"
@@ -3299,6 +3236,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "이미 실행 중인 일정은 트리거하거나 수정할 수 없습니다."
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "세션: {sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "생성일: {date}"
   },
@@ -3319,9 +3259,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "오류: {error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "세션을 로드하지 못했습니다."
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
@@ -3365,9 +3302,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "메시지: {count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "새 세션: {sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "제공된 일정 ID가 없습니다. 일정 목록으로 돌아갑니다."
   },
@@ -3404,6 +3338,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "지금 일정 실행"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "실행 완료"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "일정 세부정보"
   },
@@ -3422,9 +3359,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "일정이 일시 중지됨"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "일정이 실행됨"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "일정 일시중지 해제됨"
   },
@@ -3433,9 +3367,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "세션 ID: {id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "토큰: {count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "일정 일시중지 해제"
@@ -3758,57 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "세션 JSON 보기"
   },
-  "sessionHistory.cancel": {
-    "defaultMessage": "취소"
-  },
-  "sessionHistory.copy": {
-    "defaultMessage": "복사"
-  },
-  "sessionHistory.empty.description": {
-    "defaultMessage": "이 세션에는 메시지가 없습니다."
-  },
-  "sessionHistory.empty.title": {
-    "defaultMessage": "메시지를 찾을 수 없습니다."
-  },
-  "sessionHistory.error.loading": {
-    "defaultMessage": "세션 세부정보를 로드하는 중 오류가 발생했습니다."
-  },
-  "sessionHistory.error.tryAgain": {
-    "defaultMessage": "다시 시도"
-  },
-  "sessionHistory.loading": {
-    "defaultMessage": "세션 세부정보 로드 중..."
-  },
-  "sessionHistory.resume": {
-    "defaultMessage": "재개"
-  },
-  "sessionHistory.searchPlaceholder": {
-    "defaultMessage": "기록 검색..."
-  },
-  "sessionHistory.share": {
-    "defaultMessage": "공유"
-  },
-  "sessionHistory.shareModal.description": {
-    "defaultMessage": "이 세션 링크를 공유하여 다른 사람이 goose 채팅을 읽기 전용으로 볼 수 있게 하세요."
-  },
-  "sessionHistory.shareModal.title": {
-    "defaultMessage": "공유 세션(베타)"
-  },
-  "sessionHistory.shareTooltip": {
-    "defaultMessage": "세션 공유를 활성화하려면 <b>설정</b> > <b>세션</b> > <b>세션 공유</b>로 이동하세요."
-  },
-  "sessionHistory.sharing": {
-    "defaultMessage": "공유 중..."
-  },
-  "sessionHistory.toast.copyFailed": {
-    "defaultMessage": "링크를 클립보드에 복사하지 못했습니다."
-  },
-  "sessionHistory.toast.launchFailed": {
-    "defaultMessage": "세션을 시작할 수 없습니다: {error}"
-  },
-  "sessionHistory.toast.shareFailed": {
-    "defaultMessage": "세션 공유 실패: {error}"
-  },
   "sessionIndicators.error": {
     "defaultMessage": "세션에 오류가 발생했습니다."
   },
@@ -3817,57 +3697,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "스트리밍"
-  },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "세션 공유가 이미 구성되었습니다."
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "기본 URL"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "연결에 실패했습니다."
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "연결 성공!"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "연결 시간이 초과되었습니다. 서버가 느리거나 연결이 불가능할 수 있습니다."
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "세션 공유가 설정되었지만, 세션은 공유 버튼을 직접 클릭할 때만 공유됩니다."
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "세션 공유를 켜면 내 세션을 다른 사람과 공유할 수 있습니다."
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "세션 공유 켜기"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "URL 형식이 잘못되었습니다. 올바른 URL을 입력하세요(예: https://example.com/api)."
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "서버 오류: HTTP {status}. 서버가 올바르게 구성되지 않았을 수 있습니다."
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "연결 테스트"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "테스트 중..."
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "연결 테스트 중..."
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "세션 공유"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "알 수 없는 오류가 발생했습니다."
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "서버에 연결할 수 없습니다. URL과 네트워크 연결을 확인해주세요."
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
   },
   "sessionViewComponents.empty.description": {
     "defaultMessage": "이 세션에는 메시지가 없습니다."
@@ -4018,12 +3847,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "세션 설명이 업데이트되었습니다."
-  },
-  "sessionsView.error.failedToLoad": {
-    "defaultMessage": "세션 세부정보를 로드하지 못했습니다. 나중에 다시 시도해 주세요."
-  },
-  "sessionsView.loading": {
-    "defaultMessage": "로드 중..."
   },
   "settings.appearance.description": {
     "defaultMessage": "시스템에서 goose가 표시되는 방식을 설정합니다."
@@ -4195,12 +4018,6 @@
   },
   "settingsView.title": {
     "defaultMessage": "설정"
-  },
-  "sharedSession.loading": {
-    "defaultMessage": "세션 세부정보 로드 중..."
-  },
-  "sharedSession.title": {
-    "defaultMessage": "공유 세션"
   },
   "sheet.close": {
     "defaultMessage": "닫기"
@@ -4606,96 +4423,6 @@
   },
   "toolConfirmation.gooseWouldLikeToCallWithName": {
     "defaultMessage": "goose가 {toolName}을 호출하려고 합니다. 허용하시겠습니까?"
-  },
-  "tunnelSection.appStoreQrInstructions": {
-    "defaultMessage": "QR 코드를 iPhone 카메라로 스캔하여 App Store에서 goose 모바일 앱을 설치하세요."
-  },
-  "tunnelSection.close": {
-    "defaultMessage": "닫기"
-  },
-  "tunnelSection.connectionDetails": {
-    "defaultMessage": "연결 세부정보"
-  },
-  "tunnelSection.downloadIosApp": {
-    "defaultMessage": "goose iOS 앱 다운로드"
-  },
-  "tunnelSection.failedToLoadStatus": {
-    "defaultMessage": "터널 상태를 로드하지 못했습니다."
-  },
-  "tunnelSection.failedToStartTunnel": {
-    "defaultMessage": "터널을 시작하지 못했습니다."
-  },
-  "tunnelSection.failedToStopTunnel": {
-    "defaultMessage": "터널을 중지하지 못했습니다."
-  },
-  "tunnelSection.getIosApp": {
-    "defaultMessage": "iOS 앱 받기"
-  },
-  "tunnelSection.mobileApp": {
-    "defaultMessage": "모바일 앱"
-  },
-  "tunnelSection.mobileAppConnection": {
-    "defaultMessage": "모바일 앱 연결"
-  },
-  "tunnelSection.openInAppStore": {
-    "defaultMessage": "앱 스토어에서 열기"
-  },
-  "tunnelSection.or": {
-    "defaultMessage": "또는"
-  },
-  "tunnelSection.previewDescription": {
-    "defaultMessage": "보안 터널링을 사용해 모바일 기기에서 goose에 원격으로 접속할 수 있습니다."
-  },
-  "tunnelSection.previewFeature": {
-    "defaultMessage": "미리 보기 기능:"
-  },
-  "tunnelSection.qrCodeInstructions": {
-    "defaultMessage": "QR 코드를 goose 모바일 앱으로 스캔하세요. 이 코드는 개인 액세스용이므로 다른 사람과 공유하지 마세요."
-  },
-  "tunnelSection.retry": {
-    "defaultMessage": "다시 시도"
-  },
-  "tunnelSection.scanQrCode": {
-    "defaultMessage": "QR 코드 스캔"
-  },
-  "tunnelSection.secretKey": {
-    "defaultMessage": "비밀 키"
-  },
-  "tunnelSection.showQrCode": {
-    "defaultMessage": "QR 코드 표시"
-  },
-  "tunnelSection.startTunnel": {
-    "defaultMessage": "터널 시작"
-  },
-  "tunnelSection.starting": {
-    "defaultMessage": "시작 중..."
-  },
-  "tunnelSection.statusDisabled": {
-    "defaultMessage": "터널이 비활성화되었습니다."
-  },
-  "tunnelSection.statusError": {
-    "defaultMessage": "터널에 오류가 발생했습니다."
-  },
-  "tunnelSection.statusIdle": {
-    "defaultMessage": "터널이 실행 중이 아닙니다."
-  },
-  "tunnelSection.statusRunning": {
-    "defaultMessage": "터널이 활성화되었습니다"
-  },
-  "tunnelSection.statusStarting": {
-    "defaultMessage": "터널 시작 중..."
-  },
-  "tunnelSection.stopTunnel": {
-    "defaultMessage": "터널 중지"
-  },
-  "tunnelSection.tunnelStatus": {
-    "defaultMessage": "터널 상태"
-  },
-  "tunnelSection.tunnelUrl": {
-    "defaultMessage": "터널 URL"
-  },
-  "tunnelSection.url": {
-    "defaultMessage": "URL:"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "업데이트는 백그라운드에서 자동으로 다운로드됩니다."

@@ -1,6 +1,9 @@
 mod acp_tooling;
 pub mod amp_acp;
-pub mod anthropic;
+pub mod anthropic {
+    pub use goose_providers::anthropic::*;
+}
+pub mod anthropic_def;
 pub mod api_client {
     pub use goose_providers::api_client::*;
 }

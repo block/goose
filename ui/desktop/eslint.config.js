@@ -54,6 +54,9 @@ module.exports = [
         __dirname: 'readonly',
         require: 'readonly',
         module: 'readonly',
+        Buffer: 'readonly',
+        TextDecoder: 'readonly',
+        TextEncoder: 'readonly',
         // Browser globals
         window: 'readonly',
         document: 'readonly',
