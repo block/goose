@@ -1,4 +1,11 @@
 {
+  "agentRequests": [
+    {
+      "method": "_goose/unstable/session/recipe/request-params",
+      "requestType": "RequestRecipeParams_unstable",
+      "responseType": "RecipeParamsResponse_unstable"
+    }
+  ],
   "methods": [
     {
       "method": "_goose/unstable/session/extensions/add",
@@ -59,6 +66,26 @@
       "method": "_goose/unstable/diagnostics/get",
       "requestType": "DiagnosticsGetRequest_unstable",
       "responseType": "DiagnosticsGetResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/config/prompts/list",
+      "requestType": "ListPromptsRequest_unstable",
+      "responseType": "ListPromptsResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/config/prompts/get",
+      "requestType": "GetPromptRequest_unstable",
+      "responseType": "GetPromptResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/config/prompts/save",
+      "requestType": "SavePromptRequest_unstable",
+      "responseType": "PromptOperationResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/config/prompts/reset",
+      "requestType": "ResetPromptRequest_unstable",
+      "responseType": "PromptOperationResponse_unstable"
     },
     {
       "method": "session/delete",
@@ -440,13 +467,6 @@
     {
       "method": "_goose/unstable/session/update",
       "paramsType": "GooseSessionNotification_unstable"
-    }
-  ],
-  "agentRequests": [
-    {
-      "method": "_goose/unstable/session/recipe/request-params",
-      "requestType": "RequestRecipeParams_unstable",
-      "responseType": "RecipeParamsResponse_unstable"
     }
   ]
 }

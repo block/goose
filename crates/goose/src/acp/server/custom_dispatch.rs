@@ -114,6 +114,38 @@ impl GooseAcpAgent {
         self.on_get_diagnostics(req).await
     }
 
+    #[custom_method(ListPromptsRequest)]
+    async fn dispatch_list_prompts(
+        &self,
+        req: ListPromptsRequest,
+    ) -> Result<ListPromptsResponse, agent_client_protocol::Error> {
+        self.on_list_prompts(req).await
+    }
+
+    #[custom_method(GetPromptRequest)]
+    async fn dispatch_get_prompt(
+        &self,
+        req: GetPromptRequest,
+    ) -> Result<GetPromptResponse, agent_client_protocol::Error> {
+        self.on_get_prompt(req).await
+    }
+
+    #[custom_method(SavePromptRequest)]
+    async fn dispatch_save_prompt(
+        &self,
+        req: SavePromptRequest,
+    ) -> Result<PromptOperationResponse, agent_client_protocol::Error> {
+        self.on_save_prompt(req).await
+    }
+
+    #[custom_method(ResetPromptRequest)]
+    async fn dispatch_reset_prompt(
+        &self,
+        req: ResetPromptRequest,
+    ) -> Result<PromptOperationResponse, agent_client_protocol::Error> {
+        self.on_reset_prompt(req).await
+    }
+
     #[custom_method(DeleteSessionRequest)]
     async fn dispatch_delete_session(
         &self,
