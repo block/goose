@@ -449,7 +449,9 @@ pub trait Provider: Send + Sync {
             .fetch_supported_models()
             .await?
             .iter()
-            .map(|model_name| model_info_for_provider_model(self.canonical_provider_id(), model_name))
+            .map(|model_name| {
+                model_info_for_provider_model(self.canonical_provider_id(), model_name)
+            })
             .collect())
     }
 
@@ -536,7 +538,9 @@ pub trait Provider: Send + Sync {
             .fetch_recommended_models(toolshim)
             .await?
             .iter()
-            .map(|model_name| model_info_for_provider_model(self.canonical_provider_id(), model_name))
+            .map(|model_name| {
+                model_info_for_provider_model(self.canonical_provider_id(), model_name)
+            })
             .collect())
     }
 

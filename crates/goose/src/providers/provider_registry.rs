@@ -24,6 +24,10 @@ pub type ProviderCleanup = Arc<dyn Fn() -> BoxFuture<'static, Result<()>> + Send
 #[derive(Clone)]
 pub struct ProviderEntry {
     metadata: ProviderMetadata,
+    /// Catalog id for canonical model-limit resolution when it differs from
+    /// `metadata.name` (e.g. a custom provider's `catalog_provider_id`). Falls
+    /// back to `metadata.name` when None.
+    canonical_provider_id: Option<String>,
     pub(crate) constructor: ProviderConstructor,
     pub(crate) inventory_identity: super::inventory::InventoryIdentityResolver,
     pub(crate) inventory_configured: super::inventory::InventoryConfiguredResolver,
@@ -60,7 +64,15 @@ impl ProviderEntry {
     /// the agent/session layer to resolve effective limits (e.g. for custom
     /// providers that declare explicit context limits in their config).
     pub fn normalize_model_config(&self, mut model: ModelConfig) -> Result<ModelConfig> {
-        model = crate::model_config::materialize_model_config(&self.metadata.name, model)?;
+        // Resolve canonical limits against the catalog id (e.g. "cortecs") rather
+        // than the user-facing provider name ("custom_cortecs"), so provider-native
+        // models that don't infer back through the canonical mapper still pick up
+        // their catalog limits instead of falling back to defaults.
+        let canonical_name = self
+            .canonical_provider_id
+            .as_deref()
+            .unwrap_or(&self.metadata.name);
+        model = crate::model_config::materialize_model_config(canonical_name, model)?;
 
         if model.context_limit.is_none() {
             if let Some(info) = self
@@ -133,6 +145,7 @@ impl ProviderRegistry {
             name,
             ProviderEntry {
                 metadata,
+                canonical_provider_id: None,
                 constructor: Arc::new(|extensions, working_dir, tls_config| {
                     Box::pin(async move {
                         let provider = match working_dir {
@@ -311,6 +324,7 @@ impl ProviderRegistry {
             config.name.clone(),
             ProviderEntry {
                 metadata: custom_metadata,
+                canonical_provider_id: config.catalog_provider_id.clone(),
                 constructor: Arc::new(move |_extensions, _working_dir, tls_config| {
                     let result = constructor(tls_config);
                     Box::pin(async move {
