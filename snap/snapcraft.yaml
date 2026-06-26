@@ -30,7 +30,6 @@ apps:
     command: bin/goose
   goose:
     command: bin/desktop-launch
-    desktop: meta/gui/goose.desktop
 
 parts:
   # Builds the Rust binaries (goose CLI + goosed server), sets the snap version
