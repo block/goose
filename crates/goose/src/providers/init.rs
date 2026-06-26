@@ -9,7 +9,6 @@ use super::local_inference::LocalInferenceProvider;
 use super::sagemaker_tgi::SageMakerTgiProvider;
 use super::{
     amp_acp::AmpAcpProvider,
-    anthropic::AnthropicProvider,
     avian::AvianProvider,
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
@@ -41,6 +40,7 @@ use super::{
     xai_oauth::XaiOAuthProvider,
 };
 use crate::config::ExtensionConfig;
+use crate::providers::anthropic_def::AnthropicProviderDef;
 use crate::providers::base::ProviderType;
 use crate::providers::openai_def::OpenAiProviderDef;
 use crate::{
@@ -63,7 +63,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             false,
             Some(registrations::amp_acp_inventory()),
         );
-        registry.register_with_inventory::<AnthropicProvider>(
+        registry.register_with_inventory::<AnthropicProviderDef>(
             true,
             Some(registrations::anthropic_inventory()),
         );

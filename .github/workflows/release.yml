@@ -1,8 +1,10 @@
-# This workflow is main release, needs to be manually tagged & pushed.
+# This workflow builds release artifacts for release branches and publishes tagged releases.
 on:
   push:
     paths-ignore:
       - "documentation/**"
+    branches:
+      - "release/*"
     tags:
       - "v1.*"
 
@@ -49,8 +51,8 @@ jobs:
       id-token: write
       contents: read
     with:
-      signing: true
-      environment: signing
+      signing: ${{ startsWith(github.ref, 'refs/tags/') }}
+      environment: ${{ startsWith(github.ref, 'refs/tags/') && 'signing' || '' }}
     secrets: inherit
 
   # ------------------------------------------------------------
@@ -62,8 +64,8 @@ jobs:
       id-token: write
       contents: read
     with:
-      signing: true
-      environment: signing
+      signing: ${{ startsWith(github.ref, 'refs/tags/') }}
+      environment: ${{ startsWith(github.ref, 'refs/tags/') && 'signing' || '' }}
     secrets: inherit
 
   # ------------------------------------------------------------
@@ -82,7 +84,7 @@ jobs:
       contents: read
       actions: read
     with:
-      signing: true
+      signing: ${{ startsWith(github.ref, 'refs/tags/') }}
     secrets: inherit
 
   bundle-desktop-windows-cuda:
@@ -92,7 +94,7 @@ jobs:
       contents: read
       actions: read
     with:
-      signing: true
+      signing: ${{ startsWith(github.ref, 'refs/tags/') }}
       windows_variant: cuda
     secrets: inherit
 
@@ -101,6 +103,7 @@ jobs:
   # ------------------------------------
   release:
     name: Release
+    if: startsWith(github.ref, 'refs/tags/')
     runs-on: ubuntu-latest
     needs: [build-cli, install-script, bundle-desktop, bundle-desktop-intel, bundle-desktop-linux, bundle-desktop-windows, bundle-desktop-windows-cuda]
     permissions:

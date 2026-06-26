@@ -1,6 +1,6 @@
 use crate::config::paths::Paths;
 use crate::config::Config;
-use crate::providers::anthropic::AnthropicProvider;
+use crate::providers::anthropic_def::AnthropicProviderDef;
 use crate::providers::base::{ModelInfo, ProviderType};
 use crate::providers::huggingface::HuggingFaceProvider;
 use crate::providers::huggingface_auth;
@@ -643,14 +643,14 @@ pub fn register_declarative_provider(
         ProviderEngine::Anthropic => {
             let captured = config.clone();
             let identity_config = config.clone();
-            registry.register_with_name::<AnthropicProvider, _, _>(
+            registry.register_with_name::<AnthropicProviderDef, _, _>(
                 &config,
                 provider_type,
                 config.dynamic_models.unwrap_or(false),
                 move |tls_config| {
                     let mut cfg = captured.clone();
                     resolve_config(&mut cfg)?;
-                    AnthropicProvider::from_custom_config(cfg, tls_config)
+                    crate::providers::anthropic_def::from_custom_config(cfg, tls_config)
                 },
                 move || {
                     let mut cfg = identity_config.clone();

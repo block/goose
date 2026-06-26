@@ -3,7 +3,7 @@ import { defineMessages, useIntl } from '../i18n';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 
-import { Message, Session, TokenState, updateFromSession } from '../api';
+import { Message, Session, TokenState } from '../api';
 
 import { createUserMessage, NotificationEvent, UserInput } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
@@ -266,17 +266,6 @@ export function useAcpChatSession({
   const setRecipeUserParams = useCallback((_userRecipeValues: Record<string, string>) => {
     return Promise.reject(new Error('ACP recipe parameters are handled during session creation'));
   }, []);
-
-  useEffect(() => {
-    if (session) {
-      updateFromSession({
-        body: {
-          session_id: session.id,
-        },
-        throwOnError: true,
-      });
-    }
-  }, [session]);
 
   const stopStreaming = useCallback(() => {
     acpChatSessionController.stop(sessionId);

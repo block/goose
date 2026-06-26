@@ -2050,6 +2050,15 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/ShareSessionNostrRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/share/nostr",
+                  "title": "ShareSessionNostrRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/EncodeRecipeRequest_unstable"
                     }
                   ],
@@ -2744,6 +2753,14 @@
                         }
                       ],
                       "title": "ImportSessionResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ShareSessionNostrResponse_unstable"
+                        }
+                      ],
+                      "title": "ShareSessionNostrResponse_unstable"
                     },
                     {
                       "allOf": [
@@ -3488,14 +3505,18 @@
       "type": "object"
     },
     "ImportSessionRequest_unstable": {
-      "description": "Import a session from a JSON string.",
+      "description": "Import a session from a JSON string or share link.",
       "properties": {
-        "data": {
+        "input": {
           "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SessionImportSource"
         }
       },
       "required": [
-        "data"
+        "input",
+        "source"
       ],
       "type": "object",
       "x-method": "_goose/unstable/session/import",
@@ -6143,6 +6164,14 @@
       "description": "A unique identifier for a conversation session between a client and agent.\n\nSessions maintain their own context, conversation history, and state,\nallowing multiple independent interactions with the same agent.\n\nSee protocol docs: [Session ID](https://agentclientprotocol.com/protocol/session-setup#session-id)",
       "type": "string"
     },
+    "SessionImportSource": {
+      "enum": [
+        "auto",
+        "json",
+        "nostr"
+      ],
+      "type": "string"
+    },
     "SessionInfo": {
       "description": "Information about a session returned by session/list",
       "properties": {
@@ -6303,6 +6332,54 @@
       ],
       "type": "object",
       "x-method": "_goose/unstable/session/system-prompt/set",
+      "x-side": "agent"
+    },
+    "ShareSessionNostrRequest_unstable": {
+      "properties": {
+        "relays": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId",
+        "relays"
+      ],
+      "type": "object",
+      "x-method": "_goose/unstable/session/share/nostr",
+      "x-side": "agent"
+    },
+    "ShareSessionNostrResponse_unstable": {
+      "properties": {
+        "deeplink": {
+          "type": "string"
+        },
+        "eventId": {
+          "type": "string"
+        },
+        "nevent": {
+          "type": "string"
+        },
+        "relays": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "deeplink",
+        "nevent",
+        "eventId",
+        "relays"
+      ],
+      "type": "object",
+      "x-method": "_goose/unstable/session/share/nostr",
       "x-side": "agent"
     },
     "SourceEntry": {

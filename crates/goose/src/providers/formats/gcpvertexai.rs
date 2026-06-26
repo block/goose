@@ -2,6 +2,7 @@ use super::{anthropic, google};
 use crate::conversation::message::Message;
 use anyhow::{Context, Result};
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::formats::anthropic::AnthropicFormatOptions;
 use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use serde_json::Value;
@@ -220,7 +221,14 @@ fn create_anthropic_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> Result<Value> {
-    let mut request = anthropic::create_request(model_config, system, messages, tools)?;
+    let mut request = anthropic::create_request(
+        "anthropic",
+        model_config,
+        system,
+        messages,
+        tools,
+        AnthropicFormatOptions::default(),
+    )?;
 
     let obj = request
         .as_object_mut()

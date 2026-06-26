@@ -403,13 +403,6 @@ export const zHttpHeader = z.object({
 });
 
 /**
- * Import a session from a JSON string.
- */
-export const zImportSessionRequest_unstable = z.object({
-    data: z.string()
-});
-
-/**
  * Import session response — metadata about the newly created session.
  */
 export const zImportSessionResponse_unstable = z.object({
@@ -1289,6 +1282,20 @@ export const zListSchedulesResponse_unstable = z.object({
  */
 export const zSessionId = z.string();
 
+export const zSessionImportSource = z.enum([
+    'auto',
+    'json',
+    'nostr'
+]);
+
+/**
+ * Import a session from a JSON string or share link.
+ */
+export const zImportSessionRequest_unstable = z.object({
+    input: z.string(),
+    source: zSessionImportSource
+});
+
 /**
  * Information about a session returned by session/list
  */
@@ -1353,6 +1360,18 @@ export const zSetSessionSystemPromptRequest_unstable = z.object({
     mode: zSessionSystemPromptMode.optional().default('append'),
     sessionId: z.string(),
     text: z.string()
+});
+
+export const zShareSessionNostrRequest_unstable = z.object({
+    relays: z.array(z.string()),
+    sessionId: z.string()
+});
+
+export const zShareSessionNostrResponse_unstable = z.object({
+    deeplink: z.string(),
+    eventId: z.string(),
+    nevent: z.string(),
+    relays: z.array(z.string())
 });
 
 /**
@@ -1803,6 +1822,7 @@ export const zExtResponse = z.union([
                 zOnboardingImportApplyResponse_unstable,
                 zExportSessionResponse_unstable,
                 zImportSessionResponse_unstable,
+                zShareSessionNostrResponse_unstable,
                 zEncodeRecipeResponse_unstable,
                 zDecodeRecipeResponse_unstable,
                 zScanRecipeResponse_unstable,
@@ -1903,6 +1923,7 @@ export const zExtRequest = z.object({
             zOnboardingImportApplyRequest_unstable,
             zExportSessionRequest_unstable,
             zImportSessionRequest_unstable,
+            zShareSessionNostrRequest_unstable,
             zEncodeRecipeRequest_unstable,
             zDecodeRecipeRequest_unstable,
             zScanRecipeRequest_unstable,

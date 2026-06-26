@@ -539,15 +539,6 @@ export type ExtensionResponse = {
     warnings?: Array<string>;
 };
 
-export type FeaturesResponse = {
-    /**
-     * Map of feature name to enabled status
-     */
-    features: {
-        [key: string]: boolean;
-    };
-};
-
 export type ForkRequest = {
     copy: boolean;
     timestamp?: number | null;
@@ -646,10 +637,6 @@ export type ImageContent = {
     };
     data: string;
     mimeType: string;
-};
-
-export type ImportSessionNostrRequest = {
-    deeplink: string;
 };
 
 export type InferenceMetadata = {
@@ -1446,17 +1433,6 @@ export type Settings = {
 export type SetupResponse = {
     message: string;
     success: boolean;
-};
-
-export type ShareSessionNostrRequest = {
-    relays?: Array<string>;
-};
-
-export type ShareSessionNostrResponse = {
-    deeplink: string;
-    eventId: string;
-    nevent: string;
-    relays: Array<string>;
 };
 
 export type SlashCommand = {
@@ -3150,22 +3126,6 @@ export type TranscribeDictationResponses = {
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
 
-export type GetFeaturesData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/features';
-};
-
-export type GetFeaturesResponses = {
-    /**
-     * Compile-time feature flags
-     */
-    200: FeaturesResponse;
-};
-
-export type GetFeaturesResponse = GetFeaturesResponses[keyof GetFeaturesResponses];
-
 export type StartNanogptSetupData = {
     body?: never;
     path?: never;
@@ -4060,37 +4020,6 @@ export type UnpauseScheduleResponses = {
 
 export type UnpauseScheduleResponse = UnpauseScheduleResponses[keyof UnpauseScheduleResponses];
 
-export type ImportSessionNostrData = {
-    body: ImportSessionNostrRequest;
-    path?: never;
-    query?: never;
-    url: '/sessions/import/nostr';
-};
-
-export type ImportSessionNostrErrors = {
-    /**
-     * Bad request - Invalid Nostr share link
-     */
-    400: unknown;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ImportSessionNostrResponses = {
-    /**
-     * Nostr shared session imported successfully
-     */
-    200: Session;
-};
-
-export type ImportSessionNostrResponse = ImportSessionNostrResponses[keyof ImportSessionNostrResponses];
-
 export type SessionCancelData = {
     body: CancelRequest;
     path: {
@@ -4327,42 +4256,6 @@ export type UpdateSessionNameResponses = {
      */
     200: unknown;
 };
-
-export type ShareSessionNostrData = {
-    body: ShareSessionNostrRequest;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}/share/nostr';
-};
-
-export type ShareSessionNostrErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ShareSessionNostrResponses = {
-    /**
-     * Session shared to Nostr successfully
-     */
-    200: ShareSessionNostrResponse;
-};
-
-export type ShareSessionNostrResponse2 = ShareSessionNostrResponses[keyof ShareSessionNostrResponses];
 
 export type UpdateSessionUserRecipeValuesData = {
     body: UpdateSessionUserRecipeValuesRequest;
