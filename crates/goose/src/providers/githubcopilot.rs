@@ -24,9 +24,7 @@ tokio::task_local! {
     static IS_AGENT_CALL: bool;
 }
 
-use super::base::{
-    collect_stream, Provider, ProviderDef, ProviderMetadata, DEFAULT_PROVIDER_TIMEOUT_SECS,
-};
+use super::base::{Provider, ProviderDef, ProviderMetadata, DEFAULT_PROVIDER_TIMEOUT_SECS};
 use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
 use super::utils::get_model;
@@ -397,7 +395,6 @@ impl GithubCopilotProvider {
     async fn stream_responses(
         &self,
         model_config: &ModelConfig,
-        _session_id: &str,
         is_user_initiated: bool,
         system: &str,
         messages: &[Message],
@@ -435,7 +432,6 @@ impl GithubCopilotProvider {
     async fn stream_chat_completions(
         &self,
         model_config: &ModelConfig,
-        _session_id: &str,
         is_user_initiated: bool,
         system: &str,
         messages: &[Message],
@@ -555,24 +551,6 @@ impl Provider for GithubCopilotProvider {
         &self.name
     }
 
-    #[tracing::instrument(
-        skip(self, model_config, system, messages, tools),
-        fields(session.id = %crate::session_context::current_session_id().unwrap_or_default(), gen_ai.request.model = %model_config.model_name)
-    )]
-    async fn complete(
-        &self,
-        model_config: &ModelConfig,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        IS_AGENT_CALL
-            .scope(true, async {
-                collect_stream(self.stream(model_config, system, messages, tools).await?).await
-            })
-            .await
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -580,7 +558,6 @@ impl Provider for GithubCopilotProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         let is_agent_call = IS_AGENT_CALL.try_with(|&v| v).unwrap_or(false);
         let last_is_tool_response = messages.last().is_some_and(|m| {
             m.content
@@ -593,7 +570,6 @@ impl Provider for GithubCopilotProvider {
         if is_openai_responses_model(&model_config.model_name) {
             self.stream_responses(
                 model_config,
-                &session_id,
                 is_user_initiated,
                 system,
                 messages,
@@ -604,7 +580,6 @@ impl Provider for GithubCopilotProvider {
         } else {
             self.stream_chat_completions(
                 model_config,
-                &session_id,
                 is_user_initiated,
                 system,
                 messages,
