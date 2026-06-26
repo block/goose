@@ -302,7 +302,7 @@ impl ProviderFixture {
         let tools = self
             .agent
             .extension_manager
-            .get_prefixed_tools(Some(self.session_id.clone()), None)
+            .get_prefixed_tools(&self.session_id, None)
             .await
             .unwrap();
 
@@ -318,7 +318,7 @@ impl ProviderFixture {
 
         let message = Message::user().with_text(prompt);
         let model_config = model_config.unwrap_or_else(|| self.model_config.clone());
-        let (response1, _) = crate::session_context::with_session_id(
+        let (response1, _) = goose::session_context::with_session_id(
             Some(self.session_id.clone()),
             self.provider.complete(
                 &model_config,
@@ -364,7 +364,7 @@ impl ProviderFixture {
             .unwrap();
         let tool_response = Message::user().with_tool_response(&tool_req.id, Ok(result));
 
-        let (response2, _) = crate::session_context::with_session_id(
+        let (response2, _) = goose::session_context::with_session_id(
             Some(self.session_id.clone()),
             self.provider.complete(
                 &model_config,
@@ -381,7 +381,7 @@ impl ProviderFixture {
         let message = Message::user().with_text("Just say hello!");
         let model_config = self.model_config.clone();
 
-        let (response, _) = crate::session_context::with_session_id(
+        let (response, _) = goose::session_context::with_session_id(
             Some(self.session_id.clone()),
             self.provider.complete(
                 &model_config,
@@ -422,7 +422,7 @@ impl ProviderFixture {
         let messages = vec![Message::user().with_text(&large_message_content)];
         let model_config = self.model_config.clone();
 
-        let result = crate::session_context::with_session_id(
+        let result = goose::session_context::with_session_id(
             Some(self.session_id.clone()),
             self.provider.complete(
                 &model_config,
@@ -476,7 +476,7 @@ impl ProviderFixture {
             goose_providers::model::ModelConfig::new(alt).with_canonical_limits(&self.name);
 
         let message = Message::user().with_text("Just say hello!");
-        let (response, _) = crate::session_context::with_session_id(
+        let (response, _) = goose::session_context::with_session_id(
             Some(self.session_id.clone()),
             self.provider
                 .complete(&alt_config, "You are a helpful assistant.", &[message], &[]),
