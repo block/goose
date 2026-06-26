@@ -88,8 +88,8 @@ async fn check_provider(
 
     let test_msg = Message::user().with_text("Say 'ok'");
     let start = std::time::Instant::now();
-    goose_providers::session_context::with_session_id(
-        "check",
+    goose::session_context::with_session_id(
+        Some("check".to_string()),
         provider_client.complete(&model_config, "", &[test_msg], &[]),
     )
     .await

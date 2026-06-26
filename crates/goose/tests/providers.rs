@@ -287,7 +287,7 @@ impl ProviderFixture {
             provider,
             model_config,
             agent,
-            session_id,
+            session_id: session_id.to_string(),
             _mcp: mcp,
             _guard: guard,
             _temp_dir: temp_dir,
@@ -302,7 +302,7 @@ impl ProviderFixture {
         let tools = self
             .agent
             .extension_manager
-            .get_prefixed_tools(&self.session_id, None)
+            .get_prefixed_tools(Some(self.session_id.clone()), None)
             .await
             .unwrap();
 
@@ -318,8 +318,8 @@ impl ProviderFixture {
 
         let message = Message::user().with_text(prompt);
         let model_config = model_config.unwrap_or_else(|| self.model_config.clone());
-        let (response1, _) = goose_providers::session_context::with_session_id(
-            &self.session_id,
+        let (response1, _) = crate::session_context::with_session_id(
+            Some(self.session_id.clone()),
             self.provider.complete(
                 &model_config,
                 &system,
@@ -364,8 +364,8 @@ impl ProviderFixture {
             .unwrap();
         let tool_response = Message::user().with_tool_response(&tool_req.id, Ok(result));
 
-        let (response2, _) = goose_providers::session_context::with_session_id(
-            &self.session_id,
+        let (response2, _) = crate::session_context::with_session_id(
+            Some(self.session_id.clone()),
             self.provider.complete(
                 &model_config,
                 &system,
@@ -381,8 +381,8 @@ impl ProviderFixture {
         let message = Message::user().with_text("Just say hello!");
         let model_config = self.model_config.clone();
 
-        let (response, _) = goose_providers::session_context::with_session_id(
-            &self.session_id,
+        let (response, _) = crate::session_context::with_session_id(
+            Some(self.session_id.clone()),
             self.provider.complete(
                 &model_config,
                 "You are a helpful assistant.",
@@ -422,8 +422,8 @@ impl ProviderFixture {
         let messages = vec![Message::user().with_text(&large_message_content)];
         let model_config = self.model_config.clone();
 
-        let result = goose_providers::session_context::with_session_id(
-            &self.session_id,
+        let result = crate::session_context::with_session_id(
+            Some(self.session_id.clone()),
             self.provider.complete(
                 &model_config,
                 "You are a helpful assistant.",
@@ -476,8 +476,8 @@ impl ProviderFixture {
             goose_providers::model::ModelConfig::new(alt).with_canonical_limits(&self.name);
 
         let message = Message::user().with_text("Just say hello!");
-        let (response, _) = goose_providers::session_context::with_session_id(
-            &self.session_id,
+        let (response, _) = crate::session_context::with_session_id(
+            Some(self.session_id.clone()),
             self.provider
                 .complete(&alt_config, "You are a helpful assistant.", &[message], &[]),
         )

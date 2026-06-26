@@ -288,8 +288,8 @@ impl Agent {
         let model_config =
             model_config.with_default_thinking_effort(Config::global().get_goose_thinking_effort());
         debug!("WAITING_LLM_STREAM_START");
-        let stream_result = goose_providers::session_context::with_session_id(
-            session_id,
+        let stream_result = crate::session_context::with_session_id(
+            Some(session_id.to_string()),
             provider.stream(
                 &model_config,
                 system_prompt.as_str(),

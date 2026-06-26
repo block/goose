@@ -97,6 +97,7 @@ impl HuggingFaceProvider {
             std::time::Duration::from_secs(timeout_secs),
             tls_config,
         )?
+        .with_request_builder(crate::session_context::session_id_request_builder())
         .with_query(query_params);
 
         if let Some(headers) = &config.headers {
@@ -205,7 +206,8 @@ impl ProviderDef for HuggingFaceProvider {
             let host: String = config
                 .get_param("HF_HOST")
                 .unwrap_or_else(|_| HUGGINGFACE_API_HOST.to_string());
-            let api_client = ApiClient::new_with_tls(host, auth_method, tls_config)?;
+            let api_client = ApiClient::new_with_tls(host, auth_method, tls_config)?
+                .with_request_builder(crate::session_context::session_id_request_builder());
 
             Ok(Self {
                 inner: OpenAiCompatibleProvider::new(

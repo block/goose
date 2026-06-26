@@ -164,8 +164,8 @@ pub async fn detect_read_only_tools(
             return vec![];
         }
     };
-    let res = goose_providers::session_context::with_session_id(
-        session_id,
+    let res = crate::session_context::with_session_id(
+        Some(session_id.to_string()),
         provider.complete(
             &model_config,
             &system_prompt,

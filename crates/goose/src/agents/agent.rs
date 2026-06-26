@@ -3056,8 +3056,8 @@ impl Agent {
             tracing::error!("{}", error);
             error
         })?;
-        let (result, _usage) = goose_providers::session_context::with_session_id(
-            session_id,
+        let (result, _usage) = crate::session_context::with_session_id(
+            Some(session_id.to_string()),
             provider.complete(&model_config, &system_prompt, messages.messages(), &tools),
         )
         .await

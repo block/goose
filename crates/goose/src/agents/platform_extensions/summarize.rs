@@ -197,8 +197,8 @@ async fn execute_summarize(
 
     let user_message = Message::user().with_text(&prompt);
 
-    let (response, _usage) = goose_providers::session_context::with_session_id(
-        session_id,
+    let (response, _usage) = crate::session_context::with_session_id(
+        Some(session_id.to_string()),
         provider.complete(&model_config, system, &[user_message], &[]),
     )
     .await

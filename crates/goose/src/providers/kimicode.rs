@@ -389,7 +389,7 @@ impl Provider for KimiCodeProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = goose_providers::session_context::current_session_id();
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         let mut payload = create_request(
             ANTHROPIC_PROVIDER_NAME,
             model_config,

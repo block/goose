@@ -38,7 +38,7 @@ async fn poll_for_token(client: &ApiClient, device_code: &str) -> Result<String>
 
         let body = json!({ "device_code": device_code });
 
-        let response = client.response_post(None, "poll", &body).await?;
+        let response = client.response_post("poll", &body).await?;
         // https://docs.nano-gpt.com/integrations/cli-login#response-codes
         match response.status().as_u16() {
             200 => {
@@ -78,7 +78,7 @@ pub async fn complete_nanogpt_auth() -> Result<String> {
     let client = build_client()?;
     let body = json!({ "client_name": "goose" });
 
-    let response = client.response_post(None, "start", &body).await?;
+    let response = client.response_post("start", &body).await?;
 
     if !response.status().is_success() {
         let status = response.status();

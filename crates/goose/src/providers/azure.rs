@@ -110,7 +110,8 @@ impl ProviderDef for AzureProvider {
                 host,
                 AuthMethod::Custom(Box::new(auth_provider)),
                 tls_config,
-            )?;
+            )?
+            .with_request_builder(crate::session_context::session_id_request_builder());
             if let Some(version) = api_version {
                 api_client = api_client.with_query(vec![("api-version".to_string(), version)]);
             }

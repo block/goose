@@ -791,7 +791,8 @@ impl ProviderDef for XaiOAuthProvider {
                 host,
                 AuthMethod::Custom(Box::new(SharedAuthProvider(auth_for_client))),
                 tls_config,
-            )?;
+            )?
+            .with_request_builder(crate::session_context::session_id_request_builder());
 
             let inner = OpenAiCompatibleProvider::new(
                 XAI_OAUTH_PROVIDER_NAME.to_string(),

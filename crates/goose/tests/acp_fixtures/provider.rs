@@ -77,8 +77,8 @@ impl AcpProviderSession {
             .get(session_id.as_ref())
             .cloned()
             .unwrap_or_else(|| ModelConfig::new(TEST_MODEL));
-        let mut stream = goose_providers::session_context::with_session_id(
-            session_id.as_ref(),
+        let mut stream = crate::session_context::with_session_id(
+            session_id.clone(),
             provider.stream(&model_config, "", &[message], &[]),
         )
         .await?;

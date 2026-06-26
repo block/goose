@@ -398,7 +398,7 @@ pub trait Provider: Send + Sync {
     /// Complete with a specific model config.
     #[tracing::instrument(
         skip(self, model_config, system, messages, tools),
-        fields(session.id = %crate::session_context::current_session_id(), gen_ai.request.model = %model_config.model_name)
+        fields(gen_ai.request.model = %model_config.model_name)
     )]
     async fn complete(
         &self,

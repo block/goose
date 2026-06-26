@@ -421,8 +421,8 @@ impl ClientHandler for GooseClient {
                 Some(Value::from(e.to_string())),
             )
         })?;
-        let (response, usage) = goose_providers::session_context::with_session_id(
-            session_id.as_deref().unwrap_or(""),
+        let (response, usage) = crate::session_context::with_session_id(
+            session_id.clone(),
             provider.complete(&model_config, system_prompt, &provider_ready_messages, &[]),
         )
         .await

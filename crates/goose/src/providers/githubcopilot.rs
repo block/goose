@@ -262,7 +262,6 @@ impl GithubCopilotProvider {
 
     async fn post(
         &self,
-        session_id: Option<&str>,
         path: &str,
         is_user_initiated: bool,
         payload: &mut Value,
@@ -277,10 +276,11 @@ impl GithubCopilotProvider {
         let initiator = if is_user_initiated { "user" } else { "agent" };
         headers.insert("X-Initiator", initiator.parse().unwrap());
         let api_client = ApiClient::new_with_tls(endpoint.clone(), auth, self.tls_config.clone())?
+            .with_request_builder(crate::session_context::session_id_request_builder())
             .with_headers(headers)?;
 
         api_client
-            .response_post(session_id, path, payload)
+            .response_post(path, payload)
             .await
             .map_err(|e| e.into())
     }
@@ -397,7 +397,7 @@ impl GithubCopilotProvider {
     async fn stream_responses(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
+        _session_id: &str,
         is_user_initiated: bool,
         system: &str,
         messages: &[Message],
@@ -415,7 +415,6 @@ impl GithubCopilotProvider {
                 let mut payload_clone = payload.clone();
                 let resp = self
                     .post(
-                        Some(session_id),
                         "responses",
                         is_user_initiated,
                         &mut payload_clone,
@@ -436,7 +435,7 @@ impl GithubCopilotProvider {
     async fn stream_chat_completions(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
+        _session_id: &str,
         is_user_initiated: bool,
         system: &str,
         messages: &[Message],
@@ -463,7 +462,6 @@ impl GithubCopilotProvider {
                     let mut payload_clone = payload.clone();
                     let resp = self
                         .post(
-                            Some(session_id),
                             "chat/completions",
                             is_user_initiated,
                             &mut payload_clone,
@@ -479,11 +477,6 @@ impl GithubCopilotProvider {
 
             stream_openai_compat(response, log)
         } else {
-            let session_id_opt = if session_id.is_empty() {
-                None
-            } else {
-                Some(session_id)
-            };
             let payload = create_request(
                 model_config,
                 system,
@@ -498,7 +491,6 @@ impl GithubCopilotProvider {
                 .with_retry(|| async {
                     let mut payload_clone = payload.clone();
                     self.post(
-                        session_id_opt,
                         "chat/completions",
                         is_user_initiated,
                         &mut payload_clone,
@@ -565,7 +557,7 @@ impl Provider for GithubCopilotProvider {
 
     #[tracing::instrument(
         skip(self, model_config, system, messages, tools),
-        fields(session.id = %goose_providers::session_context::current_session_id(), gen_ai.request.model = %model_config.model_name)
+        fields(session.id = %crate::session_context::current_session_id().unwrap_or_default(), gen_ai.request.model = %model_config.model_name)
     )]
     async fn complete(
         &self,
@@ -588,7 +580,7 @@ impl Provider for GithubCopilotProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = goose_providers::session_context::current_session_id();
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         let is_agent_call = IS_AGENT_CALL.try_with(|&v| v).unwrap_or(false);
         let last_is_tool_response = messages.last().is_some_and(|m| {
             m.content

@@ -718,7 +718,7 @@ impl Provider for ClaudeCodeProvider {
         messages: &[Message],
         _tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = goose_providers::session_context::current_session_id();
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         if super::cli_common::is_session_description_request(system) {
             let (message, usage) = super::cli_common::generate_simple_session_description(
                 &model_config.model_name,

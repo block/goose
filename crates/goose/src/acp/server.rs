@@ -1506,8 +1506,8 @@ impl GooseAcpAgent {
                         // common cases without paying for the regular model.
                         let mut llm_outcome: Option<String> = None;
                         for attempt in 0..2 {
-                            match goose_providers::session_context::with_session_id(
-                                &sid.0,
+                            match crate::session_context::with_session_id(
+                                Some(sid.0.to_string()),
                                 provider.complete(
                                     &fast_model_config,
                                     system,
@@ -1797,8 +1797,8 @@ impl GooseAcpAgent {
             // momentarily flaky, without escalating to the regular model.
             let mut summary: Option<String> = None;
             for attempt in 0..2 {
-                match goose_providers::session_context::with_session_id(
-                    &sid.0,
+                match crate::session_context::with_session_id(
+                    Some(sid.0.to_string()),
                     provider.complete(
                         &fast_model_config,
                         system,

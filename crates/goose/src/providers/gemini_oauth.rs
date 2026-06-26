@@ -986,7 +986,7 @@ impl Provider for GeminiOAuthProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = goose_providers::session_context::current_session_id();
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         let payload = create_request(model_config, system, messages, tools)?;
         let mut log = start_log(model_config, &payload)?;
 

@@ -58,8 +58,8 @@ async fn create_message(
             tracing::error!("Failed to resolve model config: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    let (response, usage) = goose_providers::session_context::with_session_id(
-        &session_id,
+    let (response, usage) = goose::session_context::with_session_id(
+        Some(session_id.clone()),
         provider.complete(&model_config, system, &messages, &[]),
     )
     .await

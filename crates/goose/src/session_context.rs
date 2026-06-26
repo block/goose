@@ -1,25 +1,37 @@
-pub use goose_providers::session_context::SESSION_ID_HEADER;
+use reqwest::header::{HeaderName, HeaderValue};
+
+pub const SESSION_ID_HEADER: &str = "agent-session-id";
 
 pub const TOOL_CALL_REQUEST_ID_HEADER: &str = "agent-tool-call-request-id";
 pub const WORKING_DIR_HEADER: &str = "agent-working-dir";
+
+tokio::task_local! {
+    pub static SESSION_ID: Option<String>;
+}
 
 pub async fn with_session_id<F>(session_id: Option<String>, f: F) -> F::Output
 where
     F: std::future::Future,
 {
-    match session_id {
-        Some(id) => goose_providers::session_context::with_session_id(&id, f).await,
-        None => f.await,
+    if let Some(id) = session_id {
+        SESSION_ID.scope(Some(id), f).await
+    } else {
+        f.await
     }
 }
 
 pub fn current_session_id() -> Option<String> {
-    let id = goose_providers::session_context::current_session_id();
-    if id.is_empty() {
-        None
-    } else {
-        Some(id)
-    }
+    SESSION_ID.try_with(|id| id.clone()).ok().flatten()
+}
+
+pub fn session_id_request_builder() -> goose_providers::api_client::RequestBuilderDecorator {
+    std::sync::Arc::new(|mut request| {
+        if let Some(session_id) = current_session_id() {
+            let value = HeaderValue::from_str(&session_id)?;
+            request = request.header(HeaderName::from_static(SESSION_ID_HEADER), value);
+        }
+        Ok(request)
+    })
 }
 
 /// Local OS user running goose, shared by the OTLP `user.name` resource

@@ -26,8 +26,8 @@ pub async fn test_provider_configuration(
         vec![]
     };
 
-    let mut stream = goose_providers::session_context::with_session_id(
-        "test-session-id",
+    let mut stream = crate::session_context::with_session_id(
+        Some("test-session-id".to_string()),
         provider.stream(
             &model_config,
             "You are an AI agent called goose. You use tools of connected extensions to solve problems.",

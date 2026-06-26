@@ -274,8 +274,8 @@ impl AppsManagerClient {
 
         let model_config = self.context.model_config_for_session(session_id).await?;
 
-        let (response, usage) = goose_providers::session_context::with_session_id(
-            session_id,
+        let (response, usage) = crate::session_context::with_session_id(
+            Some(session_id.to_string()),
             provider.complete(&model_config, &system_prompt, &messages, &tools),
         )
         .await
@@ -319,8 +319,8 @@ impl AppsManagerClient {
 
         let model_config = self.context.model_config_for_session(session_id).await?;
 
-        let (response, usage) = goose_providers::session_context::with_session_id(
-            session_id,
+        let (response, usage) = crate::session_context::with_session_id(
+            Some(session_id.to_string()),
             provider.complete(&model_config, &system_prompt, &messages, &tools),
         )
         .await

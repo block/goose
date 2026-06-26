@@ -135,7 +135,7 @@ impl AnthropicProviderBuilder {
 
 impl AnthropicProvider {
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
-        let response = self.api_client.request(None, "v1/models").api_get().await?;
+        let response = self.api_client.request("v1/models").api_get().await?;
 
         if response.status == StatusCode::NOT_FOUND {
             let msg = response
@@ -245,7 +245,6 @@ impl Provider for AnthropicProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = crate::session_context::current_session_id();
         let mut payload = create_request(
             ANTHROPIC_PROVIDER_NAME,
             model_config,
@@ -263,7 +262,7 @@ impl Provider for AnthropicProvider {
 
         let response = self
             .with_retry(|| async {
-                let request = self.api_client.request(Some(&session_id), "v1/messages");
+                let request = self.api_client.request("v1/messages");
                 let resp = request.response_post(&payload).await?;
                 handle_status(resp).await
             })

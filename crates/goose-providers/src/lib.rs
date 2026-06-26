@@ -16,6 +16,5 @@ pub mod openai_compatible;
 pub mod permission;
 pub mod request_log;
 pub mod retry;
-pub mod session_context;
 pub mod thinking;
 pub mod utils;

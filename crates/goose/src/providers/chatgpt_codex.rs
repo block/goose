@@ -992,7 +992,7 @@ impl Provider for ChatGptCodexProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = goose_providers::session_context::current_session_id();
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         let mut payload = create_codex_request(model_config, system, messages, tools)
             .map_err(|e| ProviderError::ExecutionError(e.to_string()))?;
         payload["stream"] = serde_json::Value::Bool(true);

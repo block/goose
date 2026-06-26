@@ -326,8 +326,8 @@ impl AdversaryInspector {
         let model_config = resolve_model_config(&self.session_manager, session_id)
             .await
             .map_err(|e| anyhow::anyhow!("Could not resolve model config: {}", e))?;
-        let (response, _usage) = goose_providers::session_context::with_session_id(
-            session_id,
+        let (response, _usage) = crate::session_context::with_session_id(
+            Some(session_id.to_string()),
             provider.complete(&model_config, system_prompt, conversation.messages(), &[]),
         )
         .await

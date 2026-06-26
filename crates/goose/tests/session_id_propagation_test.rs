@@ -144,8 +144,8 @@ async fn setup_mock_server() -> (MockServer, HeaderCapture, Box<dyn Provider>) {
 async fn make_request(provider: &dyn Provider, session_id: &str) {
     let message = Message::user().with_text("test message");
     let model_config = ModelConfig::new("gpt-5-nano");
-    let _ = goose_providers::session_context::with_session_id(
-        session_id,
+    let _ = crate::session_context::with_session_id(
+        Some(session_id.to_string()),
         provider.complete(
             &model_config,
             "You are a helpful assistant.",
