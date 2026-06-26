@@ -154068,7 +154068,7 @@
     "id": "cortecs/gpt-4.1-mini",
     "name": "GPT 4.1 Mini",
     "attachment": true,
-    "reasoning": true,
+    "reasoning": false,
     "tool_call": true,
     "temperature": true,
     "modalities": {
@@ -154093,7 +154093,7 @@
     "id": "cortecs/gpt-4.1-nano",
     "name": "GPT 4.1 Nano",
     "attachment": true,
-    "reasoning": true,
+    "reasoning": false,
     "tool_call": true,
     "temperature": true,
     "modalities": {
@@ -154118,7 +154118,7 @@
     "id": "cortecs/gpt-4o",
     "name": "GPT 4o",
     "attachment": true,
-    "reasoning": true,
+    "reasoning": false,
     "tool_call": true,
     "temperature": true,
     "modalities": {
@@ -154143,7 +154143,7 @@
     "id": "cortecs/gpt-4o-mini",
     "name": "GPT 4o Mini",
     "attachment": true,
-    "reasoning": true,
+    "reasoning": false,
     "tool_call": true,
     "temperature": true,
     "modalities": {
@@ -154212,7 +154212,7 @@
     "limit": {
       "context": 400000
     },
-    "release_date": "2024-11-20"
+    "release_date": "2025-08-07"
   },
   {
     "id": "cortecs/gpt-5-nano",
@@ -154237,7 +154237,7 @@
     "limit": {
       "context": 400000
     },
-    "release_date": "2024-11-20"
+    "release_date": "2025-08-07"
   },
   {
     "id": "cortecs/gpt-5.1",
