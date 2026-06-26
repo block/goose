@@ -51,13 +51,28 @@ pub struct RemoveSessionExtensionRequest {
 #[serde(rename_all = "camelCase")]
 pub struct GetToolsRequest {
     pub session_id: String,
+    /// Filter tools to those belonging to this extension.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+}
+
+/// A single tool item returned by the tools list endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolListItem {
+    pub name: String,
+    pub description: String,
+    pub parameters: Vec<String>,
+    pub permission: Option<ToolPermissionLevel>,
+    pub input_schema: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_schema: Option<serde_json::Value>,
 }
 
 /// Tools response.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct GetToolsResponse {
-    /// Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`.
-    pub tools: Vec<serde_json::Value>,
+    pub tools: Vec<ToolListItem>,
 }
 
 /// Read a resource from an extension.
@@ -1684,3 +1699,32 @@ pub struct DictationModelSelectRequest {
     pub provider: String,
     pub model_id: String,
 }
+
+/// Permission level for a tool.
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolPermissionLevel {
+    AlwaysAllow,
+    #[default]
+    AskBefore,
+    NeverAllow,
+}
+
+/// A single tool permission entry.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolPermissionEntry {
+    pub tool_name: String,
+    pub permission: ToolPermissionLevel,
+}
+
+/// Set permission levels for one or more tools.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/tools/permissions/set", response = SetToolPermissionsResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct SetToolPermissionsRequest {
+    pub tool_permissions: Vec<ToolPermissionEntry>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct SetToolPermissionsResponse {}

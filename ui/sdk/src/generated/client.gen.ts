@@ -151,6 +151,8 @@ import type {
   SetConfigExtensionEnabledRequest_unstable,
   SetRecipeSlashCommandRequest_unstable,
   SetSessionSystemPromptRequest_unstable,
+  SetToolPermissionsRequest_unstable,
+  SetToolPermissionsResponse_unstable,
   ShareSessionNostrRequest_unstable,
   ShareSessionNostrResponse_unstable,
   SteerSessionRequest_unstable,
@@ -224,6 +226,7 @@ import {
   zRunScheduleNowResponse_unstable,
   zSaveRecipeResponse_unstable,
   zScanRecipeResponse_unstable,
+  zSetToolPermissionsResponse_unstable,
   zShareSessionNostrResponse_unstable,
   zSteerSessionResponse_unstable,
   zUpdateScheduleResponse_unstable,
@@ -253,6 +256,18 @@ export class GooseExtClient {
   ): Promise<GetToolsResponse_unstable> {
     const raw = await this.conn.extMethod("_goose/unstable/tools/list", params);
     return zGetToolsResponse_unstable.parse(raw) as GetToolsResponse_unstable;
+  }
+
+  async toolsPermissionsSet_unstable(
+    params: SetToolPermissionsRequest_unstable,
+  ): Promise<SetToolPermissionsResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/tools/permissions/set",
+      params,
+    );
+    return zSetToolPermissionsResponse_unstable.parse(
+      raw,
+    ) as SetToolPermissionsResponse_unstable;
   }
 
   async toolsCall_unstable(

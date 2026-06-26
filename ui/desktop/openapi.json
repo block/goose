@@ -791,39 +791,6 @@
         }
       }
     },
-    "/config/permissions": {
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "upsert_permissions",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpsertPermissionsQuery"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Permission update completed",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request"
-          }
-        }
-      }
-    },
     "/config/prompts": {
       "get": {
         "tags": [
@@ -8363,21 +8330,6 @@
           }
         }
       },
-      "ToolPermission": {
-        "type": "object",
-        "required": [
-          "tool_name",
-          "permission"
-        ],
-        "properties": {
-          "permission": {
-            "$ref": "#/components/schemas/PermissionLevel"
-          },
-          "tool_name": {
-            "type": "string"
-          }
-        }
-      },
       "ToolRequest": {
         "type": "object",
         "required": [
@@ -8700,20 +8652,6 @@
             "type": "string"
           },
           "value": {}
-        }
-      },
-      "UpsertPermissionsQuery": {
-        "type": "object",
-        "required": [
-          "tool_permissions"
-        ],
-        "properties": {
-          "tool_permissions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ToolPermission"
-            }
-          }
         }
       },
       "Usage": {

@@ -119,15 +119,54 @@ export const zRemoveSessionExtensionRequest_unstable = z.object({
  * List all tools available in a session.
  */
 export const zGetToolsRequest_unstable = z.object({
-    sessionId: z.string()
+    sessionId: z.string(),
+    extensionName: z.string().nullish()
+});
+
+/**
+ * Permission level for a tool.
+ */
+export const zToolPermissionLevel = z.enum([
+    'always_allow',
+    'ask_before',
+    'never_allow'
+]);
+
+/**
+ * A single tool item returned by the tools list endpoint.
+ */
+export const zToolListItem = z.object({
+    name: z.string(),
+    description: z.string(),
+    parameters: z.array(z.string()),
+    permission: zToolPermissionLevel.nullish(),
+    inputSchema: z.unknown(),
+    outputSchema: z.unknown().optional()
 });
 
 /**
  * Tools response.
  */
 export const zGetToolsResponse_unstable = z.object({
-    tools: z.array(z.unknown())
+    tools: z.array(zToolListItem)
 });
+
+/**
+ * A single tool permission entry.
+ */
+export const zToolPermissionEntry = z.object({
+    toolName: z.string(),
+    permission: zToolPermissionLevel
+});
+
+/**
+ * Set permission levels for one or more tools.
+ */
+export const zSetToolPermissionsRequest_unstable = z.object({
+    toolPermissions: z.array(zToolPermissionEntry)
+});
+
+export const zSetToolPermissionsResponse_unstable = z.record(z.unknown());
 
 /**
  * Call a tool from an extension.
@@ -1764,6 +1803,7 @@ export const zExtRequest = z.object({
             zAddSessionExtensionRequest_unstable,
             zRemoveSessionExtensionRequest_unstable,
             zGetToolsRequest_unstable,
+            zSetToolPermissionsRequest_unstable,
             zGooseToolCallRequest_unstable,
             zReadResourceRequest_unstable,
             zAppsListRequest_unstable,
@@ -1865,6 +1905,7 @@ export const zExtResponse = z.union([
             z.union([
                 zEmptyResponse,
                 zGetToolsResponse_unstable,
+                zSetToolPermissionsResponse_unstable,
                 zGooseToolCallResponse_unstable,
                 zReadResourceResponse_unstable,
                 zAppsListResponse_unstable,

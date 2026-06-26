@@ -1605,11 +1605,6 @@ export type ToolInfo = {
     permission?: PermissionLevel | null;
 };
 
-export type ToolPermission = {
-    permission: PermissionLevel;
-    tool_name: string;
-};
-
 export type ToolRequest = {
     _meta?: {
         [key: string]: unknown;
@@ -1745,10 +1740,6 @@ export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
     value: unknown;
-};
-
-export type UpsertPermissionsQuery = {
-    tool_permissions: Array<ToolPermission>;
 };
 
 /**
@@ -2401,29 +2392,6 @@ export type RemoveExtensionResponses = {
 };
 
 export type RemoveExtensionResponse = RemoveExtensionResponses[keyof RemoveExtensionResponses];
-
-export type UpsertPermissionsData = {
-    body: UpsertPermissionsQuery;
-    path?: never;
-    query?: never;
-    url: '/config/permissions';
-};
-
-export type UpsertPermissionsErrors = {
-    /**
-     * Invalid request
-     */
-    400: unknown;
-};
-
-export type UpsertPermissionsResponses = {
-    /**
-     * Permission update completed
-     */
-    200: string;
-};
-
-export type UpsertPermissionsResponse = UpsertPermissionsResponses[keyof UpsertPermissionsResponses];
 
 export type GetPromptsData = {
     body?: never;

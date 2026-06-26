@@ -6,6 +6,7 @@ tokenizer_files/
 .DS_Store
 .idea
 .vscode
+.zed/
 *.log
 tmp/
 

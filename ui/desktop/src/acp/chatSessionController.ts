@@ -5,7 +5,7 @@ import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
-import { createUserMessage } from '../types/message';
+import { createUserMessage, getPendingToolConfirmationIds } from '../types/message';
 import {
   acpChatSessionActions,
   acpChatSessionStore,
@@ -83,11 +83,21 @@ function assertNoPendingPromptCancellation(sessionId: string): void {
   }
 }
 
-function assertNoActivePromptAttempt(sessionId: string): void {
-  const snapshot = acpChatSessionStore.getSnapshot(sessionId);
-  if (snapshot?.activePromptAttemptId) {
-    throw new Error('Cannot update message while prompt is active');
-  }
+async function forkSessionWithEditedMessage(
+  sessionId: string,
+  message: Message,
+  editedMessage: string
+): Promise<void> {
+  const targetSessionId = await acpForkSession(sessionId, message.created);
+
+  const event = new CustomEvent(AppEvents.SESSION_FORKED, {
+    detail: {
+      newSessionId: targetSessionId,
+      shouldStartAgent: true,
+      editedMessage,
+    },
+  });
+  window.dispatchEvent(event);
 }
 
 async function createSession(
@@ -214,37 +224,69 @@ async function updateMessage(
   options: AcpSubmitMessageOptions
 ): Promise<void> {
   assertNoPendingPromptCancellation(sessionId);
-  assertNoActivePromptAttempt(sessionId);
 
   const resolvedEditType = editType ?? 'fork';
   const currentSnapshot = options.getCurrentSnapshot();
+  const storedSnapshot = acpChatSessionStore.getSnapshot(sessionId);
+  const activePromptAttemptId = storedSnapshot?.activePromptAttemptId;
+  const currentMessages = currentSnapshot?.messages ?? [];
+  const message = currentMessages.find((m) => m.id === messageId);
+
+  if (!message) {
+    throw new Error(`Message with id ${messageId} not found in current messages`);
+  }
+
+  if (resolvedEditType === 'fork') {
+    await forkSessionWithEditedMessage(sessionId, message, newContent);
+    return;
+  }
+
+  const editSnapshot = currentSnapshot ?? storedSnapshot;
+  const isPendingToolPermission =
+    editSnapshot?.chatState === ChatState.WaitingForUserInput &&
+    getPendingToolConfirmationIds(editSnapshot?.messages ?? []).size > 0;
+  const isIdle = editSnapshot?.chatState === ChatState.Idle;
+  const pendingToolPermissionPromptAttemptId = isPendingToolPermission
+    ? activePromptAttemptId
+    : undefined;
+  const canEditInPlace = isIdle || pendingToolPermissionPromptAttemptId != null;
+
+  if (!canEditInPlace) {
+    return;
+  }
+
+  if (pendingToolPermissionPromptAttemptId != null) {
+    const cancellation = acpChatSessionActions.startPromptCancellation(
+      sessionId,
+      pendingToolPermissionPromptAttemptId
+    );
+    if (!cancellation) {
+      throw new Error('Cannot update message while prompt is active');
+    }
+
+    const promptCancellationSettled = acpChatSessionActions.waitForPromptCancellation(
+      sessionId,
+      pendingToolPermissionPromptAttemptId
+    );
+
+    try {
+      await acpCancelPrompt(sessionId);
+    } catch {
+      acpChatSessionActions.restorePromptCancellation(
+        sessionId,
+        pendingToolPermissionPromptAttemptId
+      );
+      throw new Error('Cannot update message because the active prompt could not be cancelled');
+    }
+
+    cancelAcpPermissionRequestsForSession(sessionId);
+    cancelAcpElicitationRequestsForSession(sessionId);
+    await promptCancellationSettled;
+  }
 
   acpChatSessionActions.setChatState(sessionId, ChatState.Thinking);
 
   try {
-    const currentMessages = currentSnapshot?.messages ?? [];
-    const message = currentMessages.find((m) => m.id === messageId);
-
-    if (!message) {
-      throw new Error(`Message with id ${messageId} not found in current messages`);
-    }
-
-    if (resolvedEditType === 'fork') {
-      const targetSessionId = await acpForkSession(sessionId, message.created);
-
-      acpChatSessionActions.setChatState(sessionId, ChatState.Idle);
-      const event = new CustomEvent(AppEvents.SESSION_FORKED, {
-        detail: {
-          newSessionId: targetSessionId,
-          shouldStartAgent: true,
-          editedMessage: newContent,
-        },
-      });
-      window.dispatchEvent(event);
-      window.electron.logInfo(`Dispatched session-forked event for session ${targetSessionId}`);
-      return;
-    }
-
     await acpTruncateSessionConversation(sessionId, message.created);
 
     const truncatedMessages = currentMessages.filter((m) => m.created < message.created);
