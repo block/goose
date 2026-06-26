@@ -74,6 +74,18 @@ impl ProviderEntry {
             .unwrap_or(&self.metadata.name);
         model = crate::model_config::materialize_model_config(canonical_name, model)?;
 
+        // The incoming config may have been materialized earlier under the
+        // provider name, where an inferable model (e.g. `codestral`) resolves to
+        // a first-party catalog entry and `with_canonical_limits` only fills
+        // `None` fields — so the catalog id above can't replace those inferred
+        // limits. Reconcile them to the catalog entry's values where they still
+        // match the inferred ones (preserving explicit user overrides).
+        if let Some(catalog_id) = self.canonical_provider_id.as_deref() {
+            if catalog_id != self.metadata.name {
+                model = model.reconcile_canonical_limits(&self.metadata.name, catalog_id);
+            }
+        }
+
         if model.context_limit.is_none() {
             if let Some(info) = self
                 .metadata

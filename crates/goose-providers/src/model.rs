@@ -109,6 +109,46 @@ impl ModelConfig {
         self
     }
 
+    /// Replace canonical limit fields that were materialized under
+    /// `inferred_provider` with the entry under `canonical_provider`.
+    ///
+    /// `with_canonical_limits` only fills `None` fields, so a config that was
+    /// first materialized under a custom provider name (where an inferable model
+    /// like `codestral` resolves to a first-party entry, e.g. Mistral's output
+    /// cap) keeps those inferred values even after a later catalog-id pass. This
+    /// overrides each field, but only when it still equals the value the inferred
+    /// entry would have produced — so explicit user overrides are preserved. A
+    /// no-op when both providers resolve to the same canonical entry (e.g.
+    /// built-in declarative providers whose name aliases to their catalog id).
+    pub fn reconcile_canonical_limits(
+        mut self,
+        inferred_provider: &str,
+        canonical_provider: &str,
+    ) -> Self {
+        let inferred =
+            crate::canonical::maybe_get_canonical_model(inferred_provider, &self.model_name);
+        let canonical =
+            crate::canonical::maybe_get_canonical_model(canonical_provider, &self.model_name);
+        if let (Some(inferred), Some(canonical)) = (inferred, canonical) {
+            let derive_output = |limit: &crate::canonical::Limit| {
+                limit
+                    .output
+                    .filter(|&output| output < limit.context)
+                    .map(|output| output as i32)
+            };
+            if self.context_limit == Some(inferred.limit.context) {
+                self.context_limit = Some(canonical.limit.context);
+            }
+            if self.max_tokens == derive_output(&inferred.limit) {
+                self.max_tokens = derive_output(&canonical.limit);
+            }
+            if self.reasoning == inferred.reasoning {
+                self.reasoning = canonical.reasoning;
+            }
+        }
+        self
+    }
+
     pub fn with_context_limit(mut self, limit: Option<usize>) -> Self {
         if limit.is_some() {
             self.context_limit = limit;
@@ -296,6 +336,36 @@ impl ModelConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    mod reconcile_canonical_limits_tests {
+        use super::*;
+
+        #[test]
+        fn preserves_user_override_that_does_not_match_inferred() {
+            // A context limit that matches no canonical entry must survive
+            // reconciliation untouched, regardless of catalog values.
+            let model = ModelConfig::new("codestral").with_context_limit(Some(999_999));
+            let reconciled = model.reconcile_canonical_limits("mistralai", "cortecs");
+            assert_eq!(reconciled.context_limit, Some(999_999));
+        }
+
+        #[test]
+        fn overrides_inferred_limit_with_catalog_value() {
+            // Derive expectations from the bundled registry so the test isn't
+            // tied to specific catalog numbers; only meaningful when the model
+            // exists under both providers with differing context windows.
+            let inferred = crate::canonical::maybe_get_canonical_model("mistralai", "codestral");
+            let canonical = crate::canonical::maybe_get_canonical_model("cortecs", "codestral");
+            if let (Some(inferred), Some(canonical)) = (inferred, canonical) {
+                if inferred.limit.context != canonical.limit.context {
+                    let model = ModelConfig::new("codestral")
+                        .with_context_limit(Some(inferred.limit.context));
+                    let reconciled = model.reconcile_canonical_limits("mistralai", "cortecs");
+                    assert_eq!(reconciled.context_limit, Some(canonical.limit.context));
+                }
+            }
+        }
+    }
 
     mod thinking_effort_tests {
         use super::*;
