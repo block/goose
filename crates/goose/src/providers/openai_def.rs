@@ -275,6 +275,9 @@ pub fn from_custom_config(
         .custom_headers(config.headers)
         .supports_streaming(config.supports_streaming.unwrap_or(true))
         .name(config.name.clone())
+        // Resolve canonical model metadata/filtering against the shared catalog
+        // id (e.g. "cortecs") rather than the prefixed custom name ("custom_cortecs").
+        .canonical_provider_id(config.catalog_provider_id.clone())
         .custom_models(custom_models)
         .dynamic_models(config.dynamic_models)
         .skip_canonical_filtering(config.skip_canonical_filtering)

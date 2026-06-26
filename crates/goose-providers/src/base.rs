@@ -382,6 +382,18 @@ pub trait Provider: Send + Sync {
     /// Get the name of this provider instance
     fn get_name(&self) -> &str;
 
+    /// Provider identity used for canonical model-catalog lookups.
+    ///
+    /// Defaults to [`get_name`](Self::get_name). Providers backed by a shared
+    /// upstream catalog override this so canonical metadata and filtering
+    /// resolve against the catalog id rather than the user-facing provider name
+    /// — e.g. a custom OpenAI-compatible provider configured with
+    /// `catalog_provider_id` (the user-chosen name is prefixed with `custom_`
+    /// and would otherwise never match a catalog entry).
+    fn canonical_provider_id(&self) -> &str {
+        self.get_name()
+    }
+
     /// Primary streaming method that all providers must implement.
     ///
     /// Note: Do not add `#[instrument]` here — the call sites (`complete` and
@@ -437,12 +449,15 @@ pub trait Provider: Send + Sync {
             .fetch_supported_models()
             .await?
             .iter()
-            .map(|model_name| model_info_for_provider_model(self.get_name(), model_name))
+            .map(|model_name| model_info_for_provider_model(self.canonical_provider_id(), model_name))
             .collect())
     }
 
     async fn fetch_model_info(&self, model_name: &str) -> Result<ModelInfo, ProviderError> {
-        Ok(model_info_for_provider_model(self.get_name(), model_name))
+        Ok(model_info_for_provider_model(
+            self.canonical_provider_id(),
+            model_name,
+        ))
     }
 
     fn skip_canonical_filtering(&self) -> bool {
@@ -464,7 +479,7 @@ pub trait Provider: Send + Sync {
             ProviderError::ExecutionError(format!("Failed to load canonical registry: {}", e))
         })?;
 
-        let provider_name = self.get_name();
+        let provider_name = self.canonical_provider_id();
 
         // Get all text-capable models with their release dates
         let mut models_with_dates: Vec<(String, Option<String>)> = all_models
@@ -521,7 +536,7 @@ pub trait Provider: Send + Sync {
             .fetch_recommended_models(toolshim)
             .await?
             .iter()
-            .map(|model_name| model_info_for_provider_model(self.get_name(), model_name))
+            .map(|model_name| model_info_for_provider_model(self.canonical_provider_id(), model_name))
             .collect())
     }
 
@@ -534,7 +549,7 @@ pub trait Provider: Send + Sync {
         })?;
 
         Ok(map_to_canonical_model(
-            self.get_name(),
+            self.canonical_provider_id(),
             provider_model,
             registry,
         ))
