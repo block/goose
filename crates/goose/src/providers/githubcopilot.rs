@@ -24,7 +24,9 @@ tokio::task_local! {
     static IS_AGENT_CALL: bool;
 }
 
-use super::base::{Provider, ProviderDef, ProviderMetadata, DEFAULT_PROVIDER_TIMEOUT_SECS};
+use super::base::{
+    collect_stream, Provider, ProviderDef, ProviderMetadata, DEFAULT_PROVIDER_TIMEOUT_SECS,
+};
 use super::openai_compatible::handle_response_openai_compat;
 use super::retry::ProviderRetry;
 use super::utils::get_model;
@@ -549,6 +551,20 @@ impl ProviderDef for GithubCopilotProvider {
 impl Provider for GithubCopilotProvider {
     fn get_name(&self) -> &str {
         &self.name
+    }
+
+    async fn complete(
+        &self,
+        model_config: &ModelConfig,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<(Message, ProviderUsage), ProviderError> {
+        IS_AGENT_CALL
+            .scope(true, async {
+                collect_stream(self.stream(model_config, system, messages, tools).await?).await
+            })
+            .await
     }
 
     async fn stream(
