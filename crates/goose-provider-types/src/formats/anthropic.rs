@@ -48,10 +48,8 @@ pub struct AnthropicFormatOptions {
     pub preserve_unsigned_thinking: bool,
     pub preserve_thinking_context: bool,
     pub thinking_disabled: bool,
-    /// The model this request targets. Used to drop signed thinking blocks that
-    /// were produced by a different model (their signatures are model-specific,
-    /// and Anthropic rejects mismatched blocks with a 400). `None` disables the
-    /// staleness check (keeps prior behavior).
+    /// The model this request targets. See [`thinking_block_is_stale`] for how
+    /// this is used. `None` disables the staleness check (keeps prior behavior).
     pub current_model: Option<String>,
 }
 
@@ -79,11 +77,19 @@ impl AnthropicFormatOptions {
 }
 
 /// Returns true when `message` carries signed thinking content that was
-/// produced by a model other than `current_model`. Such blocks have
-/// model-specific signatures that Anthropic rejects if replayed against a
-/// different model. Returns false when we can't establish provenance (no
-/// `current_model`, or the message has no recorded originating model), so
-/// single-model conversations are unaffected.
+/// produced by a model other than `current_model`.
+///
+/// A signed thinking block's signature is issued by — and only valid for —
+/// the model that produced it. If the conversation switched models or
+/// thinking-effort mid-stream (e.g. the user changed models), re-sending
+/// that message's signed `thinking` / `redacted_thinking` blocks makes
+/// Anthropic reject the whole request with 400 "blocks in the latest
+/// assistant message cannot be modified". Callers drop those stale signed
+/// blocks and still send the turn's text/tool content.
+///
+/// Returns false when we can't establish provenance (no `current_model`, or
+/// the message has no recorded originating model), so single-model
+/// conversations are unaffected.
 pub fn thinking_block_is_stale(message: &Message, current_model: Option<&str>) -> bool {
     let Some(current_model) = current_model else {
         return false;
@@ -91,13 +97,20 @@ pub fn thinking_block_is_stale(message: &Message, current_model: Option<&str>) -
     let Some(inference) = message.metadata.inference.as_ref() else {
         return false;
     };
-    // Compare against the model that actually produced the response when known,
-    // falling back to the requested model.
-    let origin_model = inference
-        .resolved_model
-        .as_deref()
-        .unwrap_or(inference.requested_model.as_str());
-    !origin_model.is_empty() && origin_model != current_model
+    // A block is stale only if `current_model` matches *neither* identity the
+    // prior message recorded. We can't assume which identity space the caller
+    // passes: callers pass `ModelConfig.model_name`, which is normally the
+    // endpoint name (matching `requested_model`) but for Databricks Claude-backed
+    // endpoints is rewritten to the *upstream* model name (matching
+    // `resolved_model`). Matching either keeps valid same-endpoint follow-ups
+    // (whichever identity is in play), and only a genuine model switch — which
+    // differs from both — is treated as stale.
+    let requested = inference.requested_model.as_str();
+    let resolved = inference.resolved_model.as_deref().unwrap_or("");
+    if requested.is_empty() && resolved.is_empty() {
+        return false;
+    }
+    current_model != requested && current_model != resolved
 }
 
 fn canonical_thinking_mode(provider_name: &str, model_name: &str) -> Option<ThinkingMode> {
@@ -209,15 +222,6 @@ fn format_messages_with_options(
             Role::Assistant => ASSISTANT_ROLE,
         };
 
-        // A signed thinking block's signature is issued by — and only valid
-        // for — the model that produced it. If this message was produced by a
-        // different model than the one we're now targeting (e.g. the user
-        // switched models or thinking-effort mid-conversation), re-sending its
-        // signed `thinking` / `redacted_thinking` blocks makes Anthropic reject
-        // the whole request with 400 "blocks in the latest assistant message
-        // cannot be modified". Drop those stale signed blocks; the text/tool
-        // content of the turn is still sent. When provenance is unknown we keep
-        // the current behavior (no regression for single-model conversations).
         let thinking_is_stale = thinking_block_is_stale(message, options.current_model.as_deref());
 
         let mut content = Vec::new();
@@ -303,7 +307,6 @@ fn format_messages_with_options(
                     // Anthropic rejects thinking blocks sent without a matching thinking config.
                     if !options.thinking_disabled {
                         if !thinking.signature.is_empty() {
-                            // Signed blocks are model-specific; skip if stale.
                             if !thinking_is_stale {
                                 content.push(json!({
                                     TYPE_FIELD: THINKING_TYPE,
@@ -322,7 +325,6 @@ fn format_messages_with_options(
                     }
                 }
                 MessageContent::RedactedThinking(redacted) => {
-                    // Redacted thinking is always signed/model-specific; skip if stale.
                     if !options.thinking_disabled && !thinking_is_stale {
                         content.push(json!({
                             TYPE_FIELD: REDACTED_THINKING_TYPE,
@@ -1324,7 +1326,6 @@ mod tests {
             ..Default::default()
         };
         let spec = format_messages_with_options(&messages, &opts);
-        // Signed thinking block dropped; the text content survives.
         let types: Vec<&str> = spec[0]["content"]
             .as_array()
             .unwrap()
@@ -1352,7 +1353,6 @@ mod tests {
 
     #[test]
     fn keeps_signed_thinking_when_provenance_unknown() {
-        // No inference metadata recorded -> can't prove staleness -> keep it.
         let messages =
             vec![Message::assistant().with_content(MessageContent::thinking("internal", "sig"))];
         let opts = AnthropicFormatOptions {

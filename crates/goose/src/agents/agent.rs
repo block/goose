@@ -1828,16 +1828,22 @@ impl Agent {
         let provider = self.provider().await?;
         let provider_name = provider.get_name().to_string();
         let requested_model = model_config.model_name.clone();
-        let inference = provider
+        // Always record provenance (at least the requested model), even when the
+        // provider can't resolve an upstream model name. The requested model is
+        // what downstream formatters use to detect stale, model-specific signed
+        // thinking blocks after a mid-conversation model switch; gating the whole
+        // metadata on `resolved_model` left direct Anthropic sessions without any
+        // provenance.
+        let resolved_model = provider
             .fetch_model_info(&requested_model)
             .await
             .ok()
-            .and_then(|model_info| model_info.resolved_model)
-            .map(|resolved_model| InferenceMetadata {
-                provider: provider_name,
-                requested_model,
-                resolved_model: Some(resolved_model),
-            });
+            .and_then(|model_info| model_info.resolved_model);
+        let inference = Some(InferenceMetadata {
+            provider: provider_name,
+            requested_model,
+            resolved_model,
+        });
         let session_manager = self.config.session_manager.clone();
         let session_id = session_config.id.clone();
         if !self.config.disable_session_naming {

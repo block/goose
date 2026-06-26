@@ -119,10 +119,6 @@ fn format_messages(
 ) -> Vec<DatabricksMessage> {
     let mut result = Vec::new();
     for message in messages {
-        // Signed reasoning blocks are model-specific; drop them if this turn
-        // came from a different model than we're now targeting. Replaying a
-        // mismatched signature makes Claude-via-Databricks reject the request
-        // with 400 "thinking blocks ... cannot be modified".
         let thinking_is_stale = thinking_block_is_stale(message, current_model);
         let mut converted = DatabricksMessage {
             content: Value::Null,
@@ -781,7 +777,7 @@ mod tests {
     }
 
     #[test]
-    fn drops_stale_reasoning_blocks_from_a_different_model() {
+    fn keeps_reasoning_block_from_the_same_model() {
         use crate::conversation::message::InferenceMetadata;
         let message = Message::assistant()
             .with_content(MessageContent::thinking("internal", "sig-xyz"))
@@ -792,38 +788,106 @@ mod tests {
                 resolved_model: None,
             });
 
-        // Same model: reasoning block is kept.
-        let same = format_messages(
-            std::slice::from_ref(&message),
+        let spec = format_messages(
+            &[message],
             &ImageFormat::OpenAi,
             Some("databricks-claude-opus-4-1"),
         );
-        let has_reasoning = |m: &DatabricksMessage| {
-            m.content
-                .as_array()
-                .map(|a| a.iter().any(|c| c["type"] == "reasoning"))
-                .unwrap_or(false)
-        };
-        assert!(has_reasoning(&same[0]), "same-model reasoning must be kept");
+        let has_reasoning = spec[0]
+            .content
+            .as_array()
+            .map(|a| a.iter().any(|c| c["type"] == "reasoning"))
+            .unwrap_or(false);
+        assert!(has_reasoning, "same-model reasoning must be kept");
+    }
 
-        // Different model: reasoning block dropped, text preserved.
-        let stale = format_messages(
+    #[test]
+    fn drops_reasoning_block_from_a_different_model() {
+        use crate::conversation::message::InferenceMetadata;
+        let message = Message::assistant()
+            .with_content(MessageContent::thinking("internal", "sig-xyz"))
+            .with_text("answer")
+            .with_inference(InferenceMetadata {
+                provider: "databricks".to_string(),
+                requested_model: "databricks-claude-opus-4-1".to_string(),
+                resolved_model: None,
+            });
+
+        let spec = format_messages(
             &[message],
             &ImageFormat::OpenAi,
             Some("databricks-claude-sonnet-4-5"),
         );
-        assert!(
-            !has_reasoning(&stale[0]),
-            "stale reasoning block must be dropped"
+        let has_reasoning = spec[0]
+            .content
+            .as_array()
+            .map(|a| a.iter().any(|c| c["type"] == "reasoning"))
+            .unwrap_or(false);
+        assert!(!has_reasoning, "stale reasoning block must be dropped");
+        // With reasoning gone, the lone "answer" text is the only content item,
+        // so it collapses to a bare string body.
+        assert_eq!(spec[0].content, Value::String("answer".to_string()));
+    }
+
+    #[test]
+    fn keeps_reasoning_when_endpoint_matches_despite_upstream_resolved_name() {
+        // Regression: Databricks stores the upstream model name in
+        // resolved_model (e.g. "claude-opus-4.6") while the request targets the
+        // endpoint name ("databricks-claude-opus-4-1"). A same-endpoint
+        // follow-up must NOT be treated as stale.
+        use crate::conversation::message::InferenceMetadata;
+        let message = Message::assistant()
+            .with_content(MessageContent::thinking("internal", "sig-xyz"))
+            .with_text("answer")
+            .with_inference(InferenceMetadata {
+                provider: "databricks".to_string(),
+                requested_model: "databricks-claude-opus-4-1".to_string(),
+                resolved_model: Some("claude-opus-4.1".to_string()),
+            });
+
+        let spec = format_messages(
+            &[message],
+            &ImageFormat::OpenAi,
+            Some("databricks-claude-opus-4-1"),
         );
-        // With reasoning gone, the lone "answer" text collapses to a bare
-        // string body, so assert the text survived in either shape.
-        let has_text = match &stale[0].content {
-            Value::String(s) => s == "answer",
-            Value::Array(a) => a.iter().any(|c| c["type"] == "text"),
-            _ => false,
-        };
-        assert!(has_text, "text content must be preserved");
+        let has_reasoning = spec[0]
+            .content
+            .as_array()
+            .map(|a| a.iter().any(|c| c["type"] == "reasoning"))
+            .unwrap_or(false);
+        assert!(
+            has_reasoning,
+            "same-endpoint reasoning must be kept even when resolved_model differs"
+        );
+    }
+
+    #[test]
+    fn keeps_reasoning_when_current_model_matches_upstream_resolved_name() {
+        // Regression: a Databricks Claude-backed endpoint rewrites the format
+        // config's model_name to the *upstream* name before formatting, so the
+        // stale check receives the upstream name as current_model while the
+        // message metadata recorded the endpoint name as requested_model. The
+        // block must still be kept because current_model matches resolved_model.
+        use crate::conversation::message::InferenceMetadata;
+        let message = Message::assistant()
+            .with_content(MessageContent::thinking("internal", "sig-xyz"))
+            .with_text("answer")
+            .with_inference(InferenceMetadata {
+                provider: "databricks".to_string(),
+                requested_model: "my-claude-endpoint".to_string(),
+                resolved_model: Some("claude-opus-4.1".to_string()),
+            });
+
+        let spec = format_messages(&[message], &ImageFormat::OpenAi, Some("claude-opus-4.1"));
+        let has_reasoning = spec[0]
+            .content
+            .as_array()
+            .map(|a| a.iter().any(|c| c["type"] == "reasoning"))
+            .unwrap_or(false);
+        assert!(
+            has_reasoning,
+            "reasoning must be kept when current_model matches the upstream resolved_model"
+        );
     }
 
     #[test]
@@ -1554,7 +1618,7 @@ mod tests {
             final_resp,
         ];
 
-        let spec = serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi))?;
+        let spec = serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi, None))?;
         let mut open = std::collections::HashSet::new();
         for m in spec.as_array().unwrap() {
             match m.get("role").and_then(|v| v.as_str()) {
