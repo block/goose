@@ -44,6 +44,17 @@ pub const BEDROCK_KNOWN_MODELS: &[&str] = &[
     "us.anthropic.claude-opus-4-1-20250805-v1:0",
     "openai.gpt-5.5",
     "openai.gpt-5.4",
+    "google.gemma-4-31b",
+    "google.gemma-4-26b-a4b",
+    "google.gemma-4-e2b",
+];
+
+pub const BEDROCK_MANTLE_MODELS: &[&str] = &[
+    "openai.gpt-5.5",
+    "openai.gpt-5.4",
+    "google.gemma-4-31b",
+    "google.gemma-4-26b-a4b",
+    "google.gemma-4-e2b",
 ];
 
 pub const BEDROCK_DEFAULT_MAX_RETRIES: usize = 6;
@@ -538,6 +549,25 @@ impl BedrockProvider {
             provider_usage,
         ))
     }
+
+    fn resolve_mantle_model(model_name: &str) -> Option<(String, String, Option<String>)> {
+        // Case 1: raw name is a Mantle model (e.g. google.gemma-4-31b or openai.gpt-5.5).
+        // Strip any openai. prefix before extracting reasoning effort so base_name is always
+        // prefix-free (e.g. "gpt-5.5", not "openai.gpt-5.5") when passed to create_responses_request.
+        if BEDROCK_MANTLE_MODELS.contains(&model_name) {
+            let without_prefix = model_name.strip_prefix("openai.").unwrap_or(model_name);
+            let (base, effort) = extract_reasoning_effort(without_prefix);
+            return Some((model_name.to_string(), base, effort));
+        }
+        // Case 2: strip openai. prefix (or user omitted it) and re-check (e.g. gpt-5.5 -> openai.gpt-5.5)
+        let without_prefix = model_name.strip_prefix("openai.").unwrap_or(model_name);
+        let (base, effort) = extract_reasoning_effort(without_prefix);
+        let prefixed = format!("openai.{}", base);
+        if BEDROCK_MANTLE_MODELS.contains(&prefixed.as_str()) {
+            return Some((prefixed, base, effort));
+        }
+        None
+    }
 }
 
 /// Accumulation state for in-flight content blocks while consuming a
@@ -745,16 +775,9 @@ impl Provider for BedrockProvider {
             Some(session_id)
         };
 
-        let without_prefix = model_config
-            .model_name
-            .strip_prefix("openai.")
-            .unwrap_or(&model_config.model_name);
-        let (base_name, effort) = extract_reasoning_effort(without_prefix);
-        let bedrock_model_id = format!("openai.{}", base_name);
-
-        let is_mantle_model = BEDROCK_KNOWN_MODELS.contains(&bedrock_model_id.as_str());
-
-        if is_mantle_model {
+        if let Some((mantle_model_id, base_name, effort)) =
+            Self::resolve_mantle_model(&model_config.model_name)
+        {
             let mut normalized_config = ModelConfig {
                 model_name: base_name,
                 ..model_config.clone()
@@ -771,7 +794,7 @@ impl Provider for BedrockProvider {
             }
             let mut payload =
                 create_responses_request(&normalized_config, system, messages, tools)?;
-            payload["model"] = Value::String(bedrock_model_id.clone());
+            payload["model"] = Value::String(mantle_model_id.clone());
             payload["stream"] = Value::Bool(true);
             let mut log = start_log(model_config, &payload).map_err(anyhow::Error::from)?;
 
@@ -938,6 +961,26 @@ mod tests {
                 reasoning: None,
             },
         )
+    }
+
+    fn is_mantle_model(model_name: &str) -> bool {
+        BedrockProvider::resolve_mantle_model(model_name).is_some()
+    }
+
+    #[test]
+    fn test_resolve_mantle_model_routing() {
+        // Gemma models (Case 1: raw literal)
+        assert!(is_mantle_model("google.gemma-4-31b"));
+        assert!(is_mantle_model("google.gemma-4-26b-a4b"));
+        assert!(is_mantle_model("google.gemma-4-e2b"));
+        // GPT models (Case 1: with prefix; Case 2: without prefix)
+        assert!(is_mantle_model("openai.gpt-5.5"));
+        assert!(is_mantle_model("gpt-5.5"));
+        // Non-Mantle models must not match
+        assert!(!is_mantle_model("google.gemma-4-FAKE"));
+        assert!(!is_mantle_model(
+            "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
+        ));
     }
 
     #[test]
@@ -1124,6 +1167,71 @@ mod tests {
         assert_eq!(received.len(), 1);
         let body: serde_json::Value = serde_json::from_slice(&received[0].body).unwrap();
         assert_eq!(body["model"].as_str().unwrap(), "openai.gpt-5.5");
+    }
+
+    #[tokio::test]
+    async fn test_mantle_stream_gemma_4_31b() {
+        use crate::conversation::message::MessageContent;
+        use futures::StreamExt;
+        use wiremock::matchers::{header, method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+
+        let sse_body = [
+            r#"data: {"type":"response.output_text.delta","sequence_number":1,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}"#,
+            r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":" world"}"#,
+            "data: [DONE]",
+        ]
+        .join("\n");
+
+        Mock::given(method("POST"))
+            .and(path("/openai/v1/responses"))
+            .and(header("authorization", "Bearer test-token"))
+            .respond_with(ResponseTemplate::new(200).set_body_raw(sse_body, "text/event-stream"))
+            .mount(&server)
+            .await;
+
+        let sdk_config = aws_config::SdkConfig::builder()
+            .behavior_version(aws_config::BehaviorVersion::latest())
+            .region(aws_config::Region::new("us-east-1"))
+            .build();
+
+        let model = ModelConfig::new("google.gemma-4-31b");
+        let provider = BedrockProvider {
+            client: Client::new(&sdk_config),
+            retry_config: RetryConfig::default(),
+            name: "aws_bedrock".to_string(),
+            region: Some("us-east-1".to_string()),
+            bearer_token: Some("test-token".to_string()),
+            http_client: reqwest::Client::new(),
+            mantle_base_url: Some(format!("{}/openai/v1/responses", server.uri())),
+        };
+
+        let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
+        let mut stream = provider
+            .stream(&model.clone(), "", "", &messages, &[])
+            .await
+            .unwrap();
+
+        let mut text = String::new();
+        while let Some(item) = stream.next().await {
+            let (msg, _usage) = item.unwrap();
+            if let Some(m) = msg {
+                for c in m.content {
+                    if let MessageContent::Text(t) = c {
+                        text.push_str(&t.text);
+                    }
+                }
+            }
+        }
+
+        assert_eq!(text, "Hello world");
+
+        let received = server.received_requests().await.unwrap();
+        assert_eq!(received.len(), 1);
+        let body: serde_json::Value = serde_json::from_slice(&received[0].body).unwrap();
+        assert_eq!(body["model"].as_str().unwrap(), "google.gemma-4-31b");
     }
 
     // ── ConverseStream event processing ──────────────────────────────────
