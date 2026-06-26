@@ -586,6 +586,12 @@ pub trait Provider: Send + Sync {
     ) -> bool {
         false
     }
+
+    /// Called after construction to perform async initialization.
+    ///
+    /// Providers can override this to fetch model metadata (e.g. context limits)
+    /// from a remote API at startup, before the first message is sent.
+    async fn post_init(&self) {}
 }
 
 #[cfg(test)]

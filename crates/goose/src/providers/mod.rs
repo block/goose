@@ -53,6 +53,7 @@ pub mod nanogpt;
 pub mod oauth;
 pub mod oauth_device_flow;
 pub mod ollama;
+pub mod ollama_cloud;
 pub mod openai {
     pub use goose_providers::openai::*;
 }
