@@ -1,10 +1,10 @@
+use goose::agents::ExtensionConfig;
 use goose::agents::extension::Envs;
 use goose::agents::extension::ToolInfo;
-use goose::agents::ExtensionConfig;
-use goose::config::permission::PermissionLevel;
 use goose::config::ExtensionEntry;
-use goose::conversation::token_usage::Usage;
+use goose::config::permission::PermissionLevel;
 use goose::conversation::Conversation;
+use goose::conversation::token_usage::Usage;
 use goose::download_manager::{DownloadProgress, DownloadStatus};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{
@@ -468,7 +468,6 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::setup::start_openrouter_setup,
         super::routes::setup::start_tetrate_setup,
         super::routes::setup::start_nanogpt_setup,
-        super::routes::tunnel::get_tunnel_status,
         super::routes::telemetry::send_telemetry_event,
         super::routes::dictation::transcribe_dictation,
         super::routes::dictation::get_dictation_config,
@@ -636,8 +635,6 @@ derive_utoipa!(IconTheme as IconThemeSchema);
         super::routes::agent::RestartAgentResponse,
         goose::agents::ExtensionLoadResult,
         super::routes::setup::SetupResponse,
-        super::tunnel::TunnelInfo,
-        super::tunnel::TunnelState,
         super::routes::telemetry::TelemetryEventRequest,
         goose::goose_apps::GooseApp,
         goose::goose_apps::WindowProps,

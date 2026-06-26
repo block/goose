@@ -1647,15 +1647,6 @@ export type TranscribeResponse = {
     text: string;
 };
 
-export type TunnelInfo = {
-    hostname: string;
-    secret: string;
-    state: TunnelState;
-    url: string;
-};
-
-export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
-
 /**
  * UI-specific metadata for MCP resources
  */
@@ -4308,19 +4299,3 @@ export type SendTelemetryEventResponses = {
      */
     202: unknown;
 };
-
-export type GetTunnelStatusData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/tunnel/status';
-};
-
-export type GetTunnelStatusResponses = {
-    /**
-     * Tunnel info
-     */
-    200: TunnelInfo;
-};
-
-export type GetTunnelStatusResponse = GetTunnelStatusResponses[keyof GetTunnelStatusResponses];

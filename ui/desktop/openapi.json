@@ -3292,27 +3292,6 @@
           }
         }
       }
-    },
-    "/tunnel/status": {
-      "get": {
-        "tags": [
-          "super::routes::tunnel"
-        ],
-        "summary": "Get tunnel info",
-        "operationId": "get_tunnel_status",
-        "responses": {
-          "200": {
-            "description": "Tunnel info",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TunnelInfo"
-                }
-              }
-            }
-          }
-        }
-      }
     }
   },
   "components": {
@@ -8401,39 +8380,6 @@
             "description": "Transcribed text from the audio"
           }
         }
-      },
-      "TunnelInfo": {
-        "type": "object",
-        "required": [
-          "state",
-          "url",
-          "hostname",
-          "secret"
-        ],
-        "properties": {
-          "hostname": {
-            "type": "string"
-          },
-          "secret": {
-            "type": "string"
-          },
-          "state": {
-            "$ref": "#/components/schemas/TunnelState"
-          },
-          "url": {
-            "type": "string"
-          }
-        }
-      },
-      "TunnelState": {
-        "type": "string",
-        "enum": [
-          "idle",
-          "starting",
-          "running",
-          "error",
-          "disabled"
-        ]
       },
       "UiMetadata": {
         "type": "object",
