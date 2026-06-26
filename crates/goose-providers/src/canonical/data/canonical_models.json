@@ -153369,7 +153369,7 @@
     "limit": {
       "context": 128000
     },
-    "release_date": "2025-09-18"
+    "release_date": "2025-09-01"
   },
   {
     "id": "cortecs/magistral-small",
@@ -153394,7 +153394,7 @@
     "limit": {
       "context": 128000
     },
-    "release_date": "2025-09-18"
+    "release_date": "2025-09-01"
   },
   {
     "id": "cortecs/minicpm-v-4.5",
@@ -153443,7 +153443,7 @@
     "limit": {
       "context": 256000
     },
-    "release_date": "2025-12-03"
+    "release_date": "2025-12-01"
   },
   {
     "id": "cortecs/mistral-7b-instruct-v0.2",
@@ -153540,7 +153540,7 @@
     "limit": {
       "context": 131072
     },
-    "release_date": "2024-08-07"
+    "release_date": "2024-07-01"
   },
   {
     "id": "cortecs/mistral-small-3.2-24b-instruct",
@@ -153565,7 +153565,7 @@
     "limit": {
       "context": 128000
     },
-    "release_date": "2025-05-26"
+    "release_date": "2025-06-01"
   },
   {
     "id": "cortecs/nemotron-nano-v2-12b",
@@ -153762,7 +153762,7 @@
     "limit": {
       "context": 262000
     },
-    "release_date": "2025-07-28"
+    "release_date": "2025-07-01"
   },
   {
     "id": "cortecs/qwen3-vl-235b-a22b",
@@ -153934,7 +153934,7 @@
     "limit": {
       "context": 32000
     },
-    "release_date": "2026-02-02"
+    "release_date": "2025-07-01"
   },
   {
     "id": "cortecs/gemini-2.5-flash",
@@ -153960,7 +153960,7 @@
     "limit": {
       "context": 1048576
     },
-    "release_date": "2025-03-16"
+    "release_date": "2025-06-17"
   },
   {
     "id": "cortecs/gemini-3.1-flash-lite",
@@ -153986,7 +153986,7 @@
     "limit": {
       "context": 1048576
     },
-    "release_date": "2026-05-18"
+    "release_date": "2026-05-07"
   },
   {
     "id": "cortecs/gemini-3.5-flash",
@@ -154012,7 +154012,7 @@
     "limit": {
       "context": 1048576
     },
-    "release_date": "2026-05-20"
+    "release_date": "2026-05-19"
   },
   {
     "id": "cortecs/gemma-4-26b-a4b-it",
@@ -154037,7 +154037,7 @@
     "limit": {
       "context": 262000
     },
-    "release_date": "2026-05-07"
+    "release_date": "2026-04-02"
   },
   {
     "id": "cortecs/gemma-4-31b-it",
@@ -154062,7 +154062,7 @@
     "limit": {
       "context": 128000
     },
-    "release_date": "2026-06-19"
+    "release_date": "2026-04-02"
   },
   {
     "id": "cortecs/gpt-4.1-mini",
@@ -154137,7 +154137,7 @@
     "limit": {
       "context": 128000
     },
-    "release_date": "2024-11-20"
+    "release_date": "2024-05-13"
   },
   {
     "id": "cortecs/gpt-4o-mini",
@@ -154262,7 +154262,7 @@
     "limit": {
       "context": 400000
     },
-    "release_date": "2025-11-15"
+    "release_date": "2025-11-13"
   },
   {
     "id": "cortecs/ministral-3b",
@@ -154287,7 +154287,7 @@
     "limit": {
       "context": 256000
     },
-    "release_date": "2025-12-03"
+    "release_date": "2025-12-01"
   },
   {
     "id": "cortecs/ministral-8b",
@@ -154312,7 +154312,7 @@
     "limit": {
       "context": 256000
     },
-    "release_date": "2025-12-03"
+    "release_date": "2025-12-01"
   },
   {
     "id": "cortecs/mistral-medium",
@@ -154337,7 +154337,7 @@
     "limit": {
       "context": 128000
     },
-    "release_date": "2024-08-07"
+    "release_date": "2025-08-01"
   },
   {
     "id": "cortecs/mistral-small",
@@ -154362,7 +154362,7 @@
     "limit": {
       "context": 256000
     },
-    "release_date": "2026-03-17"
+    "release_date": "2026-03-01"
   },
   {
     "id": "cortecs/pixtral-large",
@@ -154387,6 +154387,6 @@
     "limit": {
       "context": 128000
     },
-    "release_date": "2025-05-26"
+    "release_date": "2025-02-01"
   }
 ]
