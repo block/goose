@@ -879,6 +879,16 @@
       "required": false
     }
   ]
-}
-
+},
+  {
+    "id": "sem",
+    "name": "sem",
+    "description": "Entity-level code intelligence: a real cross-file call and import graph for graph-aware context and impact analysis",
+    "command": "npx -y @ataraxy-labs/sem mcp",
+    "link": "https://github.com/Ataraxy-Labs/sem",
+    "installation_notes": "Runs via npx (Node.js). Or install the binary first (brew install sem-cli, or cargo install --git https://github.com/Ataraxy-Labs/sem sem-cli) and use `sem mcp`.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": []
+  }
 ]
