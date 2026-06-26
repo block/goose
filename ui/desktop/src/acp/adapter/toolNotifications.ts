@@ -4,10 +4,10 @@ import type { AcpChatStateChange } from './shared';
 import { isRecord } from './shared';
 
 type ToolNotification =
-  | {
-      type: 'message';
-      params: LoggingMessageNotificationParams;
-    }
+	  | {
+	      type: 'message';
+	      params: LoggingMessageNotificationParams;
+	    }
 	  | {
 	      type: 'progress';
 	      params: ProgressNotificationParams;

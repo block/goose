@@ -164,10 +164,7 @@ mod tests {
         assert_eq!(value["sessionUpdate"], "tool_call_update");
         assert_eq!(value["toolCallId"], "tool_1");
         assert_eq!(value["status"], "in_progress");
-        assert_eq!(
-            value["_meta"]["toolNotification"]["type"],
-            "platform_event"
-        );
+        assert_eq!(value["_meta"]["toolNotification"]["type"], "platform_event");
         assert_eq!(
             value["_meta"]["toolNotification"]["params"]["extension"],
             "apps"
