@@ -122,14 +122,17 @@ impl GooseAcpAgent {
         &self,
         req: SetToolPermissionsRequest,
     ) -> Result<SetToolPermissionsResponse, agent_client_protocol::Error> {
-        let permission_manager = self.permission_manager();
+        let acp_permission_manager = self.permission_manager();
+        // Also update the global static manager used by HTTP agents when USE_ACP_CHAT is false.
+        let global_permission_manager = crate::config::PermissionManager::instance();
         for entry in &req.tool_permissions {
             let level = match entry.permission {
                 ToolPermissionLevel::AlwaysAllow => PermissionLevel::AlwaysAllow,
                 ToolPermissionLevel::AskBefore => PermissionLevel::AskBefore,
                 ToolPermissionLevel::NeverAllow => PermissionLevel::NeverAllow,
             };
-            permission_manager.update_user_permission(&entry.tool_name, level);
+            acp_permission_manager.update_user_permission(&entry.tool_name, level.clone());
+            global_permission_manager.update_user_permission(&entry.tool_name, level);
         }
         Ok(SetToolPermissionsResponse {})
     }
