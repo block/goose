@@ -20,6 +20,12 @@ import type {
   ArchiveSessionRequest_unstable,
   CanonicalModelInfoRequest_unstable,
   CanonicalModelInfoResponse_unstable,
+  ConfigReadAllRequest_unstable,
+  ConfigReadAllResponse_unstable,
+  ConfigReadRequest_unstable,
+  ConfigReadResponse_unstable,
+  ConfigRemoveRequest_unstable,
+  ConfigUpsertRequest_unstable,
   CreateScheduleRequest_unstable,
   CreateScheduleResponse_unstable,
   CreateSourceRequest_unstable,
@@ -178,6 +184,8 @@ import {
   zAppsImportResponse_unstable,
   zAppsListResponse_unstable,
   zCanonicalModelInfoResponse_unstable,
+  zConfigReadAllResponse_unstable,
+  zConfigReadResponse_unstable,
   zCreateScheduleResponse_unstable,
   zCreateSourceResponse_unstable,
   zCustomProviderCreateResponse_unstable,
@@ -717,6 +725,42 @@ export class GooseExtClient {
     params: PreferencesRemoveRequest_unstable,
   ): Promise<void> {
     await this.conn.extMethod("_goose/unstable/preferences/remove", params);
+  }
+
+  async configRead_unstable(
+    params: ConfigReadRequest_unstable,
+  ): Promise<ConfigReadResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/config/read",
+      params,
+    );
+    return zConfigReadResponse_unstable.parse(
+      raw,
+    ) as ConfigReadResponse_unstable;
+  }
+
+  async configUpsert_unstable(
+    params: ConfigUpsertRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/config/upsert", params);
+  }
+
+  async configRemove_unstable(
+    params: ConfigRemoveRequest_unstable,
+  ): Promise<void> {
+    await this.conn.extMethod("_goose/unstable/config/remove", params);
+  }
+
+  async configReadAll_unstable(
+    params: ConfigReadAllRequest_unstable,
+  ): Promise<ConfigReadAllResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/config/read-all",
+      params,
+    );
+    return zConfigReadAllResponse_unstable.parse(
+      raw,
+    ) as ConfigReadAllResponse_unstable;
   }
 
   async defaultsRead_unstable(

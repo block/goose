@@ -46,7 +46,6 @@ vi.mock('./api', () => {
 
   return {
     initConfig: vi.fn().mockResolvedValue(undefined),
-    readAllConfig: vi.fn().mockResolvedValue(undefined),
     backupConfig: vi.fn().mockResolvedValue(undefined),
     recoverConfig: vi.fn().mockResolvedValue(undefined),
     validateConfig: vi.fn().mockResolvedValue(undefined),

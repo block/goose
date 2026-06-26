@@ -376,6 +376,38 @@ impl GooseAcpAgent {
         self.on_preferences_remove(req).await
     }
 
+    #[custom_method(ConfigReadRequest)]
+    async fn dispatch_config_read(
+        &self,
+        req: ConfigReadRequest,
+    ) -> Result<ConfigReadResponse, agent_client_protocol::Error> {
+        self.on_config_read(req).await
+    }
+
+    #[custom_method(ConfigUpsertRequest)]
+    async fn dispatch_config_upsert(
+        &self,
+        req: ConfigUpsertRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_config_upsert(req).await
+    }
+
+    #[custom_method(ConfigRemoveRequest)]
+    async fn dispatch_config_remove(
+        &self,
+        req: ConfigRemoveRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_config_remove(req).await
+    }
+
+    #[custom_method(ConfigReadAllRequest)]
+    async fn dispatch_config_read_all(
+        &self,
+        req: ConfigReadAllRequest,
+    ) -> Result<ConfigReadAllResponse, agent_client_protocol::Error> {
+        self.on_config_read_all(req).await
+    }
+
     #[custom_method(DefaultsReadRequest)]
     async fn dispatch_defaults_read(
         &self,

@@ -226,6 +226,26 @@
       "responseType": "EmptyResponse"
     },
     {
+      "method": "_goose/unstable/config/read",
+      "requestType": "ConfigReadRequest_unstable",
+      "responseType": "ConfigReadResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/config/upsert",
+      "requestType": "ConfigUpsertRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/config/remove",
+      "requestType": "ConfigRemoveRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/config/read-all",
+      "requestType": "ConfigReadAllRequest_unstable",
+      "responseType": "ConfigReadAllResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/defaults/read",
       "requestType": "DefaultsReadRequest_unstable",
       "responseType": "DefaultsReadResponse_unstable"

@@ -1243,6 +1243,32 @@ export const zPreferencesRemoveRequest_unstable = z.object({
     keys: z.array(zPreferenceKey).optional().default([])
 });
 
+export const zConfigReadRequest_unstable = z.object({
+    key: z.string(),
+    isSecret: z.boolean().optional().default(false)
+});
+
+export const zConfigReadResponse_unstable = z.object({
+    value: z.unknown().optional().default(null)
+});
+
+export const zConfigUpsertRequest_unstable = z.object({
+    key: z.string(),
+    value: z.unknown(),
+    isSecret: z.boolean().optional().default(false)
+});
+
+export const zConfigRemoveRequest_unstable = z.object({
+    key: z.string(),
+    isSecret: z.boolean().optional().default(false)
+});
+
+export const zConfigReadAllRequest_unstable = z.record(z.unknown());
+
+export const zConfigReadAllResponse_unstable = z.object({
+    config: z.record(z.unknown())
+});
+
 /**
  * Read Goose default provider and model configuration.
  */
@@ -2400,6 +2426,10 @@ export const zExtRequest = z.object({
             zPreferencesReadRequest_unstable,
             zPreferencesSaveRequest_unstable,
             zPreferencesRemoveRequest_unstable,
+            zConfigReadRequest_unstable,
+            zConfigUpsertRequest_unstable,
+            zConfigRemoveRequest_unstable,
+            zConfigReadAllRequest_unstable,
             zDefaultsReadRequest_unstable,
             zDefaultsSaveRequest_unstable,
             zDefaultsClearRequest_unstable,
@@ -2497,6 +2527,8 @@ export const zExtResponse = z.union([
                 zProviderSecretsListResponse_unstable,
                 zCanonicalModelInfoResponse_unstable,
                 zPreferencesReadResponse_unstable,
+                zConfigReadResponse_unstable,
+                zConfigReadAllResponse_unstable,
                 zDefaultsReadResponse_unstable,
                 zOnboardingImportScanResponse_unstable,
                 zOnboardingImportApplyResponse_unstable,

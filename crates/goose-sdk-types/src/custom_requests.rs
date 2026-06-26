@@ -479,6 +479,52 @@ pub struct PreferencesRemoveRequest {
     pub keys: Vec<PreferenceKey>,
 }
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/config/read", response = ConfigReadResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigReadRequest {
+    pub key: String,
+    #[serde(default)]
+    pub is_secret: bool,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigReadResponse {
+    #[serde(default)]
+    pub value: serde_json::Value,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/config/upsert", response = EmptyResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigUpsertRequest {
+    pub key: String,
+    pub value: serde_json::Value,
+    #[serde(default)]
+    pub is_secret: bool,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/config/remove", response = EmptyResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigRemoveRequest {
+    pub key: String,
+    #[serde(default)]
+    pub is_secret: bool,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/config/read-all", response = ConfigReadAllResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigReadAllRequest {}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigReadAllResponse {
+    pub config: std::collections::HashMap<String, serde_json::Value>,
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum PreferenceKey {

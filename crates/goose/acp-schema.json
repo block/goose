@@ -2961,6 +2961,88 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/preferences/remove"
     },
+    "ConfigReadRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "isSecret": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/read"
+    },
+    "ConfigReadResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "default": null
+        }
+      },
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/read"
+    },
+    "ConfigUpsertRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {},
+        "isSecret": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/upsert"
+    },
+    "ConfigRemoveRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "isSecret": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/remove"
+    },
+    "ConfigReadAllRequest_unstable": {
+      "type": "object",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/read-all"
+    },
+    "ConfigReadAllResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "config"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/read-all"
+    },
     "DefaultsReadRequest_unstable": {
       "type": "object",
       "description": "Read Goose default provider and model configuration.",
@@ -6046,6 +6128,42 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/ConfigReadRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/read",
+                  "title": "ConfigReadRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ConfigUpsertRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/upsert",
+                  "title": "ConfigUpsertRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ConfigRemoveRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/remove",
+                  "title": "ConfigRemoveRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ConfigReadAllRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/read-all",
+                  "title": "ConfigReadAllRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/DefaultsReadRequest_unstable"
                     }
                   ],
@@ -6796,6 +6914,22 @@
                         }
                       ],
                       "title": "PreferencesReadResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ConfigReadResponse_unstable"
+                        }
+                      ],
+                      "title": "ConfigReadResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ConfigReadAllResponse_unstable"
+                        }
+                      ],
+                      "title": "ConfigReadAllResponse_unstable"
                     },
                     {
                       "allOf": [
