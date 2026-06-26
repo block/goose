@@ -1,9 +1,8 @@
 use super::*;
-use crate::agents::extension::ToolInfo;
 use crate::agents::extension_manager::get_parameter_names;
 use crate::agents::reply_parts::is_tool_visible_to_app;
 use crate::config::permission::PermissionLevel;
-use goose_sdk_types::custom_requests::ToolPermissionLevel;
+use goose_sdk_types::custom_requests::{ToolListItem, ToolPermissionLevel};
 use rmcp::model::CallToolRequestParams;
 
 impl GooseAcpAgent {
@@ -16,7 +15,7 @@ impl GooseAcpAgent {
         let goose_mode = agent.goose_mode().await;
         let permission_manager = self.permission_manager();
 
-        let mut tools: Vec<serde_json::Value> = agent
+        let mut tools: Vec<ToolListItem> = agent
             .list_tools(session_id, req.extension_name)
             .await
             .into_iter()
@@ -31,28 +30,30 @@ impl GooseAcpAgent {
                         } else {
                             None
                         }
+                    })
+                    .map(|p| match p {
+                        PermissionLevel::AlwaysAllow => ToolPermissionLevel::AlwaysAllow,
+                        PermissionLevel::AskBefore => ToolPermissionLevel::AskBefore,
+                        PermissionLevel::NeverAllow => ToolPermissionLevel::NeverAllow,
                     });
-                let info = ToolInfo::new(
-                    &tool.name,
-                    tool.description
+                ToolListItem {
+                    name: tool.name.to_string(),
+                    description: tool
+                        .description
                         .as_ref()
-                        .map(|d| d.as_ref())
+                        .map(|d| d.as_ref().to_string())
                         .unwrap_or_default(),
-                    get_parameter_names(&tool),
+                    parameters: get_parameter_names(&tool),
                     permission,
-                )
-                .with_input_schema(serde_json::Value::Object(
-                    tool.input_schema.as_ref().clone(),
-                ));
-                serde_json::to_value(&info)
+                    input_schema: serde_json::Value::Object(tool.input_schema.as_ref().clone()),
+                    output_schema: tool
+                        .output_schema
+                        .as_ref()
+                        .map(|s| serde_json::to_value(s).unwrap_or(serde_json::Value::Null)),
+                }
             })
-            .collect::<Result<Vec<_>, _>>()
-            .internal_err()?;
-        tools.sort_by(|a, b| {
-            a.get("name")
-                .and_then(|v| v.as_str())
-                .cmp(&b.get("name").and_then(|v| v.as_str()))
-        });
+            .collect();
+        tools.sort_by(|a, b| a.name.cmp(&b.name));
         Ok(GetToolsResponse { tools })
     }
 

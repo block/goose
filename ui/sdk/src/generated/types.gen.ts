@@ -210,11 +210,25 @@ export type GetToolsRequest_unstable = {
  * Tools response.
  */
 export type GetToolsResponse_unstable = {
-    /**
-     * Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`.
-     */
-    tools: Array<unknown>;
+    tools: Array<ToolListItem>;
 };
+
+/**
+ * A single tool item returned by the tools list endpoint.
+ */
+export type ToolListItem = {
+    name: string;
+    description: string;
+    parameters: Array<string>;
+    permission?: ToolPermissionLevel | null;
+    inputSchema: unknown;
+    outputSchema?: unknown;
+};
+
+/**
+ * Permission level for a tool.
+ */
+export type ToolPermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
 
 /**
  * Set permission levels for one or more tools.
@@ -230,11 +244,6 @@ export type ToolPermissionEntry = {
     toolName: string;
     permission: ToolPermissionLevel;
 };
-
-/**
- * Permission level for a tool.
- */
-export type ToolPermissionLevel = 'always_allow' | 'ask_before' | 'never_allow';
 
 export type SetToolPermissionsResponse_unstable = {
     [key: string]: unknown;

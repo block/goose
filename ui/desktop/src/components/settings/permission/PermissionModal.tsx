@@ -3,7 +3,7 @@ import { Button } from '../../ui/button';
 import { ChevronDownIcon, SlidersHorizontal, AlertCircle } from 'lucide-react';
 import { PermissionLevel } from '../../../api';
 import { listTools, setToolPermissions } from '../../../acp/permissions';
-import type { AcpToolInfo, ToolPermissionLevel } from '../../../acp/permissions';
+import type { ToolListItem, ToolPermissionLevel } from '../../../acp/permissions';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import {
   DropdownMenu,
@@ -85,7 +85,7 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
   const chatContext = useChatContext();
   const sessionId = chatContext?.chat.sessionId || '';
 
-  const [tools, setTools] = useState<AcpToolInfo[]>([]);
+  const [tools, setTools] = useState<ToolListItem[]>([]);
   const [updatedPermissions, setUpdatedPermissions] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);

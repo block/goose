@@ -56,11 +56,23 @@ pub struct GetToolsRequest {
     pub extension_name: Option<String>,
 }
 
+/// A single tool item returned by the tools list endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolListItem {
+    pub name: String,
+    pub description: String,
+    pub parameters: Vec<String>,
+    pub permission: Option<ToolPermissionLevel>,
+    pub input_schema: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_schema: Option<serde_json::Value>,
+}
+
 /// Tools response.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct GetToolsResponse {
-    /// Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`.
-    pub tools: Vec<serde_json::Value>,
+    pub tools: Vec<ToolListItem>,
 }
 
 /// Read a resource from an extension.

@@ -1,23 +1,15 @@
-import type { ToolPermissionEntry, ToolPermissionLevel } from '@aaif/goose-sdk';
+import type { ToolListItem, ToolPermissionEntry, ToolPermissionLevel } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
 
-export type { ToolPermissionEntry, ToolPermissionLevel };
+export type { ToolListItem, ToolPermissionEntry, ToolPermissionLevel };
 
-export interface AcpToolInfo {
-  name: string;
-  description: string;
-  parameters: string[];
-  permission?: string | null;
-  input_schema?: unknown;
-}
-
-export async function listTools(sessionId: string, extensionName?: string): Promise<AcpToolInfo[]> {
+export async function listTools(sessionId: string, extensionName?: string): Promise<ToolListItem[]> {
   const client = await getAcpClient();
   const response = await client.goose.toolsList_unstable({
     sessionId,
     extensionName: extensionName ?? null,
   });
-  return (response.tools as AcpToolInfo[]) ?? [];
+  return response.tools ?? [];
 }
 
 export async function setToolPermissions(toolPermissions: ToolPermissionEntry[]): Promise<void> {

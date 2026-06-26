@@ -175,13 +175,6 @@ export const zGetToolsRequest_unstable = z.object({
 });
 
 /**
- * Tools response.
- */
-export const zGetToolsResponse_unstable = z.object({
-    tools: z.array(z.unknown())
-});
-
-/**
  * Permission level for a tool.
  */
 export const zToolPermissionLevel = z.enum([
@@ -189,6 +182,28 @@ export const zToolPermissionLevel = z.enum([
     'ask_before',
     'never_allow'
 ]);
+
+/**
+ * A single tool item returned by the tools list endpoint.
+ */
+export const zToolListItem = z.object({
+    name: z.string(),
+    description: z.string(),
+    parameters: z.array(z.string()),
+    permission: z.union([
+        zToolPermissionLevel,
+        z.null()
+    ]).optional(),
+    inputSchema: z.unknown(),
+    outputSchema: z.unknown().optional()
+});
+
+/**
+ * Tools response.
+ */
+export const zGetToolsResponse_unstable = z.object({
+    tools: z.array(zToolListItem)
+});
 
 /**
  * A single tool permission entry.

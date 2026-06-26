@@ -404,8 +404,9 @@
       "properties": {
         "tools": {
           "type": "array",
-          "items": {},
-          "description": "Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`."
+          "items": {
+            "$ref": "#/$defs/ToolListItem"
+          }
         }
       },
       "required": [
@@ -414,6 +415,51 @@
       "description": "Tools response.",
       "x-side": "agent",
       "x-method": "_goose/unstable/tools/list"
+    },
+    "ToolListItem": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "permission": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolPermissionLevel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputSchema": {},
+        "outputSchema": {}
+      },
+      "required": [
+        "name",
+        "description",
+        "parameters",
+        "inputSchema"
+      ],
+      "description": "A single tool item returned by the tools list endpoint."
+    },
+    "ToolPermissionLevel": {
+      "type": "string",
+      "enum": [
+        "always_allow",
+        "ask_before",
+        "never_allow"
+      ],
+      "description": "Permission level for a tool."
     },
     "SetToolPermissionsRequest_unstable": {
       "type": "object",
@@ -447,15 +493,6 @@
         "permission"
       ],
       "description": "A single tool permission entry."
-    },
-    "ToolPermissionLevel": {
-      "type": "string",
-      "enum": [
-        "always_allow",
-        "ask_before",
-        "never_allow"
-      ],
-      "description": "Permission level for a tool."
     },
     "SetToolPermissionsResponse_unstable": {
       "type": "object",
