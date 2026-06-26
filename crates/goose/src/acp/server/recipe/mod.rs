@@ -29,6 +29,7 @@ use crate::recipe::manifest::{
 use crate::recipe::validate_recipe::validate_recipe_template_from_content;
 use crate::recipe::{strip_error_location, Recipe, RecipeParameter};
 use crate::recipe_deeplink;
+use crate::session::{Session, SessionType};
 use crate::slash_commands::recipe_slash_command;
 
 use self::conversions::recipe_manifest_to_list_entry_dto;
@@ -319,6 +320,32 @@ impl GooseAcpAgent {
                 .extend_system_prompt("recipe".to_string(), instructions)
                 .await;
         }
+    }
+
+    pub(super) async fn apply_session_recipe(
+        &self,
+        agent: &Arc<Agent>,
+        session: &Session,
+    ) -> Result<(), agent_client_protocol::Error> {
+        let Some(recipe) = session.recipe.as_ref() else {
+            return Ok(());
+        };
+
+        if session.session_type == SessionType::Scheduled {
+            self.apply_recipe(agent, recipe).await;
+            return Ok(());
+        }
+
+        let recipe_dir = get_recipe_library_dir(true);
+        if let Some(rendered) = self.render_recipe(
+            recipe,
+            &recipe_dir,
+            session.user_recipe_values.clone().unwrap_or_default(),
+        )? {
+            self.apply_recipe(agent, &rendered).await;
+        }
+
+        Ok(())
     }
 
     pub(super) async fn render_recipe_for_session(

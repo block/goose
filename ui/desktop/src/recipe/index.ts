@@ -25,14 +25,8 @@ export type RecipeManifest = Omit<RecipeListEntryDto, 'recipe'> & {
   recipe: Recipe;
 };
 
-type ApiSignal = { readonly aborted: boolean };
-
-export async function encodeRecipe(recipe: Recipe, signal?: ApiSignal): Promise<string> {
+export async function encodeRecipe(recipe: Recipe): Promise<string> {
   try {
-    if (signal?.aborted) {
-      throw new DOMException('The operation was aborted.', 'AbortError');
-    }
-
     return await acpEncodeRecipe(recipe);
   } catch (error) {
     console.error('Failed to encode recipe:', error);
@@ -58,8 +52,8 @@ export async function scanRecipe(recipe: Recipe): Promise<{ has_security_warning
   }
 }
 
-export async function generateDeepLink(recipe: Recipe, signal?: ApiSignal): Promise<string> {
-  const encoded = await encodeRecipe(recipe, signal);
+export async function generateDeepLink(recipe: Recipe): Promise<string> {
+  const encoded = await encodeRecipe(recipe);
   return `goose://recipe?config=${encoded}`;
 }
 
@@ -107,16 +101,16 @@ export async function parseDeeplink(deeplink: string): Promise<Recipe | null> {
     const recipeEncoded = cleanLink.replace('goose://recipe?config=', '');
 
     if (!recipeEncoded) {
-      throw new Error('No workflow configuration found in deeplink');
+      throw new Error('No recipe configuration found in deeplink');
     }
     const recipe = await decodeRecipe(recipeEncoded);
 
     if (!recipe.title || !recipe.description) {
-      throw new Error('Workflow is missing required fields (title, description)');
+      throw new Error('Recipe is missing required fields (title, description)');
     }
 
     if (!recipe.instructions && !recipe.prompt) {
-      throw new Error('Workflow must have either instructions or prompt');
+      throw new Error('Recipe must have either instructions or prompt');
     }
 
     return recipe;

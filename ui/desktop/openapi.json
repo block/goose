@@ -86,288 +86,6 @@
         }
       }
     },
-    "/agent/call_tool": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "call_tool",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CallToolRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Resource read successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CallToolResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "403": {
-            "description": "Forbidden - tool is not app-visible",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "424": {
-            "description": "Frontend tool execution requires the frontend host",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/agent/export_app/{name}": {
-      "get": {
-        "tags": [
-          "Agent"
-        ],
-        "operationId": "export_app",
-        "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "description": "Name of the app to export",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "App HTML exported successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "App not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/agent/import_app": {
-      "post": {
-        "tags": [
-          "Agent"
-        ],
-        "operationId": "import_app",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ImportAppRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "App imported successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImportAppResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid HTML",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/agent/list_apps": {
-      "get": {
-        "tags": [
-          "Agent"
-        ],
-        "operationId": "list_apps",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of apps retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ListAppsResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/agent/read_resource": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "read_resource",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReadResourceRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Resource read successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadResourceResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "404": {
-            "description": "Resource not found"
-          },
-          "424": {
-            "description": "Agent not initialized"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
     "/agent/remove_extension": {
       "post": {
         "tags": [
@@ -1985,26 +1703,6 @@
         }
       }
     },
-    "/features": {
-      "get": {
-        "tags": [
-          "super::routes::features"
-        ],
-        "operationId": "get_features",
-        "responses": {
-          "200": {
-            "description": "Compile-time feature flags",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeaturesResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/handle_nanogpt": {
       "post": {
         "tags": [
@@ -3176,50 +2874,6 @@
         }
       }
     },
-    "/sessions/import/nostr": {
-      "post": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "import_session_nostr",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ImportSessionNostrRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Nostr shared session imported successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Session"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid Nostr share link"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/{id}/cancel": {
       "post": {
         "tags": [
@@ -3540,61 +3194,6 @@
         ]
       }
     },
-    "/sessions/{session_id}/share/nostr": {
-      "post": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "share_session_nostr",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ShareSessionNostrRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session shared to Nostr successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ShareSessionNostrResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/{session_id}/user_recipe_values": {
       "put": {
         "tags": [
@@ -3888,47 +3487,6 @@
           },
           "metadata": {
             "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "CallToolRequest": {
-        "type": "object",
-        "required": [
-          "session_id",
-          "name",
-          "arguments"
-        ],
-        "properties": {
-          "arguments": {},
-          "name": {
-            "type": "string"
-          },
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
-      "CallToolResponse": {
-        "type": "object",
-        "required": [
-          "content",
-          "isError"
-        ],
-        "properties": {
-          "_meta": {
-            "nullable": true
-          },
-          "content": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ContentBlock"
-            }
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "structuredContent": {
             "nullable": true
           }
         }
@@ -5408,21 +4966,6 @@
           }
         }
       },
-      "FeaturesResponse": {
-        "type": "object",
-        "required": [
-          "features"
-        ],
-        "properties": {
-          "features": {
-            "type": "object",
-            "description": "Map of feature name to enabled status",
-            "additionalProperties": {
-              "type": "boolean"
-            }
-          }
-        }
-      },
       "ForkRequest": {
         "type": "object",
         "required": [
@@ -5766,43 +5309,6 @@
           }
         }
       },
-      "ImportAppRequest": {
-        "type": "object",
-        "required": [
-          "html"
-        ],
-        "properties": {
-          "html": {
-            "type": "string"
-          }
-        }
-      },
-      "ImportAppResponse": {
-        "type": "object",
-        "required": [
-          "name",
-          "message"
-        ],
-        "properties": {
-          "message": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          }
-        }
-      },
-      "ImportSessionNostrRequest": {
-        "type": "object",
-        "required": [
-          "deeplink"
-        ],
-        "properties": {
-          "deeplink": {
-            "type": "string"
-          }
-        }
-      },
       "InferenceMetadata": {
         "type": "object",
         "required": [
@@ -5852,29 +5358,6 @@
         "properties": {
           "message": {
             "type": "string"
-          }
-        }
-      },
-      "ListAppsRequest": {
-        "type": "object",
-        "properties": {
-          "session_id": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "ListAppsResponse": {
-        "type": "object",
-        "required": [
-          "apps"
-        ],
-        "properties": {
-          "apps": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/GooseApp"
-            }
           }
         }
       },
@@ -7348,49 +6831,6 @@
           }
         }
       },
-      "ReadResourceRequest": {
-        "type": "object",
-        "required": [
-          "session_id",
-          "extension_name",
-          "uri"
-        ],
-        "properties": {
-          "extension_name": {
-            "type": "string"
-          },
-          "session_id": {
-            "type": "string"
-          },
-          "uri": {
-            "type": "string"
-          }
-        }
-      },
-      "ReadResourceResponse": {
-        "type": "object",
-        "required": [
-          "uri",
-          "text"
-        ],
-        "properties": {
-          "_meta": {
-            "type": "object",
-            "additionalProperties": {},
-            "nullable": true
-          },
-          "mimeType": {
-            "type": "string",
-            "nullable": true
-          },
-          "text": {
-            "type": "string"
-          },
-          "uri": {
-            "type": "string"
-          }
-        }
-      },
       "Recipe": {
         "type": "object",
         "required": [
@@ -8392,43 +7832,6 @@
           },
           "success": {
             "type": "boolean"
-          }
-        }
-      },
-      "ShareSessionNostrRequest": {
-        "type": "object",
-        "properties": {
-          "relays": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "ShareSessionNostrResponse": {
-        "type": "object",
-        "required": [
-          "deeplink",
-          "nevent",
-          "eventId",
-          "relays"
-        ],
-        "properties": {
-          "deeplink": {
-            "type": "string"
-          },
-          "eventId": {
-            "type": "string"
-          },
-          "nevent": {
-            "type": "string"
-          },
-          "relays": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         }
       },

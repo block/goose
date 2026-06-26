@@ -48,7 +48,7 @@ const navItemMessages = defineMessages({
   },
   recipes: {
     id: 'navigation.itemRecipes',
-    defaultMessage: "Workflows",
+    defaultMessage: 'Workflows',
   },
   skills: {
     id: 'navigation.itemSkills',

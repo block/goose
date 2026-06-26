@@ -13,7 +13,8 @@ const i18n = defineMessages({
   },
   description: {
     id: 'recipeExtensionSelector.description',
-    defaultMessage: "Select which extensions should be available when running this workflow. Leave empty to use default extensions.",
+    defaultMessage:
+      'Select which extensions should be available when running this recipe. Leave empty to use default extensions.',
   },
   searchPlaceholder: {
     id: 'recipeExtensionSelector.searchPlaceholder',

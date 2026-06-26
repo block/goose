@@ -212,6 +212,34 @@ export const zReadResourceResponse_unstable = z.object({
     result: z.unknown().optional().default(null)
 });
 
+export const zAppsListRequest_unstable = z.object({
+    sessionId: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
+});
+
+export const zAppsListResponse_unstable = z.object({
+    apps: z.array(z.unknown()).optional().default([])
+});
+
+export const zAppsExportRequest_unstable = z.object({
+    name: z.string()
+});
+
+export const zAppsExportResponse_unstable = z.object({
+    html: z.string()
+});
+
+export const zAppsImportRequest_unstable = z.object({
+    html: z.string()
+});
+
+export const zAppsImportResponse_unstable = z.object({
+    name: z.string(),
+    message: z.string()
+});
+
 /**
  * Update the working directory for a session.
  */
@@ -1119,11 +1147,18 @@ export const zExportSessionResponse_unstable = z.object({
     data: z.string()
 });
 
+export const zSessionImportSource = z.enum([
+    'auto',
+    'json',
+    'nostr'
+]);
+
 /**
- * Import a session from a JSON string.
+ * Import a session from a JSON string or share link.
  */
 export const zImportSessionRequest_unstable = z.object({
-    data: z.string()
+    input: z.string(),
+    source: zSessionImportSource
 });
 
 /**
@@ -1140,6 +1175,18 @@ export const zImportSessionResponse_unstable = z.object({
         z.null()
     ]).optional(),
     messageCount: z.number().int().gte(0)
+});
+
+export const zShareSessionNostrRequest_unstable = z.object({
+    sessionId: z.string(),
+    relays: z.array(z.string())
+});
+
+export const zShareSessionNostrResponse_unstable = z.object({
+    deeplink: z.string(),
+    nevent: z.string(),
+    eventId: z.string(),
+    relays: z.array(z.string())
 });
 
 export const zRecipeExtensionDto = z.union([
@@ -2119,6 +2166,9 @@ export const zExtRequest = z.object({
             zGetToolsRequest_unstable,
             zGooseToolCallRequest_unstable,
             zReadResourceRequest_unstable,
+            zAppsListRequest_unstable,
+            zAppsExportRequest_unstable,
+            zAppsImportRequest_unstable,
             zUpdateWorkingDirRequest_unstable,
             zSetSessionSystemPromptRequest_unstable,
             zSteerSessionRequest_unstable,
@@ -2154,6 +2204,7 @@ export const zExtRequest = z.object({
             zOnboardingImportApplyRequest_unstable,
             zExportSessionRequest_unstable,
             zImportSessionRequest_unstable,
+            zShareSessionNostrRequest_unstable,
             zEncodeRecipeRequest_unstable,
             zDecodeRecipeRequest_unstable,
             zScanRecipeRequest_unstable,
@@ -2215,6 +2266,9 @@ export const zExtResponse = z.union([
                 zGetToolsResponse_unstable,
                 zGooseToolCallResponse_unstable,
                 zReadResourceResponse_unstable,
+                zAppsListResponse_unstable,
+                zAppsExportResponse_unstable,
+                zAppsImportResponse_unstable,
                 zSteerSessionResponse_unstable,
                 zDiagnosticsGetResponse_unstable,
                 zGetConfigExtensionsResponse_unstable,
@@ -2239,6 +2293,7 @@ export const zExtResponse = z.union([
                 zOnboardingImportApplyResponse_unstable,
                 zExportSessionResponse_unstable,
                 zImportSessionResponse_unstable,
+                zShareSessionNostrResponse_unstable,
                 zEncodeRecipeResponse_unstable,
                 zDecodeRecipeResponse_unstable,
                 zScanRecipeResponse_unstable,

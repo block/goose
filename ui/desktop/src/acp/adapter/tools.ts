@@ -3,7 +3,7 @@ import type {
   ToolCall,
   ToolCallUpdate,
 } from '@agentclientprotocol/sdk';
-import type { CallToolResponse, ContentBlock as ApiContentBlock, Message } from '../../api';
+import type { ContentBlock as ApiContentBlock, Message } from '../../api';
 import { findMessageForChunk } from './messages';
 import { toolNotificationChange } from './toolNotifications';
 import {
@@ -182,7 +182,7 @@ function baseToolMetadata(
 function toolResultValue(
   update: ToolCallUpdate,
   mcpAppMeta: DesktopMcpAppMeta | undefined
-): CallToolResponse {
+): ToolResultValue {
   return {
     content: toolResultContent(update),
     isError: false,
@@ -301,6 +301,13 @@ interface DesktopMcpAppMeta extends Record<string, unknown> {
   extensionName?: string;
   toolName?: string;
 }
+
+type ToolResultValue = {
+  content: ApiContentBlock[];
+  structuredContent?: unknown;
+  isError: boolean;
+  _meta?: DesktopMcpAppMeta;
+};
 
 function mcpAppMetadata(update: ToolCallUpdate): DesktopMcpAppMeta | undefined {
   if (!isRecord(update._meta)) {

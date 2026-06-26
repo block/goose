@@ -153,7 +153,7 @@ const i18n = defineMessages({
   },
   viewEditRecipe: {
     id: 'chatInput.viewEditRecipe',
-    defaultMessage: "View/Edit Workflow",
+    defaultMessage: 'View/Edit Recipe',
   },
 });
 

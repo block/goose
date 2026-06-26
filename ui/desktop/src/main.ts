@@ -48,7 +48,6 @@ import {
 } from './utils/autoUpdater';
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
-import { calculateStableRecipeHash } from './utils/stableRecipeHash';
 import { Client } from './api/client';
 import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
@@ -94,11 +93,11 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
   'New Chat Window': '新建聊天窗口',
   'Open Directory...': '打开目录…',
   'Recent Directories': '最近的目录',
-  'Focus ApeMind Agent Window': '聚焦 ApeMind Agent 窗口',
+  'Focus Goose Window': '聚焦 Goose 窗口',
   'Quick Launcher': '快速启动器',
   'Always on Top': '窗口置顶',
   'Toggle Navigation': '切换导航',
-  'About ApeMind Agent': '关于 ApeMind Agent',
+  'About Goose': '关于 Goose',
   // Electron's default role-based labels we want to translate as well.
   // (The menu role itself still provides the correct behaviour; only the
   // display string is overridden.)
@@ -124,7 +123,7 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
   'Bring All to Front': '全部置于最前',
   'Emoji & Symbols': '表情符号',
   'Start Dictation…': '开始听写…',
-  'Hide ApeMind Agent': '隐藏 ApeMind Agent',
+  'Hide Goose': '隐藏 Goose',
   'Hide Others': '隐藏其他',
   'Show All': '全部显示',
   Services: '服务',
@@ -183,62 +182,6 @@ const validLanguageSettings = new Set<Settings['language']>([
 
 function isValidLanguageSetting(value: unknown): value is Settings['language'] {
   return typeof value === 'string' && validLanguageSettings.has(value as Settings['language']);
-}
-
-async function seedDefaultRecipes(): Promise<void> {
-  const sourceRoot = app.isPackaged
-    ? path.join(process.resourcesPath, 'default-recipes')
-    : path.join(__dirname, '..', 'default-recipes');
-  const destDir = path.join(os.homedir(), '.config', 'goose', 'recipes');
-  const hashesDir = path.join(app.getPath('userData'), 'recipe_hashes');
-  const bundledTitlesFile = path.join(app.getPath('userData'), 'bundled-recipe-titles.json');
-
-  if (!fsSync.existsSync(sourceRoot)) return;
-
-  await fs.mkdir(destDir, { recursive: true });
-  await fs.mkdir(hashesDir, { recursive: true });
-  const entries = await fs.readdir(sourceRoot);
-  const bundledTitles: Array<{ title: string; description: string }> = [];
-  for (const entry of entries) {
-    if (!entry.endsWith('.yaml') && !entry.endsWith('.yml')) continue;
-    const sourcePath = path.join(sourceRoot, entry);
-    const destPath = path.join(destDir, entry);
-
-    if (!fsSync.existsSync(destPath)) {
-      await fs.copyFile(sourcePath, destPath);
-      log.info(`[seedDefaultRecipes] seeded ${entry} -> ${destPath}`);
-    }
-
-    try {
-      const yamlContent = await fs.readFile(sourcePath, 'utf-8');
-      const parsed = yaml.parse(yamlContent);
-      if (
-        parsed &&
-        typeof parsed === 'object' &&
-        typeof parsed.title === 'string' &&
-        typeof parsed.description === 'string'
-      ) {
-        bundledTitles.push({ title: parsed.title, description: parsed.description });
-      }
-      const hash = calculateStableRecipeHash(parsed);
-      const hashFile = path.join(hashesDir, `${hash}.hash`);
-      if (!fsSync.existsSync(hashFile)) {
-        await fs.writeFile(hashFile, new Date().toISOString());
-        log.info(`[seedDefaultRecipes] pre-trusted hash for ${entry} -> ${hash}`);
-      }
-    } catch (err) {
-      log.warn(`[seedDefaultRecipes] failed to pre-trust ${entry}:`, err);
-    }
-  }
-
-  try {
-    await fs.writeFile(bundledTitlesFile, JSON.stringify(bundledTitles, null, 2));
-    log.info(
-      `[seedDefaultRecipes] wrote bundled-recipe-titles.json with ${bundledTitles.length} titles`
-    );
-  } catch (err) {
-    log.warn(`[seedDefaultRecipes] failed to write bundled-recipe-titles.json:`, err);
-  }
 }
 
 function getSettings(): Settings {
@@ -710,7 +653,7 @@ app.on('open-url', async (_event, url) => {
 app.on('will-finish-launching', () => {
   if (process.platform === 'darwin') {
     app.setAboutPanelOptions({
-      applicationName: 'ApeMind Agent',
+      applicationName: 'Goose',
       applicationVersion: app.getVersion(),
     });
   }
@@ -765,7 +708,7 @@ async function handleFileOpen(filePath: string) {
 
     // Show user-friendly error notification
     new Notification({
-      title: 'ApeMind Agent',
+      title: 'Goose',
       body: `Could not open directory: ${path.basename(filePath)}`,
     }).show();
   }
@@ -1127,7 +1070,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     } else {
       dialog.showMessageBoxSync({
         type: 'error',
-        title: 'ApeMind Agent Failed to Start',
+        title: 'Goose Failed to Start',
         message: 'The backend server failed to start.',
         detail: failureDetailParts.join('\n\n'),
         buttons: ['OK'],
@@ -2267,12 +2210,6 @@ const registerGlobalShortcuts = () => {
 async function appMain() {
   await configureProxy();
 
-  try {
-    await seedDefaultRecipes();
-  } catch (err) {
-    log.warn('[seedDefaultRecipes] failed:', err);
-  }
-
   // Ensure Windows shims are available before any MCP processes are spawned
   await ensureWinShims();
 
@@ -2367,7 +2304,7 @@ async function appMain() {
 
   const shortcuts = getKeyboardShortcuts(settings);
 
-  const appMenu = menu?.items.find((item) => item.label === 'ApeMind Agent');
+  const appMenu = menu?.items.find((item) => item.label === 'Goose');
   if (appMenu?.submenu) {
     appMenu.submenu.insert(1, new MenuItem({ type: 'separator' }));
     if (shortcuts.settings) {
@@ -2495,7 +2432,7 @@ async function appMain() {
     if (shortcuts.focusWindow) {
       fileMenu.submenu.append(
         new MenuItem({
-          label: menuT('Focus ApeMind Agent Window'),
+          label: menuT('Focus Goose Window'),
           accelerator: shortcuts.focusWindow,
           click() {
             focusWindow();
@@ -2602,13 +2539,13 @@ async function appMain() {
         helpMenu.submenu.append(new MenuItem({ type: 'separator' }));
       }
 
-      // Create the About ApeMind Agent menu item with a submenu
+      // Create the About Goose menu item with a submenu
       const aboutGooseMenuItem = new MenuItem({
-        label: menuT('About ApeMind Agent'),
+        label: menuT('About Goose'),
         submenu: Menu.buildFromTemplate([]), // Start with an empty submenu for About
       });
 
-      // Add the Version menu item (display only) to the About ApeMind Agent submenu
+      // Add the Version menu item (display only) to the About Goose submenu
       if (aboutGooseMenuItem.submenu) {
         aboutGooseMenuItem.submenu.append(
           new MenuItem({
@@ -2922,7 +2859,7 @@ app.whenReady().then(async () => {
   try {
     await appMain();
   } catch (error) {
-    dialog.showErrorBox('ApeMind Agent Error', `Failed to create main window: ${error}`);
+    dialog.showErrorBox('Goose Error', `Failed to create main window: ${error}`);
     app.quit();
   }
 });

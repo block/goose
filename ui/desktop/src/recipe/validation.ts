@@ -4,7 +4,7 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 type JsonSchema = Record<string, unknown>;
 
 const recipeDescription =
-  'A Workflow represents a personalized, user-generated agent configuration that defines specific behaviors and capabilities within ApeMind Agent.';
+  'A Recipe represents a reusable agent configuration with instructions, optional prompt, parameters, supported extensions, settings, and subrecipes.';
 
 let recipeJsonSchema: JsonSchema | null = null;
 
@@ -12,7 +12,7 @@ export function getRecipeJsonSchema(): JsonSchema {
   if (!recipeJsonSchema) {
     recipeJsonSchema = {
       ...(zodToJsonSchema(zRecipeDto, { $refStrategy: 'none' }) as JsonSchema),
-      title: 'Workflow',
+      title: 'Recipe',
       description: recipeDescription,
     };
   }

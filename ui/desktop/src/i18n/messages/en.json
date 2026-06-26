@@ -195,7 +195,7 @@
     "defaultMessage": "Unknown type"
   },
   "chatInput.viewEditRecipe": {
-    "defaultMessage": "View/Edit Workflow"
+    "defaultMessage": "View/Edit Recipe"
   },
   "chatInput.waitingForCancellation": {
     "defaultMessage": "Waiting for cancellation to finish"
@@ -336,13 +336,13 @@
     "defaultMessage": "Copy this link to share with friends or paste directly in Chrome to open"
   },
   "createEditRecipe.createRecipeTitle": {
-    "defaultMessage": "Create Workflow"
+    "defaultMessage": "Create Recipe"
   },
   "createEditRecipe.createSubtitle": {
-    "defaultMessage": "Create a new workflow to define agent behavior and capabilities for reusable chat sessions."
+    "defaultMessage": "Create a new recipe to define agent behavior and capabilities for reusable chat sessions."
   },
   "createEditRecipe.editSubtitle": {
-    "defaultMessage": "You can edit the workflow below to change the agent's behavior in a new session."
+    "defaultMessage": "You can edit the recipe below to change the agent's behavior in a new session."
   },
   "createEditRecipe.generatingDeeplink": {
     "defaultMessage": "Generating deeplink..."
@@ -351,28 +351,28 @@
     "defaultMessage": "Learn more"
   },
   "createEditRecipe.recipeSavedAndLaunchedMsg": {
-    "defaultMessage": "Workflow saved and launched successfully"
+    "defaultMessage": "Recipe saved and launched successfully"
   },
   "createEditRecipe.recipeSavedMsg": {
-    "defaultMessage": "Workflow saved successfully"
+    "defaultMessage": "Recipe saved successfully"
   },
   "createEditRecipe.saveAndRunFailed": {
     "defaultMessage": "Save and Run Failed"
   },
   "createEditRecipe.saveAndRunFailedMsg": {
-    "defaultMessage": "Failed to save and run workflow: {error}"
+    "defaultMessage": "Failed to save and run recipe: {error}"
   },
   "createEditRecipe.saveAndRunRecipe": {
-    "defaultMessage": "Save & Run Workflow"
+    "defaultMessage": "Save & Run Recipe"
   },
   "createEditRecipe.saveFailed": {
     "defaultMessage": "Save Failed"
   },
   "createEditRecipe.saveFailedMsg": {
-    "defaultMessage": "Failed to save workflow: {error}"
+    "defaultMessage": "Failed to save recipe: {error}"
   },
   "createEditRecipe.saveRecipe": {
-    "defaultMessage": "Save Workflow"
+    "defaultMessage": "Save Recipe"
   },
   "createEditRecipe.saving": {
     "defaultMessage": "Saving..."
@@ -384,7 +384,7 @@
     "defaultMessage": "Please fill in all required fields and ensure JSON schema is valid."
   },
   "createEditRecipe.viewEditRecipeTitle": {
-    "defaultMessage": "View/edit workflow"
+    "defaultMessage": "View/edit recipe"
   },
   "createSubRecipeInline.cancel": {
     "defaultMessage": "Cancel"
@@ -2877,7 +2877,7 @@
     "defaultMessage": "Enter a user facing introduction message for your workflow (supports **bold**, *italic*, `code`, etc.)"
   },
   "recipeExtensionSelector.description": {
-    "defaultMessage": "Select which extensions should be available when running this workflow. Leave empty to use default extensions."
+    "defaultMessage": "Select which extensions should be available when running this recipe. Leave empty to use default extensions."
   },
   "recipeExtensionSelector.extensionsSelected": {
     "defaultMessage": "{count,plural,one{# extension selected} other{# extensions selected}}"
@@ -2901,13 +2901,13 @@
     "defaultMessage": "Advanced Options"
   },
   "recipeFormFields.advancedOptionsHint": {
-    "defaultMessage": "Activities, parameters, model, extensions, response schema, sub-workflows"
+    "defaultMessage": "Activities, parameters, model, extensions, response schema, subrecipes"
   },
   "recipeFormFields.descriptionLabel": {
     "defaultMessage": "Description"
   },
   "recipeFormFields.descriptionPlaceholder": {
-    "defaultMessage": "Brief description of what this workflow does"
+    "defaultMessage": "Brief description of what this recipe does"
   },
   "recipeFormFields.enterValueFor": {
     "defaultMessage": "Enter value for {key}"
@@ -2937,7 +2937,7 @@
     "defaultMessage": "(Optional - Instructions or Prompt are required)"
   },
   "recipeFormFields.promptPlaceholder": {
-    "defaultMessage": "Pre-filled prompt when the workflow starts"
+    "defaultMessage": "Pre-filled prompt when the recipe starts"
   },
   "recipeFormFields.responseJsonSchema": {
     "defaultMessage": "Response JSON Schema"
@@ -2946,13 +2946,13 @@
     "defaultMessage": "Define the expected structure of the AI's response using JSON Schema format"
   },
   "recipeFormFields.templateVarHint": {
-    "defaultMessage": "Use '{{parameter_name}}' to define parameters that can be filled in when running the workflow."
+    "defaultMessage": "Use '{{parameter_name}}' to define parameters that can be filled in when running the recipe."
   },
   "recipeFormFields.titleLabel": {
     "defaultMessage": "Title"
   },
   "recipeFormFields.titlePlaceholder": {
-    "defaultMessage": "Workflow title"
+    "defaultMessage": "Recipe title"
   },
   "recipeHeader.recipeLabel": {
     "defaultMessage": "Workflow"
@@ -3060,31 +3060,31 @@
     "defaultMessage": "Copy YAML"
   },
   "recipesView.copyYamlFailedMsg": {
-    "defaultMessage": "Failed to copy workflow YAML to clipboard"
+    "defaultMessage": "Failed to copy recipe YAML to clipboard"
   },
   "recipesView.createRecipe": {
-    "defaultMessage": "Create Workflow"
+    "defaultMessage": "Create Recipe"
   },
   "recipesView.deeplinkCopiedMsg": {
-    "defaultMessage": "Workflow deeplink has been copied to clipboard"
+    "defaultMessage": "Recipe deeplink has been copied to clipboard"
   },
   "recipesView.deeplinkCopiedTitle": {
     "defaultMessage": "Deeplink copied"
   },
   "recipesView.deleteRecipe": {
-    "defaultMessage": "Delete workflow"
+    "defaultMessage": "Delete recipe"
   },
   "recipesView.deleteRecipeConfirm": {
     "defaultMessage": "Are you sure you want to delete \"{title}\"?"
   },
   "recipesView.deleteRecipeDetail": {
-    "defaultMessage": "Workflow file will be deleted."
+    "defaultMessage": "Recipe file will be deleted."
   },
   "recipesView.deleteRecipeTitle": {
-    "defaultMessage": "Delete Workflow"
+    "defaultMessage": "Delete Recipe"
   },
   "recipesView.editRecipe": {
-    "defaultMessage": "Edit workflow"
+    "defaultMessage": "Edit recipe"
   },
   "recipesView.editSchedule": {
     "defaultMessage": "Edit schedule"
@@ -3093,46 +3093,46 @@
     "defaultMessage": "Edit slash command"
   },
   "recipesView.errorLoadingRecipes": {
-    "defaultMessage": "Error Loading Workflows"
+    "defaultMessage": "Error Loading Recipes"
   },
   "recipesView.exportFailedMsg": {
-    "defaultMessage": "Failed to export workflow to file"
+    "defaultMessage": "Failed to export recipe to file"
   },
   "recipesView.exportFailedTitle": {
     "defaultMessage": "Export failed"
   },
   "recipesView.exportRecipeDialogTitle": {
-    "defaultMessage": "Export Workflow"
+    "defaultMessage": "Export Recipe"
   },
   "recipesView.exportToFile": {
     "defaultMessage": "Export to File"
   },
   "recipesView.noMatchingRecipes": {
-    "defaultMessage": "No matching workflows found"
+    "defaultMessage": "No matching recipes found"
   },
   "recipesView.noSavedRecipes": {
-    "defaultMessage": "No saved workflows"
+    "defaultMessage": "No saved recipes"
   },
   "recipesView.noSavedRecipesDescription": {
-    "defaultMessage": "Workflow saved from chats will show up here."
+    "defaultMessage": "Recipe saved from chats will show up here."
   },
   "recipesView.openInNewWindow": {
     "defaultMessage": "Open in new window"
   },
   "recipesView.recipeDeletedSuccess": {
-    "defaultMessage": "Workflow deleted successfully"
+    "defaultMessage": "Recipe deleted successfully"
   },
   "recipesView.recipeExportedMsg": {
-    "defaultMessage": "Workflow saved to {filePath}"
+    "defaultMessage": "Recipe saved to {filePath}"
   },
   "recipesView.recipeExportedTitle": {
-    "defaultMessage": "Workflow exported"
+    "defaultMessage": "Recipe exported"
   },
   "recipesView.recipesDescription": {
-    "defaultMessage": "View and manage your saved workflows to quickly start new sessions with predefined configurations. {shortcut} to search."
+    "defaultMessage": "View and manage your saved recipes to quickly start new sessions with predefined configurations. {shortcut} to search."
   },
   "recipesView.recipesTitle": {
-    "defaultMessage": "Workflows"
+    "defaultMessage": "Recipes"
   },
   "recipesView.remove": {
     "defaultMessage": "Remove"
@@ -3150,37 +3150,37 @@
     "defaultMessage": "{action} Schedule"
   },
   "recipesView.scheduleRemovedMsg": {
-    "defaultMessage": "Workflow will no longer run automatically"
+    "defaultMessage": "Recipe will no longer run automatically"
   },
   "recipesView.scheduleRemovedTitle": {
     "defaultMessage": "Schedule removed"
   },
   "recipesView.scheduleSavedMsg": {
-    "defaultMessage": "Workflow will run {schedule}"
+    "defaultMessage": "Recipe will run {schedule}"
   },
   "recipesView.scheduleSavedTitle": {
     "defaultMessage": "Schedule saved"
   },
   "recipesView.searchRecipesPlaceholder": {
-    "defaultMessage": "Search workflows..."
+    "defaultMessage": "Search recipes..."
   },
   "recipesView.shareRecipe": {
-    "defaultMessage": "Share workflow"
+    "defaultMessage": "Share recipe"
   },
   "recipesView.slashCommandDescription": {
-    "defaultMessage": "Set a slash command to quickly run this workflow from any chat"
+    "defaultMessage": "Set a slash command to quickly run this recipe from any chat"
   },
   "recipesView.slashCommandPlaceholder": {
     "defaultMessage": "command-name"
   },
   "recipesView.slashCommandRemovedMsg": {
-    "defaultMessage": "Workflow slash command has been removed"
+    "defaultMessage": "Recipe slash command has been removed"
   },
   "recipesView.slashCommandRemovedTitle": {
     "defaultMessage": "Slash command removed"
   },
   "recipesView.slashCommandSavedMsg": {
-    "defaultMessage": "Use /{command} to run this workflow"
+    "defaultMessage": "Use /{command} to run this recipe"
   },
   "recipesView.slashCommandSavedTitle": {
     "defaultMessage": "Slash command saved"
@@ -3189,16 +3189,16 @@
     "defaultMessage": "Slash Command"
   },
   "recipesView.slashCommandUsageHint": {
-    "defaultMessage": "Use /{command} in any chat to run this workflow"
+    "defaultMessage": "Use /{command} in any chat to run this recipe"
   },
   "recipesView.tryAgain": {
     "defaultMessage": "Try Again"
   },
   "recipesView.useRecipe": {
-    "defaultMessage": "Use workflow"
+    "defaultMessage": "Use recipe"
   },
   "recipesView.yamlCopiedMsg": {
-    "defaultMessage": "Workflow YAML has been copied to clipboard"
+    "defaultMessage": "Recipe YAML has been copied to clipboard"
   },
   "recipesView.yamlCopiedTitle": {
     "defaultMessage": "YAML copied"
@@ -3732,7 +3732,7 @@
     "defaultMessage": "Chat history"
   },
   "sessions.chatHistoryDesc": {
-    "defaultMessage": "View and search your past conversations with ApeMind Agent. {shortcut} to search."
+    "defaultMessage": "View and search your past conversations with Goose. {shortcut} to search."
   },
   "sessions.close": {
     "defaultMessage": "Close"
@@ -4416,7 +4416,7 @@
     "defaultMessage": "ApeMind Agent would like to call {toolName}. Allow?"
   },
   "updateSection.autoDownload": {
-    "defaultMessage": "ApeMind Agent will download the update in the background and install it the next time you quit or restart."
+    "defaultMessage": "Goose will download the update in the background and install it the next time you quit or restart."
   },
   "updateSection.autoDownloadDisabledByEnv": {
     "defaultMessage": "Automatic downloads are disabled via the GOOSE_DISABLE_AUTO_DOWNLOAD environment variable."
@@ -4440,7 +4440,7 @@
     "defaultMessage": "Disable automatic update downloads"
   },
   "updateSection.disableAutoDownloadDesc": {
-    "defaultMessage": "When enabled, ApeMind Agent will notify you of new versions but will not download them automatically."
+    "defaultMessage": "When enabled, Goose will notify you of new versions but will not download them automatically."
   },
   "updateSection.downloadNow": {
     "defaultMessage": "Download Now"
@@ -4473,7 +4473,7 @@
     "defaultMessage": "Manual installation required for this update method."
   },
   "updateSection.readyInstallAuto": {
-    "defaultMessage": "✓ Update is ready. Restart ApeMind Agent to finish installing it, or quit when you're done."
+    "defaultMessage": "✓ Update is ready. Restart Goose to finish installing it, or quit when you're done."
   },
   "updateSection.readyInstallManual": {
     "defaultMessage": "✓ Update is ready! Click \"Install & Restart\" for installation instructions."

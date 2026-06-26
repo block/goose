@@ -66,7 +66,7 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   deleteRecipeTitle: {
     id: 'recipesView.deleteRecipeTitle',
-    defaultMessage: "Delete Workflow",
+    defaultMessage: 'Delete Recipe',
   },
   deleteRecipeConfirm: {
     id: 'recipesView.deleteRecipeConfirm',
@@ -74,11 +74,11 @@ const i18n = defineMessages({
   },
   deleteRecipeDetail: {
     id: 'recipesView.deleteRecipeDetail',
-    defaultMessage: "Workflow file will be deleted.",
+    defaultMessage: 'Recipe file will be deleted.',
   },
   recipeDeletedSuccess: {
     id: 'recipesView.recipeDeletedSuccess',
-    defaultMessage: "Workflow deleted successfully",
+    defaultMessage: 'Recipe deleted successfully',
   },
   deeplinkCopiedTitle: {
     id: 'recipesView.deeplinkCopiedTitle',
@@ -86,7 +86,7 @@ const i18n = defineMessages({
   },
   deeplinkCopiedMsg: {
     id: 'recipesView.deeplinkCopiedMsg',
-    defaultMessage: "Workflow deeplink has been copied to clipboard",
+    defaultMessage: 'Recipe deeplink has been copied to clipboard',
   },
   copyFailedTitle: {
     id: 'recipesView.copyFailedTitle',
@@ -102,15 +102,15 @@ const i18n = defineMessages({
   },
   yamlCopiedMsg: {
     id: 'recipesView.yamlCopiedMsg',
-    defaultMessage: "Workflow YAML has been copied to clipboard",
+    defaultMessage: 'Recipe YAML has been copied to clipboard',
   },
   copyYamlFailedMsg: {
     id: 'recipesView.copyYamlFailedMsg',
-    defaultMessage: "Failed to copy workflow YAML to clipboard",
+    defaultMessage: 'Failed to copy recipe YAML to clipboard',
   },
   exportRecipeDialogTitle: {
     id: 'recipesView.exportRecipeDialogTitle',
-    defaultMessage: "Export Workflow",
+    defaultMessage: 'Export Recipe',
   },
   yamlFiles: {
     id: 'recipesView.yamlFiles',
@@ -122,11 +122,11 @@ const i18n = defineMessages({
   },
   recipeExportedTitle: {
     id: 'recipesView.recipeExportedTitle',
-    defaultMessage: "Workflow exported",
+    defaultMessage: 'Recipe exported',
   },
   recipeExportedMsg: {
     id: 'recipesView.recipeExportedMsg',
-    defaultMessage: "Workflow saved to {filePath}",
+    defaultMessage: 'Recipe saved to {filePath}',
   },
   exportFailedTitle: {
     id: 'recipesView.exportFailedTitle',
@@ -134,7 +134,7 @@ const i18n = defineMessages({
   },
   exportFailedMsg: {
     id: 'recipesView.exportFailedMsg',
-    defaultMessage: "Failed to export workflow to file",
+    defaultMessage: 'Failed to export recipe to file',
   },
   scheduleSavedTitle: {
     id: 'recipesView.scheduleSavedTitle',
@@ -142,7 +142,7 @@ const i18n = defineMessages({
   },
   scheduleSavedMsg: {
     id: 'recipesView.scheduleSavedMsg',
-    defaultMessage: "Workflow will run {schedule}",
+    defaultMessage: 'Recipe will run {schedule}',
   },
   scheduleRemovedTitle: {
     id: 'recipesView.scheduleRemovedTitle',
@@ -150,7 +150,7 @@ const i18n = defineMessages({
   },
   scheduleRemovedMsg: {
     id: 'recipesView.scheduleRemovedMsg',
-    defaultMessage: "Workflow will no longer run automatically",
+    defaultMessage: 'Recipe will no longer run automatically',
   },
   slashCommandSavedTitle: {
     id: 'recipesView.slashCommandSavedTitle',
@@ -158,7 +158,7 @@ const i18n = defineMessages({
   },
   slashCommandSavedMsg: {
     id: 'recipesView.slashCommandSavedMsg',
-    defaultMessage: "Use /{command} to run this workflow",
+    defaultMessage: 'Use /{command} to run this recipe',
   },
   slashCommandRemovedTitle: {
     id: 'recipesView.slashCommandRemovedTitle',
@@ -166,7 +166,7 @@ const i18n = defineMessages({
   },
   slashCommandRemovedMsg: {
     id: 'recipesView.slashCommandRemovedMsg',
-    defaultMessage: "Workflow slash command has been removed",
+    defaultMessage: 'Recipe slash command has been removed',
   },
   runs: {
     id: 'recipesView.runs',
@@ -182,7 +182,7 @@ const i18n = defineMessages({
   },
   useRecipe: {
     id: 'recipesView.useRecipe',
-    defaultMessage: "Use workflow",
+    defaultMessage: 'Use recipe',
   },
   openInNewWindow: {
     id: 'recipesView.openInNewWindow',
@@ -190,11 +190,11 @@ const i18n = defineMessages({
   },
   editRecipe: {
     id: 'recipesView.editRecipe',
-    defaultMessage: "Edit workflow",
+    defaultMessage: 'Edit recipe',
   },
   shareRecipe: {
     id: 'recipesView.shareRecipe',
-    defaultMessage: "Share workflow",
+    defaultMessage: 'Share recipe',
   },
   copyDeeplink: {
     id: 'recipesView.copyDeeplink',
@@ -218,11 +218,11 @@ const i18n = defineMessages({
   },
   deleteRecipe: {
     id: 'recipesView.deleteRecipe',
-    defaultMessage: "Delete workflow",
+    defaultMessage: 'Delete recipe',
   },
   errorLoadingRecipes: {
     id: 'recipesView.errorLoadingRecipes',
-    defaultMessage: "Error Loading Workflows",
+    defaultMessage: 'Error Loading Recipes',
   },
   tryAgain: {
     id: 'recipesView.tryAgain',
@@ -230,15 +230,15 @@ const i18n = defineMessages({
   },
   noSavedRecipes: {
     id: 'recipesView.noSavedRecipes',
-    defaultMessage: "No saved workflows",
+    defaultMessage: 'No saved recipes',
   },
   noSavedRecipesDescription: {
     id: 'recipesView.noSavedRecipesDescription',
-    defaultMessage: "Workflow saved from chats will show up here.",
+    defaultMessage: 'Recipe saved from chats will show up here.',
   },
   noMatchingRecipes: {
     id: 'recipesView.noMatchingRecipes',
-    defaultMessage: "No matching workflows found",
+    defaultMessage: 'No matching recipes found',
   },
   adjustSearchTerms: {
     id: 'recipesView.adjustSearchTerms',
@@ -246,19 +246,20 @@ const i18n = defineMessages({
   },
   recipesTitle: {
     id: 'recipesView.recipesTitle',
-    defaultMessage: "Workflows",
+    defaultMessage: 'Recipes',
   },
   createRecipe: {
     id: 'recipesView.createRecipe',
-    defaultMessage: "Create Workflow",
+    defaultMessage: 'Create Recipe',
   },
   recipesDescription: {
     id: 'recipesView.recipesDescription',
-    defaultMessage: "View and manage your saved workflows to quickly start new sessions with predefined configurations. {shortcut} to search.",
+    defaultMessage:
+      'View and manage your saved recipes to quickly start new sessions with predefined configurations. {shortcut} to search.',
   },
   searchRecipesPlaceholder: {
     id: 'recipesView.searchRecipesPlaceholder',
-    defaultMessage: "Search workflows...",
+    defaultMessage: 'Search recipes...',
   },
   scheduleDialogTitle: {
     id: 'recipesView.scheduleDialogTitle',
@@ -282,7 +283,7 @@ const i18n = defineMessages({
   },
   slashCommandDescription: {
     id: 'recipesView.slashCommandDescription',
-    defaultMessage: "Set a slash command to quickly run this workflow from any chat",
+    defaultMessage: 'Set a slash command to quickly run this recipe from any chat',
   },
   slashCommandPlaceholder: {
     id: 'recipesView.slashCommandPlaceholder',
@@ -290,7 +291,7 @@ const i18n = defineMessages({
   },
   slashCommandUsageHint: {
     id: 'recipesView.slashCommandUsageHint',
-    defaultMessage: "Use /{command} in any chat to run this workflow",
+    defaultMessage: 'Use /{command} in any chat to run this recipe',
   },
   remove: {
     id: 'recipesView.remove',

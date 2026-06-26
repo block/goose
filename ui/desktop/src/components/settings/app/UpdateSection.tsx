@@ -12,7 +12,7 @@ const i18n = defineMessages({
   disableAutoDownloadDesc: {
     id: 'updateSection.disableAutoDownloadDesc',
     defaultMessage:
-      'When enabled, ApeMind Agent will notify you of new versions but will not download them automatically.',
+      'When enabled, Goose will notify you of new versions but will not download them automatically.',
   },
   autoDownloadDisabledByEnv: {
     id: 'updateSection.autoDownloadDisabledByEnv',
@@ -82,7 +82,7 @@ const i18n = defineMessages({
   autoDownload: {
     id: 'updateSection.autoDownload',
     defaultMessage:
-      'ApeMind Agent will download the update in the background and install it the next time you quit or restart.',
+      'Goose will download the update in the background and install it the next time you quit or restart.',
   },
   manualInstallNote: {
     id: 'updateSection.manualInstallNote',
@@ -103,7 +103,7 @@ const i18n = defineMessages({
   readyInstallAuto: {
     id: 'updateSection.readyInstallAuto',
     defaultMessage:
-      "✓ Update is ready. Restart ApeMind Agent to finish installing it, or quit when you're done.",
+      "✓ Update is ready. Restart Goose to finish installing it, or quit when you're done.",
   },
   installNowHint: {
     id: 'updateSection.installNowHint',

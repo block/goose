@@ -1,18 +1,26 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, type RenderOptions, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import ParameterInputModal from '../ParameterInputModal';
 import { IntlTestWrapper } from '../../i18n/test-utils';
 import type { Parameter } from '../../recipe';
 
-const mockNavigate = vi.fn();
-
-vi.mock('react-router-dom', () => ({
-  useNavigate: () => mockNavigate,
-}));
+const LocationDisplay = () => {
+  const location = useLocation();
+  return <div data-testid="location-display">{location.pathname}</div>;
+};
 
 const renderWithIntl = (ui: React.ReactElement, options?: RenderOptions) =>
-  render(ui, { wrapper: IntlTestWrapper, ...options });
+  render(
+    <MemoryRouter initialEntries={['/recipes']}>
+      <IntlTestWrapper>
+        {ui}
+        <LocationDisplay />
+      </IntlTestWrapper>
+    </MemoryRouter>,
+    options
+  );
 
 const mockParameters: Parameter[] = [
   {
@@ -147,14 +155,14 @@ describe('ParameterInputModal', () => {
       expect(defaultProps.onClose).toHaveBeenCalled();
     });
 
-    it('navigates to pair when "Start New Chat" option is selected', async () => {
+    it('calls onClose when "Start New Chat" option is selected', async () => {
       const user = userEvent.setup();
       renderWithIntl(<ParameterInputModal {...defaultProps} />);
 
       await user.click(screen.getByText('Cancel'));
       await user.click(screen.getByText('Start New Chat (No Workflow)'));
 
-      expect(mockNavigate).toHaveBeenCalledWith('/pair');
+      expect(screen.getByTestId('location-display')).toHaveTextContent('/pair');
       expect(defaultProps.onClose).not.toHaveBeenCalled();
     });
 

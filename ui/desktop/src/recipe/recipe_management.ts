@@ -14,13 +14,7 @@ export const saveRecipe = async (
   recipeId?: string | null
 ): Promise<{ id: string; fileName: string; filePath: string }> => {
   try {
-    const recipeToSave = stripEmptyExtensions(recipe);
-    const response = await acpSaveRecipe(recipeToSave, recipeId);
-    try {
-      await window.electron.recordRecipeHash(recipeToSave);
-    } catch (error) {
-      console.warn('Failed to mark saved workflow as trusted:', error);
-    }
+    const response = await acpSaveRecipe(stripEmptyExtensions(recipe), recipeId);
     return {
       id: response.id,
       fileName: response.file_name,

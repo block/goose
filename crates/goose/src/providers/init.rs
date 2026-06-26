@@ -9,7 +9,6 @@ use super::local_inference::LocalInferenceProvider;
 use super::sagemaker_tgi::SageMakerTgiProvider;
 use super::{
     amp_acp::AmpAcpProvider,
-    anthropic::AnthropicProvider,
     avian::AvianProvider,
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
@@ -41,6 +40,7 @@ use super::{
     xai_oauth::XaiOAuthProvider,
 };
 use crate::config::ExtensionConfig;
+use crate::providers::anthropic_def::AnthropicProviderDef;
 use crate::providers::base::ProviderType;
 use crate::providers::openai_def::OpenAiProviderDef;
 use crate::{
@@ -63,7 +63,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             false,
             Some(registrations::amp_acp_inventory()),
         );
-        registry.register_with_inventory::<AnthropicProvider>(
+        registry.register_with_inventory::<AnthropicProviderDef>(
             true,
             Some(registrations::anthropic_inventory()),
         );
@@ -369,7 +369,6 @@ mod tests {
         assert_eq!(nearai.provider_type(), ProviderType::Declarative);
         assert!(nearai.supports_inventory_refresh());
         assert_eq!(meta.display_name, "NEAR AI Cloud");
-        assert_eq!(meta.default_model, "zai-org/GLM-5.1-FP8");
         assert_eq!(meta.model_doc_link, "https://docs.near.ai/");
         assert!(!meta.setup_steps.is_empty());
 

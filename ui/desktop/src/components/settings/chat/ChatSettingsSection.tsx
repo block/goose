@@ -21,7 +21,7 @@ const i18n = defineMessages({
   },
   responseStylesDescription: {
     id: 'chatSettings.responseStylesDescription',
-    defaultMessage: "Choose how ApeMind Agent should format and style its responses",
+    defaultMessage: 'Choose how ApeMind Agent should format and style its responses',
   },
 });
 
@@ -56,7 +56,6 @@ export default function ChatSettingsSection() {
           <ResponseStylesSection />
         </CardContent>
       </Card>
-
     </div>
   );
 }

@@ -17,19 +17,21 @@ import { defineMessages, useIntl } from '../../i18n';
 const i18n = defineMessages({
   createRecipeTitle: {
     id: 'createEditRecipe.createRecipeTitle',
-    defaultMessage: "Create Workflow",
+    defaultMessage: 'Create Recipe',
   },
   viewEditRecipeTitle: {
     id: 'createEditRecipe.viewEditRecipeTitle',
-    defaultMessage: "View/edit workflow",
+    defaultMessage: 'View/edit recipe',
   },
   createSubtitle: {
     id: 'createEditRecipe.createSubtitle',
-    defaultMessage: "Create a new workflow to define agent behavior and capabilities for reusable chat sessions.",
+    defaultMessage:
+      'Create a new recipe to define agent behavior and capabilities for reusable chat sessions.',
   },
   editSubtitle: {
     id: 'createEditRecipe.editSubtitle',
-    defaultMessage: "You can edit the workflow below to change the agent's behavior in a new session.",
+    defaultMessage:
+      "You can edit the recipe below to change the agent's behavior in a new session.",
   },
   learnMore: {
     id: 'createEditRecipe.learnMore',
@@ -65,11 +67,11 @@ const i18n = defineMessages({
   },
   saveRecipe: {
     id: 'createEditRecipe.saveRecipe',
-    defaultMessage: "Save Workflow",
+    defaultMessage: 'Save Recipe',
   },
   saveAndRunRecipe: {
     id: 'createEditRecipe.saveAndRunRecipe',
-    defaultMessage: "Save & Run Workflow",
+    defaultMessage: 'Save & Run Recipe',
   },
   validationFailed: {
     id: 'createEditRecipe.validationFailed',
@@ -81,7 +83,7 @@ const i18n = defineMessages({
   },
   recipeSavedMsg: {
     id: 'createEditRecipe.recipeSavedMsg',
-    defaultMessage: "Workflow saved successfully",
+    defaultMessage: 'Recipe saved successfully',
   },
   saveFailed: {
     id: 'createEditRecipe.saveFailed',
@@ -89,11 +91,11 @@ const i18n = defineMessages({
   },
   saveFailedMsg: {
     id: 'createEditRecipe.saveFailedMsg',
-    defaultMessage: "Failed to save workflow: {error}",
+    defaultMessage: 'Failed to save recipe: {error}',
   },
   recipeSavedAndLaunchedMsg: {
     id: 'createEditRecipe.recipeSavedAndLaunchedMsg',
-    defaultMessage: "Workflow saved and launched successfully",
+    defaultMessage: 'Recipe saved and launched successfully',
   },
   saveAndRunFailed: {
     id: 'createEditRecipe.saveAndRunFailed',
@@ -101,7 +103,7 @@ const i18n = defineMessages({
   },
   saveAndRunFailedMsg: {
     id: 'createEditRecipe.saveAndRunFailedMsg',
-    defaultMessage: "Failed to save and run workflow: {error}",
+    defaultMessage: 'Failed to save and run recipe: {error}',
   },
 });
 
@@ -341,7 +343,6 @@ export default function CreateEditRecipeModal({
   // Generate deeplink whenever recipe configuration changes
   useEffect(() => {
     let isCancelled = false;
-    const abortController = new AbortController();
 
     const generateLink = async () => {
       if (
@@ -356,14 +357,11 @@ export default function CreateEditRecipeModal({
       setIsGeneratingDeeplink(true);
       try {
         const currentRecipe = getCurrentRecipe();
-        const link = await generateDeepLink(currentRecipe, abortController.signal);
+        const link = await generateDeepLink(currentRecipe);
         if (!isCancelled) {
           setDeeplink(link);
         }
       } catch (error) {
-        if (abortController.signal.aborted) {
-          return;
-        }
         console.error('Failed to generate deeplink:', error);
         if (!isCancelled) {
           setDeeplink('Error generating deeplink');
@@ -375,12 +373,10 @@ export default function CreateEditRecipeModal({
       }
     };
 
-    const timeoutId = window.setTimeout(generateLink, 500);
+    generateLink();
 
     return () => {
       isCancelled = true;
-      abortController.abort();
-      window.clearTimeout(timeoutId);
     };
   }, [
     title,

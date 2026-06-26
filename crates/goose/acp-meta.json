@@ -26,6 +26,21 @@
       "responseType": "ReadResourceResponse_unstable"
     },
     {
+      "method": "_goose/unstable/apps/list",
+      "requestType": "AppsListRequest_unstable",
+      "responseType": "AppsListResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/apps/export",
+      "requestType": "AppsExportRequest_unstable",
+      "responseType": "AppsExportResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/apps/import",
+      "requestType": "AppsImportRequest_unstable",
+      "responseType": "AppsImportResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/session/working-dir/update",
       "requestType": "UpdateWorkingDirRequest_unstable",
       "responseType": "EmptyResponse"
@@ -199,6 +214,11 @@
       "method": "_goose/unstable/session/import",
       "requestType": "ImportSessionRequest_unstable",
       "responseType": "ImportSessionResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/session/share/nostr",
+      "requestType": "ShareSessionNostrRequest_unstable",
+      "responseType": "ShareSessionNostrResponse_unstable"
     },
     {
       "method": "_goose/unstable/recipes/encode",
