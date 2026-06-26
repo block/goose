@@ -153125,8 +153125,7 @@
     },
     "limit": {
       "context": 256000
-    },
-    "release_date": "2026-06-02"
+    }
   },
   {
     "id": "cortecs/deepseek-chat-v3.1",
@@ -153149,8 +153148,7 @@
     },
     "limit": {
       "context": 164000
-    },
-    "release_date": "2026-03-26"
+    }
   },
   {
     "id": "cortecs/gemma-3-27b-it",
@@ -153174,8 +153172,7 @@
     },
     "limit": {
       "context": 131000
-    },
-    "release_date": "2025-03-12"
+    }
   },
   {
     "id": "cortecs/glm-4.6",
@@ -153198,8 +153195,7 @@
     },
     "limit": {
       "context": 203000
-    },
-    "release_date": "2026-03-26"
+    }
   },
   {
     "id": "cortecs/gpt-oss-20b",
@@ -153222,8 +153218,7 @@
     },
     "limit": {
       "context": 131000
-    },
-    "release_date": "2025-07-18"
+    }
   },
   {
     "id": "cortecs/gpt-oss-safeguard-120b",
@@ -153246,8 +153241,7 @@
     },
     "limit": {
       "context": 128000
-    },
-    "release_date": "2025-12-04"
+    }
   },
   {
     "id": "cortecs/hermes-4-405b",
@@ -153270,8 +153264,7 @@
     },
     "limit": {
       "context": 128000
-    },
-    "release_date": "2024-08-13"
+    }
   },
   {
     "id": "cortecs/holo2-30b-a3b",
@@ -153295,8 +153288,7 @@
     },
     "limit": {
       "context": 22000
-    },
-    "release_date": "2025-12-10"
+    }
   },
   {
     "id": "cortecs/llama-3.1-8b-instruct",
@@ -153319,8 +153311,7 @@
     },
     "limit": {
       "context": 131000
-    },
-    "release_date": "2024-04-09"
+    }
   },
   {
     "id": "cortecs/llama-3.1-nemotron-ultra-253b-v1",
@@ -153343,8 +153334,7 @@
     },
     "limit": {
       "context": 128000
-    },
-    "release_date": "2025-04-07"
+    }
   },
   {
     "id": "cortecs/magistral-medium",
@@ -153417,8 +153407,7 @@
     },
     "limit": {
       "context": 32000
-    },
-    "release_date": "2026-06-02"
+    }
   },
   {
     "id": "cortecs/ministral-14b",
@@ -153466,8 +153455,7 @@
     },
     "limit": {
       "context": 32000
-    },
-    "release_date": "2025-05-26"
+    }
   },
   {
     "id": "cortecs/mistral-7b-instruct-v0.3",
@@ -153490,8 +153478,7 @@
     },
     "limit": {
       "context": 127000
-    },
-    "release_date": "2025-05-26"
+    }
   },
   {
     "id": "cortecs/mistral-medium-3.5",
@@ -153515,8 +153502,7 @@
     },
     "limit": {
       "context": 256000
-    },
-    "release_date": "2026-04-30"
+    }
   },
   {
     "id": "cortecs/mistral-nemo-instruct",
@@ -153589,8 +153575,7 @@
     },
     "limit": {
       "context": 128000
-    },
-    "release_date": "2025-10-31"
+    }
   },
   {
     "id": "cortecs/nova-2-lite",
@@ -153614,8 +153599,7 @@
     },
     "limit": {
       "context": 1000000
-    },
-    "release_date": "2025-12-04"
+    }
   },
   {
     "id": "cortecs/nova-lite-v1",
@@ -153639,8 +153623,7 @@
     },
     "limit": {
       "context": 300000
-    },
-    "release_date": "2025-04-14"
+    }
   },
   {
     "id": "cortecs/nova-micro-v1",
@@ -153664,8 +153647,7 @@
     },
     "limit": {
       "context": 128000
-    },
-    "release_date": "2025-04-14"
+    }
   },
   {
     "id": "cortecs/nvidia-nemotron-3-nano-30b-a3b",
@@ -153688,8 +153670,7 @@
     },
     "limit": {
       "context": 128000
-    },
-    "release_date": "2026-01-12"
+    }
   },
   {
     "id": "cortecs/nvidia-nemotron-3-nano-omni",
@@ -153712,8 +153693,7 @@
     },
     "limit": {
       "context": 300000
-    },
-    "release_date": "2026-04-29"
+    }
   },
   {
     "id": "cortecs/qwen2.5-vl-72b-instruct",
@@ -153737,8 +153717,7 @@
     },
     "limit": {
       "context": 32000
-    },
-    "release_date": "2025-01-27"
+    }
   },
   {
     "id": "cortecs/qwen3-30b-a3b-instruct",
@@ -153786,8 +153765,7 @@
     },
     "limit": {
       "context": 131000
-    },
-    "release_date": "2026-01-13"
+    }
   },
   {
     "id": "cortecs/qwen3.5-9b",
@@ -153810,8 +153788,7 @@
     },
     "limit": {
       "context": 262000
-    },
-    "release_date": "2026-04-09"
+    }
   },
   {
     "id": "cortecs/qwen3.6-27b",
@@ -153835,8 +153812,7 @@
     },
     "limit": {
       "context": 262000
-    },
-    "release_date": "2026-06-02"
+    }
   },
   {
     "id": "cortecs/qwen3.6-35b-a3b",
@@ -153860,8 +153836,7 @@
     },
     "limit": {
       "context": 262000
-    },
-    "release_date": "2026-05-14"
+    }
   },
   {
     "id": "cortecs/qwen3guard-gen-0.6b",
@@ -153884,8 +153859,7 @@
     },
     "limit": {
       "context": 32000
-    },
-    "release_date": "2026-02-04"
+    }
   },
   {
     "id": "cortecs/qwen3guard-gen-8b",
@@ -153908,8 +153882,7 @@
     },
     "limit": {
       "context": 32000
-    },
-    "release_date": "2026-02-04"
+    }
   },
   {
     "id": "cortecs/voxtral-small",
