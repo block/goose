@@ -65,6 +65,8 @@ import type {
   GetAvailableExtensionsResponse_unstable,
   GetConfigExtensionsRequest_unstable,
   GetConfigExtensionsResponse_unstable,
+  GetPromptRequest_unstable,
+  GetPromptResponse_unstable,
   GetSessionExtensionsRequest_unstable,
   GetSessionExtensionsResponse_unstable,
   GetSessionInfoRequest_unstable,
@@ -84,6 +86,8 @@ import type {
   KillRunningJobResponse_unstable,
   ListAgentMentionsRequest_unstable,
   ListAgentMentionsResponse_unstable,
+  ListPromptsRequest_unstable,
+  ListPromptsResponse_unstable,
   ListProvidersRequest_unstable,
   ListProvidersResponse_unstable,
   ListRecipesRequest_unstable,
@@ -107,6 +111,7 @@ import type {
   PreferencesReadResponse_unstable,
   PreferencesRemoveRequest_unstable,
   PreferencesSaveRequest_unstable,
+  PromptOperationResponse_unstable,
   ProviderCatalogListRequest_unstable,
   ProviderCatalogListResponse_unstable,
   ProviderCatalogTemplateRequest_unstable,
@@ -134,8 +139,10 @@ import type {
   RemoveSessionExtensionRequest_unstable,
   RenameSessionRequest_unstable,
   RequestRecipeParams_unstable,
+  ResetPromptRequest_unstable,
   RunScheduleNowRequest_unstable,
   RunScheduleNowResponse_unstable,
+  SavePromptRequest_unstable,
   SaveRecipeRequest_unstable,
   SaveRecipeResponse_unstable,
   ScanRecipeRequest_unstable,
@@ -178,6 +185,7 @@ import {
   zExportSourceResponse_unstable,
   zGetAvailableExtensionsResponse_unstable,
   zGetConfigExtensionsResponse_unstable,
+  zGetPromptResponse_unstable,
   zGetSessionExtensionsResponse_unstable,
   zGetSessionInfoResponse_unstable,
   zGetToolsResponse_unstable,
@@ -188,6 +196,7 @@ import {
   zInspectRunningJobResponse_unstable,
   zKillRunningJobResponse_unstable,
   zListAgentMentionsResponse_unstable,
+  zListPromptsResponse_unstable,
   zListProvidersResponse_unstable,
   zListRecipesResponse_unstable,
   zListScheduleSessionsResponse_unstable,
@@ -198,6 +207,7 @@ import {
   zOnboardingImportScanResponse_unstable,
   zParseRecipeResponse_unstable,
   zPreferencesReadResponse_unstable,
+  zPromptOperationResponse_unstable,
   zProviderCatalogListResponse_unstable,
   zProviderCatalogTemplateResponse_unstable,
   zProviderConfigChangeResponse_unstable,
@@ -334,6 +344,52 @@ export class GooseExtClient {
     return zDiagnosticsGetResponse_unstable.parse(
       raw,
     ) as DiagnosticsGetResponse_unstable;
+  }
+
+  async configPromptsList_unstable(
+    params: ListPromptsRequest_unstable,
+  ): Promise<ListPromptsResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/config/prompts/list",
+      params,
+    );
+    return zListPromptsResponse_unstable.parse(
+      raw,
+    ) as ListPromptsResponse_unstable;
+  }
+
+  async configPromptsGet_unstable(
+    params: GetPromptRequest_unstable,
+  ): Promise<GetPromptResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/config/prompts/get",
+      params,
+    );
+    return zGetPromptResponse_unstable.parse(raw) as GetPromptResponse_unstable;
+  }
+
+  async configPromptsSave_unstable(
+    params: SavePromptRequest_unstable,
+  ): Promise<PromptOperationResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/config/prompts/save",
+      params,
+    );
+    return zPromptOperationResponse_unstable.parse(
+      raw,
+    ) as PromptOperationResponse_unstable;
+  }
+
+  async configPromptsReset_unstable(
+    params: ResetPromptRequest_unstable,
+  ): Promise<PromptOperationResponse_unstable> {
+    const raw = await this.conn.extMethod(
+      "_goose/unstable/config/prompts/reset",
+      params,
+    );
+    return zPromptOperationResponse_unstable.parse(
+      raw,
+    ) as PromptOperationResponse_unstable;
   }
 
   async sessionDelete(params: DeleteSessionRequest): Promise<void> {
