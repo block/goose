@@ -4388,6 +4388,9 @@
   "toolApprovalButtons.deny": {
     "defaultMessage": "Deny"
   },
+  "toolApprovalButtons.staleApprovalRequest": {
+    "defaultMessage": "This approval request is no longer active."
+  },
   "toolCallStatusIndicator.toolStatus": {
     "defaultMessage": "Tool status: {status}"
   },

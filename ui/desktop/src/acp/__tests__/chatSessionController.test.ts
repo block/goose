@@ -249,7 +249,7 @@ describe('acpChatSessionController.updateMessage', () => {
     expect(acpPromptSession).not.toHaveBeenCalled();
   });
 
-  it('rejects edits before truncating while a prompt is active', async () => {
+  it('ignores edits before truncating while a prompt is active', async () => {
     vi.mocked(acpChatSessionStore.getSnapshot).mockReturnValue(
       snapshotWithActivePrompt('attempt-1')
     );
@@ -264,7 +264,7 @@ describe('acpChatSessionController.updateMessage', () => {
         getCurrentSnapshot: () => currentSnapshot,
         onFinish: vi.fn(),
       })
-    ).rejects.toThrow('Cannot update message while prompt is active');
+    ).resolves.toBeUndefined();
 
     expect(acpChatSessionActions.setChatState).not.toHaveBeenCalledWith(
       SESSION_ID,

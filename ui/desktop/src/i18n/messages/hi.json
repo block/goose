@@ -4388,6 +4388,9 @@
   "toolApprovalButtons.deny": {
     "defaultMessage": "इन्कार"
   },
+  "toolApprovalButtons.staleApprovalRequest": {
+    "defaultMessage": "This approval request is no longer active."
+  },
   "toolCallStatusIndicator.toolStatus": {
     "defaultMessage": "उपकरण स्थिति: {status}"
   },

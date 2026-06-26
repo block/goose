@@ -29,6 +29,10 @@ type SnapshotListener = (snapshot: AcpChatSessionSnapshot) => void;
 
 interface StoreEntry extends AcpChatSessionSnapshot {
   adapter: AcpSessionNotificationAdapter;
+  promptCancellationRestoreState: {
+    activeRunId: string | null;
+    chatState: ChatState;
+  } | null;
   pendingLocalSteerMessageIds: Set<string>;
 }
 
@@ -79,6 +83,10 @@ export interface AcpChatSessionActions {
     promptAttemptId: string
   ): AcpChatSessionSnapshot | undefined;
   clearPromptCancellation(
+    sessionId: string,
+    promptAttemptId: string
+  ): AcpChatSessionSnapshot | undefined;
+  restorePromptCancellation(
     sessionId: string,
     promptAttemptId: string
   ): AcpChatSessionSnapshot | undefined;
@@ -144,6 +152,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       activePromptAttemptId: null,
       activeRunId: null,
       pendingCancelPromptAttemptId: null,
+      promptCancellationRestoreState: null,
       pendingLocalSteerMessageIds: new Set(),
       adapter: createAcpSessionNotificationAdapter(),
     };
@@ -241,6 +250,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     entry.activePromptAttemptId = promptAttemptId;
     entry.activeRunId = null;
     entry.pendingCancelPromptAttemptId = null;
+    entry.promptCancellationRestoreState = null;
     entry.chatState = ChatState.Streaming;
     entry.sessionLoadError = undefined;
     entry.notifications = [];
@@ -256,6 +266,10 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
       return undefined;
     }
 
+    entry.promptCancellationRestoreState = {
+      activeRunId: entry.activeRunId,
+      chatState: entry.chatState,
+    };
     entry.activePromptAttemptId = null;
     entry.activeRunId = null;
     entry.pendingCancelPromptAttemptId = promptAttemptId;
@@ -274,6 +288,29 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     }
 
     entry.pendingCancelPromptAttemptId = null;
+    entry.promptCancellationRestoreState = null;
+    return notify(sessionId, entry);
+  };
+
+  const restorePromptCancellation: AcpChatSessionActions['restorePromptCancellation'] = (
+    sessionId,
+    promptAttemptId
+  ) => {
+    const entry = sessionsById.get(sessionId);
+    if (
+      !entry ||
+      entry.pendingCancelPromptAttemptId !== promptAttemptId ||
+      !entry.promptCancellationRestoreState
+    ) {
+      return undefined;
+    }
+
+    const restoreState = entry.promptCancellationRestoreState;
+    entry.activePromptAttemptId = promptAttemptId;
+    entry.activeRunId = restoreState.activeRunId;
+    entry.pendingCancelPromptAttemptId = null;
+    entry.promptCancellationRestoreState = null;
+    entry.chatState = restoreState.chatState;
     return notify(sessionId, entry);
   };
 
@@ -290,6 +327,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     entry.activePromptAttemptId = null;
     entry.activeRunId = null;
     entry.pendingCancelPromptAttemptId = null;
+    entry.promptCancellationRestoreState = null;
     discardPendingLocalSteerMessages(entry);
     entry.chatState = ChatState.Idle;
     entry.sessionLoadError = error;
@@ -384,6 +422,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     startPromptAttempt,
     startPromptCancellation,
     clearPromptCancellation,
+    restorePromptCancellation,
     finishPromptAttemptIfCurrent,
     clearActivePromptAttempt,
     isCurrentPromptAttempt,
@@ -459,6 +498,7 @@ function actionsFromStore(store: AcpChatSessionStoreInternal): AcpChatSessionAct
     startPromptAttempt: store.startPromptAttempt,
     startPromptCancellation: store.startPromptCancellation,
     clearPromptCancellation: store.clearPromptCancellation,
+    restorePromptCancellation: store.restorePromptCancellation,
     finishPromptAttemptIfCurrent: store.finishPromptAttemptIfCurrent,
     clearActivePromptAttempt: store.clearActivePromptAttempt,
     isCurrentPromptAttempt: store.isCurrentPromptAttempt,
@@ -499,6 +539,7 @@ function resetReplayState(entry: StoreEntry): void {
   entry.notifications = [];
   entry.activeRunId = null;
   entry.pendingCancelPromptAttemptId = null;
+  entry.promptCancellationRestoreState = null;
   entry.pendingLocalSteerMessageIds.clear();
   entry.adapter = createAcpSessionNotificationAdapter();
 }
