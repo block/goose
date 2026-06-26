@@ -1,10 +1,10 @@
-use goose::agents::ExtensionConfig;
 use goose::agents::extension::Envs;
 use goose::agents::extension::ToolInfo;
-use goose::config::ExtensionEntry;
+use goose::agents::ExtensionConfig;
 use goose::config::permission::PermissionLevel;
-use goose::conversation::Conversation;
+use goose::config::ExtensionEntry;
 use goose::conversation::token_usage::Usage;
+use goose::conversation::Conversation;
 use goose::download_manager::{DownloadProgress, DownloadStatus};
 use goose::providers::base::{ConfigKey, ModelInfo, ProviderMetadata, ProviderType};
 use goose::session::{

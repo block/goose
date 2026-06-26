@@ -1,5 +1,5 @@
-use crate::config::GooseMode;
 use crate::config::paths::Paths;
+use crate::config::GooseMode;
 use fs2::FileExt;
 use goose_providers::thinking::ThinkingEffort;
 #[cfg(feature = "system-keyring")]

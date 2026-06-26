@@ -85,7 +85,7 @@ fn validate_audio(audio: &str, mime_type: &str) -> Result<(Vec<u8>, &'static str
             return Err(ErrorResponse {
                 message: format!("Unsupported audio format: {}", mime_type),
                 status: StatusCode::UNSUPPORTED_MEDIA_TYPE,
-            })
+            });
         }
     };
 
