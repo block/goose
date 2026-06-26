@@ -13,7 +13,9 @@ impl GooseAcpAgent {
         let session_id = &req.session_id;
         let agent = self.get_session_agent(&req.session_id).await?;
         let goose_mode = agent.goose_mode().await;
-        let permission_manager = self.permission_manager();
+        // Read from the global static manager so REST-based confirmToolAction approvals
+        // (which update PermissionManager::instance()) are reflected here immediately.
+        let permission_manager = crate::config::PermissionManager::instance();
 
         let mut tools: Vec<ToolListItem> = agent
             .list_tools(session_id, req.extension_name)
