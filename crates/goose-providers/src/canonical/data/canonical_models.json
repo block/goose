@@ -153103,5 +153103,837 @@
       "context": 200000,
       "output": 131072
     }
+  },
+  {
+    "id": "cortecs/cosmos3-super-reasoner",
+    "name": "Cosmos3 Super Reasoner",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.089,
+      "output": 0.266
+    },
+    "limit": {
+      "context": 256000
+    },
+    "release_date": "2026-06-02"
+  },
+  {
+    "id": "cortecs/deepseek-chat-v3.1",
+    "name": "Deepseek Chat v3.1",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.177,
+      "output": 0.71
+    },
+    "limit": {
+      "context": 164000
+    },
+    "release_date": "2026-03-26"
+  },
+  {
+    "id": "cortecs/gemma-3-27b-it",
+    "name": "Gemma 3 27B IT",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.089,
+      "output": 0.268
+    },
+    "limit": {
+      "context": 131000
+    },
+    "release_date": "2025-03-12"
+  },
+  {
+    "id": "cortecs/glm-4.6",
+    "name": "GLM 4.6",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.355,
+      "output": 1.553
+    },
+    "limit": {
+      "context": 203000
+    },
+    "release_date": "2026-03-26"
+  },
+  {
+    "id": "cortecs/gpt-oss-20b",
+    "name": "GPT OSS 20B",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.027,
+      "output": 0.124
+    },
+    "limit": {
+      "context": 131000
+    },
+    "release_date": "2025-07-18"
+  },
+  {
+    "id": "cortecs/gpt-oss-safeguard-120b",
+    "name": "GPT OSS Safeguard 120B",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.161,
+      "output": 0.626
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2025-12-04"
+  },
+  {
+    "id": "cortecs/hermes-4-405b",
+    "name": "Hermes 4 405B",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.894,
+      "output": 2.683
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2024-08-13"
+  },
+  {
+    "id": "cortecs/holo2-30b-a3b",
+    "name": "Holo2 30B A3B",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.3,
+      "output": 0.7
+    },
+    "limit": {
+      "context": 22000
+    },
+    "release_date": "2025-12-10"
+  },
+  {
+    "id": "cortecs/llama-3.1-8b-instruct",
+    "name": "Llama 3.1 8B Instruct",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.1,
+      "output": 0.1
+    },
+    "limit": {
+      "context": 131000
+    },
+    "release_date": "2024-04-09"
+  },
+  {
+    "id": "cortecs/llama-3.1-nemotron-ultra-253b-v1",
+    "name": "Llama 3.1 Nemotron Ultra 253B v1",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.537,
+      "output": 1.61
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2025-04-07"
+  },
+  {
+    "id": "cortecs/magistral-medium",
+    "name": "Magistral Medium",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 2.0,
+      "output": 5.0
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2025-09-18"
+  },
+  {
+    "id": "cortecs/magistral-small",
+    "name": "Magistral Small",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.5,
+      "output": 1.5
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2025-09-18"
+  },
+  {
+    "id": "cortecs/minicpm-v-4.5",
+    "name": "MiniCPM V 4.5",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": false,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.584,
+      "output": 0.985
+    },
+    "limit": {
+      "context": 32000
+    },
+    "release_date": "2026-06-02"
+  },
+  {
+    "id": "cortecs/ministral-14b",
+    "name": "Ministral 14B",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.2,
+      "output": 0.2
+    },
+    "limit": {
+      "context": 256000
+    },
+    "release_date": "2025-12-03"
+  },
+  {
+    "id": "cortecs/mistral-7b-instruct-v0.2",
+    "name": "Mistral 7B Instruct v0.2",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": false,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.143,
+      "output": 0.197
+    },
+    "limit": {
+      "context": 32000
+    },
+    "release_date": "2025-05-26"
+  },
+  {
+    "id": "cortecs/mistral-7b-instruct-v0.3",
+    "name": "Mistral 7B Instruct v0.3",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.1,
+      "output": 0.1
+    },
+    "limit": {
+      "context": 127000
+    },
+    "release_date": "2025-05-26"
+  },
+  {
+    "id": "cortecs/mistral-medium-3.5",
+    "name": "Mistral Medium 3.5",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 1.25,
+      "output": 6.4
+    },
+    "limit": {
+      "context": 256000
+    },
+    "release_date": "2026-04-30"
+  },
+  {
+    "id": "cortecs/mistral-nemo-instruct",
+    "name": "Mistral Nemo Instruct",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.13,
+      "output": 0.13
+    },
+    "limit": {
+      "context": 131072
+    },
+    "release_date": "2024-08-07"
+  },
+  {
+    "id": "cortecs/mistral-small-3.2-24b-instruct",
+    "name": "Mistral Small 3.2 24B Instruct",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.09,
+      "output": 0.28
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2025-05-26"
+  },
+  {
+    "id": "cortecs/nemotron-nano-v2-12b",
+    "name": "Nemotron Nano v2 12B",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.215,
+      "output": 0.635
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2025-10-31"
+  },
+  {
+    "id": "cortecs/nova-2-lite",
+    "name": "Nova 2 Lite",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.335,
+      "output": 2.822
+    },
+    "limit": {
+      "context": 1000000
+    },
+    "release_date": "2025-12-04"
+  },
+  {
+    "id": "cortecs/nova-lite-v1",
+    "name": "Nova Lite v1",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.062,
+      "output": 0.247
+    },
+    "limit": {
+      "context": 300000
+    },
+    "release_date": "2025-04-14"
+  },
+  {
+    "id": "cortecs/nova-micro-v1",
+    "name": "Nova Micro v1",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.036,
+      "output": 0.143
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2025-04-14"
+  },
+  {
+    "id": "cortecs/nvidia-nemotron-3-nano-30b-a3b",
+    "name": "NVIDIA Nemotron 3 Nano 30B A3B",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.054,
+      "output": 0.215
+    },
+    "limit": {
+      "context": 128000
+    },
+    "release_date": "2026-01-12"
+  },
+  {
+    "id": "cortecs/nvidia-nemotron-3-nano-omni",
+    "name": "NVIDIA Nemotron 3 Nano Omni",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.053,
+      "output": 0.213
+    },
+    "limit": {
+      "context": 300000
+    },
+    "release_date": "2026-04-29"
+  },
+  {
+    "id": "cortecs/qwen2.5-vl-72b-instruct",
+    "name": "Qwen2.5 VL 72B Instruct",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": false,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.224,
+      "output": 0.671
+    },
+    "limit": {
+      "context": 32000
+    },
+    "release_date": "2025-01-27"
+  },
+  {
+    "id": "cortecs/qwen3-30b-a3b-instruct",
+    "name": "Qwen3 30B A3B Instruct",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.089,
+      "output": 0.268
+    },
+    "limit": {
+      "context": 262000
+    },
+    "release_date": "2025-07-28"
+  },
+  {
+    "id": "cortecs/qwen3-vl-235b-a22b",
+    "name": "Qwen3 VL 235B A22B",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.186,
+      "output": 1.686
+    },
+    "limit": {
+      "context": 131000
+    },
+    "release_date": "2026-01-13"
+  },
+  {
+    "id": "cortecs/qwen3.5-9b",
+    "name": "Qwen3.5 9B",
+    "attachment": false,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.1,
+      "output": 0.15
+    },
+    "limit": {
+      "context": 262000
+    },
+    "release_date": "2026-04-09"
+  },
+  {
+    "id": "cortecs/qwen3.6-27b",
+    "name": "Qwen3.6 27B",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.4,
+      "output": 2.7
+    },
+    "limit": {
+      "context": 262000
+    },
+    "release_date": "2026-06-02"
+  },
+  {
+    "id": "cortecs/qwen3.6-35b-a3b",
+    "name": "Qwen3.6 35B A3B",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.25,
+      "output": 1.5
+    },
+    "limit": {
+      "context": 262000
+    },
+    "release_date": "2026-05-14"
+  },
+  {
+    "id": "cortecs/qwen3guard-gen-0.6b",
+    "name": "Qwen3guard Gen 0.6B",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": false,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 32000
+    },
+    "release_date": "2026-02-04"
+  },
+  {
+    "id": "cortecs/qwen3guard-gen-8b",
+    "name": "Qwen3guard Gen 8B",
+    "attachment": false,
+    "reasoning": false,
+    "tool_call": false,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.0,
+      "output": 0.0
+    },
+    "limit": {
+      "context": 32000
+    },
+    "release_date": "2026-02-04"
+  },
+  {
+    "id": "cortecs/voxtral-small",
+    "name": "Voxtral Small",
+    "attachment": true,
+    "reasoning": false,
+    "tool_call": false,
+    "temperature": true,
+    "modalities": {
+      "input": [
+        "text",
+        "audio"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "cost": {
+      "input": 0.1,
+      "output": 0.3
+    },
+    "limit": {
+      "context": 32000
+    },
+    "release_date": "2026-02-02"
   }
 ]
