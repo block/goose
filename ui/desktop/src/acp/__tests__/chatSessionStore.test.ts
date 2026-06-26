@@ -294,6 +294,28 @@ describe('acpChatSessionStore', () => {
     expect(clearedSnapshot?.pendingCancelPromptAttemptId).toBeNull();
   });
 
+  it('waits for prompt cancellation to clear', async () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    acpChatSessionActions.startPromptCancellation(currentSessionId, 'attempt-1');
+
+    let didResolve = false;
+    const waitPromise = acpChatSessionActions
+      .waitForPromptCancellation(currentSessionId, 'attempt-1')
+      .then(() => {
+        didResolve = true;
+      });
+
+    await Promise.resolve();
+    expect(didResolve).toBe(false);
+
+    acpChatSessionActions.clearPromptCancellation(currentSessionId, 'attempt-1');
+
+    await waitPromise;
+    expect(didResolve).toBe(true);
+  });
+
   it('removes pending local steer messages when cancellation starts', () => {
     const currentSessionId = sessionId('session-1');
     const localSteerMessage = {

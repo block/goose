@@ -264,6 +264,11 @@ async function updateMessage(
       throw new Error('Cannot update message while prompt is active');
     }
 
+    const promptCancellationSettled = acpChatSessionActions.waitForPromptCancellation(
+      sessionId,
+      pendingToolPermissionPromptAttemptId
+    );
+
     try {
       await acpCancelPrompt(sessionId);
     } catch {
@@ -276,7 +281,7 @@ async function updateMessage(
 
     cancelAcpPermissionRequestsForSession(sessionId);
     cancelAcpElicitationRequestsForSession(sessionId);
-    acpChatSessionActions.clearPromptCancellation(sessionId, pendingToolPermissionPromptAttemptId);
+    await promptCancellationSettled;
   }
 
   acpChatSessionActions.setChatState(sessionId, ChatState.Thinking);

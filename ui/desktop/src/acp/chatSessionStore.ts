@@ -90,6 +90,7 @@ export interface AcpChatSessionActions {
     sessionId: string,
     promptAttemptId: string
   ): AcpChatSessionSnapshot | undefined;
+  waitForPromptCancellation(sessionId: string, promptAttemptId: string): Promise<void>;
   finishPromptAttemptIfCurrent(sessionId: string, promptAttemptId: string, error?: string): boolean;
   clearActivePromptAttempt(sessionId: string): AcpChatSessionSnapshot | undefined;
   isCurrentPromptAttempt(sessionId: string, promptAttemptId: string): boolean;
@@ -314,6 +315,25 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(sessionId, entry);
   };
 
+  const waitForPromptCancellation: AcpChatSessionActions['waitForPromptCancellation'] = (
+    sessionId,
+    promptAttemptId
+  ) => {
+    const entry = sessionsById.get(sessionId);
+    if (!entry || entry.pendingCancelPromptAttemptId !== promptAttemptId) {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      const unsubscribe = subscribe(sessionId, (snapshot) => {
+        if (snapshot.pendingCancelPromptAttemptId !== promptAttemptId) {
+          unsubscribe();
+          resolve();
+        }
+      });
+    });
+  };
+
   const finishPromptAttemptIfCurrent: AcpChatSessionActions['finishPromptAttemptIfCurrent'] = (
     sessionId,
     promptAttemptId,
@@ -423,6 +443,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     startPromptCancellation,
     clearPromptCancellation,
     restorePromptCancellation,
+    waitForPromptCancellation,
     finishPromptAttemptIfCurrent,
     clearActivePromptAttempt,
     isCurrentPromptAttempt,
@@ -499,6 +520,7 @@ function actionsFromStore(store: AcpChatSessionStoreInternal): AcpChatSessionAct
     startPromptCancellation: store.startPromptCancellation,
     clearPromptCancellation: store.clearPromptCancellation,
     restorePromptCancellation: store.restorePromptCancellation,
+    waitForPromptCancellation: store.waitForPromptCancellation,
     finishPromptAttemptIfCurrent: store.finishPromptAttemptIfCurrent,
     clearActivePromptAttempt: store.clearActivePromptAttempt,
     isCurrentPromptAttempt: store.isCurrentPromptAttempt,
