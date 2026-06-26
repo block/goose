@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import type { ScheduledJobDto } from '@aaif/goose-sdk';
 import {
-  listSchedules,
-  createSchedule,
-  deleteSchedule,
-  pauseSchedule,
-  unpauseSchedule,
-  updateSchedule,
-  killRunningJob,
-  inspectRunningJob,
-  ScheduledJob,
-} from '../../schedule';
+  acpListSchedules,
+  acpCreateSchedule,
+  acpDeleteSchedule,
+  acpPauseSchedule,
+  acpUnpauseSchedule,
+  acpUpdateSchedule,
+  acpKillRunningJob,
+  acpInspectRunningJob,
+} from '../../acp/schedules';
 import { ScrollArea } from '../ui/scroll-area';
 import { Card } from '../ui/card';
 import { Button } from '../ui/button';
@@ -67,9 +67,9 @@ interface SchedulesViewProps {
 }
 
 const ScheduleCard: React.FC<{
-  job: ScheduledJob;
+  job: ScheduledJobDto;
   onNavigateToDetail: (id: string) => void;
-  onEdit: (job: ScheduledJob) => void;
+  onEdit: (job: ScheduledJobDto) => void;
   onPause: (id: string) => void;
   onUnpause: (id: string) => void;
   onKill: (id: string) => void;
@@ -95,7 +95,7 @@ const ScheduleCard: React.FC<{
     readableCron = job.cron;
   }
 
-  const formattedLastRun = formatToLocalDateWithTimezone(job.last_run);
+  const formattedLastRun = formatToLocalDateWithTimezone(job.lastRun);
 
   return (
     <Card
@@ -108,7 +108,7 @@ const ScheduleCard: React.FC<{
             <h3 className="text-base truncate max-w-[50vw]" title={job.id}>
               {job.id}
             </h3>
-            {job.currently_running && (
+            {job.currentlyRunning && (
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900/30 dark:text-green-300">
                 <span className="inline-block w-2 h-2 bg-green-500 rounded-full mr-1 animate-pulse"></span>
                 {intl.formatMessage(i18n.running)}
@@ -130,7 +130,7 @@ const ScheduleCard: React.FC<{
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          {!job.currently_running && (
+          {!job.currentlyRunning && (
             <>
               <Button
                 onClick={(e) => {
@@ -173,7 +173,7 @@ const ScheduleCard: React.FC<{
               </Button>
             </>
           )}
-          {job.currently_running && (
+          {job.currentlyRunning && (
             <>
               <Button
                 onClick={(e) => {
@@ -224,13 +224,13 @@ const ScheduleCard: React.FC<{
 const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
   const intl = useIntl();
   const location = useLocation();
-  const [schedules, setSchedules] = useState<ScheduledJob[]>([]);
+  const [schedules, setSchedules] = useState<ScheduledJobDto[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [submitApiError, setSubmitApiError] = useState<string | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingSchedule, setEditingSchedule] = useState<ScheduledJob | null>(null);
+  const [editingSchedule, setEditingSchedule] = useState<ScheduledJobDto | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [pendingDeepLink, setPendingDeepLink] = useState<string | null>(null);
   const [actionsInProgress, setActionsInProgress] = useState<Set<string>>(new Set());
@@ -240,7 +240,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     setIsLoading(true);
     setApiError(null);
     try {
-      const fetchedSchedules = await listSchedules();
+      const fetchedSchedules = await acpListSchedules();
       setSchedules(fetchedSchedules);
     } catch (error) {
       console.error('Failed to fetch schedules:', error);
@@ -289,14 +289,14 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     setSubmitApiError(null);
     try {
       if (editingSchedule) {
-        await updateSchedule(editingSchedule.id, payload as string);
+        await acpUpdateSchedule(editingSchedule.id, payload as string);
         toastSuccess({
           title: intl.formatMessage(i18n.scheduleUpdated),
           msg: intl.formatMessage(i18n.scheduleUpdatedMsg, { id: editingSchedule.id }),
         });
       } else {
         const newPayload = payload as NewSchedulePayload;
-        await createSchedule(newPayload);
+        await acpCreateSchedule(newPayload);
         const sourceType = pendingDeepLink ? 'deeplink' : 'file';
         trackScheduleCreated(sourceType, true);
       }
@@ -325,7 +325,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     setApiError(null);
 
     try {
-      await deleteSchedule(id);
+      await acpDeleteSchedule(id);
       trackScheduleDeleted(true);
       await fetchSchedules();
     } catch (error) {
@@ -347,7 +347,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     setApiError(null);
 
     try {
-      await pauseSchedule(id);
+      await acpPauseSchedule(id);
       toastSuccess({
         title: intl.formatMessage(i18n.schedulePaused),
         msg: intl.formatMessage(i18n.schedulePausedMsg, { id }),
@@ -375,7 +375,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     setApiError(null);
 
     try {
-      await unpauseSchedule(id);
+      await acpUnpauseSchedule(id);
       toastSuccess({
         title: intl.formatMessage(i18n.scheduleUnpaused),
         msg: intl.formatMessage(i18n.scheduleUnpausedMsg, { id }),
@@ -403,7 +403,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     setApiError(null);
 
     try {
-      const result = await killRunningJob(id);
+      const result = await acpKillRunningJob(id);
       toastSuccess({
         title: intl.formatMessage(i18n.jobKilled),
         msg: result.message,
@@ -431,7 +431,7 @@ const SchedulesView: React.FC<SchedulesViewProps> = ({ onClose: _onClose }) => {
     setApiError(null);
 
     try {
-      const result = await inspectRunningJob(id);
+      const result = await acpInspectRunningJob(id);
       if (result.sessionId) {
         const duration = result.runningDurationSeconds
           ? `${Math.floor(result.runningDurationSeconds / 60)}m ${result.runningDurationSeconds % 60}s`

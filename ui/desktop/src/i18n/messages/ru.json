@@ -185,9 +185,6 @@
   "chatInput.send": {
     "defaultMessage": "Отправить"
   },
-  "chatInput.tooManyTools": {
-    "defaultMessage": "Слишком много инструментов может снизить производительность. Количество инструментов: {toolCount} (рекомендуется: {recommended})"
-  },
   "chatInput.transcribing": {
     "defaultMessage": "Расшифровка..."
   },
@@ -199,9 +196,6 @@
   },
   "chatInput.viewEditRecipe": {
     "defaultMessage": "Просмотреть/изменить рецепт"
-  },
-  "chatInput.viewExtensions": {
-    "defaultMessage": "Просмотреть расширения"
   },
   "chatInput.waitingForCancellation": {
     "defaultMessage": "Ожидание завершения отмены"
@@ -1234,66 +1228,6 @@
   },
   "freeOptionCards.unexpectedError": {
     "defaultMessage": "Во время настройки произошла непредвиденная ошибка."
-  },
-  "gatewaySettings.botFatherInstructions": {
-    "defaultMessage": "Откройте @BotFather на телефоне, отправьте /newbot и следуйте подсказкам, чтобы назвать бота. BotFather ответит API-токеном — вставьте его ниже."
-  },
-  "gatewaySettings.close": {
-    "defaultMessage": "Закрыть"
-  },
-  "gatewaySettings.expiresIn": {
-    "defaultMessage": "Истекает через {time}"
-  },
-  "gatewaySettings.failedToGeneratePairingCode": {
-    "defaultMessage": "Не удалось создать код подключения"
-  },
-  "gatewaySettings.failedToRemove": {
-    "defaultMessage": "Не удалось удалить"
-  },
-  "gatewaySettings.failedToStart": {
-    "defaultMessage": "Не удалось запустить"
-  },
-  "gatewaySettings.failedToStop": {
-    "defaultMessage": "Не удалось остановить"
-  },
-  "gatewaySettings.failedToUnpairUser": {
-    "defaultMessage": "Не удалось отменить подключение пользователя"
-  },
-  "gatewaySettings.loading": {
-    "defaultMessage": "Загрузка..."
-  },
-  "gatewaySettings.pairDevice": {
-    "defaultMessage": "Подключить устройство"
-  },
-  "gatewaySettings.pairedUsers": {
-    "defaultMessage": "Подключенные пользователи"
-  },
-  "gatewaySettings.pairingCode": {
-    "defaultMessage": "Код подключения"
-  },
-  "gatewaySettings.pasteBotToken": {
-    "defaultMessage": "Вставьте токен бота здесь"
-  },
-  "gatewaySettings.remove": {
-    "defaultMessage": "Удалить"
-  },
-  "gatewaySettings.running": {
-    "defaultMessage": "Выполняется"
-  },
-  "gatewaySettings.sendCodeToPair": {
-    "defaultMessage": "Отправьте этот код вашему боту {gatewayType} для подключения."
-  },
-  "gatewaySettings.start": {
-    "defaultMessage": "Запустить"
-  },
-  "gatewaySettings.stop": {
-    "defaultMessage": "Остановить"
-  },
-  "gatewaySettings.stopped": {
-    "defaultMessage": "Остановлено"
-  },
-  "gatewaySettings.telegram": {
-    "defaultMessage": "Telegram"
   },
   "goosehintsModal.close": {
     "defaultMessage": "Закрыть"
@@ -3302,6 +3236,9 @@
   "scheduleDetailView.cannotModifyRunning": {
     "defaultMessage": "Нельзя запускать или изменять расписание, пока оно выполняется."
   },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "Сеанс: {sessionId}"
+  },
   "scheduleDetailView.created": {
     "defaultMessage": "Создано: {date}"
   },
@@ -3322,9 +3259,6 @@
   },
   "scheduleDetailView.errorPrefix": {
     "defaultMessage": "Ошибка: {error}"
-  },
-  "scheduleDetailView.failedToLoadSession": {
-    "defaultMessage": "Не удалось загрузить сеанс"
   },
   "scheduleDetailView.idLabel": {
     "defaultMessage": "ID:"
@@ -3368,9 +3302,6 @@
   "scheduleDetailView.messages": {
     "defaultMessage": "Сообщений: {count}"
   },
-  "scheduleDetailView.newSession": {
-    "defaultMessage": "Новый сеанс: {sessionId}"
-  },
   "scheduleDetailView.noScheduleId": {
     "defaultMessage": "ID расписания не указан. Вернитесь к списку расписаний."
   },
@@ -3407,6 +3338,9 @@
   "scheduleDetailView.runScheduleNow": {
     "defaultMessage": "Запустить расписание сейчас"
   },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "Запуск завершен"
+  },
   "scheduleDetailView.scheduleDetails": {
     "defaultMessage": "Детали расписания"
   },
@@ -3425,9 +3359,6 @@
   "scheduleDetailView.schedulePaused": {
     "defaultMessage": "Расписание приостановлено"
   },
-  "scheduleDetailView.scheduleTriggered": {
-    "defaultMessage": "Расписание запущено"
-  },
   "scheduleDetailView.scheduleUnpaused": {
     "defaultMessage": "Расписание возобновлено"
   },
@@ -3436,9 +3367,6 @@
   },
   "scheduleDetailView.sessionId": {
     "defaultMessage": "ID сеанса: {id}"
-  },
-  "scheduleDetailView.tokens": {
-    "defaultMessage": "Токенов: {count}"
   },
   "scheduleDetailView.unpauseSchedule": {
     "defaultMessage": "Возобновить расписание"
@@ -3761,57 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "View session JSON"
   },
-  "sessionHistory.cancel": {
-    "defaultMessage": "Отмена"
-  },
-  "sessionHistory.copy": {
-    "defaultMessage": "Копировать"
-  },
-  "sessionHistory.empty.description": {
-    "defaultMessage": "Этот сеанс не содержит сообщений"
-  },
-  "sessionHistory.empty.title": {
-    "defaultMessage": "Сообщения не найдены"
-  },
-  "sessionHistory.error.loading": {
-    "defaultMessage": "Ошибка загрузки сведений о сеансе"
-  },
-  "sessionHistory.error.tryAgain": {
-    "defaultMessage": "Повторить попытку"
-  },
-  "sessionHistory.loading": {
-    "defaultMessage": "Загрузка сведений о сеансе..."
-  },
-  "sessionHistory.resume": {
-    "defaultMessage": "Продолжить"
-  },
-  "sessionHistory.searchPlaceholder": {
-    "defaultMessage": "Поиск по истории..."
-  },
-  "sessionHistory.share": {
-    "defaultMessage": "Поделиться"
-  },
-  "sessionHistory.shareModal.description": {
-    "defaultMessage": "Поделитесь ссылкой на этот сеанс, чтобы другие могли просматривать ваш чат goose только для чтения."
-  },
-  "sessionHistory.shareModal.title": {
-    "defaultMessage": "Поделиться сеансом (бета)"
-  },
-  "sessionHistory.shareTooltip": {
-    "defaultMessage": "Чтобы включить общий доступ к сеансам, перейдите в <b>Настройки</b> > <b>Сеанс</b> > <b>Общий доступ к сеансам</b>."
-  },
-  "sessionHistory.sharing": {
-    "defaultMessage": "Публикация..."
-  },
-  "sessionHistory.toast.copyFailed": {
-    "defaultMessage": "Не удалось скопировать ссылку в буфер обмена"
-  },
-  "sessionHistory.toast.launchFailed": {
-    "defaultMessage": "Не удалось запустить сеанс: {error}"
-  },
-  "sessionHistory.toast.shareFailed": {
-    "defaultMessage": "Не удалось поделиться сеансом: {error}"
-  },
   "sessionIndicators.error": {
     "defaultMessage": "В сеансе возникла ошибка"
   },
@@ -3820,57 +3697,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Потоковая передача"
-  },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "Общий доступ к сеансам уже настроен"
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "Базовый URL"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "Соединение не удалось."
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "Соединение успешно!"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "Время соединения истекло. Сервер может быть медленным или недоступным."
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "Общий доступ к сеансам настроен, но полностью доброволен — сеансы публикуются только когда вы явно нажимаете кнопку «Поделиться»."
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "Вы можете включить общий доступ к сеансам, чтобы делиться ими с другими."
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "Включить общий доступ к сеансам"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "Неверный формат URL. Введите корректный URL (например, https://example.com/api)."
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "Ошибка сервера: HTTP {status}. Возможно, сервер настроен неверно."
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "Проверить соединение"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "Проверка..."
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "Проверка соединения..."
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "Общий доступ к сеансам"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "Произошла неизвестная ошибка."
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "Не удалось связаться с сервером. Проверьте URL и сетевое подключение."
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
   },
   "sessionViewComponents.empty.description": {
     "defaultMessage": "Этот сеанс не содержит сообщений"
@@ -4021,12 +3847,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "Описание сеанса успешно обновлено"
-  },
-  "sessionsView.error.failedToLoad": {
-    "defaultMessage": "Не удалось загрузить сведения о сеансе. Повторите попытку позже."
-  },
-  "sessionsView.loading": {
-    "defaultMessage": "Загрузка..."
   },
   "settings.appearance.description": {
     "defaultMessage": "Настройте, как goose отображается в вашей системе"
@@ -4198,12 +4018,6 @@
   },
   "settingsView.title": {
     "defaultMessage": "Настройки"
-  },
-  "sharedSession.loading": {
-    "defaultMessage": "Загрузка сведений о сеансе..."
-  },
-  "sharedSession.title": {
-    "defaultMessage": "Общий сеанс"
   },
   "sheet.close": {
     "defaultMessage": "Закрыть"
@@ -4573,6 +4387,9 @@
   },
   "toolApprovalButtons.deny": {
     "defaultMessage": "Отклонить"
+  },
+  "toolApprovalButtons.staleApprovalRequest": {
+    "defaultMessage": "This approval request is no longer active."
   },
   "toolCallStatusIndicator.toolStatus": {
     "defaultMessage": "Статус инструмента: {status}"

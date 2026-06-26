@@ -2,7 +2,7 @@ use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
 use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
-use crate::json::safely_parse_json;
+use crate::json::{parse_tool_arguments, truncation_error_message};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::{
@@ -182,10 +182,35 @@ pub fn format_messages_with_options(
 ) -> Vec<Value> {
     let mut messages_spec = Vec::new();
     let mut pending_assistant_reasoning = String::new();
+    // Reasoning to propagate across consecutive tool-call messages in the same turn.
+    // DeepSeek/Kimi require reasoning_content on every assistant tool-call message.
+    let mut tool_call_turn_reasoning = String::new();
+    let mut saw_tool_response = false;
 
     for message in messages {
         if options.preserve_thinking_context && message.role != Role::Assistant {
             pending_assistant_reasoning.clear();
+        }
+
+        if options.preserve_thinking_context && message.role == Role::User {
+            if message
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+            {
+                saw_tool_response = true;
+            } else {
+                tool_call_turn_reasoning.clear();
+                saw_tool_response = false;
+            }
+        }
+
+        // A new assistant message after tool results creates a new turn.
+        // Prevents reasoning from the previous turn leaking into the new one.
+        if options.preserve_thinking_context && message.role == Role::Assistant && saw_tool_response
+        {
+            tool_call_turn_reasoning.clear();
+            saw_tool_response = false;
         }
 
         let mut converted = json!({
@@ -407,6 +432,25 @@ pub fn format_messages_with_options(
                 reasoning_text =
                     merge_reasoning_text(&pending_assistant_reasoning, &reasoning_text);
                 pending_assistant_reasoning.clear();
+            }
+
+            let has_tool_calls = converted
+                .get("tool_calls")
+                .and_then(|tc| tc.as_array())
+                .is_some_and(|a| !a.is_empty());
+
+            if has_tool_calls {
+                if reasoning_text.is_empty() {
+                    reasoning_text = tool_call_turn_reasoning.clone();
+                } else {
+                    tool_call_turn_reasoning = reasoning_text.clone();
+                }
+            } else {
+                // Carry reasoning forward even through non-tool assistant messages
+                // (e.g., a visible text chunk that's is sent before a tool-call chunk
+                // in the same streaming turn). An empty reasoning_text is equivalent
+                // to clear.
+                tool_call_turn_reasoning = reasoning_text.clone();
             }
         }
 
@@ -653,8 +697,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         metadata.as_ref(),
                     ));
                 } else {
-                    match safely_parse_json(&arguments_str) {
-                        Ok(params) => {
+                    match parse_tool_arguments(&arguments_str) {
+                        Some(params) => {
                             content.push(MessageContent::tool_request_with_metadata(
                                 id,
                                 Ok(CallToolRequestParams::new(function_name)
@@ -662,13 +706,14 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                 metadata.as_ref(),
                             ));
                         }
-                        Err(e) => {
+                        None => {
+                            let message_text = truncation_error_message(&arguments_str)
+                                .unwrap_or_else(|| {
+                                    format!("Could not interpret tool use parameters for id {id}")
+                                });
                             let error = ErrorData {
                                 code: ErrorCode::INVALID_PARAMS,
-                                message: Cow::from(format!(
-                                    "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
-                                    id, e, arguments_str
-                                )),
+                                message: Cow::from(message_text),
                                 data: None,
                             };
                             content.push(MessageContent::tool_request_with_metadata(
@@ -1085,12 +1130,6 @@ where
 
                 for index in sorted_indices {
                     if let Some((id, function_name, arguments, extra_fields)) = tool_call_data.get(&index) {
-                        let parsed = if arguments.is_empty() {
-                            Ok(json!({}))
-                        } else {
-                            safely_parse_json(arguments)
-                        };
-
                         let metadata = if let Some(sig) = &last_signature {
                             let mut combined = extra_fields.clone().unwrap_or_default();
                             combined.insert(
@@ -1102,26 +1141,34 @@ where
                             extra_fields.as_ref().filter(|m| !m.is_empty()).cloned()
                         };
 
-                        let content = match parsed {
-                            Ok(params) => {
-                                MessageContent::tool_request_with_metadata(
+                        let content = if arguments.is_empty() {
+                            MessageContent::tool_request_with_metadata(
+                                id.clone(),
+                                Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(json!({})))),
+                                metadata.as_ref(),
+                            )
+                        } else {
+                            match parse_tool_arguments(arguments) {
+                                Some(params) => MessageContent::tool_request_with_metadata(
                                     id.clone(),
                                     Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(params))),
                                     metadata.as_ref(),
-                                )
-                            },
-                            Err(e) => {
-                                let error = ErrorData {
-                                    code: ErrorCode::INVALID_PARAMS,
-                                    message: Cow::from(format!(
-                                        "Could not interpret tool use parameters for id {}: {}",
-                                        id, e
-                                    )),
-                                    data: None,
-                                };
-                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                                ),
+                                None => {
+                                    let message_text = truncation_error_message(arguments)
+                                        .unwrap_or_else(|| {
+                                            format!("Could not interpret tool use parameters for id {id}")
+                                        });
+                                    let error = ErrorData {
+                                        code: ErrorCode::INVALID_PARAMS,
+                                        message: Cow::from(message_text),
+                                        data: None,
+                                    };
+                                    MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                                }
                             }
                         };
+
                         contents.push(content);
                     }
                 }
@@ -1931,7 +1978,7 @@ mod tests {
                     message: msg,
                     data: None,
                 }) => {
-                    assert!(msg.starts_with("Could not interpret tool use parameters"));
+                    assert!(msg.contains("tool arguments") || msg.contains("truncated"));
                 }
                 _ => panic!("Expected InvalidParameters error"),
             }
@@ -3128,6 +3175,180 @@ data: [DONE]"#;
         assert_eq!(spec[0]["role"], "user");
         assert_eq!(spec[1]["role"], "assistant");
         assert!(spec[1].get("reasoning_content").is_none());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_carries_reasoning_through_text_only_chunks() -> anyhow::Result<()> {
+        // Scenario B from the streaming bug: thinking arrives first, then multiple
+        // text-only assistant messages, then a tool call with thinking re-attached
+        // by agent.rs (via the earlier-chunk lookback).
+        // Text-only messages set tool_call_turn_reasoning="" (line 453 else-branch),
+        // but the TC's own Thinking content must repopulate it.
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::thinking("reason", "")),
+            Message::assistant().with_text("partial answer"),
+            Message::assistant().with_text("more text"),
+            // agent.rs attaches the earlier thinking to the TC message
+            Message::assistant()
+                .with_content(MessageContent::thinking("reason", ""))
+                .with_tool_request(
+                    "tool1",
+                    Ok(CallToolRequestParams::new("test_tool").with_arguments(object!({}))),
+                ),
+        ];
+
+        let spec = format_messages_with_options(
+            &messages,
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+            },
+        );
+
+        let tool_call_msgs: Vec<_> = spec
+            .iter()
+            .filter(|m| {
+                m.get("tool_calls")
+                    .and_then(|tc| tc.as_array())
+                    .is_some_and(|a| !a.is_empty())
+            })
+            .collect();
+
+        assert_eq!(tool_call_msgs.len(), 1);
+        assert_eq!(
+            tool_call_msgs[0]["reasoning_content"], "reason",
+            "reasoning_content must survive text-only chunks between thinking and tool call"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_carries_reasoning_to_all_split_tool_calls() -> anyhow::Result<()> {
+        // Simulates DeepSeek/Kimi streaming: a thinking-only chunk arrives first,
+        // then the agent splits two tool calls into separate messages, each with
+        // the same reasoning attached (as agent.rs does via response_thinking).
+        // The formatter must keep reasoning_content on both so that
+        // merge_split_tool_call_messages can reunite them into one assistant message.
+        let tool_result1 = Message::user().with_tool_response(
+            "tool1",
+            Ok(rmcp::model::CallToolResult::success(vec![
+                rmcp::model::Content::text("result1"),
+            ])),
+        );
+        let messages = vec![
+            // Standalone thinking message (created by agent.rs alongside request_msgs)
+            Message::assistant().with_content(MessageContent::thinking("reasoning", "")),
+            // Each request_msg has thinking explicitly attached (agent.rs behaviour)
+            Message::assistant()
+                .with_content(MessageContent::thinking("reasoning", ""))
+                .with_tool_request(
+                    "tool1",
+                    Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({}))),
+                ),
+            tool_result1,
+            Message::assistant()
+                .with_content(MessageContent::thinking("reasoning", ""))
+                .with_tool_request(
+                    "tool2",
+                    Ok(CallToolRequestParams::new("tool_b").with_arguments(object!({}))),
+                ),
+        ];
+
+        let spec = format_messages_with_options(
+            &messages,
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+            },
+        );
+
+        // After merge: one assistant message with both tool calls
+        let assistant_msgs: Vec<_> = spec
+            .iter()
+            .filter(|m| m.get("role") == Some(&json!("assistant")))
+            .collect();
+        assert_eq!(assistant_msgs.len(), 1);
+        assert_eq!(assistant_msgs[0]["reasoning_content"], "reasoning");
+        let tool_calls = assistant_msgs[0]["tool_calls"].as_array().unwrap();
+        assert_eq!(tool_calls.len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sequential_tool_calls_not_merged() -> anyhow::Result<()> {
+        // Verifies that two tool calls from *different* turns are never merged,
+        // even when the second call carries no fresh reasoning (the previous
+        // turn's reasoning must not leak into it).
+        let tool_result1 = Message::user().with_tool_response(
+            "tool1",
+            Ok(rmcp::model::CallToolResult::success(vec![
+                rmcp::model::Content::text("result1"),
+            ])),
+        );
+        let messages = vec![
+            // Turn 1: thinking then tool call
+            Message::assistant().with_content(MessageContent::thinking("turn1_reasoning", "")),
+            Message::assistant().with_tool_request(
+                "tool1",
+                Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({}))),
+            ),
+            tool_result1,
+            // Turn 2: new tool call, no fresh thinking
+            Message::assistant().with_tool_request(
+                "tool2",
+                Ok(CallToolRequestParams::new("tool_b").with_arguments(object!({}))),
+            ),
+        ];
+
+        let spec = format_messages_with_options(
+            &messages,
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+            },
+        );
+
+        let assistant_msgs: Vec<_> = spec
+            .iter()
+            .filter(|m| m.get("role") == Some(&json!("assistant")))
+            .collect();
+
+        // Must remain two separate assistant messages — not merged across turns.
+        assert_eq!(
+            assistant_msgs.len(),
+            2,
+            "sequential tool calls must not be merged"
+        );
+
+        // Turn 1 carries reasoning; turn 2 must not inherit it.
+        assert_eq!(assistant_msgs[0]["reasoning_content"], "turn1_reasoning");
+        assert!(
+            assistant_msgs[1].get("reasoning_content").is_none()
+                || assistant_msgs[1]["reasoning_content"].is_null(),
+            "turn 2 must not inherit stale reasoning from turn 1"
+        );
+
+        // The tool result must appear between the two assistant messages.
+        let tool_idx = spec
+            .iter()
+            .position(|m| m.get("role") == Some(&json!("tool")))
+            .expect("tool result must be present");
+        let asst1_idx = spec
+            .iter()
+            .position(|m| m.get("role") == Some(&json!("assistant")))
+            .unwrap();
+        let asst2_idx = spec
+            .iter()
+            .rposition(|m| m.get("role") == Some(&json!("assistant")))
+            .unwrap();
+        assert!(
+            asst1_idx < tool_idx && tool_idx < asst2_idx,
+            "tool result must sit between the two assistant messages"
+        );
 
         Ok(())
     }

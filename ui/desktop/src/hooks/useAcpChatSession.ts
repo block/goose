@@ -3,7 +3,7 @@ import { defineMessages, useIntl } from '../i18n';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 
-import { Message, Session, TokenState, updateFromSession } from '../api';
+import { Message, Session, TokenState } from '../api';
 
 import { createUserMessage, NotificationEvent, UserInput } from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
@@ -263,25 +263,9 @@ export function useAcpChatSession({
     [getCurrentSnapshot, sessionId]
   );
 
-  const setRecipeUserParams = useCallback(
-    async (user_recipe_values: Record<string, string>) => {
-      await acpChatSessionController.setRecipeUserParams(sessionId, user_recipe_values, {
-        getCurrentSnapshot,
-      });
-    },
-    [getCurrentSnapshot, sessionId]
-  );
-
-  useEffect(() => {
-    if (session) {
-      updateFromSession({
-        body: {
-          session_id: session.id,
-        },
-        throwOnError: true,
-      });
-    }
-  }, [session]);
+  const setRecipeUserParams = useCallback((_userRecipeValues: Record<string, string>) => {
+    return Promise.reject(new Error('ACP recipe parameters are handled during session creation'));
+  }, []);
 
   const stopStreaming = useCallback(() => {
     acpChatSessionController.stop(sessionId);

@@ -81,9 +81,7 @@ const removeQueuedMessage = (messages: QueuedMessage[], messageId: string): Queu
 
 const MAX_IMAGES_PER_MESSAGE = 10;
 
-// Constants for token and tool alerts
 const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
-const TOOLS_MAX_SUGGESTED = 60; // max number of tools before we show a warning
 
 const getContextAlertType = (totalTokens: number, tokenLimit: number): AlertType => {
   const percentage = tokenLimit ? (totalTokens / tokenLimit) * 100 : 0;
@@ -116,15 +114,6 @@ const i18n = defineMessages({
   contextWindow: {
     id: 'chatInput.contextWindow',
     defaultMessage: 'Context window',
-  },
-  tooManyTools: {
-    id: 'chatInput.tooManyTools',
-    defaultMessage:
-      'Too many tools can degrade performance.\nTool count: {toolCount} (recommend: {recommended})',
-  },
-  viewExtensions: {
-    id: 'chatInput.viewExtensions',
-    defaultMessage: 'View extensions',
   },
   waitingForImages: {
     id: 'chatInput.waitingForImages',
@@ -192,7 +181,6 @@ interface ChatInputProps {
   recipeId?: string | null;
   recipeAccepted?: boolean;
   initialPrompt?: string;
-  toolCount: number;
   append?: (message: Message) => void;
   onWorkingDirChange?: (newDir: string) => Promise<void> | void;
   inputRef?: React.RefObject<HTMLTextAreaElement | null>;
@@ -229,7 +217,6 @@ export default function ChatInput({
   recipeId: _recipeId,
   recipeAccepted,
   initialPrompt,
-  toolCount,
   append: _append,
   onWorkingDirChange,
   inputRef,
@@ -658,7 +645,7 @@ export default function ChatInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [effectiveModel, effectiveProvider, configModel, configProvider]);
 
-  // Handle tool count alerts and token usage
+  // Handle token usage alerts
   useEffect(() => {
     clearAlerts();
 
@@ -681,24 +668,9 @@ export default function ChatInput({
       });
     }
 
-    // Add tool count alert if we have the data
-    if (toolCount !== null && toolCount > TOOLS_MAX_SUGGESTED) {
-      addAlert({
-        type: AlertType.Warning,
-        message: intl.formatMessage(i18n.tooManyTools, {
-          toolCount,
-          recommended: TOOLS_MAX_SUGGESTED,
-        }),
-        action: {
-          text: intl.formatMessage(i18n.viewExtensions),
-          onClick: () => setView('extensions'),
-        },
-        autoShow: false, // Don't auto-show tool count warnings
-      });
-    }
-    // We intentionally omit setView as it shouldn't trigger a re-render of alerts
+    // Keep alert recalculation scoped to token state changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalTokens, toolCount, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
+  }, [totalTokens, tokenLimit, isTokenLimitLoaded, addAlert, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
   useEffect(() => {

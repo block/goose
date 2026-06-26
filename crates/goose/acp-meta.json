@@ -16,6 +16,11 @@
       "responseType": "GetToolsResponse_unstable"
     },
     {
+      "method": "_goose/unstable/tools/permissions/set",
+      "requestType": "SetToolPermissionsRequest_unstable",
+      "responseType": "SetToolPermissionsResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/tools/call",
       "requestType": "GooseToolCallRequest_unstable",
       "responseType": "GooseToolCallResponse_unstable"
@@ -24,6 +29,21 @@
       "method": "_goose/unstable/resources/read",
       "requestType": "ReadResourceRequest_unstable",
       "responseType": "ReadResourceResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/apps/list",
+      "requestType": "AppsListRequest_unstable",
+      "responseType": "AppsListResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/apps/export",
+      "requestType": "AppsExportRequest_unstable",
+      "responseType": "AppsExportResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/apps/import",
+      "requestType": "AppsImportRequest_unstable",
+      "responseType": "AppsImportResponse_unstable"
     },
     {
       "method": "_goose/unstable/session/working-dir/update",
@@ -201,6 +221,11 @@
       "responseType": "ImportSessionResponse_unstable"
     },
     {
+      "method": "_goose/unstable/session/share/nostr",
+      "requestType": "ShareSessionNostrRequest_unstable",
+      "responseType": "ShareSessionNostrResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/recipes/encode",
       "requestType": "EncodeRecipeRequest_unstable",
       "responseType": "EncodeRecipeResponse_unstable"
@@ -249,6 +274,56 @@
       "method": "_goose/unstable/recipes/to-yaml",
       "requestType": "RecipeToYamlRequest_unstable",
       "responseType": "RecipeToYamlResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/schedules/list",
+      "requestType": "ListSchedulesRequest_unstable",
+      "responseType": "ListSchedulesResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/schedules/sessions/list",
+      "requestType": "ListScheduleSessionsRequest_unstable",
+      "responseType": "ListScheduleSessionsResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/schedules/create",
+      "requestType": "CreateScheduleRequest_unstable",
+      "responseType": "CreateScheduleResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/schedules/delete",
+      "requestType": "DeleteScheduleRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/schedules/pause",
+      "requestType": "PauseScheduleRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/schedules/unpause",
+      "requestType": "UnpauseScheduleRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/schedules/update",
+      "requestType": "UpdateScheduleRequest_unstable",
+      "responseType": "UpdateScheduleResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/schedules/run-now",
+      "requestType": "RunScheduleNowRequest_unstable",
+      "responseType": "RunScheduleNowResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/schedules/running-job/kill",
+      "requestType": "KillRunningJobRequest_unstable",
+      "responseType": "KillRunningJobResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/schedules/running-job/inspect",
+      "requestType": "InspectRunningJobRequest_unstable",
+      "responseType": "InspectRunningJobResponse_unstable"
     },
     {
       "method": "_goose/unstable/session/info",

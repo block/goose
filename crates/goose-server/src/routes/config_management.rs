@@ -23,8 +23,7 @@ use goose::providers::create_with_default_model;
 use goose::providers::huggingface_auth;
 use goose::providers::providers as get_providers;
 use goose::{
-    agents::execute_commands, agents::ExtensionConfig, config::permission::PermissionLevel,
-    slash_commands::recipe_slash_command,
+    agents::execute_commands, agents::ExtensionConfig, slash_commands::recipe_slash_command,
 };
 use goose_providers::model::ModelConfig;
 use serde::{Deserialize, Serialize};
@@ -81,17 +80,6 @@ pub struct ProviderDetails {
 #[derive(Serialize, ToSchema)]
 pub struct ProvidersResponse {
     pub providers: Vec<ProviderDetails>,
-}
-
-#[derive(Debug, Serialize, Deserialize, ToSchema)]
-pub struct ToolPermission {
-    pub tool_name: String,
-    pub permission: PermissionLevel,
-}
-
-#[derive(Deserialize, ToSchema)]
-pub struct UpsertPermissionsQuery {
-    pub tool_permissions: Vec<ToolPermission>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -1140,30 +1128,6 @@ pub async fn get_canonical_model_info(
 }
 
 #[utoipa::path(
-    post,
-    path = "/config/permissions",
-    request_body = UpsertPermissionsQuery,
-    responses(
-        (status = 200, description = "Permission update completed", body = String),
-        (status = 400, description = "Invalid request"),
-    )
-)]
-pub async fn upsert_permissions(
-    Json(query): Json<UpsertPermissionsQuery>,
-) -> Result<Json<String>, ErrorResponse> {
-    let permission_manager = goose::config::PermissionManager::instance();
-
-    for tool_permission in &query.tool_permissions {
-        permission_manager.update_user_permission(
-            &tool_permission.tool_name,
-            tool_permission.permission.clone(),
-        );
-    }
-
-    Ok(Json("Permissions updated successfully".to_string()))
-}
-
-#[utoipa::path(
     get,
     path = "/config/validate",
     responses(
@@ -1495,7 +1459,6 @@ pub fn routes(state: Arc<AppState>) -> Router {
             post(get_canonical_model_info),
         )
         .route("/config/validate", get(validate_config))
-        .route("/config/permissions", post(upsert_permissions))
         .route("/config/custom-providers", post(create_custom_provider))
         .route(
             "/config/custom-providers/{id}",

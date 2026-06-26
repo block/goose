@@ -2,18 +2,14 @@ import { useEffect, useState, useCallback } from 'react';
 import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
 import { useConfig } from '../../ConfigContext';
 import { ConversationLimitsDropdown } from './ConversationLimitsDropdown';
-import { updateSession } from '../../../api';
 
-export const ModeSection = ({ sessionId }: { sessionId?: string }) => {
+export const ModeSection = () => {
   const [currentMode, setCurrentMode] = useState('auto');
   const [maxTurns, setMaxTurns] = useState<number>(1000);
   const { config, read, upsert } = useConfig();
 
   const handleModeChange = async (newMode: string) => {
     try {
-      if (sessionId) {
-        await updateSession({ body: { session_id: sessionId, goose_mode: newMode } });
-      }
       await upsert('GOOSE_MODE', newMode, false);
       setCurrentMode(newMode);
     } catch (error) {

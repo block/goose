@@ -1,4 +1,5 @@
-import { listApps, GooseApp } from '../api';
+import type { GooseApp } from '../api';
+import { listMcpApps } from '../acp/mcp-apps';
 
 interface PlatformEventData {
   extension: string;
@@ -21,12 +22,7 @@ async function handleAppsEvent(eventType: string, eventData: PlatformEventData):
     return;
   }
 
-  const response = await listApps({
-    throwOnError: false,
-    query: { session_id: sessionId },
-  });
-
-  const apps = response.data?.apps || [];
+  const apps = await listMcpApps(sessionId);
 
   const targetApp = apps.find((app: GooseApp) => app.name === app_name);
 
