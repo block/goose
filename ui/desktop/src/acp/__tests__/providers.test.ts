@@ -10,11 +10,9 @@ function selectConfigOption(id: string, currentValue: string) {
   return {
     id,
     name: id,
-    kind: {
-      type: 'select',
-      currentValue,
-      options: [],
-    },
+    type: 'select',
+    currentValue,
+    options: [],
   };
 }
 

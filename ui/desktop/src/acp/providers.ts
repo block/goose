@@ -220,7 +220,7 @@ function extractAppliedSessionProviderModel(configOptions: unknown): AppliedSess
       continue;
     }
 
-    const currentValue = selectCurrentValue('kind' in option ? option.kind : undefined);
+    const currentValue = selectCurrentValue(option);
     if (typeof currentValue !== 'string') {
       continue;
     }
@@ -244,16 +244,7 @@ function selectCurrentValue(kind: unknown): unknown {
     return kind.currentValue;
   }
 
-  if (!('select' in kind)) {
-    return undefined;
-  }
-
-  const select = kind.select;
-  if (!select || typeof select !== 'object' || !('currentValue' in select)) {
-    return undefined;
-  }
-
-  return select.currentValue;
+  return undefined;
 }
 
 /**
