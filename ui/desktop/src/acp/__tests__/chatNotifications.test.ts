@@ -8,10 +8,6 @@ import { handleAcpSessionNotification } from '../chatNotifications';
 import type { AcpChatSessionSnapshot } from '../chatSessionStore';
 import { acpChatSessionActions, acpChatSessionStore } from '../chatSessionStore';
 
-vi.mock('../../acpChatFeatureFlag', () => ({
-  USE_ACP_CHAT: true,
-}));
-
 vi.mock('../chatSessionStore', () => ({
   acpChatSessionStore: {
     getSnapshot: vi.fn(),

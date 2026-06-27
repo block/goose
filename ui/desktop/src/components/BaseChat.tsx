@@ -10,14 +10,13 @@ import ChatInput from './ChatInput';
 import { ChatInputCard } from './ChatInputCard';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { useFileDrop } from '../hooks/useFileDrop';
-import { Message, updateWorkingDir } from '../api';
+import { Message } from '../api';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
 import { useNavigationContextSafe } from './Layout/NavigationContext';
 import { cn } from '../utils';
 import { useChatSession } from '../hooks/useChatSession';
-import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 import { acpDeleteSession, acpUpdateWorkingDir } from '../acp/sessions';
 import { useNavigation } from '../hooks/useNavigation';
 import { RecipeHeader } from './RecipeHeader';
@@ -27,7 +26,6 @@ import type { Recipe } from '../recipe';
 import { UserInput } from '../types/message';
 import RecipeActivities from './recipes/RecipeActivities';
 import { getThinkingMessage, getTextAndImageContent } from '../types/message';
-import ParameterInputModal from './ParameterInputModal';
 import { substituteParameters } from '../utils/parameterSubstitution';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';
@@ -111,19 +109,10 @@ export default function BaseChat({
 
   const handleWorkingDirChange = useCallback(
     async (newDir: string) => {
-      if (USE_ACP_CHAT) {
-        if (!session) {
-          throw new Error('Cannot update working directory before ACP session is loaded');
-        }
-
-        await acpUpdateWorkingDir(session.id, newDir);
-      } else {
-        await updateWorkingDir({
-          body: { session_id: sessionId, working_dir: newDir },
-          throwOnError: true,
-        });
+      if (!session) {
+        throw new Error('Cannot update working directory before ACP session is loaded');
       }
-
+      await acpUpdateWorkingDir(session.id, newDir);
       updateSession((currentSession) => ({ ...currentSession, working_dir: newDir }));
     },
     [session, sessionId, updateSession]
@@ -553,22 +542,6 @@ export default function BaseChat({
           hasSecurityWarnings={hasRecipeSecurityWarnings}
         />
       )}
-
-      {!USE_ACP_CHAT &&
-        recipe?.parameters &&
-        recipe.parameters.length > 0 &&
-        !session?.user_recipe_values &&
-        session?.session_type !== 'scheduled' && (
-          <ParameterInputModal
-            parameters={recipe.parameters}
-            onSubmit={setRecipeUserParams}
-            onClose={() => setView('chat')}
-            initialValues={
-              (window.appConfig?.get('recipeParameters') as Record<string, string> | undefined) ||
-              undefined
-            }
-          />
-        )}
     </div>
   );
 }

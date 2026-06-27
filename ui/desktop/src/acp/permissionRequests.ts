@@ -1,6 +1,5 @@
 import type { RequestPermissionRequest, RequestPermissionResponse } from '@agentclientprotocol/sdk';
 import type { Permission } from '../api';
-import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 import { acpChatSessionActions, acpPermissionUserInputRequestId } from './chatSessionStore';
 
 interface PendingPermissionRequest {
@@ -17,10 +16,6 @@ export async function requestAcpPermission(
   const previous = pendingRequests.get(key);
   if (previous) {
     previous.resolve(cancelledPermissionResponse());
-  }
-
-  if (!USE_ACP_CHAT) {
-    return cancelledPermissionResponse();
   }
 
   return new Promise<RequestPermissionResponse>((resolve) => {

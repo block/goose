@@ -16,7 +16,6 @@ import { cn } from '../utils';
 import { AlertType, useAlerts } from './alerts';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import { acpListProviderDetails } from '../acp/providers';
-import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
@@ -1682,10 +1681,8 @@ export default function ChatInput({
               await onWorkingDirChange?.(newDir);
               setWorkingDirOverride(newDir);
             }}
-            onRestartStart={
-              USE_ACP_CHAT ? undefined : () => setChatState?.(ChatState.RestartingAgent)
-            }
-            onRestartEnd={USE_ACP_CHAT ? undefined : () => setChatState?.(ChatState.Idle)}
+            onRestartStart={undefined}
+            onRestartEnd={undefined}
           />
         )}
 

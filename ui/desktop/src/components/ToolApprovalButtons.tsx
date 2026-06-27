@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { confirmToolAction, Permission } from '../api';
+import { Permission } from '../api';
 import { resolveAcpPermissionRequest } from '../acp/permissionRequests';
-import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 import { defineMessages, useIntl } from '../i18n';
 
 const i18n = defineMessages({
@@ -90,27 +89,10 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
 
   const handleAction = async (action: Permission) => {
     try {
-      if (USE_ACP_CHAT) {
-        if (resolveAcpPermissionRequest(sessionId, id, action)) {
-          setResolvedDecision(action);
-        } else {
-          setApprovalError(intl.formatMessage(i18n.staleApprovalRequest));
-        }
-        return;
-      }
-
-      setResolvedDecision(action);
-
-      const response = await confirmToolAction({
-        body: {
-          sessionId,
-          id,
-          action,
-          principalType: 'Tool',
-        },
-      });
-      if (response.error) {
-        console.error('Failed to confirm tool action:', response.error);
+      if (resolveAcpPermissionRequest(sessionId, id, action)) {
+        setResolvedDecision(action);
+      } else {
+        setApprovalError(intl.formatMessage(i18n.staleApprovalRequest));
       }
     } catch (err) {
       console.error('Error confirming tool action:', err);

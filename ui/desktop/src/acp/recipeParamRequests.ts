@@ -4,7 +4,6 @@ import type {
   RequestRecipeParams_unstable,
 } from '@aaif/goose-sdk';
 import { v7 as uuidv7 } from 'uuid';
-import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 
 export interface AcpRecipeParamRequest {
   id: string;
@@ -50,10 +49,6 @@ function configuredParameterValues(): Record<string, string> {
 export async function requestAcpRecipeParams(
   request: RequestRecipeParams_unstable
 ): Promise<RecipeParamsResponse_unstable> {
-  if (!USE_ACP_CHAT) {
-    return { action: 'cancel' };
-  }
-
   const initialValues = configuredParameterValues();
   const paramRequest: AcpRecipeParamRequest = {
     id: `acp_recipe_params_${uuidv7()}`,
