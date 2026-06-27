@@ -28,11 +28,49 @@ use goose::session::SessionType;
 use goose_providers::thinking::ThinkingEffort;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::io::IsTerminal;
+use std::io::{self, IsTerminal};
 
 // useful for light themes where there is no discernible colour contrast between
 // cursor-selected and cursor-unselected items.
 const MULTISELECT_VISIBILITY_HINT: &str = "<";
+
+/// Ensures cliclack restores the terminal cursor when configure exits, including Ctrl+C.
+struct RestoreTerminalCursor;
+
+impl Drop for RestoreTerminalCursor {
+    fn drop(&mut self) {
+        restore_terminal_cursor();
+    }
+}
+
+fn prepare_configure_terminal() -> anyhow::Result<()> {
+    // cliclack expects a no-op Ctrl-C handler so SIGINT surfaces as Interrupted from
+    // read_key() instead of terminating the process while the cursor is hidden.
+    match ctrlc::set_handler(|| {}) {
+        Ok(()) => {}
+        Err(ctrlc::Error::MultipleHandlers) => {}
+        Err(e) => return Err(anyhow::anyhow!("failed to install Ctrl+C handler: {e}")),
+    }
+    Ok(())
+}
+
+fn restore_terminal_cursor() {
+    let _ = console::Term::stderr().show_cursor();
+    let _ = console::Term::stdout().show_cursor();
+}
+
+fn exit_on_configure_interrupt() -> ! {
+    restore_terminal_cursor();
+    std::process::exit(130);
+}
+
+fn is_interrupted(err: &anyhow::Error) -> bool {
+    err.chain().any(|cause| {
+        cause
+            .downcast_ref::<io::Error>()
+            .is_some_and(|e| e.kind() == io::ErrorKind::Interrupted)
+    })
+}
 
 pub async fn handle_configure() -> anyhow::Result<()> {
     if !std::io::stdin().is_terminal() {
@@ -42,13 +80,24 @@ pub async fn handle_configure() -> anyhow::Result<()> {
         );
     }
 
+    prepare_configure_terminal()?;
+    let _cursor_guard = RestoreTerminalCursor;
+
     let config = Config::global();
 
-    if !config.exists() {
+    let result = if !config.exists() {
         handle_first_time_setup(config).await
     } else {
         handle_existing_config().await
+    };
+
+    if let Err(err) = &result {
+        if is_interrupted(err) {
+            exit_on_configure_interrupt();
+        }
     }
+
+    result
 }
 
 #[cfg(feature = "telemetry")]
@@ -2162,4 +2211,32 @@ fn print_config_file_saved() -> anyhow::Result<()> {
         config.path()
     ))?;
     Ok(())
+}
+
+#[cfg(test)]
+mod terminal_restore_tests {
+    use super::{is_interrupted, RestoreTerminalCursor};
+    use std::io::{self, ErrorKind};
+
+    #[test]
+    fn restore_terminal_cursor_shows_cursor_on_drop() {
+        let _ = console::Term::stderr().hide_cursor();
+        drop(RestoreTerminalCursor);
+        // If show_cursor failed this would leave the terminal unusable; the drop
+        // path must not panic.
+    }
+
+    #[test]
+    fn is_interrupted_detects_cliclack_cancel() {
+        let err = anyhow::anyhow!(io::Error::new(ErrorKind::Interrupted, "cancelled"));
+        assert!(is_interrupted(&err));
+        assert!(!is_interrupted(&anyhow::anyhow!("other error")));
+    }
+
+    #[test]
+    fn is_interrupted_detects_wrapped_cliclack_cancel() {
+        let err = anyhow::anyhow!(io::Error::new(ErrorKind::Interrupted, "cancelled"))
+            .context("prompt cancelled");
+        assert!(is_interrupted(&err));
+    }
 }
