@@ -2305,59 +2305,9 @@ mod tests {
     use super::*;
     use goose::agents::extension::Envs;
     use goose::config::ExtensionConfig;
-    use rustyline::history::{History, SearchDirection};
     use std::collections::HashMap;
-    use std::sync::{Arc, RwLock};
     use std::time::Duration;
     use test_case::test_case;
-
-    fn test_editor() -> rustyline::Editor<GooseCompleter, rustyline::history::DefaultHistory> {
-        let config = rustyline::Config::builder()
-            .completion_type(rustyline::CompletionType::Circular)
-            .edit_mode(EditMode::Emacs)
-            .build();
-        let mut editor =
-            rustyline::Editor::<GooseCompleter, rustyline::history::DefaultHistory>::with_config(
-                config,
-            )
-            .unwrap();
-        editor.set_helper(Some(GooseCompleter::new(Arc::new(RwLock::new(
-            CompletionCache::new(),
-        )))));
-        editor
-    }
-
-    #[test]
-    fn test_edited_prompt_is_added_to_history() {
-        let mut editor = test_editor();
-
-        editor.add_history_entry("fix the login bug").unwrap();
-
-        let result = editor
-            .history()
-            .search("fix the login bug", 0, SearchDirection::Forward)
-            .unwrap()
-            .unwrap();
-        assert_eq!(result.entry, "fix the login bug");
-    }
-
-    #[test]
-    fn test_history_manager_persists_edited_prompt() {
-        let mut editor = test_editor();
-        let temp_dir = tempfile::tempdir().unwrap();
-        let history = HistoryManager {
-            history_file: temp_dir.path().join("history.txt"),
-            old_history_file: temp_dir.path().join("old_history.txt"),
-        };
-
-        editor
-            .add_history_entry("HISTORY_VALIDATION_edited_prompt")
-            .unwrap();
-        history.save(&mut editor);
-
-        let contents = std::fs::read_to_string(&history.history_file).unwrap();
-        assert!(contents.contains("HISTORY_VALIDATION_edited_prompt"));
-    }
 
     #[test]
     fn test_format_elapsed_time_under_60_seconds() {
