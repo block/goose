@@ -1643,66 +1643,6 @@
         }
       }
     },
-    "/handle_nanogpt": {
-      "post": {
-        "tags": [
-          "super::routes::setup"
-        ],
-        "operationId": "start_nanogpt_setup",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SetupResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/handle_openrouter": {
-      "post": {
-        "tags": [
-          "super::routes::setup"
-        ],
-        "operationId": "start_openrouter_setup",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SetupResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/handle_tetrate": {
-      "post": {
-        "tags": [
-          "super::routes::setup"
-        ],
-        "operationId": "start_tetrate_setup",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SetupResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/local-inference/chat-templates/builtin": {
       "get": {
         "tags": [
@@ -7736,21 +7676,6 @@
             "type": "number",
             "format": "float",
             "nullable": true
-          }
-        }
-      },
-      "SetupResponse": {
-        "type": "object",
-        "required": [
-          "success",
-          "message"
-        ],
-        "properties": {
-          "message": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
           }
         }
       },
