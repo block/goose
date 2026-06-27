@@ -81,22 +81,15 @@ impl RetryConfig {
     }
 }
 
-/// Substrings that mark a `RequestFailed` (4xx) as deterministically
-/// permanent: re-sending the identical payload can never succeed, so retrying
-/// only wastes time and backoff budget before the turn fails anyway.
-///
-/// The motivating case: when a thinking model's config changes mid-conversation
-/// the request history still carries the original signed `thinking` /
-/// `redacted_thinking` blocks, and Anthropic rejects them as immutable. That
-/// payload is rebuilt identically on every retry, so all retries 400 the same
-/// way.
+/// Substrings marking a `RequestFailed` (4xx) as deterministically permanent:
+/// Anthropic rejects signed `thinking`/`redacted_thinking` blocks as immutable
+/// once a thinking model's config changes mid-conversation, and the identical
+/// payload is rebuilt on every retry — so retrying can never succeed.
 const PERMANENT_REQUEST_FAILURE_MARKERS: &[&str] = &[
     "blocks in the latest assistant message cannot be modified",
     "must remain as they were in the original response",
 ];
 
-/// Returns true when a `RequestFailed` message describes a permanent failure
-/// that retrying the same payload cannot fix.
 fn is_permanent_request_failure(message: &str) -> bool {
     PERMANENT_REQUEST_FAILURE_MARKERS
         .iter()
@@ -108,8 +101,6 @@ pub fn should_retry(error: &ProviderError, config: &RetryConfig) -> bool {
         ProviderError::RateLimitExceeded { .. }
         | ProviderError::ServerError(_)
         | ProviderError::NetworkError(_) => true,
-        // Some 4xx failures are deterministically permanent: retrying the
-        // identical payload only burns backoff budget before the turn fails.
         ProviderError::RequestFailed(message) if is_permanent_request_failure(message) => false,
         ProviderError::RequestFailed(_) => !config.transient_only,
         _ => false,
@@ -281,8 +272,6 @@ mod tests {
 
     #[test]
     fn never_retries_permanent_thinking_block_400() {
-        // Even with default (retrying) config, a 400 that re-sending cannot
-        // fix must not be retried.
         let config = RetryConfig::default();
         let error = ProviderError::RequestFailed(
             "Bad request (400): {\"message\":\"messages.3.content.1: `thinking` or \
