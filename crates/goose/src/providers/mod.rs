@@ -62,6 +62,7 @@ pub mod openai_compatible {
 pub mod openrouter;
 pub mod pi_acp;
 pub mod provider_registry;
+pub mod provider_secrets;
 pub mod provider_test;
 mod retry {
     pub use goose_providers::retry::*;

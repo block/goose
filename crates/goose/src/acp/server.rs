@@ -97,6 +97,7 @@ mod load_session;
 mod manage_sessions;
 mod new_session;
 mod onboarding;
+mod prompts;
 mod providers;
 mod recipe;
 mod resources;

@@ -383,6 +383,13 @@
       "properties": {
         "sessionId": {
           "type": "string"
+        },
+        "extensionName": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Filter tools to those belonging to this extension."
         }
       },
       "required": [
@@ -397,8 +404,9 @@
       "properties": {
         "tools": {
           "type": "array",
-          "items": {},
-          "description": "Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`."
+          "items": {
+            "$ref": "#/$defs/ToolListItem"
+          }
         }
       },
       "required": [
@@ -407,6 +415,89 @@
       "description": "Tools response.",
       "x-side": "agent",
       "x-method": "_goose/unstable/tools/list"
+    },
+    "ToolListItem": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "permission": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolPermissionLevel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputSchema": {},
+        "outputSchema": {}
+      },
+      "required": [
+        "name",
+        "description",
+        "parameters",
+        "inputSchema"
+      ],
+      "description": "A single tool item returned by the tools list endpoint."
+    },
+    "ToolPermissionLevel": {
+      "type": "string",
+      "enum": [
+        "always_allow",
+        "ask_before",
+        "never_allow"
+      ],
+      "description": "Permission level for a tool."
+    },
+    "SetToolPermissionsRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "toolPermissions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ToolPermissionEntry"
+          }
+        }
+      },
+      "required": [
+        "toolPermissions"
+      ],
+      "description": "Set permission levels for one or more tools.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/tools/permissions/set"
+    },
+    "ToolPermissionEntry": {
+      "type": "object",
+      "properties": {
+        "toolName": {
+          "type": "string"
+        },
+        "permission": {
+          "$ref": "#/$defs/ToolPermissionLevel"
+        }
+      },
+      "required": [
+        "toolName",
+        "permission"
+      ],
+      "description": "A single tool permission entry."
+    },
+    "SetToolPermissionsResponse_unstable": {
+      "type": "object",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/tools/permissions/set"
     },
     "GooseToolCallRequest_unstable": {
       "type": "object",
@@ -1088,6 +1179,141 @@
       ],
       "x-side": "agent",
       "x-method": "_goose/unstable/diagnostics/get"
+    },
+    "ListPromptsRequest_unstable": {
+      "type": "object",
+      "description": "List all available Goose prompt templates.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/prompts/list"
+    },
+    "ListPromptsResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "prompts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PromptTemplateEntry"
+          }
+        }
+      },
+      "required": [
+        "prompts"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/prompts/list"
+    },
+    "PromptTemplateEntry": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "defaultContent": {
+          "type": "string"
+        },
+        "userContent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "isCustomized": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "defaultContent",
+        "isCustomized"
+      ],
+      "description": "Information about a prompt template, including its default content and customization status."
+    },
+    "GetPromptRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "description": "Read a Goose prompt template.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/prompts/get"
+    },
+    "GetPromptResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "defaultContent": {
+          "type": "string"
+        },
+        "isCustomized": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "content",
+        "defaultContent",
+        "isCustomized"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/prompts/get"
+    },
+    "SavePromptRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "content"
+      ],
+      "description": "Save a custom Goose prompt template.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/prompts/save"
+    },
+    "PromptOperationResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "x-side": "agent"
+    },
+    "ResetPromptRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "description": "Reset a Goose prompt template to its default content.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/prompts/reset"
     },
     "DeleteSessionRequest": {
       "type": "object",
@@ -2442,6 +2668,214 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/providers/config/authenticate"
     },
+    "ProviderSecretsListRequest_unstable": {
+      "type": "object",
+      "description": "List provider credentials stored locally by Goose.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/secrets/list"
+    },
+    "ProviderSecretsListResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "secrets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProviderSecretDto"
+          }
+        }
+      },
+      "required": [
+        "secrets"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/secrets/list"
+    },
+    "ProviderSecretDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "providerDisplayName": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "storage": {
+          "$ref": "#/$defs/ProviderSecretStorageDto"
+        },
+        "expiresAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/ProviderSecretStatusDto"
+        },
+        "configured": {
+          "type": "boolean"
+        },
+        "hasSecret": {
+          "type": "boolean"
+        },
+        "canDelete": {
+          "type": "boolean"
+        },
+        "canConfigure": {
+          "type": "boolean"
+        },
+        "configureProvider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "provider",
+        "providerDisplayName",
+        "name",
+        "storage",
+        "status",
+        "configured",
+        "hasSecret",
+        "canDelete",
+        "canConfigure"
+      ]
+    },
+    "ProviderSecretStorageDto": {
+      "type": "string",
+      "enum": [
+        "secret_store",
+        "provider_cache"
+      ]
+    },
+    "ProviderSecretStatusDto": {
+      "type": "string",
+      "enum": [
+        "valid",
+        "expired",
+        "unknown"
+      ]
+    },
+    "ProviderSecretDeleteRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "description": "Delete a locally stored provider credential by id.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/secrets/delete"
+    },
+    "CanonicalModelInfoRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model"
+      ],
+      "description": "Look up canonical (bundled-registry) model info for a provider/model pair.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/canonical-model-info"
+    },
+    "CanonicalModelInfoResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "modelInfo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CanonicalModelInfoDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/canonical-model-info"
+    },
+    "CanonicalModelInfoDto": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "contextLimit": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxOutputTokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reasoning": {
+          "type": "boolean"
+        },
+        "inputTokenCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "outputTokenCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "cacheReadTokenCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "cacheWriteTokenCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "currency": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "contextLimit",
+        "reasoning",
+        "currency"
+      ]
+    },
     "PreferencesReadRequest_unstable": {
       "type": "object",
       "properties": {
@@ -2527,6 +2961,88 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/preferences/remove"
     },
+    "ConfigReadRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "isSecret": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/read"
+    },
+    "ConfigReadResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "default": null
+        }
+      },
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/read"
+    },
+    "ConfigUpsertRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {},
+        "isSecret": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/upsert"
+    },
+    "ConfigRemoveRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "isSecret": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/remove"
+    },
+    "ConfigReadAllRequest_unstable": {
+      "type": "object",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/read-all"
+    },
+    "ConfigReadAllResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "config"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/read-all"
+    },
     "DefaultsReadRequest_unstable": {
       "type": "object",
       "description": "Read Goose default provider and model configuration.",
@@ -2570,6 +3086,12 @@
       "description": "Save Goose default provider and model configuration.",
       "x-side": "agent",
       "x-method": "_goose/unstable/defaults/save"
+    },
+    "DefaultsClearRequest_unstable": {
+      "type": "object",
+      "description": "Clear Goose default provider and model configuration.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/defaults/clear"
     },
     "OnboardingImportScanRequest_unstable": {
       "type": "object",
@@ -5228,6 +5750,15 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/SetToolPermissionsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/tools/permissions/set",
+                  "title": "SetToolPermissionsRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/GooseToolCallRequest_unstable"
                     }
                   ],
@@ -5305,6 +5836,42 @@
                   ],
                   "description": "Params for _goose/unstable/diagnostics/get",
                   "title": "DiagnosticsGetRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ListPromptsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/prompts/list",
+                  "title": "ListPromptsRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/GetPromptRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/prompts/get",
+                  "title": "GetPromptRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SavePromptRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/prompts/save",
+                  "title": "SavePromptRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ResetPromptRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/prompts/reset",
+                  "title": "ResetPromptRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -5507,6 +6074,33 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/ProviderSecretsListRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/secrets/list",
+                  "title": "ProviderSecretsListRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ProviderSecretDeleteRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/secrets/delete",
+                  "title": "ProviderSecretDeleteRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/CanonicalModelInfoRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/canonical-model-info",
+                  "title": "CanonicalModelInfoRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/PreferencesReadRequest_unstable"
                     }
                   ],
@@ -5534,6 +6128,42 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/ConfigReadRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/read",
+                  "title": "ConfigReadRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ConfigUpsertRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/upsert",
+                  "title": "ConfigUpsertRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ConfigRemoveRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/remove",
+                  "title": "ConfigRemoveRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ConfigReadAllRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/read-all",
+                  "title": "ConfigReadAllRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/DefaultsReadRequest_unstable"
                     }
                   ],
@@ -5548,6 +6178,15 @@
                   ],
                   "description": "Params for _goose/unstable/defaults/save",
                   "title": "DefaultsSaveRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DefaultsClearRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/defaults/clear",
+                  "title": "DefaultsClearRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -6039,6 +6678,14 @@
                     {
                       "allOf": [
                         {
+                          "$ref": "#/$defs/SetToolPermissionsResponse_unstable"
+                        }
+                      ],
+                      "title": "SetToolPermissionsResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
                           "$ref": "#/$defs/GooseToolCallResponse_unstable"
                         }
                       ],
@@ -6091,6 +6738,30 @@
                         }
                       ],
                       "title": "DiagnosticsGetResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListPromptsResponse_unstable"
+                        }
+                      ],
+                      "title": "ListPromptsResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/GetPromptResponse_unstable"
+                        }
+                      ],
+                      "title": "GetPromptResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/PromptOperationResponse_unstable"
+                        }
+                      ],
+                      "title": "PromptOperationResponse_unstable"
                     },
                     {
                       "allOf": [
@@ -6223,10 +6894,42 @@
                     {
                       "allOf": [
                         {
+                          "$ref": "#/$defs/ProviderSecretsListResponse_unstable"
+                        }
+                      ],
+                      "title": "ProviderSecretsListResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/CanonicalModelInfoResponse_unstable"
+                        }
+                      ],
+                      "title": "CanonicalModelInfoResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
                           "$ref": "#/$defs/PreferencesReadResponse_unstable"
                         }
                       ],
                       "title": "PreferencesReadResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ConfigReadResponse_unstable"
+                        }
+                      ],
+                      "title": "ConfigReadResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ConfigReadAllResponse_unstable"
+                        }
+                      ],
+                      "title": "ConfigReadAllResponse_unstable"
                     },
                     {
                       "allOf": [

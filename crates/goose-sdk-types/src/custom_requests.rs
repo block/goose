@@ -51,13 +51,28 @@ pub struct RemoveSessionExtensionRequest {
 #[serde(rename_all = "camelCase")]
 pub struct GetToolsRequest {
     pub session_id: String,
+    /// Filter tools to those belonging to this extension.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+}
+
+/// A single tool item returned by the tools list endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolListItem {
+    pub name: String,
+    pub description: String,
+    pub parameters: Vec<String>,
+    pub permission: Option<ToolPermissionLevel>,
+    pub input_schema: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_schema: Option<serde_json::Value>,
 }
 
 /// Tools response.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct GetToolsResponse {
-    /// Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`.
-    pub tools: Vec<serde_json::Value>,
+    pub tools: Vec<ToolListItem>,
 }
 
 /// Read a resource from an extension.
@@ -231,6 +246,70 @@ pub struct DiagnosticsGetResponse {
     pub report: serde_json::Value,
 }
 
+/// Information about a prompt template, including its default content and customization status.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptTemplateEntry {
+    pub name: String,
+    pub description: String,
+    pub default_content: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub user_content: Option<String>,
+    pub is_customized: bool,
+}
+
+/// List all available Goose prompt templates.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/config/prompts/list", response = ListPromptsResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ListPromptsRequest {}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ListPromptsResponse {
+    pub prompts: Vec<PromptTemplateEntry>,
+}
+
+/// Read a Goose prompt template.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/config/prompts/get", response = GetPromptResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct GetPromptRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct GetPromptResponse {
+    pub name: String,
+    pub content: String,
+    pub default_content: String,
+    pub is_customized: bool,
+}
+
+/// Save a custom Goose prompt template.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/config/prompts/save", response = PromptOperationResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct SavePromptRequest {
+    pub name: String,
+    pub content: String,
+}
+
+/// Reset a Goose prompt template to its default content.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/config/prompts/reset", response = PromptOperationResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ResetPromptRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct PromptOperationResponse {
+    pub message: String,
+}
+
 /// Delete a session.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "session/delete", response = EmptyResponse)]
@@ -400,6 +479,52 @@ pub struct PreferencesRemoveRequest {
     pub keys: Vec<PreferenceKey>,
 }
 
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/config/read", response = ConfigReadResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigReadRequest {
+    pub key: String,
+    #[serde(default)]
+    pub is_secret: bool,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigReadResponse {
+    #[serde(default)]
+    pub value: serde_json::Value,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/config/upsert", response = EmptyResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigUpsertRequest {
+    pub key: String,
+    pub value: serde_json::Value,
+    #[serde(default)]
+    pub is_secret: bool,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/config/remove", response = EmptyResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigRemoveRequest {
+    pub key: String,
+    #[serde(default)]
+    pub is_secret: bool,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/config/read-all", response = ConfigReadAllResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigReadAllRequest {}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ConfigReadAllResponse {
+    pub config: std::collections::HashMap<String, serde_json::Value>,
+}
+
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub enum PreferenceKey {
@@ -447,6 +572,12 @@ pub struct DefaultsSaveRequest {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_id: Option<String>,
 }
+
+/// Clear Goose default provider and model configuration.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/defaults/clear", response = DefaultsReadResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct DefaultsClearRequest {}
 
 /// Sources that onboarding knows how to discover and import.
 #[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, JsonSchema)]
@@ -781,6 +912,107 @@ pub struct ProviderConfigAuthenticateRequest {
 pub struct ProviderConfigChangeResponse {
     pub status: ProviderConfigStatusDto,
     pub refresh: RefreshProviderInventoryResponse,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderSecretStorageDto {
+    #[default]
+    SecretStore,
+    ProviderCache,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ProviderSecretStatusDto {
+    Valid,
+    Expired,
+    #[default]
+    Unknown,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSecretDto {
+    pub id: String,
+    pub provider: String,
+    pub provider_display_name: String,
+    pub name: String,
+    pub storage: ProviderSecretStorageDto,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub expires_at: Option<String>,
+    pub status: ProviderSecretStatusDto,
+    pub configured: bool,
+    pub has_secret: bool,
+    pub can_delete: bool,
+    pub can_configure: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub configure_provider: Option<String>,
+}
+
+/// List provider credentials stored locally by Goose.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/providers/secrets/list",
+    response = ProviderSecretsListResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSecretsListRequest {}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSecretsListResponse {
+    pub secrets: Vec<ProviderSecretDto>,
+}
+
+/// Delete a locally stored provider credential by id.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/providers/secrets/delete",
+    response = EmptyResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderSecretDeleteRequest {
+    pub id: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct CanonicalModelInfoDto {
+    pub provider: String,
+    pub model: String,
+    pub context_limit: usize,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub max_output_tokens: Option<usize>,
+    pub reasoning: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub input_token_cost: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_token_cost: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_read_token_cost: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_write_token_cost: Option<f64>,
+    pub currency: String,
+}
+
+/// Look up canonical (bundled-registry) model info for a provider/model pair.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/providers/canonical-model-info",
+    response = CanonicalModelInfoResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct CanonicalModelInfoRequest {
+    pub provider: String,
+    pub model: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct CanonicalModelInfoResponse {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_info: Option<CanonicalModelInfoDto>,
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema)]
@@ -1620,3 +1852,32 @@ pub struct DictationModelSelectRequest {
     pub provider: String,
     pub model_id: String,
 }
+
+/// Permission level for a tool.
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolPermissionLevel {
+    AlwaysAllow,
+    #[default]
+    AskBefore,
+    NeverAllow,
+}
+
+/// A single tool permission entry.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolPermissionEntry {
+    pub tool_name: String,
+    pub permission: ToolPermissionLevel,
+}
+
+/// Set permission levels for one or more tools.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/tools/permissions/set", response = SetToolPermissionsResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct SetToolPermissionsRequest {
+    pub tool_permissions: Vec<ToolPermissionEntry>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct SetToolPermissionsResponse {}

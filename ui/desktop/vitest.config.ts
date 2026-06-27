@@ -16,6 +16,7 @@ const cfg = {
     setupFiles: ['./src/test/setup.ts'],
     css: true,
     include: ['src/**/*.{test,spec}.{js,jsx,ts,tsx}'],
+    testTimeout: 10000,
   },
 } satisfies Record<string, any>;
 

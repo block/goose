@@ -167,15 +167,60 @@ export const zRemoveSessionExtensionRequest_unstable = z.object({
  * List all tools available in a session.
  */
 export const zGetToolsRequest_unstable = z.object({
-    sessionId: z.string()
+    sessionId: z.string(),
+    extensionName: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
+});
+
+/**
+ * Permission level for a tool.
+ */
+export const zToolPermissionLevel = z.enum([
+    'always_allow',
+    'ask_before',
+    'never_allow'
+]);
+
+/**
+ * A single tool item returned by the tools list endpoint.
+ */
+export const zToolListItem = z.object({
+    name: z.string(),
+    description: z.string(),
+    parameters: z.array(z.string()),
+    permission: z.union([
+        zToolPermissionLevel,
+        z.null()
+    ]).optional(),
+    inputSchema: z.unknown(),
+    outputSchema: z.unknown().optional()
 });
 
 /**
  * Tools response.
  */
 export const zGetToolsResponse_unstable = z.object({
-    tools: z.array(z.unknown())
+    tools: z.array(zToolListItem)
 });
+
+/**
+ * A single tool permission entry.
+ */
+export const zToolPermissionEntry = z.object({
+    toolName: z.string(),
+    permission: zToolPermissionLevel
+});
+
+/**
+ * Set permission levels for one or more tools.
+ */
+export const zSetToolPermissionsRequest_unstable = z.object({
+    toolPermissions: z.array(zToolPermissionEntry)
+});
+
+export const zSetToolPermissionsResponse_unstable = z.record(z.unknown());
 
 /**
  * Call a tool from an extension.
@@ -495,6 +540,62 @@ export const zDiagnosticsGetRequest_unstable = z.object({
 
 export const zDiagnosticsGetResponse_unstable = z.object({
     report: z.unknown()
+});
+
+/**
+ * List all available Goose prompt templates.
+ */
+export const zListPromptsRequest_unstable = z.record(z.unknown());
+
+/**
+ * Information about a prompt template, including its default content and customization status.
+ */
+export const zPromptTemplateEntry = z.object({
+    name: z.string(),
+    description: z.string(),
+    defaultContent: z.string(),
+    userContent: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    isCustomized: z.boolean()
+});
+
+export const zListPromptsResponse_unstable = z.object({
+    prompts: z.array(zPromptTemplateEntry)
+});
+
+/**
+ * Read a Goose prompt template.
+ */
+export const zGetPromptRequest_unstable = z.object({
+    name: z.string()
+});
+
+export const zGetPromptResponse_unstable = z.object({
+    name: z.string(),
+    content: z.string(),
+    defaultContent: z.string(),
+    isCustomized: z.boolean()
+});
+
+/**
+ * Save a custom Goose prompt template.
+ */
+export const zSavePromptRequest_unstable = z.object({
+    name: z.string(),
+    content: z.string()
+});
+
+export const zPromptOperationResponse_unstable = z.object({
+    message: z.string()
+});
+
+/**
+ * Reset a Goose prompt template to its default content.
+ */
+export const zResetPromptRequest_unstable = z.object({
+    name: z.string()
 });
 
 /**
@@ -1016,6 +1117,94 @@ export const zProviderConfigAuthenticateRequest_unstable = z.object({
     providerId: z.string()
 });
 
+/**
+ * List provider credentials stored locally by Goose.
+ */
+export const zProviderSecretsListRequest_unstable = z.record(z.unknown());
+
+export const zProviderSecretStorageDto = z.enum(['secret_store', 'provider_cache']);
+
+export const zProviderSecretStatusDto = z.enum([
+    'valid',
+    'expired',
+    'unknown'
+]);
+
+export const zProviderSecretDto = z.object({
+    id: z.string(),
+    provider: z.string(),
+    providerDisplayName: z.string(),
+    name: z.string(),
+    storage: zProviderSecretStorageDto,
+    expiresAt: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    status: zProviderSecretStatusDto,
+    configured: z.boolean(),
+    hasSecret: z.boolean(),
+    canDelete: z.boolean(),
+    canConfigure: z.boolean(),
+    configureProvider: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
+});
+
+export const zProviderSecretsListResponse_unstable = z.object({
+    secrets: z.array(zProviderSecretDto)
+});
+
+/**
+ * Delete a locally stored provider credential by id.
+ */
+export const zProviderSecretDeleteRequest_unstable = z.object({
+    id: z.string()
+});
+
+/**
+ * Look up canonical (bundled-registry) model info for a provider/model pair.
+ */
+export const zCanonicalModelInfoRequest_unstable = z.object({
+    provider: z.string(),
+    model: z.string()
+});
+
+export const zCanonicalModelInfoDto = z.object({
+    provider: z.string(),
+    model: z.string(),
+    contextLimit: z.number().int().gte(0),
+    maxOutputTokens: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional(),
+    reasoning: z.boolean(),
+    inputTokenCost: z.union([
+        z.number(),
+        z.null()
+    ]).optional(),
+    outputTokenCost: z.union([
+        z.number(),
+        z.null()
+    ]).optional(),
+    cacheReadTokenCost: z.union([
+        z.number(),
+        z.null()
+    ]).optional(),
+    cacheWriteTokenCost: z.union([
+        z.number(),
+        z.null()
+    ]).optional(),
+    currency: z.string()
+});
+
+export const zCanonicalModelInfoResponse_unstable = z.object({
+    modelInfo: z.union([
+        zCanonicalModelInfoDto,
+        z.null()
+    ]).optional()
+});
+
 export const zPreferenceKey = z.enum([
     'autoCompactThreshold',
     'gooseThinkingEffort',
@@ -1054,6 +1243,32 @@ export const zPreferencesRemoveRequest_unstable = z.object({
     keys: z.array(zPreferenceKey).optional().default([])
 });
 
+export const zConfigReadRequest_unstable = z.object({
+    key: z.string(),
+    isSecret: z.boolean().optional().default(false)
+});
+
+export const zConfigReadResponse_unstable = z.object({
+    value: z.unknown().optional().default(null)
+});
+
+export const zConfigUpsertRequest_unstable = z.object({
+    key: z.string(),
+    value: z.unknown(),
+    isSecret: z.boolean().optional().default(false)
+});
+
+export const zConfigRemoveRequest_unstable = z.object({
+    key: z.string(),
+    isSecret: z.boolean().optional().default(false)
+});
+
+export const zConfigReadAllRequest_unstable = z.record(z.unknown());
+
+export const zConfigReadAllResponse_unstable = z.object({
+    config: z.record(z.unknown())
+});
+
 /**
  * Read Goose default provider and model configuration.
  */
@@ -1080,6 +1295,11 @@ export const zDefaultsSaveRequest_unstable = z.object({
         z.null()
     ]).optional()
 });
+
+/**
+ * Clear Goose default provider and model configuration.
+ */
+export const zDefaultsClearRequest_unstable = z.record(z.unknown());
 
 /**
  * Sources that onboarding knows how to discover and import.
@@ -2164,6 +2384,7 @@ export const zExtRequest = z.object({
             zAddSessionExtensionRequest_unstable,
             zRemoveSessionExtensionRequest_unstable,
             zGetToolsRequest_unstable,
+            zSetToolPermissionsRequest_unstable,
             zGooseToolCallRequest_unstable,
             zReadResourceRequest_unstable,
             zAppsListRequest_unstable,
@@ -2173,6 +2394,10 @@ export const zExtRequest = z.object({
             zSetSessionSystemPromptRequest_unstable,
             zSteerSessionRequest_unstable,
             zDiagnosticsGetRequest_unstable,
+            zListPromptsRequest_unstable,
+            zGetPromptRequest_unstable,
+            zSavePromptRequest_unstable,
+            zResetPromptRequest_unstable,
             zDeleteSessionRequest,
             zGetConfigExtensionsRequest_unstable,
             zGetAvailableExtensionsRequest_unstable,
@@ -2195,11 +2420,19 @@ export const zExtRequest = z.object({
             zProviderConfigSaveRequest_unstable,
             zProviderConfigDeleteRequest_unstable,
             zProviderConfigAuthenticateRequest_unstable,
+            zProviderSecretsListRequest_unstable,
+            zProviderSecretDeleteRequest_unstable,
+            zCanonicalModelInfoRequest_unstable,
             zPreferencesReadRequest_unstable,
             zPreferencesSaveRequest_unstable,
             zPreferencesRemoveRequest_unstable,
+            zConfigReadRequest_unstable,
+            zConfigUpsertRequest_unstable,
+            zConfigRemoveRequest_unstable,
+            zConfigReadAllRequest_unstable,
             zDefaultsReadRequest_unstable,
             zDefaultsSaveRequest_unstable,
+            zDefaultsClearRequest_unstable,
             zOnboardingImportScanRequest_unstable,
             zOnboardingImportApplyRequest_unstable,
             zExportSessionRequest_unstable,
@@ -2264,6 +2497,7 @@ export const zExtResponse = z.union([
             z.union([
                 zEmptyResponse,
                 zGetToolsResponse_unstable,
+                zSetToolPermissionsResponse_unstable,
                 zGooseToolCallResponse_unstable,
                 zReadResourceResponse_unstable,
                 zAppsListResponse_unstable,
@@ -2271,6 +2505,9 @@ export const zExtResponse = z.union([
                 zAppsImportResponse_unstable,
                 zSteerSessionResponse_unstable,
                 zDiagnosticsGetResponse_unstable,
+                zListPromptsResponse_unstable,
+                zGetPromptResponse_unstable,
+                zPromptOperationResponse_unstable,
                 zGetConfigExtensionsResponse_unstable,
                 zGetAvailableExtensionsResponse_unstable,
                 zGetSessionExtensionsResponse_unstable,
@@ -2287,7 +2524,11 @@ export const zExtResponse = z.union([
                 zProviderConfigReadResponse_unstable,
                 zProviderConfigStatusResponse_unstable,
                 zProviderConfigChangeResponse_unstable,
+                zProviderSecretsListResponse_unstable,
+                zCanonicalModelInfoResponse_unstable,
                 zPreferencesReadResponse_unstable,
+                zConfigReadResponse_unstable,
+                zConfigReadAllResponse_unstable,
                 zDefaultsReadResponse_unstable,
                 zOnboardingImportScanResponse_unstable,
                 zOnboardingImportApplyResponse_unstable,

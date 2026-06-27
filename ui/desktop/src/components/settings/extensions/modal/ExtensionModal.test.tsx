@@ -4,17 +4,18 @@ import userEvent from '@testing-library/user-event';
 import ExtensionModal from './ExtensionModal';
 import { ExtensionFormData } from '../utils';
 import { IntlTestWrapper } from '../../../../i18n/test-utils';
-import { upsertConfig } from '../../../../api';
+import { acpUpsertConfig } from '../../../../acp/config';
 
-vi.mock('../../../../api', async () => {
-  const actual = await vi.importActual<typeof import('../../../../api')>('../../../../api');
+vi.mock('../../../../acp/config', async () => {
+  const actual =
+    await vi.importActual<typeof import('../../../../acp/config')>('../../../../acp/config');
   return {
     ...actual,
-    upsertConfig: vi.fn().mockResolvedValue({ data: 'ok' }),
+    acpUpsertConfig: vi.fn().mockResolvedValue(undefined),
   };
 });
 
-const mockedUpsertConfig = vi.mocked(upsertConfig);
+const mockedUpsertConfig = vi.mocked(acpUpsertConfig);
 
 const renderWithIntl = (ui: React.ReactElement, options?: RenderOptions) =>
   render(ui, { wrapper: IntlTestWrapper, ...options });
@@ -256,153 +257,12 @@ describe('ExtensionModal', () => {
     expect(submittedData.headers).toEqual([
       { key: 'Authorization', value: 'Bearer abc123', isEdited: true },
     ]);
-  }, 10000);
-
-  describe('pending env var capture (fix for #8969)', () => {
-    beforeEach(() => {
-      mockedUpsertConfig.mockClear();
-      mockedUpsertConfig.mockResolvedValue({
-        data: 'ok',
-        error: undefined,
-        request: new globalThis.Request('http://localhost/test'),
-        response: new globalThis.Response(),
-      });
-    });
-
-    const emptyInitialData: ExtensionFormData = {
-      name: '',
-      description: '',
-      type: 'stdio',
-      cmd: '',
-      endpoint: '',
-      enabled: true,
-      timeout: 300,
-      envVars: [],
-      headers: [],
-    };
-
-    // Returns the env-var key+value inputs (scoped to the "Environment Variables" section,
-    // disambiguated from the header inputs which share the "Value" placeholder).
-    function getEnvVarInputs() {
-      const envVarKeyInput = screen.getByPlaceholderText('Variable name');
-      const envVarValueInput = screen
-        .getAllByPlaceholderText('Value')
-        .find((input) =>
-          input.parentElement?.parentElement?.parentElement?.textContent?.includes(
-            'Environment Variables'
-          )
-        );
-      return { envVarKeyInput, envVarValueInput };
-    }
-
-    it('captures a pending env var typed but not "+ Added" when Submit is clicked', async () => {
-      const user = userEvent.setup();
-      const mockOnSubmit = vi.fn();
-      const mockOnClose = vi.fn();
-
-      renderWithIntl(
-        <ExtensionModal
-          title="Add custom extension"
-          initialData={emptyInitialData}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          submitLabel="Add Extension"
-          modalType="add"
-        />
-      );
-
-      await user.type(screen.getByPlaceholderText('Enter extension name...'), 'WooMCP');
-      await user.type(
-        screen.getByPlaceholderText(/^e\.g\. npx/),
-        'npx -y @automattic/mcp-wordpress-remote@latest'
-      );
-
-      const { envVarKeyInput, envVarValueInput } = getEnvVarInputs();
-      await user.type(envVarKeyInput, 'JWT_TOKEN');
-      if (envVarValueInput) {
-        await user.type(envVarValueInput, 'my_very_long_token');
-      }
-
-      // Note: intentionally NOT clicking the "+ Add" button — this is the #8969 repro.
-      await user.click(screen.getByTestId('extension-submit-btn'));
-
-      await waitFor(() => {
-        expect(mockOnSubmit).toHaveBeenCalled();
-      });
-
-      expect(mockedUpsertConfig).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({
-            is_secret: true,
-            key: 'JWT_TOKEN',
-            value: 'my_very_long_token',
-          }),
-        })
-      );
-
-      const submittedData = mockOnSubmit.mock.calls[0][0];
-      expect(submittedData.envVars).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            key: 'JWT_TOKEN',
-            value: 'my_very_long_token',
-            isEdited: true,
-          }),
-        ])
-      );
-    }, 10000);
-
-    it('does not capture a pending env var when only the key is filled', async () => {
-      const user = userEvent.setup();
-      const mockOnSubmit = vi.fn();
-      const mockOnClose = vi.fn();
-
-      renderWithIntl(
-        <ExtensionModal
-          title="Add custom extension"
-          initialData={emptyInitialData}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          submitLabel="Add Extension"
-          modalType="add"
-        />
-      );
-
-      await user.type(screen.getByPlaceholderText('Enter extension name...'), 'WooMCP');
-      await user.type(screen.getByPlaceholderText(/^e\.g\. npx/), 'npx -y something');
-
-      const { envVarKeyInput } = getEnvVarInputs();
-      await user.type(envVarKeyInput, 'LONELY_KEY');
-      // Intentionally leaving the value field empty.
-
-      await user.click(screen.getByTestId('extension-submit-btn'));
-
-      await waitFor(() => {
-        expect(mockOnSubmit).toHaveBeenCalled();
-      });
-
-      expect(mockedUpsertConfig).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({ key: 'LONELY_KEY' }),
-        })
-      );
-
-      const submittedData = mockOnSubmit.mock.calls[0][0];
-      expect(submittedData.envVars).not.toEqual(
-        expect.arrayContaining([expect.objectContaining({ key: 'LONELY_KEY' })])
-      );
-    });
   });
 
   describe('pending env var capture (fix for #8969)', () => {
     beforeEach(() => {
       mockedUpsertConfig.mockClear();
-      mockedUpsertConfig.mockResolvedValue({
-        data: 'ok',
-        error: undefined,
-        request: new globalThis.Request('http://localhost/test'),
-        response: new globalThis.Response(),
-      });
+      mockedUpsertConfig.mockResolvedValue(undefined);
     });
 
     const emptyInitialData: ExtensionFormData = {
@@ -466,15 +326,7 @@ describe('ExtensionModal', () => {
         expect(mockOnSubmit).toHaveBeenCalled();
       });
 
-      expect(mockedUpsertConfig).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({
-            is_secret: true,
-            key: 'JWT_TOKEN',
-            value: 'my_very_long_token',
-          }),
-        })
-      );
+      expect(mockedUpsertConfig).toHaveBeenCalledWith('JWT_TOKEN', 'my_very_long_token', true);
 
       const submittedData = mockOnSubmit.mock.calls[0][0];
       expect(submittedData.envVars).toEqual(
@@ -518,145 +370,9 @@ describe('ExtensionModal', () => {
       });
 
       expect(mockedUpsertConfig).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({ key: 'LONELY_KEY' }),
-        })
-      );
-
-      const submittedData = mockOnSubmit.mock.calls[0][0];
-      expect(submittedData.envVars).not.toEqual(
-        expect.arrayContaining([expect.objectContaining({ key: 'LONELY_KEY' })])
-      );
-    });
-  });
-
-  describe('pending env var capture (fix for #8969)', () => {
-    beforeEach(() => {
-      mockedUpsertConfig.mockClear();
-      mockedUpsertConfig.mockResolvedValue({
-        data: 'ok',
-        error: undefined,
-        request: new globalThis.Request('http://localhost/test'),
-        response: new globalThis.Response(),
-      });
-    });
-
-    const emptyInitialData: ExtensionFormData = {
-      name: '',
-      description: '',
-      type: 'stdio',
-      cmd: '',
-      endpoint: '',
-      enabled: true,
-      timeout: 300,
-      envVars: [],
-      headers: [],
-    };
-
-    // Returns the env-var key+value inputs (scoped to the "Environment Variables" section,
-    // disambiguated from the header inputs which share the "Value" placeholder).
-    function getEnvVarInputs() {
-      const envVarKeyInput = screen.getByPlaceholderText('Variable name');
-      const envVarValueInput = screen
-        .getAllByPlaceholderText('Value')
-        .find((input) =>
-          input.parentElement?.parentElement?.parentElement?.textContent?.includes(
-            'Environment Variables'
-          )
-        );
-      return { envVarKeyInput, envVarValueInput };
-    }
-
-    it('captures a pending env var typed but not "+ Added" when Submit is clicked', async () => {
-      const user = userEvent.setup();
-      const mockOnSubmit = vi.fn();
-      const mockOnClose = vi.fn();
-
-      renderWithIntl(
-        <ExtensionModal
-          title="Add custom extension"
-          initialData={emptyInitialData}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          submitLabel="Add Extension"
-          modalType="add"
-        />
-      );
-
-      await user.type(screen.getByPlaceholderText('Enter extension name...'), 'WooMCP');
-      await user.type(
-        screen.getByPlaceholderText(/^e\.g\. npx/),
-        'npx -y @automattic/mcp-wordpress-remote@latest'
-      );
-
-      const { envVarKeyInput, envVarValueInput } = getEnvVarInputs();
-      await user.type(envVarKeyInput, 'JWT_TOKEN');
-      if (envVarValueInput) {
-        await user.type(envVarValueInput, 'my_very_long_token');
-      }
-
-      // Note: intentionally NOT clicking the "+ Add" button — this is the #8969 repro.
-      await user.click(screen.getByTestId('extension-submit-btn'));
-
-      await waitFor(() => {
-        expect(mockOnSubmit).toHaveBeenCalled();
-      });
-
-      expect(mockedUpsertConfig).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({
-            is_secret: true,
-            key: 'JWT_TOKEN',
-            value: 'my_very_long_token',
-          }),
-        })
-      );
-
-      const submittedData = mockOnSubmit.mock.calls[0][0];
-      expect(submittedData.envVars).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({
-            key: 'JWT_TOKEN',
-            value: 'my_very_long_token',
-            isEdited: true,
-          }),
-        ])
-      );
-    });
-
-    it('does not capture a pending env var when only the key is filled', async () => {
-      const user = userEvent.setup();
-      const mockOnSubmit = vi.fn();
-      const mockOnClose = vi.fn();
-
-      renderWithIntl(
-        <ExtensionModal
-          title="Add custom extension"
-          initialData={emptyInitialData}
-          onClose={mockOnClose}
-          onSubmit={mockOnSubmit}
-          submitLabel="Add Extension"
-          modalType="add"
-        />
-      );
-
-      await user.type(screen.getByPlaceholderText('Enter extension name...'), 'WooMCP');
-      await user.type(screen.getByPlaceholderText(/^e\.g\. npx/), 'npx -y something');
-
-      const { envVarKeyInput } = getEnvVarInputs();
-      await user.type(envVarKeyInput, 'LONELY_KEY');
-      // Intentionally leaving the value field empty.
-
-      await user.click(screen.getByTestId('extension-submit-btn'));
-
-      await waitFor(() => {
-        expect(mockOnSubmit).toHaveBeenCalled();
-      });
-
-      expect(mockedUpsertConfig).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({ key: 'LONELY_KEY' }),
-        })
+        'LONELY_KEY',
+        expect.anything(),
+        expect.anything()
       );
 
       const submittedData = mockOnSubmit.mock.calls[0][0];

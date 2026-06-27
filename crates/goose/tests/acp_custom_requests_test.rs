@@ -443,6 +443,100 @@ fn test_custom_get_available_extensions() {
 
 #[test]
 #[serial]
+fn test_custom_prompt_methods() {
+    let _guard = env_lock::lock_env([("EXTENSIONS", None::<&str>)]);
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let list_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/list",
+            serde_json::json!({}),
+        )
+        .await
+        .expect("list prompts should succeed");
+        let prompts = list_response["prompts"]
+            .as_array()
+            .expect("prompts should be an array");
+        assert!(
+            prompts.iter().any(|prompt| prompt["name"] == "system.md"),
+            "system.md should be listed"
+        );
+
+        let get_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/get",
+            serde_json::json!({ "name": "system.md" }),
+        )
+        .await
+        .expect("get prompt should succeed");
+        assert_eq!(get_response["name"], "system.md");
+        assert!(get_response["content"]
+            .as_str()
+            .is_some_and(|s| !s.is_empty()));
+        assert_eq!(get_response["isCustomized"], false);
+
+        let content = "custom acp system prompt";
+        let save_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/save",
+            serde_json::json!({ "name": "system.md", "content": content }),
+        )
+        .await
+        .expect("save prompt should succeed");
+        assert_eq!(save_response["message"], "Saved prompt: system.md");
+
+        let get_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/get",
+            serde_json::json!({ "name": "system.md" }),
+        )
+        .await
+        .expect("get saved prompt should succeed");
+        assert_eq!(get_response["content"], content);
+        assert_eq!(get_response["isCustomized"], true);
+
+        let reset_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/reset",
+            serde_json::json!({ "name": "system.md" }),
+        )
+        .await
+        .expect("reset prompt should succeed");
+        assert_eq!(
+            reset_response["message"],
+            "Reset prompt to default: system.md"
+        );
+
+        let get_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/get",
+            serde_json::json!({ "name": "system.md" }),
+        )
+        .await
+        .expect("get reset prompt should succeed");
+        assert_eq!(get_response["isCustomized"], false);
+        assert_ne!(get_response["content"], content);
+
+        let missing = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/get",
+            serde_json::json!({ "name": "missing.md" }),
+        )
+        .await
+        .expect_err("unknown prompt should fail");
+        assert_eq!(
+            missing.code,
+            agent_client_protocol::ErrorCode::InvalidParams
+        );
+    });
+}
+
+#[test]
+#[serial]
 fn test_steer_session_adds_input_to_active_prompt() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {

@@ -34,7 +34,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { getTunnelStatus } from '../../api/sdk.gen';
 import {
   acpDeleteSession,
   acpExportSession,
@@ -384,15 +383,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       };
     }, [loadSessions, debouncedSearchTerm]);
 
-    // Hide Nostr sharing when tunnel is disabled (restricted/enterprise bundles)
+    // Hide Nostr sharing when explicitly disabled via env var (restricted/enterprise bundles)
     useEffect(() => {
-      getTunnelStatus()
-        .then(({ data }) => {
-          if (data?.state === 'disabled') {
-            setNostrEnabled(false);
-          }
-        })
-        .catch(() => {});
+      const config = window.electron.getConfig();
+      if (config.GOOSE_DISABLE_NOSTR_SHARING === true) {
+        setNostrEnabled(false);
+      }
     }, []);
 
     // Timing logic to prevent flicker between skeleton and content on initial load

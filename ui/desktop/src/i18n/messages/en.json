@@ -2610,7 +2610,7 @@
     "defaultMessage": "Failed to save prompt"
   },
   "promptsSettings.promptEditingDescription": {
-    "defaultMessage": "Customize the prompts that define ApeMind Agent's behavior in different contexts. These prompts use Jinja2 templating syntax. Be careful when modifying template variables, as incorrect changes can break functionality."
+    "defaultMessage": "Customize the prompts that define goose's behavior in different contexts. These prompts use Jinja2 templating syntax. Be careful when modifying template variables, as incorrect changes can break functionality. Please share any improvements with the community."
   },
   "promptsSettings.promptEditingTitle": {
     "defaultMessage": "Prompt Editing"
@@ -4378,6 +4378,9 @@
   },
   "toolApprovalButtons.deny": {
     "defaultMessage": "Deny"
+  },
+  "toolApprovalButtons.staleApprovalRequest": {
+    "defaultMessage": "This approval request is no longer active."
   },
   "toolCallStatusIndicator.toolStatus": {
     "defaultMessage": "Tool status: {status}"

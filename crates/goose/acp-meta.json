@@ -16,6 +16,11 @@
       "responseType": "GetToolsResponse_unstable"
     },
     {
+      "method": "_goose/unstable/tools/permissions/set",
+      "requestType": "SetToolPermissionsRequest_unstable",
+      "responseType": "SetToolPermissionsResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/tools/call",
       "requestType": "GooseToolCallRequest_unstable",
       "responseType": "GooseToolCallResponse_unstable"
@@ -59,6 +64,26 @@
       "method": "_goose/unstable/diagnostics/get",
       "requestType": "DiagnosticsGetRequest_unstable",
       "responseType": "DiagnosticsGetResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/config/prompts/list",
+      "requestType": "ListPromptsRequest_unstable",
+      "responseType": "ListPromptsResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/config/prompts/get",
+      "requestType": "GetPromptRequest_unstable",
+      "responseType": "GetPromptResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/config/prompts/save",
+      "requestType": "SavePromptRequest_unstable",
+      "responseType": "PromptOperationResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/config/prompts/reset",
+      "requestType": "ResetPromptRequest_unstable",
+      "responseType": "PromptOperationResponse_unstable"
     },
     {
       "method": "session/delete",
@@ -171,6 +196,21 @@
       "responseType": "ProviderConfigChangeResponse_unstable"
     },
     {
+      "method": "_goose/unstable/providers/secrets/list",
+      "requestType": "ProviderSecretsListRequest_unstable",
+      "responseType": "ProviderSecretsListResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/providers/secrets/delete",
+      "requestType": "ProviderSecretDeleteRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/providers/canonical-model-info",
+      "requestType": "CanonicalModelInfoRequest_unstable",
+      "responseType": "CanonicalModelInfoResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/preferences/read",
       "requestType": "PreferencesReadRequest_unstable",
       "responseType": "PreferencesReadResponse_unstable"
@@ -186,6 +226,26 @@
       "responseType": "EmptyResponse"
     },
     {
+      "method": "_goose/unstable/config/read",
+      "requestType": "ConfigReadRequest_unstable",
+      "responseType": "ConfigReadResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/config/upsert",
+      "requestType": "ConfigUpsertRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/config/remove",
+      "requestType": "ConfigRemoveRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/config/read-all",
+      "requestType": "ConfigReadAllRequest_unstable",
+      "responseType": "ConfigReadAllResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/defaults/read",
       "requestType": "DefaultsReadRequest_unstable",
       "responseType": "DefaultsReadResponse_unstable"
@@ -193,6 +253,11 @@
     {
       "method": "_goose/unstable/defaults/save",
       "requestType": "DefaultsSaveRequest_unstable",
+      "responseType": "DefaultsReadResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/defaults/clear",
+      "requestType": "DefaultsClearRequest_unstable",
       "responseType": "DefaultsReadResponse_unstable"
     },
     {
