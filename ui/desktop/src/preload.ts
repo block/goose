@@ -10,7 +10,6 @@ const localStorageKeyMap: Partial<Record<SettingKey, string>> = {
   useSystemTheme: 'use_system_theme',
   responseStyle: 'response_style',
   showPricing: 'show_pricing',
-  sessionSharing: 'session_sharing_config',
   seenAnnouncementIds: 'seenAnnouncementIds',
 };
 
@@ -29,8 +28,6 @@ function parseLocalStorageValue<K extends SettingKey>(
         return rawValue as Settings[K];
       case 'showPricing':
         return (rawValue === 'true') as unknown as Settings[K];
-      case 'sessionSharing':
-        return JSON.parse(rawValue) as Settings[K];
       case 'seenAnnouncementIds':
         return JSON.parse(rawValue) as Settings[K];
       default:

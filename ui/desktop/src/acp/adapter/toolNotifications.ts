@@ -4,14 +4,18 @@ import type { AcpChatStateChange } from './shared';
 import { isRecord } from './shared';
 
 type ToolNotification =
-  | {
-      type: 'message';
-      params: LoggingMessageNotificationParams;
-    }
-  | {
-      type: 'progress';
-      params: ProgressNotificationParams;
-    };
+	  | {
+	      type: 'message';
+	      params: LoggingMessageNotificationParams;
+	    }
+	  | {
+	      type: 'progress';
+	      params: ProgressNotificationParams;
+	    }
+	  | {
+	      type: 'platform_event';
+	      params: PlatformEventParams;
+	    };
 
 type LoggingMessageNotificationParams = {
   level: string;
@@ -26,18 +30,29 @@ type ProgressNotificationParams = {
   message?: string;
 };
 
+type PlatformEventParams = Record<string, unknown>;
+
 export function toolNotificationChange(
   update: ToolCallUpdate
 ): Extract<AcpChatStateChange, { type: 'notification' }> | undefined {
-  const toolNotification = parseToolNotification(update._meta);
-  if (!toolNotification) {
+  const notification = toolNotificationEvent(update);
+  if (!notification) {
     return undefined;
   }
 
   return {
     type: 'notification',
-    notification: toNotificationEvent(update.toolCallId, toolNotification),
+    notification,
   };
+}
+
+export function toolNotificationEvent(update: ToolCallUpdate): NotificationEvent | undefined {
+  const toolNotification = parseToolNotification(update._meta);
+  if (!toolNotification) {
+    return undefined;
+  }
+
+  return toNotificationEvent(update.toolCallId, toolNotification);
 }
 
 function parseToolNotification(meta: unknown): ToolNotification | undefined {
@@ -58,6 +73,11 @@ function parseToolNotification(meta: unknown): ToolNotification | undefined {
   if (toolNotification.type === 'progress') {
     const params = parseProgressParams(toolNotification.params);
     return params ? { type: 'progress', params } : undefined;
+  }
+
+  if (toolNotification.type === 'platform_event') {
+    const params = parsePlatformEventParams(toolNotification.params);
+    return params ? { type: 'platform_event', params } : undefined;
   }
 
   return undefined;
@@ -92,6 +112,10 @@ function parseProgressParams(value: unknown): ProgressNotificationParams | undef
   };
 }
 
+function parsePlatformEventParams(value: unknown): PlatformEventParams | undefined {
+  return isRecord(value) ? value : undefined;
+}
+
 function toNotificationEvent(
   toolCallId: string,
   toolNotification: ToolNotification
@@ -100,11 +124,19 @@ function toNotificationEvent(
     type: 'Notification',
     request_id: toolCallId,
     message: {
-      method:
-        toolNotification.type === 'message'
-          ? 'notifications/message'
-          : 'notifications/progress',
+      method: notificationMethod(toolNotification),
       params: toolNotification.params,
     },
   };
+}
+
+function notificationMethod(toolNotification: ToolNotification): string {
+  switch (toolNotification.type) {
+    case 'message':
+      return 'notifications/message';
+    case 'progress':
+      return 'notifications/progress';
+    case 'platform_event':
+      return 'platform_event';
+  }
 }

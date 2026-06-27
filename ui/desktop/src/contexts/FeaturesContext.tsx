@@ -1,25 +1,22 @@
 import { createContext, useContext, useEffect, useState, useMemo } from 'react';
-import { getFeatures } from '../api';
+import { getAcpFeatureCapabilities } from '../acp/capabilities';
 
 interface FeaturesContextValue {
   localInference: boolean;
-  codeMode: boolean;
   isLoading: boolean;
 }
 
 const FeaturesContext = createContext<FeaturesContextValue | null>(null);
 
 export function FeaturesProvider({ children }: { children: React.ReactNode }) {
-  const [features, setFeatures] = useState<Record<string, boolean>>({});
+  const [localInference, setLocalInference] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     (async () => {
       try {
-        const response = await getFeatures({ throwOnError: false });
-        if (response.data) {
-          setFeatures(response.data.features);
-        }
+        const capabilities = await getAcpFeatureCapabilities();
+        setLocalInference(capabilities.localInference);
       } catch (error) {
         console.warn('[FeaturesContext] Failed to fetch features:', error);
       } finally {
@@ -30,11 +27,10 @@ export function FeaturesProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<FeaturesContextValue>(
     () => ({
-      localInference: features['local-inference'] ?? false,
-      codeMode: features['code-mode'] ?? true,
+      localInference,
       isLoading,
     }),
-    [features, isLoading]
+    [localInference, isLoading]
   );
 
   return <FeaturesContext.Provider value={value}>{children}</FeaturesContext.Provider>;

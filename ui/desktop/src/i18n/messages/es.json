@@ -3689,57 +3689,6 @@
   "sessionActionsHeader.viewJson": {
     "defaultMessage": "Ver el JSON de la sesión"
   },
-  "sessionHistory.cancel": {
-    "defaultMessage": "Cancelar"
-  },
-  "sessionHistory.copy": {
-    "defaultMessage": "Copiar"
-  },
-  "sessionHistory.empty.description": {
-    "defaultMessage": "Esta sesión no contiene ningún mensaje"
-  },
-  "sessionHistory.empty.title": {
-    "defaultMessage": "No se encontraron mensajes"
-  },
-  "sessionHistory.error.loading": {
-    "defaultMessage": "Error al cargar los detalles de la sesión"
-  },
-  "sessionHistory.error.tryAgain": {
-    "defaultMessage": "Reintentar"
-  },
-  "sessionHistory.loading": {
-    "defaultMessage": "Cargando detalles de la sesión..."
-  },
-  "sessionHistory.resume": {
-    "defaultMessage": "Reanudar"
-  },
-  "sessionHistory.searchPlaceholder": {
-    "defaultMessage": "Buscar en el historial..."
-  },
-  "sessionHistory.share": {
-    "defaultMessage": "Compartir"
-  },
-  "sessionHistory.shareModal.description": {
-    "defaultMessage": "Comparte este enlace de sesión para dar a otros una vista de solo lectura de tu chat de goose."
-  },
-  "sessionHistory.shareModal.title": {
-    "defaultMessage": "Compartir sesión (beta)"
-  },
-  "sessionHistory.shareTooltip": {
-    "defaultMessage": "Para habilitar el uso compartido de sesiones, ve a <b>Ajustes</b> > <b>Sesión</b> > <b>Compartir sesión</b>."
-  },
-  "sessionHistory.sharing": {
-    "defaultMessage": "Compartiendo..."
-  },
-  "sessionHistory.toast.copyFailed": {
-    "defaultMessage": "No se pudo copiar el enlace al portapapeles"
-  },
-  "sessionHistory.toast.launchFailed": {
-    "defaultMessage": "No se pudo abrir la sesión: {error}"
-  },
-  "sessionHistory.toast.shareFailed": {
-    "defaultMessage": "No se pudo compartir la sesión: {error}"
-  },
   "sessionIndicators.error": {
     "defaultMessage": "La sesión encontró un error"
   },
@@ -3748,57 +3697,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Streaming"
-  },
-  "sessionSharingSection.alreadyConfigured": {
-    "defaultMessage": "El uso compartido de sesiones ya se configuró"
-  },
-  "sessionSharingSection.baseUrl": {
-    "defaultMessage": "URL base"
-  },
-  "sessionSharingSection.connectionFailed": {
-    "defaultMessage": "Falló la conexión."
-  },
-  "sessionSharingSection.connectionSuccess": {
-    "defaultMessage": "¡Conexión exitosa!"
-  },
-  "sessionSharingSection.connectionTimedOut": {
-    "defaultMessage": "Se agotó el tiempo de conexión. Puede que el servidor esté lento o inaccesible."
-  },
-  "sessionSharingSection.descriptionConfigured": {
-    "defaultMessage": "El uso compartido de sesiones está configurado pero es totalmente opcional: tus sesiones solo se comparten cuando haces clic explícitamente en el botón de compartir."
-  },
-  "sessionSharingSection.descriptionDefault": {
-    "defaultMessage": "Puedes habilitar el uso compartido de sesiones para compartir tus sesiones con otros."
-  },
-  "sessionSharingSection.enableSharing": {
-    "defaultMessage": "Habilitar el uso compartido de sesiones"
-  },
-  "sessionSharingSection.invalidUrl": {
-    "defaultMessage": "Formato de URL no válido. Ingresa una URL válida (p. ej., https://example.com/api)."
-  },
-  "sessionSharingSection.serverError": {
-    "defaultMessage": "Error del servidor: HTTP {status}. Puede que el servidor no esté configurado correctamente."
-  },
-  "sessionSharingSection.testConnection": {
-    "defaultMessage": "Probar conexión"
-  },
-  "sessionSharingSection.testing": {
-    "defaultMessage": "Probando..."
-  },
-  "sessionSharingSection.testingConnection": {
-    "defaultMessage": "Probando la conexión..."
-  },
-  "sessionSharingSection.title": {
-    "defaultMessage": "Compartir sesión"
-  },
-  "sessionSharingSection.unknownError": {
-    "defaultMessage": "Ocurrió un error desconocido."
-  },
-  "sessionSharingSection.unreachableServer": {
-    "defaultMessage": "No se pudo conectar con el servidor. Revisa la URL y tu conexión de red."
-  },
-  "sessionSharingSection.urlPlaceholder": {
-    "defaultMessage": "https://example.com/api"
   },
   "sessionViewComponents.empty.description": {
     "defaultMessage": "Esta sesión no contiene ningún mensaje"
@@ -3949,12 +3847,6 @@
   },
   "sessions.toast.updated": {
     "defaultMessage": "Descripción de la sesión actualizada correctamente"
-  },
-  "sessionsView.error.failedToLoad": {
-    "defaultMessage": "No se pudieron cargar los detalles de la sesión. Inténtalo de nuevo más tarde."
-  },
-  "sessionsView.loading": {
-    "defaultMessage": "Cargando..."
   },
   "settings.appearance.description": {
     "defaultMessage": "Configura cómo se ve goose en tu sistema"
@@ -4126,12 +4018,6 @@
   },
   "settingsView.title": {
     "defaultMessage": "Ajustes"
-  },
-  "sharedSession.loading": {
-    "defaultMessage": "Cargando detalles de la sesión..."
-  },
-  "sharedSession.title": {
-    "defaultMessage": "Sesión compartida"
   },
   "sheet.close": {
     "defaultMessage": "Cerrar"
@@ -4501,6 +4387,9 @@
   },
   "toolApprovalButtons.deny": {
     "defaultMessage": "Denegar"
+  },
+  "toolApprovalButtons.staleApprovalRequest": {
+    "defaultMessage": "This approval request is no longer active."
   },
   "toolCallStatusIndicator.toolStatus": {
     "defaultMessage": "Estado de la herramienta: {status}"

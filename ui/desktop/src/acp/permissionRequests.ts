@@ -1,7 +1,7 @@
 import type { RequestPermissionRequest, RequestPermissionResponse } from '@agentclientprotocol/sdk';
 import type { Permission } from '../api';
 import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
-import { acpChatSessionActions } from './chatSessionStore';
+import { acpChatSessionActions, acpPermissionUserInputRequestId } from './chatSessionStore';
 
 interface PendingPermissionRequest {
   request: RequestPermissionRequest;
@@ -41,6 +41,10 @@ export function resolveAcpPermissionRequest(
   }
 
   pendingRequests.delete(key);
+  acpChatSessionActions.resolveUserInputRequest(
+    sessionId,
+    acpPermissionUserInputRequestId(toolCallId)
+  );
   pending.resolve(permissionResponseForAction(pending.request, action));
   return true;
 }

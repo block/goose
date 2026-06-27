@@ -6,8 +6,6 @@ mod openapi;
 mod routes;
 mod session_event_bus;
 mod state;
-mod tunnel;
-
 use std::path::PathBuf;
 use std::{backtrace::Backtrace, panic::PanicHookInfo};
 

@@ -205,10 +205,6 @@ function getSettings(): Settings {
         ...defaultSettings.keyboardShortcuts,
         ...(stored.keyboardShortcuts ?? {}),
       },
-      sessionSharing: {
-        ...defaultSettings.sessionSharing,
-        ...(stored.sessionSharing ?? {}),
-      },
     };
   }
   return defaultSettings;
@@ -747,7 +743,6 @@ interface BundledConfig {
   defaultProvider?: string;
   defaultModel?: string;
   predefinedModels?: string;
-  baseUrlShare?: string;
   version?: string;
 }
 
@@ -759,13 +754,11 @@ const getBundledConfig = (): BundledConfig => {
     defaultProvider: process.env.GOOSE_DEFAULT_PROVIDER,
     defaultModel: process.env.GOOSE_DEFAULT_MODEL,
     predefinedModels: process.env.GOOSE_PREDEFINED_MODELS,
-    baseUrlShare: process.env.GOOSE_BASE_URL_SHARE,
     version: process.env.GOOSE_VERSION,
   };
 };
 
-const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version } =
-  getBundledConfig();
+const { defaultProvider, defaultModel, predefinedModels, version } = getBundledConfig();
 
 const resolveGoosePathRoot = (): string | undefined => {
   const pathRoot = process.env.GOOSE_PATH_ROOT?.trim();
@@ -813,6 +806,7 @@ let appConfig = {
   GOOSE_LOCALE: process.env.GOOSE_LOCALE || undefined,
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
+  GOOSE_DISABLE_NOSTR_SHARING: process.env.GOOSE_DISABLE_NOSTR_SHARING === 'true',
 };
 
 const windowMap = new Map<number, BrowserWindow>();
@@ -985,7 +979,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
           GOOSE_API_HOST: baseUrl,
           GOOSE_WORKING_DIR: workingDir,
           REQUEST_DIR: dir,
-          GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
           recipeDeeplink: recipeDeeplink,
           recipeId: recipeId,
@@ -1202,7 +1195,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     skills: '/skills',
     permission: '/permission',
     ConfigureProviders: '/configure-providers',
-    sharedSession: '/shared-session',
   };
 
   if (viewType) {
@@ -1721,7 +1713,6 @@ const validSettingKeys: Set<string> = new Set([
   'language',
   'responseStyle',
   'showPricing',
-  'sessionSharing',
   'seenAnnouncementIds',
   'disableAutoDownload',
 ]);

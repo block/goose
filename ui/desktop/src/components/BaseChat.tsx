@@ -554,7 +554,8 @@ export default function BaseChat({
         />
       )}
 
-      {recipe?.parameters &&
+      {!USE_ACP_CHAT &&
+        recipe?.parameters &&
         recipe.parameters.length > 0 &&
         !session?.user_recipe_values &&
         session?.session_type !== 'scheduled' && (
