@@ -34,7 +34,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { importSessionNostr, shareSessionNostr } from '../../api';
 import { getTunnelStatus } from '../../api/sdk.gen';
 import {
   acpDeleteSession,
@@ -43,6 +42,7 @@ import {
   acpImportSession,
   acpListSessions,
   acpRenameSession,
+  acpShareSessionNostr,
   type SessionListItem,
 } from '../../acp/sessions';
 import { acpChatSessionActions } from '../../acp/chatSessionStore';
@@ -525,12 +525,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         e.stopPropagation();
         setSharingSessionId(session.id);
         try {
-          const response = await shareSessionNostr({
-            path: { session_id: session.id },
-            body: {},
-            throwOnError: true,
-          });
-          setShareLink(response.data.deeplink);
+          const response = await acpShareSessionNostr(session.id, []);
+          setShareLink(response.deeplink);
           setShowShareLinkModal(true);
           toast.success(intl.formatMessage(i18n.shareNostrSuccess));
         } catch (error) {
@@ -552,7 +548,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             toast.error(intl.formatMessage(i18n.importFailed, { error: result.error }));
             return;
           }
-          await acpImportSession(result.contents);
+          await acpImportSession(result.contents, 'json');
           toast.success(intl.formatMessage(i18n.importSuccess));
           window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
           await loadSessions();
@@ -573,10 +569,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
       setIsImportingNostr(true);
       try {
-        await importSessionNostr({
-          body: { deeplink },
-          throwOnError: true,
-        });
+        await acpImportSession(deeplink, 'nostr');
         setNostrImportLink('');
         setShowImportLinkModal(false);
         toast.success(intl.formatMessage(i18n.importSuccess));
@@ -605,7 +598,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
         try {
           const json = await file.text();
-          await acpImportSession(json);
+          await acpImportSession(json, 'json');
 
           toast.success(intl.formatMessage(i18n.importSuccess));
           window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));

@@ -383,6 +383,13 @@
       "properties": {
         "sessionId": {
           "type": "string"
+        },
+        "extensionName": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Filter tools to those belonging to this extension."
         }
       },
       "required": [
@@ -397,8 +404,9 @@
       "properties": {
         "tools": {
           "type": "array",
-          "items": {},
-          "description": "Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`."
+          "items": {
+            "$ref": "#/$defs/ToolListItem"
+          }
         }
       },
       "required": [
@@ -407,6 +415,89 @@
       "description": "Tools response.",
       "x-side": "agent",
       "x-method": "_goose/unstable/tools/list"
+    },
+    "ToolListItem": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "permission": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolPermissionLevel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputSchema": {},
+        "outputSchema": {}
+      },
+      "required": [
+        "name",
+        "description",
+        "parameters",
+        "inputSchema"
+      ],
+      "description": "A single tool item returned by the tools list endpoint."
+    },
+    "ToolPermissionLevel": {
+      "type": "string",
+      "enum": [
+        "always_allow",
+        "ask_before",
+        "never_allow"
+      ],
+      "description": "Permission level for a tool."
+    },
+    "SetToolPermissionsRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "toolPermissions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ToolPermissionEntry"
+          }
+        }
+      },
+      "required": [
+        "toolPermissions"
+      ],
+      "description": "Set permission levels for one or more tools.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/tools/permissions/set"
+    },
+    "ToolPermissionEntry": {
+      "type": "object",
+      "properties": {
+        "toolName": {
+          "type": "string"
+        },
+        "permission": {
+          "$ref": "#/$defs/ToolPermissionLevel"
+        }
+      },
+      "required": [
+        "toolName",
+        "permission"
+      ],
+      "description": "A single tool permission entry."
+    },
+    "SetToolPermissionsResponse_unstable": {
+      "type": "object",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/tools/permissions/set"
     },
     "GooseToolCallRequest_unstable": {
       "type": "object",
@@ -483,6 +574,87 @@
       "description": "Resource read response.",
       "x-side": "agent",
       "x-method": "_goose/unstable/resources/read"
+    },
+    "AppsListRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/list"
+    },
+    "AppsListResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "apps": {
+          "type": "array",
+          "items": {},
+          "default": []
+        }
+      },
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/list"
+    },
+    "AppsExportRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/export"
+    },
+    "AppsExportResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "html": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "html"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/export"
+    },
+    "AppsImportRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "html": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "html"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/import"
+    },
+    "AppsImportResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "message"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/import"
     },
     "UpdateWorkingDirRequest_unstable": {
       "type": "object",
@@ -2685,16 +2857,28 @@
     "ImportSessionRequest_unstable": {
       "type": "object",
       "properties": {
-        "data": {
+        "input": {
           "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SessionImportSource"
         }
       },
       "required": [
-        "data"
+        "input",
+        "source"
       ],
-      "description": "Import a session from a JSON string.",
+      "description": "Import a session from a JSON string or share link.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/import"
+    },
+    "SessionImportSource": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "json",
+        "nostr"
+      ]
     },
     "ImportSessionResponse_unstable": {
       "type": "object",
@@ -2726,6 +2910,54 @@
       "description": "Import session response — metadata about the newly created session.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/import"
+    },
+    "ShareSessionNostrRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "relays": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "sessionId",
+        "relays"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/share/nostr"
+    },
+    "ShareSessionNostrResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "deeplink": {
+          "type": "string"
+        },
+        "nevent": {
+          "type": "string"
+        },
+        "eventId": {
+          "type": "string"
+        },
+        "relays": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "deeplink",
+        "nevent",
+        "eventId",
+        "relays"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/share/nostr"
     },
     "EncodeRecipeRequest_unstable": {
       "type": "object",
@@ -5087,6 +5319,15 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/SetToolPermissionsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/tools/permissions/set",
+                  "title": "SetToolPermissionsRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/GooseToolCallRequest_unstable"
                     }
                   ],
@@ -5101,6 +5342,33 @@
                   ],
                   "description": "Params for _goose/unstable/resources/read",
                   "title": "ReadResourceRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/AppsListRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/apps/list",
+                  "title": "AppsListRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/AppsExportRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/apps/export",
+                  "title": "AppsExportRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/AppsImportRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/apps/import",
+                  "title": "AppsImportRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -5416,6 +5684,15 @@
                   ],
                   "description": "Params for _goose/unstable/session/import",
                   "title": "ImportSessionRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ShareSessionNostrRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/share/nostr",
+                  "title": "ShareSessionNostrRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -5862,6 +6139,14 @@
                     {
                       "allOf": [
                         {
+                          "$ref": "#/$defs/SetToolPermissionsResponse_unstable"
+                        }
+                      ],
+                      "title": "SetToolPermissionsResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
                           "$ref": "#/$defs/GooseToolCallResponse_unstable"
                         }
                       ],
@@ -5874,6 +6159,30 @@
                         }
                       ],
                       "title": "ReadResourceResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/AppsListResponse_unstable"
+                        }
+                      ],
+                      "title": "AppsListResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/AppsExportResponse_unstable"
+                        }
+                      ],
+                      "title": "AppsExportResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/AppsImportResponse_unstable"
+                        }
+                      ],
+                      "title": "AppsImportResponse_unstable"
                     },
                     {
                       "allOf": [
@@ -6066,6 +6375,14 @@
                         }
                       ],
                       "title": "ImportSessionResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ShareSessionNostrResponse_unstable"
+                        }
+                      ],
+                      "title": "ShareSessionNostrResponse_unstable"
                     },
                     {
                       "allOf": [

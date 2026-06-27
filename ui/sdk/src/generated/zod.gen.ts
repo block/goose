@@ -167,15 +167,60 @@ export const zRemoveSessionExtensionRequest_unstable = z.object({
  * List all tools available in a session.
  */
 export const zGetToolsRequest_unstable = z.object({
-    sessionId: z.string()
+    sessionId: z.string(),
+    extensionName: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
+});
+
+/**
+ * Permission level for a tool.
+ */
+export const zToolPermissionLevel = z.enum([
+    'always_allow',
+    'ask_before',
+    'never_allow'
+]);
+
+/**
+ * A single tool item returned by the tools list endpoint.
+ */
+export const zToolListItem = z.object({
+    name: z.string(),
+    description: z.string(),
+    parameters: z.array(z.string()),
+    permission: z.union([
+        zToolPermissionLevel,
+        z.null()
+    ]).optional(),
+    inputSchema: z.unknown(),
+    outputSchema: z.unknown().optional()
 });
 
 /**
  * Tools response.
  */
 export const zGetToolsResponse_unstable = z.object({
-    tools: z.array(z.unknown())
+    tools: z.array(zToolListItem)
 });
+
+/**
+ * A single tool permission entry.
+ */
+export const zToolPermissionEntry = z.object({
+    toolName: z.string(),
+    permission: zToolPermissionLevel
+});
+
+/**
+ * Set permission levels for one or more tools.
+ */
+export const zSetToolPermissionsRequest_unstable = z.object({
+    toolPermissions: z.array(zToolPermissionEntry)
+});
+
+export const zSetToolPermissionsResponse_unstable = z.record(z.unknown());
 
 /**
  * Call a tool from an extension.
@@ -210,6 +255,34 @@ export const zReadResourceRequest_unstable = z.object({
  */
 export const zReadResourceResponse_unstable = z.object({
     result: z.unknown().optional().default(null)
+});
+
+export const zAppsListRequest_unstable = z.object({
+    sessionId: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
+});
+
+export const zAppsListResponse_unstable = z.object({
+    apps: z.array(z.unknown()).optional().default([])
+});
+
+export const zAppsExportRequest_unstable = z.object({
+    name: z.string()
+});
+
+export const zAppsExportResponse_unstable = z.object({
+    html: z.string()
+});
+
+export const zAppsImportRequest_unstable = z.object({
+    html: z.string()
+});
+
+export const zAppsImportResponse_unstable = z.object({
+    name: z.string(),
+    message: z.string()
 });
 
 /**
@@ -1119,11 +1192,18 @@ export const zExportSessionResponse_unstable = z.object({
     data: z.string()
 });
 
+export const zSessionImportSource = z.enum([
+    'auto',
+    'json',
+    'nostr'
+]);
+
 /**
- * Import a session from a JSON string.
+ * Import a session from a JSON string or share link.
  */
 export const zImportSessionRequest_unstable = z.object({
-    data: z.string()
+    input: z.string(),
+    source: zSessionImportSource
 });
 
 /**
@@ -1140,6 +1220,18 @@ export const zImportSessionResponse_unstable = z.object({
         z.null()
     ]).optional(),
     messageCount: z.number().int().gte(0)
+});
+
+export const zShareSessionNostrRequest_unstable = z.object({
+    sessionId: z.string(),
+    relays: z.array(z.string())
+});
+
+export const zShareSessionNostrResponse_unstable = z.object({
+    deeplink: z.string(),
+    nevent: z.string(),
+    eventId: z.string(),
+    relays: z.array(z.string())
 });
 
 export const zRecipeExtensionDto = z.union([
@@ -2117,8 +2209,12 @@ export const zExtRequest = z.object({
             zAddSessionExtensionRequest_unstable,
             zRemoveSessionExtensionRequest_unstable,
             zGetToolsRequest_unstable,
+            zSetToolPermissionsRequest_unstable,
             zGooseToolCallRequest_unstable,
             zReadResourceRequest_unstable,
+            zAppsListRequest_unstable,
+            zAppsExportRequest_unstable,
+            zAppsImportRequest_unstable,
             zUpdateWorkingDirRequest_unstable,
             zSetSessionSystemPromptRequest_unstable,
             zSteerSessionRequest_unstable,
@@ -2154,6 +2250,7 @@ export const zExtRequest = z.object({
             zOnboardingImportApplyRequest_unstable,
             zExportSessionRequest_unstable,
             zImportSessionRequest_unstable,
+            zShareSessionNostrRequest_unstable,
             zEncodeRecipeRequest_unstable,
             zDecodeRecipeRequest_unstable,
             zScanRecipeRequest_unstable,
@@ -2213,8 +2310,12 @@ export const zExtResponse = z.union([
             z.union([
                 zEmptyResponse,
                 zGetToolsResponse_unstable,
+                zSetToolPermissionsResponse_unstable,
                 zGooseToolCallResponse_unstable,
                 zReadResourceResponse_unstable,
+                zAppsListResponse_unstable,
+                zAppsExportResponse_unstable,
+                zAppsImportResponse_unstable,
                 zSteerSessionResponse_unstable,
                 zDiagnosticsGetResponse_unstable,
                 zGetConfigExtensionsResponse_unstable,
@@ -2239,6 +2340,7 @@ export const zExtResponse = z.union([
                 zOnboardingImportApplyResponse_unstable,
                 zExportSessionResponse_unstable,
                 zImportSessionResponse_unstable,
+                zShareSessionNostrResponse_unstable,
                 zEncodeRecipeResponse_unstable,
                 zDecodeRecipeResponse_unstable,
                 zScanRecipeResponse_unstable,

@@ -1,13 +1,13 @@
+use crate::canonical::maybe_get_canonical_model;
+use crate::canonical::ThinkingMode;
 use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::token_usage::{ProviderUsage, Usage};
+use crate::errors::ProviderError;
+use crate::images::{convert_image, ImageFormat};
 use crate::mcp_utils::extract_text_from_resource;
-use crate::providers::canonical::maybe_get_canonical_model;
+use crate::model::ModelConfig;
+use crate::thinking::ThinkingEffort;
 use anyhow::{anyhow, Result};
-use goose_providers::canonical::ThinkingMode;
-use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
-use goose_providers::errors::ProviderError;
-use goose_providers::images::{convert_image, ImageFormat};
-use goose_providers::model::ModelConfig;
-use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
 use serde_json::{json, Value};
@@ -16,7 +16,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::sync::Arc;
 
-pub(crate) const ANTHROPIC_PROVIDER_NAME: &str = "anthropic";
+pub const ANTHROPIC_PROVIDER_NAME: &str = "anthropic";
 
 macro_rules! string_enum {
     ($name:ident { $($variant:ident => $str:literal),+ $(,)? }) => {
@@ -54,19 +54,9 @@ impl AnthropicFormatOptions {
     fn for_model(self, model_config: &ModelConfig) -> Self {
         let preserve_thinking_context = model_config
             .request_param::<bool>("preserve_thinking_context")
-            .or_else(|| {
-                crate::config::Config::global()
-                    .get_param("ANTHROPIC_PRESERVE_THINKING_CONTEXT")
-                    .ok()
-            })
             .unwrap_or(self.preserve_thinking_context);
         let preserve_unsigned_thinking = model_config
             .request_param::<bool>("preserve_unsigned_thinking")
-            .or_else(|| {
-                crate::config::Config::global()
-                    .get_param("ANTHROPIC_PRESERVE_UNSIGNED_THINKING")
-                    .ok()
-            })
             .unwrap_or(self.preserve_unsigned_thinking)
             || preserve_thinking_context;
         let thinking_disabled = model_config.reasoning == Some(false)
@@ -115,7 +105,7 @@ pub fn thinking_type_for_provider(provider_name: &str, model_config: &ModelConfi
 
     let effort = model_config.thinking_effort();
 
-    if effort.is_none() && legacy_thinking_budget_tokens().is_some() {
+    if effort.is_none() && model_config.request_param::<i32>("budget_tokens").is_some() {
         return match mode {
             Some(ThinkingMode::Adaptive) => ThinkingType::Adaptive,
             _ => ThinkingType::Enabled,
@@ -550,10 +540,6 @@ pub fn thinking_budget_tokens(model_config: &ModelConfig) -> i32 {
         return request_param.max(1024);
     }
 
-    if let Some(budget) = legacy_thinking_budget_tokens() {
-        return budget;
-    }
-
     let effort = model_config
         .thinking_effort()
         .unwrap_or(ThinkingEffort::High);
@@ -564,16 +550,6 @@ pub fn thinking_budget_tokens(model_config: &ModelConfig) -> i32 {
         ThinkingEffort::High => 16000,
         ThinkingEffort::Max => 32000,
     }
-}
-
-fn legacy_thinking_budget_tokens() -> Option<i32> {
-    let config = crate::config::Config::global();
-    for key in ["ANTHROPIC_THINKING_BUDGET", "CLAUDE_THINKING_BUDGET"] {
-        if let Ok(budget) = config.get_param::<i32>(key) {
-            return Some(budget.max(1024));
-        }
-    }
-    None
 }
 
 // Anthropic counts thinking tokens against max_tokens, so the budget must leave
@@ -632,40 +608,7 @@ fn apply_thinking_config(
     }
 }
 
-/// Create a complete request payload for Anthropic's API
 pub fn create_request(
-    model_config: &ModelConfig,
-    system: &str,
-    messages: &[Message],
-    tools: &[Tool],
-) -> Result<Value> {
-    create_request_with_options(
-        model_config,
-        system,
-        messages,
-        tools,
-        AnthropicFormatOptions::default(),
-    )
-}
-
-pub fn create_request_with_options(
-    model_config: &ModelConfig,
-    system: &str,
-    messages: &[Message],
-    tools: &[Tool],
-    options: AnthropicFormatOptions,
-) -> Result<Value> {
-    create_request_with_options_for_provider(
-        ANTHROPIC_PROVIDER_NAME,
-        model_config,
-        system,
-        messages,
-        tools,
-        options,
-    )
-}
-
-pub fn create_request_with_options_for_provider(
     provider_name: &str,
     model_config: &ModelConfig,
     system: &str,
@@ -894,10 +837,10 @@ where
                             let parsed_args = if args.is_empty() {
                                 json!({})
                             } else {
-                                match goose_providers::json::parse_tool_arguments(&args) {
+                                match crate::json::parse_tool_arguments(&args) {
                                     Some(parsed) => parsed,
                                     None => {
-                                        let message_text = goose_providers::json::truncation_error_message(&args)
+                                        let message_text = crate::json::truncation_error_message(&args)
                                             .unwrap_or_else(|| {
                                                 format!("Could not parse tool arguments: {args}")
                                             });
@@ -1041,9 +984,42 @@ where
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
-    use goose_providers::model::ModelConfig;
+    use crate::model::ModelConfig;
     use rmcp::object;
     use serde_json::json;
+
+    /// Create a complete request payload for Anthropic's API
+    fn create_request_with_default_options(
+        model_config: &ModelConfig,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<Value> {
+        create_request_with_options_provider(
+            model_config,
+            system,
+            messages,
+            tools,
+            AnthropicFormatOptions::default(),
+        )
+    }
+
+    fn create_request_with_options_provider(
+        model_config: &ModelConfig,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+        options: AnthropicFormatOptions,
+    ) -> Result<Value> {
+        create_request(
+            ANTHROPIC_PROVIDER_NAME,
+            model_config,
+            system,
+            messages,
+            tools,
+            options,
+        )
+    }
 
     #[test]
     fn test_parse_text_response() -> Result<()> {
@@ -1320,7 +1296,7 @@ mod tests {
         config.max_tokens = Some(4096);
         config.request_params = Some(params);
         let messages = vec![Message::user().with_text("Hello")];
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
 
         assert_eq!(payload["thinking"]["type"], "adaptive");
         assert_eq!(payload["output_config"]["effort"], "high");
@@ -1340,7 +1316,7 @@ mod tests {
         config.max_tokens = Some(64000);
 
         let messages = vec![Message::user().with_text("Hello")];
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
 
         assert_eq!(payload["thinking"]["type"], "enabled");
         let budget = payload["thinking"]["budget_tokens"].as_i64().unwrap();
@@ -1363,7 +1339,7 @@ mod tests {
 
         // Budget larger than max_tokens is clamped to leave room for a response.
         config.max_tokens = Some(4096);
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
         let budget = payload["thinking"]["budget_tokens"].as_i64().unwrap();
         assert!(budget >= 1024);
         assert!(budget <= 4096 - 1024);
@@ -1371,7 +1347,7 @@ mod tests {
 
         // Too small to fit any thinking alongside a response — drop it.
         config.max_tokens = Some(1500);
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
         assert!(payload.get("thinking").is_none());
         assert_eq!(payload["max_tokens"], 1500);
 
@@ -1387,7 +1363,7 @@ mod tests {
 
         let config = cfg_with_effort("claude-sonnet-4-20250514", "off");
         let messages = vec![Message::user().with_text("Hello")];
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
 
         assert!(payload.get("thinking").is_none());
         assert!(payload.get("output_config").is_none());
@@ -1398,10 +1374,7 @@ mod tests {
     #[test]
     fn test_create_request_preserves_thinking_context_for_compatible_models() -> Result<()> {
         let _guard = env_lock::lock_env([
-            ("CLAUDE_THINKING_TYPE", None::<&str>),
             ("CLAUDE_THINKING_ENABLED", None::<&str>),
-            ("ANTHROPIC_THINKING_BUDGET", None::<&str>),
-            ("CLAUDE_THINKING_BUDGET", None::<&str>),
             ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
             ("ANTHROPIC_PRESERVE_UNSIGNED_THINKING", None::<&str>),
         ]);
@@ -1413,7 +1386,7 @@ mod tests {
             Message::user().with_text("Continue"),
         ];
 
-        let payload = create_request_with_options(
+        let payload = create_request_with_options_provider(
             &config,
             "system",
             &messages,
@@ -1441,10 +1414,7 @@ mod tests {
     #[test]
     fn test_create_request_model_params_enable_preserved_thinking_context() -> Result<()> {
         let _guard = env_lock::lock_env([
-            ("CLAUDE_THINKING_TYPE", None::<&str>),
             ("CLAUDE_THINKING_ENABLED", None::<&str>),
-            ("ANTHROPIC_THINKING_BUDGET", None::<&str>),
-            ("CLAUDE_THINKING_BUDGET", None::<&str>),
             ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
             ("ANTHROPIC_PRESERVE_UNSIGNED_THINKING", None::<&str>),
         ]);
@@ -1460,7 +1430,7 @@ mod tests {
             Message::user().with_text("Continue"),
         ];
 
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
 
         assert_eq!(payload["thinking"]["clear_thinking"], false);
         assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
@@ -1716,24 +1686,13 @@ mod tests {
         config.temperature = Some(0.7);
         let messages = vec![Message::user().with_text("Hello")];
 
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
 
         assert_eq!(payload["thinking"]["type"], "adaptive");
         assert!(payload.get("temperature").is_none());
         assert_eq!(payload["output_config"]["effort"], "high");
 
         Ok(())
-    }
-
-    #[test]
-    fn test_thinking_budget_uses_legacy_env() {
-        let _guard = env_lock::lock_env([
-            ("GOOSE_THINKING_EFFORT", None::<&str>),
-            ("ANTHROPIC_THINKING_BUDGET", Some("8192")),
-            ("CLAUDE_THINKING_BUDGET", None::<&str>),
-        ]);
-        let config = cfg_with_effort("claude-3-7-sonnet-20250219", "high");
-        assert_eq!(thinking_budget_tokens(&config), 8192);
     }
 
     #[test]

@@ -6,6 +6,7 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use chrono::{DateTime, Duration, Utc};
 use futures::TryStreamExt;
+use goose_providers::formats::anthropic::{AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -389,8 +390,15 @@ impl Provider for KimiCodeProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = create_request(model_config, system, messages, tools)
-            .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
+        let mut payload = create_request(
+            ANTHROPIC_PROVIDER_NAME,
+            model_config,
+            system,
+            messages,
+            tools,
+            AnthropicFormatOptions::default(),
+        )
+        .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         payload
             .as_object_mut()
             .unwrap()

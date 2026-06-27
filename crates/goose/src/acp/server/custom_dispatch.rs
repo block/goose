@@ -42,6 +42,14 @@ impl GooseAcpAgent {
         self.on_get_tools(req).await
     }
 
+    #[custom_method(SetToolPermissionsRequest)]
+    async fn dispatch_set_tool_permissions(
+        &self,
+        req: SetToolPermissionsRequest,
+    ) -> Result<SetToolPermissionsResponse, agent_client_protocol::Error> {
+        self.on_set_tool_permissions(req).await
+    }
+
     #[custom_method(GooseToolCallRequest)]
     async fn dispatch_call_tool(
         &self,
@@ -56,6 +64,30 @@ impl GooseAcpAgent {
         req: ReadResourceRequest,
     ) -> Result<ReadResourceResponse, agent_client_protocol::Error> {
         self.on_read_resource(req).await
+    }
+
+    #[custom_method(AppsListRequest)]
+    async fn dispatch_list_apps(
+        &self,
+        req: AppsListRequest,
+    ) -> Result<AppsListResponse, agent_client_protocol::Error> {
+        self.on_list_apps(req).await
+    }
+
+    #[custom_method(AppsExportRequest)]
+    async fn dispatch_export_app(
+        &self,
+        req: AppsExportRequest,
+    ) -> Result<AppsExportResponse, agent_client_protocol::Error> {
+        self.on_export_app(req).await
+    }
+
+    #[custom_method(AppsImportRequest)]
+    async fn dispatch_import_app(
+        &self,
+        req: AppsImportRequest,
+    ) -> Result<AppsImportResponse, agent_client_protocol::Error> {
+        self.on_import_app(req).await
     }
 
     #[custom_method(UpdateWorkingDirRequest)]
@@ -334,6 +366,14 @@ impl GooseAcpAgent {
         req: ImportSessionRequest,
     ) -> Result<ImportSessionResponse, agent_client_protocol::Error> {
         self.on_import_session(req).await
+    }
+
+    #[custom_method(ShareSessionNostrRequest)]
+    async fn dispatch_share_session_nostr(
+        &self,
+        req: ShareSessionNostrRequest,
+    ) -> Result<ShareSessionNostrResponse, agent_client_protocol::Error> {
+        self.on_share_session_nostr(req).await
     }
 
     #[custom_method(EncodeRecipeRequest)]

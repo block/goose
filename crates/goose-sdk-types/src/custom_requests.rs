@@ -51,13 +51,28 @@ pub struct RemoveSessionExtensionRequest {
 #[serde(rename_all = "camelCase")]
 pub struct GetToolsRequest {
     pub session_id: String,
+    /// Filter tools to those belonging to this extension.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub extension_name: Option<String>,
+}
+
+/// A single tool item returned by the tools list endpoint.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolListItem {
+    pub name: String,
+    pub description: String,
+    pub parameters: Vec<String>,
+    pub permission: Option<ToolPermissionLevel>,
+    pub input_schema: serde_json::Value,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub output_schema: Option<serde_json::Value>,
 }
 
 /// Tools response.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
 pub struct GetToolsResponse {
-    /// Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`.
-    pub tools: Vec<serde_json::Value>,
+    pub tools: Vec<ToolListItem>,
 }
 
 /// Read a resource from an extension.
@@ -101,6 +116,45 @@ pub struct GooseToolCallResponse {
     #[serde(skip_serializing_if = "Option::is_none")]
     #[serde(rename = "_meta")]
     pub meta: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/apps/list", response = AppsListResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct AppsListRequest {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub session_id: Option<String>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct AppsListResponse {
+    #[serde(default)]
+    pub apps: Vec<serde_json::Value>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/apps/export", response = AppsExportResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct AppsExportRequest {
+    pub name: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct AppsExportResponse {
+    pub html: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/apps/import", response = AppsImportResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct AppsImportRequest {
+    pub html: String,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct AppsImportResponse {
+    pub name: String,
+    pub message: String,
 }
 
 /// Update the working directory for a session.
@@ -579,11 +633,42 @@ pub struct ExportSessionResponse {
     pub data: String,
 }
 
-/// Import a session from a JSON string.
+/// Import a session from a JSON string or share link.
 #[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
 #[request(method = "_goose/unstable/session/import", response = ImportSessionResponse)]
+#[serde(rename_all = "camelCase")]
 pub struct ImportSessionRequest {
-    pub data: String,
+    pub input: String,
+    pub source: SessionImportSource,
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SessionImportSource {
+    #[default]
+    Auto,
+    Json,
+    Nostr,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(
+    method = "_goose/unstable/session/share/nostr",
+    response = ShareSessionNostrResponse
+)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareSessionNostrRequest {
+    pub session_id: String,
+    pub relays: Vec<String>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct ShareSessionNostrResponse {
+    pub deeplink: String,
+    pub nevent: String,
+    pub event_id: String,
+    pub relays: Vec<String>,
 }
 
 /// Import session response — metadata about the newly created session.
@@ -1550,3 +1635,32 @@ pub struct DictationModelSelectRequest {
     pub provider: String,
     pub model_id: String,
 }
+
+/// Permission level for a tool.
+#[derive(Debug, Default, Clone, Copy, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum ToolPermissionLevel {
+    AlwaysAllow,
+    #[default]
+    AskBefore,
+    NeverAllow,
+}
+
+/// A single tool permission entry.
+#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ToolPermissionEntry {
+    pub tool_name: String,
+    pub permission: ToolPermissionLevel,
+}
+
+/// Set permission levels for one or more tools.
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcRequest)]
+#[request(method = "_goose/unstable/tools/permissions/set", response = SetToolPermissionsResponse)]
+#[serde(rename_all = "camelCase")]
+pub struct SetToolPermissionsRequest {
+    pub tool_permissions: Vec<ToolPermissionEntry>,
+}
+
+#[derive(Debug, Default, Clone, Serialize, Deserialize, JsonSchema, JsonRpcResponse)]
+pub struct SetToolPermissionsResponse {}

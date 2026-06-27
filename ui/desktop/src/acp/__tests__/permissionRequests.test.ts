@@ -5,14 +5,17 @@ import {
   requestAcpPermission,
   resolveAcpPermissionRequest,
 } from '../permissionRequests';
+import { acpChatSessionActions } from '../chatSessionStore';
 
 vi.mock('../../acpChatFeatureFlag', () => ({
   USE_ACP_CHAT: true,
 }));
 
 vi.mock('../chatSessionStore', () => ({
+  acpPermissionUserInputRequestId: (toolCallId: string) => `permission:${toolCallId}`,
   acpChatSessionActions: {
     applyPermissionRequest: vi.fn(),
+    resolveUserInputRequest: vi.fn(),
   },
 }));
 
@@ -57,6 +60,7 @@ async function expectStillPending(promise: Promise<RequestPermissionResponse>): 
 
 describe('ACP permission requests', () => {
   beforeEach(() => {
+    vi.clearAllMocks();
     for (const sessionId of TEST_SESSION_IDS) {
       cancelAcpPermissionRequestsForSession(sessionId);
     }
@@ -74,6 +78,10 @@ describe('ACP permission requests', () => {
     await expectStillPending(response);
 
     expect(resolveAcpPermissionRequest('session-1', 'tool-1', 'allow_once')).toBe(true);
+    expect(acpChatSessionActions.resolveUserInputRequest).toHaveBeenCalledWith(
+      'session-1',
+      'permission:tool-1'
+    );
     await expect(response).resolves.toEqual({
       outcome: {
         outcome: 'selected',

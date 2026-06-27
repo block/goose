@@ -13,8 +13,10 @@ vi.mock('../../acpChatFeatureFlag', () => ({
 }));
 
 vi.mock('../chatSessionStore', () => ({
+  acpElicitationUserInputRequestId: (elicitationId: string) => `elicitation:${elicitationId}`,
   acpChatSessionActions: {
     applyElicitationRequest: vi.fn(),
+    resolveUserInputRequest: vi.fn(),
     setElicitationStatus: vi.fn(),
   },
 }));
@@ -73,9 +75,8 @@ describe('ACP elicitation requests', () => {
 
     await expectStillPending(response);
 
-    const appliedRequest = vi.mocked(
-      acpChatSessionActions.applyElicitationRequest
-    ).mock.calls[0][0];
+    const appliedRequest = vi.mocked(acpChatSessionActions.applyElicitationRequest).mock
+      .calls[0][0];
 
     expect(appliedRequest.id).toMatch(/^acp_elicitation_/);
     expect(appliedRequest.sessionId).toBe('session-1');
@@ -90,6 +91,10 @@ describe('ACP elicitation requests', () => {
       'session-1',
       appliedRequest.id,
       'submitted'
+    );
+    expect(acpChatSessionActions.resolveUserInputRequest).toHaveBeenCalledWith(
+      'session-1',
+      `elicitation:${appliedRequest.id}`
     );
 
     await expect(response).resolves.toEqual({
@@ -142,9 +147,8 @@ describe('ACP elicitation requests', () => {
     vi.useFakeTimers();
     try {
       const response = requestAcpElicitation(formRequest('session-1'));
-      const appliedRequest = vi.mocked(
-        acpChatSessionActions.applyElicitationRequest
-      ).mock.calls[0][0];
+      const appliedRequest = vi.mocked(acpChatSessionActions.applyElicitationRequest).mock
+        .calls[0][0];
 
       await expectStillPending(response);
 
@@ -154,6 +158,10 @@ describe('ACP elicitation requests', () => {
         'session-1',
         appliedRequest.id,
         'cancelled'
+      );
+      expect(acpChatSessionActions.resolveUserInputRequest).toHaveBeenCalledWith(
+        'session-1',
+        `elicitation:${appliedRequest.id}`
       );
       await expect(response).resolves.toEqual({ action: 'cancel' });
       expect(resolveAcpElicitationRequest('session-1', appliedRequest.id, {})).toBe(false);
