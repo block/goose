@@ -31,5 +31,3 @@ export interface UseChatSessionResult {
     editType?: 'fork' | 'edit'
   ) => Promise<void>;
 }
-
-export type UseChatSessionHook = (params: UseChatSessionParams) => UseChatSessionResult;

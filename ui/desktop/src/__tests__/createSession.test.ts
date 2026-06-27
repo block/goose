@@ -55,7 +55,7 @@ const gooseExtensionEntry = (name: string): GooseExtensionEntry => ({
 const mockedGetConfiguredGooseExtensions = vi.mocked(getConfiguredGooseExtensions);
 const mockedCreateAcpSession = vi.mocked(acpChatSessionController.createSession);
 
-describe('createSession extension overrides', () => {
+describe('createSession ACP session extensions', () => {
   beforeEach(() => {
     mockedGetConfiguredGooseExtensions.mockReset();
     mockedGetConfiguredGooseExtensions.mockResolvedValue([
