@@ -1199,36 +1199,6 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Connect to a goose server running elsewhere (requires app restart)"
   },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Choose an option to get started."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Free & Private"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Download a model and run entirely on your machine. No API keys, no accounts."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Use a Local Model"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Sign up to receive 60M free tokens for 7 days."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Retry"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Access multiple AI models with automatic setup. Sign up to receive $10 credit."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router by Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "An unexpected error occurred during setup."
-  },
   "goosehintsModal.close": {
     "defaultMessage": "Close"
   },
@@ -1822,9 +1792,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Show recommended only"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "Back"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Best for your machine"
@@ -2810,14 +2777,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Connect OpenAI, Anthropic, Google, etc"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Use a local model or a provider with free credits"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Download a model and run it on this device. No API key or account needed."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Select a provider"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Use Free/Local Providers"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Use a Local Model"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Provider Configuration Settings"
