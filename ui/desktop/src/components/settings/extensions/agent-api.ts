@@ -60,7 +60,7 @@ export async function removeFromAgent(
 
   try {
     await removeSessionExtension(sessionId, extensionName);
-    
+
     if (showToast) {
       toastService.dismiss(toastId);
       toastService.success({

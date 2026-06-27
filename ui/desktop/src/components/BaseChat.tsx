@@ -89,14 +89,12 @@ export default function BaseChat({
     session,
     messages,
     chatState,
-    setChatState,
     updateSession,
     handleSubmit,
     onSteerQueuedMessage,
     submitElicitationResponse,
     stopStreaming,
     sessionLoadError,
-    setRecipeUserParams,
     tokenState,
     notifications: toolCallNotifications,
     pauseQueueOnStop,
@@ -491,7 +489,6 @@ export default function BaseChat({
             sessionId={sessionId}
             handleSubmit={chatInputSubmit}
             chatState={chatState}
-            setChatState={setChatState}
             onStop={stopStreaming}
             onSteerQueuedMessage={onSteerQueuedMessage}
             pauseQueueOnStop={pauseQueueOnStop}

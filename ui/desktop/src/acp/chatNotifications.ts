@@ -23,7 +23,7 @@ export function handleAcpSessionNotification(notification: SessionNotification):
       })
     );
   }
-  
+
   return Promise.resolve();
 }
 
