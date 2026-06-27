@@ -113,7 +113,7 @@ export default function BaseChat({
       await acpUpdateWorkingDir(session.id, newDir);
       updateSession((currentSession) => ({ ...currentSession, working_dir: newDir }));
     },
-    [session, sessionId, updateSession]
+    [session, updateSession]
   );
 
   const recipe = session?.recipe as Recipe | null | undefined;
