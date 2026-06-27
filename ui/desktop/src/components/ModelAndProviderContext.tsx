@@ -97,7 +97,12 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
 
       try {
         if (sessionId) {
-          const applied = await acpSetSessionProviderModel(sessionId, providerName, modelName);
+          const applied = await acpSetSessionProviderModel(
+            sessionId,
+            providerName,
+            modelName,
+            model.request_params?.thinking_effort ?? null
+          );
           patchAcpSessionProviderModel(sessionId, applied);
         }
 

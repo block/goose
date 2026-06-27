@@ -23,7 +23,7 @@ describe('ACP providers', () => {
     vi.clearAllMocks();
   });
 
-  it('returns provider and model from the final model config response', async () => {
+  it('sets thinking effort after provider and model, then returns the final config response', async () => {
     const client = {
       setSessionConfigOption: vi
         .fn()
@@ -38,6 +38,13 @@ describe('ACP providers', () => {
             selectConfigOption('provider', 'anthropic'),
             selectConfigOption('model', 'claude-sonnet-4-5'),
           ],
+        })
+        .mockResolvedValueOnce({
+          configOptions: [
+            selectConfigOption('provider', 'anthropic'),
+            selectConfigOption('model', 'claude-sonnet-4-5'),
+            selectConfigOption('thinking_effort', 'high'),
+          ],
         }),
     };
     vi.mocked(getAcpClient).mockResolvedValue(
@@ -47,10 +54,11 @@ describe('ACP providers', () => {
     const applied = await acpSetSessionProviderModel(
       'session-1',
       'anthropic',
-      'claude-sonnet-4-5'
+      'claude-sonnet-4-5',
+      'high'
     );
 
-    expect(client.setSessionConfigOption).toHaveBeenCalledTimes(2);
+    expect(client.setSessionConfigOption).toHaveBeenCalledTimes(3);
     expect(client.setSessionConfigOption).toHaveBeenNthCalledWith(1, {
       sessionId: 'session-1',
       configId: 'provider',
@@ -60,6 +68,11 @@ describe('ACP providers', () => {
       sessionId: 'session-1',
       configId: 'model',
       value: 'claude-sonnet-4-5',
+    });
+    expect(client.setSessionConfigOption).toHaveBeenNthCalledWith(3, {
+      sessionId: 'session-1',
+      configId: 'thinking_effort',
+      value: 'high',
     });
     expect(applied).toEqual({
       providerId: 'anthropic',

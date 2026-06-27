@@ -265,7 +265,8 @@ function selectCurrentValue(kind: unknown): unknown {
 export async function acpSetSessionProviderModel(
   sessionId: string,
   providerId: string,
-  modelId?: string | null
+  modelId?: string | null,
+  thinkingEffort?: ThinkingEffort | null
 ): Promise<AppliedSessionProviderModel> {
   const client = await getAcpClient();
   let response = await client.setSessionConfigOption({
@@ -278,6 +279,13 @@ export async function acpSetSessionProviderModel(
       sessionId,
       configId: 'model',
       value: modelId,
+    });
+  }
+  if (thinkingEffort != null) {
+    response = await client.setSessionConfigOption({
+      sessionId,
+      configId: 'thinking_effort',
+      value: thinkingEffort,
     });
   }
 
