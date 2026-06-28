@@ -50,7 +50,19 @@ const initialTokenState: TokenState = {
 
 export interface AcpChatSessionStore {
   getSnapshot(sessionId: string): AcpChatSessionSnapshot | undefined;
+  // True if any session has work in flight (a turn that would be lost if the window closed now).
+  hasAnyBusySession(): boolean;
 }
+
+// Chat states that represent in-flight work whose result would be lost on a hard close.
+// `Idle` and `LoadingConversation` are not "pending return".
+const BUSY_CHAT_STATES: ReadonlySet<ChatState> = new Set([
+  ChatState.Thinking,
+  ChatState.Streaming,
+  ChatState.WaitingForUserInput,
+  ChatState.Compacting,
+  ChatState.RestartingAgent,
+]);
 
 export interface AcpChatSessionActions {
   deleteSnapshot(sessionId: string): void;
@@ -114,6 +126,15 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
   const getSnapshot: AcpChatSessionStore['getSnapshot'] = (sessionId) => {
     const entry = sessionsById.get(sessionId);
     return entry ? snapshotFromEntry(entry) : undefined;
+  };
+
+  const hasAnyBusySession: AcpChatSessionStore['hasAnyBusySession'] = () => {
+    for (const entry of sessionsById.values()) {
+      if (BUSY_CHAT_STATES.has(entry.chatState)) {
+        return true;
+      }
+    }
+    return false;
   };
 
   const subscribe: AcpChatSessionStoreInternal['subscribe'] = (sessionId, listener) => {
@@ -470,6 +491,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
 
   return {
     getSnapshot,
+    hasAnyBusySession,
     subscribe,
     deleteSnapshot,
     setSessionMetadata,
@@ -539,6 +561,7 @@ export function useAcpChatSessionSnapshot(sessionId: string): AcpChatSessionSnap
 function storeFromInternal(store: AcpChatSessionStoreInternal): AcpChatSessionStore {
   return {
     getSnapshot: store.getSnapshot,
+    hasAnyBusySession: store.hasAnyBusySession,
   };
 }
 

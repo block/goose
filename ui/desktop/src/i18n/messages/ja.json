@@ -221,6 +221,36 @@
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "回答スタイル"
   },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "はい、今すぐ閉じる"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "返却待ちのセッションが検出されました。今すぐ閉じると、返却内容が失われます。今すぐ閉じますか?"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "セッションがまだ実行中です"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "いいえ、待ちます"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "キャンセル"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "次の操作を選択してください:"
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "すぐに閉じる"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "選択内容を記憶する"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "Goose を閉じる"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "システムトレイに収納する"
+  },
   "configSettings.configReset": {
     "defaultMessage": "設定をリセットしました"
   },
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "閉じる"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "常に確認する"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "Goose ウィンドウを閉じたときの動作を選択します"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "すぐに閉じる"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "ウィンドウを閉じるとき"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "システムトレイに収納する"
   },
   "settings.costTracking.description": {
     "defaultMessage": "モデル料金と使用コストを表示します"

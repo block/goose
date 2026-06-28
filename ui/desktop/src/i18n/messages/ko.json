@@ -221,6 +221,36 @@
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "응답 스타일"
   },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "예, 지금 닫기"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "반환 대기 중인 세션이 감지되었습니다. 지금 닫으면 반환이 손실됩니다. 지금 닫으시겠습니까?"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "세션이 아직 실행 중입니다"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "아니요, 기다리겠습니다"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "취소"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "다음 중 무엇을 하시겠습니까:"
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "즉시 닫기"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "내 선택 기억하기"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "Goose 닫기"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "시스템 트레이로 닫기"
+  },
   "configSettings.configReset": {
     "defaultMessage": "구성 재설정"
   },
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "닫기"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "항상 묻기"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "Goose 창을 닫을 때 수행할 동작을 선택하세요"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "즉시 닫기"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "창을 닫을 때"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "시스템 트레이로 닫기"
   },
   "settings.costTracking.description": {
     "defaultMessage": "모델 가격 및 사용 비용을 표시합니다."

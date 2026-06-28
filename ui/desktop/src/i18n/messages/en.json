@@ -221,6 +221,36 @@
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Response Styles"
   },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "Yes, close now"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "A session is still running. If you close now, its in-progress response will be lost. Do you want to close now?"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "Sessions still running"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "No, I'll wait"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "Do you want to:"
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "Close immediately"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "Remember my selection"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "Close Goose"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "Close to system tray"
+  },
   "configSettings.configReset": {
     "defaultMessage": "Configuration Reset"
   },
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "Close"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "Always ask"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "Choose what happens when you close the Goose window"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "Close immediately"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "When closing the window"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "Close to system tray"
   },
   "settings.costTracking.description": {
     "defaultMessage": "Show model pricing and usage costs"

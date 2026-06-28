@@ -41,14 +41,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Nenhuma aplicação disponível"
   },
-  "appsView.retry": {
-    "defaultMessage": "Tentar novamente"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Tentar novamente"
   },
   "appsView.title": {
     "defaultMessage": "Aplicações"
@@ -220,6 +220,36 @@
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Estilos de resposta"
+  },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "Sim, fechar agora"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "Foram detetadas sessões com retorno pendente. Se fechar agora, o retorno será perdido. Pretende fechar agora?"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "Sessões ainda em execução"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "Não, vou aguardar"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "Cancelar"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "Pretende:"
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "Fechar imediatamente"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "Lembrar a minha seleção"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "Fechar o Goose"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "Fechar para a bandeja do sistema"
   },
   "configSettings.configReset": {
     "defaultMessage": "Configuração reposta"
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "Fechar"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "Perguntar sempre"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "Escolha o que acontece quando fecha a janela do Goose"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "Fechar imediatamente"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "Ao fechar a janela"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "Fechar para a bandeja do sistema"
   },
   "settings.costTracking.description": {
     "defaultMessage": "Mostrar os preços do modelo e os custos de utilização"

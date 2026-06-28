@@ -221,6 +221,36 @@
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Yanıt Stilleri"
   },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "Evet, şimdi kapat"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "Dönüşü bekleyen oturum(lar) algılandı. Şimdi kapatırsanız dönüş kaybolur. Şimdi kapatmak istiyor musunuz?"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "Oturumlar hâlâ çalışıyor"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "Hayır, bekleyeceğim"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "İptal"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "Ne yapmak istiyorsunuz:"
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "Hemen kapat"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "Seçimimi hatırla"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "Goose'u kapat"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "Sistem tepsisine küçült"
+  },
   "configSettings.configReset": {
     "defaultMessage": "Yapılandırma Sıfırlama"
   },
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "Kapat"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "Her zaman sor"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "Goose penceresini kapattığınızda ne olacağını seçin"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "Hemen kapat"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "Pencere kapatılırken"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "Sistem tepsisine küçült"
   },
   "settings.costTracking.description": {
     "defaultMessage": "Model fiyatlandırmasını ve kullanım maliyetlerini göster"

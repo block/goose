@@ -41,14 +41,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Keine Apps verfügbar"
   },
-  "appsView.retry": {
-    "defaultMessage": "Erneut versuchen"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Erneut versuchen"
   },
   "appsView.title": {
     "defaultMessage": "Apps"
@@ -220,6 +220,36 @@
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Antwortstile"
+  },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "Ja, jetzt schließen"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "Es wurden ausstehende Sitzungen erkannt. Wenn Sie jetzt schließen, gehen die Rückgaben verloren. Möchten Sie jetzt schließen?"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "Sitzungen laufen noch"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "Nein, ich warte"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "Abbrechen"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "Möchten Sie:"
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "Sofort schließen"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "Meine Auswahl merken"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "Goose schließen"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "In den Systembereich schließen"
   },
   "configSettings.configReset": {
     "defaultMessage": "Konfiguration zurückgesetzt"
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "Schließen"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "Immer fragen"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "Wählen Sie, was passiert, wenn Sie das Goose-Fenster schließen"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "Sofort schließen"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "Beim Schließen des Fensters"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "In den Infobereich schließen"
   },
   "settings.costTracking.description": {
     "defaultMessage": "Modellpreise und Nutzungskosten anzeigen"

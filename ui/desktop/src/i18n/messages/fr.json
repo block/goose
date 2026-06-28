@@ -41,14 +41,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Aucune application disponible"
   },
-  "appsView.retry": {
-    "defaultMessage": "Réessayer"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Réessayer"
   },
   "appsView.title": {
     "defaultMessage": "Applications"
@@ -220,6 +220,36 @@
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Styles de réponse"
+  },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "Oui, fermer maintenant"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "Des sessions en attente de retour ont été détectées. Si vous fermez maintenant, le retour sera perdu. Voulez-vous fermer maintenant ?"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "Des sessions sont toujours en cours"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "Non, je vais attendre"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "Annuler"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "Que voulez-vous faire :"
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "Fermer immédiatement"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "Mémoriser mon choix"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "Fermer Goose"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "Réduire dans la barre d'état système"
   },
   "configSettings.configReset": {
     "defaultMessage": "Configuration réinitialisée"
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "Fermer"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "Toujours demander"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "Choisissez ce qui se passe lorsque vous fermez la fenêtre de Goose"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "Fermer immédiatement"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "À la fermeture de la fenêtre"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "Réduire dans la zone de notification"
   },
   "settings.costTracking.description": {
     "defaultMessage": "Afficher la tarification des modèles et les coûts d'utilisation"

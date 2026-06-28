@@ -41,14 +41,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Nessuna app disponibile"
   },
-  "appsView.retry": {
-    "defaultMessage": "Riprova"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Riprova"
   },
   "appsView.title": {
     "defaultMessage": "App"
@@ -220,6 +220,36 @@
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Stili di risposta"
+  },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "Sì, chiudi ora"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "Rilevate sessioni con restituzione in sospeso. Se chiudi ora, la restituzione andrà persa. Vuoi chiudere ora?"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "Sessioni ancora in esecuzione"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "No, aspetto"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "Cosa vuoi fare:"
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "Chiudi immediatamente"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "Ricorda la mia scelta"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "Chiudi Goose"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "Riduci nella barra delle applicazioni"
   },
   "configSettings.configReset": {
     "defaultMessage": "Configurazione reimpostata"
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "Chiudi"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "Chiedi sempre"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "Scegli cosa accade quando chiudi la finestra di Goose"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "Chiudi immediatamente"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "Alla chiusura della finestra"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "Riduci nell'area di notifica"
   },
   "settings.costTracking.description": {
     "defaultMessage": "Mostra i prezzi dei modelli e i costi di utilizzo"

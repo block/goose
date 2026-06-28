@@ -221,6 +221,36 @@
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "प्रतिक्रिया शैलियाँ"
   },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "हाँ, अभी बंद करें"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "ऐसे सत्र मिले जिनकी वापसी लंबित है। यदि आप अभी बंद करते हैं, तो वापसी खो जाएगी। क्या आप अभी बंद करना चाहते हैं?"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "सत्र अभी भी चल रहे हैं"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "नहीं, मैं प्रतीक्षा करूँगा"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "रद्द करें"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "आप क्या करना चाहते हैं:"
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "तुरंत बंद करें"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "मेरा चयन याद रखें"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "Goose बंद करें"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "सिस्टम ट्रे में बंद करें"
+  },
   "configSettings.configReset": {
     "defaultMessage": "कॉन्फ़िगरेशन रीसेट"
   },
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "बंद करें"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "हमेशा पूछें"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "चुनें कि जब आप Goose विंडो बंद करें तो क्या हो"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "तुरंत बंद करें"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "विंडो बंद करते समय"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "सिस्टम ट्रे में बंद करें"
   },
   "settings.costTracking.description": {
     "defaultMessage": "मॉडल मूल्य निर्धारण और उपयोग लागत दिखाएं"

@@ -221,6 +221,36 @@
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Стили ответов"
   },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "Да, закрыть сейчас"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "Обнаружены сеансы, ожидающие возврата. Если закрыть сейчас, возврат будет потерян. Закрыть сейчас?"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "Сеансы всё ещё выполняются"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "Нет, я подожду"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "Отмена"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "Выберите действие:"
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "Закрыть немедленно"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "Запомнить мой выбор"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "Закрыть Goose"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "Свернуть в системный трей"
+  },
   "configSettings.configReset": {
     "defaultMessage": "Конфигурация сброшена"
   },
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "Закрыть"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "Всегда спрашивать"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "Выберите, что происходит при закрытии окна Goose"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "Закрыть немедленно"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "При закрытии окна"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "Свернуть в системный трей"
   },
   "settings.costTracking.description": {
     "defaultMessage": "Показывать цены моделей и стоимость использования"

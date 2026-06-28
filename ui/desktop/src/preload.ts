@@ -150,6 +150,8 @@ type ElectronAPI = {
     callback: (event: Electron.IpcRendererEvent, ...args: unknown[]) => void
   ) => void;
   emit: (channel: string, ...args: unknown[]) => void;
+  resolveWindowClose: (action: 'tray' | 'quit' | 'abort') => void;
+  ackWindowClose: () => void;
   broadcastThemeChange: (themeData: {
     mode: string;
     useSystemTheme: boolean;
@@ -284,6 +286,12 @@ const electronAPI: ElectronAPI = {
   },
   emit: (channel: string, ...args: unknown[]) => {
     ipcRenderer.emit(channel, ...args);
+  },
+  resolveWindowClose: (action: 'tray' | 'quit' | 'abort') => {
+    ipcRenderer.send('resolve-window-close', action);
+  },
+  ackWindowClose: () => {
+    ipcRenderer.send('window-close-ack');
   },
   broadcastThemeChange: (themeData: {
     mode: string;

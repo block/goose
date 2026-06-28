@@ -221,6 +221,36 @@
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Estilos de respuesta"
   },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "Sí, cerrar ahora"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "Se detectaron sesiones con devolución pendiente. Si cierras ahora, se perderá la devolución. ¿Quieres cerrar ahora?"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "Aún hay sesiones en ejecución"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "No, esperaré"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "Cancelar"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "¿Qué quieres hacer?"
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "Cerrar inmediatamente"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "Recordar mi selección"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "Cerrar Goose"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "Minimizar a la bandeja del sistema"
+  },
   "configSettings.configReset": {
     "defaultMessage": "Configuración restablecida"
   },
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "Cerrar"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "Preguntar siempre"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "Elige qué ocurre cuando cierras la ventana de Goose"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "Cerrar inmediatamente"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "Al cerrar la ventana"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "Minimizar a la bandeja del sistema"
   },
   "settings.costTracking.description": {
     "defaultMessage": "Muestra los precios del modelo y los costos de uso"

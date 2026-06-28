@@ -41,14 +41,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "沒有可用的應用程式"
   },
-  "appsView.retry": {
-    "defaultMessage": "重試"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "重試"
   },
   "appsView.title": {
     "defaultMessage": "應用程式"
@@ -220,6 +220,36 @@
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "回應樣式"
+  },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "是，立即關閉"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "偵測到尚待返回的工作階段。如果您現在關閉，返回的內容將會遺失。您要立即關閉嗎？"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "工作階段仍在執行中"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "否，我要等待"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "取消"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "您想要："
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "立即關閉"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "記住我的選擇"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "關閉 Goose"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "關閉至系統匣"
   },
   "configSettings.configReset": {
     "defaultMessage": "設定已重設"
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "關閉"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "每次都詢問"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "選擇關閉 Goose 視窗時的行為"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "立即關閉"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "關閉視窗時"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "縮小至系統匣"
   },
   "settings.costTracking.description": {
     "defaultMessage": "顯示模型定價與使用費用"

@@ -964,6 +964,16 @@ let appConfig = {
 };
 
 const windowMap = new Map<number, BrowserWindow>();
+
+// Window-close (X) handling. The close is intercepted so the renderer can offer "close to tray"
+// or warn about an in-flight session. `isQuitting` is set on a real quit (before-quit / restart)
+// so those paths bypass the interceptor. A window is only intercepted once its renderer is ready
+// (see `reactReadyWindows`); `windowsAwaitingCloseDecision` de-dupes pending asks and
+// `windowCloseTimeouts` force-closes if the renderer never answers.
+let isQuitting = false;
+const windowsAwaitingCloseDecision = new Set<number>();
+const windowCloseTimeouts = new Map<number, ReturnType<typeof setTimeout>>();
+
 const appWindows = new Map<string, BrowserWindow>();
 
 const gooseServeLeases = new GooseServeLeaseRegistry(log);
@@ -1476,9 +1486,50 @@ const createChat = async (
 
   windowMap.set(windowId, mainWindow);
 
+  // Intercept the close (X) so the renderer can offer "close to tray" / warn about an in-flight
+  // session. A real quit (Cmd+Q, tray Quit, restart) sets isQuitting and is let through. If the
+  // renderer isn't ready, is reloading, or is gone, the window closes normally so it can't get stuck.
+  mainWindow.on('close', (event) => {
+    if (isQuitting || mainWindow.isDestroyed()) {
+      return;
+    }
+    // Only intercept when a live renderer can actually answer. isLoadingMainFrame() covers a
+    // reload in progress; the destroyed/crashed checks cover a dead renderer.
+    if (!reactReadyWindows.has(windowId) || mainWindow.webContents.isLoadingMainFrame()) {
+      return;
+    }
+    if (mainWindow.webContents.isDestroyed() || mainWindow.webContents.isCrashed()) {
+      return;
+    }
+    event.preventDefault();
+    if (windowsAwaitingCloseDecision.has(windowId)) {
+      return;
+    }
+    windowsAwaitingCloseDecision.add(windowId);
+    mainWindow.webContents.send('request-window-close');
+    // Safety net for a renderer that can't answer (fatal-error UI without the modal, a hang, or an
+    // unmounted listener). A live modal acks receipt ('window-close-ack'), which cancels this timer,
+    // so it NEVER fires while the user is deciding — only when nothing handled the request, in which
+    // case we force the close so the window can't get stuck.
+    const closeTimeout = setTimeout(() => {
+      windowsAwaitingCloseDecision.delete(windowId);
+      windowCloseTimeouts.delete(windowId);
+      if (!mainWindow.isDestroyed()) {
+        mainWindow.destroy();
+      }
+    }, 3000);
+    windowCloseTimeouts.set(windowId, closeTimeout);
+  });
+
   // Handle window closure
   mainWindow.on('closed', () => {
     windowMap.delete(windowId);
+    windowsAwaitingCloseDecision.delete(windowId);
+    const pendingCloseTimeout = windowCloseTimeouts.get(windowId);
+    if (pendingCloseTimeout) {
+      clearTimeout(pendingCloseTimeout);
+      windowCloseTimeouts.delete(windowId);
+    }
 
     pendingInitialMessages.delete(windowId);
     pendingDeepLinks.delete(windowId);
@@ -1655,6 +1706,10 @@ const showWindow = async () => {
       height: currentBounds.height,
     });
 
+    if (process.platform === 'win32') {
+      // Undo the skipTaskbar we set when hiding to tray, so the taskbar button returns.
+      win.setSkipTaskbar(false);
+    }
     if (!win.isVisible()) {
       win.show();
     }
@@ -1918,6 +1973,7 @@ const validSettingKeys: Set<string> = new Set([
   'enableWakelock',
   'enableNotifications',
   'spellcheckEnabled',
+  'closeAction',
   'externalGoosed',
   'globalShortcut',
   'keyboardShortcuts',
@@ -1939,6 +1995,11 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
 
   if (key === 'language' && !isValidLanguageSetting(value)) {
     console.error(`Invalid language setting rejected: ${String(value)}`);
+    return;
+  }
+
+  if (key === 'closeAction' && value !== 'ask' && value !== 'tray' && value !== 'quit') {
+    console.error(`Invalid closeAction setting rejected: ${String(value)}`);
     return;
   }
 
@@ -2819,6 +2880,64 @@ async function appMain() {
     }
   });
 
+  // A live CloseConfirmationModal acks that it received 'request-window-close'. Cancel the force-close
+  // safety timer so the user has as long as they need to decide (the verdict arrives separately).
+  ipcMain.on('window-close-ack', (_event) => {
+    const window = BrowserWindow.fromWebContents(_event.sender);
+    if (!window) {
+      return;
+    }
+    const pendingCloseTimeout = windowCloseTimeouts.get(window.id);
+    if (pendingCloseTimeout) {
+      clearTimeout(pendingCloseTimeout);
+      windowCloseTimeouts.delete(window.id);
+    }
+  });
+
+  // The renderer's verdict for an intercepted close (see the 'close' handler in createChat).
+  ipcMain.on('resolve-window-close', (_event, action: 'tray' | 'quit' | 'abort') => {
+    const window = BrowserWindow.fromWebContents(_event.sender);
+    if (!window) {
+      return;
+    }
+    windowsAwaitingCloseDecision.delete(window.id);
+    const pendingCloseTimeout = windowCloseTimeouts.get(window.id);
+    if (pendingCloseTimeout) {
+      clearTimeout(pendingCloseTimeout);
+      windowCloseTimeouts.delete(window.id);
+    }
+    if (window.isDestroyed()) {
+      return;
+    }
+
+    if (action === 'tray') {
+      // Keep goosed alive: hide/minimize rather than close, so the in-flight turn keeps running.
+      // On Linux the system tray is unreliable and has no click-to-restore, so always minimize
+      // (the window stays reachable from the taskbar).
+      if (process.platform !== 'linux' && !tray) {
+        createTray();
+      }
+      if (process.platform === 'linux' || !tray) {
+        // No reliable tray to restore from — minimize so the window can't be lost.
+        window.minimize();
+        return;
+      }
+      if (process.platform === 'win32') {
+        // Otherwise a hidden window still leaves a taskbar button — not really "closed to tray".
+        window.setSkipTaskbar(true);
+      }
+      window.hide();
+      return;
+    }
+
+    if (action === 'quit') {
+      // destroy() (not close()) so we don't re-enter the 'close' interceptor; 'closed' still
+      // fires and releases this window's goosed lease.
+      window.destroy();
+    }
+    // 'abort' → do nothing; the window stays open.
+  });
+
   ipcMain.on('notify', (event, data) => {
     try {
       // Validate notification data
@@ -2938,6 +3057,8 @@ async function appMain() {
 
   // Handle app restart
   ipcMain.on('restart-app', () => {
+    // app.exit() skips 'before-quit', so set the flag here to bypass the close interceptor.
+    isQuitting = true;
     app.relaunch();
     app.exit(0);
   });
@@ -3106,6 +3227,12 @@ async function getAllowList(): Promise<string[]> {
     return [];
   }
 }
+
+// A real quit (app.quit(), Cmd+Q, tray "Quit", auto-update install) must bypass the per-window
+// close interceptor so windows don't trap the quit.
+app.on('before-quit', () => {
+  isQuitting = true;
+});
 
 app.on('will-quit', async () => {
   const gooseServeLeaseCount = gooseServeLeases.activeLeaseCount();

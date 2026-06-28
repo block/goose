@@ -41,14 +41,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Không có ứng dụng nào"
   },
-  "appsView.retry": {
-    "defaultMessage": "Thử lại"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Thử lại"
   },
   "appsView.title": {
     "defaultMessage": "Ứng dụng"
@@ -220,6 +220,36 @@
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Phong cách phản hồi"
+  },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "Có, đóng ngay"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "Đã phát hiện (các) phiên đang chờ trả kết quả. Nếu bạn đóng ngay, kết quả trả về sẽ bị mất. Bạn có muốn đóng ngay không?"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "Các phiên vẫn đang chạy"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "Không, tôi sẽ chờ"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "Hủy"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "Bạn muốn:"
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "Đóng ngay lập tức"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "Ghi nhớ lựa chọn của tôi"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "Đóng Goose"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "Thu nhỏ xuống khay hệ thống"
   },
   "configSettings.configReset": {
     "defaultMessage": "Đặt lại cấu hình"
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "Đóng"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "Luôn hỏi"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "Chọn điều xảy ra khi bạn đóng cửa sổ Goose"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "Đóng ngay lập tức"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "Khi đóng cửa sổ"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "Thu nhỏ xuống khay hệ thống"
   },
   "settings.costTracking.description": {
     "defaultMessage": "Hiển thị giá mô hình và chi phí sử dụng"

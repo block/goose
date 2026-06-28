@@ -221,6 +221,36 @@
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "回复风格"
   },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "是的，立即关闭"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "检测到有会话尚未返回。如果现在关闭，返回结果将会丢失。是否要立即关闭？"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "会话仍在运行"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "不，我再等等"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "取消"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "你想要："
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "立即关闭"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "记住我的选择"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "关闭 Goose"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "关闭到系统托盘"
+  },
   "configSettings.configReset": {
     "defaultMessage": "配置已重置"
   },
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "关闭"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "每次询问"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "选择关闭 Goose 窗口时执行的操作"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "立即关闭"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "关闭窗口时"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "关闭到系统托盘"
   },
   "settings.costTracking.description": {
     "defaultMessage": "显示模型定价和使用费用"

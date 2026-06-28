@@ -41,14 +41,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "Tidak ada aplikasi yang tersedia"
   },
-  "appsView.retry": {
-    "defaultMessage": "Coba lagi"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Coba lagi"
   },
   "appsView.title": {
     "defaultMessage": "Aplikasi"
@@ -220,6 +220,36 @@
   },
   "chatSettings.responseStylesTitle": {
     "defaultMessage": "Gaya Respons"
+  },
+  "closeDialog.busy.confirm": {
+    "defaultMessage": "Ya, tutup sekarang"
+  },
+  "closeDialog.busy.message": {
+    "defaultMessage": "Terdeteksi sesi yang menunggu untuk kembali. Jika Anda menutup sekarang, proses kembali akan hilang. Apakah Anda ingin menutup sekarang?"
+  },
+  "closeDialog.busy.title": {
+    "defaultMessage": "Sesi masih berjalan"
+  },
+  "closeDialog.busy.wait": {
+    "defaultMessage": "Tidak, saya akan menunggu"
+  },
+  "closeDialog.cancel": {
+    "defaultMessage": "Batal"
+  },
+  "closeDialog.prompt": {
+    "defaultMessage": "Apakah Anda ingin:"
+  },
+  "closeDialog.quit": {
+    "defaultMessage": "Tutup segera"
+  },
+  "closeDialog.remember": {
+    "defaultMessage": "Ingat pilihan saya"
+  },
+  "closeDialog.title": {
+    "defaultMessage": "Tutup Goose"
+  },
+  "closeDialog.tray": {
+    "defaultMessage": "Tutup ke baki sistem"
   },
   "configSettings.configReset": {
     "defaultMessage": "Konfigurasi Disetel Ulang"
@@ -3814,6 +3844,21 @@
   },
   "settings.close": {
     "defaultMessage": "Tutup"
+  },
+  "settings.closeBehavior.ask": {
+    "defaultMessage": "Selalu tanya"
+  },
+  "settings.closeBehavior.description": {
+    "defaultMessage": "Pilih apa yang terjadi saat Anda menutup jendela Goose"
+  },
+  "settings.closeBehavior.quit": {
+    "defaultMessage": "Tutup segera"
+  },
+  "settings.closeBehavior.title": {
+    "defaultMessage": "Saat menutup jendela"
+  },
+  "settings.closeBehavior.tray": {
+    "defaultMessage": "Tutup ke baki sistem"
   },
   "settings.costTracking.description": {
     "defaultMessage": "Tampilkan harga model dan biaya penggunaan"
