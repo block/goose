@@ -3887,14 +3887,32 @@
   "settings.language.english": {
     "defaultMessage": "英語"
   },
+  "settings.language.french": {
+    "defaultMessage": "フランス語"
+  },
+  "settings.language.german": {
+    "defaultMessage": "ドイツ語"
+  },
   "settings.language.hindi": {
     "defaultMessage": "ヒンディー語"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "インドネシア語"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "イタリア語"
   },
   "settings.language.japanese": {
     "defaultMessage": "日本語"
   },
   "settings.language.korean": {
     "defaultMessage": "韓国語"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "マレー語"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "ポルトガル語"
   },
   "settings.language.russian": {
     "defaultMessage": "ロシア語"
@@ -3911,8 +3929,14 @@
   "settings.language.turkish": {
     "defaultMessage": "トルコ語"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "ベトナム語"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "中国語（簡体字）"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "中国語（繁体字）"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "メニューバーにgooseを表示します"

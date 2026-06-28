@@ -3887,14 +3887,32 @@
   "settings.language.english": {
     "defaultMessage": "英语"
   },
+  "settings.language.french": {
+    "defaultMessage": "法语"
+  },
+  "settings.language.german": {
+    "defaultMessage": "德语"
+  },
   "settings.language.hindi": {
     "defaultMessage": "印地语"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "印度尼西亚语"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "意大利语"
   },
   "settings.language.japanese": {
     "defaultMessage": "日语"
   },
   "settings.language.korean": {
     "defaultMessage": "韩语"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "马来语"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "葡萄牙语"
   },
   "settings.language.russian": {
     "defaultMessage": "俄语"
@@ -3911,8 +3929,14 @@
   "settings.language.turkish": {
     "defaultMessage": "土耳其语"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "越南语"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "简体中文"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "中文（繁体）"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "在菜单栏显示 goose"

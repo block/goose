@@ -3887,14 +3887,32 @@
   "settings.language.english": {
     "defaultMessage": "अंग्रेज़ी"
   },
+  "settings.language.french": {
+    "defaultMessage": "फ़्रेंच"
+  },
+  "settings.language.german": {
+    "defaultMessage": "जर्मन"
+  },
   "settings.language.hindi": {
     "defaultMessage": "हिन्दी"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "इंडोनेशियाई"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "इतालवी"
   },
   "settings.language.japanese": {
     "defaultMessage": "जापानी"
   },
   "settings.language.korean": {
     "defaultMessage": "कोरियाई"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "मलय"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "पुर्तगाली"
   },
   "settings.language.russian": {
     "defaultMessage": "रूसी"
@@ -3911,8 +3929,14 @@
   "settings.language.turkish": {
     "defaultMessage": "तुर्की"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "वियतनामी"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "चीनी (सरलीकृत)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "चीनी (पारंपरिक)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "मेनू बार में goose दिखाएँ"

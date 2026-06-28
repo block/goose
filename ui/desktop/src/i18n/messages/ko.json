@@ -3887,14 +3887,32 @@
   "settings.language.english": {
     "defaultMessage": "영어"
   },
+  "settings.language.french": {
+    "defaultMessage": "프랑스어"
+  },
+  "settings.language.german": {
+    "defaultMessage": "독일어"
+  },
   "settings.language.hindi": {
     "defaultMessage": "힌디어"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "인도네시아어"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "이탈리아어"
   },
   "settings.language.japanese": {
     "defaultMessage": "일본어"
   },
   "settings.language.korean": {
     "defaultMessage": "한국어"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "말레이어"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "포르투갈어"
   },
   "settings.language.russian": {
     "defaultMessage": "러시아어"
@@ -3911,8 +3929,14 @@
   "settings.language.turkish": {
     "defaultMessage": "터키어"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "베트남어"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "중국어(간체)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "중국어(번체)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "메뉴 막대에 goose를 표시합니다."

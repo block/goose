@@ -7,25 +7,30 @@
  *   3. "en" (fallback)
  *
  * For Chinese: any Simplified Chinese tag (zh, zh-CN, zh-Hans, zh-Hans-CN, zh-SG, zh-MY)
- * maps to the "zh-CN" catalog. Traditional variants (zh-TW, zh-HK, zh-Hant) are not yet
- * translated and fall through to English.
+ * maps to the "zh-CN" catalog; Traditional variants (zh-TW, zh-HK, zh-MO, zh-Hant) map to
+ * the "zh-TW" catalog.
  */
 
 // Re-export react-intl utilities that components use directly
 export { defineMessages, useIntl } from 'react-intl';
 
 /** The set of locales that have translation catalogs. */
-export const SUPPORTED_LOCALES = ['en', 'es', 'hi', 'ja', 'ko', 'ru', 'tr', 'zh-CN'] as const;
+// prettier-ignore
+export const SUPPORTED_LOCALES = [
+  'en', 'es', 'fr', 'de', 'it', 'pt', 'id', 'ms', 'vi', 'hi', 'ja', 'ko', 'ru', 'tr', 'zh-CN', 'zh-TW',
+] as const;
 export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
 const SUPPORTED_LOCALE_SET = new Set<string>(SUPPORTED_LOCALES);
 
 /**
- * Map Simplified Chinese aliases (zh, zh-Hans*, zh-SG, zh-MY) to "zh-CN".
- * Traditional variants (zh-Hant*, zh-TW, zh-HK, zh-MO) and non-Chinese tags pass through unchanged.
+ * Map Simplified Chinese aliases (zh, zh-Hans*, zh-SG, zh-MY) to "zh-CN" and Traditional
+ * variants (zh-Hant*, zh-TW, zh-HK, zh-MO) to "zh-TW". Non-Chinese tags pass through unchanged.
  */
 function resolveChineseAlias(tag: string): string {
   const lower = tag.toLowerCase();
-  if (/^zh-(hant|tw|hk|mo)(-|$)/.test(lower)) return tag;
+  // Traditional Chinese variants (zh-Hant*, zh-TW, zh-HK, zh-MO) → "zh-TW".
+  if (/^zh-(hant|tw|hk|mo)(-|$)/.test(lower)) return 'zh-TW';
+  // Remaining Chinese tags (zh, zh-CN, zh-Hans*, zh-SG, zh-MY) → "zh-CN".
   if (lower === 'zh' || lower.startsWith('zh-')) return 'zh-CN';
   return tag;
 }

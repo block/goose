@@ -3887,14 +3887,32 @@
   "settings.language.english": {
     "defaultMessage": "İngilizce"
   },
+  "settings.language.french": {
+    "defaultMessage": "Fransızca"
+  },
+  "settings.language.german": {
+    "defaultMessage": "Almanca"
+  },
   "settings.language.hindi": {
     "defaultMessage": "Hintçe"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "Endonezce"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "İtalyanca"
   },
   "settings.language.japanese": {
     "defaultMessage": "Japonca"
   },
   "settings.language.korean": {
     "defaultMessage": "Korece"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "Malayca"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "Portekizce"
   },
   "settings.language.russian": {
     "defaultMessage": "Rusça"
@@ -3911,8 +3929,14 @@
   "settings.language.turkish": {
     "defaultMessage": "Türkçe"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "Vietnamca"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "Çince (Basitleştirilmiş)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "Çince (Geleneksel)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Menü çubuğunda goose'yi göster"

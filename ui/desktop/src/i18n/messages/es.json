@@ -3887,14 +3887,32 @@
   "settings.language.english": {
     "defaultMessage": "Inglés"
   },
+  "settings.language.french": {
+    "defaultMessage": "Francés"
+  },
+  "settings.language.german": {
+    "defaultMessage": "Alemán"
+  },
   "settings.language.hindi": {
     "defaultMessage": "Hindi"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "Indonesio"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "Italiano"
   },
   "settings.language.japanese": {
     "defaultMessage": "Japonés"
   },
   "settings.language.korean": {
     "defaultMessage": "Coreano"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "Malayo"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "Portugués"
   },
   "settings.language.russian": {
     "defaultMessage": "Ruso"
@@ -3911,8 +3929,14 @@
   "settings.language.turkish": {
     "defaultMessage": "Turco"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "Vietnamita"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "Chino (simplificado)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "Chino (tradicional)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Muestra goose en la barra de menús"

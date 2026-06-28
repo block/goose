@@ -1,0 +1,4574 @@
+{
+  "alertBox.autoCompactAt": {
+    "defaultMessage": "Compattazione automatica a"
+  },
+  "alertBox.compactNow": {
+    "defaultMessage": "Compatta ora"
+  },
+  "alertBox.failedToSaveThreshold": {
+    "defaultMessage": "Impossibile salvare la soglia: {error}"
+  },
+  "announcementModal.gotIt": {
+    "defaultMessage": "Capito!"
+  },
+  "appLayout.collapseNavigation": {
+    "defaultMessage": "Comprimi navigazione"
+  },
+  "appLayout.openNavigation": {
+    "defaultMessage": "Apri navigazione"
+  },
+  "appsView.customApp": {
+    "defaultMessage": "App personalizzata"
+  },
+  "appsView.description": {
+    "defaultMessage": "Applicazioni dai tuoi server MCP e app create da goose stesso. Puoi chiedere di creare nuove app tramite l'interfaccia di chat e appariranno qui."
+  },
+  "appsView.errorLoading": {
+    "defaultMessage": "Errore durante il caricamento delle app: {error}"
+  },
+  "appsView.importApp": {
+    "defaultMessage": "Importa app"
+  },
+  "appsView.launch": {
+    "defaultMessage": "Avvia"
+  },
+  "appsView.loading": {
+    "defaultMessage": "Caricamento app..."
+  },
+  "appsView.noAppsDescription": {
+    "defaultMessage": "Apri una chat e chiedi a goose l'app che desideri avere. Può crearne una per te e apparirà qui. Oppure, se qualcuno ha condiviso un'app, puoi importarla usando il pulsante qui sopra."
+  },
+  "appsView.noAppsTitle": {
+    "defaultMessage": "Nessuna app disponibile"
+  },
+  "appsView.retry": {
+    "defaultMessage": "Riprova"
+  },
+  "appsView.title": {
+    "defaultMessage": "App"
+  },
+  "authSettings.activeProviderWarning": {
+    "defaultMessage": "Questo è il provider attivo. Le nuove richieste potrebbero non riuscire finché non configuri un'altra credenziale."
+  },
+  "authSettings.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "authSettings.delete": {
+    "defaultMessage": "Elimina"
+  },
+  "authSettings.deleteCredential": {
+    "defaultMessage": "Elimina credenziale"
+  },
+  "authSettings.deleteMessage": {
+    "defaultMessage": "Eliminare la credenziale {name} per {provider}?"
+  },
+  "authSettings.deleteTitle": {
+    "defaultMessage": "Elimina credenziale"
+  },
+  "authSettings.deleted": {
+    "defaultMessage": "Credenziale eliminata"
+  },
+  "authSettings.description": {
+    "defaultMessage": "Gestisci le credenziali dei provider memorizzate localmente da goose."
+  },
+  "authSettings.empty": {
+    "defaultMessage": "Nessuna credenziale di provider memorizzata localmente è stata trovata."
+  },
+  "authSettings.expiresAt": {
+    "defaultMessage": "Scade il {date}"
+  },
+  "authSettings.failedToConfigure": {
+    "defaultMessage": "Impossibile configurare la credenziale: {error}"
+  },
+  "authSettings.failedToDelete": {
+    "defaultMessage": "Impossibile eliminare la credenziale: {error}"
+  },
+  "authSettings.failedToLoad": {
+    "defaultMessage": "Impossibile caricare le credenziali dei provider"
+  },
+  "authSettings.loading": {
+    "defaultMessage": "Caricamento credenziali..."
+  },
+  "authSettings.reauthorize": {
+    "defaultMessage": "Riautorizza"
+  },
+  "authSettings.signIn": {
+    "defaultMessage": "Accedi"
+  },
+  "authSettings.signedIn": {
+    "defaultMessage": "Credenziale configurata"
+  },
+  "authSettings.storageProviderCache": {
+    "defaultMessage": "Cache del provider"
+  },
+  "authSettings.storageSecretStore": {
+    "defaultMessage": "Archivio segreti"
+  },
+  "authSettings.title": {
+    "defaultMessage": "Credenziali del provider"
+  },
+  "backButton.back": {
+    "defaultMessage": "Indietro"
+  },
+  "baseChat.failedToLoadSession": {
+    "defaultMessage": "Impossibile caricare la sessione"
+  },
+  "baseChat.goHome": {
+    "defaultMessage": "Vai alla home"
+  },
+  "bottomMenuExtensionSelection.extensionUpdated": {
+    "defaultMessage": "Estensione aggiornata"
+  },
+  "bottomMenuExtensionSelection.extensionWillBeDisabled": {
+    "defaultMessage": "{name} verrà disabilitata nelle nuove chat"
+  },
+  "bottomMenuExtensionSelection.extensionWillBeEnabled": {
+    "defaultMessage": "{name} verrà abilitata nelle nuove chat"
+  },
+  "bottomMenuExtensionSelection.extensionsForNewChats": {
+    "defaultMessage": "Estensioni per le nuove chat"
+  },
+  "bottomMenuExtensionSelection.extensionsForThisSession": {
+    "defaultMessage": "Estensioni per questa sessione di chat"
+  },
+  "bottomMenuExtensionSelection.manageExtensions": {
+    "defaultMessage": "gestisci estensioni"
+  },
+  "bottomMenuExtensionSelection.noExtensionsAvailable": {
+    "defaultMessage": "nessuna estensione disponibile"
+  },
+  "bottomMenuExtensionSelection.noExtensionsFound": {
+    "defaultMessage": "nessuna estensione trovata"
+  },
+  "bottomMenuExtensionSelection.searchExtensions": {
+    "defaultMessage": "cerca estensioni..."
+  },
+  "cardButtons.configure": {
+    "defaultMessage": "Configura"
+  },
+  "cardButtons.launch": {
+    "defaultMessage": "Avvia"
+  },
+  "chat.notification.taskComplete.body": {
+    "defaultMessage": "Fai clic qui per riportare Goose in primo piano."
+  },
+  "chat.notification.taskComplete.title": {
+    "defaultMessage": "Goose ha completato l'attività."
+  },
+  "chatInput.contextWindow": {
+    "defaultMessage": "Finestra di contesto"
+  },
+  "chatInput.dictationError": {
+    "defaultMessage": "Errore di dettatura"
+  },
+  "chatInput.failedToReadImage": {
+    "defaultMessage": "Impossibile leggere il file immagine"
+  },
+  "chatInput.navigationShortcut": {
+    "defaultMessage": "{prefix}↑/{prefix}↓ per navigare tra i messaggi"
+  },
+  "chatInput.processingDroppedFiles": {
+    "defaultMessage": "Elaborazione dei file rilasciati..."
+  },
+  "chatInput.recording": {
+    "defaultMessage": "Registrazione in corso..."
+  },
+  "chatInput.removeFile": {
+    "defaultMessage": "Rimuovi file"
+  },
+  "chatInput.removeImage": {
+    "defaultMessage": "Rimuovi immagine"
+  },
+  "chatInput.restartingSession": {
+    "defaultMessage": "Riavvio della sessione..."
+  },
+  "chatInput.send": {
+    "defaultMessage": "Invia"
+  },
+  "chatInput.transcribing": {
+    "defaultMessage": "Trascrizione in corso..."
+  },
+  "chatInput.typeMessage": {
+    "defaultMessage": "Scrivi un messaggio da inviare"
+  },
+  "chatInput.unknownType": {
+    "defaultMessage": "Tipo sconosciuto"
+  },
+  "chatInput.viewEditRecipe": {
+    "defaultMessage": "Visualizza/Modifica ricetta"
+  },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "In attesa del completamento dell'annullamento"
+  },
+  "chatInput.waitingForImages": {
+    "defaultMessage": "In attesa del salvataggio delle immagini..."
+  },
+  "chatSettings.modeDescription": {
+    "defaultMessage": "Scegli la modalità predefinita che Goose usa per le nuove sessioni. Le sessioni esistenti mantengono la loro modalità corrente."
+  },
+  "chatSettings.modeTitle": {
+    "defaultMessage": "Modalità predefinita"
+  },
+  "chatSettings.responseStylesDescription": {
+    "defaultMessage": "Scegli come Goose deve formattare e definire lo stile delle sue risposte"
+  },
+  "chatSettings.responseStylesTitle": {
+    "defaultMessage": "Stili di risposta"
+  },
+  "configSettings.configReset": {
+    "defaultMessage": "Configurazione reimpostata"
+  },
+  "configSettings.configResetMsg": {
+    "defaultMessage": "Tutte le modifiche sono state annullate"
+  },
+  "configSettings.configUpdated": {
+    "defaultMessage": "Configurazione aggiornata"
+  },
+  "configSettings.configUpdatedMsg": {
+    "defaultMessage": "\"{name}\" salvato correttamente"
+  },
+  "configSettings.configurationEditor": {
+    "defaultMessage": "Editor di configurazione"
+  },
+  "configSettings.description": {
+    "defaultMessage": "Modifica le impostazioni di configurazione di goose"
+  },
+  "configSettings.descriptionWithProvider": {
+    "defaultMessage": "Modifica le impostazioni di configurazione di goose (impostazioni correnti per {provider})"
+  },
+  "configSettings.done": {
+    "defaultMessage": "Fatto"
+  },
+  "configSettings.editConfiguration": {
+    "defaultMessage": "Modifica configurazione"
+  },
+  "configSettings.enterValue": {
+    "defaultMessage": "Inserisci {name}"
+  },
+  "configSettings.noSettings": {
+    "defaultMessage": "Nessuna impostazione di configurazione trovata."
+  },
+  "configSettings.resetChanges": {
+    "defaultMessage": "Reimposta modifiche"
+  },
+  "configSettings.saveFailed": {
+    "defaultMessage": "Salvataggio non riuscito"
+  },
+  "configSettings.saveFailedMsg": {
+    "defaultMessage": "Impossibile salvare \"{name}\""
+  },
+  "configSettings.saving": {
+    "defaultMessage": "Salvataggio in corso..."
+  },
+  "configSettings.title": {
+    "defaultMessage": "Configurazione"
+  },
+  "configureApproveMode.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "configureApproveMode.description": {
+    "defaultMessage": "Le richieste di approvazione possono essere applicate a tutte le richieste di strumenti oppure determinare quali azioni potrebbero richiedere un'integrazione"
+  },
+  "configureApproveMode.manualApproval": {
+    "defaultMessage": "Approvazione manuale"
+  },
+  "configureApproveMode.manualApprovalDescription": {
+    "defaultMessage": "Tutti gli strumenti, le estensioni e le modifiche ai file richiederanno l'approvazione umana"
+  },
+  "configureApproveMode.save": {
+    "defaultMessage": "Salva"
+  },
+  "configureApproveMode.saving": {
+    "defaultMessage": "Salvataggio in corso..."
+  },
+  "configureApproveMode.smartApproval": {
+    "defaultMessage": "Approvazione intelligente"
+  },
+  "configureApproveMode.smartApprovalDescription": {
+    "defaultMessage": "Determina in modo intelligente quali azioni richiedono l'approvazione in base al livello di rischio"
+  },
+  "configureApproveMode.title": {
+    "defaultMessage": "Configura la modalità di approvazione"
+  },
+  "confirmationModal.defaultCancel": {
+    "defaultMessage": "No"
+  },
+  "confirmationModal.defaultConfirm": {
+    "defaultMessage": "Sì"
+  },
+  "confirmationModal.processing": {
+    "defaultMessage": "Elaborazione in corso..."
+  },
+  "conversationLimitsDropdown.conversationLimits": {
+    "defaultMessage": "Limiti della conversazione"
+  },
+  "conversationLimitsDropdown.maxTurns": {
+    "defaultMessage": "Numero massimo di turni"
+  },
+  "conversationLimitsDropdown.maxTurnsDescription": {
+    "defaultMessage": "Numero massimo di turni dell'agente prima che Goose richieda l'input dell'utente"
+  },
+  "costTracker.costUnavailable": {
+    "defaultMessage": "Dati sui costi non disponibili per {model} ({inputTokens} token di input, {outputTokens} token di output)"
+  },
+  "costTracker.inputOutputTooltip": {
+    "defaultMessage": "Input: {inputTokens} token ({inputCost}) | Output: {outputTokens} token ({outputCost})"
+  },
+  "costTracker.pricingUnavailable": {
+    "defaultMessage": "Dati sui prezzi non disponibili per {model}"
+  },
+  "costTracker.totalSessionCost": {
+    "defaultMessage": "Costo totale della sessione: {cost}"
+  },
+  "createEditRecipe.clickToGenerateDeeplink": {
+    "defaultMessage": "Fai clic per generare il deeplink"
+  },
+  "createEditRecipe.close": {
+    "defaultMessage": "Chiudi"
+  },
+  "createEditRecipe.copied": {
+    "defaultMessage": "Copiato!"
+  },
+  "createEditRecipe.copy": {
+    "defaultMessage": "Copia"
+  },
+  "createEditRecipe.copyLinkDescription": {
+    "defaultMessage": "Copia questo link per condividerlo con gli amici o incollalo direttamente in Chrome per aprirlo"
+  },
+  "createEditRecipe.createRecipeTitle": {
+    "defaultMessage": "Crea ricetta"
+  },
+  "createEditRecipe.createSubtitle": {
+    "defaultMessage": "Crea una nuova ricetta per definire il comportamento e le funzionalità dell'agente per sessioni di chat riutilizzabili."
+  },
+  "createEditRecipe.editSubtitle": {
+    "defaultMessage": "Puoi modificare la ricetta qui sotto per cambiare il comportamento dell'agente in una nuova sessione."
+  },
+  "createEditRecipe.generatingDeeplink": {
+    "defaultMessage": "Generazione del deeplink..."
+  },
+  "createEditRecipe.learnMore": {
+    "defaultMessage": "Scopri di più"
+  },
+  "createEditRecipe.recipeSavedAndLaunchedMsg": {
+    "defaultMessage": "Ricetta salvata e avviata correttamente"
+  },
+  "createEditRecipe.recipeSavedMsg": {
+    "defaultMessage": "Ricetta salvata correttamente"
+  },
+  "createEditRecipe.saveAndRunFailed": {
+    "defaultMessage": "Salvataggio ed esecuzione non riusciti"
+  },
+  "createEditRecipe.saveAndRunFailedMsg": {
+    "defaultMessage": "Impossibile salvare ed eseguire la ricetta: {error}"
+  },
+  "createEditRecipe.saveAndRunRecipe": {
+    "defaultMessage": "Salva ed esegui ricetta"
+  },
+  "createEditRecipe.saveFailed": {
+    "defaultMessage": "Salvataggio non riuscito"
+  },
+  "createEditRecipe.saveFailedMsg": {
+    "defaultMessage": "Impossibile salvare la ricetta: {error}"
+  },
+  "createEditRecipe.saveRecipe": {
+    "defaultMessage": "Salva ricetta"
+  },
+  "createEditRecipe.saving": {
+    "defaultMessage": "Salvataggio in corso..."
+  },
+  "createEditRecipe.validationFailed": {
+    "defaultMessage": "Convalida non riuscita"
+  },
+  "createEditRecipe.validationMsg": {
+    "defaultMessage": "Compila tutti i campi obbligatori e assicurati che lo schema JSON sia valido."
+  },
+  "createEditRecipe.viewEditRecipeTitle": {
+    "defaultMessage": "Visualizza/modifica ricetta"
+  },
+  "createSubRecipeInline.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "createSubRecipeInline.closeModal": {
+    "defaultMessage": "Chiudi la finestra di creazione della sottoricetta"
+  },
+  "createSubRecipeInline.createAndAdd": {
+    "defaultMessage": "Crea e aggiungi sottoricetta"
+  },
+  "createSubRecipeInline.createdSuccess": {
+    "defaultMessage": "Sottoricetta creata correttamente"
+  },
+  "createSubRecipeInline.creating": {
+    "defaultMessage": "Creazione in corso..."
+  },
+  "createSubRecipeInline.duplicateName": {
+    "defaultMessage": "Nome duplicato"
+  },
+  "createSubRecipeInline.duplicateNameMsg": {
+    "defaultMessage": "Esiste già una sottoricetta denominata \"{name}\". Usa un nome univoco."
+  },
+  "createSubRecipeInline.instructionsLabel": {
+    "defaultMessage": "Istruzioni"
+  },
+  "createSubRecipeInline.instructionsPlaceholder": {
+    "defaultMessage": "Istruzioni per l'IA quando viene chiamata questa sottoricetta..."
+  },
+  "createSubRecipeInline.nameHint": {
+    "defaultMessage": "Identificatore univoco usato per generare il nome dello strumento"
+  },
+  "createSubRecipeInline.nameLabel": {
+    "defaultMessage": "Nome"
+  },
+  "createSubRecipeInline.namePlaceholder": {
+    "defaultMessage": "ad es., security_scan"
+  },
+  "createSubRecipeInline.preconfiguredValues": {
+    "defaultMessage": "Valori preconfigurati"
+  },
+  "createSubRecipeInline.preconfiguredValuesHint": {
+    "defaultMessage": "Valori dei parametri facoltativi che vengono sempre passati alla sottoricetta"
+  },
+  "createSubRecipeInline.recipeDescriptionLabel": {
+    "defaultMessage": "Descrizione della ricetta"
+  },
+  "createSubRecipeInline.recipeDescriptionPlaceholder": {
+    "defaultMessage": "Cosa fa questa ricetta quando viene eseguita"
+  },
+  "createSubRecipeInline.recipeTitleLabel": {
+    "defaultMessage": "Titolo della ricetta"
+  },
+  "createSubRecipeInline.recipeTitlePlaceholder": {
+    "defaultMessage": "ad es., Strumento di analisi della sicurezza"
+  },
+  "createSubRecipeInline.saveFailed": {
+    "defaultMessage": "Salvataggio non riuscito"
+  },
+  "createSubRecipeInline.saveFailedMsg": {
+    "defaultMessage": "Impossibile salvare la sottoricetta: {error}"
+  },
+  "createSubRecipeInline.sequentialHint": {
+    "defaultMessage": "(Forza l'esecuzione sequenziale di più istanze)"
+  },
+  "createSubRecipeInline.sequentialLabel": {
+    "defaultMessage": "Sequenziale quando ripetuta"
+  },
+  "createSubRecipeInline.subtitle": {
+    "defaultMessage": "Crea una ricetta semplice da usare come strumento richiamabile nella tua ricetta principale"
+  },
+  "createSubRecipeInline.title": {
+    "defaultMessage": "Crea nuova sottoricetta"
+  },
+  "createSubRecipeInline.toolDescriptionLabel": {
+    "defaultMessage": "Descrizione dello strumento"
+  },
+  "createSubRecipeInline.toolDescriptionPlaceholder": {
+    "defaultMessage": "Descrizione facoltativa mostrata quando viene chiamata come strumento"
+  },
+  "createSubRecipeInline.validationFailed": {
+    "defaultMessage": "Convalida non riuscita"
+  },
+  "createSubRecipeInline.validationMsg": {
+    "defaultMessage": "Nome, titolo, descrizione della ricetta e istruzioni sono obbligatori."
+  },
+  "creditsExhaustedNotification.addCredits": {
+    "defaultMessage": "Aggiungi crediti"
+  },
+  "creditsExhaustedNotification.insufficientCredits": {
+    "defaultMessage": "Crediti insufficienti"
+  },
+  "cronPicker.april": {
+    "defaultMessage": "Aprile"
+  },
+  "cronPicker.at": {
+    "defaultMessage": "alle"
+  },
+  "cronPicker.atMinute": {
+    "defaultMessage": "al minuto"
+  },
+  "cronPicker.atSecond": {
+    "defaultMessage": "al secondo"
+  },
+  "cronPicker.august": {
+    "defaultMessage": "Agosto"
+  },
+  "cronPicker.cronExpression": {
+    "defaultMessage": "Espressione cron"
+  },
+  "cronPicker.custom": {
+    "defaultMessage": "Cron personalizzato"
+  },
+  "cronPicker.day": {
+    "defaultMessage": "Giorno"
+  },
+  "cronPicker.december": {
+    "defaultMessage": "Dicembre"
+  },
+  "cronPicker.emptyCronError": {
+    "defaultMessage": "L'espressione cron non può essere vuota"
+  },
+  "cronPicker.every": {
+    "defaultMessage": "Ogni"
+  },
+  "cronPicker.february": {
+    "defaultMessage": "Febbraio"
+  },
+  "cronPicker.friday": {
+    "defaultMessage": "Venerdì"
+  },
+  "cronPicker.hour": {
+    "defaultMessage": "Ora"
+  },
+  "cronPicker.inMonth": {
+    "defaultMessage": "in"
+  },
+  "cronPicker.invalidDayOfMonth": {
+    "defaultMessage": "Il giorno deve essere compreso tra 1 e {max}"
+  },
+  "cronPicker.january": {
+    "defaultMessage": "Gennaio"
+  },
+  "cronPicker.july": {
+    "defaultMessage": "Luglio"
+  },
+  "cronPicker.june": {
+    "defaultMessage": "Giugno"
+  },
+  "cronPicker.march": {
+    "defaultMessage": "Marzo"
+  },
+  "cronPicker.may": {
+    "defaultMessage": "Maggio"
+  },
+  "cronPicker.minute": {
+    "defaultMessage": "Minuto"
+  },
+  "cronPicker.mode": {
+    "defaultMessage": "Modalità"
+  },
+  "cronPicker.monday": {
+    "defaultMessage": "Lunedì"
+  },
+  "cronPicker.month": {
+    "defaultMessage": "Mese"
+  },
+  "cronPicker.november": {
+    "defaultMessage": "Novembre"
+  },
+  "cronPicker.october": {
+    "defaultMessage": "Ottobre"
+  },
+  "cronPicker.on": {
+    "defaultMessage": "il"
+  },
+  "cronPicker.onDay": {
+    "defaultMessage": "il giorno"
+  },
+  "cronPicker.quarter": {
+    "defaultMessage": "Trimestre"
+  },
+  "cronPicker.saturday": {
+    "defaultMessage": "Sabato"
+  },
+  "cronPicker.september": {
+    "defaultMessage": "Settembre"
+  },
+  "cronPicker.startingMonth": {
+    "defaultMessage": "mese di inizio"
+  },
+  "cronPicker.sunday": {
+    "defaultMessage": "Domenica"
+  },
+  "cronPicker.thursday": {
+    "defaultMessage": "Giovedì"
+  },
+  "cronPicker.tuesday": {
+    "defaultMessage": "Martedì"
+  },
+  "cronPicker.wednesday": {
+    "defaultMessage": "Mercoledì"
+  },
+  "cronPicker.week": {
+    "defaultMessage": "Settimana"
+  },
+  "cronPicker.year": {
+    "defaultMessage": "Anno"
+  },
+  "customProviderForm.add": {
+    "defaultMessage": "Aggiungi"
+  },
+  "customProviderForm.anthropicCompatible": {
+    "defaultMessage": "Compatibile con Anthropic"
+  },
+  "customProviderForm.apiBasePath": {
+    "defaultMessage": "Percorso base API (facoltativo)"
+  },
+  "customProviderForm.apiBasePathHint": {
+    "defaultMessage": "Sostituisci il percorso API predefinito. Lascia vuoto per usare il percorso predefinito del provider."
+  },
+  "customProviderForm.apiBasePathPlaceholder": {
+    "defaultMessage": "ad es., v1/chat/completions o project_id/v1"
+  },
+  "customProviderForm.apiKey": {
+    "defaultMessage": "Chiave API"
+  },
+  "customProviderForm.apiKeyPlaceholderExisting": {
+    "defaultMessage": "Lascia vuoto per mantenere la chiave esistente"
+  },
+  "customProviderForm.apiKeyPlaceholderNew": {
+    "defaultMessage": "La tua chiave API"
+  },
+  "customProviderForm.apiKeyRequired": {
+    "defaultMessage": "La chiave API è obbligatoria"
+  },
+  "customProviderForm.apiUrl": {
+    "defaultMessage": "URL API"
+  },
+  "customProviderForm.apiUrlPlaceholder": {
+    "defaultMessage": "https://api.example.com"
+  },
+  "customProviderForm.apiUrlRequired": {
+    "defaultMessage": "L'URL API è obbligatorio"
+  },
+  "customProviderForm.attachments": {
+    "defaultMessage": "Allegati"
+  },
+  "customProviderForm.authHint": {
+    "defaultMessage": "Gli LLM locali come Ollama in genere non richiedono una chiave API."
+  },
+  "customProviderForm.authentication": {
+    "defaultMessage": "Autenticazione"
+  },
+  "customProviderForm.availableModels": {
+    "defaultMessage": "Modelli disponibili (separati da virgola)"
+  },
+  "customProviderForm.back": {
+    "defaultMessage": "← Indietro"
+  },
+  "customProviderForm.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "customProviderForm.cannotDeleteActive": {
+    "defaultMessage": "Non puoi eliminare questo provider mentre è attualmente in uso. Passa prima a un modello diverso."
+  },
+  "customProviderForm.chooseSetup": {
+    "defaultMessage": "Scegli come configurare il tuo provider."
+  },
+  "customProviderForm.clear": {
+    "defaultMessage": "Cancella"
+  },
+  "customProviderForm.configureManually": {
+    "defaultMessage": "Configura manualmente"
+  },
+  "customProviderForm.configureManuallyDesc": {
+    "defaultMessage": "Inserisci tu stesso tutti i dettagli del provider"
+  },
+  "customProviderForm.confirmDelete": {
+    "defaultMessage": "Conferma eliminazione"
+  },
+  "customProviderForm.createProvider": {
+    "defaultMessage": "Crea provider"
+  },
+  "customProviderForm.customHeaders": {
+    "defaultMessage": "Intestazioni personalizzate"
+  },
+  "customProviderForm.customHeadersHint": {
+    "defaultMessage": "Aggiungi intestazioni HTTP personalizzate da includere nelle richieste al provider. Fai clic sul pulsante \"+\" per aggiungere dopo aver compilato entrambi i campi."
+  },
+  "customProviderForm.deleteConfirmation": {
+    "defaultMessage": "Sei sicuro di voler eliminare questo provider personalizzato? Questa operazione rimuoverà definitivamente il provider e la sua chiave API memorizzata. Questa azione non può essere annullata."
+  },
+  "customProviderForm.deleteProvider": {
+    "defaultMessage": "Elimina provider"
+  },
+  "customProviderForm.displayName": {
+    "defaultMessage": "Nome visualizzato"
+  },
+  "customProviderForm.displayNamePlaceholder": {
+    "defaultMessage": "Il nome del tuo provider"
+  },
+  "customProviderForm.displayNameRequired": {
+    "defaultMessage": "Il nome visualizzato è obbligatorio"
+  },
+  "customProviderForm.docs": {
+    "defaultMessage": "Documentazione"
+  },
+  "customProviderForm.headerBothRequired": {
+    "defaultMessage": "Devono essere inseriti sia il nome che il valore dell'intestazione"
+  },
+  "customProviderForm.headerDuplicate": {
+    "defaultMessage": "Esiste già un'intestazione con questo nome"
+  },
+  "customProviderForm.headerNamePlaceholder": {
+    "defaultMessage": "Nome intestazione"
+  },
+  "customProviderForm.headerNoSpaces": {
+    "defaultMessage": "Il nome dell'intestazione non può contenere spazi"
+  },
+  "customProviderForm.modelsPlaceholder": {
+    "defaultMessage": "model-a, model-b, model-c"
+  },
+  "customProviderForm.modelsRequired": {
+    "defaultMessage": "È richiesto almeno un modello"
+  },
+  "customProviderForm.ollamaCompatible": {
+    "defaultMessage": "Compatibile con Ollama"
+  },
+  "customProviderForm.openaiCompatible": {
+    "defaultMessage": "Compatibile con OpenAI"
+  },
+  "customProviderForm.providerType": {
+    "defaultMessage": "Tipo di provider"
+  },
+  "customProviderForm.reasoning": {
+    "defaultMessage": "Ragionamento"
+  },
+  "customProviderForm.requiresApiKey": {
+    "defaultMessage": "Questo provider richiede una chiave API"
+  },
+  "customProviderForm.startFromTemplate": {
+    "defaultMessage": "Inizia da un modello di provider"
+  },
+  "customProviderForm.startFromTemplateDesc": {
+    "defaultMessage": "Scegli un provider conosciuto e compileremo automaticamente la configurazione"
+  },
+  "customProviderForm.submitError": {
+    "defaultMessage": "Impossibile salvare il provider. Controlla la configurazione e riprova."
+  },
+  "customProviderForm.supportsStreaming": {
+    "defaultMessage": "Il provider supporta le risposte in streaming"
+  },
+  "customProviderForm.toolCalling": {
+    "defaultMessage": "Chiamata di strumenti"
+  },
+  "customProviderForm.updateProvider": {
+    "defaultMessage": "Aggiorna provider"
+  },
+  "customProviderForm.usingTemplate": {
+    "defaultMessage": "Modello in uso: {name}"
+  },
+  "customProviderForm.valuePlaceholder": {
+    "defaultMessage": "Valore"
+  },
+  "defaultCardButtons.configureSettings": {
+    "defaultMessage": "Configura le impostazioni di {name}"
+  },
+  "defaultCardButtons.deleteSettings": {
+    "defaultMessage": "Elimina le impostazioni di {name}"
+  },
+  "defaultCardButtons.editSettings": {
+    "defaultMessage": "Modifica le impostazioni di {name}"
+  },
+  "defaultCardButtons.getStarted": {
+    "defaultMessage": "Inizia con goose!"
+  },
+  "defaultProviderSetupForm.apiHostLabel": {
+    "defaultMessage": "Host API"
+  },
+  "defaultProviderSetupForm.apiHostPlaceholder": {
+    "defaultMessage": "https://api.example.com"
+  },
+  "defaultProviderSetupForm.apiKeyLabel": {
+    "defaultMessage": "Chiave API"
+  },
+  "defaultProviderSetupForm.apiKeyPlaceholder": {
+    "defaultMessage": "La tua chiave API"
+  },
+  "defaultProviderSetupForm.hideOptions": {
+    "defaultMessage": "Nascondi {count} opzioni"
+  },
+  "defaultProviderSetupForm.loadingConfig": {
+    "defaultMessage": "Caricamento dei valori di configurazione..."
+  },
+  "defaultProviderSetupForm.modelsLabel": {
+    "defaultMessage": "Modelli"
+  },
+  "defaultProviderSetupForm.modelsPlaceholder": {
+    "defaultMessage": "modello-a, modello-b"
+  },
+  "defaultProviderSetupForm.noConfigParameters": {
+    "defaultMessage": "Nessun parametro di configurazione per questo provider."
+  },
+  "defaultProviderSetupForm.showOptions": {
+    "defaultMessage": "Mostra {count} opzioni"
+  },
+  "diagnosticsModal.attachHint": {
+    "defaultMessage": "Se segnali un bug, valuta di allegarvi il report diagnostico."
+  },
+  "diagnosticsModal.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "diagnosticsModal.configSettings": {
+    "defaultMessage": "Impostazioni di configurazione"
+  },
+  "diagnosticsModal.description": {
+    "defaultMessage": "Puoi scaricare un report diagnostico in formato JSON da condividere con il team, oppure segnalare un bug direttamente su GitHub con i dettagli del tuo sistema già compilati. Un report diagnostico contiene quanto segue:"
+  },
+  "diagnosticsModal.diagnosticsErrorMsg": {
+    "defaultMessage": "Impossibile scaricare il report diagnostico"
+  },
+  "diagnosticsModal.diagnosticsErrorTitle": {
+    "defaultMessage": "Errore diagnostico"
+  },
+  "diagnosticsModal.download": {
+    "defaultMessage": "Scarica"
+  },
+  "diagnosticsModal.downloading": {
+    "defaultMessage": "Download in corso..."
+  },
+  "diagnosticsModal.fileBug": {
+    "defaultMessage": "Segnala un bug su GitHub"
+  },
+  "diagnosticsModal.logFiles": {
+    "defaultMessage": "File di log recenti"
+  },
+  "diagnosticsModal.opening": {
+    "defaultMessage": "Apertura in corso..."
+  },
+  "diagnosticsModal.reportProblem": {
+    "defaultMessage": "Segnala un problema"
+  },
+  "diagnosticsModal.sensitiveWarning": {
+    "defaultMessage": "Se la tua sessione contiene informazioni sensibili, non condividere pubblicamente il file diagnostico."
+  },
+  "diagnosticsModal.sessionMessages": {
+    "defaultMessage": "I messaggi della tua sessione corrente"
+  },
+  "diagnosticsModal.systemInfo": {
+    "defaultMessage": "Informazioni di base sul sistema"
+  },
+  "diagnosticsModal.systemInfoErrorMsg": {
+    "defaultMessage": "Impossibile ottenere le informazioni di sistema"
+  },
+  "diagnosticsModal.systemInfoErrorTitle": {
+    "defaultMessage": "Errore"
+  },
+  "dialog.close": {
+    "defaultMessage": "Chiudi"
+  },
+  "dictationSettings.addApiKey": {
+    "defaultMessage": "Aggiungi chiave API"
+  },
+  "dictationSettings.apiKey": {
+    "defaultMessage": "Chiave API"
+  },
+  "dictationSettings.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "dictationSettings.chooseVoiceConversion": {
+    "defaultMessage": "Scegli come convertire la voce in testo"
+  },
+  "dictationSettings.configureApiKey": {
+    "defaultMessage": "Configura la chiave API in <b>{settingsPath}</b>"
+  },
+  "dictationSettings.configured": {
+    "defaultMessage": "(Configurata)"
+  },
+  "dictationSettings.configuredIn": {
+    "defaultMessage": "✓ Configurata in {settingsPath}"
+  },
+  "dictationSettings.disabled": {
+    "defaultMessage": "Disattivata"
+  },
+  "dictationSettings.enterApiKey": {
+    "defaultMessage": "Inserisci la tua chiave API"
+  },
+  "dictationSettings.notConfigured": {
+    "defaultMessage": "(non configurata)"
+  },
+  "dictationSettings.removeApiKey": {
+    "defaultMessage": "Rimuovi chiave API"
+  },
+  "dictationSettings.requiredForTranscription": {
+    "defaultMessage": "Necessaria per la trascrizione"
+  },
+  "dictationSettings.save": {
+    "defaultMessage": "Salva"
+  },
+  "dictationSettings.updateApiKey": {
+    "defaultMessage": "Aggiorna chiave API"
+  },
+  "dictationSettings.voiceDictationProvider": {
+    "defaultMessage": "Provider di dettatura vocale"
+  },
+  "dirSwitcher.chooseDirectory": {
+    "defaultMessage": "Scegli cartella…"
+  },
+  "dirSwitcher.currentDirectory": {
+    "defaultMessage": "Cartella corrente"
+  },
+  "dirSwitcher.failedToUpdateWorkingDir": {
+    "defaultMessage": "Impossibile aggiornare la cartella di lavoro"
+  },
+  "dirSwitcher.gitWorktrees": {
+    "defaultMessage": "Worktree di Git"
+  },
+  "dirSwitcher.noWorktreesFound": {
+    "defaultMessage": "Nessun worktree trovato"
+  },
+  "dirSwitcher.openInFinder": {
+    "defaultMessage": "Apri nel file manager"
+  },
+  "dirSwitcher.recentDirectories": {
+    "defaultMessage": "Cartelle recenti"
+  },
+  "elicitationRequest.accept": {
+    "defaultMessage": "Accetta"
+  },
+  "elicitationRequest.cancelled": {
+    "defaultMessage": "La richiesta di informazioni è stata annullata."
+  },
+  "elicitationRequest.defaultMessage": {
+    "defaultMessage": "Goose ha bisogno di alcune informazioni da te."
+  },
+  "elicitationRequest.expired": {
+    "defaultMessage": "Questa richiesta è scaduta. L'estensione dovrà chiedere di nuovo."
+  },
+  "elicitationRequest.submit": {
+    "defaultMessage": "Invia"
+  },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "Questa richiesta non è più attiva. L'estensione dovrà chiedere di nuovo."
+  },
+  "elicitationRequest.submitted": {
+    "defaultMessage": "Informazioni inviate"
+  },
+  "elicitationRequest.waitingForResponse": {
+    "defaultMessage": "In attesa della tua risposta ({timeRemaining} rimanenti)"
+  },
+  "envVarsSection.add": {
+    "defaultMessage": "Aggiungi"
+  },
+  "envVarsSection.bothRequired": {
+    "defaultMessage": "È necessario inserire sia il nome della variabile sia il valore"
+  },
+  "envVarsSection.envVarsDescription": {
+    "defaultMessage": "Aggiungi coppie chiave-valore per le variabili d'ambiente. Fai clic sul pulsante \"+\" per aggiungere dopo aver compilato entrambi i campi. Per i valori segreti esistenti, fai clic sul pulsante di modifica per modificarli."
+  },
+  "envVarsSection.environmentVariables": {
+    "defaultMessage": "Variabili d'ambiente"
+  },
+  "envVarsSection.noSpaces": {
+    "defaultMessage": "Il nome della variabile non può contenere spazi"
+  },
+  "envVarsSection.value": {
+    "defaultMessage": "Valore"
+  },
+  "envVarsSection.variableName": {
+    "defaultMessage": "Nome della variabile"
+  },
+  "environmentBadge.dev": {
+    "defaultMessage": "Dev"
+  },
+  "errorBoundary.errorGeneric": {
+    "defaultMessage": "Si è verificato un errore."
+  },
+  "errorBoundary.errorWithVersion": {
+    "defaultMessage": "Si è verificato un errore in Goose v{version}."
+  },
+  "errorBoundary.heading": {
+    "defaultMessage": "Honk!"
+  },
+  "errorBoundary.reload": {
+    "defaultMessage": "Ricarica"
+  },
+  "extensionConfigFields.commandLabel": {
+    "defaultMessage": "Comando"
+  },
+  "extensionConfigFields.commandPlaceholder": {
+    "defaultMessage": "es. npx -y @modelcontextprotocol/my-extension [filepath]"
+  },
+  "extensionConfigFields.commandRequired": {
+    "defaultMessage": "Il comando è obbligatorio"
+  },
+  "extensionConfigFields.endpointLabel": {
+    "defaultMessage": "Endpoint"
+  },
+  "extensionConfigFields.endpointPlaceholder": {
+    "defaultMessage": "Inserisci l'URL dell'endpoint..."
+  },
+  "extensionConfigFields.endpointRequired": {
+    "defaultMessage": "L'URL dell'endpoint è obbligatorio"
+  },
+  "extensionInfoFields.descriptionLabel": {
+    "defaultMessage": "Descrizione"
+  },
+  "extensionInfoFields.descriptionPlaceholder": {
+    "defaultMessage": "Descrizione facoltativa..."
+  },
+  "extensionInfoFields.extensionName": {
+    "defaultMessage": "Nome dell'estensione"
+  },
+  "extensionInfoFields.extensionNamePlaceholder": {
+    "defaultMessage": "Inserisci il nome dell'estensione..."
+  },
+  "extensionInfoFields.nameRequired": {
+    "defaultMessage": "Il nome è obbligatorio"
+  },
+  "extensionInfoFields.typeHttp": {
+    "defaultMessage": "HTTP"
+  },
+  "extensionInfoFields.typeLabel": {
+    "defaultMessage": "Tipo"
+  },
+  "extensionInfoFields.typeSseUnsupported": {
+    "defaultMessage": "SSE (non supportato)"
+  },
+  "extensionInfoFields.typeStandardIo": {
+    "defaultMessage": "Standard IO (STDIO)"
+  },
+  "extensionInfoFields.typeStdio": {
+    "defaultMessage": "STDIO"
+  },
+  "extensionInfoFields.typeStreamableHttp": {
+    "defaultMessage": "Streamable HTTP"
+  },
+  "extensionInstallModal.alreadyInstalledMessage": {
+    "defaultMessage": "L'estensione ''{name}'' è già stata installata correttamente. Avvia una nuova sessione di chat per usarla."
+  },
+  "extensionInstallModal.alreadyInstalledTitle": {
+    "defaultMessage": "Estensione ''{name}'' già installata"
+  },
+  "extensionInstallModal.blockedMessage": {
+    "defaultMessage": "Questo comando dell'estensione non è nell'elenco consentito e la sua installazione è bloccata. Estensione: {name} Comando: {command} Contatta il tuo amministratore per richiedere l'approvazione di questa estensione."
+  },
+  "extensionInstallModal.blockedTitle": {
+    "defaultMessage": "Installazione dell'estensione bloccata"
+  },
+  "extensionInstallModal.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "extensionInstallModal.installAnyway": {
+    "defaultMessage": "Installa comunque"
+  },
+  "extensionInstallModal.installing": {
+    "defaultMessage": "Installazione in corso..."
+  },
+  "extensionInstallModal.no": {
+    "defaultMessage": "No"
+  },
+  "extensionInstallModal.ok": {
+    "defaultMessage": "OK"
+  },
+  "extensionInstallModal.trustedMessage": {
+    "defaultMessage": "Vuoi davvero installare l'estensione {name}? Comando: {command}"
+  },
+  "extensionInstallModal.trustedTitle": {
+    "defaultMessage": "Conferma installazione dell'estensione"
+  },
+  "extensionInstallModal.unknownCommand": {
+    "defaultMessage": "Comando sconosciuto"
+  },
+  "extensionInstallModal.untrustedMessageWithCommand": {
+    "defaultMessage": "{securityMessage} Estensione: {name} Comando: {command} Contatta il tuo amministratore se hai dubbi al riguardo."
+  },
+  "extensionInstallModal.untrustedMessageWithUrl": {
+    "defaultMessage": "{securityMessage} Estensione: {name} URL: {url} Contatta il tuo amministratore se hai dubbi al riguardo."
+  },
+  "extensionInstallModal.untrustedSecurityMessage": {
+    "defaultMessage": "Questo comando dell'estensione non è nell'elenco consentito e sarà in grado di accedere alle tue conversazioni e fornire funzionalità aggiuntive. L'installazione di estensioni da fonti non attendibili può comportare rischi per la sicurezza."
+  },
+  "extensionInstallModal.untrustedTitle": {
+    "defaultMessage": "Installare un'estensione non attendibile?"
+  },
+  "extensionInstallModal.yes": {
+    "defaultMessage": "Sì"
+  },
+  "extensionItem.configureExtension": {
+    "defaultMessage": "Configura l'estensione {name}"
+  },
+  "extensionItem.toggleExtension": {
+    "defaultMessage": "Attiva o disattiva l'estensione {name}"
+  },
+  "extensionList.availableExtensions": {
+    "defaultMessage": "Estensioni disponibili ({count})"
+  },
+  "extensionList.builtInExtension": {
+    "defaultMessage": "Estensione integrata"
+  },
+  "extensionList.defaultExtensions": {
+    "defaultMessage": "Estensioni predefinite ({count})"
+  },
+  "extensionList.noExtensions": {
+    "defaultMessage": "Nessuna estensione disponibile"
+  },
+  "extensionModal.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "extensionModal.closeWithoutSaving": {
+    "defaultMessage": "Chiudi senza salvare"
+  },
+  "extensionModal.confirmRemoval": {
+    "defaultMessage": "Conferma rimozione"
+  },
+  "extensionModal.deleteDescription": {
+    "defaultMessage": "Questa azione rimuoverà definitivamente questa estensione e tutte le sue impostazioni."
+  },
+  "extensionModal.deleteExtensionTitle": {
+    "defaultMessage": "Elimina l'estensione \"{name}\""
+  },
+  "extensionModal.installationNotes": {
+    "defaultMessage": "Note di installazione"
+  },
+  "extensionModal.removeExtension": {
+    "defaultMessage": "Rimuovi estensione"
+  },
+  "extensionModal.unsavedChangesMessage": {
+    "defaultMessage": "Hai modifiche non salvate nella configurazione dell'estensione. Vuoi davvero chiudere senza salvare?"
+  },
+  "extensionModal.unsavedChangesTitle": {
+    "defaultMessage": "Modifiche non salvate"
+  },
+  "extensionTimeoutField.timeoutLabel": {
+    "defaultMessage": "Timeout"
+  },
+  "extensionsSection.addCustomExtension": {
+    "defaultMessage": "Aggiungi estensione personalizzata"
+  },
+  "extensionsSection.addExtension": {
+    "defaultMessage": "Aggiungi estensione"
+  },
+  "extensionsSection.browseExtensions": {
+    "defaultMessage": "Sfoglia le estensioni"
+  },
+  "extensionsSection.saveChanges": {
+    "defaultMessage": "Salva modifiche"
+  },
+  "extensionsSection.updateExtension": {
+    "defaultMessage": "Aggiorna estensione"
+  },
+  "extensionsView.addCustomExtension": {
+    "defaultMessage": "Aggiungi estensione personalizzata"
+  },
+  "extensionsView.addExtension": {
+    "defaultMessage": "Aggiungi estensione"
+  },
+  "extensionsView.browseExtensions": {
+    "defaultMessage": "Sfoglia le estensioni"
+  },
+  "extensionsView.defaultNote": {
+    "defaultMessage": "Le estensioni abilitate qui vengono usate come predefinite per le nuove chat. Puoi anche attivare o disattivare le estensioni attive durante una chat."
+  },
+  "extensionsView.description": {
+    "defaultMessage": "Queste estensioni usano il Model Context Protocol (MCP). Possono ampliare le capacità di Goose tramite tre componenti principali: Prompt, Risorse e Strumenti. {searchShortcut} per cercare."
+  },
+  "extensionsView.heading": {
+    "defaultMessage": "Estensioni"
+  },
+  "extensionsView.searchPlaceholder": {
+    "defaultMessage": "Cerca estensioni..."
+  },
+  "externalBackendSection.certFingerprint": {
+    "defaultMessage": "Impronta del certificato (facoltativa)"
+  },
+  "externalBackendSection.certFingerprintHelp": {
+    "defaultMessage": "Fissa un'impronta specifica del certificato TLS. Se omessa, il certificato viene considerato attendibile al primo utilizzo (TOFU)."
+  },
+  "externalBackendSection.certFingerprintPlaceholder": {
+    "defaultMessage": "AA:BB:CC:... o sha256/base64"
+  },
+  "externalBackendSection.description": {
+    "defaultMessage": "Per impostazione predefinita goose avvia un server per te; usa questa opzione per connetterti a un server goose esterno"
+  },
+  "externalBackendSection.restartNote": {
+    "defaultMessage": "Le modifiche richiedono il riavvio di Goose per avere effetto. Le nuove finestre di chat si connetteranno al server esterno."
+  },
+  "externalBackendSection.secretKey": {
+    "defaultMessage": "Chiave segreta"
+  },
+  "externalBackendSection.secretKeyHelp": {
+    "defaultMessage": "La chiave segreta configurata sul server goosed (GOOSE_SERVER__SECRET_KEY)"
+  },
+  "externalBackendSection.secretKeyPlaceholder": {
+    "defaultMessage": "Inserisci la chiave segreta del server"
+  },
+  "externalBackendSection.serverUrl": {
+    "defaultMessage": "URL del server"
+  },
+  "externalBackendSection.title": {
+    "defaultMessage": "Server Goose"
+  },
+  "externalBackendSection.urlFormatError": {
+    "defaultMessage": "Formato URL non valido"
+  },
+  "externalBackendSection.urlProtocolError": {
+    "defaultMessage": "L'URL deve usare il protocollo http o https"
+  },
+  "externalBackendSection.useExternalServer": {
+    "defaultMessage": "Usa un server esterno"
+  },
+  "externalBackendSection.useExternalServerDescription": {
+    "defaultMessage": "Connettiti a un server goose in esecuzione altrove (richiede il riavvio dell'app)"
+  },
+  "freeOptionCards.chooseOption": {
+    "defaultMessage": "Scegli un'opzione per iniziare."
+  },
+  "freeOptionCards.freeAndPrivate": {
+    "defaultMessage": "Gratuito e privato"
+  },
+  "freeOptionCards.localModelDescription": {
+    "defaultMessage": "Scarica un modello ed eseguilo interamente sul tuo computer. Niente chiavi API, niente account."
+  },
+  "freeOptionCards.localModelTitle": {
+    "defaultMessage": "Usa un modello locale"
+  },
+  "freeOptionCards.nanogptDescription": {
+    "defaultMessage": "Registrati per ricevere 60 milioni di token gratuiti per 7 giorni."
+  },
+  "freeOptionCards.nanogptTitle": {
+    "defaultMessage": "NanoGPT"
+  },
+  "freeOptionCards.retry": {
+    "defaultMessage": "Riprova"
+  },
+  "freeOptionCards.tetrateDescription": {
+    "defaultMessage": "Accedi a più modelli di IA con configurazione automatica. Registrati per ricevere 10 $ di credito."
+  },
+  "freeOptionCards.tetrateTitle": {
+    "defaultMessage": "Agent Router di Tetrate"
+  },
+  "freeOptionCards.unexpectedError": {
+    "defaultMessage": "Si è verificato un errore imprevisto durante la configurazione."
+  },
+  "goosehintsModal.close": {
+    "defaultMessage": "Chiudi"
+  },
+  "goosehintsModal.developer": {
+    "defaultMessage": "Developer"
+  },
+  "goosehintsModal.dialogDescription": {
+    "defaultMessage": "Fornisci ulteriore contesto sul tuo progetto per migliorare la comunicazione con Goose"
+  },
+  "goosehintsModal.dialogTitle": {
+    "defaultMessage": "Configura i suggerimenti del progetto (.goosehints)"
+  },
+  "goosehintsModal.errorReading": {
+    "defaultMessage": "Errore durante la lettura del file .goosehints: {error}"
+  },
+  "goosehintsModal.failedToAccess": {
+    "defaultMessage": "Impossibile accedere al file .goosehints"
+  },
+  "goosehintsModal.failedToSave": {
+    "defaultMessage": "Impossibile salvare il file .goosehints"
+  },
+  "goosehintsModal.fileCreating": {
+    "defaultMessage": "Creazione di un nuovo file .goosehints in: {filePath}"
+  },
+  "goosehintsModal.fileFound": {
+    "defaultMessage": "File .goosehints trovato in: {filePath}"
+  },
+  "goosehintsModal.helpText1": {
+    "defaultMessage": ".goosehints è un file di testo usato per fornire ulteriore contesto sul tuo progetto e migliorare la comunicazione con Goose."
+  },
+  "goosehintsModal.helpText2": {
+    "defaultMessage": "Assicurati che l'estensione {bold} sia abilitata nella pagina delle estensioni. Questa estensione è necessaria per usare .goosehints. Dovrai riavviare la sessione affinché gli aggiornamenti di .goosehints abbiano effetto."
+  },
+  "goosehintsModal.helpText3": {
+    "defaultMessage": "Consulta {link} per maggiori informazioni."
+  },
+  "goosehintsModal.helpTextLink": {
+    "defaultMessage": "uso di .goosehints"
+  },
+  "goosehintsModal.placeholder": {
+    "defaultMessage": "Inserisci qui i suggerimenti del progetto..."
+  },
+  "goosehintsModal.save": {
+    "defaultMessage": "Salva"
+  },
+  "goosehintsModal.savedSuccessfully": {
+    "defaultMessage": "Salvato correttamente"
+  },
+  "goosehintsModal.saving": {
+    "defaultMessage": "Salvataggio in corso..."
+  },
+  "goosehintsSection.configure": {
+    "defaultMessage": "Configura"
+  },
+  "goosehintsSection.description": {
+    "defaultMessage": "Configura il file .goosehints del tuo progetto per fornire ulteriore contesto a Goose"
+  },
+  "goosehintsSection.title": {
+    "defaultMessage": "Suggerimenti del progetto (.goosehints)"
+  },
+  "groupedExtensionLoadingToast.askGoose": {
+    "defaultMessage": "Chiedi a goose"
+  },
+  "groupedExtensionLoadingToast.collapseDetails": {
+    "defaultMessage": "Comprimi i dettagli"
+  },
+  "groupedExtensionLoadingToast.copied": {
+    "defaultMessage": "Copiato!"
+  },
+  "groupedExtensionLoadingToast.copyError": {
+    "defaultMessage": "Errore di copia"
+  },
+  "groupedExtensionLoadingToast.expandDetails": {
+    "defaultMessage": "Espandi i dettagli"
+  },
+  "groupedExtensionLoadingToast.failedToAddExtension": {
+    "defaultMessage": "Impossibile aggiungere l'estensione"
+  },
+  "groupedExtensionLoadingToast.failedToLoad": {
+    "defaultMessage": "{count,plural,one{# estensione non caricata} other{# estensioni non caricate}}"
+  },
+  "groupedExtensionLoadingToast.loadingExtensions": {
+    "defaultMessage": "{count,plural,one{Caricamento di # estensione...} other{Caricamento di # estensioni...}}"
+  },
+  "groupedExtensionLoadingToast.partiallyLoaded": {
+    "defaultMessage": "{totalCount,plural,one{Caricata {successCount}/# estensione} other{Caricate {successCount}/# estensioni}}"
+  },
+  "groupedExtensionLoadingToast.showDetails": {
+    "defaultMessage": "Mostra dettagli"
+  },
+  "groupedExtensionLoadingToast.showLess": {
+    "defaultMessage": "Mostra meno"
+  },
+  "groupedExtensionLoadingToast.successfullyLoaded": {
+    "defaultMessage": "{count,plural,one{# estensione caricata correttamente} other{# estensioni caricate correttamente}}"
+  },
+  "headersSection.add": {
+    "defaultMessage": "Aggiungi"
+  },
+  "headersSection.bothRequired": {
+    "defaultMessage": "È necessario inserire sia il nome dell'header sia il valore"
+  },
+  "headersSection.duplicateHeader": {
+    "defaultMessage": "Esiste già un header con questo nome"
+  },
+  "headersSection.headerName": {
+    "defaultMessage": "Nome dell'header"
+  },
+  "headersSection.headersDescription": {
+    "defaultMessage": "Aggiungi header HTTP personalizzati da includere nelle richieste al server MCP. Fai clic sul pulsante \"+\" per aggiungere dopo aver compilato entrambi i campi."
+  },
+  "headersSection.noSpaces": {
+    "defaultMessage": "Il nome dell'header non può contenere spazi"
+  },
+  "headersSection.requestHeaders": {
+    "defaultMessage": "Header della richiesta"
+  },
+  "headersSection.value": {
+    "defaultMessage": "Valore"
+  },
+  "hub.goodAfternoon": {
+    "defaultMessage": "Buon pomeriggio"
+  },
+  "hub.goodEvening": {
+    "defaultMessage": "Buonasera"
+  },
+  "hub.goodMorning": {
+    "defaultMessage": "Buongiorno"
+  },
+  "huggingFaceModelSearch.download": {
+    "defaultMessage": "Scarica"
+  },
+  "huggingFaceModelSearch.downloaded": {
+    "defaultMessage": "Scaricato"
+  },
+  "huggingFaceModelSearch.downloading": {
+    "defaultMessage": "Download in corso…"
+  },
+  "huggingFaceModelSearch.loadingVariants": {
+    "defaultMessage": "Caricamento delle varianti..."
+  },
+  "huggingFaceModelSearch.noGgufModels": {
+    "defaultMessage": "Nessun modello locale compatibile trovato per questa ricerca."
+  },
+  "huggingFaceModelSearch.recommended": {
+    "defaultMessage": "Consigliato"
+  },
+  "huggingFaceModelSearch.searchError": {
+    "defaultMessage": "Errore di ricerca: {details}"
+  },
+  "huggingFaceModelSearch.searchFailed": {
+    "defaultMessage": "Ricerca non riuscita. Riprova."
+  },
+  "huggingFaceModelSearch.searchHuggingFace": {
+    "defaultMessage": "Cerca su HuggingFace"
+  },
+  "huggingFaceModelSearch.searchNoData": {
+    "defaultMessage": "La ricerca non ha restituito dati."
+  },
+  "huggingFaceModelSearch.searchPlaceholder": {
+    "defaultMessage": "Cerca modelli locali..."
+  },
+  "huggingFaceModelSearch.tooLarge": {
+    "defaultMessage": "Potrebbe non entrare in memoria (modello da {size}, {available} disponibili)"
+  },
+  "huggingFaceSignInPrompt.failedToConfigure": {
+    "defaultMessage": "Accesso a Hugging Face non riuscito: {error}"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "Accedi"
+  },
+  "huggingFaceSignInPrompt.signedIn": {
+    "defaultMessage": "Accesso a Hugging Face effettuato"
+  },
+  "huggingFaceSignInPrompt.signingIn": {
+    "defaultMessage": "Accesso in corso..."
+  },
+  "huggingFaceSignInPrompt.title": {
+    "defaultMessage": "Hugging Face"
+  },
+  "imagePreview.altText": {
+    "defaultMessage": "immagine goose"
+  },
+  "imagePreview.clickToCollapse": {
+    "defaultMessage": "Fai clic per comprimere"
+  },
+  "imagePreview.clickToExpand": {
+    "defaultMessage": "Fai clic per espandere"
+  },
+  "imagePreview.unableToLoad": {
+    "defaultMessage": "Impossibile caricare l'immagine"
+  },
+  "importRecipeForm.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "importRecipeForm.deeplinkHint": {
+    "defaultMessage": "Incolla un deeplink di ricetta che inizia con \"goose://recipe?config=\""
+  },
+  "importRecipeForm.deeplinkPlaceholder": {
+    "defaultMessage": "Incolla qui il tuo deeplink goose://recipe?config=..."
+  },
+  "importRecipeForm.example": {
+    "defaultMessage": "esempio"
+  },
+  "importRecipeForm.expectedRecipeStructure": {
+    "defaultMessage": "Struttura prevista della ricetta"
+  },
+  "importRecipeForm.importRecipeButton": {
+    "defaultMessage": "Importa ricetta"
+  },
+  "importRecipeForm.importRecipeTitle": {
+    "defaultMessage": "Importa ricetta"
+  },
+  "importRecipeForm.importing": {
+    "defaultMessage": "Importazione in corso..."
+  },
+  "importRecipeForm.or": {
+    "defaultMessage": "OPPURE"
+  },
+  "importRecipeForm.recipeDeeplinkLabel": {
+    "defaultMessage": "Deeplink della ricetta"
+  },
+  "importRecipeForm.recipeFileHint": {
+    "defaultMessage": "Carica un file YAML o JSON contenente la struttura della ricetta"
+  },
+  "importRecipeForm.recipeFileLabel": {
+    "defaultMessage": "File della ricetta"
+  },
+  "importRecipeForm.reviewWarning": {
+    "defaultMessage": "Assicurati di esaminare il contenuto dei file delle ricette prima di aggiungerli alla tua interfaccia goose."
+  },
+  "importRecipeForm.schemaDescription": {
+    "defaultMessage": "Il tuo file YAML o JSON deve seguire questa struttura. I campi obbligatori sono: title, description e instructions oppure prompt."
+  },
+  "inlineEditText.clickToEdit": {
+    "defaultMessage": "Fai clic per modificare"
+  },
+  "inlineEditText.doubleClickToEdit": {
+    "defaultMessage": "Fai doppio clic per modificare"
+  },
+  "inlineEditText.enterText": {
+    "defaultMessage": "Inserisci testo"
+  },
+  "inlineEditText.failedToSave": {
+    "defaultMessage": "Salvataggio non riuscito"
+  },
+  "instructionsEditor.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "instructionsEditor.insertExample": {
+    "defaultMessage": "Inserisci esempio"
+  },
+  "instructionsEditor.label": {
+    "defaultMessage": "Istruzioni"
+  },
+  "instructionsEditor.placeholder": {
+    "defaultMessage": "Istruzioni dettagliate per l'IA, nascoste all'utente"
+  },
+  "instructionsEditor.save": {
+    "defaultMessage": "Salva istruzioni"
+  },
+  "instructionsEditor.syntaxHelp": {
+    "defaultMessage": "Usa la sintassi {code} per definire i parametri che gli utenti possono compilare"
+  },
+  "instructionsEditor.title": {
+    "defaultMessage": "Editor delle istruzioni"
+  },
+  "jsonSchemaEditor.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "jsonSchemaEditor.description": {
+    "defaultMessage": "Definisci la struttura prevista della risposta dell'IA usando il formato JSON Schema"
+  },
+  "jsonSchemaEditor.insertExample": {
+    "defaultMessage": "Inserisci esempio"
+  },
+  "jsonSchemaEditor.invalidJson": {
+    "defaultMessage": "Formato JSON non valido"
+  },
+  "jsonSchemaEditor.label": {
+    "defaultMessage": "JSON Schema della risposta"
+  },
+  "jsonSchemaEditor.save": {
+    "defaultMessage": "Salva schema"
+  },
+  "jsonSchemaEditor.title": {
+    "defaultMessage": "Editor JSON Schema"
+  },
+  "jsonSchemaForm.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "jsonSchemaForm.fieldRequired": {
+    "defaultMessage": "Questo campo è obbligatorio"
+  },
+  "jsonSchemaForm.maxLength": {
+    "defaultMessage": "La lunghezza massima è {maxLength}"
+  },
+  "jsonSchemaForm.maxValue": {
+    "defaultMessage": "Il valore massimo è {maximum}"
+  },
+  "jsonSchemaForm.minLength": {
+    "defaultMessage": "La lunghezza minima è {minLength}"
+  },
+  "jsonSchemaForm.minValue": {
+    "defaultMessage": "Il valore minimo è {minimum}"
+  },
+  "jsonSchemaForm.noFields": {
+    "defaultMessage": "Nessun campo da visualizzare"
+  },
+  "jsonSchemaForm.selectPlaceholder": {
+    "defaultMessage": "Seleziona..."
+  },
+  "jsonSchemaForm.submit": {
+    "defaultMessage": "Invia"
+  },
+  "keyValueEditor.addValue": {
+    "defaultMessage": "Aggiungi valore preconfigurato"
+  },
+  "keyValueEditor.defaultKeyPlaceholder": {
+    "defaultMessage": "Nome parametro..."
+  },
+  "keyValueEditor.defaultValuePlaceholder": {
+    "defaultMessage": "Valore parametro..."
+  },
+  "keyValueEditor.removeValue": {
+    "defaultMessage": "Rimuovi valore preconfigurato {key}"
+  },
+  "keyboardShortcuts.alwaysOnTopDescription": {
+    "defaultMessage": "Attiva/disattiva la finestra sempre in primo piano"
+  },
+  "keyboardShortcuts.alwaysOnTopLabel": {
+    "defaultMessage": "Sempre in primo piano"
+  },
+  "keyboardShortcuts.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "keyboardShortcuts.categoryApplication": {
+    "defaultMessage": "Scorciatoie dell'applicazione"
+  },
+  "keyboardShortcuts.categoryApplicationDescription": {
+    "defaultMessage": "Queste scorciatoie funzionano quando Goose è l'applicazione attiva"
+  },
+  "keyboardShortcuts.categoryGlobal": {
+    "defaultMessage": "Scorciatoie globali"
+  },
+  "keyboardShortcuts.categoryGlobalDescription": {
+    "defaultMessage": "Queste scorciatoie funzionano a livello di sistema, anche quando Goose non è in primo piano"
+  },
+  "keyboardShortcuts.categorySearch": {
+    "defaultMessage": "Scorciatoie di ricerca"
+  },
+  "keyboardShortcuts.categorySearchDescription": {
+    "defaultMessage": "Queste scorciatoie funzionano durante la ricerca in una conversazione"
+  },
+  "keyboardShortcuts.categoryWindow": {
+    "defaultMessage": "Scorciatoie finestra"
+  },
+  "keyboardShortcuts.categoryWindowDescription": {
+    "defaultMessage": "Queste scorciatoie controllano il comportamento della finestra"
+  },
+  "keyboardShortcuts.change": {
+    "defaultMessage": "Modifica"
+  },
+  "keyboardShortcuts.disabled": {
+    "defaultMessage": "Disabilitata"
+  },
+  "keyboardShortcuts.dismiss": {
+    "defaultMessage": "Ignora"
+  },
+  "keyboardShortcuts.findDescription": {
+    "defaultMessage": "Apri la ricerca nella conversazione"
+  },
+  "keyboardShortcuts.findLabel": {
+    "defaultMessage": "Trova"
+  },
+  "keyboardShortcuts.findNextDescription": {
+    "defaultMessage": "Vai al risultato di ricerca successivo"
+  },
+  "keyboardShortcuts.findNextLabel": {
+    "defaultMessage": "Trova successivo"
+  },
+  "keyboardShortcuts.findPreviousDescription": {
+    "defaultMessage": "Vai al risultato di ricerca precedente"
+  },
+  "keyboardShortcuts.findPreviousLabel": {
+    "defaultMessage": "Trova precedente"
+  },
+  "keyboardShortcuts.focusWindowDescription": {
+    "defaultMessage": "Porta la finestra di Goose in primo piano da qualsiasi punto"
+  },
+  "keyboardShortcuts.focusWindowLabel": {
+    "defaultMessage": "Metti a fuoco la finestra di Goose"
+  },
+  "keyboardShortcuts.loading": {
+    "defaultMessage": "Caricamento in corso..."
+  },
+  "keyboardShortcuts.newChatDescription": {
+    "defaultMessage": "Crea una nuova chat nella finestra corrente"
+  },
+  "keyboardShortcuts.newChatLabel": {
+    "defaultMessage": "Nuova chat"
+  },
+  "keyboardShortcuts.newChatWindowDescription": {
+    "defaultMessage": "Apri una nuova finestra di Goose"
+  },
+  "keyboardShortcuts.newChatWindowLabel": {
+    "defaultMessage": "Nuova finestra di chat"
+  },
+  "keyboardShortcuts.openDirectoryDescription": {
+    "defaultMessage": "Apri la finestra di selezione della directory"
+  },
+  "keyboardShortcuts.openDirectoryLabel": {
+    "defaultMessage": "Apri directory"
+  },
+  "keyboardShortcuts.quickLauncherDescription": {
+    "defaultMessage": "Apri l'overlay dell'avvio rapido"
+  },
+  "keyboardShortcuts.quickLauncherLabel": {
+    "defaultMessage": "Avvio rapido"
+  },
+  "keyboardShortcuts.reassignShortcut": {
+    "defaultMessage": "Riassegna scorciatoia"
+  },
+  "keyboardShortcuts.resetAllShortcuts": {
+    "defaultMessage": "Reimposta tutte le scorciatoie"
+  },
+  "keyboardShortcuts.resetShortcutsDetail": {
+    "defaultMessage": "Questa operazione ripristinerà tutte le scorciatoie alla loro configurazione originale."
+  },
+  "keyboardShortcuts.resetShortcutsMessage": {
+    "defaultMessage": "Reimpostare tutte le scorciatoie da tastiera ai valori predefiniti?"
+  },
+  "keyboardShortcuts.resetShortcutsTitle": {
+    "defaultMessage": "Reimposta scorciatoie da tastiera"
+  },
+  "keyboardShortcuts.resetToDefaultsDescription": {
+    "defaultMessage": "Ripristina tutte le scorciatoie da tastiera alla loro configurazione originale"
+  },
+  "keyboardShortcuts.resetToDefaultsHeading": {
+    "defaultMessage": "Ripristina i valori predefiniti"
+  },
+  "keyboardShortcuts.restartDescription": {
+    "defaultMessage": "Le modifiche alle scorciatoie dell'applicazione (come Nuova chat, Impostazioni, ecc.) richiedono il riavvio di Goose per avere effetto. Le scorciatoie globali (Metti a fuoco la finestra, Avvio rapido) funzionano immediatamente."
+  },
+  "keyboardShortcuts.restartRequired": {
+    "defaultMessage": "Riavvio necessario"
+  },
+  "keyboardShortcuts.settingsDescription": {
+    "defaultMessage": "Apri il pannello delle impostazioni"
+  },
+  "keyboardShortcuts.settingsLabel": {
+    "defaultMessage": "Impostazioni"
+  },
+  "keyboardShortcuts.shortcutConflictSaveDetail": {
+    "defaultMessage": "Salvando questa modifica la scorciatoia verrà rimossa da \"{conflictLabel}\" e assegnata a \"{targetLabel}\". Vuoi continuare?"
+  },
+  "keyboardShortcuts.shortcutConflictTitle": {
+    "defaultMessage": "Conflitto di scorciatoie"
+  },
+  "keyboardShortcuts.shortcutConflictToggleDetail": {
+    "defaultMessage": "Abilitando questa opzione la scorciatoia verrà rimossa da \"{conflictLabel}\" e assegnata a \"{targetLabel}\". Vuoi continuare?"
+  },
+  "keyboardShortcuts.shortcutConflictToggleMessage": {
+    "defaultMessage": "La scorciatoia {shortcut} è già assegnata a \"{conflictLabel}\"."
+  },
+  "keyboardShortcuts.toggleNavigationDescription": {
+    "defaultMessage": "Mostra o nascondi il menu di navigazione"
+  },
+  "keyboardShortcuts.toggleNavigationLabel": {
+    "defaultMessage": "Attiva/disattiva navigazione"
+  },
+  "launcher.placeholder": {
+    "defaultMessage": "Chiedi qualsiasi cosa a goose..."
+  },
+  "loadingGoose.compacting": {
+    "defaultMessage": "goose sta compattando la conversazione..."
+  },
+  "loadingGoose.idle": {
+    "defaultMessage": "goose ci sta lavorando…"
+  },
+  "loadingGoose.loadingConversation": {
+    "defaultMessage": "caricamento conversazione..."
+  },
+  "loadingGoose.restartingAgent": {
+    "defaultMessage": "riavvio della sessione..."
+  },
+  "loadingGoose.streaming": {
+    "defaultMessage": "goose ci sta lavorando…"
+  },
+  "loadingGoose.thinking": {
+    "defaultMessage": "goose sta pensando…"
+  },
+  "loadingGoose.waiting": {
+    "defaultMessage": "goose è in attesa…"
+  },
+  "localInferenceSettings.deleteConfirm": {
+    "defaultMessage": "Eliminare questo modello? Potrai scaricarlo di nuovo in seguito."
+  },
+  "localInferenceSettings.description": {
+    "defaultMessage": "Scarica e gestisci modelli LLM locali per l'inferenza senza chiavi API. Cerca modelli GGUF o MLX su HuggingFace oppure usa le scelte consigliate qui sotto."
+  },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "Ignora"
+  },
+  "localInferenceSettings.download": {
+    "defaultMessage": "Scarica"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "Download annullato"
+  },
+  "localInferenceSettings.downloadFailed": {
+    "defaultMessage": "Download non riuscito"
+  },
+  "localInferenceSettings.downloadProgress": {
+    "defaultMessage": "{downloaded} / {total} ({percent}%)"
+  },
+  "localInferenceSettings.downloadedModels": {
+    "defaultMessage": "Modelli scaricati"
+  },
+  "localInferenceSettings.downloading": {
+    "defaultMessage": "Download in corso"
+  },
+  "localInferenceSettings.featuredModels": {
+    "defaultMessage": "Modelli in evidenza"
+  },
+  "localInferenceSettings.huggingFaceSignInNote": {
+    "defaultMessage": "Accedi per aumentare i limiti di frequenza durante la ricerca e il download dei modelli e per accedere ai repository Hugging Face privati o ad accesso limitato."
+  },
+  "localInferenceSettings.modelSettings": {
+    "defaultMessage": "Impostazioni modello"
+  },
+  "localInferenceSettings.modelSettingsTitle": {
+    "defaultMessage": "Impostazioni modello"
+  },
+  "localInferenceSettings.noModels": {
+    "defaultMessage": "Nessun modello disponibile"
+  },
+  "localInferenceSettings.recommended": {
+    "defaultMessage": "Consigliato"
+  },
+  "localInferenceSettings.remaining": {
+    "defaultMessage": "{time} rimanenti"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "Riprova"
+  },
+  "localInferenceSettings.showAllFeatured": {
+    "defaultMessage": "Mostra tutti i modelli in evidenza ({count} in più)"
+  },
+  "localInferenceSettings.showRecommendedOnly": {
+    "defaultMessage": "Mostra solo i consigliati"
+  },
+  "localInferenceSettings.title": {
+    "defaultMessage": "Modelli di inferenza locale"
+  },
+  "localInferenceSettings.vision": {
+    "defaultMessage": "Vista"
+  },
+  "localInferenceSettings.visionEncoderDownloading": {
+    "defaultMessage": "Download dell'encoder di visione in corso…"
+  },
+  "localInferenceSettings.visionEncoderNotDownloaded": {
+    "defaultMessage": "Encoder di visione non scaricato"
+  },
+  "localModelManager.active": {
+    "defaultMessage": "Attivo"
+  },
+  "localModelManager.deleteConfirm": {
+    "defaultMessage": "Eliminare questo modello? Potrai scaricarlo di nuovo in seguito."
+  },
+  "localModelManager.download": {
+    "defaultMessage": "Scarica"
+  },
+  "localModelManager.downloaded": {
+    "defaultMessage": "Scaricato"
+  },
+  "localModelManager.gpuAcceleration": {
+    "defaultMessage": "Supporta l'accelerazione GPU (CUDA per NVIDIA, Metal per Apple Silicon). Le funzionalità GPU devono essere abilitate in fase di build per l'accelerazione hardware."
+  },
+  "localModelManager.noModels": {
+    "defaultMessage": "Nessun modello disponibile"
+  },
+  "localModelManager.recommended": {
+    "defaultMessage": "Consigliato"
+  },
+  "localModelManager.recommendedForHardware": {
+    "defaultMessage": "Consigliato per il tuo hardware"
+  },
+  "localModelManager.showAllModels": {
+    "defaultMessage": "Mostra tutti i modelli ({count} in più)"
+  },
+  "localModelManager.showRecommendedOnly": {
+    "defaultMessage": "Mostra solo i consigliati"
+  },
+  "localModelPicker.back": {
+    "defaultMessage": "Indietro"
+  },
+  "localModelPicker.bestForMachine": {
+    "defaultMessage": "Ideale per la tua macchina"
+  },
+  "localModelPicker.cancelDownload": {
+    "defaultMessage": "Annulla download"
+  },
+  "localModelPicker.checkingModels": {
+    "defaultMessage": "Verifica dei modelli disponibili..."
+  },
+  "localModelPicker.downloadModel": {
+    "defaultMessage": "Scarica {modelId} ({size})"
+  },
+  "localModelPicker.downloading": {
+    "defaultMessage": "Download di {modelId} in corso"
+  },
+  "localModelPicker.failedToLoad": {
+    "defaultMessage": "Impossibile caricare i modelli disponibili. Riprova."
+  },
+  "localModelPicker.failedToStartDownload": {
+    "defaultMessage": "Impossibile avviare il download. Riprova."
+  },
+  "localModelPicker.hideOtherSizes": {
+    "defaultMessage": "Nascondi altre dimensioni"
+  },
+  "localModelPicker.localModelsNote": {
+    "defaultMessage": "I modelli locali mantengono tutto sulla tua macchina per la massima privacy. Le prestazioni e la dimensione della finestra di contesto possono variare rispetto ai provider cloud a seconda dell'hardware e della dimensione del modello."
+  },
+  "localModelPicker.lostConnection": {
+    "defaultMessage": "Connessione al download persa. Riprova."
+  },
+  "localModelPicker.modelNotFound": {
+    "defaultMessage": "Modello non trovato"
+  },
+  "localModelPicker.ready": {
+    "defaultMessage": "Pronto"
+  },
+  "localModelPicker.selectModel": {
+    "defaultMessage": "Seleziona un modello"
+  },
+  "localModelPicker.showOtherSizes": {
+    "defaultMessage": "Mostra altre {count} dimensioni"
+  },
+  "localModelPicker.startingDownload": {
+    "defaultMessage": "Avvio del download..."
+  },
+  "localModelPicker.tryAgain": {
+    "defaultMessage": "Riprova"
+  },
+  "localModelPicker.useModel": {
+    "defaultMessage": "Usa {modelId}"
+  },
+  "markdownContent.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "markdownContent.copyCode": {
+    "defaultMessage": "Copia codice"
+  },
+  "markdownContent.failedToOpenLink": {
+    "defaultMessage": "Impossibile aprire il link"
+  },
+  "markdownContent.noApplicationFound": {
+    "defaultMessage": "Nessuna applicazione trovata per aprire questo link."
+  },
+  "markdownContent.open": {
+    "defaultMessage": "Apri"
+  },
+  "markdownContent.openExternalLink": {
+    "defaultMessage": "Apri link esterno"
+  },
+  "markdownContent.openProtocolLink": {
+    "defaultMessage": "Aprire il link {protocol}?"
+  },
+  "markdownContent.thisWillOpen": {
+    "defaultMessage": "Questo aprirà: {href}"
+  },
+  "mcpAppRenderer.appFallbackTitle": {
+    "defaultMessage": "App"
+  },
+  "mcpAppRenderer.cancelButton": {
+    "defaultMessage": "Annulla"
+  },
+  "mcpAppRenderer.close": {
+    "defaultMessage": "Chiudi"
+  },
+  "mcpAppRenderer.exitFullscreen": {
+    "defaultMessage": "Esci dalla modalità a schermo intero"
+  },
+  "mcpAppRenderer.exitFullscreenTitle": {
+    "defaultMessage": "Esci dalla modalità a schermo intero (Esc)"
+  },
+  "mcpAppRenderer.failedToInitSandbox": {
+    "defaultMessage": "Impossibile inizializzare il proxy sandbox"
+  },
+  "mcpAppRenderer.failedToLoadResource": {
+    "defaultMessage": "Impossibile caricare la risorsa"
+  },
+  "mcpAppRenderer.fullscreen": {
+    "defaultMessage": "Schermo intero"
+  },
+  "mcpAppRenderer.invalidUrl": {
+    "defaultMessage": "URL non valido"
+  },
+  "mcpAppRenderer.movePipWindow": {
+    "defaultMessage": "Sposta la finestra Picture-in-Picture (usa i tasti freccia)"
+  },
+  "mcpAppRenderer.openButton": {
+    "defaultMessage": "Apri"
+  },
+  "mcpAppRenderer.openExternalLinkTitle": {
+    "defaultMessage": "Apri link esterno"
+  },
+  "mcpAppRenderer.openLinkDetail": {
+    "defaultMessage": "Questo aprirà: {url}"
+  },
+  "mcpAppRenderer.openProtocolLink": {
+    "defaultMessage": "Aprire il link {protocol}?"
+  },
+  "mcpAppRenderer.pictureInPicture": {
+    "defaultMessage": "Picture-in-Picture"
+  },
+  "mcpAppRenderer.playingInPip": {
+    "defaultMessage": "In riproduzione in Picture-in-Picture"
+  },
+  "mcpUIResourceRenderer.cancelButton": {
+    "defaultMessage": "Annulla"
+  },
+  "mcpUIResourceRenderer.openButton": {
+    "defaultMessage": "Apri"
+  },
+  "mcpUIResourceRenderer.openExternalLinkTitle": {
+    "defaultMessage": "Apri link esterno"
+  },
+  "mcpUIResourceRenderer.openLinkDetail": {
+    "defaultMessage": "Questo aprirà: {url}"
+  },
+  "mcpUIResourceRenderer.openProtocolLink": {
+    "defaultMessage": "Aprire il link {protocol}?"
+  },
+  "mcpUIResourceRenderer.toastMessageReceived": {
+    "defaultMessage": "Messaggio ricevuto per {message}."
+  },
+  "mcpUIResourceRenderer.toastTitle": {
+    "defaultMessage": "Messaggio MCP-UI {messageType}"
+  },
+  "mcpUIResourceRenderer.toastUnsupported": {
+    "defaultMessage": "Messaggio ricevuto per {message}. I messaggi {messageType} non sono ancora supportati, consulta la console per maggiori dettagli."
+  },
+  "mentionPopover.itemsFound": {
+    "defaultMessage": "{count,plural,one{# elemento trovato} other{# elementi trovati}}"
+  },
+  "mentionPopover.loadingCommands": {
+    "defaultMessage": "Caricamento comandi..."
+  },
+  "mentionPopover.noCommandsFound": {
+    "defaultMessage": "Nessun comando trovato corrispondente a \"{query}\""
+  },
+  "mentionPopover.noItemsFound": {
+    "defaultMessage": "Nessun elemento trovato corrispondente a \"{query}\""
+  },
+  "mentionPopover.scanningFiles": {
+    "defaultMessage": "Scansione dei file..."
+  },
+  "messageCopyLink.copied": {
+    "defaultMessage": "Copiato!"
+  },
+  "messageCopyLink.copy": {
+    "defaultMessage": "Copia"
+  },
+  "messageQueue.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "messageQueue.cannotSendWhileEditing": {
+    "defaultMessage": "Impossibile inviare durante la modifica"
+  },
+  "messageQueue.clearAll": {
+    "defaultMessage": "Cancella tutto"
+  },
+  "messageQueue.clickToEdit": {
+    "defaultMessage": "{content} (Clicca per modificare)"
+  },
+  "messageQueue.collapseQueue": {
+    "defaultMessage": "Comprimi coda"
+  },
+  "messageQueue.dragToReorder": {
+    "defaultMessage": "Trascina i messaggi per riordinare la priorità"
+  },
+  "messageQueue.expandQueue": {
+    "defaultMessage": "Espandi coda"
+  },
+  "messageQueue.messageCount": {
+    "defaultMessage": "{count,plural,one{# messaggio {status}} other{# messaggi {status}}}"
+  },
+  "messageQueue.messageQueue": {
+    "defaultMessage": "Coda dei messaggi"
+  },
+  "messageQueue.next": {
+    "defaultMessage": "Successivo"
+  },
+  "messageQueue.paused": {
+    "defaultMessage": "In pausa"
+  },
+  "messageQueue.queuePaused": {
+    "defaultMessage": "Coda in pausa"
+  },
+  "messageQueue.queuePausedCompact": {
+    "defaultMessage": "Coda in pausa - clicca \"Invia\" o aggiungi un nuovo messaggio per riprendere"
+  },
+  "messageQueue.queuePausedExpanded": {
+    "defaultMessage": "Coda in pausa per interruzione. Usa \"Invia ora\" o aggiungi un nuovo messaggio per riprendere."
+  },
+  "messageQueue.queued": {
+    "defaultMessage": "in coda"
+  },
+  "messageQueue.removeFromQueue": {
+    "defaultMessage": "Rimuovi questo messaggio dalla coda"
+  },
+  "messageQueue.save": {
+    "defaultMessage": "Salva"
+  },
+  "messageQueue.sendNow": {
+    "defaultMessage": "Invia subito questo messaggio"
+  },
+  "messageQueue.stopAndSend": {
+    "defaultMessage": "Interrompi l'elaborazione corrente e invia subito questo messaggio"
+  },
+  "messageQueue.waiting": {
+    "defaultMessage": "in attesa"
+  },
+  "microphoneSelector.chooseDescription": {
+    "defaultMessage": "Scegli quale microfono usare per la dettatura"
+  },
+  "microphoneSelector.grantAccess": {
+    "defaultMessage": "Concedi accesso"
+  },
+  "microphoneSelector.grantAccessDescription": {
+    "defaultMessage": "Concedi l'accesso per visualizzare i microfoni disponibili"
+  },
+  "microphoneSelector.microphone": {
+    "defaultMessage": "Microfono"
+  },
+  "microphoneSelector.microphoneLabel": {
+    "defaultMessage": "Microfono {index}"
+  },
+  "microphoneSelector.selectedMicrophone": {
+    "defaultMessage": "Microfono selezionato"
+  },
+  "microphoneSelector.speakToTest": {
+    "defaultMessage": "Parla per testare il tuo microfono ({seconds}s)"
+  },
+  "microphoneSelector.stop": {
+    "defaultMessage": "Ferma"
+  },
+  "microphoneSelector.systemDefault": {
+    "defaultMessage": "Predefinito di sistema"
+  },
+  "microphoneSelector.test": {
+    "defaultMessage": "Prova"
+  },
+  "modeSelectionItem.autonomousDescription": {
+    "defaultMessage": "Funzionalità complete di modifica dei file: modifica, crea ed elimina file liberamente."
+  },
+  "modeSelectionItem.autonomousLabel": {
+    "defaultMessage": "Autonoma"
+  },
+  "modeSelectionItem.chatOnlyDescription": {
+    "defaultMessage": "Interagisci con il provider selezionato senza usare strumenti o estensioni."
+  },
+  "modeSelectionItem.chatOnlyLabel": {
+    "defaultMessage": "Solo chat"
+  },
+  "modeSelectionItem.manualDescription": {
+    "defaultMessage": "Tutti gli strumenti, le estensioni e le modifiche ai file richiederanno l'approvazione umana"
+  },
+  "modeSelectionItem.manualLabel": {
+    "defaultMessage": "Manuale"
+  },
+  "modeSelectionItem.smartDescription": {
+    "defaultMessage": "Determina in modo intelligente quali azioni necessitano di approvazione in base al livello di rischio"
+  },
+  "modeSelectionItem.smartLabel": {
+    "defaultMessage": "Intelligente"
+  },
+  "modelAndProviderContext.modelChangeFailed": {
+    "defaultMessage": "{provider}/{model} non riuscito"
+  },
+  "modelAndProviderContext.modelChangedTitle": {
+    "defaultMessage": "Modello cambiato"
+  },
+  "modelAndProviderContext.selectModel": {
+    "defaultMessage": "Seleziona modello"
+  },
+  "modelAndProviderContext.switchModelSuccess": {
+    "defaultMessage": "Modelli cambiati correttamente -- in uso {model} di {provider}"
+  },
+  "modelAndProviderContext.unknownProviderMsg": {
+    "defaultMessage": "Provider sconosciuto nella configurazione -- controlla il tuo config.yaml"
+  },
+  "modelAndProviderContext.unknownProviderTitle": {
+    "defaultMessage": "Ricerca nome provider"
+  },
+  "modelSettingsButtons.configureProviders": {
+    "defaultMessage": "Configura provider"
+  },
+  "modelSettingsButtons.switchModels": {
+    "defaultMessage": "Cambia modelli"
+  },
+  "modelSettingsPanel.batchSize": {
+    "defaultMessage": "Dimensione batch"
+  },
+  "modelSettingsPanel.batchSizeDescription": {
+    "defaultMessage": "Batch di elaborazione del prompt"
+  },
+  "modelSettingsPanel.builtinChatTemplate": {
+    "defaultMessage": "Template integrato"
+  },
+  "modelSettingsPanel.builtinChatTemplateDescription": {
+    "defaultMessage": "Seleziona il nome di un template integrato di llama.cpp"
+  },
+  "modelSettingsPanel.chatTemplate": {
+    "defaultMessage": "Template chat"
+  },
+  "modelSettingsPanel.chatTemplateBuiltin": {
+    "defaultMessage": "Integrato"
+  },
+  "modelSettingsPanel.chatTemplateCustomInline": {
+    "defaultMessage": "Personalizzato inline"
+  },
+  "modelSettingsPanel.chatTemplateDescription": {
+    "defaultMessage": "Usa i metadati GGUF incorporati, un template integrato di llama.cpp o Jinja inline"
+  },
+  "modelSettingsPanel.chatTemplateEmbedded": {
+    "defaultMessage": "Incorporato"
+  },
+  "modelSettingsPanel.contextAndGeneration": {
+    "defaultMessage": "Contesto e generazione"
+  },
+  "modelSettingsPanel.contextSize": {
+    "defaultMessage": "Dimensione contesto"
+  },
+  "modelSettingsPanel.contextSizeDescription": {
+    "defaultMessage": "Finestra di contesto massima (0 = valore predefinito del modello)"
+  },
+  "modelSettingsPanel.customChatTemplate": {
+    "defaultMessage": "Template chat personalizzato"
+  },
+  "modelSettingsPanel.customChatTemplateDescription": {
+    "defaultMessage": "Incolla il codice sorgente completo del template chat Jinja"
+  },
+  "modelSettingsPanel.etaLearningRate": {
+    "defaultMessage": "Eta (tasso di apprendimento)"
+  },
+  "modelSettingsPanel.flashAttention": {
+    "defaultMessage": "Flash attention"
+  },
+  "modelSettingsPanel.flashAttentionDescription": {
+    "defaultMessage": "Abilita l'ottimizzazione flash attention"
+  },
+  "modelSettingsPanel.frequencyPenalty": {
+    "defaultMessage": "Penalità di frequenza"
+  },
+  "modelSettingsPanel.frequencyPenaltyDescription": {
+    "defaultMessage": "0.0 = disattivata"
+  },
+  "modelSettingsPanel.gpuLayers": {
+    "defaultMessage": "Livelli GPU"
+  },
+  "modelSettingsPanel.gpuLayersDescription": {
+    "defaultMessage": "Livelli da delegare alla GPU"
+  },
+  "modelSettingsPanel.loadingSettings": {
+    "defaultMessage": "Caricamento impostazioni..."
+  },
+  "modelSettingsPanel.lockModelInRam": {
+    "defaultMessage": "Blocca il modello in RAM (mlock)"
+  },
+  "modelSettingsPanel.lockModelInRamDescription": {
+    "defaultMessage": "Impedisce lo swap del modello su disco"
+  },
+  "modelSettingsPanel.maxOutputTokens": {
+    "defaultMessage": "Token di output massimi"
+  },
+  "modelSettingsPanel.maxOutputTokensDescription": {
+    "defaultMessage": "Limite sui token generati"
+  },
+  "modelSettingsPanel.minP": {
+    "defaultMessage": "Min P"
+  },
+  "modelSettingsPanel.performance": {
+    "defaultMessage": "Prestazioni"
+  },
+  "modelSettingsPanel.presencePenalty": {
+    "defaultMessage": "Penalità di presenza"
+  },
+  "modelSettingsPanel.presencePenaltyDescription": {
+    "defaultMessage": "0.0 = disattivata"
+  },
+  "modelSettingsPanel.repeatPenalty": {
+    "defaultMessage": "Penalità di ripetizione"
+  },
+  "modelSettingsPanel.repeatPenaltyDescription": {
+    "defaultMessage": "1.0 = disattivata"
+  },
+  "modelSettingsPanel.repeatWindow": {
+    "defaultMessage": "Finestra di ripetizione"
+  },
+  "modelSettingsPanel.repeatWindowDescription": {
+    "defaultMessage": "Token da considerare a ritroso"
+  },
+  "modelSettingsPanel.repetitionPenalty": {
+    "defaultMessage": "Penalità di ripetizione"
+  },
+  "modelSettingsPanel.reset": {
+    "defaultMessage": "Reimposta"
+  },
+  "modelSettingsPanel.resetToDefaults": {
+    "defaultMessage": "Reimposta i valori predefiniti"
+  },
+  "modelSettingsPanel.samplingStrategy": {
+    "defaultMessage": "Strategia di campionamento"
+  },
+  "modelSettingsPanel.saving": {
+    "defaultMessage": "Salvataggio in corso..."
+  },
+  "modelSettingsPanel.seed": {
+    "defaultMessage": "Seed"
+  },
+  "modelSettingsPanel.tauTargetEntropy": {
+    "defaultMessage": "Tau (entropia target)"
+  },
+  "modelSettingsPanel.temperature": {
+    "defaultMessage": "Temperatura"
+  },
+  "modelSettingsPanel.threads": {
+    "defaultMessage": "Thread"
+  },
+  "modelSettingsPanel.threadsDescription": {
+    "defaultMessage": "Thread CPU per la generazione"
+  },
+  "modelSettingsPanel.toolCalling": {
+    "defaultMessage": "Chiamata strumenti"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "Automatica"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "Scegli come i modelli locali selezionano la chiamata strumenti nativa o emulata"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "Forza emulata"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "Forza nativa"
+  },
+  "modelSettingsPanel.topK": {
+    "defaultMessage": "Top K"
+  },
+  "modelSettingsPanel.topP": {
+    "defaultMessage": "Top P"
+  },
+  "modelsBottomBar.changeModel": {
+    "defaultMessage": "Cambia modello"
+  },
+  "modelsBottomBar.currentModel": {
+    "defaultMessage": "Modello corrente"
+  },
+  "modelsBottomBar.loadingModel": {
+    "defaultMessage": "Caricamento modello..."
+  },
+  "modelsBottomBar.localModelSettings": {
+    "defaultMessage": "Impostazioni modello locale"
+  },
+  "modelsBottomBar.localModelSettingsTitle": {
+    "defaultMessage": "Impostazioni modello locale — {modelName}"
+  },
+  "modelsBottomBar.resolvedModel": {
+    "defaultMessage": "Modello risolto"
+  },
+  "modelsBottomBar.selectModel": {
+    "defaultMessage": "Seleziona modello"
+  },
+  "modelsSection.resetDescription": {
+    "defaultMessage": "Cancella le impostazioni del modello e del provider selezionati per ricominciare da zero"
+  },
+  "modelsSection.resetTitle": {
+    "defaultMessage": "Reimposta provider e modello"
+  },
+  "navigation.itemApps": {
+    "defaultMessage": "App"
+  },
+  "navigation.itemExtensions": {
+    "defaultMessage": "Estensioni"
+  },
+  "navigation.itemHome": {
+    "defaultMessage": "Nuova chat"
+  },
+  "navigation.itemRecipes": {
+    "defaultMessage": "Ricette"
+  },
+  "navigation.itemScheduler": {
+    "defaultMessage": "Pianificatore"
+  },
+  "navigation.itemSessions": {
+    "defaultMessage": "Cronologia sessioni"
+  },
+  "navigation.itemSettings": {
+    "defaultMessage": "Impostazioni"
+  },
+  "navigation.itemSkills": {
+    "defaultMessage": "Competenze"
+  },
+  "navigationPanel.chats": {
+    "defaultMessage": "Chat"
+  },
+  "navigationPanel.noChats": {
+    "defaultMessage": "Nessuna chat recente"
+  },
+  "navigationPanel.untitledSession": {
+    "defaultMessage": "Sessione senza titolo"
+  },
+  "onboardingGuard.checkProviderErrorDescription": {
+    "defaultMessage": "Il server potrebbe essere in fase di avvio o temporaneamente non disponibile."
+  },
+  "onboardingGuard.checkProviderErrorTitle": {
+    "defaultMessage": "Impossibile connettersi al server Goose"
+  },
+  "onboardingGuard.retry": {
+    "defaultMessage": "Riprova"
+  },
+  "onboardingGuard.welcomeDescription": {
+    "defaultMessage": "Il tuo agente IA locale. Collega un provider di modelli IA per iniziare."
+  },
+  "onboardingGuard.welcomeTitle": {
+    "defaultMessage": "Benvenuto in goose"
+  },
+  "onboardingSuccess.allSet": {
+    "defaultMessage": "Tutto è pronto per iniziare a usare goose."
+  },
+  "onboardingSuccess.connectedTo": {
+    "defaultMessage": "Connesso a {providerName}"
+  },
+  "onboardingSuccess.getStarted": {
+    "defaultMessage": "Inizia"
+  },
+  "onboardingSuccess.learnMore": {
+    "defaultMessage": "Scopri di più"
+  },
+  "onboardingSuccess.localModelReady": {
+    "defaultMessage": "Modello locale pronto"
+  },
+  "onboardingSuccess.privacyDescription": {
+    "defaultMessage": "I dati di utilizzo anonimi aiutano a migliorare goose. Non raccogliamo mai le tue conversazioni, il tuo codice o i tuoi dati personali."
+  },
+  "onboardingSuccess.privacyTitle": {
+    "defaultMessage": "Privacy"
+  },
+  "onboardingSuccess.shareUsageData": {
+    "defaultMessage": "Condividi dati di utilizzo anonimi"
+  },
+  "parameterInput.defaultValue": {
+    "defaultMessage": "Valore predefinito"
+  },
+  "parameterInput.defaultValuePlaceholder": {
+    "defaultMessage": "Inserisci il valore predefinito"
+  },
+  "parameterInput.deleteParameter": {
+    "defaultMessage": "Elimina parametro: {key}"
+  },
+  "parameterInput.description": {
+    "defaultMessage": "descrizione"
+  },
+  "parameterInput.descriptionHelp": {
+    "defaultMessage": "Questo è il messaggio che l'utente finale vedrà."
+  },
+  "parameterInput.descriptionPlaceholder": {
+    "defaultMessage": "Es., \"Inserisci il nome del nuovo componente\""
+  },
+  "parameterInput.inputType": {
+    "defaultMessage": "Tipo di input"
+  },
+  "parameterInput.optional": {
+    "defaultMessage": "Facoltativo"
+  },
+  "parameterInput.optionsHelp": {
+    "defaultMessage": "Inserisci ogni opzione su una nuova riga. Verranno mostrate come scelte del menu a discesa."
+  },
+  "parameterInput.optionsLabel": {
+    "defaultMessage": "Opzioni (una per riga)"
+  },
+  "parameterInput.optionsPlaceholder": {
+    "defaultMessage": "Opzione 1 Opzione 2 Opzione 3"
+  },
+  "parameterInput.required": {
+    "defaultMessage": "Obbligatorio"
+  },
+  "parameterInput.requirement": {
+    "defaultMessage": "Requisito"
+  },
+  "parameterInput.typeBoolean": {
+    "defaultMessage": "Booleano"
+  },
+  "parameterInput.typeNumber": {
+    "defaultMessage": "Numero"
+  },
+  "parameterInput.typeSelect": {
+    "defaultMessage": "Selezione"
+  },
+  "parameterInput.typeString": {
+    "defaultMessage": "Stringa"
+  },
+  "parameterInput.unused": {
+    "defaultMessage": "Non utilizzato"
+  },
+  "parameterInput.unusedWarningTitle": {
+    "defaultMessage": "Questo parametro non è utilizzato nelle istruzioni o nel prompt. Sarà disponibile per l'inserimento manuale ma potrebbe non essere necessario."
+  },
+  "parameterInputModal.backToForm": {
+    "defaultMessage": "Torna al modulo dei parametri"
+  },
+  "parameterInputModal.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "parameterInputModal.cancelRecipeSetup": {
+    "defaultMessage": "Annulla configurazione ricetta"
+  },
+  "parameterInputModal.enterValue": {
+    "defaultMessage": "Inserisci il valore per {key}..."
+  },
+  "parameterInputModal.false": {
+    "defaultMessage": "Falso"
+  },
+  "parameterInputModal.recipeParameters": {
+    "defaultMessage": "Parametri ricetta"
+  },
+  "parameterInputModal.select": {
+    "defaultMessage": "Seleziona..."
+  },
+  "parameterInputModal.selectOption": {
+    "defaultMessage": "Seleziona un'opzione..."
+  },
+  "parameterInputModal.startNewChat": {
+    "defaultMessage": "Avvia nuova chat (nessuna ricetta)"
+  },
+  "parameterInputModal.startRecipe": {
+    "defaultMessage": "Avvia ricetta"
+  },
+  "parameterInputModal.true": {
+    "defaultMessage": "Vero"
+  },
+  "parameterInputModal.whatToDo": {
+    "defaultMessage": "Cosa desideri fare?"
+  },
+  "permissionModal.alwaysAllow": {
+    "defaultMessage": "Consenti sempre"
+  },
+  "permissionModal.askBefore": {
+    "defaultMessage": "Chiedi prima"
+  },
+  "permissionModal.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "permissionModal.close": {
+    "defaultMessage": "Chiudi"
+  },
+  "permissionModal.failedToLoadTools": {
+    "defaultMessage": "Impossibile caricare gli strumenti"
+  },
+  "permissionModal.failedToLoadToolsDescription": {
+    "defaultMessage": "Impossibile caricare gli strumenti per questa estensione. L'estensione potrebbe non essere caricata nella sessione corrente."
+  },
+  "permissionModal.neverAllow": {
+    "defaultMessage": "Non consentire mai"
+  },
+  "permissionModal.noActiveSession": {
+    "defaultMessage": "Nessuna sessione attiva"
+  },
+  "permissionModal.noActiveSessionDescription": {
+    "defaultMessage": "Avvia prima una sessione di chat per configurare le autorizzazioni degli strumenti per questa estensione. Le autorizzazioni degli strumenti vengono caricate dalle estensioni della sessione attiva."
+  },
+  "permissionModal.noToolsAvailable": {
+    "defaultMessage": "Nessuno strumento disponibile per questa estensione."
+  },
+  "permissionModal.saveChanges": {
+    "defaultMessage": "Salva modifiche"
+  },
+  "permissionRulesModal.description": {
+    "defaultMessage": "Configura le autorizzazioni degli strumenti per le estensioni per controllare come interagiscono con il tuo sistema."
+  },
+  "permissionRulesModal.extensionRules": {
+    "defaultMessage": "Regole delle estensioni"
+  },
+  "permissionRulesModal.title": {
+    "defaultMessage": "Regole di autorizzazione"
+  },
+  "permissionSetting.extensionRules": {
+    "defaultMessage": "Regole delle estensioni"
+  },
+  "permissionSetting.permissionRules": {
+    "defaultMessage": "Regole di autorizzazione"
+  },
+  "permissionSetting.permissionRulesDescription": {
+    "defaultMessage": "Istruzioni nascoste che verranno passate al provider per aiutare a indirizzare e aggiungere contesto alle tue risposte."
+  },
+  "privacyInfoModal.collectErrors": {
+    "defaultMessage": "Tipi di errore (es. \"rate_limit\", \"auth\" - nessun dettaglio)"
+  },
+  "privacyInfoModal.collectExtensions": {
+    "defaultMessage": "Conteggi di utilizzo di estensioni e strumenti (solo nomi)"
+  },
+  "privacyInfoModal.collectOs": {
+    "defaultMessage": "Sistema operativo, versione e architettura"
+  },
+  "privacyInfoModal.collectProvider": {
+    "defaultMessage": "Provider e modello utilizzati"
+  },
+  "privacyInfoModal.collectSession": {
+    "defaultMessage": "Metriche della sessione (durata, numero di interazioni, utilizzo di token)"
+  },
+  "privacyInfoModal.collectVersion": {
+    "defaultMessage": "Versione di goose e metodo di installazione"
+  },
+  "privacyInfoModal.description": {
+    "defaultMessage": "I dati di utilizzo anonimi ci aiutano a capire come viene usato goose e a individuare le aree di miglioramento."
+  },
+  "privacyInfoModal.neverCollect": {
+    "defaultMessage": "Non raccogliamo mai le tue conversazioni, il tuo codice, gli argomenti degli strumenti, i messaggi di errore o alcun dato personale. Puoi modificare questa impostazione in qualsiasi momento in Impostazioni."
+  },
+  "privacyInfoModal.title": {
+    "defaultMessage": "Dettagli sulla privacy"
+  },
+  "privacyInfoModal.whatWeCollect": {
+    "defaultMessage": "Cosa raccogliamo:"
+  },
+  "progressiveMessageList.loadingMessages": {
+    "defaultMessage": "Caricamento messaggi... ({renderedCount}/{totalCount})"
+  },
+  "progressiveMessageList.modelChanged": {
+    "defaultMessage": "Modello cambiato: {previousModel} → {currentModel}"
+  },
+  "progressiveMessageList.searchHint": {
+    "defaultMessage": "Premi Cmd/Ctrl+F per caricare immediatamente tutti i messaggi per la ricerca"
+  },
+  "promptsSettings.allPromptsReset": {
+    "defaultMessage": "Tutti i prompt ripristinati ai valori predefiniti"
+  },
+  "promptsSettings.backToList": {
+    "defaultMessage": "Torna all'elenco"
+  },
+  "promptsSettings.confirmReplaceWithDefault": {
+    "defaultMessage": "Sostituire il contenuto attuale con quello predefinito? Le tue modifiche andranno perse."
+  },
+  "promptsSettings.confirmResetAll": {
+    "defaultMessage": "Sei sicuro di voler ripristinare tutti i prompt ai loro valori predefiniti? Questa operazione non può essere annullata."
+  },
+  "promptsSettings.confirmResetOne": {
+    "defaultMessage": "Sei sicuro di voler ripristinare questo prompt al suo valore predefinito? Questa operazione non può essere annullata."
+  },
+  "promptsSettings.confirmUnsavedBack": {
+    "defaultMessage": "Hai modifiche non salvate. Sei sicuro di voler tornare indietro?"
+  },
+  "promptsSettings.customized": {
+    "defaultMessage": "Personalizzato"
+  },
+  "promptsSettings.edit": {
+    "defaultMessage": "Modifica"
+  },
+  "promptsSettings.editPromptTitle": {
+    "defaultMessage": "Modifica: {name}"
+  },
+  "promptsSettings.editingLabel": {
+    "defaultMessage": "Modifica in corso: {name}"
+  },
+  "promptsSettings.enterPromptContent": {
+    "defaultMessage": "Inserisci il contenuto del prompt..."
+  },
+  "promptsSettings.failedToLoadPrompt": {
+    "defaultMessage": "Impossibile caricare il prompt"
+  },
+  "promptsSettings.failedToLoadPrompts": {
+    "defaultMessage": "Impossibile caricare i prompt"
+  },
+  "promptsSettings.failedToResetPrompt": {
+    "defaultMessage": "Impossibile ripristinare il prompt"
+  },
+  "promptsSettings.failedToResetPrompts": {
+    "defaultMessage": "Impossibile ripristinare i prompt"
+  },
+  "promptsSettings.failedToSavePrompt": {
+    "defaultMessage": "Impossibile salvare il prompt"
+  },
+  "promptsSettings.promptEditingDescription": {
+    "defaultMessage": "Personalizza i prompt che definiscono il comportamento di goose in diversi contesti. Questi prompt usano la sintassi dei template Jinja2. Fai attenzione quando modifichi le variabili dei template, poiché modifiche errate possono compromettere le funzionalità. Condividi eventuali miglioramenti con la community."
+  },
+  "promptsSettings.promptEditingTitle": {
+    "defaultMessage": "Modifica prompt"
+  },
+  "promptsSettings.promptResetToDefault": {
+    "defaultMessage": "Prompt ripristinato al valore predefinito"
+  },
+  "promptsSettings.promptSaved": {
+    "defaultMessage": "Prompt salvato"
+  },
+  "promptsSettings.resetAll": {
+    "defaultMessage": "Ripristina tutto"
+  },
+  "promptsSettings.resetToDefault": {
+    "defaultMessage": "Ripristina ai valori predefiniti"
+  },
+  "promptsSettings.restoreDefault": {
+    "defaultMessage": "Ripristina predefinito"
+  },
+  "promptsSettings.save": {
+    "defaultMessage": "Salva"
+  },
+  "promptsSettings.templateTip": {
+    "defaultMessage": "Le variabili dei template come {extensionsExample} o {forExample} vengono sostituite con i valori effettivi in fase di esecuzione. Fai attenzione a non rimuovere le variabili obbligatorie."
+  },
+  "promptsSettings.unsavedChanges": {
+    "defaultMessage": "Hai modifiche non salvate"
+  },
+  "providerCard.noMetadata": {
+    "defaultMessage": "Errore ProviderCard: nessun metadato fornito"
+  },
+  "providerCard.unknownProvider": {
+    "defaultMessage": "Provider sconosciuto"
+  },
+  "providerCatalogPicker.anthropicCompatible": {
+    "defaultMessage": "Compatibile con Anthropic"
+  },
+  "providerCatalogPicker.apiFormat": {
+    "defaultMessage": "Formato API"
+  },
+  "providerCatalogPicker.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "providerCatalogPicker.chooseProvider": {
+    "defaultMessage": "Scegli provider"
+  },
+  "providerCatalogPicker.errorPrefix": {
+    "defaultMessage": "Errore: {error}"
+  },
+  "providerCatalogPicker.loadingProviders": {
+    "defaultMessage": "Caricamento provider..."
+  },
+  "providerCatalogPicker.modelsAvailable": {
+    "defaultMessage": "{count} modelli disponibili"
+  },
+  "providerCatalogPicker.noProvidersAvailable": {
+    "defaultMessage": "Nessun provider disponibile"
+  },
+  "providerCatalogPicker.noProvidersFound": {
+    "defaultMessage": "Nessun provider trovato per \"{query}\""
+  },
+  "providerCatalogPicker.openaiCompatible": {
+    "defaultMessage": "Compatibile con OpenAI"
+  },
+  "providerCatalogPicker.requiresEnvVar": {
+    "defaultMessage": "• Richiede {envVar}"
+  },
+  "providerCatalogPicker.searchProviders": {
+    "defaultMessage": "Cerca provider..."
+  },
+  "providerCatalogPicker.selectFormatDescription": {
+    "defaultMessage": "Seleziona un formato API e un provider. Compileremo automaticamente la configurazione per te."
+  },
+  "providerConfigForm.browserWindowOpen": {
+    "defaultMessage": "Si aprirà una finestra del browser per completare l'accesso."
+  },
+  "providerConfigForm.configuring": {
+    "defaultMessage": "Configurazione in corso..."
+  },
+  "providerConfigForm.continue": {
+    "defaultMessage": "Continua"
+  },
+  "providerConfigForm.deviceCodeFlowHint": {
+    "defaultMessage": "Si aprirà una finestra del browser e il codice di verifica verrà copiato negli appunti. Incollalo nel browser per completare l'accesso."
+  },
+  "providerConfigForm.noApiKey": {
+    "defaultMessage": "Non hai una chiave API?"
+  },
+  "providerConfigForm.signInWith": {
+    "defaultMessage": "Accedi con {providerName}"
+  },
+  "providerConfigForm.signingIn": {
+    "defaultMessage": "Accesso in corso..."
+  },
+  "providerConfigurationModal.addApiKeyDescription": {
+    "defaultMessage": "Aggiungi la tua chiave o le tue chiavi API per questo provider da integrare in goose"
+  },
+  "providerConfigurationModal.browserWindowHint": {
+    "defaultMessage": "Si aprirà una finestra del browser per completare l'accesso."
+  },
+  "providerConfigurationModal.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "providerConfigurationModal.cannotDeleteActive": {
+    "defaultMessage": "Non puoi eliminare questo provider mentre è attualmente in uso. Passa prima a un modello diverso."
+  },
+  "providerConfigurationModal.checkConfigAgain": {
+    "defaultMessage": "Controlla di nuovo la tua configurazione per usare questo provider."
+  },
+  "providerConfigurationModal.close": {
+    "defaultMessage": "Chiudi"
+  },
+  "providerConfigurationModal.configureHeader": {
+    "defaultMessage": "Configura {providerName}"
+  },
+  "providerConfigurationModal.deleteConfigHeader": {
+    "defaultMessage": "Elimina configurazione per {providerName}"
+  },
+  "providerConfigurationModal.deleteConfirmation": {
+    "defaultMessage": "Questa operazione eliminerà definitivamente la configurazione attuale del provider."
+  },
+  "providerConfigurationModal.deviceCodeFlowHint": {
+    "defaultMessage": "Si aprirà una finestra del browser e il codice di verifica verrà copiato negli appunti. Incollalo nel browser per completare l'accesso."
+  },
+  "providerConfigurationModal.errorCheckingConfig": {
+    "defaultMessage": "Si è verificato un errore durante la verifica della configurazione di questo provider."
+  },
+  "providerConfigurationModal.errorTitle": {
+    "defaultMessage": "Errore"
+  },
+  "providerConfigurationModal.externalSetupIntro": {
+    "defaultMessage": "Questo provider è configurato al di fuori di goose. Segui questi passaggi:"
+  },
+  "providerConfigurationModal.goBack": {
+    "defaultMessage": "Torna indietro"
+  },
+  "providerConfigurationModal.huggingFaceOAuthDescription": {
+    "defaultMessage": "Accedi per usare gli Inference Providers di Hugging Face senza inserire manualmente un token API."
+  },
+  "providerConfigurationModal.oauthLoginFailed": {
+    "defaultMessage": "Accesso OAuth non riuscito: {error}"
+  },
+  "providerConfigurationModal.oauthSignInDescription": {
+    "defaultMessage": "Accedi con il tuo account {providerName} per usare questo provider"
+  },
+  "providerConfigurationModal.parameterRequired": {
+    "defaultMessage": "{paramName} è obbligatorio"
+  },
+  "providerConfigurationModal.removeConfiguration": {
+    "defaultMessage": "Rimuovi configurazione"
+  },
+  "providerConfigurationModal.seeDocumentation": {
+    "defaultMessage": "Consulta la <link>documentazione</link> per maggiori dettagli."
+  },
+  "providerConfigurationModal.signInWith": {
+    "defaultMessage": "Accedi con {providerName}"
+  },
+  "providerConfigurationModal.signingIn": {
+    "defaultMessage": "Accesso in corso..."
+  },
+  "providerGrid.addProvider": {
+    "defaultMessage": "Aggiungi provider"
+  },
+  "providerGrid.addProviderTitle": {
+    "defaultMessage": "Aggiungi provider"
+  },
+  "providerGrid.chooseModel": {
+    "defaultMessage": "Scegli modello"
+  },
+  "providerGrid.configureProvider": {
+    "defaultMessage": "Configura provider"
+  },
+  "providerGrid.editProvider": {
+    "defaultMessage": "Modifica provider"
+  },
+  "providerGrid.fromTemplateOrManual": {
+    "defaultMessage": "Da modello o configurazione manuale"
+  },
+  "providerLogo.alt": {
+    "defaultMessage": "Logo {providerName}"
+  },
+  "providerSelector.addCustomProvider": {
+    "defaultMessage": "Aggiungi un provider personalizzato"
+  },
+  "providerSelector.addCustomProviderTitle": {
+    "defaultMessage": "Aggiungi provider personalizzato"
+  },
+  "providerSelector.connectProvider": {
+    "defaultMessage": "Connetti a un provider"
+  },
+  "providerSelector.connectProviderDescription": {
+    "defaultMessage": "Connetti OpenAI, Anthropic, Google, ecc."
+  },
+  "providerSelector.freeLocalDescription": {
+    "defaultMessage": "Usa un modello locale o un provider con crediti gratuiti"
+  },
+  "providerSelector.selectProvider": {
+    "defaultMessage": "Seleziona un provider"
+  },
+  "providerSelector.useFreeLocal": {
+    "defaultMessage": "Usa provider gratuiti/locali"
+  },
+  "providerSettings.configurationSettings": {
+    "defaultMessage": "Impostazioni di configurazione del provider"
+  },
+  "providerSettings.loadingProviders": {
+    "defaultMessage": "Caricamento provider..."
+  },
+  "providerSettings.onboardingDescription": {
+    "defaultMessage": "Seleziona un provider di modelli IA per iniziare con goose. Dovrai usare le chiavi API generate da ciascun provider, che verranno crittografate e archiviate localmente. Puoi cambiare provider in qualsiasi momento nelle impostazioni."
+  },
+  "providerSettings.otherProviders": {
+    "defaultMessage": "Altri provider"
+  },
+  "providerSetupActions.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "providerSetupActions.cannotDeleteActive": {
+    "defaultMessage": "Non puoi eliminare {providerName} mentre è attualmente in uso. Passa a un modello diverso prima di eliminare questo provider."
+  },
+  "providerSetupActions.confirmDelete": {
+    "defaultMessage": "Conferma eliminazione"
+  },
+  "providerSetupActions.confirmDeleteMessage": {
+    "defaultMessage": "Sei sicuro di voler eliminare i parametri di configurazione per {providerName}? Questa azione non può essere annullata."
+  },
+  "providerSetupActions.deleteProvider": {
+    "defaultMessage": "Elimina provider"
+  },
+  "providerSetupActions.enableProvider": {
+    "defaultMessage": "Abilita provider"
+  },
+  "providerSetupActions.ok": {
+    "defaultMessage": "Ok"
+  },
+  "providerSetupActions.submit": {
+    "defaultMessage": "Invia"
+  },
+  "recipeActivityEditor.activitiesDescription": {
+    "defaultMessage": "I prompt principali e i pulsanti di attività che verranno visualizzati nella finestra della chat della ricetta."
+  },
+  "recipeActivityEditor.activitiesLabel": {
+    "defaultMessage": "Attività"
+  },
+  "recipeActivityEditor.activityButtonsDescription": {
+    "defaultMessage": "Pulsanti cliccabili che appariranno sotto il messaggio per aiutare gli utenti a interagire con la tua ricetta."
+  },
+  "recipeActivityEditor.activityButtonsLabel": {
+    "defaultMessage": "Pulsanti di attività"
+  },
+  "recipeActivityEditor.addActivity": {
+    "defaultMessage": "Aggiungi attività"
+  },
+  "recipeActivityEditor.addNewActivityPlaceholder": {
+    "defaultMessage": "Aggiungi nuova attività..."
+  },
+  "recipeActivityEditor.messageDescription": {
+    "defaultMessage": "Un messaggio formattato che apparirà nella parte superiore della ricetta. Supporta la formattazione markdown."
+  },
+  "recipeActivityEditor.messageLabel": {
+    "defaultMessage": "Messaggio"
+  },
+  "recipeActivityEditor.messagePlaceholder": {
+    "defaultMessage": "Inserisci un messaggio di introduzione rivolto all'utente per la tua ricetta (supporta **grassetto**, *corsivo*, `codice`, ecc.)"
+  },
+  "recipeExtensionSelector.description": {
+    "defaultMessage": "Seleziona quali estensioni devono essere disponibili durante l'esecuzione di questa ricetta. Lascia vuoto per usare le estensioni predefinite."
+  },
+  "recipeExtensionSelector.extensionsSelected": {
+    "defaultMessage": "{count,plural,one{# estensione selezionata} other{# estensioni selezionate}}"
+  },
+  "recipeExtensionSelector.label": {
+    "defaultMessage": "Estensioni (facoltativo)"
+  },
+  "recipeExtensionSelector.noExtensionsAvailable": {
+    "defaultMessage": "Nessuna estensione disponibile"
+  },
+  "recipeExtensionSelector.noExtensionsFound": {
+    "defaultMessage": "Nessuna estensione trovata"
+  },
+  "recipeExtensionSelector.searchPlaceholder": {
+    "defaultMessage": "Cerca estensioni..."
+  },
+  "recipeFormFields.addParameter": {
+    "defaultMessage": "Aggiungi parametro"
+  },
+  "recipeFormFields.advancedOptions": {
+    "defaultMessage": "Opzioni avanzate"
+  },
+  "recipeFormFields.advancedOptionsHint": {
+    "defaultMessage": "Attività, parametri, modello, estensioni, schema di risposta, sottoricette"
+  },
+  "recipeFormFields.descriptionLabel": {
+    "defaultMessage": "Descrizione"
+  },
+  "recipeFormFields.descriptionPlaceholder": {
+    "defaultMessage": "Breve descrizione di cosa fa questa ricetta"
+  },
+  "recipeFormFields.enterValueFor": {
+    "defaultMessage": "Inserisci il valore per {key}"
+  },
+  "recipeFormFields.initialPrompt": {
+    "defaultMessage": "Prompt iniziale"
+  },
+  "recipeFormFields.instructionsLabel": {
+    "defaultMessage": "Istruzioni"
+  },
+  "recipeFormFields.instructionsPlaceholder": {
+    "defaultMessage": "Istruzioni dettagliate per l'IA, nascoste all'utente"
+  },
+  "recipeFormFields.openEditor": {
+    "defaultMessage": "Apri editor"
+  },
+  "recipeFormFields.parameterNamePlaceholder": {
+    "defaultMessage": "Inserisci il nome del parametro..."
+  },
+  "recipeFormFields.parametersDescription": {
+    "defaultMessage": "I parametri verranno rilevati automaticamente dalla sintassi '{{parameter_name}}' in istruzioni/prompt/attività oppure puoi aggiungerli manualmente di seguito."
+  },
+  "recipeFormFields.parametersLabel": {
+    "defaultMessage": "Parametri"
+  },
+  "recipeFormFields.promptOptionalHint": {
+    "defaultMessage": "(Facoltativo - Sono richieste le istruzioni o il prompt)"
+  },
+  "recipeFormFields.promptPlaceholder": {
+    "defaultMessage": "Prompt precompilato all'avvio della ricetta"
+  },
+  "recipeFormFields.responseJsonSchema": {
+    "defaultMessage": "Schema JSON della risposta"
+  },
+  "recipeFormFields.responseJsonSchemaDescription": {
+    "defaultMessage": "Definisci la struttura prevista della risposta dell'IA usando il formato JSON Schema"
+  },
+  "recipeFormFields.templateVarHint": {
+    "defaultMessage": "Usa '{{parameter_name}}' per definire parametri che possono essere compilati durante l'esecuzione della ricetta."
+  },
+  "recipeFormFields.titleLabel": {
+    "defaultMessage": "Titolo"
+  },
+  "recipeFormFields.titlePlaceholder": {
+    "defaultMessage": "Titolo della ricetta"
+  },
+  "recipeHeader.recipeLabel": {
+    "defaultMessage": "Ricetta"
+  },
+  "recipeModelSelector.backToModelList": {
+    "defaultMessage": "Torna all'elenco dei modelli"
+  },
+  "recipeModelSelector.enterCustomModel": {
+    "defaultMessage": "Inserisci il nome di un modello personalizzato"
+  },
+  "recipeModelSelector.enterModelNotListed": {
+    "defaultMessage": "Inserisci un modello non elencato..."
+  },
+  "recipeModelSelector.fetchError": {
+    "defaultMessage": "Impossibile recuperare i modelli. Riprova più tardi."
+  },
+  "recipeModelSelector.loadingModels": {
+    "defaultMessage": "Caricamento modelli…"
+  },
+  "recipeModelSelector.modelHint": {
+    "defaultMessage": "Lascia vuoto per usare il modello predefinito del provider selezionato"
+  },
+  "recipeModelSelector.modelLabel": {
+    "defaultMessage": "Modello (facoltativo)"
+  },
+  "recipeModelSelector.providerHint": {
+    "defaultMessage": "Lascia vuoto per usare il provider predefinito configurato nelle impostazioni"
+  },
+  "recipeModelSelector.providerLabel": {
+    "defaultMessage": "Provider (facoltativo)"
+  },
+  "recipeModelSelector.selectModel": {
+    "defaultMessage": "Seleziona un modello"
+  },
+  "recipeModelSelector.selectProvider": {
+    "defaultMessage": "Seleziona provider"
+  },
+  "recipeModelSelector.useDefaultProvider": {
+    "defaultMessage": "Usa provider predefinito"
+  },
+  "recipeNameField.defaultLabel": {
+    "defaultMessage": "Nome ricetta"
+  },
+  "recipeNameField.formatHint": {
+    "defaultMessage": "Verrà formattato automaticamente (minuscolo, trattini al posto degli spazi)"
+  },
+  "recipeWarningModal.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "recipeWarningModal.descriptionLabel": {
+    "defaultMessage": "Descrizione:"
+  },
+  "recipeWarningModal.firstTimeDescription": {
+    "defaultMessage": "Stai per eseguire una ricetta che non hai mai eseguito prima."
+  },
+  "recipeWarningModal.hiddenCharsWarning": {
+    "defaultMessage": "Questa ricetta contiene caratteri nascosti che verranno ignorati per la tua sicurezza, poiché potrebbero essere usati per scopi dannosi."
+  },
+  "recipeWarningModal.instructionsLabel": {
+    "defaultMessage": "Istruzioni:"
+  },
+  "recipeWarningModal.newRecipeWarningTitle": {
+    "defaultMessage": "⚠️ Avviso nuova ricetta"
+  },
+  "recipeWarningModal.recipePreview": {
+    "defaultMessage": "Anteprima ricetta:"
+  },
+  "recipeWarningModal.securityWarningTitle": {
+    "defaultMessage": "⚠️ Avviso di sicurezza"
+  },
+  "recipeWarningModal.titleLabel": {
+    "defaultMessage": "Titolo:"
+  },
+  "recipeWarningModal.trustAndExecute": {
+    "defaultMessage": "Considera attendibile ed esegui"
+  },
+  "recipeWarningModal.trustSource": {
+    "defaultMessage": "Procedi solo se ti fidi della fonte di questa ricetta."
+  },
+  "recipesView.addSchedule": {
+    "defaultMessage": "Aggiungi pianificazione"
+  },
+  "recipesView.addSlashCommand": {
+    "defaultMessage": "Aggiungi comando slash"
+  },
+  "recipesView.adjustSearchTerms": {
+    "defaultMessage": "Prova a modificare i termini di ricerca"
+  },
+  "recipesView.allFiles": {
+    "defaultMessage": "Tutti i file"
+  },
+  "recipesView.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "recipesView.copyDeeplink": {
+    "defaultMessage": "Copia deeplink"
+  },
+  "recipesView.copyDeeplinkFailedMsg": {
+    "defaultMessage": "Impossibile copiare il deeplink negli appunti"
+  },
+  "recipesView.copyFailedTitle": {
+    "defaultMessage": "Copia non riuscita"
+  },
+  "recipesView.copyYaml": {
+    "defaultMessage": "Copia YAML"
+  },
+  "recipesView.copyYamlFailedMsg": {
+    "defaultMessage": "Impossibile copiare lo YAML della ricetta negli appunti"
+  },
+  "recipesView.createRecipe": {
+    "defaultMessage": "Crea ricetta"
+  },
+  "recipesView.deeplinkCopiedMsg": {
+    "defaultMessage": "Il deeplink della ricetta è stato copiato negli appunti"
+  },
+  "recipesView.deeplinkCopiedTitle": {
+    "defaultMessage": "Deeplink copiato"
+  },
+  "recipesView.deleteRecipe": {
+    "defaultMessage": "Elimina ricetta"
+  },
+  "recipesView.deleteRecipeConfirm": {
+    "defaultMessage": "Sei sicuro di voler eliminare \"{title}\"?"
+  },
+  "recipesView.deleteRecipeDetail": {
+    "defaultMessage": "Il file della ricetta verrà eliminato."
+  },
+  "recipesView.deleteRecipeTitle": {
+    "defaultMessage": "Elimina ricetta"
+  },
+  "recipesView.editRecipe": {
+    "defaultMessage": "Modifica ricetta"
+  },
+  "recipesView.editSchedule": {
+    "defaultMessage": "Modifica pianificazione"
+  },
+  "recipesView.editSlashCommand": {
+    "defaultMessage": "Modifica comando slash"
+  },
+  "recipesView.errorLoadingRecipes": {
+    "defaultMessage": "Errore durante il caricamento delle ricette"
+  },
+  "recipesView.exportFailedMsg": {
+    "defaultMessage": "Impossibile esportare la ricetta su file"
+  },
+  "recipesView.exportFailedTitle": {
+    "defaultMessage": "Esportazione non riuscita"
+  },
+  "recipesView.exportRecipeDialogTitle": {
+    "defaultMessage": "Esporta ricetta"
+  },
+  "recipesView.exportToFile": {
+    "defaultMessage": "Esporta su file"
+  },
+  "recipesView.noMatchingRecipes": {
+    "defaultMessage": "Nessuna ricetta corrispondente trovata"
+  },
+  "recipesView.noSavedRecipes": {
+    "defaultMessage": "Nessuna ricetta salvata"
+  },
+  "recipesView.noSavedRecipesDescription": {
+    "defaultMessage": "Le ricette salvate dalle chat verranno visualizzate qui."
+  },
+  "recipesView.openInNewWindow": {
+    "defaultMessage": "Apri in una nuova finestra"
+  },
+  "recipesView.recipeDeletedSuccess": {
+    "defaultMessage": "Ricetta eliminata correttamente"
+  },
+  "recipesView.recipeExportedMsg": {
+    "defaultMessage": "Ricetta salvata in {filePath}"
+  },
+  "recipesView.recipeExportedTitle": {
+    "defaultMessage": "Ricetta esportata"
+  },
+  "recipesView.recipesDescription": {
+    "defaultMessage": "Visualizza e gestisci le tue ricette salvate per avviare rapidamente nuove sessioni con configurazioni predefinite. {shortcut} per cercare."
+  },
+  "recipesView.recipesTitle": {
+    "defaultMessage": "Ricette"
+  },
+  "recipesView.remove": {
+    "defaultMessage": "Rimuovi"
+  },
+  "recipesView.removeSchedule": {
+    "defaultMessage": "Rimuovi pianificazione"
+  },
+  "recipesView.runs": {
+    "defaultMessage": "Esecuzioni {schedule}"
+  },
+  "recipesView.save": {
+    "defaultMessage": "Salva"
+  },
+  "recipesView.scheduleDialogTitle": {
+    "defaultMessage": "{action} pianificazione"
+  },
+  "recipesView.scheduleRemovedMsg": {
+    "defaultMessage": "La ricetta non verrà più eseguita automaticamente"
+  },
+  "recipesView.scheduleRemovedTitle": {
+    "defaultMessage": "Pianificazione rimossa"
+  },
+  "recipesView.scheduleSavedMsg": {
+    "defaultMessage": "La ricetta verrà eseguita {schedule}"
+  },
+  "recipesView.scheduleSavedTitle": {
+    "defaultMessage": "Pianificazione salvata"
+  },
+  "recipesView.searchRecipesPlaceholder": {
+    "defaultMessage": "Cerca ricette..."
+  },
+  "recipesView.shareRecipe": {
+    "defaultMessage": "Condividi ricetta"
+  },
+  "recipesView.slashCommandDescription": {
+    "defaultMessage": "Imposta un comando slash per eseguire rapidamente questa ricetta da qualsiasi chat"
+  },
+  "recipesView.slashCommandPlaceholder": {
+    "defaultMessage": "nome-comando"
+  },
+  "recipesView.slashCommandRemovedMsg": {
+    "defaultMessage": "Il comando slash della ricetta è stato rimosso"
+  },
+  "recipesView.slashCommandRemovedTitle": {
+    "defaultMessage": "Comando slash rimosso"
+  },
+  "recipesView.slashCommandSavedMsg": {
+    "defaultMessage": "Usa /{command} per eseguire questa ricetta"
+  },
+  "recipesView.slashCommandSavedTitle": {
+    "defaultMessage": "Comando slash salvato"
+  },
+  "recipesView.slashCommandTitle": {
+    "defaultMessage": "Comando slash"
+  },
+  "recipesView.slashCommandUsageHint": {
+    "defaultMessage": "Usa /{command} in qualsiasi chat per eseguire questa ricetta"
+  },
+  "recipesView.tryAgain": {
+    "defaultMessage": "Riprova"
+  },
+  "recipesView.useRecipe": {
+    "defaultMessage": "Usa ricetta"
+  },
+  "recipesView.yamlCopiedMsg": {
+    "defaultMessage": "Lo YAML della ricetta è stato copiato negli appunti"
+  },
+  "recipesView.yamlCopiedTitle": {
+    "defaultMessage": "YAML copiato"
+  },
+  "recipesView.yamlFiles": {
+    "defaultMessage": "File YAML"
+  },
+  "resetProviderSection.resetButton": {
+    "defaultMessage": "Reimposta provider e modello"
+  },
+  "resetProviderSection.resetDescription": {
+    "defaultMessage": "Questa operazione cancellerà le impostazioni del modello e del provider selezionati. Se non sono disponibili impostazioni predefinite, verrai indirizzato alla schermata di benvenuto per configurarle nuovamente."
+  },
+  "responseStyle.conciseDescription": {
+    "defaultMessage": "Le chiamate agli strumenti sono chiuse per impostazione predefinita e mostrano solo lo strumento utilizzato"
+  },
+  "responseStyle.conciseLabel": {
+    "defaultMessage": "Conciso"
+  },
+  "responseStyle.detailedDescription": {
+    "defaultMessage": "Le chiamate agli strumenti sono mostrate aperte per impostazione predefinita per esporre i dettagli"
+  },
+  "responseStyle.detailedLabel": {
+    "defaultMessage": "Dettagliato"
+  },
+  "scheduleDetailView.actions": {
+    "defaultMessage": "Azioni"
+  },
+  "scheduleDetailView.cannotModifyRunning": {
+    "defaultMessage": "Impossibile attivare o modificare una pianificazione mentre è già in esecuzione."
+  },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "Sessione: {sessionId}"
+  },
+  "scheduleDetailView.created": {
+    "defaultMessage": "Creata: {date}"
+  },
+  "scheduleDetailView.cronExpression": {
+    "defaultMessage": "Espressione cron:"
+  },
+  "scheduleDetailView.currentSession": {
+    "defaultMessage": "Sessione corrente:"
+  },
+  "scheduleDetailView.currentlyRunning": {
+    "defaultMessage": "Attualmente in esecuzione"
+  },
+  "scheduleDetailView.dir": {
+    "defaultMessage": "Dir: {path}"
+  },
+  "scheduleDetailView.editSchedule": {
+    "defaultMessage": "Modifica pianificazione"
+  },
+  "scheduleDetailView.errorPrefix": {
+    "defaultMessage": "Errore: {error}"
+  },
+  "scheduleDetailView.idLabel": {
+    "defaultMessage": "ID:"
+  },
+  "scheduleDetailView.inspectJobError": {
+    "defaultMessage": "Errore di ispezione del processo"
+  },
+  "scheduleDetailView.inspectNoInfo": {
+    "defaultMessage": "Nessuna informazione dettagliata disponibile"
+  },
+  "scheduleDetailView.inspectRunningJob": {
+    "defaultMessage": "Ispeziona processo in esecuzione"
+  },
+  "scheduleDetailView.jobCancelled": {
+    "defaultMessage": "Processo annullato"
+  },
+  "scheduleDetailView.jobCancelledMsg": {
+    "defaultMessage": "Il processo è stato annullato durante l'avvio."
+  },
+  "scheduleDetailView.jobInspection": {
+    "defaultMessage": "Ispezione del processo"
+  },
+  "scheduleDetailView.jobKilled": {
+    "defaultMessage": "Processo terminato"
+  },
+  "scheduleDetailView.killJobError": {
+    "defaultMessage": "Errore di terminazione del processo"
+  },
+  "scheduleDetailView.killRunningJob": {
+    "defaultMessage": "Termina processo in esecuzione"
+  },
+  "scheduleDetailView.lastRun": {
+    "defaultMessage": "Ultima esecuzione:"
+  },
+  "scheduleDetailView.loadingSchedule": {
+    "defaultMessage": "Caricamento pianificazione..."
+  },
+  "scheduleDetailView.loadingSessions": {
+    "defaultMessage": "Caricamento sessioni..."
+  },
+  "scheduleDetailView.messages": {
+    "defaultMessage": "Messaggi: {count}"
+  },
+  "scheduleDetailView.noScheduleId": {
+    "defaultMessage": "Nessun ID pianificazione fornito. Torna all'elenco delle pianificazioni."
+  },
+  "scheduleDetailView.noSessions": {
+    "defaultMessage": "Nessuna sessione trovata per questa pianificazione."
+  },
+  "scheduleDetailView.pauseSchedule": {
+    "defaultMessage": "Sospendi pianificazione"
+  },
+  "scheduleDetailView.pauseUnpauseError": {
+    "defaultMessage": "Errore di sospensione/ripresa"
+  },
+  "scheduleDetailView.paused": {
+    "defaultMessage": "Sospesa"
+  },
+  "scheduleDetailView.pausedMsg": {
+    "defaultMessage": "Sospesa \"{id}\""
+  },
+  "scheduleDetailView.pausedWarning": {
+    "defaultMessage": "Questa pianificazione è sospesa e non verrà eseguita automaticamente. Usa \"Esegui pianificazione ora\" per attivarla manualmente o riprendila per ripristinare l'esecuzione automatica."
+  },
+  "scheduleDetailView.processStarted": {
+    "defaultMessage": "Processo avviato:"
+  },
+  "scheduleDetailView.recentSessions": {
+    "defaultMessage": "Sessioni recenti"
+  },
+  "scheduleDetailView.recipeSource": {
+    "defaultMessage": "Origine ricetta:"
+  },
+  "scheduleDetailView.runScheduleError": {
+    "defaultMessage": "Errore di esecuzione della pianificazione"
+  },
+  "scheduleDetailView.runScheduleNow": {
+    "defaultMessage": "Esegui pianificazione ora"
+  },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "Esecuzione completata"
+  },
+  "scheduleDetailView.scheduleDetails": {
+    "defaultMessage": "Dettagli pianificazione"
+  },
+  "scheduleDetailView.scheduleInformation": {
+    "defaultMessage": "Informazioni sulla pianificazione"
+  },
+  "scheduleDetailView.scheduleLabel": {
+    "defaultMessage": "Pianificazione:"
+  },
+  "scheduleDetailView.scheduleNotFound": {
+    "defaultMessage": "Pianificazione non trovata"
+  },
+  "scheduleDetailView.scheduleNotFoundError": {
+    "defaultMessage": "Pianificazione non trovata"
+  },
+  "scheduleDetailView.schedulePaused": {
+    "defaultMessage": "Pianificazione sospesa"
+  },
+  "scheduleDetailView.scheduleUnpaused": {
+    "defaultMessage": "Pianificazione ripresa"
+  },
+  "scheduleDetailView.scheduleUpdated": {
+    "defaultMessage": "Pianificazione aggiornata"
+  },
+  "scheduleDetailView.sessionId": {
+    "defaultMessage": "ID sessione: {id}"
+  },
+  "scheduleDetailView.unpauseSchedule": {
+    "defaultMessage": "Riprendi pianificazione"
+  },
+  "scheduleDetailView.unpausedMsg": {
+    "defaultMessage": "Ripresa \"{id}\""
+  },
+  "scheduleDetailView.updateScheduleError": {
+    "defaultMessage": "Errore di aggiornamento della pianificazione"
+  },
+  "scheduleDetailView.updatedMsg": {
+    "defaultMessage": "Aggiornata \"{id}\""
+  },
+  "scheduleDetailView.viewingScheduleId": {
+    "defaultMessage": "Visualizzazione ID pianificazione: {id}"
+  },
+  "scheduleModal.browseYaml": {
+    "defaultMessage": "Sfoglia file YAML..."
+  },
+  "scheduleModal.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "scheduleModal.createNewSchedule": {
+    "defaultMessage": "Crea nuova pianificazione"
+  },
+  "scheduleModal.createSchedule": {
+    "defaultMessage": "Crea pianificazione"
+  },
+  "scheduleModal.creating": {
+    "defaultMessage": "Creazione in corso..."
+  },
+  "scheduleModal.deepLink": {
+    "defaultMessage": "Deep link"
+  },
+  "scheduleModal.deepLinkPlaceholder": {
+    "defaultMessage": "Incolla qui il link goose://recipe..."
+  },
+  "scheduleModal.editSchedule": {
+    "defaultMessage": "Modifica pianificazione"
+  },
+  "scheduleModal.failedParseRecipe": {
+    "defaultMessage": "Impossibile analizzare la ricetta dal file."
+  },
+  "scheduleModal.failedReadFile": {
+    "defaultMessage": "Impossibile leggere il file selezionato."
+  },
+  "scheduleModal.invalidDeepLink": {
+    "defaultMessage": "Deep link non valido. Usa un link goose://recipe."
+  },
+  "scheduleModal.invalidFileType": {
+    "defaultMessage": "Tipo di file non valido: seleziona un file YAML (.yaml o .yml)"
+  },
+  "scheduleModal.nameLabel": {
+    "defaultMessage": "Nome:"
+  },
+  "scheduleModal.namePlaceholder": {
+    "defaultMessage": "es. daily-summary-job"
+  },
+  "scheduleModal.provideValidRecipe": {
+    "defaultMessage": "Fornisci un'origine ricetta valida."
+  },
+  "scheduleModal.recipeDescription": {
+    "defaultMessage": "Descrizione: {description}"
+  },
+  "scheduleModal.recipeParsed": {
+    "defaultMessage": "Ricetta analizzata correttamente"
+  },
+  "scheduleModal.recipeTitle": {
+    "defaultMessage": "Titolo: {title}"
+  },
+  "scheduleModal.scheduleIdRequired": {
+    "defaultMessage": "L'ID pianificazione è obbligatorio."
+  },
+  "scheduleModal.scheduleLabel": {
+    "defaultMessage": "Pianificazione:"
+  },
+  "scheduleModal.selected": {
+    "defaultMessage": "Selezionato: {path}"
+  },
+  "scheduleModal.sourceLabel": {
+    "defaultMessage": "Origine:"
+  },
+  "scheduleModal.updateSchedule": {
+    "defaultMessage": "Aggiorna pianificazione"
+  },
+  "scheduleModal.updating": {
+    "defaultMessage": "Aggiornamento in corso..."
+  },
+  "scheduleModal.yaml": {
+    "defaultMessage": "YAML"
+  },
+  "schedulesView.confirmDelete": {
+    "defaultMessage": "Rimuovere la pianificazione \"{id}\"? La ricetta verrà mantenuta."
+  },
+  "schedulesView.createSchedule": {
+    "defaultMessage": "Crea pianificazione"
+  },
+  "schedulesView.description": {
+    "defaultMessage": "Crea e gestisci attività pianificate per eseguire le ricette automaticamente a orari specificati."
+  },
+  "schedulesView.edit": {
+    "defaultMessage": "Modifica"
+  },
+  "schedulesView.errorPrefix": {
+    "defaultMessage": "Errore: {error}"
+  },
+  "schedulesView.inspect": {
+    "defaultMessage": "Ispeziona"
+  },
+  "schedulesView.inspectError": {
+    "defaultMessage": "Errore di ispezione del processo"
+  },
+  "schedulesView.inspectNoInfo": {
+    "defaultMessage": "Nessuna informazione dettagliata disponibile per questo processo"
+  },
+  "schedulesView.jobInspection": {
+    "defaultMessage": "Ispezione del processo"
+  },
+  "schedulesView.jobKilled": {
+    "defaultMessage": "Processo terminato"
+  },
+  "schedulesView.kill": {
+    "defaultMessage": "Termina"
+  },
+  "schedulesView.killError": {
+    "defaultMessage": "Errore di terminazione del processo"
+  },
+  "schedulesView.lastRun": {
+    "defaultMessage": "Ultima esecuzione: {date}"
+  },
+  "schedulesView.noSchedules": {
+    "defaultMessage": "Ancora nessuna pianificazione"
+  },
+  "schedulesView.pause": {
+    "defaultMessage": "Sospendi"
+  },
+  "schedulesView.pauseError": {
+    "defaultMessage": "Errore di sospensione della pianificazione"
+  },
+  "schedulesView.paused": {
+    "defaultMessage": "Sospesa"
+  },
+  "schedulesView.refresh": {
+    "defaultMessage": "Aggiorna"
+  },
+  "schedulesView.refreshing": {
+    "defaultMessage": "Aggiornamento in corso..."
+  },
+  "schedulesView.resume": {
+    "defaultMessage": "Riprendi"
+  },
+  "schedulesView.running": {
+    "defaultMessage": "In esecuzione"
+  },
+  "schedulesView.schedulePaused": {
+    "defaultMessage": "Pianificazione sospesa"
+  },
+  "schedulesView.schedulePausedMsg": {
+    "defaultMessage": "Pianificazione \"{id}\" sospesa correttamente"
+  },
+  "schedulesView.scheduleUnpaused": {
+    "defaultMessage": "Pianificazione ripresa"
+  },
+  "schedulesView.scheduleUnpausedMsg": {
+    "defaultMessage": "Pianificazione \"{id}\" ripresa correttamente"
+  },
+  "schedulesView.scheduleUpdated": {
+    "defaultMessage": "Pianificazione aggiornata"
+  },
+  "schedulesView.scheduleUpdatedMsg": {
+    "defaultMessage": "Pianificazione \"{id}\" aggiornata correttamente"
+  },
+  "schedulesView.scheduler": {
+    "defaultMessage": "Pianificatore"
+  },
+  "schedulesView.unpauseError": {
+    "defaultMessage": "Errore di ripresa della pianificazione"
+  },
+  "searchBar.caseSensitive": {
+    "defaultMessage": "Distingui maiuscole/minuscole"
+  },
+  "searchBar.close": {
+    "defaultMessage": "Chiudi ({shortcut})"
+  },
+  "searchBar.next": {
+    "defaultMessage": "Successivo ({shortcut})"
+  },
+  "searchBar.placeholder": {
+    "defaultMessage": "Cerca nella conversazione..."
+  },
+  "searchBar.previous": {
+    "defaultMessage": "Precedente ({shortcut})"
+  },
+  "secureStorageNotice.defaultMessage": {
+    "defaultMessage": "Le chiavi vengono archiviate in modo sicuro nel portachiavi"
+  },
+  "securityToggle.apiTokenDescription": {
+    "defaultMessage": "Token di autenticazione per il servizio di classificazione"
+  },
+  "securityToggle.apiTokenOptional": {
+    "defaultMessage": "Token API (facoltativo)"
+  },
+  "securityToggle.classificationEndpoint": {
+    "defaultMessage": "Endpoint di classificazione"
+  },
+  "securityToggle.classificationEndpointDescription": {
+    "defaultMessage": "Inserisci l'URL completo del tuo servizio di classificazione"
+  },
+  "securityToggle.commandClassifierActive": {
+    "defaultMessage": "Classificatore dei comandi attivo (configurato automaticamente dall'ambiente)"
+  },
+  "securityToggle.commandEndpointDescription": {
+    "defaultMessage": "Inserisci l'URL completo del tuo servizio di classificazione dell'iniezione di comandi"
+  },
+  "securityToggle.commandInjectionDescription": {
+    "defaultMessage": "Usa modelli ML per rilevare comandi shell dannosi"
+  },
+  "securityToggle.detectionModel": {
+    "defaultMessage": "Modello di rilevamento"
+  },
+  "securityToggle.detectionModelDescription": {
+    "defaultMessage": "Seleziona quale modello ML utilizzare per il rilevamento dell'iniezione di prompt"
+  },
+  "securityToggle.detectionThreshold": {
+    "defaultMessage": "Soglia di rilevamento"
+  },
+  "securityToggle.enableCommandInjection": {
+    "defaultMessage": "Abilita il rilevamento ML dell'iniezione di comandi"
+  },
+  "securityToggle.enablePromptInjection": {
+    "defaultMessage": "Abilita il rilevamento dell'iniezione di prompt"
+  },
+  "securityToggle.enablePromptInjectionMl": {
+    "defaultMessage": "Abilita il rilevamento ML dell'iniezione di prompt"
+  },
+  "securityToggle.mlEndpointDescription": {
+    "defaultMessage": "Inserisci l'URL completo del tuo servizio di classificazione ML (incluso l'identificatore del modello)"
+  },
+  "securityToggle.mlTokenDescription": {
+    "defaultMessage": "Token di autenticazione per il servizio ML (es. token HuggingFace)"
+  },
+  "securityToggle.overrideNotice": {
+    "defaultMessage": "Questa impostazione è gestita dalla tua organizzazione e non può essere modificata."
+  },
+  "securityToggle.promptInjectionDescription": {
+    "defaultMessage": "Rileva e previeni potenziali attacchi di iniezione di prompt"
+  },
+  "securityToggle.promptInjectionMlDescription": {
+    "defaultMessage": "Usa modelli ML per rilevare potenziali iniezioni di prompt nella tua chat"
+  },
+  "securityToggle.thresholdDescription": {
+    "defaultMessage": "Valori più alti sono più rigidi (0,01 = molto permissivo, 1,0 = massimo rigore)"
+  },
+  "securityToggle.warpNotice": {
+    "defaultMessage": "Il rilevamento dell'iniezione di comandi funziona al meglio quando si è connessi a WARP (necessario per raggiungere il servizio di classificazione)."
+  },
+  "sessionActionsHeader.actionsLabel": {
+    "defaultMessage": "Azioni sessione"
+  },
+  "sessionActionsHeader.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "sessionActionsHeader.close": {
+    "defaultMessage": "Chiudi"
+  },
+  "sessionActionsHeader.copiedJson": {
+    "defaultMessage": "JSON della sessione copiato"
+  },
+  "sessionActionsHeader.copiedText": {
+    "defaultMessage": "Testo copiato"
+  },
+  "sessionActionsHeader.copyJson": {
+    "defaultMessage": "Copia JSON"
+  },
+  "sessionActionsHeader.copyText": {
+    "defaultMessage": "Copia testo"
+  },
+  "sessionActionsHeader.duplicateFailed": {
+    "defaultMessage": "Impossibile duplicare la sessione: {error}"
+  },
+  "sessionActionsHeader.duplicateSession": {
+    "defaultMessage": "Duplica sessione"
+  },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "Sessione duplicata"
+  },
+  "sessionActionsHeader.fullTextTitle": {
+    "defaultMessage": "Valore di testo"
+  },
+  "sessionActionsHeader.jsonFailed": {
+    "defaultMessage": "Impossibile caricare il JSON della sessione: {error}"
+  },
+  "sessionActionsHeader.jsonTitle": {
+    "defaultMessage": "JSON della sessione"
+  },
+  "sessionActionsHeader.loadingJson": {
+    "defaultMessage": "Caricamento JSON..."
+  },
+  "sessionActionsHeader.renameFailed": {
+    "defaultMessage": "Impossibile rinominare la sessione: {error}"
+  },
+  "sessionActionsHeader.renamePlaceholder": {
+    "defaultMessage": "Inserisci il nome della sessione"
+  },
+  "sessionActionsHeader.renameSession": {
+    "defaultMessage": "Rinomina sessione"
+  },
+  "sessionActionsHeader.renameTitle": {
+    "defaultMessage": "Rinomina sessione"
+  },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "Sessione rinominata"
+  },
+  "sessionActionsHeader.save": {
+    "defaultMessage": "Salva"
+  },
+  "sessionActionsHeader.saving": {
+    "defaultMessage": "Salvataggio in corso..."
+  },
+  "sessionActionsHeader.viewJson": {
+    "defaultMessage": "Visualizza JSON della sessione"
+  },
+  "sessionIndicators.error": {
+    "defaultMessage": "La sessione ha riscontrato un errore"
+  },
+  "sessionIndicators.newActivity": {
+    "defaultMessage": "Ha nuova attività"
+  },
+  "sessionIndicators.streaming": {
+    "defaultMessage": "Streaming"
+  },
+  "sessionViewComponents.empty.description": {
+    "defaultMessage": "Questa sessione non contiene messaggi"
+  },
+  "sessionViewComponents.empty.title": {
+    "defaultMessage": "Nessun messaggio trovato"
+  },
+  "sessionViewComponents.error.loading": {
+    "defaultMessage": "Errore durante il caricamento dei dettagli della sessione"
+  },
+  "sessionViewComponents.error.tryAgain": {
+    "defaultMessage": "Riprova"
+  },
+  "sessionViewComponents.role.assistant": {
+    "defaultMessage": "Goose"
+  },
+  "sessionViewComponents.role.user": {
+    "defaultMessage": "Tu"
+  },
+  "sessions.action.delete": {
+    "defaultMessage": "Elimina sessione"
+  },
+  "sessions.action.duplicate": {
+    "defaultMessage": "Duplica sessione"
+  },
+  "sessions.action.editName": {
+    "defaultMessage": "Modifica nome sessione"
+  },
+  "sessions.action.export": {
+    "defaultMessage": "Esporta sessione"
+  },
+  "sessions.action.openNewWindow": {
+    "defaultMessage": "Apri in una nuova finestra"
+  },
+  "sessions.action.shareNostr": {
+    "defaultMessage": "Condividi link Nostr crittografato"
+  },
+  "sessions.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "sessions.chatHistory": {
+    "defaultMessage": "Cronologia chat"
+  },
+  "sessions.chatHistoryDesc": {
+    "defaultMessage": "Visualizza e cerca le tue conversazioni passate con Goose. {shortcut} per cercare."
+  },
+  "sessions.close": {
+    "defaultMessage": "Chiudi"
+  },
+  "sessions.delete.message": {
+    "defaultMessage": "Sei sicuro di voler eliminare la sessione \"{name}\"? Questa azione non può essere annullata."
+  },
+  "sessions.delete.title": {
+    "defaultMessage": "Elimina sessione"
+  },
+  "sessions.edit.placeholder": {
+    "defaultMessage": "Inserisci la descrizione della sessione"
+  },
+  "sessions.edit.title": {
+    "defaultMessage": "Modifica descrizione sessione"
+  },
+  "sessions.empty.description": {
+    "defaultMessage": "La tua cronologia chat apparirà qui"
+  },
+  "sessions.empty.title": {
+    "defaultMessage": "Nessuna sessione chat trovata"
+  },
+  "sessions.error.loading": {
+    "defaultMessage": "Errore durante il caricamento delle sessioni"
+  },
+  "sessions.error.tryAgain": {
+    "defaultMessage": "Riprova"
+  },
+  "sessions.import": {
+    "defaultMessage": "Importa sessione"
+  },
+  "sessions.importNostr": {
+    "defaultMessage": "Importa link"
+  },
+  "sessions.importNostr.description": {
+    "defaultMessage": "Incolla un link di condivisione Nostr di Goose per recuperare, decrittografare e importare la sessione."
+  },
+  "sessions.importNostr.placeholder": {
+    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
+  },
+  "sessions.importNostr.title": {
+    "defaultMessage": "Importa sessione Nostr"
+  },
+  "sessions.importing": {
+    "defaultMessage": "Importazione in corso..."
+  },
+  "sessions.loadingMore": {
+    "defaultMessage": "Caricamento di altre sessioni..."
+  },
+  "sessions.save": {
+    "defaultMessage": "Salva"
+  },
+  "sessions.saving": {
+    "defaultMessage": "Salvataggio in corso..."
+  },
+  "sessions.search.noResults": {
+    "defaultMessage": "Nessuna sessione corrispondente trovata"
+  },
+  "sessions.search.noResultsDesc": {
+    "defaultMessage": "Prova a modificare i termini di ricerca"
+  },
+  "sessions.searchPlaceholder": {
+    "defaultMessage": "Cerca nella cronologia..."
+  },
+  "sessions.shareNostr.description": {
+    "defaultMessage": "Chiunque abbia questo link può recuperare e decifrare la sessione. Trattalo come un segreto."
+  },
+  "sessions.shareNostr.title": {
+    "defaultMessage": "Link di condivisione Nostr crittografato"
+  },
+  "sessions.toast.copied": {
+    "defaultMessage": "Copiato negli appunti"
+  },
+  "sessions.toast.deleteFailed": {
+    "defaultMessage": "Impossibile eliminare la sessione \"{name}\": {error}"
+  },
+  "sessions.toast.deleted": {
+    "defaultMessage": "Sessione eliminata correttamente"
+  },
+  "sessions.toast.duplicateFailed": {
+    "defaultMessage": "Impossibile duplicare la sessione: {error}"
+  },
+  "sessions.toast.duplicated": {
+    "defaultMessage": "Sessione \"{name}\" duplicata correttamente"
+  },
+  "sessions.toast.exported": {
+    "defaultMessage": "Sessione esportata correttamente"
+  },
+  "sessions.toast.importFailed": {
+    "defaultMessage": "Impossibile importare la sessione: {error}"
+  },
+  "sessions.toast.imported": {
+    "defaultMessage": "Sessione importata correttamente"
+  },
+  "sessions.toast.shareNostr": {
+    "defaultMessage": "Link di condivisione Nostr crittografato creato"
+  },
+  "sessions.toast.shareNostrFailed": {
+    "defaultMessage": "Impossibile creare il link di condivisione Nostr: {error}"
+  },
+  "sessions.toast.updateFailed": {
+    "defaultMessage": "Impossibile aggiornare la descrizione della sessione: {error}"
+  },
+  "sessions.toast.updated": {
+    "defaultMessage": "Descrizione della sessione aggiornata correttamente"
+  },
+  "settings.appearance.description": {
+    "defaultMessage": "Configura l'aspetto di goose sul tuo sistema"
+  },
+  "settings.appearance.title": {
+    "defaultMessage": "Aspetto"
+  },
+  "settings.close": {
+    "defaultMessage": "Chiudi"
+  },
+  "settings.costTracking.description": {
+    "defaultMessage": "Mostra i prezzi dei modelli e i costi di utilizzo"
+  },
+  "settings.costTracking.title": {
+    "defaultMessage": "Monitoraggio dei costi"
+  },
+  "settings.dockIcon.description": {
+    "defaultMessage": "Mostra goose nel dock"
+  },
+  "settings.dockIcon.title": {
+    "defaultMessage": "Icona del dock"
+  },
+  "settings.help.description": {
+    "defaultMessage": "Aiutaci a migliorare goose segnalando problemi o richiedendo nuove funzionalità"
+  },
+  "settings.help.reportBug": {
+    "defaultMessage": "Segnala un bug"
+  },
+  "settings.help.requestFeature": {
+    "defaultMessage": "Richiedi una funzionalità"
+  },
+  "settings.help.title": {
+    "defaultMessage": "Guida e feedback"
+  },
+  "settings.language.description": {
+    "defaultMessage": "Scegli la lingua di visualizzazione per goose"
+  },
+  "settings.language.english": {
+    "defaultMessage": "English"
+  },
+  "settings.language.french": {
+    "defaultMessage": "Francese"
+  },
+  "settings.language.german": {
+    "defaultMessage": "Tedesco"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "Hindi"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "Indonesiano"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "Italiano"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "Giapponese"
+  },
+  "settings.language.korean": {
+    "defaultMessage": "Coreano"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "Malese"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "Portoghese"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "Russo"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "Spagnolo"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "Predefinita del sistema"
+  },
+  "settings.language.title": {
+    "defaultMessage": "Lingua"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "Turco"
+  },
+  "settings.language.vietnamese": {
+    "defaultMessage": "Vietnamita"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "Cinese (semplificato)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "Cinese (tradizionale)"
+  },
+  "settings.menuBarIcon.description": {
+    "defaultMessage": "Mostra goose nella barra dei menu"
+  },
+  "settings.menuBarIcon.title": {
+    "defaultMessage": "Icona della barra dei menu"
+  },
+  "settings.notifications.configGuide": {
+    "defaultMessage": "Guida alla configurazione"
+  },
+  "settings.notifications.description": {
+    "defaultMessage": "Le notifiche sono gestite dal tuo sistema operativo - {link}"
+  },
+  "settings.notifications.modal.macInstructions": {
+    "defaultMessage": "Per abilitare le notifiche su macOS:"
+  },
+  "settings.notifications.modal.macStep1": {
+    "defaultMessage": "Apri Preferenze di Sistema"
+  },
+  "settings.notifications.modal.macStep2": {
+    "defaultMessage": "Fai clic su Notifiche"
+  },
+  "settings.notifications.modal.macStep3": {
+    "defaultMessage": "Trova e seleziona goose nell'elenco delle applicazioni"
+  },
+  "settings.notifications.modal.macStep4": {
+    "defaultMessage": "Abilita le notifiche e regola le impostazioni come preferisci"
+  },
+  "settings.notifications.modal.title": {
+    "defaultMessage": "Come abilitare le notifiche"
+  },
+  "settings.notifications.modal.winInstructions": {
+    "defaultMessage": "Per abilitare le notifiche su Windows:"
+  },
+  "settings.notifications.modal.winStep1": {
+    "defaultMessage": "Apri Impostazioni"
+  },
+  "settings.notifications.modal.winStep2": {
+    "defaultMessage": "Vai a Sistema > Notifiche"
+  },
+  "settings.notifications.modal.winStep3": {
+    "defaultMessage": "Trova e seleziona goose nell'elenco delle applicazioni"
+  },
+  "settings.notifications.modal.winStep4": {
+    "defaultMessage": "Attiva le notifiche e regola le impostazioni come preferisci"
+  },
+  "settings.notifications.openSettings": {
+    "defaultMessage": "Apri Impostazioni"
+  },
+  "settings.notifications.task.description": {
+    "defaultMessage": "Notifica quando Goose completa un'attività mentre la finestra è in secondo piano"
+  },
+  "settings.notifications.task.title": {
+    "defaultMessage": "Notifiche di completamento attività"
+  },
+  "settings.notifications.title": {
+    "defaultMessage": "Notifiche"
+  },
+  "settings.preventSleep.description": {
+    "defaultMessage": "Mantieni il computer attivo mentre goose esegue un'attività (lo schermo può comunque bloccarsi)"
+  },
+  "settings.preventSleep.title": {
+    "defaultMessage": "Impedisci la sospensione"
+  },
+  "settings.theme.description": {
+    "defaultMessage": "Personalizza l'aspetto e lo stile di goose"
+  },
+  "settings.theme.title": {
+    "defaultMessage": "Tema"
+  },
+  "settings.updates.description": {
+    "defaultMessage": "Controlla e installa gli aggiornamenti per mantenere goose sempre al meglio"
+  },
+  "settings.updates.title": {
+    "defaultMessage": "Aggiornamenti"
+  },
+  "settings.version.title": {
+    "defaultMessage": "Versione"
+  },
+  "settingsView.tabApp": {
+    "defaultMessage": "App"
+  },
+  "settingsView.tabAuth": {
+    "defaultMessage": "Autenticazione"
+  },
+  "settingsView.tabChat": {
+    "defaultMessage": "Chat"
+  },
+  "settingsView.tabKeyboard": {
+    "defaultMessage": "Tastiera"
+  },
+  "settingsView.tabLocalInference": {
+    "defaultMessage": "Inferenza locale"
+  },
+  "settingsView.tabModels": {
+    "defaultMessage": "Modelli"
+  },
+  "settingsView.tabPrompts": {
+    "defaultMessage": "Prompt"
+  },
+  "settingsView.tabSession": {
+    "defaultMessage": "Sessione"
+  },
+  "settingsView.title": {
+    "defaultMessage": "Impostazioni"
+  },
+  "sheet.close": {
+    "defaultMessage": "Chiudi"
+  },
+  "shortcutRecorder.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "shortcutRecorder.clickToRecord": {
+    "defaultMessage": "Fai clic per registrare..."
+  },
+  "shortcutRecorder.conflictWarning": {
+    "defaultMessage": "Questa scorciatoia è già usata da {label}. Salvando, verrà riassegnata a questa azione."
+  },
+  "shortcutRecorder.pressShortcut": {
+    "defaultMessage": "Premi la scorciatoia..."
+  },
+  "shortcutRecorder.save": {
+    "defaultMessage": "Salva"
+  },
+  "skillsView.addSkill": {
+    "defaultMessage": "Aggiungi competenza"
+  },
+  "skillsView.adjustSearchTerms": {
+    "defaultMessage": "Prova a modificare i termini di ricerca"
+  },
+  "skillsView.comingSoon": {
+    "defaultMessage": "Prossimamente"
+  },
+  "skillsView.errorLoadingSkills": {
+    "defaultMessage": "Errore durante il caricamento delle competenze"
+  },
+  "skillsView.noMatchingSkills": {
+    "defaultMessage": "Nessuna competenza corrispondente trovata"
+  },
+  "skillsView.noSkillsDescription": {
+    "defaultMessage": "Le competenze vengono caricate dai file SKILL.md in ~/.config/agents/skills/, .goose/skills/ o altre directory supportate."
+  },
+  "skillsView.noSkillsInstalled": {
+    "defaultMessage": "Nessuna competenza installata"
+  },
+  "skillsView.searchSkillsPlaceholder": {
+    "defaultMessage": "Cerca competenze..."
+  },
+  "skillsView.skillsDescription": {
+    "defaultMessage": "Visualizza le competenze installate che estendono le funzionalità di Goose. {shortcut} per cercare."
+  },
+  "skillsView.skillsTitle": {
+    "defaultMessage": "Competenze"
+  },
+  "skillsView.tryAgain": {
+    "defaultMessage": "Riprova"
+  },
+  "spellcheckToggle.description": {
+    "defaultMessage": "Controlla l'ortografia nell'input della chat. Richiede il riavvio per avere effetto."
+  },
+  "spellcheckToggle.title": {
+    "defaultMessage": "Abilita controllo ortografico"
+  },
+  "standaloneAppView.failedToLoad": {
+    "defaultMessage": "Impossibile caricare l'app"
+  },
+  "standaloneAppView.initializing": {
+    "defaultMessage": "Inizializzazione dell'app..."
+  },
+  "standaloneAppView.missingParams": {
+    "defaultMessage": "Parametri richiesti mancanti"
+  },
+  "stringUtils.configuredProvider": {
+    "defaultMessage": "Il provider {name} è configurato"
+  },
+  "stringUtils.ollamaApp": {
+    "defaultMessage": "App Ollama"
+  },
+  "stringUtils.ollamaNotConfiguredPrefix": {
+    "defaultMessage": "Per usarlo, l'"
+  },
+  "stringUtils.ollamaNotConfiguredSuffix": {
+    "defaultMessage": "deve essere installata sul tuo computer e aperta, oppure devi inserire un valore per OLLAMA_HOST."
+  },
+  "subRecipeEditor.addExisting": {
+    "defaultMessage": "Aggiungi esistente"
+  },
+  "subRecipeEditor.createNew": {
+    "defaultMessage": "Crea nuova sottoricetta"
+  },
+  "subRecipeEditor.deleteSubrecipe": {
+    "defaultMessage": "Elimina la sottoricetta {name}"
+  },
+  "subRecipeEditor.description": {
+    "defaultMessage": "Le sottoricette sono ricette che possono essere richiamate come strumenti durante l'esecuzione. Consentono flussi di lavoro a più passaggi e componenti riutilizzabili."
+  },
+  "subRecipeEditor.duplicateName": {
+    "defaultMessage": "Nome duplicato"
+  },
+  "subRecipeEditor.duplicateNameMsg": {
+    "defaultMessage": "Esiste già una sottoricetta denominata \"{name}\". Usa un nome univoco."
+  },
+  "subRecipeEditor.editSubrecipe": {
+    "defaultMessage": "Modifica la sottoricetta {name}"
+  },
+  "subRecipeEditor.label": {
+    "defaultMessage": "Sottoricette"
+  },
+  "subRecipeEditor.preconfiguredValues": {
+    "defaultMessage": "Valori preconfigurati:"
+  },
+  "subRecipeEditor.sequential": {
+    "defaultMessage": "Sequenziale"
+  },
+  "subRecipeModal.addTitle": {
+    "defaultMessage": "Aggiungi sottoricetta"
+  },
+  "subRecipeModal.apply": {
+    "defaultMessage": "Applica"
+  },
+  "subRecipeModal.browse": {
+    "defaultMessage": "Sfoglia"
+  },
+  "subRecipeModal.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "subRecipeModal.closeModal": {
+    "defaultMessage": "Chiudi la finestra della sottoricetta"
+  },
+  "subRecipeModal.configureTitle": {
+    "defaultMessage": "Configura sottoricetta"
+  },
+  "subRecipeModal.descriptionLabel": {
+    "defaultMessage": "Descrizione"
+  },
+  "subRecipeModal.descriptionPlaceholder": {
+    "defaultMessage": "Descrizione facoltativa di ciò che fa questa sottoricetta..."
+  },
+  "subRecipeModal.invalidFile": {
+    "defaultMessage": "File non valido"
+  },
+  "subRecipeModal.invalidFileMsg": {
+    "defaultMessage": "Seleziona un file YAML (.yaml o .yml)."
+  },
+  "subRecipeModal.nameHint": {
+    "defaultMessage": "Identificatore univoco usato per generare il nome dello strumento"
+  },
+  "subRecipeModal.nameLabel": {
+    "defaultMessage": "Nome"
+  },
+  "subRecipeModal.namePlaceholder": {
+    "defaultMessage": "es. security_scan"
+  },
+  "subRecipeModal.pathHint": {
+    "defaultMessage": "Cerca un file di ricetta esistente o inserisci manualmente un percorso"
+  },
+  "subRecipeModal.pathLabel": {
+    "defaultMessage": "Percorso"
+  },
+  "subRecipeModal.pathPlaceholder": {
+    "defaultMessage": "es. ./subrecipes/security-analysis.yaml"
+  },
+  "subRecipeModal.preconfiguredValues": {
+    "defaultMessage": "Valori preconfigurati"
+  },
+  "subRecipeModal.preconfiguredValuesHint": {
+    "defaultMessage": "Valori dei parametri facoltativi che vengono sempre passati alla sottoricetta"
+  },
+  "subRecipeModal.sequentialHint": {
+    "defaultMessage": "(Forza l'esecuzione sequenziale di più istanze della sottoricetta)"
+  },
+  "subRecipeModal.sequentialLabel": {
+    "defaultMessage": "Sequenziale se ripetuta"
+  },
+  "subRecipeModal.subtitle": {
+    "defaultMessage": "Configura una sottoricetta che può essere richiamata come strumento durante l'esecuzione della ricetta"
+  },
+  "switchModelModal.backToModelList": {
+    "defaultMessage": "Torna all'elenco dei modelli"
+  },
+  "switchModelModal.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "switchModelModal.checkProviderConfig": {
+    "defaultMessage": "Controlla la configurazione del provider in Impostazioni → Provider"
+  },
+  "switchModelModal.chooseModel": {
+    "defaultMessage": "Scegli un modello:"
+  },
+  "switchModelModal.claudeAdaptive": {
+    "defaultMessage": "Adattivo - Claude decide quando e quanto ragionare"
+  },
+  "switchModelModal.claudeDisabled": {
+    "defaultMessage": "Disabilitato - Nessun ragionamento esteso"
+  },
+  "switchModelModal.claudeEffortHigh": {
+    "defaultMessage": "Alto - Ragionamento profondo (predefinito)"
+  },
+  "switchModelModal.claudeEffortLow": {
+    "defaultMessage": "Basso - Ragionamento minimo, risposte più rapide"
+  },
+  "switchModelModal.claudeEffortMax": {
+    "defaultMessage": "Massimo - Nessun limite alla profondità del ragionamento"
+  },
+  "switchModelModal.claudeEffortMedium": {
+    "defaultMessage": "Medio - Ragionamento moderato"
+  },
+  "switchModelModal.claudeEnabled": {
+    "defaultMessage": "Abilitato - Budget di token fisso per il ragionamento"
+  },
+  "switchModelModal.couldNotContactProvider": {
+    "defaultMessage": "Impossibile contattare il provider"
+  },
+  "switchModelModal.customModelName": {
+    "defaultMessage": "Nome modello personalizzato"
+  },
+  "switchModelModal.description": {
+    "defaultMessage": "Seleziona un provider e un modello da usare per le tue conversazioni."
+  },
+  "switchModelModal.enterModelNotListed": {
+    "defaultMessage": "Inserisci un modello non elencato..."
+  },
+  "switchModelModal.extendedThinking": {
+    "defaultMessage": "Ragionamento esteso"
+  },
+  "switchModelModal.geminiOnly": {
+    "defaultMessage": "(Solo modelli Gemini 3)"
+  },
+  "switchModelModal.goToSettings": {
+    "defaultMessage": "Vai alle Impostazioni"
+  },
+  "switchModelModal.loadingModels": {
+    "defaultMessage": "Caricamento dei modelli…"
+  },
+  "switchModelModal.localModelsDescription": {
+    "defaultMessage": "Per usare l'inferenza locale, devi prima scaricare un modello sul tuo computer. Vai a Impostazioni → Modelli per gestire i modelli locali."
+  },
+  "switchModelModal.localModelsTitle": {
+    "defaultMessage": "I modelli locali devono essere scaricati prima"
+  },
+  "switchModelModal.providerPlaceholder": {
+    "defaultMessage": "Provider, digita per cercare"
+  },
+  "switchModelModal.quickStartGuide": {
+    "defaultMessage": "Guida rapida"
+  },
+  "switchModelModal.recommended": {
+    "defaultMessage": "Consigliato"
+  },
+  "switchModelModal.selectEffortLevel": {
+    "defaultMessage": "Seleziona il livello di impegno"
+  },
+  "switchModelModal.selectModel": {
+    "defaultMessage": "Seleziona un modello"
+  },
+  "switchModelModal.selectModelButton": {
+    "defaultMessage": "Seleziona modello"
+  },
+  "switchModelModal.selectModelPlaceholder": {
+    "defaultMessage": "Seleziona un modello, digita per cercare"
+  },
+  "switchModelModal.selectOrEnterModel": {
+    "defaultMessage": "Seleziona o inserisci un modello"
+  },
+  "switchModelModal.selectProvider": {
+    "defaultMessage": "Seleziona un provider"
+  },
+  "switchModelModal.selectThinkingLevel": {
+    "defaultMessage": "Seleziona il livello di ragionamento"
+  },
+  "switchModelModal.selectThinkingMode": {
+    "defaultMessage": "Seleziona la modalità di ragionamento"
+  },
+  "switchModelModal.thinkingBudget": {
+    "defaultMessage": "Budget di ragionamento (token)"
+  },
+  "switchModelModal.thinkingEffort": {
+    "defaultMessage": "Impegno di ragionamento"
+  },
+  "switchModelModal.thinkingEffortOff": {
+    "defaultMessage": "Disattivato - Nessun ragionamento esteso"
+  },
+  "switchModelModal.thinkingLevel": {
+    "defaultMessage": "Livello di ragionamento"
+  },
+  "switchModelModal.thinkingLevelHigh": {
+    "defaultMessage": "Alto - Ragionamento più profondo, latenza maggiore"
+  },
+  "switchModelModal.thinkingLevelLow": {
+    "defaultMessage": "Basso - Latenza migliore, ragionamento più leggero"
+  },
+  "switchModelModal.title": {
+    "defaultMessage": "Cambia modello"
+  },
+  "switchModelModal.typeModelName": {
+    "defaultMessage": "Digita qui il nome del modello"
+  },
+  "switchModelModal.useOtherProvider": {
+    "defaultMessage": "Usa un altro provider"
+  },
+  "telemetryConsentPrompt.description": {
+    "defaultMessage": "Vuoi condividere dati di utilizzo anonimi per aiutare a migliorare goose? Non raccogliamo mai le tue conversazioni, il tuo codice o i tuoi dati personali."
+  },
+  "telemetryConsentPrompt.heading": {
+    "defaultMessage": "Aiuta a migliorare goose"
+  },
+  "telemetryConsentPrompt.learnMore": {
+    "defaultMessage": "Scopri di più"
+  },
+  "telemetryConsentPrompt.optIn": {
+    "defaultMessage": "Sì, condividi dati di utilizzo anonimi"
+  },
+  "telemetryConsentPrompt.optOut": {
+    "defaultMessage": "No, grazie"
+  },
+  "telemetrySettings.configErrorTitle": {
+    "defaultMessage": "Errore di configurazione"
+  },
+  "telemetrySettings.description": {
+    "defaultMessage": "Controlla come vengono usati i tuoi dati"
+  },
+  "telemetrySettings.learnMore": {
+    "defaultMessage": "Scopri di più"
+  },
+  "telemetrySettings.loadError": {
+    "defaultMessage": "Impossibile caricare le impostazioni di telemetria."
+  },
+  "telemetrySettings.title": {
+    "defaultMessage": "Privacy"
+  },
+  "telemetrySettings.toggleDescription": {
+    "defaultMessage": "Aiuta a migliorare goose condividendo statistiche di utilizzo anonime."
+  },
+  "telemetrySettings.toggleLabel": {
+    "defaultMessage": "Dati di utilizzo anonimi"
+  },
+  "telemetrySettings.updateError": {
+    "defaultMessage": "Impossibile aggiornare le impostazioni di telemetria."
+  },
+  "themeSelector.dark": {
+    "defaultMessage": "Scuro"
+  },
+  "themeSelector.light": {
+    "defaultMessage": "Chiaro"
+  },
+  "themeSelector.system": {
+    "defaultMessage": "Sistema"
+  },
+  "themeSelector.theme": {
+    "defaultMessage": "Tema"
+  },
+  "toolApprovalButtons.allowOnce": {
+    "defaultMessage": "Consenti una volta"
+  },
+  "toolApprovalButtons.allowedOnce": {
+    "defaultMessage": "Consentito una volta"
+  },
+  "toolApprovalButtons.alwaysAllow": {
+    "defaultMessage": "Consenti sempre"
+  },
+  "toolApprovalButtons.alwaysAllowed": {
+    "defaultMessage": "Sempre consentito"
+  },
+  "toolApprovalButtons.cancelled": {
+    "defaultMessage": "Annullato"
+  },
+  "toolApprovalButtons.denied": {
+    "defaultMessage": "Negato"
+  },
+  "toolApprovalButtons.deniedOnce": {
+    "defaultMessage": "Negato una volta"
+  },
+  "toolApprovalButtons.deny": {
+    "defaultMessage": "Nega"
+  },
+  "toolApprovalButtons.staleApprovalRequest": {
+    "defaultMessage": "Questa richiesta di approvazione non è più attiva."
+  },
+  "toolCallStatusIndicator.toolStatus": {
+    "defaultMessage": "Stato dello strumento: {status}"
+  },
+  "toolCallWithResponse.activityCount": {
+    "defaultMessage": "Attività ({count})"
+  },
+  "toolCallWithResponse.code": {
+    "defaultMessage": "Codice"
+  },
+  "toolCallWithResponse.loadingSpinner": {
+    "defaultMessage": "Indicatore di caricamento"
+  },
+  "toolCallWithResponse.logs": {
+    "defaultMessage": "Log"
+  },
+  "toolCallWithResponse.mcpUiExperimental": {
+    "defaultMessage": "L'interfaccia MCP è sperimentale e può cambiare in qualsiasi momento."
+  },
+  "toolCallWithResponse.output": {
+    "defaultMessage": "Output"
+  },
+  "toolCallWithResponse.toolDetails": {
+    "defaultMessage": "Dettagli dello strumento"
+  },
+  "toolCallWithResponse.toolResultAlt": {
+    "defaultMessage": "Risultato dello strumento"
+  },
+  "toolCallWithResponse.viewSubagentSession": {
+    "defaultMessage": "Visualizza la sessione del subagent"
+  },
+  "toolConfirmation.allowToolCallWithName": {
+    "defaultMessage": "Consentire {toolName}?"
+  },
+  "toolConfirmation.gooseWouldLikeToCallWithName": {
+    "defaultMessage": "Goose desidera richiamare {toolName}. Consentire?"
+  },
+  "updateSection.autoDownload": {
+    "defaultMessage": "Goose scaricherà l'aggiornamento in background e lo installerà al prossimo arresto o riavvio."
+  },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "I download automatici sono disabilitati tramite la variabile d'ambiente GOOSE_DISABLE_AUTO_DOWNLOAD."
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "Il download automatico è disabilitato. Fai clic su \"Scarica ora\" per scaricare manualmente."
+  },
+  "updateSection.autoInstallNote": {
+    "defaultMessage": "Non è necessaria alcuna installazione manuale."
+  },
+  "updateSection.checkForUpdates": {
+    "defaultMessage": "Controlla aggiornamenti"
+  },
+  "updateSection.checking": {
+    "defaultMessage": "Controllo degli aggiornamenti..."
+  },
+  "updateSection.currentVersion": {
+    "defaultMessage": "Versione attuale"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "Disabilita i download automatici degli aggiornamenti"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "Se abilitato, Goose ti avviserà delle nuove versioni ma non le scaricherà automaticamente."
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "Scarica ora"
+  },
+  "updateSection.downloadReady": {
+    "defaultMessage": "Aggiornamento scaricato e pronto per l'installazione!"
+  },
+  "updateSection.downloadingProgress": {
+    "defaultMessage": "Download dell'aggiornamento... {percent}%"
+  },
+  "updateSection.downloadingUpdate": {
+    "defaultMessage": "Download dell'aggiornamento..."
+  },
+  "updateSection.installAndRestart": {
+    "defaultMessage": "Installa e riavvia"
+  },
+  "updateSection.installNowHint": {
+    "defaultMessage": "Fai clic su \"Installa e riavvia\" per aggiornare ora."
+  },
+  "updateSection.latestVersion": {
+    "defaultMessage": "Stai usando la versione più recente!"
+  },
+  "updateSection.loading": {
+    "defaultMessage": "Caricamento..."
+  },
+  "updateSection.manualInstallNote": {
+    "defaultMessage": "Dopo il download, dovrai installare manualmente l'aggiornamento."
+  },
+  "updateSection.manualInstallRequired": {
+    "defaultMessage": "Installazione manuale richiesta per questo metodo di aggiornamento."
+  },
+  "updateSection.readyInstallAuto": {
+    "defaultMessage": "✓ L'aggiornamento è pronto. Riavvia Goose per completarne l'installazione, oppure chiudilo quando hai finito."
+  },
+  "updateSection.readyInstallManual": {
+    "defaultMessage": "✓ L'aggiornamento è pronto! Fai clic su \"Installa e riavvia\" per le istruzioni di installazione."
+  },
+  "updateSection.upToDate": {
+    "defaultMessage": "(aggiornato)"
+  },
+  "updateSection.updateAvailable": {
+    "defaultMessage": "Aggiornamento disponibile!"
+  },
+  "updateSection.versionAvailable": {
+    "defaultMessage": "→ {version} disponibile"
+  },
+  "updateSection.versionIsAvailable": {
+    "defaultMessage": "La versione {version} è disponibile"
+  },
+  "userMessage.cancel": {
+    "defaultMessage": "Annulla"
+  },
+  "userMessage.cancelAriaLabel": {
+    "defaultMessage": "Annulla modifica"
+  },
+  "userMessage.editAriaLabel": {
+    "defaultMessage": "Modifica il contenuto del messaggio"
+  },
+  "userMessage.editButton": {
+    "defaultMessage": "Modifica"
+  },
+  "userMessage.editInPlace": {
+    "defaultMessage": "Modifica sul posto"
+  },
+  "userMessage.editInPlaceAriaLabel": {
+    "defaultMessage": "Modifica il messaggio sul posto"
+  },
+  "userMessage.editInPlaceDescription": {
+    "defaultMessage": "<b>Modifica sul posto</b> aggiorna questa sessione • <b>Biforca sessione</b> crea una nuova sessione"
+  },
+  "userMessage.editInPlaceTitle": {
+    "defaultMessage": "Aggiorna il messaggio in questa sessione"
+  },
+  "userMessage.editMessageAriaLabel": {
+    "defaultMessage": "Modifica messaggio: {preview}"
+  },
+  "userMessage.editMessageTitle": {
+    "defaultMessage": "Modifica messaggio"
+  },
+  "userMessage.editPlaceholder": {
+    "defaultMessage": "Modifica il tuo messaggio..."
+  },
+  "userMessage.emptyError": {
+    "defaultMessage": "Il messaggio non può essere vuoto"
+  },
+  "userMessage.forkSession": {
+    "defaultMessage": "Biforca sessione"
+  },
+  "userMessage.forkSessionAriaLabel": {
+    "defaultMessage": "Biforca la sessione con il messaggio modificato"
+  },
+  "userMessage.forkSessionTitle": {
+    "defaultMessage": "Crea una nuova sessione con il messaggio modificato"
+  }
+}

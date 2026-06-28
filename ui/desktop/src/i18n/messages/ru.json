@@ -3887,14 +3887,32 @@
   "settings.language.english": {
     "defaultMessage": "Английский"
   },
+  "settings.language.french": {
+    "defaultMessage": "Французский"
+  },
+  "settings.language.german": {
+    "defaultMessage": "Немецкий"
+  },
   "settings.language.hindi": {
     "defaultMessage": "Хинди"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "Индонезийский"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "Итальянский"
   },
   "settings.language.japanese": {
     "defaultMessage": "Японский"
   },
   "settings.language.korean": {
     "defaultMessage": "Корейский"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "Малайский"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "Португальский"
   },
   "settings.language.russian": {
     "defaultMessage": "Русский"
@@ -3911,8 +3929,14 @@
   "settings.language.turkish": {
     "defaultMessage": "Турецкий"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "Вьетнамский"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "Китайский (упрощенный)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "Китайский (традиционный)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Показывать goose в строке меню"
