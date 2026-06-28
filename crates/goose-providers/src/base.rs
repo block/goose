@@ -41,6 +41,10 @@ pub struct ProviderMetadata {
     /// Hint shown in the model picker when this provider manages its own model selection.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model_selection_hint: Option<String>,
+    /// The name of a fast/cheap model to use for lightweight tasks (e.g. session naming,
+    /// compaction). When set, fast-path callers prefer this model over the main model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fast_model: Option<String>,
 }
 
 impl ProviderMetadata {
@@ -66,6 +70,7 @@ impl ProviderMetadata {
             config_keys,
             setup_steps: vec![],
             model_selection_hint: None,
+            fast_model: None,
         }
     }
 
@@ -88,6 +93,7 @@ impl ProviderMetadata {
             config_keys,
             setup_steps: vec![],
             model_selection_hint: None,
+            fast_model: None,
         }
     }
 
@@ -102,6 +108,7 @@ impl ProviderMetadata {
             config_keys: vec![],
             setup_steps: vec![],
             model_selection_hint: None,
+            fast_model: None,
         }
     }
 
@@ -112,6 +119,11 @@ impl ProviderMetadata {
 
     pub fn with_model_selection_hint(mut self, hint: &str) -> Self {
         self.model_selection_hint = Some(hint.to_string());
+        self
+    }
+
+    pub fn with_fast_model(mut self, fast_model: &str) -> Self {
+        self.fast_model = Some(fast_model.to_string());
         self
     }
 }
@@ -291,12 +303,12 @@ pub fn model_info_for_provider_model(provider_name: &str, model_name: &str) -> M
     let reasoning = canonical
         .as_ref()
         .and_then(|model| model.reasoning)
-        .unwrap_or_else(|| ModelConfig::new_or_fail(model_name).is_reasoning_model());
+        .unwrap_or_else(|| ModelConfig::new(model_name).is_reasoning_model());
 
     ModelInfo {
         name: model_name.to_string(),
         resolved_model: None,
-        context_limit: ModelConfig::new_or_fail(model_name)
+        context_limit: ModelConfig::new(model_name)
             .with_canonical_limits(provider_name)
             .context_limit(),
         input_token_cost: None,
@@ -403,42 +415,14 @@ pub trait Provider: Send + Sync {
         collect_stream(stream).await
     }
 
-    /// Try fast model first, fall back to regular model on failure.
-    async fn complete_fast(
-        &self,
-        session_id: &str,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let model_config = self.get_model_config();
-        let fast_config = model_config.use_fast_model();
-
-        let result = self
-            .complete(&fast_config, session_id, system, messages, tools)
-            .await;
-
-        match result {
-            Ok(response) => Ok(response),
-            Err(e) => {
-                if fast_config.model_name != model_config.model_name {
-                    tracing::warn!(
-                        "Fast model {} failed with error: {}. Falling back to regular model {}",
-                        fast_config.model_name,
-                        e,
-                        model_config.model_name
-                    );
-                    self.complete(&model_config, session_id, system, messages, tools)
-                        .await
-                } else {
-                    Err(e)
-                }
-            }
-        }
+    /// Resolve the effective context limit for a model config.
+    ///
+    /// Providers may override this to enrich the limit with provider-specific
+    /// metadata (e.g. cached model info or a value captured from a remote
+    /// session). The default returns the limit derived from the model config.
+    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
+        Ok(model_config.context_limit())
     }
-
-    /// Get the model config from the provider
-    fn get_model_config(&self) -> ModelConfig;
 
     fn retry_config(&self) -> RetryConfig {
         RetryConfig::default()
@@ -466,7 +450,10 @@ pub trait Provider: Send + Sync {
     }
 
     /// Fetch inventory models filtered by canonical registry and usability.
-    async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+    ///
+    /// When `toolshim` is true, models that lack native tool-call support are
+    /// retained because the toolshim layer emulates tool calling.
+    async fn fetch_recommended_models(&self, toolshim: bool) -> Result<Vec<String>, ProviderError> {
         let all_models = self.fetch_supported_models().await?;
 
         if self.skip_canonical_filtering() {
@@ -496,7 +483,7 @@ pub trait Provider: Send + Sync {
                     return None;
                 }
 
-                if !canonical_model.tool_call && !self.get_model_config().toolshim {
+                if !canonical_model.tool_call && !toolshim {
                     return None;
                 }
 
@@ -526,9 +513,12 @@ pub trait Provider: Send + Sync {
         }
     }
 
-    async fn fetch_recommended_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+    async fn fetch_recommended_model_info(
+        &self,
+        toolshim: bool,
+    ) -> Result<Vec<ModelInfo>, ProviderError> {
         Ok(self
-            .fetch_recommended_models()
+            .fetch_recommended_models(toolshim)
             .await?
             .iter()
             .map(|model_name| model_info_for_provider_model(self.get_name(), model_name))
@@ -555,10 +545,6 @@ pub trait Provider: Send + Sync {
     /// context management such as tool-pair summarization is skipped because
     /// the provider's internal state is the source of truth.
     fn manages_own_context(&self) -> bool {
-        false
-    }
-
-    async fn supports_cache_control(&self) -> bool {
         false
     }
 

@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { DictationProvider, getDictationConfig, DictationProviderStatus } from '../../../api';
+import { DictationProvider } from '../../../api';
+import { getDictationConfig, DictationProviderStatusEntry } from '../../../acp/dictation';
 import { useConfig } from '../../ConfigContext';
 import { Input } from '../../ui/input';
 import { Button } from '../../ui/button';
@@ -85,7 +86,7 @@ export const DictationSettings = () => {
   const intl = useIntl();
   const { localInference, isLoading: isFeaturesLoading } = useFeatures();
   const [provider, setProvider] = useState<DictationProvider | null>(null);
-  const [providerStatuses, setProviderStatuses] = useState<Record<string, DictationProviderStatus>>(
+  const [providerStatuses, setProviderStatuses] = useState<Record<string, DictationProviderStatusEntry>>(
     {}
   );
   const [preferredMic, setPreferredMic] = useState<string | null>(null);
@@ -95,7 +96,7 @@ export const DictationSettings = () => {
 
   const refreshStatuses = async () => {
     const audioConfig = await getDictationConfig();
-    setProviderStatuses(audioConfig.data || {});
+    setProviderStatuses(audioConfig);
   };
 
   useEffect(() => {
@@ -145,12 +146,12 @@ export const DictationSettings = () => {
   const handleSaveKey = async () => {
     if (!provider) return;
     const providerConfig = providerStatuses[provider];
-    if (!providerConfig || providerConfig.uses_provider_config) return;
+    if (!providerConfig || providerConfig.usesProviderConfig) return;
 
     const trimmedKey = apiKey.trim();
     if (!trimmedKey) return;
 
-    const keyName = providerConfig.config_key!;
+    const keyName = providerConfig.configKey!;
     await upsert(keyName, trimmedKey, true);
     setApiKey('');
     setIsEditingKey(false);
@@ -160,9 +161,9 @@ export const DictationSettings = () => {
   const handleRemoveKey = async () => {
     if (!provider) return;
     const providerConfig = providerStatuses[provider];
-    if (!providerConfig || providerConfig.uses_provider_config) return;
+    if (!providerConfig || providerConfig.usesProviderConfig) return;
 
-    const keyName = providerConfig.config_key!;
+    const keyName = providerConfig.configKey!;
     await remove(keyName, true);
     setApiKey('');
     setIsEditingKey(false);
@@ -222,15 +223,15 @@ export const DictationSettings = () => {
             <div className="py-2 px-2">
               <LocalModelManager />
             </div>
-          ) : providerStatuses[provider].uses_provider_config ? (
+          ) : providerStatuses[provider].usesProviderConfig ? (
             <div className="py-2 px-2 bg-background-secondary rounded-lg">
               {!providerStatuses[provider].configured ? (
                 <p className="text-xs text-text-secondary">
-                  {intl.formatMessage(i18n.configureApiKey, { settingsPath: providerStatuses[provider].settings_path, b: (chunks: React.ReactNode) => <b>{chunks}</b> })}
+                  {intl.formatMessage(i18n.configureApiKey, { settingsPath: providerStatuses[provider].settingsPath, b: (chunks: React.ReactNode) => <b>{chunks}</b> })}
                 </p>
               ) : (
                 <p className="text-xs text-green-600">
-                  {intl.formatMessage(i18n.configuredIn, { settingsPath: providerStatuses[provider].settings_path })}
+                  {intl.formatMessage(i18n.configuredIn, { settingsPath: providerStatuses[provider].settingsPath })}
                 </p>
               )}
             </div>

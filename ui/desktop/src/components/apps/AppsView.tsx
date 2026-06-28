@@ -2,7 +2,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/button';
 import { Download, Play, Upload } from 'lucide-react';
-import { exportApp, GooseApp, importApp, listApps } from '../../api';
+import type { GooseApp } from '../../api';
+import { exportMcpApp, importMcpApp, listMcpApps } from '../../acp/mcp-apps';
 import { useChatContext } from '../../contexts/ChatContext';
 import { formatAppName } from '../../utils/conversionUtils';
 import { errorMessage } from '../../utils/conversionUtils';
@@ -79,10 +80,7 @@ export default function AppsView() {
   useEffect(() => {
     const loadCachedApps = async () => {
       try {
-        const response = await listApps({
-          throwOnError: true,
-        });
-        const cachedApps = response.data?.apps || [];
+        const cachedApps = await listMcpApps();
         // Only show apps from the "apps" extension (vibe coded apps built by Goose)
         setApps(cachedApps.filter((a) => a.mcpServers?.includes('apps')));
       } catch (err) {
@@ -101,11 +99,7 @@ export default function AppsView() {
 
     const refreshApps = async () => {
       try {
-        const response = await listApps({
-          throwOnError: true,
-          query: { session_id: sessionId },
-        });
-        const freshApps = response.data?.apps || [];
+        const freshApps = await listMcpApps(sessionId);
         // Only show apps from the "apps" extension (vibe coded apps built by Goose)
         setApps(freshApps.filter((a) => a.mcpServers?.includes('apps')));
         setError(null);
@@ -134,13 +128,8 @@ export default function AppsView() {
 
         // Refresh apps list to get latest state
         if (eventSessionId) {
-          listApps({
-            throwOnError: false,
-            query: { session_id: eventSessionId },
-          }).then((response) => {
-            if (response.data?.apps) {
-              setApps(response.data.apps.filter((a) => a.mcpServers?.includes('apps')));
-            }
+          listMcpApps(eventSessionId).then((apps) => {
+            setApps(apps.filter((a) => a.mcpServers?.includes('apps')));
           });
         }
       }
@@ -155,11 +144,7 @@ export default function AppsView() {
 
     try {
       setLoading(true);
-      const response = await listApps({
-        throwOnError: true,
-        query: { session_id: sessionId },
-      });
-      const fetchedApps = response.data?.apps || [];
+      const fetchedApps = await listMcpApps(sessionId);
       // Only show apps from the "apps" extension (vibe coded apps built by Goose)
       setApps(fetchedApps.filter((a) => a.mcpServers?.includes('apps')));
       setError(null);
@@ -184,22 +169,16 @@ export default function AppsView() {
 
   const handleDownloadApp = async (app: GooseApp) => {
     try {
-      const response = await exportApp({
-        throwOnError: true,
-        path: { name: app.name },
-      });
-
-      if (response.data) {
-        const blob = new Blob([response.data as string], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${app.name}.html`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
+      const html = await exportMcpApp(app.name);
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${app.name}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Failed to export app:', err);
       setError(errorMessage(err, 'Failed to export app'));
@@ -218,15 +197,9 @@ export default function AppsView() {
 
     try {
       const text = await file.text();
-      await importApp({
-        throwOnError: true,
-        body: { html: text },
-      });
+      await importMcpApp(text);
 
-      const response = await listApps({
-        throwOnError: true,
-      });
-      const cachedApps = response.data?.apps || [];
+      const cachedApps = await listMcpApps();
       // Only show apps from the "apps" extension (vibe coded apps built by Goose)
       setApps(cachedApps.filter((a) => a.mcpServers?.includes('apps')));
       setError(null);

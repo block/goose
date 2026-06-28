@@ -7,11 +7,12 @@
 //! params/response types (deriving `JsonSchema`) next to the feature that sends
 //! it, then add one line to [`agent_request_schemas`].
 
+use goose_sdk_types::custom_requests::{
+    RecipeParamsResponse, RequestRecipeParams, REQUEST_RECIPE_PARAMS_METHOD,
+};
 use schemars::{JsonSchema, SchemaGenerator};
 
 use crate::acp::custom_requests::CustomMethodSchema;
-
-use super::recipe::{RecipeParamsResponse, RequestRecipeParams, RECIPE_PARAMS_METHOD};
 
 fn short_type_name<T>() -> String {
     let full = std::any::type_name::<T>();
@@ -43,5 +44,5 @@ pub fn agent_request_schemas(generator: &mut SchemaGenerator) -> Vec<CustomMetho
     vec![agent_request_schema::<
         RequestRecipeParams,
         RecipeParamsResponse,
-    >(generator, RECIPE_PARAMS_METHOD)]
+    >(generator, REQUEST_RECIPE_PARAMS_METHOD)]
 }

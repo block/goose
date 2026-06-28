@@ -478,16 +478,14 @@ type StreamSender =
 
 pub struct LocalInferenceProvider {
     runtime: Arc<InferenceRuntime>,
-    model_config: ModelConfig,
     name: String,
 }
 
 impl LocalInferenceProvider {
-    pub async fn from_env(model: ModelConfig, _extensions: Vec<ExtensionConfig>) -> Result<Self> {
+    pub async fn from_env(_extensions: Vec<ExtensionConfig>) -> Result<Self> {
         let runtime = InferenceRuntime::get_or_init()?;
         Ok(Self {
             runtime,
-            model_config: model,
             name: PROVIDER_NAME.to_string(),
         })
     }
@@ -532,14 +530,13 @@ impl ProviderDef for LocalInferenceProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>>
     where
         Self: Sized,
     {
-        Box::pin(Self::from_env(model, extensions))
+        Box::pin(Self::from_env(extensions))
     }
 }
 
@@ -547,10 +544,6 @@ impl ProviderDef for LocalInferenceProvider {
 impl Provider for LocalInferenceProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model_config.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -654,7 +647,7 @@ impl Provider for LocalInferenceProvider {
             },
         });
 
-        let mut log = start_log(&self.model_config, &log_payload)?;
+        let mut log = start_log(model_config, &log_payload)?;
 
         let (tx, mut rx) = tokio::sync::mpsc::channel::<
             Result<(Option<Message>, Option<ProviderUsage>), ProviderError>,

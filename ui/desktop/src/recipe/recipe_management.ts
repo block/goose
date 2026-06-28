@@ -1,22 +1,24 @@
-import { Recipe, saveRecipe as saveRecipeApi, listRecipes, RecipeManifest } from '../api';
+import {
+  deleteRecipe as acpDeleteRecipe,
+  listRecipes as acpListRecipes,
+  recipeToYaml as acpRecipeToYaml,
+  saveRecipe as acpSaveRecipe,
+  scheduleRecipe as acpScheduleRecipe,
+  setRecipeSlashCommand as acpSetRecipeSlashCommand,
+} from '../acp/recipe';
 import { stripEmptyExtensions } from '.';
+import type { Recipe, RecipeManifest } from '.';
 
 export const saveRecipe = async (
   recipe: Recipe,
   recipeId?: string | null
 ): Promise<{ id: string; fileName: string; filePath: string }> => {
   try {
-    const response = await saveRecipeApi({
-      body: {
-        recipe: stripEmptyExtensions(recipe),
-        id: recipeId,
-      },
-      throwOnError: true,
-    });
+    const response = await acpSaveRecipe(stripEmptyExtensions(recipe), recipeId);
     return {
-      id: response.data.id,
-      fileName: response.data.file_name,
-      filePath: response.data.file_path,
+      id: response.id,
+      fileName: response.file_name,
+      filePath: response.file_path,
     };
   } catch (error) {
     let error_message = 'unknown error';
@@ -29,12 +31,30 @@ export const saveRecipe = async (
 
 export const listSavedRecipes = async (): Promise<RecipeManifest[]> => {
   try {
-    const listRecipeResponse = await listRecipes();
-    return listRecipeResponse?.data?.manifests ?? [];
+    return await acpListRecipes();
   } catch (error) {
     console.warn('Failed to list saved recipes:', error);
     return [];
   }
+};
+
+export const deleteRecipe = async (id: string): Promise<void> => {
+  await acpDeleteRecipe(id);
+};
+
+export const scheduleRecipe = async (id: string, cronSchedule?: string | null): Promise<void> => {
+  await acpScheduleRecipe(id, cronSchedule);
+};
+
+export const setRecipeSlashCommand = async (
+  id: string,
+  slashCommand?: string | null
+): Promise<void> => {
+  await acpSetRecipeSlashCommand(id, slashCommand);
+};
+
+export const recipeToYaml = async (recipe: Recipe): Promise<string> => {
+  return await acpRecipeToYaml(recipe);
 };
 
 const parseLastModified = (val: string | Date): Date => {

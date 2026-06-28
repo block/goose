@@ -156,8 +156,10 @@ impl Agent {
             .conversation
             .ok_or_else(|| anyhow!("Session has no conversation"))?;
 
+        let model_config = self.model_config_for_session(session_id).await?;
         let (compacted_conversation, usage) = compact_messages(
             self.provider().await?.as_ref(),
+            &model_config,
             session_id,
             &conversation,
             true, // is_manual_compact
@@ -209,8 +211,11 @@ impl Agent {
 
     async fn handle_status_command(&self, session_id: &str) -> Result<Option<Message>> {
         let provider = self.provider().await?;
-        let model_config = provider.get_model_config();
-        let context_limit = model_config.context_limit();
+        let model_config = self.model_config_for_session(session_id).await?;
+        let context_limit = provider
+            .get_context_limit(&model_config)
+            .await
+            .unwrap_or_else(|_| model_config.context_limit());
 
         let goose_mode = self.goose_mode().await;
 

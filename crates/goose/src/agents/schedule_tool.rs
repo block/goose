@@ -399,7 +399,7 @@ impl Agent {
                             format!(
                                 "- Session: {} (Messages: {}, Working Dir: {})",
                                 session_name,
-                                session.conversation.unwrap_or_default().len(),
+                                session.message_count,
                                 session.working_dir.display()
                             )
                         })

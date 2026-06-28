@@ -9,11 +9,13 @@ use tokio_util::sync::CancellationToken;
 use std::path::PathBuf;
 
 use crate::config::permission::PermissionLevel;
+use crate::conversation::message::Message;
 use crate::mcp_utils::ToolResult;
 use crate::permission::Permission;
 use rmcp::model::{Content, ServerNotification};
 
 /// Context passed through the tool call dispatch chain.
+#[derive(Clone)]
 pub struct ToolCallContext {
     pub session_id: String,
     pub working_dir: Option<PathBuf>,
@@ -43,6 +45,7 @@ impl ToolCallContext {
 pub struct ToolCallResult {
     pub result: Box<dyn Future<Output = ToolResult<rmcp::model::CallToolResult>> + Send + Unpin>,
     pub notification_stream: Option<Box<dyn Stream<Item = ServerNotification> + Send + Unpin>>,
+    pub action_required_stream: Option<Box<dyn Stream<Item = Message> + Send + Unpin>>,
 }
 
 impl From<ToolResult<rmcp::model::CallToolResult>> for ToolCallResult {
@@ -50,13 +53,14 @@ impl From<ToolResult<rmcp::model::CallToolResult>> for ToolCallResult {
         Self {
             result: Box::new(futures::future::ready(result)),
             notification_stream: None,
+            action_required_stream: None,
         }
     }
 }
 
 use super::agent::{tool_stream, ToolStream};
 use crate::agents::Agent;
-use crate::conversation::message::{Message, ToolRequest};
+use crate::conversation::message::ToolRequest;
 use crate::session::Session;
 use crate::tool_inspection::get_security_finding_id_from_results;
 
@@ -133,9 +137,11 @@ impl Agent {
                     tool_futures.push((req_id, match tool_result {
                         Ok(result) => tool_stream(
                             result.notification_stream.unwrap_or_else(|| Box::new(stream::empty())),
+                            result.action_required_stream.unwrap_or_else(|| Box::new(stream::empty())),
                             result.result,
                         ),
                         Err(e) => tool_stream(
+                            Box::new(stream::empty()),
                             Box::new(stream::empty()),
                             futures::future::ready(Err(e)),
                         ),

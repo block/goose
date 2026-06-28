@@ -71,7 +71,9 @@ pub async fn run_list_sessions<C: Connection>() {
         // createdAt is a dynamic timestamp — verify it exists then remove for comparison.
         if let Some(ref mut meta) = s.meta {
             assert!(meta.get("createdAt").and_then(|v| v.as_str()).is_some());
+            assert!(meta.get("lastMessageAt").and_then(|v| v.as_str()).is_some());
             meta.remove("createdAt");
+            meta.remove("lastMessageAt");
             // Provider/model metadata varies by test fixture; not relevant here.
             meta.remove("providerId");
             meta.remove("modelId");
@@ -429,7 +431,7 @@ pub async fn run_fs_write_text_file_true<C: Connection>() {
 
 pub async fn run_initialize_doesnt_hit_provider<C: Connection>() {
     let provider_factory: AcpProviderFactory =
-        Arc::new(|_, _, _, _| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
+        Arc::new(|_, _, _| Box::pin(async { Err(anyhow::anyhow!("no provider configured")) }));
 
     let openai = OpenAiFixture::new(vec![], C::expected_session_id()).await;
     let config = TestConnectionConfig {

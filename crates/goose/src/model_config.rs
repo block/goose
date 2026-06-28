@@ -1,6 +1,12 @@
 use crate::config::{Config, ConfigError};
+use crate::conversation::message::Message;
+use crate::providers::base::Provider;
 use anyhow::{anyhow, Result};
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::errors::ProviderError;
 use goose_providers::model::ModelConfig;
+use goose_providers::thinking::ThinkingEffort;
+use rmcp::model::Tool;
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -59,23 +65,87 @@ fn materialize_model_config_inner(
     Ok(model)
 }
 
-pub fn configured_fast_model_name(default_model: &str) -> String {
+fn configured_fast_model_name() -> Option<String> {
     Config::global()
         .get_param::<String>("GOOSE_FAST_MODEL")
         .ok()
         .map(|v| v.trim().to_string())
         .filter(|v| !v.is_empty())
-        .unwrap_or_else(|| default_model.to_string())
 }
 
-pub fn with_configured_fast_model(
-    model: ModelConfig,
+/// Resolve the model config to use for lightweight "fast" tasks (session
+/// naming, compaction, summarization). Resolution order:
+///   1. `GOOSE_FAST_MODEL` (user override)
+///   2. the provider's declared default fast model
+///   3. the supplied `model_config` (i.e. the main model)
+///
+/// The resulting config is materialized against the same provider so it picks
+/// up context limits, temperature, and other provider defaults.
+pub async fn get_fast_model(
     provider_name: &str,
-    default_fast_model_name: &str,
+    model_config: &ModelConfig,
 ) -> Result<ModelConfig> {
-    let fast_model_name = configured_fast_model_name(default_fast_model_name);
-    let fast_model_config = model_config_from_user_config(provider_name, fast_model_name)?;
-    Ok(model.with_fast_model_config(fast_model_config))
+    let fast_model_name = match configured_fast_model_name() {
+        Some(name) => Some(name),
+        None => provider_default_fast_model(provider_name).await,
+    };
+
+    match fast_model_name {
+        Some(name) if name != model_config.model_name => {
+            model_config_from_user_config(provider_name, name)
+        }
+        _ => Ok(model_config.clone()),
+    }
+}
+
+/// Run a completion for a lightweight "fast" task (session naming, compaction,
+/// summarization) using the provider's fast model, falling back to the supplied
+/// main `model_config` if the fast model errors.
+pub async fn complete_fast(
+    provider: &dyn Provider,
+    model_config: &ModelConfig,
+    session_id: &str,
+    system: &str,
+    messages: &[Message],
+    tools: &[Tool],
+) -> Result<(Message, ProviderUsage), ProviderError> {
+    let fast_model_config = get_fast_model(provider.get_name(), model_config)
+        .await
+        .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
+        .with_thinking_effort(ThinkingEffort::Off);
+
+    match provider
+        .complete(&fast_model_config, session_id, system, messages, tools)
+        .await
+    {
+        Ok(response) => Ok(response),
+        Err(e) if fast_model_config.model_name != model_config.model_name => {
+            tracing::warn!(
+                "Fast model {} failed with error: {}. Falling back to main model {}",
+                fast_model_config.model_name,
+                e,
+                model_config.model_name
+            );
+            let fallback_config = model_config
+                .clone()
+                .with_thinking_effort(ThinkingEffort::Off);
+            provider
+                .complete(&fallback_config, session_id, system, messages, tools)
+                .await
+        }
+        Err(e) => Err(e),
+    }
+}
+
+async fn provider_default_fast_model(provider_name: &str) -> Option<String> {
+    if provider_name == goose_providers::openai::OPEN_AI_PROVIDER_NAME {
+        return crate::providers::openai_def::live_fast_model();
+    }
+
+    crate::providers::get_from_registry(provider_name)
+        .await
+        .ok()
+        .and_then(|entry| entry.metadata().fast_model.clone())
 }
 
 fn base_model_config_from_user_config(model_name: &str) -> Result<ModelConfig> {
@@ -87,7 +157,6 @@ fn base_model_config_from_user_config(model_name: &str) -> Result<ModelConfig> {
         max_tokens: None,
         toolshim: get_goose_toolshim(config)?.unwrap_or(false),
         toolshim_model: get_goose_toolshim_model(config)?,
-        fast_model_config: None,
         request_params: None,
         reasoning: None,
     };
@@ -112,6 +181,14 @@ fn get_goose_toolshim(config: &Config) -> Result<Option<bool>> {
         Err(ConfigError::NotFound(_)) => Ok(None),
         Err(e) => Err(e.into()),
     }
+}
+
+/// Resolve the global toolshim setting, defaulting to false when unset.
+pub fn global_toolshim() -> bool {
+    get_goose_toolshim(Config::global())
+        .ok()
+        .flatten()
+        .unwrap_or(false)
 }
 
 fn get_goose_toolshim_model(config: &Config) -> Result<Option<String>> {

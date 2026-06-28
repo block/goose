@@ -148,8 +148,6 @@ pub struct GcpVertexAIProvider {
     project_id: String,
     /// GCP region for model deployment
     location: String,
-    /// Configuration for the specific model being used
-    model: ModelConfig,
     /// Retry configuration for handling rate limit errors
     #[serde(skip)]
     retry_config: RetryConfig,
@@ -166,7 +164,6 @@ impl GcpVertexAIProvider {
     /// # Arguments
     /// * `model` - Configuration for the model to be used
     pub async fn from_env(
-        model: ModelConfig,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -189,7 +186,6 @@ impl GcpVertexAIProvider {
             host,
             project_id,
             location,
-            model,
             retry_config,
             name: GCP_VERTEX_AI_PROVIDER_NAME.to_string(),
         })
@@ -262,6 +258,7 @@ impl GcpVertexAIProvider {
 
     fn build_request_url(
         &self,
+        model: &ModelConfig,
         provider: ModelProvider,
         location: &str,
         streaming: bool,
@@ -270,7 +267,7 @@ impl GcpVertexAIProvider {
             &self.host,
             &self.location,
             &self.project_id,
-            &self.model.model_name,
+            &model.model_name,
             provider,
             location,
             streaming,
@@ -395,13 +392,14 @@ impl GcpVertexAIProvider {
 
     async fn post_stream_with_location(
         &self,
+        model: &ModelConfig,
         session_id: Option<&str>,
         payload: &Value,
         context: &RequestContext,
         location: &str,
     ) -> Result<reqwest::Response, ProviderError> {
         let url = self
-            .build_request_url(context.provider(), location, true)
+            .build_request_url(model, context.provider(), location, true)
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
 
         self.send_request_with_retry(session_id, url, payload).await
@@ -409,12 +407,13 @@ impl GcpVertexAIProvider {
 
     async fn post_stream(
         &self,
+        model: &ModelConfig,
         session_id: Option<&str>,
         payload: &Value,
         context: &RequestContext,
     ) -> Result<reqwest::Response, ProviderError> {
         let result = self
-            .post_stream_with_location(session_id, payload, context, &self.location)
+            .post_stream_with_location(model, session_id, payload, context, &self.location)
             .await;
 
         if self.location == context.model.known_location().to_string() || result.is_ok() {
@@ -431,7 +430,7 @@ impl GcpVertexAIProvider {
                     "Trying known location {known_location} for {model_name} instead of {configured_location}: {msg}"
                 );
 
-                self.post_stream_with_location(session_id, payload, context, &known_location)
+                self.post_stream_with_location(model, session_id, payload, context, &known_location)
                     .await
             }
             _ => result,
@@ -583,11 +582,10 @@ impl ProviderDef for GcpVertexAIProvider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -603,11 +601,6 @@ impl Provider for GcpVertexAIProvider {
     /// * `system` - System prompt or context
     /// * `messages` - Array of previous messages in the conversation
     /// * `tools` - Array of available tools for the model
-    /// Returns the current model configuration.
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -627,7 +620,7 @@ impl Provider for GcpVertexAIProvider {
         let mut log = start_log(model_config, &request)?;
 
         let response = self
-            .post_stream(Some(session_id), &request, &context)
+            .post_stream(model_config, Some(session_id), &request, &context)
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);

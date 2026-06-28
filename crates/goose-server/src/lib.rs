@@ -13,8 +13,6 @@ pub mod session_event_bus;
 pub mod state;
 #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
 pub mod tls;
-pub mod tunnel;
-
 // Re-export commonly used items
 pub use openapi::*;
 pub use state::*;

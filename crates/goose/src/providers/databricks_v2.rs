@@ -3,6 +3,7 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
+use goose_providers::formats::anthropic::{AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME};
 use goose_providers::formats::openai::{self, extract_reasoning_effort, is_openai_responses_model};
 use goose_providers::images::ImageFormat;
 use serde::Serialize;
@@ -54,7 +55,6 @@ enum DatabricksV2Route {
 pub struct DatabricksV2Provider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     #[serde(skip)]
     retry_config: RetryConfig,
     #[serde(skip)]
@@ -69,7 +69,6 @@ impl DatabricksV2Provider {
     }
 
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -95,13 +94,12 @@ impl DatabricksV2Provider {
             DatabricksAuth::oauth(host.clone())
         };
 
-        Self::new(host, auth, model, retry_config, tls_config)
+        Self::new(host, auth, retry_config, tls_config)
     }
 
     fn new(
         host: String,
         auth: DatabricksAuth,
-        model: ModelConfig,
         retry_config: RetryConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
@@ -124,7 +122,6 @@ impl DatabricksV2Provider {
 
         Ok(Self {
             api_client,
-            model,
             retry_config,
             name: DATABRICKS_V2_PROVIDER_NAME.to_string(),
             token_cache,
@@ -295,7 +292,14 @@ impl DatabricksV2Provider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let mut payload = anthropic::create_request(model_config, system, messages, tools)?;
+        let mut payload = anthropic::create_request(
+            ANTHROPIC_PROVIDER_NAME,
+            model_config,
+            system,
+            messages,
+            tools,
+            AnthropicFormatOptions::default(),
+        )?;
         payload["stream"] = Value::Bool(true);
         let mut log = start_log(model_config, &payload)?;
 
@@ -355,11 +359,10 @@ impl ProviderDef for DatabricksV2Provider {
     type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -377,10 +380,6 @@ impl Provider for DatabricksV2Provider {
         crate::config::Config::global().invalidate_secrets_cache();
         *self.token_cache.lock().unwrap() = None;
         Ok(())
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn stream(
