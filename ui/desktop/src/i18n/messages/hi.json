@@ -299,6 +299,15 @@
   "confirmationModal.processing": {
     "defaultMessage": "प्रसंस्करण..."
   },
+  "conversationLimitsDropdown.contextLimit": {
+    "defaultMessage": "संदर्भ सीमा ओवरराइड"
+  },
+  "conversationLimitsDropdown.contextLimitDescription": {
+    "defaultMessage": "अज्ञात सीमा वाले मॉडल के लिए डिफ़ॉल्ट संदर्भ विंडो (ऑटो-कम्पैक्शन के लिए भी उपयोग होता है)। 128,000 उपयोग करने के लिए खाली छोड़ें।"
+  },
+  "conversationLimitsDropdown.contextLimitPlaceholder": {
+    "defaultMessage": "128000"
+  },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "बातचीत की सीमाएँ"
   },

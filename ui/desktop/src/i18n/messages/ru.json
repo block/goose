@@ -299,6 +299,15 @@
   "confirmationModal.processing": {
     "defaultMessage": "Обработка..."
   },
+  "conversationLimitsDropdown.contextLimit": {
+    "defaultMessage": "Переопределение лимита контекста"
+  },
+  "conversationLimitsDropdown.contextLimitDescription": {
+    "defaultMessage": "Контекстное окно по умолчанию для моделей без известного лимита (также используется для авто-сжатия). Оставьте пустым, чтобы использовать 128 000."
+  },
+  "conversationLimitsDropdown.contextLimitPlaceholder": {
+    "defaultMessage": "128000"
+  },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "Ограничения разговора"
   },

@@ -299,6 +299,15 @@
   "confirmationModal.processing": {
     "defaultMessage": "처리 중..."
   },
+  "conversationLimitsDropdown.contextLimit": {
+    "defaultMessage": "컨텍스트 한도 재정의"
+  },
+  "conversationLimitsDropdown.contextLimitDescription": {
+    "defaultMessage": "알려진 한도가 없는 모델의 기본 컨텍스트 창(자동 압축에도 사용됨). 비워 두면 128,000을 사용합니다."
+  },
+  "conversationLimitsDropdown.contextLimitPlaceholder": {
+    "defaultMessage": "128000"
+  },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "대화 제한"
   },

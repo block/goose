@@ -299,6 +299,15 @@
   "confirmationModal.processing": {
     "defaultMessage": "Procesando..."
   },
+  "conversationLimitsDropdown.contextLimit": {
+    "defaultMessage": "Anulación del límite de contexto"
+  },
+  "conversationLimitsDropdown.contextLimitDescription": {
+    "defaultMessage": "Ventana de contexto predeterminada para modelos sin un límite conocido (también se usa para la compactación automática). Déjalo vacío para usar 128.000."
+  },
+  "conversationLimitsDropdown.contextLimitPlaceholder": {
+    "defaultMessage": "128000"
+  },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "Límites de conversación"
   },

@@ -299,6 +299,15 @@
   "confirmationModal.processing": {
     "defaultMessage": "İşleniyor..."
   },
+  "conversationLimitsDropdown.contextLimit": {
+    "defaultMessage": "Bağlam limiti geçersiz kılma"
+  },
+  "conversationLimitsDropdown.contextLimitDescription": {
+    "defaultMessage": "Bilinen limiti olmayan modeller için varsayılan bağlam penceresi (otomatik sıkıştırma için de kullanılır). 128.000 kullanmak için boş bırakın."
+  },
+  "conversationLimitsDropdown.contextLimitPlaceholder": {
+    "defaultMessage": "128000"
+  },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "Konuşma Sınırları"
   },

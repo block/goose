@@ -299,6 +299,15 @@
   "confirmationModal.processing": {
     "defaultMessage": "処理中..."
   },
+  "conversationLimitsDropdown.contextLimit": {
+    "defaultMessage": "コンテキスト上限の上書き"
+  },
+  "conversationLimitsDropdown.contextLimitDescription": {
+    "defaultMessage": "既知の上限がないモデルのデフォルトコンテキストウィンドウ（自動コンパクションにも使用）。空のままにすると 128,000 が使われます。"
+  },
+  "conversationLimitsDropdown.contextLimitPlaceholder": {
+    "defaultMessage": "128000"
+  },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "会話制限"
   },

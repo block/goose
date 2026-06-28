@@ -299,6 +299,15 @@
   "confirmationModal.processing": {
     "defaultMessage": "处理中…"
   },
+  "conversationLimitsDropdown.contextLimit": {
+    "defaultMessage": "上下文限制覆盖"
+  },
+  "conversationLimitsDropdown.contextLimitDescription": {
+    "defaultMessage": "没有已知限制的模型的默认上下文窗口（也用于自动压缩）。留空则使用 128,000。"
+  },
+  "conversationLimitsDropdown.contextLimitPlaceholder": {
+    "defaultMessage": "128000"
+  },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "对话限制"
   },

@@ -299,6 +299,15 @@
   "confirmationModal.processing": {
     "defaultMessage": "Processing..."
   },
+  "conversationLimitsDropdown.contextLimit": {
+    "defaultMessage": "Context limit override"
+  },
+  "conversationLimitsDropdown.contextLimitDescription": {
+    "defaultMessage": "Default context window for models without a known limit (also used for auto-compaction). Leave empty to use 128,000."
+  },
+  "conversationLimitsDropdown.contextLimitPlaceholder": {
+    "defaultMessage": "128000"
+  },
   "conversationLimitsDropdown.conversationLimits": {
     "defaultMessage": "Conversation Limits"
   },
