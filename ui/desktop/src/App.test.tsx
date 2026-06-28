@@ -34,23 +34,11 @@ vi.mock('./utils/costDatabase', () => ({
 }));
 
 vi.mock('./api', () => {
-  const test_chat = {
-    data: {
-      session_id: 'test',
-      messages: [],
-      metadata: {
-        description: '',
-      },
-    },
-  };
-
   return {
     initConfig: vi.fn().mockResolvedValue(undefined),
     backupConfig: vi.fn().mockResolvedValue(undefined),
     recoverConfig: vi.fn().mockResolvedValue(undefined),
     validateConfig: vi.fn().mockResolvedValue(undefined),
-    startAgent: vi.fn().mockResolvedValue(test_chat),
-    resumeAgent: vi.fn().mockResolvedValue(test_chat),
   };
 });
 

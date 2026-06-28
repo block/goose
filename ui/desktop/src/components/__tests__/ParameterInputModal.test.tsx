@@ -1,22 +1,27 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, type RenderOptions, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import ParameterInputModal from '../ParameterInputModal';
 import { IntlTestWrapper } from '../../i18n/test-utils';
 import type { Parameter } from '../../recipe';
 
-const mockNavigate = vi.hoisted(() => vi.fn());
+const LocationDisplay = () => {
+  const location = useLocation();
+  return <span data-testid="location-display">{location.pathname}</span>;
+};
 
-vi.mock('react-router-dom', async () => {
-  const actual = await vi.importActual<typeof import('react-router-dom')>('react-router-dom');
-  return {
-    ...actual,
-    useNavigate: () => mockNavigate,
-  };
-});
+const TestWrapper = ({ children }: { children: React.ReactNode }) => (
+  <MemoryRouter>
+    <IntlTestWrapper>
+      {children}
+      <LocationDisplay />
+    </IntlTestWrapper>
+  </MemoryRouter>
+);
 
 const renderWithIntl = (ui: React.ReactElement, options?: RenderOptions) =>
-  render(ui, { wrapper: IntlTestWrapper, ...options });
+  render(ui, { wrapper: TestWrapper, ...options });
 
 const mockParameters: Parameter[] = [
   {
@@ -52,7 +57,6 @@ describe('ParameterInputModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    mockNavigate.mockClear();
   });
 
   describe('Rendering', () => {
@@ -152,14 +156,14 @@ describe('ParameterInputModal', () => {
       expect(defaultProps.onClose).toHaveBeenCalled();
     });
 
-    it('navigates to chat when "Start New Chat" option is selected', async () => {
+    it('navigates to new chat when "Start New Chat" option is selected', async () => {
       const user = userEvent.setup();
       renderWithIntl(<ParameterInputModal {...defaultProps} />);
 
       await user.click(screen.getByText('Cancel'));
       await user.click(screen.getByText('Start New Chat (No Workflow)'));
 
-      expect(mockNavigate).toHaveBeenCalledWith('/pair');
+      expect(screen.getByTestId('location-display')).toHaveTextContent('/pair');
       expect(defaultProps.onClose).not.toHaveBeenCalled();
     });
 

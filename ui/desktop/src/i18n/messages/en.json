@@ -2343,7 +2343,7 @@
     "defaultMessage": "The server may be starting up or temporarily unavailable."
   },
   "onboardingGuard.checkProviderErrorTitle": {
-    "defaultMessage": "Unable to connect to ApeMind Agent server"
+    "defaultMessage": "Unable to connect to ApeMind Agent"
   },
   "onboardingGuard.retry": {
     "defaultMessage": "Retry"
@@ -3732,7 +3732,7 @@
     "defaultMessage": "Chat history"
   },
   "sessions.chatHistoryDesc": {
-    "defaultMessage": "View and search your past conversations with Goose. {shortcut} to search."
+    "defaultMessage": "View and search your past conversations with ApeMind Agent. {shortcut} to search."
   },
   "sessions.close": {
     "defaultMessage": "Close"
@@ -3768,7 +3768,7 @@
     "defaultMessage": "Import Link"
   },
   "sessions.importNostr.description": {
-    "defaultMessage": "Paste a Goose Nostr share link to fetch, decrypt, and import the session."
+    "defaultMessage": "Paste an ApeMind Agent Nostr share link to fetch, decrypt, and import the session."
   },
   "sessions.importNostr.placeholder": {
     "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."

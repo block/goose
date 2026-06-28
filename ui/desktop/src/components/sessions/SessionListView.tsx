@@ -48,7 +48,6 @@ import { acpChatSessionActions } from '../../acp/chatSessionStore';
 import { cancelAcpPermissionRequestsForSession } from '../../acp/permissionRequests';
 import { cancelAcpElicitationRequestsForSession } from '../../acp/elicitationRequests';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
-import { clearSessionCache } from '../../hooks/useChatStream';
 
 const i18n = defineMessages({
   editSessionTitle: { id: 'sessions.edit.title', defaultMessage: 'Edit Session Description' },
@@ -62,10 +61,10 @@ const i18n = defineMessages({
   importSession: { id: 'sessions.import', defaultMessage: 'Import Session' },
   importNostrSession: { id: 'sessions.importNostr', defaultMessage: 'Import Link' },
   importNostrTitle: { id: 'sessions.importNostr.title', defaultMessage: 'Import Nostr Session' },
-  importNostrDesc: { id: 'sessions.importNostr.description', defaultMessage: 'Paste a Goose Nostr share link to fetch, decrypt, and import the session.' },
+  importNostrDesc: { id: 'sessions.importNostr.description', defaultMessage: 'Paste an ApeMind Agent Nostr share link to fetch, decrypt, and import the session.' },
   importNostrPlaceholder: { id: 'sessions.importNostr.placeholder', defaultMessage: 'goose://sessions/nostr?nevent=...&key=...' },
   importing: { id: 'sessions.importing', defaultMessage: 'Importing...' },
-  chatHistoryDesc: { id: 'sessions.chatHistoryDesc', defaultMessage: 'View and search your past conversations with Goose. {shortcut} to search.' },
+  chatHistoryDesc: { id: 'sessions.chatHistoryDesc', defaultMessage: 'View and search your past conversations with ApeMind Agent. {shortcut} to search.' },
   searchPlaceholder: { id: 'sessions.searchPlaceholder', defaultMessage: 'Search history...' },
   errorLoading: { id: 'sessions.error.loading', defaultMessage: 'Error Loading Sessions' },
   tryAgain: { id: 'sessions.error.tryAgain', defaultMessage: 'Try Again' },
@@ -484,7 +483,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         window.dispatchEvent(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
-        clearSessionCache(sessionToDeleteId);
         cancelAcpPermissionRequestsForSession(sessionToDeleteId);
         cancelAcpElicitationRequestsForSession(sessionToDeleteId);
         acpChatSessionActions.deleteSnapshot(sessionToDeleteId);

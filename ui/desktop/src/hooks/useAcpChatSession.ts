@@ -37,11 +37,11 @@ function isSlashCommand(message: string): boolean {
 const i18n = defineMessages({
   notificationTitle: {
     id: 'chat.notification.taskComplete.title',
-    defaultMessage: 'Goose finished the task.',
+    defaultMessage: 'ApeMind Agent finished the task.',
   },
   notificationBody: {
     id: 'chat.notification.taskComplete.body',
-    defaultMessage: 'Click here to bring Goose back into focus.',
+    defaultMessage: 'Click here to bring ApeMind Agent back into focus.',
   },
 });
 
@@ -263,10 +263,6 @@ export function useAcpChatSession({
     [getCurrentSnapshot, sessionId]
   );
 
-  const setRecipeUserParams = useCallback((_userRecipeValues: Record<string, string>) => {
-    return Promise.reject(new Error('ACP recipe parameters are handled during session creation'));
-  }, []);
-
   const stopStreaming = useCallback(() => {
     acpChatSessionController.stop(sessionId);
   }, [sessionId]);
@@ -289,13 +285,6 @@ export function useAcpChatSession({
       }
     },
     [getCurrentSnapshot, onFinish, sessionId]
-  );
-
-  const setChatState = useCallback(
-    (newState: ChatState) => {
-      acpChatSessionActions.setChatState(sessionId, newState);
-    },
-    [sessionId]
   );
 
   const updateSession = useCallback(
@@ -324,13 +313,11 @@ export function useAcpChatSession({
     messages,
     session,
     chatState,
-    setChatState,
     updateSession,
     handleSubmit,
     onSteerQueuedMessage,
     submitElicitationResponse,
     stopStreaming,
-    setRecipeUserParams,
     tokenState,
     notifications: notificationsMap,
     pauseQueueOnStop: false,

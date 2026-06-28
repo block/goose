@@ -13,6 +13,9 @@ enum ToolNotification {
     Progress {
         params: ProgressNotificationParam,
     },
+    PlatformEvent {
+        params: serde_json::Value,
+    },
 }
 
 pub(super) fn tool_notification_update(
@@ -26,6 +29,13 @@ pub(super) fn tool_notification_update(
         ServerNotification::ProgressNotification(notification) => ToolNotification::Progress {
             params: notification.params,
         },
+        ServerNotification::CustomNotification(notification)
+            if notification.method == "platform_event" =>
+        {
+            ToolNotification::PlatformEvent {
+                params: notification.params.unwrap_or(serde_json::Value::Null),
+            }
+        }
         _ => return None,
     };
 
@@ -48,8 +58,9 @@ pub(super) fn tool_notification_update(
 mod tests {
     use super::tool_notification_update;
     use rmcp::model::{
-        CancelledNotificationParam, LoggingLevel, LoggingMessageNotificationParam, Notification,
-        NumberOrString, ProgressNotificationParam, ProgressToken, ServerNotification,
+        CancelledNotificationParam, CustomNotification, LoggingLevel,
+        LoggingMessageNotificationParam, Notification, NumberOrString, ProgressNotificationParam,
+        ProgressToken, ServerNotification,
     };
     use serde_json::json;
     use std::sync::Arc;
@@ -131,6 +142,48 @@ mod tests {
                 request_id: NumberOrString::String(Arc::from("request_1")),
                 reason: None,
             },
+        ));
+
+        assert!(tool_notification_update("tool_1", notification).is_none());
+    }
+
+    #[test]
+    fn maps_platform_event_custom_notification_to_tool_update_meta() {
+        let notification = ServerNotification::CustomNotification(CustomNotification::new(
+            "platform_event",
+            Some(json!({
+                "extension": "apps",
+                "event_type": "app_created",
+                "app_name": "platform-event-repro"
+            })),
+        ));
+
+        let update = tool_notification_update("tool_1", notification).expect("expected update");
+        let value = serde_json::to_value(update).expect("update should serialize");
+
+        assert_eq!(value["sessionUpdate"], "tool_call_update");
+        assert_eq!(value["toolCallId"], "tool_1");
+        assert_eq!(value["status"], "in_progress");
+        assert_eq!(value["_meta"]["toolNotification"]["type"], "platform_event");
+        assert_eq!(
+            value["_meta"]["toolNotification"]["params"]["extension"],
+            "apps"
+        );
+        assert_eq!(
+            value["_meta"]["toolNotification"]["params"]["event_type"],
+            "app_created"
+        );
+        assert_eq!(
+            value["_meta"]["toolNotification"]["params"]["app_name"],
+            "platform-event-repro"
+        );
+    }
+
+    #[test]
+    fn ignores_non_platform_event_custom_notifications() {
+        let notification = ServerNotification::CustomNotification(CustomNotification::new(
+            "notifications/custom",
+            Some(json!({ "extension": "apps" })),
         ));
 
         assert!(tool_notification_update("tool_1", notification).is_none());
