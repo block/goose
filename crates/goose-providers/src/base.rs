@@ -548,6 +548,16 @@ pub trait Provider: Send + Sync {
         false
     }
 
+    /// Whether picking a specific model from this provider's model list
+    /// actually changes the model the provider uses. Direct API providers honor
+    /// the selected model. ACP wrappers that expose no model-config option
+    /// (Claude Code, Amp, Codex, Pi) ignore the choice and keep the agent on its
+    /// own current model, so a per-model menu would mislead — callers should
+    /// offer a single "current" entry for those instead.
+    fn applies_selected_model(&self) -> bool {
+        true
+    }
+
     /// Configure OAuth authentication for this provider
     ///
     /// This method is called when a provider has configuration keys marked with oauth_flow = true.

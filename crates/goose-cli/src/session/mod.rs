@@ -921,13 +921,14 @@ impl CliSession {
             let provider_name = meta.name.clone();
             let listed = tokio::time::timeout(Duration::from_secs(15), async move {
                 let temp_provider = goose::providers::create(&provider_name, Vec::new()).await?;
+                let applies_selected_model = temp_provider.applies_selected_model();
                 let models = temp_provider.fetch_supported_models().await?;
-                Ok::<Vec<String>, anyhow::Error>(models)
+                Ok::<(bool, Vec<String>), anyhow::Error>((applies_selected_model, models))
             })
             .await;
 
             match listed {
-                Ok(Ok(models)) if !models.is_empty() => {
+                Ok(Ok((true, models))) if !models.is_empty() => {
                     for m in models {
                         let mut label = format!("{}  ▸  {}", meta.display_name, m);
                         if meta.name.as_str() == current_provider_name
@@ -937,6 +938,22 @@ impl CliSession {
                         }
                         entries.push((label, meta.name.clone(), m));
                     }
+                }
+                // A provider that lists models but can't apply a per-model choice
+                // (an ACP wrapper with no model-config option, e.g. Claude Code)
+                // gets one entry: selecting a specific model would persist it on
+                // the goose side while the agent silently stays on its own model.
+                // Switch to the provider with the "current" sentinel instead.
+                Ok(Ok((false, models))) if !models.is_empty() => {
+                    let mut label = format!("{}  ▸  (agent's current model)", meta.display_name);
+                    if meta.name.as_str() == current_provider_name {
+                        label.push_str("  (current)");
+                    }
+                    entries.push((
+                        label,
+                        meta.name.clone(),
+                        goose::acp::ACP_CURRENT_MODEL.to_string(),
+                    ));
                 }
                 Ok(Ok(_)) | Ok(Err(_)) | Err(_) => {
                     skipped.push(meta.display_name.clone());
@@ -1076,9 +1093,15 @@ impl CliSession {
             .await?;
         let mode = self.agent.goose_mode().await;
         self.agent.update_goose_mode(mode, &self.session_id).await?;
-        output::goose_mode_message(&format!(
-            "Session model switched to '{chosen_model}' (provider '{chosen_provider}')"
-        ));
+        if chosen_model == goose::acp::ACP_CURRENT_MODEL {
+            output::goose_mode_message(&format!(
+                "Session switched to '{chosen_provider}' (model managed by the agent)"
+            ));
+        } else {
+            output::goose_mode_message(&format!(
+                "Session model switched to '{chosen_model}' (provider '{chosen_provider}')"
+            ));
+        }
         Ok(())
     }
 

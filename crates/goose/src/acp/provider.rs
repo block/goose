@@ -448,6 +448,10 @@ impl Provider for AcpProvider {
         true
     }
 
+    fn applies_selected_model(&self) -> bool {
+        self.model_config_option_id.is_some()
+    }
+
     async fn handle_permission_confirmation(
         &self,
         request_id: &str,
@@ -1820,6 +1824,16 @@ mod tests {
             .unwrap();
 
         assert!(rx.try_recv().is_err());
+    }
+
+    #[test]
+    fn applies_selected_model_reflects_model_config_option() {
+        let (mut provider, _) = test_provider_with_tx(None);
+        // No model-config option: a per-model pick can't be applied.
+        assert!(!provider.applies_selected_model());
+
+        provider.model_config_option_id = Some("model".to_string());
+        assert!(provider.applies_selected_model());
     }
 
     #[test]
