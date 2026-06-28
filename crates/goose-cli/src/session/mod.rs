@@ -1020,13 +1020,17 @@ impl CliSession {
             .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
 
         // Switching INTO a provider that manages its own context (Claude Code,
-        // Gemini CLI) would silently drop the conversation so far: unlike the
-        // ACP providers it keeps no handoff path and forwards only the latest
-        // user message, so the existing transcript never reaches it. Refuse when
-        // there is history to lose, mirroring the current-provider guard in
-        // handle_model. ACP targets report manages_own_context() == false and
-        // carry their own handoff, so they stay switchable.
-        if new_provider.manages_own_context() && !self.messages.is_empty() {
+        // Gemini CLI) would silently drop the conversation so far: it keeps no
+        // handoff path and forwards only the latest user message, so the existing
+        // transcript never reaches it. Refuse when there is history to lose,
+        // mirroring the current-provider guard in handle_model. ACP providers also
+        // report manages_own_context() == true, but they carry a first-prompt
+        // handoff that does relay the transcript, so exclude *-acp targets here and
+        // let them switch.
+        if new_provider.manages_own_context()
+            && !chosen_provider.ends_with("-acp")
+            && !self.messages.is_empty()
+        {
             output::render_error(&format!(
                 "Can't switch to '{chosen_provider}' mid-session: it manages its own conversation context and would drop the current history. Keeping '{current_model_name}'. Start a new session to use it."
             ));
