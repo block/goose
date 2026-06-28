@@ -16,16 +16,33 @@ const i18n = defineMessages({
     id: 'conversationLimitsDropdown.maxTurnsDescription',
     defaultMessage: 'Maximum agent turns before Goose asks for user input',
   },
+  contextLimit: {
+    id: 'conversationLimitsDropdown.contextLimit',
+    defaultMessage: 'Context limit override',
+  },
+  contextLimitDescription: {
+    id: 'conversationLimitsDropdown.contextLimitDescription',
+    defaultMessage:
+      'Default context window for models without a known limit (also used for auto-compaction). Leave empty to use 128,000.',
+  },
+  contextLimitPlaceholder: {
+    id: 'conversationLimitsDropdown.contextLimitPlaceholder',
+    defaultMessage: '128000',
+  },
 });
 
 interface ConversationLimitsDropdownProps {
   maxTurns: number;
   onMaxTurnsChange: (value: number) => void;
+  contextLimit: number | null;
+  onContextLimitChange: (value: number | null) => void;
 }
 
 export const ConversationLimitsDropdown = ({
   maxTurns,
   onMaxTurnsChange,
+  contextLimit,
+  onContextLimitChange,
 }: ConversationLimitsDropdownProps) => {
   const intl = useIntl();
   const [isExpanded, setIsExpanded] = useState(false);
@@ -69,6 +86,32 @@ export const ConversationLimitsDropdown = ({
               value={maxTurns}
               onChange={(e) => onMaxTurnsChange(Number(e.target.value))}
               className="w-20"
+            />
+          </div>
+          <div className="flex items-center justify-between py-2 px-2 bg-background-secondary rounded-lg transform transition-all duration-200 ease-in-out">
+            <div>
+              <h4 className="text-text-primary text-sm">{intl.formatMessage(i18n.contextLimit)}</h4>
+              <p className="text-xs text-text-secondary mt-[2px]">
+                {intl.formatMessage(i18n.contextLimitDescription)}
+              </p>
+            </div>
+            <Input
+              type="number"
+              min="1"
+              placeholder={intl.formatMessage(i18n.contextLimitPlaceholder)}
+              value={contextLimit ?? ''}
+              onChange={(e) => {
+                const raw = e.target.value.trim();
+                if (!raw) {
+                  onContextLimitChange(null);
+                  return;
+                }
+                const parsed = Number(raw);
+                if (Number.isFinite(parsed) && parsed > 0) {
+                  onContextLimitChange(parsed);
+                }
+              }}
+              className="w-28"
             />
           </div>
         </div>

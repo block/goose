@@ -35,6 +35,8 @@ import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
 import { UserInput, ImageData } from '../types/message';
 import { compressImageDataUrl } from '../utils/conversionUtils';
 import { fetchCanonicalModelInfo } from '../utils/canonical';
+import { DEFAULT_CONTEXT_LIMIT, resolveDisplayContextLimit } from '../utils/modelContextLimit';
+import { useConfig } from './ConfigContext';
 import { defineMessages, useIntl } from '../i18n';
 import TurndownService from 'turndown';
 import type { NextChatExtensionDraft } from '../utils/nextChatExtensions';
@@ -79,8 +81,6 @@ const removeQueuedMessage = (messages: QueuedMessage[], messageId: string): Queu
   messages.filter((msg) => msg.id !== messageId);
 
 const MAX_IMAGES_PER_MESSAGE = 10;
-
-const TOKEN_LIMIT_DEFAULT = 128000; // fallback for custom models that the backend doesn't know about
 
 const getContextAlertType = (totalTokens: number, tokenLimit: number): AlertType => {
   const percentage = tokenLimit ? (totalTokens / tokenLimit) * 100 : 0;
@@ -288,6 +288,8 @@ export default function ChatInput({
     currentModel: configModel,
     currentProvider: configProvider,
   } = useModelAndProvider();
+  const { config } = useConfig();
+  const configuredContextLimit = config.GOOSE_CONTEXT_LIMIT as number | undefined;
 
   // Local override for when the user changes the model in the modal,
   // before the session object is re-fetched from the backend.
@@ -311,7 +313,7 @@ export default function ChatInput({
       setModelOverride(null);
     }
   }, [sessionModel, sessionProvider, configModel, configProvider, sessionId, modelOverride]);
-  const [tokenLimit, setTokenLimit] = useState<number>(TOKEN_LIMIT_DEFAULT);
+  const [tokenLimit, setTokenLimit] = useState<number>(DEFAULT_CONTEXT_LIMIT);
   const [isTokenLimitLoaded, setIsTokenLimitLoaded] = useState(false);
   const [diagnosticsOpen, setDiagnosticsOpen] = useState(false);
   const [workingDirOverride, setWorkingDirOverride] = useState<string | null>(null);
@@ -623,23 +625,22 @@ export default function ChatInput({
         }
       }
 
-      // Priority 4: Use default if nothing else found
-      setTokenLimit(TOKEN_LIMIT_DEFAULT);
+      // Priority 4: Resolve via goosed (honors GOOSE_CONTEXT_LIMIT and provider defaults)
+      const resolvedLimit = await resolveDisplayContextLimit(provider, model);
+      setTokenLimit(resolvedLimit);
       setIsTokenLimitLoaded(true);
     } catch (err) {
       console.error('Error loading providers or token limit:', err);
-      // Set default limit on error
-      setTokenLimit(TOKEN_LIMIT_DEFAULT);
+      setTokenLimit(configuredContextLimit ?? DEFAULT_CONTEXT_LIMIT);
       setIsTokenLimitLoaded(true);
     }
   };
 
-  // Initial load and refresh when model changes (effective model includes overrides,
-  // config model is the fallback for Hub/no-session contexts)
+  // Initial load and refresh when model or context limit override changes
   useEffect(() => {
     loadProviderDetails();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveModel, effectiveProvider, configModel, configProvider]);
+  }, [effectiveModel, effectiveProvider, configModel, configProvider, configuredContextLimit]);
 
   // Handle token usage alerts
   useEffect(() => {

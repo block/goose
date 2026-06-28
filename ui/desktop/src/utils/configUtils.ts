@@ -10,6 +10,7 @@ export const configLabels: Record<string, string> = {
   GOOSE_TOOLSHIM_OLLAMA_MODEL: 'Tool Shim Ollama Model',
   GOOSE_CLI_MIN_PRIORITY: 'CLI Min Priority',
   GOOSE_ALLOWLIST: 'Allow List',
+  GOOSE_CONTEXT_LIMIT: 'Context Limit',
   GOOSE_RECIPE_GITHUB_REPO: 'Recipe GitHub Repo',
 
   // security settings
