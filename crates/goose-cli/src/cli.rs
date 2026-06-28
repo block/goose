@@ -74,8 +74,8 @@ pub struct Identifier {
         long = "session-id",
         alias = "id",
         value_name = "SESSION_ID",
-        help = "Session ID (e.g., '20250921_143022')",
-        long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
+        help = "Session ID to resume; only valid with --resume (e.g., '20250921_143022')",
+        long_help = "Specify a session ID to resume a specific session. Only valid together with --resume; passing --session-id without --resume is an error."
     )]
     pub session_id: Option<String>,
 
