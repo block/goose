@@ -201,6 +201,43 @@ describe('AlertBox', () => {
       expect(screen.queryByText('Compact now')).not.toBeInTheDocument();
     });
 
+    it('should disable compact button and not call onCompact when compactButtonDisabled is true', async () => {
+      const user = userEvent.setup();
+
+      const alert: Alert = {
+        type: AlertType.Info,
+        message: 'Context window',
+        progress: { current: 50, total: 100 },
+        showCompactButton: true,
+        onCompact: mockOnCompact,
+        compactButtonDisabled: true,
+      };
+
+      renderWithIntl(<AlertBox alert={alert} />);
+
+      const compactButton = screen.getByRole('button', { name: /compact now/i });
+      expect(compactButton).toBeDisabled();
+      await user.click(compactButton);
+      expect(mockOnCompact).not.toHaveBeenCalled();
+    });
+
+    it('should apply disabled styling when compactButtonDisabled is true', () => {
+      const alert: Alert = {
+        type: AlertType.Info,
+        message: 'Context window',
+        progress: { current: 50, total: 100 },
+        showCompactButton: true,
+        onCompact: mockOnCompact,
+        compactButtonDisabled: true,
+      };
+
+      renderWithIntl(<AlertBox alert={alert} />);
+
+      const compactButton = screen.getByRole('button', { name: /compact now/i });
+      expect(compactButton).toHaveClass('opacity-50', 'cursor-not-allowed');
+      expect(compactButton).not.toHaveClass('hover:opacity-80', 'cursor-pointer');
+    });
+
     it('should not render compact button when onCompact is not provided', () => {
       const alert: Alert = {
         type: AlertType.Info,
