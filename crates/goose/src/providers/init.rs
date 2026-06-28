@@ -9,7 +9,6 @@ use super::local_inference::LocalInferenceProvider;
 use super::sagemaker_tgi::SageMakerTgiProvider;
 use super::{
     amp_acp::AmpAcpProvider,
-    anthropic::AnthropicProvider,
     avian::AvianProvider,
     azure::AzureProvider,
     base::{Provider, ProviderMetadata},
@@ -32,7 +31,6 @@ use super::{
     litellm::LiteLLMProvider,
     nanogpt::NanoGptProvider,
     ollama::OllamaProvider,
-    openai::OpenAiProvider,
     openrouter::OpenRouterProvider,
     pi_acp::PiAcpProvider,
     provider_registry::ProviderRegistry,
@@ -42,13 +40,14 @@ use super::{
     xai_oauth::XaiOAuthProvider,
 };
 use crate::config::ExtensionConfig;
+use crate::providers::anthropic_def::AnthropicProviderDef;
 use crate::providers::base::ProviderType;
+use crate::providers::openai_def::OpenAiProviderDef;
 use crate::{
     config::declarative_providers::register_declarative_providers,
     providers::provider_registry::ProviderEntry,
 };
 use anyhow::Result;
-use goose_providers::model::ModelConfig;
 use tokio::sync::OnceCell;
 
 static REGISTRY: OnceCell<RwLock<ProviderRegistry>> = OnceCell::const_new();
@@ -64,7 +63,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             false,
             Some(registrations::amp_acp_inventory()),
         );
-        registry.register_with_inventory::<AnthropicProvider>(
+        registry.register_with_inventory::<AnthropicProviderDef>(
             true,
             Some(registrations::anthropic_inventory()),
         );
@@ -120,7 +119,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             true,
             Some(registrations::ollama_inventory()),
         );
-        registry.register_with_inventory::<OpenAiProvider>(
+        registry.register_with_inventory::<OpenAiProviderDef>(
             true,
             Some(registrations::openai_inventory()),
         );
@@ -221,25 +220,18 @@ pub async fn inventory_identity(name: &str) -> Result<super::inventory::Inventor
     get_from_registry(name).await?.inventory_identity()
 }
 
-pub async fn create(
-    name: &str,
-    model: ModelConfig,
-    extensions: Vec<ExtensionConfig>,
-) -> Result<Arc<dyn Provider>> {
+pub async fn create(name: &str, extensions: Vec<ExtensionConfig>) -> Result<Arc<dyn Provider>> {
     let entry = get_from_registry(name).await?;
-    entry.create(model, extensions).await
+    entry.create(extensions).await
 }
 
 pub async fn create_with_working_dir(
     name: &str,
-    model: ModelConfig,
     extensions: Vec<ExtensionConfig>,
     working_dir: PathBuf,
 ) -> Result<Arc<dyn Provider>> {
     let entry = get_from_registry(name).await?;
-    entry
-        .create_with_working_dir(model, extensions, working_dir)
-        .await
+    entry.create_with_working_dir(extensions, working_dir).await
 }
 
 pub async fn create_with_default_model(
@@ -268,11 +260,9 @@ pub async fn cleanup_provider(name: &str) -> Result<()> {
 
 pub async fn create_with_named_model(
     provider_name: &str,
-    model_name: &str,
     extensions: Vec<ExtensionConfig>,
 ) -> Result<Arc<dyn Provider>> {
-    let config = crate::model_config::model_config_from_user_config(provider_name, model_name)?;
-    create(provider_name, config, extensions).await
+    create(provider_name, extensions).await
 }
 
 #[cfg(test)]
@@ -379,7 +369,6 @@ mod tests {
         assert_eq!(nearai.provider_type(), ProviderType::Declarative);
         assert!(nearai.supports_inventory_refresh());
         assert_eq!(meta.display_name, "NEAR AI Cloud");
-        assert_eq!(meta.default_model, "zai-org/GLM-5.1-FP8");
         assert_eq!(meta.model_doc_link, "https://docs.near.ai/");
         assert!(!meta.setup_steps.is_empty());
 
@@ -516,15 +505,27 @@ mod tests {
             .await
             .expect("custom providers should refresh");
 
-        let provider = create_with_named_model("custom_inf", "kimi-k2.5", Vec::new())
+        let inf_entry = get_from_registry("custom_inf")
             .await
-            .expect("custom_inf provider should be creatable");
-        assert_eq!(provider.get_model_config().context_limit, Some(256_000));
+            .expect("custom_inf entry should exist");
+        let inf_config = inf_entry
+            .normalize_model_config(
+                crate::model_config::model_config_from_user_config("custom_inf", "kimi-k2.5")
+                    .expect("custom_inf model config should resolve"),
+            )
+            .expect("custom_inf model config should normalize");
+        assert_eq!(inf_config.context_limit, Some(256_000));
 
-        let zero_provider = create_with_named_model("custom_zero", "zero-model", Vec::new())
+        let zero_entry = get_from_registry("custom_zero")
             .await
-            .expect("custom_zero provider should be creatable");
-        assert_eq!(zero_provider.get_model_config().context_limit, None);
+            .expect("custom_zero entry should exist");
+        let zero_config = zero_entry
+            .normalize_model_config(
+                crate::model_config::model_config_from_user_config("custom_zero", "zero-model")
+                    .expect("custom_zero model config should resolve"),
+            )
+            .expect("custom_zero model config should normalize");
+        assert_eq!(zero_config.context_limit, None);
 
         std::env::remove_var("GOOSE_PATH_ROOT");
     }

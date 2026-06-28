@@ -59,8 +59,6 @@ pub enum HookEvent {
     BeforeShellExecution,
     AfterShellExecution,
     Stop,
-    SubagentStart,
-    SubagentStop,
 }
 
 impl HookEvent {
@@ -77,8 +75,6 @@ impl HookEvent {
             HookEvent::BeforeShellExecution => "BeforeShellExecution",
             HookEvent::AfterShellExecution => "AfterShellExecution",
             HookEvent::Stop => "Stop",
-            HookEvent::SubagentStart => "SubagentStart",
-            HookEvent::SubagentStop => "SubagentStop",
         }
     }
 
@@ -95,8 +91,6 @@ impl HookEvent {
             "BeforeShellExecution" => HookEvent::BeforeShellExecution,
             "AfterShellExecution" => HookEvent::AfterShellExecution,
             "Stop" => HookEvent::Stop,
-            "SubagentStart" => HookEvent::SubagentStart,
-            "SubagentStop" => HookEvent::SubagentStop,
             _ => return None,
         })
     }
@@ -172,6 +166,8 @@ pub struct HookContext {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub message: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_assistant_message: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     pub working_dir: Option<String>,
 }
 
@@ -185,6 +181,7 @@ impl HookContext {
             tool_input: None,
             tool_output: None,
             message: None,
+            last_assistant_message: None,
             working_dir: None,
         }
     }
@@ -206,6 +203,14 @@ impl HookContext {
         let msg = message.into();
         self.matcher_context.get_or_insert_with(|| msg.clone());
         self.message = Some(msg);
+        self
+    }
+
+    pub fn with_last_assistant_message(mut self, message: impl Into<String>) -> Self {
+        let message = message.into();
+        if !message.is_empty() {
+            self.last_assistant_message = Some(message);
+        }
         self
     }
 

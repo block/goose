@@ -18,6 +18,205 @@ use crate::{
     retry::RetryConfig,
 };
 
+/// Metadata about a provider's configuration requirements and capabilities
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ProviderMetadata {
+    /// The unique identifier for this provider
+    pub name: String,
+    /// Display name for the provider in UIs
+    pub display_name: String,
+    /// Description of the provider's capabilities
+    pub description: String,
+    /// The default/recommended model for this provider
+    pub default_model: String,
+    /// A list of currently known models with their capabilities
+    pub known_models: Vec<ModelInfo>,
+    /// Link to the docs where models can be found
+    pub model_doc_link: String,
+    /// Required configuration keys
+    pub config_keys: Vec<ConfigKey>,
+    /// step-by-step instructions for set up providers eg: api key
+    #[serde(default)]
+    pub setup_steps: Vec<String>,
+    /// Hint shown in the model picker when this provider manages its own model selection.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model_selection_hint: Option<String>,
+    /// The name of a fast/cheap model to use for lightweight tasks (e.g. session naming,
+    /// compaction). When set, fast-path callers prefer this model over the main model.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fast_model: Option<String>,
+}
+
+impl ProviderMetadata {
+    pub fn new(
+        name: &str,
+        display_name: &str,
+        description: &str,
+        default_model: &str,
+        model_names: Vec<&str>,
+        model_doc_link: &str,
+        config_keys: Vec<ConfigKey>,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            display_name: display_name.to_string(),
+            description: description.to_string(),
+            default_model: default_model.to_string(),
+            known_models: model_names
+                .iter()
+                .map(|&model_name| model_info_for_provider_model(name, model_name))
+                .collect(),
+            model_doc_link: model_doc_link.to_string(),
+            config_keys,
+            setup_steps: vec![],
+            model_selection_hint: None,
+            fast_model: None,
+        }
+    }
+
+    pub fn with_models(
+        name: &str,
+        display_name: &str,
+        description: &str,
+        default_model: &str,
+        models: Vec<ModelInfo>,
+        model_doc_link: &str,
+        config_keys: Vec<ConfigKey>,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            display_name: display_name.to_string(),
+            description: description.to_string(),
+            default_model: default_model.to_string(),
+            known_models: models,
+            model_doc_link: model_doc_link.to_string(),
+            config_keys,
+            setup_steps: vec![],
+            model_selection_hint: None,
+            fast_model: None,
+        }
+    }
+
+    pub fn empty() -> Self {
+        Self {
+            name: "".to_string(),
+            display_name: "".to_string(),
+            description: "".to_string(),
+            default_model: "".to_string(),
+            known_models: vec![],
+            model_doc_link: "".to_string(),
+            config_keys: vec![],
+            setup_steps: vec![],
+            model_selection_hint: None,
+            fast_model: None,
+        }
+    }
+
+    pub fn with_setup_steps(mut self, steps: Vec<&str>) -> Self {
+        self.setup_steps = steps.into_iter().map(|s| s.to_string()).collect();
+        self
+    }
+
+    pub fn with_model_selection_hint(mut self, hint: &str) -> Self {
+        self.model_selection_hint = Some(hint.to_string());
+        self
+    }
+
+    pub fn with_fast_model(mut self, fast_model: &str) -> Self {
+        self.fast_model = Some(fast_model.to_string());
+        self
+    }
+}
+
+/// Configuration key metadata for provider setup
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct ConfigKey {
+    /// The name of the configuration key (e.g., "API_KEY")
+    pub name: String,
+    /// Whether this key is required for the provider to function
+    pub required: bool,
+    /// Whether this key should be stored securely (e.g., in keychain)
+    pub secret: bool,
+    /// Optional default value for the key
+    pub default: Option<String>,
+    /// Whether this key should be configured using an OAuth flow
+    /// When true, the provider's configure_oauth() method will be called instead of prompting for manual input
+    pub oauth_flow: bool,
+    /// Whether this OAuth flow uses the device code grant (RFC 8628)
+    /// When true, the user must enter a verification code in the browser
+    #[serde(default)]
+    pub device_code_flow: bool,
+    /// Whether this key should be shown prominently during provider setup
+    /// (onboarding, settings modal, CLI configure)
+    #[serde(default)]
+    pub primary: bool,
+}
+
+impl ConfigKey {
+    /// Create a new ConfigKey
+    pub fn new(
+        name: &str,
+        required: bool,
+        secret: bool,
+        default: Option<&str>,
+        primary: bool,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            required,
+            secret,
+            default: default.map(|s| s.to_string()),
+            oauth_flow: false,
+            device_code_flow: false,
+            primary,
+        }
+    }
+
+    /// Create a new ConfigKey that uses an OAuth flow for configuration
+    ///
+    /// This is used for providers that support OAuth authentication instead of manual API key entry.
+    /// When oauth_flow is true, the configuration system will call the provider's configure_oauth() method.
+    pub fn new_oauth(
+        name: &str,
+        required: bool,
+        secret: bool,
+        default: Option<&str>,
+        primary: bool,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            required,
+            secret,
+            default: default.map(|s| s.to_string()),
+            oauth_flow: true,
+            device_code_flow: false,
+            primary,
+        }
+    }
+
+    /// Create a new ConfigKey that uses OAuth device code flow (RFC 8628) for configuration
+    ///
+    /// Similar to new_oauth, but indicates the provider uses the device code grant where the user
+    /// must enter a verification code in the browser.
+    pub fn new_oauth_device_code(
+        name: &str,
+        required: bool,
+        secret: bool,
+        default: Option<&str>,
+        primary: bool,
+    ) -> Self {
+        Self {
+            name: name.to_string(),
+            required,
+            secret,
+            default: default.map(|s| s.to_string()),
+            oauth_flow: true,
+            device_code_flow: true,
+            primary,
+        }
+    }
+}
+
 /// Information about a model's capabilities
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema, PartialEq)]
 pub struct ModelInfo {
@@ -76,6 +275,10 @@ impl ModelInfo {
     }
 }
 
+pub trait ProviderDescriptor {
+    fn metadata() -> ProviderMetadata;
+}
+
 /// A message stream yields partial text content but complete tool calls, all within the Message object
 /// So a message with text will contain potentially just a word of a longer response, but tool calls
 /// messages will only be yielded once concatenated.
@@ -100,12 +303,12 @@ pub fn model_info_for_provider_model(provider_name: &str, model_name: &str) -> M
     let reasoning = canonical
         .as_ref()
         .and_then(|model| model.reasoning)
-        .unwrap_or_else(|| ModelConfig::new_or_fail(model_name).is_reasoning_model());
+        .unwrap_or_else(|| ModelConfig::new(model_name).is_reasoning_model());
 
     ModelInfo {
         name: model_name.to_string(),
         resolved_model: None,
-        context_limit: ModelConfig::new_or_fail(model_name)
+        context_limit: ModelConfig::new(model_name)
             .with_canonical_limits(provider_name)
             .context_limit(),
         input_token_cost: None,
@@ -212,42 +415,14 @@ pub trait Provider: Send + Sync {
         collect_stream(stream).await
     }
 
-    /// Try fast model first, fall back to regular model on failure.
-    async fn complete_fast(
-        &self,
-        session_id: &str,
-        system: &str,
-        messages: &[Message],
-        tools: &[Tool],
-    ) -> Result<(Message, ProviderUsage), ProviderError> {
-        let model_config = self.get_model_config();
-        let fast_config = model_config.use_fast_model();
-
-        let result = self
-            .complete(&fast_config, session_id, system, messages, tools)
-            .await;
-
-        match result {
-            Ok(response) => Ok(response),
-            Err(e) => {
-                if fast_config.model_name != model_config.model_name {
-                    tracing::warn!(
-                        "Fast model {} failed with error: {}. Falling back to regular model {}",
-                        fast_config.model_name,
-                        e,
-                        model_config.model_name
-                    );
-                    self.complete(&model_config, session_id, system, messages, tools)
-                        .await
-                } else {
-                    Err(e)
-                }
-            }
-        }
+    /// Resolve the effective context limit for a model config.
+    ///
+    /// Providers may override this to enrich the limit with provider-specific
+    /// metadata (e.g. cached model info or a value captured from a remote
+    /// session). The default returns the limit derived from the model config.
+    async fn get_context_limit(&self, model_config: &ModelConfig) -> Result<usize, ProviderError> {
+        Ok(model_config.context_limit())
     }
-
-    /// Get the model config from the provider
-    fn get_model_config(&self) -> ModelConfig;
 
     fn retry_config(&self) -> RetryConfig {
         RetryConfig::default()
@@ -275,7 +450,10 @@ pub trait Provider: Send + Sync {
     }
 
     /// Fetch inventory models filtered by canonical registry and usability.
-    async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+    ///
+    /// When `toolshim` is true, models that lack native tool-call support are
+    /// retained because the toolshim layer emulates tool calling.
+    async fn fetch_recommended_models(&self, toolshim: bool) -> Result<Vec<String>, ProviderError> {
         let all_models = self.fetch_supported_models().await?;
 
         if self.skip_canonical_filtering() {
@@ -305,7 +483,7 @@ pub trait Provider: Send + Sync {
                     return None;
                 }
 
-                if !canonical_model.tool_call && !self.get_model_config().toolshim {
+                if !canonical_model.tool_call && !toolshim {
                     return None;
                 }
 
@@ -335,9 +513,12 @@ pub trait Provider: Send + Sync {
         }
     }
 
-    async fn fetch_recommended_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
+    async fn fetch_recommended_model_info(
+        &self,
+        toolshim: bool,
+    ) -> Result<Vec<ModelInfo>, ProviderError> {
         Ok(self
-            .fetch_recommended_models()
+            .fetch_recommended_models(toolshim)
             .await?
             .iter()
             .map(|model_name| model_info_for_provider_model(self.get_name(), model_name))
@@ -364,10 +545,6 @@ pub trait Provider: Send + Sync {
     /// context management such as tool-pair summarization is skipped because
     /// the provider's internal state is the source of truth.
     fn manages_own_context(&self) -> bool {
-        false
-    }
-
-    async fn supports_cache_control(&self) -> bool {
         false
     }
 

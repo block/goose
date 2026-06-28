@@ -2,15 +2,19 @@ import type {
   ForkSessionRequest,
   ListSessionsRequest,
   LoadSessionResponse,
+  NewSessionRequest,
   SessionInfo,
 } from '@agentclientprotocol/sdk';
+import type { GooseExtension, SessionImportSource } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
-import type { ExtensionLoadResult, Recipe, Session } from '../api';
+import type { ExtensionLoadResult, Session } from '../api';
+import type { Recipe } from '../recipe';
 
 interface GooseSessionInfoMeta {
   messageCount?: number;
   createdAt?: string;
+  lastMessageAt?: string;
   archivedAt?: string;
   projectId?: string;
   providerId?: string;
@@ -27,6 +31,7 @@ export interface SessionListItem {
   workingDir: string;
   updatedAt: string;
   messageCount: number;
+  lastMessageAt?: string;
   createdAt: string;
   archivedAt?: string;
   projectId?: string;
@@ -56,14 +61,18 @@ export interface AcpLoadSessionResult {
 
 const inFlightSessionLoads = new Map<string, Promise<AcpLoadSessionResult>>();
 
-export function parseLoadMeta(response: LoadSessionResponse): LoadSessionMeta {
-  const meta = (response._meta ?? {}) as LoadSessionMeta;
+function parseSessionResponseMeta(rawMeta: unknown): LoadSessionMeta {
+  const meta = (rawMeta ?? {}) as LoadSessionMeta;
   return {
     recipe: meta.recipe,
     userRecipeValues: meta.userRecipeValues,
     extensionResults: meta.extensionResults,
     workingDir: typeof meta.workingDir === 'string' ? meta.workingDir : undefined,
   };
+}
+
+export function parseLoadMeta(response: LoadSessionResponse): LoadSessionMeta {
+  return parseSessionResponseMeta(response._meta);
 }
 
 function sessionInfoMeta(s: SessionInfo): GooseSessionInfoMeta {
@@ -87,6 +96,7 @@ export function sessionInfoToSession(s: SessionInfo, loadMeta: LoadSessionMeta =
     working_dir: loadMeta.workingDir ?? s.cwd,
     created_at: createdAt,
     updated_at: updatedAt,
+    last_message_at: meta.lastMessageAt,
     message_count: meta.messageCount ?? 0,
     extension_data: {},
     archived_at: meta.archivedAt,
@@ -94,7 +104,7 @@ export function sessionInfoToSession(s: SessionInfo, loadMeta: LoadSessionMeta =
     provider_name: meta.providerId,
     model_config: modelConfig,
     session_type: meta.sessionType,
-    recipe: loadMeta.recipe,
+    recipe: loadMeta.recipe as Session['recipe'],
     user_recipe_values: loadMeta.userRecipeValues,
     user_set_name: meta.userSetName,
     last_message_snippet: meta.lastMessageSnippet,
@@ -109,6 +119,7 @@ function sessionInfoToListItem(s: SessionInfo): SessionListItem {
     workingDir: s.cwd,
     updatedAt: s.updatedAt ?? '',
     messageCount: meta.messageCount ?? 0,
+    lastMessageAt: meta.lastMessageAt,
     createdAt: meta.createdAt ?? s.updatedAt ?? '',
     archivedAt: meta.archivedAt,
     projectId: meta.projectId,
@@ -157,6 +168,12 @@ export async function acpListRecentSessions(maxSessions: number): Promise<Sessio
   return response.sessions.slice(0, maxSessions).map(sessionInfoToListItem);
 }
 
+export async function acpGetSessionListItem(sessionId: string): Promise<SessionListItem> {
+  const client = await getAcpClient();
+  const response = await client.goose.sessionInfo_unstable({ sessionId });
+  return sessionInfoToListItem(response.session);
+}
+
 export async function acpLoadSession(sessionId: string): Promise<AcpLoadSessionResult> {
   const pendingLoad = inFlightSessionLoads.get(sessionId);
   if (pendingLoad) {
@@ -197,9 +214,52 @@ async function loadAcpSession(sessionId: string): Promise<AcpLoadSessionResult> 
   };
 }
 
+export interface AcpNewSessionResult {
+  sessionId: string;
+  sessionInfo: SessionInfo;
+  meta: LoadSessionMeta;
+}
+
+export interface AcpRecipeOptions {
+  recipeId?: string;
+  recipeDeeplink?: string;
+}
+
+export async function acpNewSession(
+  cwd: string,
+  gooseExtensions: GooseExtension[],
+  recipe?: AcpRecipeOptions
+): Promise<AcpNewSessionResult> {
+  const client = await getAcpClient();
+  const meta: Record<string, unknown> = { client: 'goose-desktop' };
+  if (gooseExtensions.length > 0) {
+    meta.enabledExtensions = gooseExtensions;
+  }
+  if (recipe?.recipeId) {
+    meta.recipeId = recipe.recipeId;
+  } else if (recipe?.recipeDeeplink) {
+    meta.recipeDeeplink = recipe.recipeDeeplink;
+  }
+  const request: NewSessionRequest = { cwd, mcpServers: [], _meta: meta };
+  const response = await client.newSession(request);
+  const sessionId = String(response.sessionId);
+  const sessionInfoResponse = await client.goose.sessionInfo_unstable({ sessionId });
+
+  return {
+    sessionId,
+    sessionInfo: sessionInfoResponse.session,
+    meta: parseSessionResponseMeta(response._meta),
+  };
+}
+
 export async function acpDeleteSession(sessionId: string): Promise<void> {
   const client = await getAcpClient();
   await client.goose.sessionDelete({ sessionId });
+}
+
+export async function acpCloseSession(sessionId: string): Promise<void> {
+  const client = await getAcpClient();
+  await client.unstable_closeSession({ sessionId });
 }
 
 export async function acpRenameSession(sessionId: string, title: string): Promise<void> {
@@ -241,7 +301,15 @@ export async function acpExportSession(sessionId: string): Promise<string> {
   return response.data;
 }
 
-export async function acpImportSession(data: string): Promise<void> {
+export async function acpImportSession(
+  input: string,
+  source: SessionImportSource
+): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.sessionImport_unstable({ data });
+  await client.goose.sessionImport_unstable({ input, source });
+}
+
+export async function acpShareSessionNostr(sessionId: string, relays: string[]) {
+  const client = await getAcpClient();
+  return await client.goose.sessionShareNostr_unstable({ sessionId, relays });
 }

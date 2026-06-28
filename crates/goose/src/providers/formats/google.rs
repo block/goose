@@ -538,6 +538,24 @@ struct GoogleRequest<'a> {
 }
 
 fn get_thinking_config(model_config: &ModelConfig) -> Option<ThinkingConfig> {
+    if model_config.reasoning == Some(false)
+        || model_config.thinking_effort() == Some(ThinkingEffort::Off)
+    {
+        // Gemini 2.5 Flash defaults to dynamic thinking; only an explicit budget
+        // of 0 turns it off. Other families can't be disabled, so leave them unset.
+        if model_config
+            .model_name
+            .to_lowercase()
+            .starts_with("gemini-2.5-flash")
+        {
+            return Some(ThinkingConfig {
+                thinking_level: None,
+                thinking_budget: Some(0),
+                include_thoughts: false,
+            });
+        }
+        return None;
+    }
     let model_name = model_config.model_name.to_lowercase();
     let is_gemini_3 = model_name.starts_with("gemini-3");
     let is_gemini_25 = model_name.starts_with("gemini-2.5");
@@ -1398,13 +1416,26 @@ data: [DONE]"#;
     }
 
     #[test]
+    fn test_get_thinking_config_disabled_reasoning() {
+        use goose_providers::model::ModelConfig;
+
+        let config = ModelConfig::new("gemini-2.5-flash").with_thinking_effort(ThinkingEffort::Off);
+        let thinking_config = get_thinking_config(&config).unwrap();
+        assert_eq!(thinking_config.thinking_budget, Some(0));
+        assert!(!thinking_config.include_thoughts);
+
+        let config = ModelConfig::new("gemini-2.5-pro").with_thinking_effort(ThinkingEffort::Off);
+        assert!(get_thinking_config(&config).is_none());
+    }
+
+    #[test]
     fn test_get_thinking_config() {
         use goose_providers::model::ModelConfig;
 
         // Test 1: Gemini 3 model with low thinking effort
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("low"));
-        let mut config = ModelConfig::new("gemini-3-pro").unwrap();
+        let mut config = ModelConfig::new("gemini-3-pro");
         config.request_params = Some(params);
         let result = get_thinking_config(&config);
         assert!(result.is_some());
@@ -1416,7 +1447,7 @@ data: [DONE]"#;
         // Test 2: Gemini 3 model with high thinking effort
         let mut params = std::collections::HashMap::new();
         params.insert("thinking_effort".to_string(), serde_json::json!("high"));
-        let mut config = ModelConfig::new("Gemini-3-Flash").unwrap();
+        let mut config = ModelConfig::new("Gemini-3-Flash");
         config.request_params = Some(params);
         let result = get_thinking_config(&config);
         assert!(result.is_some());
@@ -1426,7 +1457,7 @@ data: [DONE]"#;
             Some(ThinkingLevel::High)
         ));
 
-        let config = ModelConfig::new("gemini-2.5-flash").unwrap();
+        let config = ModelConfig::new("gemini-2.5-flash");
         let result = get_thinking_config(&config);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
@@ -1439,9 +1470,7 @@ data: [DONE]"#;
 
         let mut params = HashMap::new();
         params.insert("thinking_budget".to_string(), json!(4096));
-        let config = ModelConfig::new("gemini-2.5-flash")
-            .unwrap()
-            .with_merged_request_params(params);
+        let config = ModelConfig::new("gemini-2.5-flash").with_merged_request_params(params);
         let result = get_thinking_config(&config);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
@@ -1449,9 +1478,7 @@ data: [DONE]"#;
 
         let mut params = HashMap::new();
         params.insert("thinking_budget".to_string(), json!(-1));
-        let config = ModelConfig::new("gemini-2.5-flash")
-            .unwrap()
-            .with_merged_request_params(params);
+        let config = ModelConfig::new("gemini-2.5-flash").with_merged_request_params(params);
         let result = get_thinking_config(&config);
         assert!(result.is_some());
         let thinking_config = result.unwrap();
@@ -1460,11 +1487,11 @@ data: [DONE]"#;
             Some(GEMINI25_DEFAULT_THINKING_BUDGET)
         );
 
-        let config = ModelConfig::new("gemini-2.0-flash").unwrap();
+        let config = ModelConfig::new("gemini-2.0-flash");
         let result = get_thinking_config(&config);
         assert!(result.is_none());
 
-        let config = ModelConfig::new("gpt-4o").unwrap();
+        let config = ModelConfig::new("gpt-4o");
         let result = get_thinking_config(&config);
         assert!(result.is_none());
     }

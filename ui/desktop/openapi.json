@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.38.0"
+    "version": "1.39.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -76,288 +76,6 @@
           },
           "401": {
             "description": "Unauthorized - invalid secret key"
-          },
-          "424": {
-            "description": "Agent not initialized"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        }
-      }
-    },
-    "/agent/call_tool": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "call_tool",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CallToolRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Resource read successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CallToolResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "403": {
-            "description": "Forbidden - tool is not app-visible",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "Resource not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "424": {
-            "description": "Frontend tool execution requires the frontend host",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/agent/export_app/{name}": {
-      "get": {
-        "tags": [
-          "Agent"
-        ],
-        "operationId": "export_app",
-        "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "description": "Name of the app to export",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "App HTML exported successfully",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "404": {
-            "description": "App not found",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/agent/import_app": {
-      "post": {
-        "tags": [
-          "Agent"
-        ],
-        "operationId": "import_app",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ImportAppRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "201": {
-            "description": "App imported successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ImportAppResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid HTML",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/agent/list_apps": {
-      "get": {
-        "tags": [
-          "Agent"
-        ],
-        "operationId": "list_apps",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "nullable": true
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "List of apps retrieved successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ListAppsResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
-    "/agent/read_resource": {
-      "post": {
-        "tags": [
-          "super::routes::agent"
-        ],
-        "operationId": "read_resource",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ReadResourceRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Resource read successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ReadResourceResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - invalid secret key"
-          },
-          "404": {
-            "description": "Resource not found"
           },
           "424": {
             "description": "Agent not initialized"
@@ -1073,39 +791,6 @@
         }
       }
     },
-    "/config/permissions": {
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "upsert_permissions",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/UpsertPermissionsQuery"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Permission update completed",
-            "content": {
-              "text/plain": {
-                "schema": {
-                  "type": "string"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid request"
-          }
-        }
-      }
-    },
     "/config/prompts": {
       "get": {
         "tags": [
@@ -1522,33 +1207,6 @@
         }
       }
     },
-    "/config/providers/{name}/oauth": {
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "configure_provider_oauth",
-        "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "description": "Provider name",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OAuth configuration completed"
-          },
-          "400": {
-            "description": "OAuth configuration failed"
-          }
-        }
-      }
-    },
     "/config/read": {
       "post": {
         "tags": [
@@ -1731,6 +1389,19 @@
         "operationId": "diagnostics",
         "parameters": [
           {
+            "name": "level",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/components/schemas/DiagnosticsLevel"
+                }
+              ],
+              "nullable": true
+            }
+          },
+          {
             "name": "session_id",
             "in": "path",
             "required": true,
@@ -1741,12 +1412,11 @@
         ],
         "responses": {
           "200": {
-            "description": "Diagnostics zip file",
+            "description": "Diagnostics report",
             "content": {
-              "application/zip": {
+              "application/json": {
                 "schema": {
-                  "type": "string",
-                  "format": "binary"
+                  "$ref": "#/components/schemas/DiagnosticsReport"
                 }
               }
             }
@@ -1969,26 +1639,6 @@
           },
           "504": {
             "description": "Request timeout"
-          }
-        }
-      }
-    },
-    "/features": {
-      "get": {
-        "tags": [
-          "super::routes::features"
-        ],
-        "operationId": "get_features",
-        "responses": {
-          "200": {
-            "description": "Compile-time feature flags",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/FeaturesResponse"
-                }
-              }
-            }
           }
         }
       }
@@ -2414,45 +2064,6 @@
           },
           "401": {
             "description": "Unauthorized - invalid or missing secret"
-          }
-        }
-      }
-    },
-    "/recipes/create": {
-      "post": {
-        "tags": [
-          "Recipe Management"
-        ],
-        "operationId": "create_recipe",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateRecipeRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Recipe created successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/CreateRecipeResponse"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request"
-          },
-          "412": {
-            "description": "Precondition failed - Agent not available"
-          },
-          "500": {
-            "description": "Internal server error"
           }
         }
       }
@@ -3203,50 +2814,6 @@
         }
       }
     },
-    "/sessions/import/nostr": {
-      "post": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "import_session_nostr",
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ImportSessionNostrRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Nostr shared session imported successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Session"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request - Invalid Nostr share link"
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/{id}/cancel": {
       "post": {
         "tags": [
@@ -3567,61 +3134,6 @@
         ]
       }
     },
-    "/sessions/{session_id}/share/nostr": {
-      "post": {
-        "tags": [
-          "Session Management"
-        ],
-        "operationId": "share_session_nostr",
-        "parameters": [
-          {
-            "name": "session_id",
-            "in": "path",
-            "description": "Unique identifier for the session",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/ShareSessionNostrRequest"
-              }
-            }
-          },
-          "required": true
-        },
-        "responses": {
-          "200": {
-            "description": "Session shared to Nostr successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ShareSessionNostrResponse"
-                }
-              }
-            }
-          },
-          "401": {
-            "description": "Unauthorized - Invalid or missing API key"
-          },
-          "404": {
-            "description": "Session not found"
-          },
-          "500": {
-            "description": "Internal server error"
-          }
-        },
-        "security": [
-          {
-            "api_key": []
-          }
-        ]
-      }
-    },
     "/sessions/{session_id}/user_recipe_values": {
       "put": {
         "tags": [
@@ -3750,92 +3262,6 @@
         "responses": {
           "202": {
             "description": "Event accepted for processing"
-          }
-        }
-      }
-    },
-    "/tunnel/start": {
-      "post": {
-        "tags": [
-          "super::routes::tunnel"
-        ],
-        "summary": "Start the tunnel",
-        "operationId": "start_tunnel",
-        "responses": {
-          "200": {
-            "description": "Tunnel started successfully",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TunnelInfo"
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Bad request",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tunnel/status": {
-      "get": {
-        "tags": [
-          "super::routes::tunnel"
-        ],
-        "summary": "Get tunnel info",
-        "operationId": "get_tunnel_status",
-        "responses": {
-          "200": {
-            "description": "Tunnel info",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TunnelInfo"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/tunnel/stop": {
-      "post": {
-        "tags": [
-          "super::routes::tunnel"
-        ],
-        "summary": "Stop the tunnel",
-        "operationId": "stop_tunnel",
-        "responses": {
-          "200": {
-            "description": "Tunnel stopped successfully"
-          },
-          "500": {
-            "description": "Internal server error",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/ErrorResponse"
-                }
-              }
-            }
           }
         }
       }
@@ -3980,60 +3406,6 @@
           },
           "metadata": {
             "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "AuthorRequest": {
-        "type": "object",
-        "properties": {
-          "contact": {
-            "type": "string",
-            "nullable": true
-          },
-          "metadata": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "CallToolRequest": {
-        "type": "object",
-        "required": [
-          "session_id",
-          "name",
-          "arguments"
-        ],
-        "properties": {
-          "arguments": {},
-          "name": {
-            "type": "string"
-          },
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
-      "CallToolResponse": {
-        "type": "object",
-        "required": [
-          "content",
-          "isError"
-        ],
-        "properties": {
-          "_meta": {
-            "nullable": true
-          },
-          "content": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ContentBlock"
-            }
-          },
-          "isError": {
-            "type": "boolean"
-          },
-          "structuredContent": {
             "nullable": true
           }
         }
@@ -4482,42 +3854,6 @@
           }
         }
       },
-      "CreateRecipeRequest": {
-        "type": "object",
-        "required": [
-          "session_id"
-        ],
-        "properties": {
-          "author": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/AuthorRequest"
-              }
-            ],
-            "nullable": true
-          },
-          "session_id": {
-            "type": "string"
-          }
-        }
-      },
-      "CreateRecipeResponse": {
-        "type": "object",
-        "properties": {
-          "error": {
-            "type": "string",
-            "nullable": true
-          },
-          "recipe": {
-            "allOf": [
-              {
-                "$ref": "#/components/schemas/Recipe"
-              }
-            ],
-            "nullable": true
-          }
-        }
-      },
       "CreateScheduleRequest": {
         "type": "object",
         "required": [
@@ -4702,6 +4038,200 @@
         "properties": {
           "id": {
             "type": "string"
+          }
+        }
+      },
+      "DiagnosticsConfig": {
+        "type": "object",
+        "required": [
+          "configPath",
+          "truncated"
+        ],
+        "properties": {
+          "configPath": {
+            "type": "string"
+          },
+          "configYaml": {
+            "type": "string",
+            "nullable": true
+          },
+          "truncated": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DiagnosticsError": {
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "properties": {
+          "message": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string",
+            "nullable": true
+          }
+        }
+      },
+      "DiagnosticsExtensions": {
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "properties": {
+          "enabled": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      },
+      "DiagnosticsLevel": {
+        "type": "string",
+        "enum": [
+          "summary",
+          "full"
+        ]
+      },
+      "DiagnosticsLogs": {
+        "type": "object",
+        "required": [
+          "llm"
+        ],
+        "properties": {
+          "llm": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticsTextFile"
+            }
+          },
+          "server": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DiagnosticsTextFile"
+              }
+            ],
+            "nullable": true
+          }
+        }
+      },
+      "DiagnosticsPrompt": {
+        "type": "object",
+        "required": [
+          "name",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "DiagnosticsReport": {
+        "type": "object",
+        "required": [
+          "schemaVersion",
+          "generatedAt",
+          "level",
+          "system",
+          "extensions",
+          "logs",
+          "prompts",
+          "scheduledRecipes",
+          "errors"
+        ],
+        "properties": {
+          "config": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/DiagnosticsConfig"
+              }
+            ],
+            "nullable": true
+          },
+          "errors": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticsError"
+            }
+          },
+          "extensions": {
+            "$ref": "#/components/schemas/DiagnosticsExtensions"
+          },
+          "generatedAt": {
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/DiagnosticsLevel"
+          },
+          "logs": {
+            "$ref": "#/components/schemas/DiagnosticsLogs"
+          },
+          "prompts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticsPrompt"
+            }
+          },
+          "schedule": {
+            "nullable": true
+          },
+          "scheduledRecipes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DiagnosticsScheduledRecipe"
+            }
+          },
+          "schemaVersion": {
+            "type": "integer",
+            "format": "int32",
+            "minimum": 0
+          },
+          "session": {
+            "nullable": true
+          },
+          "system": {
+            "$ref": "#/components/schemas/SystemInfo"
+          }
+        }
+      },
+      "DiagnosticsScheduledRecipe": {
+        "type": "object",
+        "required": [
+          "path",
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          }
+        }
+      },
+      "DiagnosticsTextFile": {
+        "type": "object",
+        "required": [
+          "path",
+          "content",
+          "truncated"
+        ],
+        "properties": {
+          "content": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
           }
         }
       },
@@ -5355,21 +4885,6 @@
           }
         }
       },
-      "FeaturesResponse": {
-        "type": "object",
-        "required": [
-          "features"
-        ],
-        "properties": {
-          "features": {
-            "type": "object",
-            "description": "Map of feature name to enabled status",
-            "additionalProperties": {
-              "type": "boolean"
-            }
-          }
-        }
-      },
       "ForkRequest": {
         "type": "object",
         "required": [
@@ -5713,43 +5228,6 @@
           }
         }
       },
-      "ImportAppRequest": {
-        "type": "object",
-        "required": [
-          "html"
-        ],
-        "properties": {
-          "html": {
-            "type": "string"
-          }
-        }
-      },
-      "ImportAppResponse": {
-        "type": "object",
-        "required": [
-          "name",
-          "message"
-        ],
-        "properties": {
-          "message": {
-            "type": "string"
-          },
-          "name": {
-            "type": "string"
-          }
-        }
-      },
-      "ImportSessionNostrRequest": {
-        "type": "object",
-        "required": [
-          "deeplink"
-        ],
-        "properties": {
-          "deeplink": {
-            "type": "string"
-          }
-        }
-      },
       "InferenceMetadata": {
         "type": "object",
         "required": [
@@ -5799,29 +5277,6 @@
         "properties": {
           "message": {
             "type": "string"
-          }
-        }
-      },
-      "ListAppsRequest": {
-        "type": "object",
-        "properties": {
-          "session_id": {
-            "type": "string",
-            "nullable": true
-          }
-        }
-      },
-      "ListAppsResponse": {
-        "type": "object",
-        "required": [
-          "apps"
-        ],
-        "properties": {
-          "apps": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/GooseApp"
-            }
           }
         }
       },
@@ -6998,6 +6453,11 @@
             "type": "string",
             "description": "Display name for the provider in UIs"
           },
+          "fast_model": {
+            "type": "string",
+            "description": "The name of a fast/cheap model to use for lightweight tasks (e.g. session naming,\ncompaction). When set, fast-path callers prefer this model over the main model.",
+            "nullable": true
+          },
           "known_models": {
             "type": "array",
             "items": {
@@ -7286,49 +6746,6 @@
             "additionalProperties": true
           },
           "text": {
-            "type": "string"
-          }
-        }
-      },
-      "ReadResourceRequest": {
-        "type": "object",
-        "required": [
-          "session_id",
-          "extension_name",
-          "uri"
-        ],
-        "properties": {
-          "extension_name": {
-            "type": "string"
-          },
-          "session_id": {
-            "type": "string"
-          },
-          "uri": {
-            "type": "string"
-          }
-        }
-      },
-      "ReadResourceResponse": {
-        "type": "object",
-        "required": [
-          "uri",
-          "text"
-        ],
-        "properties": {
-          "_meta": {
-            "type": "object",
-            "additionalProperties": {},
-            "nullable": true
-          },
-          "mimeType": {
-            "type": "string",
-            "nullable": true
-          },
-          "text": {
-            "type": "string"
-          },
-          "uri": {
             "type": "string"
           }
         }
@@ -8066,6 +7483,11 @@
           "id": {
             "type": "string"
           },
+          "last_message_at": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
           "last_message_snippet": {
             "type": "string",
             "nullable": true
@@ -8329,43 +7751,6 @@
           },
           "success": {
             "type": "boolean"
-          }
-        }
-      },
-      "ShareSessionNostrRequest": {
-        "type": "object",
-        "properties": {
-          "relays": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          }
-        }
-      },
-      "ShareSessionNostrResponse": {
-        "type": "object",
-        "required": [
-          "deeplink",
-          "nevent",
-          "eventId",
-          "relays"
-        ],
-        "properties": {
-          "deeplink": {
-            "type": "string"
-          },
-          "eventId": {
-            "type": "string"
-          },
-          "nevent": {
-            "type": "string"
-          },
-          "relays": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
           }
         }
       },
@@ -8897,21 +8282,6 @@
           }
         }
       },
-      "ToolPermission": {
-        "type": "object",
-        "required": [
-          "tool_name",
-          "permission"
-        ],
-        "properties": {
-          "permission": {
-            "$ref": "#/components/schemas/PermissionLevel"
-          },
-          "tool_name": {
-            "type": "string"
-          }
-        }
-      },
       "ToolRequest": {
         "type": "object",
         "required": [
@@ -8983,39 +8353,6 @@
             "description": "Transcribed text from the audio"
           }
         }
-      },
-      "TunnelInfo": {
-        "type": "object",
-        "required": [
-          "state",
-          "url",
-          "hostname",
-          "secret"
-        ],
-        "properties": {
-          "hostname": {
-            "type": "string"
-          },
-          "secret": {
-            "type": "string"
-          },
-          "state": {
-            "$ref": "#/components/schemas/TunnelState"
-          },
-          "url": {
-            "type": "string"
-          }
-        }
-      },
-      "TunnelState": {
-        "type": "string",
-        "enum": [
-          "idle",
-          "starting",
-          "running",
-          "error",
-          "disabled"
-        ]
       },
       "UiMetadata": {
         "type": "object",
@@ -9234,20 +8571,6 @@
             "type": "string"
           },
           "value": {}
-        }
-      },
-      "UpsertPermissionsQuery": {
-        "type": "object",
-        "required": [
-          "tool_permissions"
-        ],
-        "properties": {
-          "tool_permissions": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/ToolPermission"
-            }
-          }
         }
       },
       "Usage": {

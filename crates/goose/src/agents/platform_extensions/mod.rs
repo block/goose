@@ -216,6 +216,27 @@ pub struct PlatformExtensionContext {
 }
 
 impl PlatformExtensionContext {
+    pub async fn model_config_for_session(
+        &self,
+        session_id: &str,
+    ) -> Result<goose_providers::model::ModelConfig, String> {
+        if let Ok(session) = self.session_manager.get_session(session_id, false).await {
+            if let Some(model_config) = session.model_config {
+                return Ok(model_config);
+            }
+        }
+
+        let config = crate::config::Config::global();
+        let provider_name = config
+            .get_goose_provider()
+            .map_err(|_| "Could not resolve model config: missing provider".to_string())?;
+        let model_name = config
+            .get_goose_model()
+            .map_err(|_| "Could not resolve model config: missing model".to_string())?;
+        crate::model_config::model_config_from_user_config(&provider_name, &model_name)
+            .map_err(|e| format!("Could not resolve model config: {e}"))
+    }
+
     pub fn result_with_platform_notification(
         &self,
         mut result: rmcp::model::CallToolResult,

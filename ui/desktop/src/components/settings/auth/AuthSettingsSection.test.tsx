@@ -3,23 +3,19 @@ import { render, screen, waitFor, type RenderOptions } from '@testing-library/re
 import userEvent from '@testing-library/user-event';
 import AuthSettingsSection from './AuthSettingsSection';
 import {
-  configureProviderOauth,
-  deleteProviderSecret,
-  listProviderSecrets,
-  ProviderSecret,
-} from '../../../api';
+  acpAuthenticateProvider,
+  acpDeleteProviderSecret,
+  acpListProviderSecrets,
+  type ProviderSecretDto,
+} from '../../../acp/providers';
 import { IntlTestWrapper } from '../../../i18n/test-utils';
 import { toast } from 'react-toastify';
 
-vi.mock('../../../api', async () => {
-  const actual = await vi.importActual<typeof import('../../../api')>('../../../api');
-  return {
-    ...actual,
-    configureProviderOauth: vi.fn(),
-    listProviderSecrets: vi.fn(),
-    deleteProviderSecret: vi.fn(),
-  };
-});
+vi.mock('../../../acp/providers', () => ({
+  acpAuthenticateProvider: vi.fn(),
+  acpListProviderSecrets: vi.fn(),
+  acpDeleteProviderSecret: vi.fn(),
+}));
 
 vi.mock('../../ModelAndProviderContext', () => ({
   useModelAndProvider: () => ({
@@ -34,41 +30,35 @@ vi.mock('react-toastify', () => ({
   },
 }));
 
-const mockedListProviderSecrets = vi.mocked(listProviderSecrets);
-const mockedDeleteProviderSecret = vi.mocked(deleteProviderSecret);
-const mockedConfigureProviderOauth = vi.mocked(configureProviderOauth);
+const mockedListProviderSecrets = vi.mocked(acpListProviderSecrets);
+const mockedDeleteProviderSecret = vi.mocked(acpDeleteProviderSecret);
+const mockedAcpAuthenticateProvider = vi.mocked(acpAuthenticateProvider);
 const mockedToast = vi.mocked(toast);
 
 const renderWithIntl = (ui: React.ReactElement, options?: RenderOptions) =>
   render(ui, { wrapper: IntlTestWrapper, ...options });
 
-const providerSecret: ProviderSecret = {
+const providerSecret: ProviderSecretDto = {
   id: 'secret_store:openai:OPENAI_API_KEY',
   provider: 'openai',
-  provider_display_name: 'OpenAI',
+  providerDisplayName: 'OpenAI',
   name: 'OPENAI_API_KEY',
   storage: 'secret_store',
-  expires_at: null,
+  expiresAt: null,
   status: 'unknown',
   configured: true,
-  has_secret: true,
-  can_delete: true,
-  can_configure: false,
-  configure_provider: null,
+  hasSecret: true,
+  canDelete: true,
+  canConfigure: false,
+  configureProvider: null,
 };
-
-const apiResult = <T,>(data: T) => ({
-  data,
-  request: {} as never,
-  response: {} as never,
-});
 
 describe('AuthSettingsSection', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedListProviderSecrets.mockResolvedValue(apiResult({ secrets: [] }));
-    mockedDeleteProviderSecret.mockResolvedValue(apiResult('ok'));
-    mockedConfigureProviderOauth.mockResolvedValue(apiResult('ok'));
+    mockedListProviderSecrets.mockResolvedValue([]);
+    mockedDeleteProviderSecret.mockResolvedValue(undefined);
+    mockedAcpAuthenticateProvider.mockResolvedValue(undefined);
   });
 
   it('renders an empty state when no credentials are stored', async () => {
@@ -79,17 +69,13 @@ describe('AuthSettingsSection', () => {
   });
 
   it('renders provider credentials with storage and expiry status', async () => {
-    mockedListProviderSecrets.mockResolvedValue(
-      apiResult({
-        secrets: [
-          {
-            ...providerSecret,
-            expires_at: '2027-01-01T12:00:00Z',
-            status: 'valid',
-          },
-        ],
-      })
-    );
+    mockedListProviderSecrets.mockResolvedValue([
+      {
+        ...providerSecret,
+        expiresAt: '2027-01-01T12:00:00Z',
+        status: 'valid',
+      },
+    ]);
 
     renderWithIntl(<AuthSettingsSection />);
 
@@ -100,7 +86,7 @@ describe('AuthSettingsSection', () => {
   });
 
   it('does not render an expiry badge when expiry is unknown', async () => {
-    mockedListProviderSecrets.mockResolvedValue(apiResult({ secrets: [providerSecret] }));
+    mockedListProviderSecrets.mockResolvedValue([providerSecret]);
 
     renderWithIntl(<AuthSettingsSection />);
 
@@ -113,8 +99,8 @@ describe('AuthSettingsSection', () => {
   it('deletes a credential after confirmation and refreshes the list', async () => {
     const user = userEvent.setup();
     mockedListProviderSecrets
-      .mockResolvedValueOnce(apiResult({ secrets: [providerSecret] }))
-      .mockResolvedValueOnce(apiResult({ secrets: [] }));
+      .mockResolvedValueOnce([providerSecret])
+      .mockResolvedValueOnce([]);
 
     renderWithIntl(<AuthSettingsSection />);
 
@@ -132,10 +118,7 @@ describe('AuthSettingsSection', () => {
     await user.click(screen.getByRole('button', { name: 'Delete' }));
 
     await waitFor(() => {
-      expect(mockedDeleteProviderSecret).toHaveBeenCalledWith({
-        path: { id: 'secret_store:openai:OPENAI_API_KEY' },
-        throwOnError: true,
-      });
+      expect(mockedDeleteProviderSecret).toHaveBeenCalledWith('secret_store:openai:OPENAI_API_KEY');
     });
     await waitFor(() => {
       expect(mockedToast.success).toHaveBeenCalledWith('Credential deleted');
@@ -145,35 +128,31 @@ describe('AuthSettingsSection', () => {
 
   it('configures the permanent Hugging Face credential row', async () => {
     const user = userEvent.setup();
-    const huggingFaceSecret: ProviderSecret = {
+    const huggingFaceSecret: ProviderSecretDto = {
       id: 'provider_cache:huggingface',
       provider: 'huggingface',
-      provider_display_name: 'Hugging Face',
+      providerDisplayName: 'Hugging Face',
       name: 'OAuth token',
       storage: 'provider_cache',
-      expires_at: null,
+      expiresAt: null,
       status: 'unknown',
       configured: false,
-      has_secret: false,
-      can_delete: false,
-      can_configure: true,
-      configure_provider: 'huggingface',
+      hasSecret: false,
+      canDelete: false,
+      canConfigure: true,
+      configureProvider: 'huggingface',
     };
 
     mockedListProviderSecrets
-      .mockResolvedValueOnce(apiResult({ secrets: [huggingFaceSecret] }))
-      .mockResolvedValueOnce(
-        apiResult({
-          secrets: [
-            {
-              ...huggingFaceSecret,
-              configured: true,
-              has_secret: true,
-              can_delete: true,
-            },
-          ],
-        })
-      );
+      .mockResolvedValueOnce([huggingFaceSecret])
+      .mockResolvedValueOnce([
+        {
+          ...huggingFaceSecret,
+          configured: true,
+          hasSecret: true,
+          canDelete: true,
+        },
+      ]);
 
     renderWithIntl(<AuthSettingsSection />);
 
@@ -182,10 +161,7 @@ describe('AuthSettingsSection', () => {
     await user.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => {
-      expect(mockedConfigureProviderOauth).toHaveBeenCalledWith({
-        path: { name: 'huggingface' },
-        throwOnError: true,
-      });
+      expect(mockedAcpAuthenticateProvider).toHaveBeenCalledWith('huggingface');
     });
     await waitFor(() => {
       expect(mockedToast.success).toHaveBeenCalledWith('Credential configured');

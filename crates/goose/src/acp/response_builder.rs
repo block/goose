@@ -1,6 +1,8 @@
+use crate::agents::ExtensionLoadResult;
 use crate::config::{Config, GooseMode};
 use crate::providers::inventory::{ProviderInventoryEntry, ProviderInventoryService};
 use crate::session::Session;
+use crate::slash_commands::types::{SlashCommandEntry, SlashCommandSource};
 use agent_client_protocol::schema::{
     AvailableCommand, AvailableCommandInput, AvailableCommandsUpdate, ModelId, ModelInfo,
     SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOption, SessionId,
@@ -10,6 +12,7 @@ use agent_client_protocol::schema::{
 use agent_client_protocol::{Client, ConnectionTo};
 use goose_providers::model::ModelConfig;
 use goose_providers::thinking::ThinkingEffort;
+use serde::Serialize;
 use strum::{EnumMessage, VariantNames};
 
 use super::server::{build_usage_updates, DEFAULT_PROVIDER_ID, DEFAULT_PROVIDER_LABEL};
@@ -21,59 +24,78 @@ pub(super) fn session_provider_selection(session: &Session) -> &str {
         .unwrap_or(DEFAULT_PROVIDER_ID)
 }
 
-pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_json::Value> {
-    let mut meta = serde_json::Map::new();
-    meta.insert(
-        "messageCount".to_string(),
-        serde_json::Value::Number(session.message_count.into()),
-    );
-    meta.insert(
-        "createdAt".to_string(),
-        serde_json::Value::String(session.created_at.to_rfc3339()),
-    );
-    if let Some(ref archived_at) = session.archived_at {
-        meta.insert(
-            "archivedAt".to_string(),
-            serde_json::Value::String(archived_at.to_rfc3339()),
-        );
-    }
-    meta.insert(
-        "userSetName".to_string(),
-        serde_json::Value::Bool(session.user_set_name),
-    );
-    meta.insert(
-        "sessionType".to_string(),
-        serde_json::Value::String(session.session_type.to_string()),
-    );
-    meta.insert(
-        "hasRecipe".to_string(),
-        serde_json::Value::Bool(session.recipe.is_some()),
-    );
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionMeta<'a> {
+    message_count: usize,
+    created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_message_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    archived_at: Option<chrono::DateTime<chrono::Utc>>,
+    user_set_name: bool,
+    session_type: String,
+    has_recipe: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    project_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_message_snippet: Option<&'a str>,
+}
 
-    if let Some(ref pid) = session.project_id {
-        meta.insert(
-            "projectId".to_string(),
-            serde_json::Value::String(pid.clone()),
-        );
+impl<'a> From<&'a Session> for SessionMeta<'a> {
+    fn from(session: &'a Session) -> Self {
+        Self {
+            message_count: session.message_count,
+            created_at: session.created_at,
+            last_message_at: session.last_message_at,
+            archived_at: session.archived_at,
+            user_set_name: session.user_set_name,
+            session_type: session.session_type.to_string(),
+            has_recipe: session.recipe.is_some(),
+            project_id: session.project_id.as_deref(),
+            provider_id: session.provider_name.as_deref(),
+            model_id: session
+                .model_config
+                .as_ref()
+                .map(|mc| mc.model_name.as_str()),
+            last_message_snippet: session.last_message_snippet.as_deref(),
+        }
     }
-    if let Some(ref provider) = session.provider_name {
-        meta.insert(
-            "providerId".to_string(),
-            serde_json::Value::String(provider.clone()),
-        );
+}
+
+pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_json::Value> {
+    match serde_json::to_value(SessionMeta::from(session)) {
+        Ok(serde_json::Value::Object(meta)) => meta,
+        _ => serde_json::Map::new(),
     }
-    if let Some(ref mc) = session.model_config {
-        meta.insert(
-            "modelId".to_string(),
-            serde_json::Value::String(mc.model_name.clone()),
-        );
+}
+
+pub(super) fn session_response_meta(
+    session: &Session,
+    extension_results: &[ExtensionLoadResult],
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut meta = serde_json::Map::new();
+    if let Some(recipe) = &session.recipe {
+        if let Ok(v) = serde_json::to_value(recipe) {
+            meta.insert("recipe".to_string(), v);
+        }
     }
-    if let Some(ref snippet) = session.last_message_snippet {
-        meta.insert(
-            "lastMessageSnippet".to_string(),
-            serde_json::Value::String(snippet.clone()),
-        );
+    if let Some(values) = &session.user_recipe_values {
+        if let Ok(v) = serde_json::to_value(values) {
+            meta.insert("userRecipeValues".to_string(), v);
+        }
     }
+    if let Ok(v) = serde_json::to_value(extension_results) {
+        meta.insert("extensionResults".to_string(), v);
+    }
+    meta.insert(
+        "workingDir".to_string(),
+        serde_json::Value::String(session.working_dir.to_string_lossy().to_string()),
+    );
     meta
 }
 
@@ -308,21 +330,54 @@ fn current_thinking_effort_value(model_config: &ModelConfig) -> String {
     }
 }
 
-fn available_commands_update(working_dir: &std::path::Path) -> AvailableCommandsUpdate {
-    let commands = crate::slash_commands::slash_command::list_acp_commands(Some(working_dir))
-        .into_iter()
-        .map(|entry| {
-            let mut command = AvailableCommand::new(entry.name, entry.description);
-            if let Some(input_hint) = entry.input_hint {
-                command = command.input(AvailableCommandInput::Unstructured(
-                    UnstructuredCommandInput::new(input_hint),
-                ));
-            }
-            command
-        })
-        .collect();
+fn slash_command_meta(entry: &SlashCommandEntry) -> serde_json::Map<String, serde_json::Value> {
+    let mut meta = serde_json::Map::new();
+    let command_type = match entry.source {
+        SlashCommandSource::Builtin => "Builtin",
+        SlashCommandSource::Recipe => "Recipe",
+        SlashCommandSource::Skill => "Skill",
+    };
+    meta.insert(
+        "commandType".to_string(),
+        serde_json::Value::String(command_type.to_string()),
+    );
+    if let Some(source_path) = &entry.source_path {
+        meta.insert(
+            "sourcePath".to_string(),
+            serde_json::Value::String(source_path.clone()),
+        );
+    }
+    meta
+}
 
-    AvailableCommandsUpdate::new(commands)
+fn slash_command_to_available_command(entry: SlashCommandEntry) -> AvailableCommand {
+    let meta = slash_command_meta(&entry);
+    let mut command = AvailableCommand::new(entry.name, entry.description);
+    if let Some(input_hint) = entry.input_hint {
+        command = command.input(AvailableCommandInput::Unstructured(
+            UnstructuredCommandInput::new(input_hint),
+        ));
+    }
+    command.meta(meta)
+}
+
+pub(super) fn available_commands_for_working_dir(
+    working_dir: &std::path::Path,
+) -> Vec<AvailableCommand> {
+    available_commands_for_optional_working_dir(Some(working_dir))
+}
+
+pub(super) fn available_commands_for_optional_working_dir(
+    working_dir: Option<&std::path::Path>,
+) -> Vec<AvailableCommand> {
+    crate::slash_commands::slash_command::list_acp_commands(working_dir)
+        .into_iter()
+        .map(slash_command_to_available_command)
+        .collect()
+}
+
+fn available_commands_update(working_dir: &std::path::Path) -> AvailableCommandsUpdate {
+    AvailableCommandsUpdate::new(available_commands_for_working_dir(working_dir))
 }
 
 pub(super) fn send_session_setup_notifications(
@@ -442,6 +497,49 @@ mod tests {
         build_mode_state(current_mode)
     }
 
+    #[test]
+    fn test_slash_command_to_available_command_maps_core_fields_to_acp() {
+        let cases = [
+            (SlashCommandSource::Builtin, "Builtin", None),
+            (
+                SlashCommandSource::Recipe,
+                "Recipe",
+                Some("/tmp/release.yaml".to_string()),
+            ),
+            (SlashCommandSource::Skill, "Skill", None),
+        ];
+
+        for (source, expected_command_type, expected_source_path) in cases {
+            let command = slash_command_to_available_command(SlashCommandEntry {
+                name: "release".to_string(),
+                description: "Run release workflow".to_string(),
+                source,
+                source_path: expected_source_path.clone(),
+                input_hint: Some("[task]".to_string()),
+            });
+
+            assert_eq!(command.name, "release");
+            assert_eq!(command.description, "Run release workflow");
+
+            match command.input.as_ref() {
+                Some(AvailableCommandInput::Unstructured(input)) => {
+                    assert_eq!(input.hint, "[task]");
+                }
+                other => panic!("unexpected command input: {other:?}"),
+            }
+
+            let meta = command.meta.as_ref().expect("command _meta");
+            let expected_command_type = serde_json::json!(expected_command_type);
+            assert_eq!(meta.get("commandType"), Some(&expected_command_type));
+            if let Some(source_path) = expected_source_path {
+                let expected_source_path = serde_json::json!(source_path);
+                assert_eq!(meta.get("sourcePath"), Some(&expected_source_path));
+            } else {
+                assert!(meta.get("sourcePath").is_none());
+            }
+        }
+    }
+
     #[test_case(
         build_mode_state(GooseMode::Auto).unwrap(),
         "openai",
@@ -524,14 +622,11 @@ mod tests {
         provider_options: Vec<SessionConfigSelectOption>,
         model_state: SessionModelState,
     ) -> Vec<SessionConfigOption> {
-        let model_config = ModelConfig {
-            model_name: model_state.current_model_id.0.to_string(),
-            request_params: Some(std::collections::HashMap::from([(
+        let model_config = ModelConfig::new(model_state.current_model_id.0.as_ref())
+            .with_merged_request_params(std::collections::HashMap::from([(
                 "thinking_effort".to_string(),
                 serde_json::json!("off"),
-            )])),
-            ..Default::default()
-        };
+            )]));
         build_config_options(
             &mode_state,
             &model_state,
@@ -551,14 +646,12 @@ mod tests {
                 "claude-sonnet-4",
             )],
         );
-        let model_config = ModelConfig {
-            model_name: "claude-sonnet-4".to_string(),
-            request_params: Some(std::collections::HashMap::from([(
+        let model_config = ModelConfig::new("claude-sonnet-4").with_merged_request_params(
+            std::collections::HashMap::from([(
                 "thinking_effort".to_string(),
                 serde_json::json!("high"),
-            )])),
-            ..Default::default()
-        };
+            )]),
+        );
 
         let options = build_config_options(
             &mode_state,
@@ -586,15 +679,11 @@ mod tests {
             ModelId::new("gpt-4"),
             vec![ModelInfo::new(ModelId::new("gpt-4"), "gpt-4")],
         );
-        let model_config = ModelConfig {
-            model_name: "gpt-4".to_string(),
-            request_params: Some(std::collections::HashMap::from([(
-                "thinking_effort".to_string(),
-                serde_json::json!("high"),
-            )])),
-            reasoning: Some(false),
-            ..Default::default()
-        };
+        let mut model_config =
+            ModelConfig::new("gpt-4").with_merged_request_params(std::collections::HashMap::from(
+                [("thinking_effort".to_string(), serde_json::json!("high"))],
+            ));
+        model_config.reasoning = Some(false);
 
         let options = build_config_options(
             &mode_state,

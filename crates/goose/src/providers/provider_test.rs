@@ -15,7 +15,7 @@ pub async fn test_provider_configuration(
         .with_toolshim(toolshim_enabled)
         .with_toolshim_model(toolshim_model);
 
-    let provider = create(provider_name, model_config, Vec::new()).await?;
+    let provider = create(provider_name, Vec::new()).await?;
 
     let messages =
         vec![Message::user().with_text("What is the weather like in San Francisco today?")];
@@ -26,10 +26,9 @@ pub async fn test_provider_configuration(
         vec![]
     };
 
-    let provider_model_config = provider.get_model_config();
     let mut stream = provider
         .stream(
-            &provider_model_config,
+            &model_config,
             "test-session-id",
             "You are an AI agent called goose. You use tools of connected extensions to solve problems.",
             &messages,

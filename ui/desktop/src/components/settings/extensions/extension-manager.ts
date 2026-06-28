@@ -41,19 +41,19 @@ export async function deleteExtension({
 interface ToggleExtensionDefaultProps {
   toggle: 'toggleOn' | 'toggleOff';
   extensionConfig: ExtensionConfig;
-  addToConfig: (name: string, extensionConfig: ExtensionConfig, enabled: boolean) => Promise<void>;
+  setEnabled: (enabled: boolean) => Promise<void>;
 }
 
 export async function toggleExtensionDefault({
   toggle,
   extensionConfig,
-  addToConfig,
+  setEnabled,
 }: ToggleExtensionDefaultProps) {
   const isBuiltin = isBuiltinExtension(extensionConfig);
   const enabled = toggle === 'toggleOn';
 
   try {
-    await addToConfig(extensionConfig.name, extensionConfig, enabled);
+    await setEnabled(enabled);
     if (enabled) {
       trackExtensionEnabled(extensionConfig.name, true, undefined, isBuiltin);
     } else {

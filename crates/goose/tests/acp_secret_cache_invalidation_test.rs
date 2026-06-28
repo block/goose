@@ -17,7 +17,6 @@ use std::sync::Arc;
 
 struct MockProvider {
     name: String,
-    model_config: ModelConfig,
 }
 
 #[async_trait::async_trait]
@@ -37,21 +36,19 @@ impl Provider for MockProvider {
         unimplemented!()
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model_config.clone()
-    }
-
-    async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+    async fn fetch_recommended_models(
+        &self,
+        _toolshim: bool,
+    ) -> Result<Vec<String>, ProviderError> {
         Ok(vec!["claude-3-5-haiku-latest".to_string()])
     }
 }
 
 fn mock_provider_factory() -> goose::acp::server::AcpProviderFactory {
-    Arc::new(|provider_name, model_config, _extensions, _working_dir| {
+    Arc::new(|provider_name, _extensions, _working_dir| {
         Box::pin(async move {
             Ok(Arc::new(MockProvider {
                 name: provider_name,
-                model_config,
             }) as Arc<dyn Provider>)
         })
     })

@@ -2,30 +2,365 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "GooseExtensions",
   "$defs": {
-    "AddExtensionRequest_unstable": {
+    "AddSessionExtensionRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
           "type": "string"
         },
-        "config": {
-          "description": "Extension configuration (see ExtensionConfig variants: Stdio, StreamableHttp, Builtin, Platform).",
-          "default": null
+        "extension": {
+          "$ref": "#/$defs/GooseExtension"
         }
       },
       "required": [
-        "sessionId"
+        "sessionId",
+        "extension"
       ],
       "description": "Add an extension to an active session.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/extensions/add"
+    },
+    "GooseExtension": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "timeout": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "builtin"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "platform"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "server": {
+              "$ref": "#/$defs/McpServer"
+            },
+            "envKeys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "timeout": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "socket": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "mcp"
+            }
+          },
+          "required": [
+            "type",
+            "server"
+          ]
+        }
+      ]
+    },
+    "McpServer": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/McpServerHttp",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "http"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "HTTP transport configuration\n\nOnly available when the Agent capabilities indicate `mcp_capabilities.http` is `true`."
+        },
+        {
+          "$ref": "#/$defs/McpServerSse",
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "sse"
+            }
+          },
+          "required": [
+            "type"
+          ],
+          "description": "SSE transport configuration\n\nOnly available when the Agent capabilities indicate `mcp_capabilities.sse` is `true`."
+        },
+        {
+          "$ref": "#/$defs/McpServerStdio",
+          "description": "Stdio transport configuration\n\nAll Agents MUST support this transport."
+        }
+      ],
+      "description": "Configuration for connecting to an MCP (Model Context Protocol) server.\n\nMCP servers provide tools and context that the agent can use when\nprocessing prompts.\n\nSee protocol docs: [MCP Servers](https://agentclientprotocol.com/protocol/session-setup#mcp-servers)"
+    },
+    "HttpHeader": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the HTTP header."
+        },
+        "value": {
+          "type": "string",
+          "description": "The value to set for the HTTP header."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "description": "An HTTP header to set when making requests to the MCP server."
+    },
+    "McpServerHttp": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name identifying this MCP server."
+        },
+        "url": {
+          "type": "string",
+          "description": "URL to the MCP server."
+        },
+        "headers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HttpHeader"
+          },
+          "description": "HTTP headers to set when making requests to the MCP server."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        },
+        "type": {
+          "type": "string",
+          "const": "http"
+        }
+      },
+      "required": [
+        "type",
+        "name",
+        "url",
+        "headers"
+      ],
+      "description": "HTTP transport configuration for MCP."
+    },
+    "McpServerSse": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name identifying this MCP server."
+        },
+        "url": {
+          "type": "string",
+          "description": "URL to the MCP server."
+        },
+        "headers": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/HttpHeader"
+          },
+          "description": "HTTP headers to set when making requests to the MCP server."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        },
+        "type": {
+          "type": "string",
+          "const": "sse"
+        }
+      },
+      "required": [
+        "type",
+        "name",
+        "url",
+        "headers"
+      ],
+      "description": "SSE transport configuration for MCP."
+    },
+    "McpServerStdio": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Human-readable name identifying this MCP server."
+        },
+        "command": {
+          "type": "string",
+          "description": "Path to the MCP server executable."
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Command-line arguments to pass to the MCP server."
+        },
+        "env": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EnvVariable"
+          },
+          "description": "Environment variables to set when launching the MCP server."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "name",
+        "command",
+        "args",
+        "env"
+      ],
+      "description": "Stdio transport configuration for MCP."
+    },
+    "EnvVariable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "The name of the environment variable."
+        },
+        "value": {
+          "type": "string",
+          "description": "The value to set for the environment variable."
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "description": "An environment variable to set when launching an MCP server."
     },
     "EmptyResponse": {
       "type": "object",
       "description": "Empty success response for operations that return no data.",
       "x-side": "agent"
     },
-    "RemoveExtensionRequest_unstable": {
+    "RemoveSessionExtensionRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
@@ -48,6 +383,13 @@
       "properties": {
         "sessionId": {
           "type": "string"
+        },
+        "extensionName": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "Filter tools to those belonging to this extension."
         }
       },
       "required": [
@@ -62,8 +404,9 @@
       "properties": {
         "tools": {
           "type": "array",
-          "items": {},
-          "description": "Array of tool info objects with `name`, `description`, `parameters`, and optional `permission`."
+          "items": {
+            "$ref": "#/$defs/ToolListItem"
+          }
         }
       },
       "required": [
@@ -72,6 +415,89 @@
       "description": "Tools response.",
       "x-side": "agent",
       "x-method": "_goose/unstable/tools/list"
+    },
+    "ToolListItem": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "permission": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ToolPermissionLevel"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "inputSchema": {},
+        "outputSchema": {}
+      },
+      "required": [
+        "name",
+        "description",
+        "parameters",
+        "inputSchema"
+      ],
+      "description": "A single tool item returned by the tools list endpoint."
+    },
+    "ToolPermissionLevel": {
+      "type": "string",
+      "enum": [
+        "always_allow",
+        "ask_before",
+        "never_allow"
+      ],
+      "description": "Permission level for a tool."
+    },
+    "SetToolPermissionsRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "toolPermissions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ToolPermissionEntry"
+          }
+        }
+      },
+      "required": [
+        "toolPermissions"
+      ],
+      "description": "Set permission levels for one or more tools.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/tools/permissions/set"
+    },
+    "ToolPermissionEntry": {
+      "type": "object",
+      "properties": {
+        "toolName": {
+          "type": "string"
+        },
+        "permission": {
+          "$ref": "#/$defs/ToolPermissionLevel"
+        }
+      },
+      "required": [
+        "toolName",
+        "permission"
+      ],
+      "description": "A single tool permission entry."
+    },
+    "SetToolPermissionsResponse_unstable": {
+      "type": "object",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/tools/permissions/set"
     },
     "GooseToolCallRequest_unstable": {
       "type": "object",
@@ -148,6 +574,87 @@
       "description": "Resource read response.",
       "x-side": "agent",
       "x-method": "_goose/unstable/resources/read"
+    },
+    "AppsListRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/list"
+    },
+    "AppsListResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "apps": {
+          "type": "array",
+          "items": {},
+          "default": []
+        }
+      },
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/list"
+    },
+    "AppsExportRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/export"
+    },
+    "AppsExportResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "html": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "html"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/export"
+    },
+    "AppsImportRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "html": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "html"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/import"
+    },
+    "AppsImportResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "message"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/apps/import"
     },
     "UpdateWorkingDirRequest_unstable": {
       "type": "object",
@@ -638,6 +1145,176 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/session/steer"
     },
+    "DiagnosticsGetRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "level": {
+          "$ref": "#/$defs/DiagnosticsReportLevel",
+          "default": "summary"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/diagnostics/get"
+    },
+    "DiagnosticsReportLevel": {
+      "type": "string",
+      "enum": [
+        "summary",
+        "full"
+      ]
+    },
+    "DiagnosticsGetResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "report": {}
+      },
+      "required": [
+        "report"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/diagnostics/get"
+    },
+    "ListPromptsRequest_unstable": {
+      "type": "object",
+      "description": "List all available Goose prompt templates.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/prompts/list"
+    },
+    "ListPromptsResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "prompts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/PromptTemplateEntry"
+          }
+        }
+      },
+      "required": [
+        "prompts"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/prompts/list"
+    },
+    "PromptTemplateEntry": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "defaultContent": {
+          "type": "string"
+        },
+        "userContent": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "isCustomized": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "defaultContent",
+        "isCustomized"
+      ],
+      "description": "Information about a prompt template, including its default content and customization status."
+    },
+    "GetPromptRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "description": "Read a Goose prompt template.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/prompts/get"
+    },
+    "GetPromptResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        },
+        "defaultContent": {
+          "type": "string"
+        },
+        "isCustomized": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name",
+        "content",
+        "defaultContent",
+        "isCustomized"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/prompts/get"
+    },
+    "SavePromptRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "content"
+      ],
+      "description": "Save a custom Goose prompt template.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/prompts/save"
+    },
+    "PromptOperationResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "x-side": "agent"
+    },
+    "ResetPromptRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "description": "Reset a Goose prompt template to its default content.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/prompts/reset"
+    },
     "DeleteSessionRequest": {
       "type": "object",
       "properties": {
@@ -702,341 +1379,6 @@
         "extension",
         "enabled"
       ]
-    },
-    "GooseExtension": {
-      "oneOf": [
-        {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "description": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "display_name": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "timeout": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0
-            },
-            "bundled": {
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "type": {
-              "type": "string",
-              "const": "builtin"
-            }
-          },
-          "required": [
-            "type",
-            "name"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "description": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "display_name": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "bundled": {
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "type": {
-              "type": "string",
-              "const": "platform"
-            }
-          },
-          "required": [
-            "type",
-            "name"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "server": {
-              "$ref": "#/$defs/McpServer"
-            },
-            "envKeys": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "description": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "timeout": {
-              "type": [
-                "integer",
-                "null"
-              ],
-              "minimum": 0
-            },
-            "socket": {
-              "type": [
-                "string",
-                "null"
-              ]
-            },
-            "bundled": {
-              "type": [
-                "boolean",
-                "null"
-              ]
-            },
-            "type": {
-              "type": "string",
-              "const": "mcp"
-            }
-          },
-          "required": [
-            "type",
-            "server"
-          ]
-        }
-      ]
-    },
-    "McpServer": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/McpServerHttp",
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "http"
-            }
-          },
-          "required": [
-            "type"
-          ],
-          "description": "HTTP transport configuration\n\nOnly available when the Agent capabilities indicate `mcp_capabilities.http` is `true`."
-        },
-        {
-          "$ref": "#/$defs/McpServerSse",
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "sse"
-            }
-          },
-          "required": [
-            "type"
-          ],
-          "description": "SSE transport configuration\n\nOnly available when the Agent capabilities indicate `mcp_capabilities.sse` is `true`."
-        },
-        {
-          "$ref": "#/$defs/McpServerStdio",
-          "description": "Stdio transport configuration\n\nAll Agents MUST support this transport."
-        }
-      ],
-      "description": "Configuration for connecting to an MCP (Model Context Protocol) server.\n\nMCP servers provide tools and context that the agent can use when\nprocessing prompts.\n\nSee protocol docs: [MCP Servers](https://agentclientprotocol.com/protocol/session-setup#mcp-servers)"
-    },
-    "HttpHeader": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "The name of the HTTP header."
-        },
-        "value": {
-          "type": "string",
-          "description": "The value to set for the HTTP header."
-        },
-        "_meta": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "additionalProperties": {},
-          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
-        }
-      },
-      "required": [
-        "name",
-        "value"
-      ],
-      "description": "An HTTP header to set when making requests to the MCP server."
-    },
-    "McpServerHttp": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Human-readable name identifying this MCP server."
-        },
-        "url": {
-          "type": "string",
-          "description": "URL to the MCP server."
-        },
-        "headers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/HttpHeader"
-          },
-          "description": "HTTP headers to set when making requests to the MCP server."
-        },
-        "_meta": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "additionalProperties": {},
-          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
-        },
-        "type": {
-          "type": "string",
-          "const": "http"
-        }
-      },
-      "required": [
-        "type",
-        "name",
-        "url",
-        "headers"
-      ],
-      "description": "HTTP transport configuration for MCP."
-    },
-    "McpServerSse": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Human-readable name identifying this MCP server."
-        },
-        "url": {
-          "type": "string",
-          "description": "URL to the MCP server."
-        },
-        "headers": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/HttpHeader"
-          },
-          "description": "HTTP headers to set when making requests to the MCP server."
-        },
-        "_meta": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "additionalProperties": {},
-          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
-        },
-        "type": {
-          "type": "string",
-          "const": "sse"
-        }
-      },
-      "required": [
-        "type",
-        "name",
-        "url",
-        "headers"
-      ],
-      "description": "SSE transport configuration for MCP."
-    },
-    "McpServerStdio": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "Human-readable name identifying this MCP server."
-        },
-        "command": {
-          "type": "string",
-          "description": "Path to the MCP server executable."
-        },
-        "args": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          },
-          "description": "Command-line arguments to pass to the MCP server."
-        },
-        "env": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/EnvVariable"
-          },
-          "description": "Environment variables to set when launching the MCP server."
-        },
-        "_meta": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "additionalProperties": {},
-          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
-        }
-      },
-      "required": [
-        "name",
-        "command",
-        "args",
-        "env"
-      ],
-      "description": "Stdio transport configuration for MCP."
-    },
-    "EnvVariable": {
-      "type": "object",
-      "properties": {
-        "name": {
-          "type": "string",
-          "description": "The name of the environment variable."
-        },
-        "value": {
-          "type": "string",
-          "description": "The value to set for the environment variable."
-        },
-        "_meta": {
-          "type": [
-            "object",
-            "null"
-          ],
-          "additionalProperties": {},
-          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
-        }
-      },
-      "required": [
-        "name",
-        "value"
-      ],
-      "description": "An environment variable to set when launching an MCP server."
     },
     "GetAvailableExtensionsRequest_unstable": {
       "type": "object",
@@ -1128,7 +1470,9 @@
       "properties": {
         "extensions": {
           "type": "array",
-          "items": {}
+          "items": {
+            "$ref": "#/$defs/GooseExtension"
+          }
         }
       },
       "required": [
@@ -2324,6 +2668,214 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/providers/config/authenticate"
     },
+    "ProviderSecretsListRequest_unstable": {
+      "type": "object",
+      "description": "List provider credentials stored locally by Goose.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/secrets/list"
+    },
+    "ProviderSecretsListResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "secrets": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ProviderSecretDto"
+          }
+        }
+      },
+      "required": [
+        "secrets"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/secrets/list"
+    },
+    "ProviderSecretDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "provider": {
+          "type": "string"
+        },
+        "providerDisplayName": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "storage": {
+          "$ref": "#/$defs/ProviderSecretStorageDto"
+        },
+        "expiresAt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "status": {
+          "$ref": "#/$defs/ProviderSecretStatusDto"
+        },
+        "configured": {
+          "type": "boolean"
+        },
+        "hasSecret": {
+          "type": "boolean"
+        },
+        "canDelete": {
+          "type": "boolean"
+        },
+        "canConfigure": {
+          "type": "boolean"
+        },
+        "configureProvider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "provider",
+        "providerDisplayName",
+        "name",
+        "storage",
+        "status",
+        "configured",
+        "hasSecret",
+        "canDelete",
+        "canConfigure"
+      ]
+    },
+    "ProviderSecretStorageDto": {
+      "type": "string",
+      "enum": [
+        "secret_store",
+        "provider_cache"
+      ]
+    },
+    "ProviderSecretStatusDto": {
+      "type": "string",
+      "enum": [
+        "valid",
+        "expired",
+        "unknown"
+      ]
+    },
+    "ProviderSecretDeleteRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "description": "Delete a locally stored provider credential by id.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/secrets/delete"
+    },
+    "CanonicalModelInfoRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model"
+      ],
+      "description": "Look up canonical (bundled-registry) model info for a provider/model pair.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/canonical-model-info"
+    },
+    "CanonicalModelInfoResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "modelInfo": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CanonicalModelInfoDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "x-side": "agent",
+      "x-method": "_goose/unstable/providers/canonical-model-info"
+    },
+    "CanonicalModelInfoDto": {
+      "type": "object",
+      "properties": {
+        "provider": {
+          "type": "string"
+        },
+        "model": {
+          "type": "string"
+        },
+        "contextLimit": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "maxOutputTokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "reasoning": {
+          "type": "boolean"
+        },
+        "inputTokenCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "outputTokenCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "cacheReadTokenCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "cacheWriteTokenCost": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "currency": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "contextLimit",
+        "reasoning",
+        "currency"
+      ]
+    },
     "PreferencesReadRequest_unstable": {
       "type": "object",
       "properties": {
@@ -2409,6 +2961,88 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/preferences/remove"
     },
+    "ConfigReadRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "isSecret": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/read"
+    },
+    "ConfigReadResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "value": {
+          "default": null
+        }
+      },
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/read"
+    },
+    "ConfigUpsertRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "value": {},
+        "isSecret": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/upsert"
+    },
+    "ConfigRemoveRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "isSecret": {
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "key"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/remove"
+    },
+    "ConfigReadAllRequest_unstable": {
+      "type": "object",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/read-all"
+    },
+    "ConfigReadAllResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "config": {
+          "type": "object",
+          "additionalProperties": {}
+        }
+      },
+      "required": [
+        "config"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/config/read-all"
+    },
     "DefaultsReadRequest_unstable": {
       "type": "object",
       "description": "Read Goose default provider and model configuration.",
@@ -2452,6 +3086,12 @@
       "description": "Save Goose default provider and model configuration.",
       "x-side": "agent",
       "x-method": "_goose/unstable/defaults/save"
+    },
+    "DefaultsClearRequest_unstable": {
+      "type": "object",
+      "description": "Clear Goose default provider and model configuration.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/defaults/clear"
     },
     "OnboardingImportScanRequest_unstable": {
       "type": "object",
@@ -2648,16 +3288,28 @@
     "ImportSessionRequest_unstable": {
       "type": "object",
       "properties": {
-        "data": {
+        "input": {
           "type": "string"
+        },
+        "source": {
+          "$ref": "#/$defs/SessionImportSource"
         }
       },
       "required": [
-        "data"
+        "input",
+        "source"
       ],
-      "description": "Import a session from a JSON string.",
+      "description": "Import a session from a JSON string or share link.",
       "x-side": "agent",
       "x-method": "_goose/unstable/session/import"
+    },
+    "SessionImportSource": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "json",
+        "nostr"
+      ]
     },
     "ImportSessionResponse_unstable": {
       "type": "object",
@@ -2690,32 +3342,946 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/session/import"
     },
-    "GetSessionInfoRequest_unstable": {
+    "ShareSessionNostrRequest_unstable": {
       "type": "object",
       "properties": {
         "sessionId": {
           "type": "string"
+        },
+        "relays": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
-        "sessionId"
+        "sessionId",
+        "relays"
       ],
-      "description": "Return list-style metadata for a single session without loading the conversation.",
       "x-side": "agent",
-      "x-method": "_goose/unstable/session/info"
+      "x-method": "_goose/unstable/session/share/nostr"
     },
-    "GetSessionInfoResponse_unstable": {
+    "ShareSessionNostrResponse_unstable": {
       "type": "object",
       "properties": {
-        "session": {
-          "$ref": "#/$defs/SessionInfo"
+        "deeplink": {
+          "type": "string"
+        },
+        "nevent": {
+          "type": "string"
+        },
+        "eventId": {
+          "type": "string"
+        },
+        "relays": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
-        "session"
+        "deeplink",
+        "nevent",
+        "eventId",
+        "relays"
       ],
       "x-side": "agent",
-      "x-method": "_goose/unstable/session/info"
+      "x-method": "_goose/unstable/session/share/nostr"
+    },
+    "EncodeRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        }
+      },
+      "required": [
+        "recipe"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/encode"
+    },
+    "RecipeDto": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "default": "1.0.0"
+        },
+        "title": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "instructions": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "prompt": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "extensions": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/RecipeExtensionDto"
+          }
+        },
+        "settings": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecipeSettingsDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "activities": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "author": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecipeAuthorDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "parameters": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/RecipeParameterDto"
+          }
+        },
+        "response": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecipeResponseDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "sub_recipes": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/SubRecipeDto"
+          }
+        },
+        "retry": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RecipeRetryConfigDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "title",
+        "description"
+      ]
+    },
+    "RecipeExtensionDto": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "timeout": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "builtin"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "display_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "platform"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "cmd": {
+              "type": "string"
+            },
+            "args": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "envs": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "env_keys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "timeout": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "cwd": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "stdio"
+            }
+          },
+          "required": [
+            "type",
+            "name",
+            "cmd"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "description": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "uri": {
+              "type": "string"
+            },
+            "envs": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "env_keys": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "headers": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
+            "timeout": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "socket": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "bundled": {
+              "type": [
+                "boolean",
+                "null"
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "streamable_http"
+            }
+          },
+          "required": [
+            "type",
+            "name",
+            "uri"
+          ]
+        }
+      ]
+    },
+    "RecipeSettingsDto": {
+      "type": "object",
+      "properties": {
+        "goose_provider": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "goose_model": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "temperature": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "max_turns": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "RecipeAuthorDto": {
+      "type": "object",
+      "properties": {
+        "contact": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "metadata": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "RecipeParameterDto": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "input_type": {
+          "$ref": "#/$defs/RecipeParameterInputTypeDto"
+        },
+        "requirement": {
+          "$ref": "#/$defs/RecipeParameterRequirementDto"
+        },
+        "description": {
+          "type": "string"
+        },
+        "default": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "options": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "key",
+        "input_type",
+        "requirement",
+        "description"
+      ]
+    },
+    "RecipeParameterInputTypeDto": {
+      "type": "string",
+      "enum": [
+        "string",
+        "number",
+        "boolean",
+        "date",
+        "file",
+        "select"
+      ]
+    },
+    "RecipeParameterRequirementDto": {
+      "type": "string",
+      "enum": [
+        "required",
+        "optional",
+        "user_prompt"
+      ]
+    },
+    "RecipeResponseDto": {
+      "type": "object",
+      "properties": {
+        "json_schema": {}
+      }
+    },
+    "SubRecipeDto": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "values": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "sequential_when_repeated": {
+          "type": "boolean",
+          "default": false
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "name",
+        "path"
+      ]
+    },
+    "RecipeRetryConfigDto": {
+      "type": "object",
+      "properties": {
+        "max_retries": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecipeSuccessCheckDto"
+          },
+          "default": []
+        },
+        "on_failure": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "timeout_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "on_failure_timeout_seconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "required": [
+        "max_retries"
+      ]
+    },
+    "RecipeSuccessCheckDto": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "command": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "shell"
+            }
+          },
+          "required": [
+            "type",
+            "command"
+          ]
+        }
+      ]
+    },
+    "EncodeRecipeResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "deeplink": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "deeplink"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/encode"
+    },
+    "DecodeRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "deeplink": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "deeplink"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/decode"
+    },
+    "DecodeRecipeResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        }
+      },
+      "required": [
+        "recipe"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/decode"
+    },
+    "ScanRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        }
+      },
+      "required": [
+        "recipe"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/scan"
+    },
+    "ScanRecipeResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "has_security_warnings": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "has_security_warnings"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/scan"
+    },
+    "ListRecipesRequest_unstable": {
+      "type": "object",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/list"
+    },
+    "ListRecipesResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "recipes": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecipeListEntryDto"
+          }
+        }
+      },
+      "required": [
+        "recipes"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/list"
+    },
+    "RecipeListEntryDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        },
+        "file_path": {
+          "type": "string"
+        },
+        "last_modified": {
+          "type": "string"
+        },
+        "schedule_cron": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "slash_command": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "recipe",
+        "file_path",
+        "last_modified"
+      ]
+    },
+    "DeleteRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/delete"
+    },
+    "ScheduleRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "cron_schedule": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/schedule"
+    },
+    "SetRecipeSlashCommandRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "slash_command": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/slash-command"
+    },
+    "SaveRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        },
+        "id": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "recipe"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/save"
+    },
+    "SaveRecipeResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "file_name": {
+          "type": "string"
+        },
+        "file_path": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "file_name",
+        "file_path"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/save"
+    },
+    "ParseRecipeRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "content": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "content"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/parse"
+    },
+    "ParseRecipeResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        }
+      },
+      "required": [
+        "recipe"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/parse"
+    },
+    "RecipeToYamlRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        }
+      },
+      "required": [
+        "recipe"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/to-yaml"
+    },
+    "RecipeToYamlResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "yaml": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "yaml"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/recipes/to-yaml"
+    },
+    "ListSchedulesRequest_unstable": {
+      "type": "object",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/list"
+    },
+    "ListSchedulesResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "jobs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ScheduledJobDto"
+          }
+        }
+      },
+      "required": [
+        "jobs"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/list"
+    },
+    "ScheduledJobDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "cron": {
+          "type": "string"
+        },
+        "lastRun": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "currentlyRunning": {
+          "type": "boolean"
+        },
+        "paused": {
+          "type": "boolean"
+        },
+        "currentSessionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "jobStartTime": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "source",
+        "cron",
+        "currentlyRunning",
+        "paused"
+      ]
+    },
+    "ListScheduleSessionsRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "scheduleId": {
+          "type": "string"
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "scheduleId",
+        "limit"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/sessions/list"
+    },
+    "ListScheduleSessionsResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "sessions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/SessionInfo"
+          }
+        }
+      },
+      "required": [
+        "sessions"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/sessions/list"
     },
     "SessionInfo": {
       "type": "object",
@@ -2767,6 +4333,245 @@
     "SessionId": {
       "type": "string",
       "description": "A unique identifier for a conversation session between a client and agent.\n\nSessions maintain their own context, conversation history, and state,\nallowing multiple independent interactions with the same agent.\n\nSee protocol docs: [Session ID](https://agentclientprotocol.com/protocol/session-setup#session-id)"
+    },
+    "CreateScheduleRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "recipe": {
+          "$ref": "#/$defs/RecipeDto"
+        },
+        "cron": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "recipe",
+        "cron"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/create"
+    },
+    "CreateScheduleResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "#/$defs/ScheduledJobDto"
+        }
+      },
+      "required": [
+        "job"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/create"
+    },
+    "DeleteScheduleRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "scheduleId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scheduleId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/delete"
+    },
+    "PauseScheduleRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "scheduleId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scheduleId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/pause"
+    },
+    "UnpauseScheduleRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "scheduleId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scheduleId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/unpause"
+    },
+    "UpdateScheduleRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "scheduleId": {
+          "type": "string"
+        },
+        "cron": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scheduleId",
+        "cron"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/update"
+    },
+    "UpdateScheduleResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "job": {
+          "$ref": "#/$defs/ScheduledJobDto"
+        }
+      },
+      "required": [
+        "job"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/update"
+    },
+    "RunScheduleNowRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "scheduleId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "scheduleId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/run-now"
+    },
+    "RunScheduleNowResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/RunScheduleNowStatus"
+        },
+        "sessionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/run-now"
+    },
+    "RunScheduleNowStatus": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "cancelled"
+      ]
+    },
+    "KillRunningJobRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "jobId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/running-job/kill"
+    },
+    "KillRunningJobResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/running-job/kill"
+    },
+    "InspectRunningJobRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "jobId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "jobId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/running-job/inspect"
+    },
+    "InspectRunningJobResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "running": {
+          "type": "boolean"
+        },
+        "sessionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "jobStartTime": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "runningDurationSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "running"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/schedules/running-job/inspect"
+    },
+    "GetSessionInfoRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "sessionId"
+      ],
+      "description": "Return list-style metadata for a single session without loading the conversation.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/info"
+    },
+    "GetSessionInfoResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "session": {
+          "$ref": "#/$defs/SessionInfo"
+        }
+      },
+      "required": [
+        "session"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/session/info"
     },
     "TruncateSessionConversationRequest_unstable": {
       "type": "object",
@@ -3056,6 +4861,175 @@
       ],
       "x-side": "agent",
       "x-method": "_goose/unstable/sources/list"
+    },
+    "ListAgentMentionsRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sessionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "description": "List user-facing agent mention targets for `@` autocomplete.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/agent-mentions/list"
+    },
+    "ListAgentMentionsResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "agents": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AgentMention"
+          }
+        }
+      },
+      "required": [
+        "agents"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/agent-mentions/list"
+    },
+    "AgentMention": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "sourceType": {
+          "$ref": "#/$defs/SourceType"
+        },
+        "sourcePath": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "mention": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "description",
+        "sourceType",
+        "mention"
+      ],
+      "description": "A user-facing `@` mention target backed by an agent, recipe, or subrecipe source."
+    },
+    "ListSlashCommandsRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "cwd": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sessionId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "description": "List slash commands available for `/` autocomplete.",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/slash-commands/list"
+    },
+    "ListSlashCommandsResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "availableCommands": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/AvailableCommand"
+          }
+        }
+      },
+      "required": [
+        "availableCommands"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/slash-commands/list"
+    },
+    "AvailableCommand": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Command name (e.g., `create_plan`, `research_codebase`)."
+        },
+        "description": {
+          "type": "string",
+          "description": "Human-readable description of what the command does."
+        },
+        "input": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AvailableCommandInput"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "Input for the command if required"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "name",
+        "description"
+      ],
+      "description": "Information about a command."
+    },
+    "AvailableCommandInput": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UnstructuredCommandInput",
+          "description": "All text that was typed after the command name is provided as input."
+        }
+      ],
+      "description": "The input specification for a command."
+    },
+    "UnstructuredCommandInput": {
+      "type": "object",
+      "properties": {
+        "hint": {
+          "type": "string",
+          "description": "A hint to display when the input hasn't been provided yet"
+        },
+        "_meta": {
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {},
+          "description": "The _meta property is reserved by ACP to allow clients and agents to attach additional\nmetadata to their interactions. Implementations MUST NOT make assumptions about values at\nthese keys.\n\nSee protocol docs: [Extensibility](https://agentclientprotocol.com/protocol/extensibility)"
+        }
+      },
+      "required": [
+        "hint"
+      ],
+      "description": "All text that was typed after the command name is provided as input."
     },
     "UpdateSourceRequest_unstable": {
       "type": "object",
@@ -3689,6 +5663,51 @@
       ],
       "description": "Live UI/session status. This is not conversation transcript content, and\nshould not be persisted or replayed as history."
     },
+    "RequestRecipeParams_unstable": {
+      "type": "object",
+      "properties": {
+        "sessionId": {
+          "type": "string"
+        },
+        "parameters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/RecipeParameterDto"
+          }
+        }
+      },
+      "required": [
+        "sessionId",
+        "parameters"
+      ],
+      "x-side": "client",
+      "x-method": "_goose/unstable/session/recipe/request-params"
+    },
+    "RecipeParamsResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "$ref": "#/$defs/RecipeParamsAction",
+          "default": "submit"
+        },
+        "values": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          },
+          "default": {}
+        }
+      },
+      "x-side": "client",
+      "x-method": "_goose/unstable/session/recipe/request-params"
+    },
+    "RecipeParamsAction": {
+      "type": "string",
+      "enum": [
+        "submit",
+        "cancel"
+      ]
+    },
     "ExtRequest": {
       "properties": {
         "id": {
@@ -3704,20 +5723,20 @@
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/AddExtensionRequest_unstable"
+                      "$ref": "#/$defs/AddSessionExtensionRequest_unstable"
                     }
                   ],
                   "description": "Params for _goose/unstable/session/extensions/add",
-                  "title": "AddExtensionRequest_unstable"
+                  "title": "AddSessionExtensionRequest_unstable"
                 },
                 {
                   "allOf": [
                     {
-                      "$ref": "#/$defs/RemoveExtensionRequest_unstable"
+                      "$ref": "#/$defs/RemoveSessionExtensionRequest_unstable"
                     }
                   ],
                   "description": "Params for _goose/unstable/session/extensions/remove",
-                  "title": "RemoveExtensionRequest_unstable"
+                  "title": "RemoveSessionExtensionRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -3727,6 +5746,15 @@
                   ],
                   "description": "Params for _goose/unstable/tools/list",
                   "title": "GetToolsRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SetToolPermissionsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/tools/permissions/set",
+                  "title": "SetToolPermissionsRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -3745,6 +5773,33 @@
                   ],
                   "description": "Params for _goose/unstable/resources/read",
                   "title": "ReadResourceRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/AppsListRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/apps/list",
+                  "title": "AppsListRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/AppsExportRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/apps/export",
+                  "title": "AppsExportRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/AppsImportRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/apps/import",
+                  "title": "AppsImportRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -3772,6 +5827,51 @@
                   ],
                   "description": "Params for _goose/unstable/session/steer",
                   "title": "SteerSessionRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DiagnosticsGetRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/diagnostics/get",
+                  "title": "DiagnosticsGetRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ListPromptsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/prompts/list",
+                  "title": "ListPromptsRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/GetPromptRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/prompts/get",
+                  "title": "GetPromptRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SavePromptRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/prompts/save",
+                  "title": "SavePromptRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ResetPromptRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/prompts/reset",
+                  "title": "ResetPromptRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -3974,6 +6074,33 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/ProviderSecretsListRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/secrets/list",
+                  "title": "ProviderSecretsListRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ProviderSecretDeleteRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/secrets/delete",
+                  "title": "ProviderSecretDeleteRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/CanonicalModelInfoRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/providers/canonical-model-info",
+                  "title": "CanonicalModelInfoRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/PreferencesReadRequest_unstable"
                     }
                   ],
@@ -4001,6 +6128,42 @@
                 {
                   "allOf": [
                     {
+                      "$ref": "#/$defs/ConfigReadRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/read",
+                  "title": "ConfigReadRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ConfigUpsertRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/upsert",
+                  "title": "ConfigUpsertRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ConfigRemoveRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/remove",
+                  "title": "ConfigRemoveRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ConfigReadAllRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/config/read-all",
+                  "title": "ConfigReadAllRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
                       "$ref": "#/$defs/DefaultsReadRequest_unstable"
                     }
                   ],
@@ -4015,6 +6178,15 @@
                   ],
                   "description": "Params for _goose/unstable/defaults/save",
                   "title": "DefaultsSaveRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DefaultsClearRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/defaults/clear",
+                  "title": "DefaultsClearRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -4051,6 +6223,195 @@
                   ],
                   "description": "Params for _goose/unstable/session/import",
                   "title": "ImportSessionRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ShareSessionNostrRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/share/nostr",
+                  "title": "ShareSessionNostrRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/EncodeRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/encode",
+                  "title": "EncodeRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DecodeRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/decode",
+                  "title": "DecodeRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ScanRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/scan",
+                  "title": "ScanRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ListRecipesRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/list",
+                  "title": "ListRecipesRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DeleteRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/delete",
+                  "title": "DeleteRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ScheduleRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/schedule",
+                  "title": "ScheduleRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SetRecipeSlashCommandRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/slash-command",
+                  "title": "SetRecipeSlashCommandRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/SaveRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/save",
+                  "title": "SaveRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ParseRecipeRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/parse",
+                  "title": "ParseRecipeRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/RecipeToYamlRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/recipes/to-yaml",
+                  "title": "RecipeToYamlRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ListSchedulesRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/schedules/list",
+                  "title": "ListSchedulesRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ListScheduleSessionsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/schedules/sessions/list",
+                  "title": "ListScheduleSessionsRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/CreateScheduleRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/schedules/create",
+                  "title": "CreateScheduleRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/DeleteScheduleRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/schedules/delete",
+                  "title": "DeleteScheduleRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/PauseScheduleRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/schedules/pause",
+                  "title": "PauseScheduleRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/UnpauseScheduleRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/schedules/unpause",
+                  "title": "UnpauseScheduleRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/UpdateScheduleRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/schedules/update",
+                  "title": "UpdateScheduleRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/RunScheduleNowRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/schedules/run-now",
+                  "title": "RunScheduleNowRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/KillRunningJobRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/schedules/running-job/kill",
+                  "title": "KillRunningJobRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/InspectRunningJobRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/schedules/running-job/inspect",
+                  "title": "InspectRunningJobRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -4123,6 +6484,24 @@
                   ],
                   "description": "Params for _goose/unstable/sources/list",
                   "title": "ListSourcesRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ListAgentMentionsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/agent-mentions/list",
+                  "title": "ListAgentMentionsRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/ListSlashCommandsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/slash-commands/list",
+                  "title": "ListSlashCommandsRequest_unstable"
                 },
                 {
                   "allOf": [
@@ -4299,6 +6678,14 @@
                     {
                       "allOf": [
                         {
+                          "$ref": "#/$defs/SetToolPermissionsResponse_unstable"
+                        }
+                      ],
+                      "title": "SetToolPermissionsResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
                           "$ref": "#/$defs/GooseToolCallResponse_unstable"
                         }
                       ],
@@ -4315,10 +6702,66 @@
                     {
                       "allOf": [
                         {
+                          "$ref": "#/$defs/AppsListResponse_unstable"
+                        }
+                      ],
+                      "title": "AppsListResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/AppsExportResponse_unstable"
+                        }
+                      ],
+                      "title": "AppsExportResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/AppsImportResponse_unstable"
+                        }
+                      ],
+                      "title": "AppsImportResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
                           "$ref": "#/$defs/SteerSessionResponse_unstable"
                         }
                       ],
                       "title": "SteerSessionResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/DiagnosticsGetResponse_unstable"
+                        }
+                      ],
+                      "title": "DiagnosticsGetResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListPromptsResponse_unstable"
+                        }
+                      ],
+                      "title": "ListPromptsResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/GetPromptResponse_unstable"
+                        }
+                      ],
+                      "title": "GetPromptResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/PromptOperationResponse_unstable"
+                        }
+                      ],
+                      "title": "PromptOperationResponse_unstable"
                     },
                     {
                       "allOf": [
@@ -4451,10 +6894,42 @@
                     {
                       "allOf": [
                         {
+                          "$ref": "#/$defs/ProviderSecretsListResponse_unstable"
+                        }
+                      ],
+                      "title": "ProviderSecretsListResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/CanonicalModelInfoResponse_unstable"
+                        }
+                      ],
+                      "title": "CanonicalModelInfoResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
                           "$ref": "#/$defs/PreferencesReadResponse_unstable"
                         }
                       ],
                       "title": "PreferencesReadResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ConfigReadResponse_unstable"
+                        }
+                      ],
+                      "title": "ConfigReadResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ConfigReadAllResponse_unstable"
+                        }
+                      ],
+                      "title": "ConfigReadAllResponse_unstable"
                     },
                     {
                       "allOf": [
@@ -4499,6 +6974,126 @@
                     {
                       "allOf": [
                         {
+                          "$ref": "#/$defs/ShareSessionNostrResponse_unstable"
+                        }
+                      ],
+                      "title": "ShareSessionNostrResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/EncodeRecipeResponse_unstable"
+                        }
+                      ],
+                      "title": "EncodeRecipeResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/DecodeRecipeResponse_unstable"
+                        }
+                      ],
+                      "title": "DecodeRecipeResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ScanRecipeResponse_unstable"
+                        }
+                      ],
+                      "title": "ScanRecipeResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListRecipesResponse_unstable"
+                        }
+                      ],
+                      "title": "ListRecipesResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/SaveRecipeResponse_unstable"
+                        }
+                      ],
+                      "title": "SaveRecipeResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ParseRecipeResponse_unstable"
+                        }
+                      ],
+                      "title": "ParseRecipeResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/RecipeToYamlResponse_unstable"
+                        }
+                      ],
+                      "title": "RecipeToYamlResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListSchedulesResponse_unstable"
+                        }
+                      ],
+                      "title": "ListSchedulesResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListScheduleSessionsResponse_unstable"
+                        }
+                      ],
+                      "title": "ListScheduleSessionsResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/CreateScheduleResponse_unstable"
+                        }
+                      ],
+                      "title": "CreateScheduleResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/UpdateScheduleResponse_unstable"
+                        }
+                      ],
+                      "title": "UpdateScheduleResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/RunScheduleNowResponse_unstable"
+                        }
+                      ],
+                      "title": "RunScheduleNowResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/KillRunningJobResponse_unstable"
+                        }
+                      ],
+                      "title": "KillRunningJobResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/InspectRunningJobResponse_unstable"
+                        }
+                      ],
+                      "title": "InspectRunningJobResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
                           "$ref": "#/$defs/GetSessionInfoResponse_unstable"
                         }
                       ],
@@ -4519,6 +7114,22 @@
                         }
                       ],
                       "title": "ListSourcesResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListAgentMentionsResponse_unstable"
+                        }
+                      ],
+                      "title": "ListAgentMentionsResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/ListSlashCommandsResponse_unstable"
+                        }
+                      ],
+                      "title": "ListSlashCommandsResponse_unstable"
                     },
                     {
                       "allOf": [
@@ -4657,6 +7268,111 @@
       ],
       "type": "object",
       "x-docs-ignore": true
+    },
+    "ExtAgentRequest": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "params": {
+          "anyOf": [
+            {
+              "anyOf": [
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/RequestRecipeParams_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/session/recipe/request-params",
+                  "title": "RequestRecipeParams_unstable"
+                }
+              ]
+            },
+            {
+              "description": "Untyped params",
+              "type": [
+                "object",
+                "null"
+              ]
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "method"
+      ],
+      "type": "object",
+      "x-docs-ignore": true
+    },
+    "ExtAgentResponse": {
+      "anyOf": [
+        {
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "result": {
+              "anyOf": [
+                {
+                  "anyOf": [
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/RecipeParamsResponse_unstable"
+                        }
+                      ],
+                      "title": "RecipeParamsResponse_unstable"
+                    }
+                  ]
+                },
+                {
+                  "description": "Untyped result"
+                }
+              ]
+            }
+          },
+          "required": [
+            "id"
+          ],
+          "title": "Success",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "error": {
+              "type": "object",
+              "properties": {
+                "code": {
+                  "type": "integer"
+                },
+                "message": {
+                  "type": "string"
+                },
+                "data": {}
+              },
+              "required": [
+                "code",
+                "message"
+              ]
+            },
+            "id": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "error"
+          ],
+          "title": "Error",
+          "type": "object"
+        }
+      ],
+      "x-docs-ignore": true
     }
   },
   "anyOf": [
@@ -4686,6 +7402,24 @@
       ],
       "description": "Extension notification (agent → client, fire-and-forget)",
       "title": "Notification"
+    },
+    {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ExtAgentRequest"
+        }
+      ],
+      "description": "Extension agent request (agent → client)",
+      "title": "AgentRequest"
+    },
+    {
+      "allOf": [
+        {
+          "$ref": "#/$defs/ExtAgentResponse"
+        }
+      ],
+      "description": "Extension agent response (client → agent)",
+      "title": "AgentResponse"
     }
   ]
 }

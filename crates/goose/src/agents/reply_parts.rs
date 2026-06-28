@@ -22,10 +22,15 @@ use crate::providers::toolshim::{
     modify_system_prompt_for_tool_json, sanitize_residual_markers,
 };
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use tracing::warn;
 
-async fn enhance_model_error(error: ProviderError, provider: &Arc<dyn Provider>) -> ProviderError {
+async fn enhance_model_error(
+    error: ProviderError,
+    provider: &Arc<dyn Provider>,
+    toolshim: bool,
+) -> ProviderError {
     let ProviderError::RequestFailed(ref msg) = error else {
         return error;
     };
@@ -35,7 +40,7 @@ async fn enhance_model_error(error: ProviderError, provider: &Arc<dyn Provider>)
         return error;
     }
 
-    let Ok(models) = provider.fetch_recommended_models().await else {
+    let Ok(models) = provider.fetch_recommended_models(toolshim).await else {
         return error;
     };
     if models.is_empty() {
@@ -143,7 +148,7 @@ impl Agent {
         &self,
         session_id: &str,
         working_dir: &std::path::Path,
-    ) -> Result<(Vec<Tool>, Vec<Tool>, String)> {
+    ) -> Result<(Vec<Tool>, Vec<Tool>, String, ModelConfig)> {
         let mut tools = self.list_tools(session_id, None).await;
 
         #[cfg(feature = "code-mode")]
@@ -215,9 +220,7 @@ impl Agent {
             .await;
         let (extension_count, tool_count) = self.total_extension_and_tool_counts(session_id).await;
 
-        // Get model name from provider
-        let provider = self.provider().await?;
-        let model_config = provider.get_model_config();
+        let model_config = self.model_config_for_session(session_id).await?;
 
         let goose_mode = *self.current_goose_mode.lock().await;
 
@@ -243,22 +246,23 @@ impl Agent {
             tools = vec![];
         }
 
-        Ok((tools, toolshim_tools, system_prompt))
+        Ok((tools, toolshim_tools, system_prompt, model_config))
     }
 
     #[tracing::instrument(
-        skip(provider, session_id, system_prompt, messages, tools, toolshim_tools),
+        skip(provider, model_config, session_id, system_prompt, messages, tools, toolshim_tools),
         fields(session.id = %session_id)
     )]
     pub(crate) async fn stream_response_from_provider(
         provider: Arc<dyn Provider>,
+        model_config: ModelConfig,
         session_id: &str,
         system_prompt: &str,
         messages: &[Message],
         tools: &[Tool],
         toolshim_tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let config = provider.get_model_config();
+        let config = model_config.clone();
 
         let filtered_messages: Vec<Message> = messages
             .iter()
@@ -281,9 +285,8 @@ impl Agent {
 
         // Capture errors during stream creation and return them as part of the stream
         // so they can be handled by the existing error handling logic in the agent
-        let model_config = provider
-            .get_model_config()
-            .with_default_thinking_effort(Config::global().get_goose_thinking_effort());
+        let model_config =
+            model_config.with_default_thinking_effort(Config::global().get_goose_thinking_effort());
         debug!("WAITING_LLM_STREAM_START");
         let stream_result = provider
             .stream(
@@ -300,7 +303,7 @@ impl Agent {
         let mut stream = match stream_result {
             Ok(s) => s,
             Err(e) => {
-                let enhanced_error = enhance_model_error(e, &provider).await;
+                let enhanced_error = enhance_model_error(e, &provider, config.toolshim).await;
                 // Return a stream that immediately yields the error
                 // This allows the error to be caught by existing error handling in agent.rs
                 return Ok(Box::pin(try_stream! {
@@ -621,18 +624,12 @@ mod tests {
     use rmcp::object;
 
     #[derive(Clone)]
-    struct MockProvider {
-        model_config: ModelConfig,
-    }
+    struct MockProvider;
 
     #[async_trait]
     impl Provider for MockProvider {
         fn get_name(&self) -> &str {
             "mock"
-        }
-
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
         }
 
         async fn stream(
@@ -664,9 +661,11 @@ mod tests {
             )
             .await?;
 
-        let model_config = ModelConfig::new("test-model").unwrap();
-        let provider = std::sync::Arc::new(MockProvider { model_config });
-        agent.update_provider(provider, &session.id).await?;
+        let model_config = ModelConfig::new("test-model");
+        let provider = std::sync::Arc::new(MockProvider);
+        agent
+            .update_provider(provider, model_config, &session.id)
+            .await?;
 
         // Add unsorted frontend tools
         let frontend_tools = vec![
@@ -697,7 +696,7 @@ mod tests {
             .await
             .unwrap();
 
-        let (tools, _toolshim_tools, _system_prompt) = agent
+        let (tools, _toolshim_tools, _system_prompt, _model_config) = agent
             .prepare_tools_and_prompt(&session.id, session.working_dir.as_path())
             .await?;
 

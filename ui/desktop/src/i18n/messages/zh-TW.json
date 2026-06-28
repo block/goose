@@ -1,0 +1,4574 @@
+{
+  "alertBox.autoCompactAt": {
+    "defaultMessage": "自動壓縮於"
+  },
+  "alertBox.compactNow": {
+    "defaultMessage": "立即壓縮"
+  },
+  "alertBox.failedToSaveThreshold": {
+    "defaultMessage": "無法儲存閾值：{error}"
+  },
+  "announcementModal.gotIt": {
+    "defaultMessage": "知道了！"
+  },
+  "appLayout.collapseNavigation": {
+    "defaultMessage": "收合導覽列"
+  },
+  "appLayout.openNavigation": {
+    "defaultMessage": "開啟導覽列"
+  },
+  "appsView.customApp": {
+    "defaultMessage": "自訂應用程式"
+  },
+  "appsView.description": {
+    "defaultMessage": "來自您 MCP 伺服器的應用程式，以及由 goose 自行建立的應用程式。您可以透過聊天介面要求它建立新的應用程式，它們便會出現在這裡。"
+  },
+  "appsView.errorLoading": {
+    "defaultMessage": "載入應用程式時發生錯誤：{error}"
+  },
+  "appsView.importApp": {
+    "defaultMessage": "匯入應用程式"
+  },
+  "appsView.launch": {
+    "defaultMessage": "啟動"
+  },
+  "appsView.loading": {
+    "defaultMessage": "正在載入應用程式…"
+  },
+  "appsView.noAppsDescription": {
+    "defaultMessage": "開啟聊天並向 goose 索取您想要的應用程式。它可以為您建立一個，並顯示在這裡。或者，如果有人分享了應用程式，您可以使用上方的按鈕匯入。"
+  },
+  "appsView.noAppsTitle": {
+    "defaultMessage": "沒有可用的應用程式"
+  },
+  "appsView.retry": {
+    "defaultMessage": "重試"
+  },
+  "appsView.title": {
+    "defaultMessage": "應用程式"
+  },
+  "authSettings.activeProviderWarning": {
+    "defaultMessage": "這是目前使用中的供應商。在您設定其他憑證之前，新的請求可能會失敗。"
+  },
+  "authSettings.cancel": {
+    "defaultMessage": "取消"
+  },
+  "authSettings.delete": {
+    "defaultMessage": "刪除"
+  },
+  "authSettings.deleteCredential": {
+    "defaultMessage": "刪除憑證"
+  },
+  "authSettings.deleteMessage": {
+    "defaultMessage": "要刪除 {provider} 的 {name} 憑證嗎？"
+  },
+  "authSettings.deleteTitle": {
+    "defaultMessage": "刪除憑證"
+  },
+  "authSettings.deleted": {
+    "defaultMessage": "憑證已刪除"
+  },
+  "authSettings.description": {
+    "defaultMessage": "管理 goose 在本機儲存的供應商憑證。"
+  },
+  "authSettings.empty": {
+    "defaultMessage": "找不到本機儲存的供應商憑證。"
+  },
+  "authSettings.expiresAt": {
+    "defaultMessage": "於 {date} 到期"
+  },
+  "authSettings.failedToConfigure": {
+    "defaultMessage": "無法設定憑證：{error}"
+  },
+  "authSettings.failedToDelete": {
+    "defaultMessage": "無法刪除憑證：{error}"
+  },
+  "authSettings.failedToLoad": {
+    "defaultMessage": "無法載入供應商憑證"
+  },
+  "authSettings.loading": {
+    "defaultMessage": "正在載入憑證…"
+  },
+  "authSettings.reauthorize": {
+    "defaultMessage": "重新授權"
+  },
+  "authSettings.signIn": {
+    "defaultMessage": "登入"
+  },
+  "authSettings.signedIn": {
+    "defaultMessage": "憑證已設定"
+  },
+  "authSettings.storageProviderCache": {
+    "defaultMessage": "供應商快取"
+  },
+  "authSettings.storageSecretStore": {
+    "defaultMessage": "密鑰儲存區"
+  },
+  "authSettings.title": {
+    "defaultMessage": "供應商憑證"
+  },
+  "backButton.back": {
+    "defaultMessage": "返回"
+  },
+  "baseChat.failedToLoadSession": {
+    "defaultMessage": "無法載入工作階段"
+  },
+  "baseChat.goHome": {
+    "defaultMessage": "回到首頁"
+  },
+  "bottomMenuExtensionSelection.extensionUpdated": {
+    "defaultMessage": "擴充功能已更新"
+  },
+  "bottomMenuExtensionSelection.extensionWillBeDisabled": {
+    "defaultMessage": "{name} 將在新的聊天中停用"
+  },
+  "bottomMenuExtensionSelection.extensionWillBeEnabled": {
+    "defaultMessage": "{name} 將在新的聊天中啟用"
+  },
+  "bottomMenuExtensionSelection.extensionsForNewChats": {
+    "defaultMessage": "新聊天的擴充功能"
+  },
+  "bottomMenuExtensionSelection.extensionsForThisSession": {
+    "defaultMessage": "此聊天工作階段的擴充功能"
+  },
+  "bottomMenuExtensionSelection.manageExtensions": {
+    "defaultMessage": "管理擴充功能"
+  },
+  "bottomMenuExtensionSelection.noExtensionsAvailable": {
+    "defaultMessage": "沒有可用的擴充功能"
+  },
+  "bottomMenuExtensionSelection.noExtensionsFound": {
+    "defaultMessage": "找不到擴充功能"
+  },
+  "bottomMenuExtensionSelection.searchExtensions": {
+    "defaultMessage": "搜尋擴充功能…"
+  },
+  "cardButtons.configure": {
+    "defaultMessage": "設定"
+  },
+  "cardButtons.launch": {
+    "defaultMessage": "啟動"
+  },
+  "chat.notification.taskComplete.body": {
+    "defaultMessage": "按一下這裡讓 Goose 重新回到焦點。"
+  },
+  "chat.notification.taskComplete.title": {
+    "defaultMessage": "Goose 已完成工作。"
+  },
+  "chatInput.contextWindow": {
+    "defaultMessage": "上下文視窗"
+  },
+  "chatInput.dictationError": {
+    "defaultMessage": "聽寫錯誤"
+  },
+  "chatInput.failedToReadImage": {
+    "defaultMessage": "無法讀取影像檔案"
+  },
+  "chatInput.navigationShortcut": {
+    "defaultMessage": "{prefix}↑/{prefix}↓ 可瀏覽訊息"
+  },
+  "chatInput.processingDroppedFiles": {
+    "defaultMessage": "正在處理拖放的檔案…"
+  },
+  "chatInput.recording": {
+    "defaultMessage": "錄音中…"
+  },
+  "chatInput.removeFile": {
+    "defaultMessage": "移除檔案"
+  },
+  "chatInput.removeImage": {
+    "defaultMessage": "移除影像"
+  },
+  "chatInput.restartingSession": {
+    "defaultMessage": "正在重新啟動工作階段…"
+  },
+  "chatInput.send": {
+    "defaultMessage": "傳送"
+  },
+  "chatInput.transcribing": {
+    "defaultMessage": "正在轉錄…"
+  },
+  "chatInput.typeMessage": {
+    "defaultMessage": "輸入要傳送的訊息"
+  },
+  "chatInput.unknownType": {
+    "defaultMessage": "未知的類型"
+  },
+  "chatInput.viewEditRecipe": {
+    "defaultMessage": "檢視/編輯食譜"
+  },
+  "chatInput.waitingForCancellation": {
+    "defaultMessage": "正在等待取消作業完成"
+  },
+  "chatInput.waitingForImages": {
+    "defaultMessage": "正在等待影像儲存…"
+  },
+  "chatSettings.modeDescription": {
+    "defaultMessage": "選擇 Goose 用於新工作階段的預設模式。現有的工作階段會維持目前的模式。"
+  },
+  "chatSettings.modeTitle": {
+    "defaultMessage": "預設模式"
+  },
+  "chatSettings.responseStylesDescription": {
+    "defaultMessage": "選擇 Goose 設定回應格式與樣式的方式"
+  },
+  "chatSettings.responseStylesTitle": {
+    "defaultMessage": "回應樣式"
+  },
+  "configSettings.configReset": {
+    "defaultMessage": "設定已重設"
+  },
+  "configSettings.configResetMsg": {
+    "defaultMessage": "所有變更皆已還原"
+  },
+  "configSettings.configUpdated": {
+    "defaultMessage": "設定已更新"
+  },
+  "configSettings.configUpdatedMsg": {
+    "defaultMessage": "已成功儲存「{name}」"
+  },
+  "configSettings.configurationEditor": {
+    "defaultMessage": "設定編輯器"
+  },
+  "configSettings.description": {
+    "defaultMessage": "編輯您的 goose 設定"
+  },
+  "configSettings.descriptionWithProvider": {
+    "defaultMessage": "編輯您的 goose 設定（{provider} 的目前設定）"
+  },
+  "configSettings.done": {
+    "defaultMessage": "完成"
+  },
+  "configSettings.editConfiguration": {
+    "defaultMessage": "編輯設定"
+  },
+  "configSettings.enterValue": {
+    "defaultMessage": "輸入 {name}"
+  },
+  "configSettings.noSettings": {
+    "defaultMessage": "找不到任何設定。"
+  },
+  "configSettings.resetChanges": {
+    "defaultMessage": "重設變更"
+  },
+  "configSettings.saveFailed": {
+    "defaultMessage": "儲存失敗"
+  },
+  "configSettings.saveFailedMsg": {
+    "defaultMessage": "無法儲存「{name}」"
+  },
+  "configSettings.saving": {
+    "defaultMessage": "正在儲存…"
+  },
+  "configSettings.title": {
+    "defaultMessage": "設定"
+  },
+  "configureApproveMode.cancel": {
+    "defaultMessage": "取消"
+  },
+  "configureApproveMode.description": {
+    "defaultMessage": "核准請求可以套用至所有工具請求，或判斷哪些動作可能需要整合"
+  },
+  "configureApproveMode.manualApproval": {
+    "defaultMessage": "手動核准"
+  },
+  "configureApproveMode.manualApprovalDescription": {
+    "defaultMessage": "所有工具、擴充功能與檔案修改都將需要人工核准"
+  },
+  "configureApproveMode.save": {
+    "defaultMessage": "儲存"
+  },
+  "configureApproveMode.saving": {
+    "defaultMessage": "正在儲存…"
+  },
+  "configureApproveMode.smartApproval": {
+    "defaultMessage": "智慧核准"
+  },
+  "configureApproveMode.smartApprovalDescription": {
+    "defaultMessage": "根據風險等級智慧判斷哪些動作需要核准"
+  },
+  "configureApproveMode.title": {
+    "defaultMessage": "設定核准模式"
+  },
+  "confirmationModal.defaultCancel": {
+    "defaultMessage": "否"
+  },
+  "confirmationModal.defaultConfirm": {
+    "defaultMessage": "是"
+  },
+  "confirmationModal.processing": {
+    "defaultMessage": "正在處理…"
+  },
+  "conversationLimitsDropdown.conversationLimits": {
+    "defaultMessage": "對話限制"
+  },
+  "conversationLimitsDropdown.maxTurns": {
+    "defaultMessage": "最大回合數"
+  },
+  "conversationLimitsDropdown.maxTurnsDescription": {
+    "defaultMessage": "Goose 要求使用者輸入前的最大代理回合數"
+  },
+  "costTracker.costUnavailable": {
+    "defaultMessage": "{model} 無可用的費用資料（輸入 {inputTokens} 個權杖，輸出 {outputTokens} 個權杖）"
+  },
+  "costTracker.inputOutputTooltip": {
+    "defaultMessage": "輸入：{inputTokens} 個權杖（{inputCost}）｜輸出：{outputTokens} 個權杖（{outputCost}）"
+  },
+  "costTracker.pricingUnavailable": {
+    "defaultMessage": "{model} 無可用的定價資料"
+  },
+  "costTracker.totalSessionCost": {
+    "defaultMessage": "工作階段總費用：{cost}"
+  },
+  "createEditRecipe.clickToGenerateDeeplink": {
+    "defaultMessage": "按一下以產生深層連結"
+  },
+  "createEditRecipe.close": {
+    "defaultMessage": "關閉"
+  },
+  "createEditRecipe.copied": {
+    "defaultMessage": "已複製！"
+  },
+  "createEditRecipe.copy": {
+    "defaultMessage": "複製"
+  },
+  "createEditRecipe.copyLinkDescription": {
+    "defaultMessage": "複製此連結與好友分享，或直接貼到 Chrome 中開啟"
+  },
+  "createEditRecipe.createRecipeTitle": {
+    "defaultMessage": "建立食譜"
+  },
+  "createEditRecipe.createSubtitle": {
+    "defaultMessage": "建立新食譜以定義代理行為與功能，供可重複使用的聊天工作階段使用。"
+  },
+  "createEditRecipe.editSubtitle": {
+    "defaultMessage": "您可以編輯下方的食譜，以變更代理在新工作階段中的行為。"
+  },
+  "createEditRecipe.generatingDeeplink": {
+    "defaultMessage": "正在產生深層連結…"
+  },
+  "createEditRecipe.learnMore": {
+    "defaultMessage": "瞭解更多"
+  },
+  "createEditRecipe.recipeSavedAndLaunchedMsg": {
+    "defaultMessage": "食譜已成功儲存並啟動"
+  },
+  "createEditRecipe.recipeSavedMsg": {
+    "defaultMessage": "食譜已成功儲存"
+  },
+  "createEditRecipe.saveAndRunFailed": {
+    "defaultMessage": "儲存並執行失敗"
+  },
+  "createEditRecipe.saveAndRunFailedMsg": {
+    "defaultMessage": "無法儲存並執行食譜：{error}"
+  },
+  "createEditRecipe.saveAndRunRecipe": {
+    "defaultMessage": "儲存並執行食譜"
+  },
+  "createEditRecipe.saveFailed": {
+    "defaultMessage": "儲存失敗"
+  },
+  "createEditRecipe.saveFailedMsg": {
+    "defaultMessage": "無法儲存食譜：{error}"
+  },
+  "createEditRecipe.saveRecipe": {
+    "defaultMessage": "儲存食譜"
+  },
+  "createEditRecipe.saving": {
+    "defaultMessage": "正在儲存…"
+  },
+  "createEditRecipe.validationFailed": {
+    "defaultMessage": "驗證失敗"
+  },
+  "createEditRecipe.validationMsg": {
+    "defaultMessage": "請填寫所有必填欄位，並確保 JSON 結構描述有效。"
+  },
+  "createEditRecipe.viewEditRecipeTitle": {
+    "defaultMessage": "檢視/編輯食譜"
+  },
+  "createSubRecipeInline.cancel": {
+    "defaultMessage": "取消"
+  },
+  "createSubRecipeInline.closeModal": {
+    "defaultMessage": "關閉建立子食譜對話框"
+  },
+  "createSubRecipeInline.createAndAdd": {
+    "defaultMessage": "建立並新增子食譜"
+  },
+  "createSubRecipeInline.createdSuccess": {
+    "defaultMessage": "子食譜已成功建立"
+  },
+  "createSubRecipeInline.creating": {
+    "defaultMessage": "正在建立…"
+  },
+  "createSubRecipeInline.duplicateName": {
+    "defaultMessage": "名稱重複"
+  },
+  "createSubRecipeInline.duplicateNameMsg": {
+    "defaultMessage": "已存在名為「{name}」的子食譜。請使用不重複的名稱。"
+  },
+  "createSubRecipeInline.instructionsLabel": {
+    "defaultMessage": "指示"
+  },
+  "createSubRecipeInline.instructionsPlaceholder": {
+    "defaultMessage": "呼叫此子食譜時提供給 AI 的指示…"
+  },
+  "createSubRecipeInline.nameHint": {
+    "defaultMessage": "用於產生工具名稱的唯一識別碼"
+  },
+  "createSubRecipeInline.nameLabel": {
+    "defaultMessage": "名稱"
+  },
+  "createSubRecipeInline.namePlaceholder": {
+    "defaultMessage": "例如：security_scan"
+  },
+  "createSubRecipeInline.preconfiguredValues": {
+    "defaultMessage": "預先設定的值"
+  },
+  "createSubRecipeInline.preconfiguredValuesHint": {
+    "defaultMessage": "永遠會傳遞給子食譜的選用參數值"
+  },
+  "createSubRecipeInline.recipeDescriptionLabel": {
+    "defaultMessage": "食譜描述"
+  },
+  "createSubRecipeInline.recipeDescriptionPlaceholder": {
+    "defaultMessage": "此食譜執行時的作用"
+  },
+  "createSubRecipeInline.recipeTitleLabel": {
+    "defaultMessage": "食譜標題"
+  },
+  "createSubRecipeInline.recipeTitlePlaceholder": {
+    "defaultMessage": "例如：安全分析工具"
+  },
+  "createSubRecipeInline.saveFailed": {
+    "defaultMessage": "儲存失敗"
+  },
+  "createSubRecipeInline.saveFailedMsg": {
+    "defaultMessage": "無法儲存子食譜：{error}"
+  },
+  "createSubRecipeInline.sequentialHint": {
+    "defaultMessage": "（強制多個執行個體依序執行）"
+  },
+  "createSubRecipeInline.sequentialLabel": {
+    "defaultMessage": "重複時依序執行"
+  },
+  "createSubRecipeInline.subtitle": {
+    "defaultMessage": "建立一個簡單的食譜，作為主食譜中可呼叫的工具"
+  },
+  "createSubRecipeInline.title": {
+    "defaultMessage": "建立新子食譜"
+  },
+  "createSubRecipeInline.toolDescriptionLabel": {
+    "defaultMessage": "工具描述"
+  },
+  "createSubRecipeInline.toolDescriptionPlaceholder": {
+    "defaultMessage": "作為工具呼叫時顯示的選用描述"
+  },
+  "createSubRecipeInline.validationFailed": {
+    "defaultMessage": "驗證失敗"
+  },
+  "createSubRecipeInline.validationMsg": {
+    "defaultMessage": "名稱、標題、食譜描述與指示為必填。"
+  },
+  "creditsExhaustedNotification.addCredits": {
+    "defaultMessage": "新增點數"
+  },
+  "creditsExhaustedNotification.insufficientCredits": {
+    "defaultMessage": "點數不足"
+  },
+  "cronPicker.april": {
+    "defaultMessage": "四月"
+  },
+  "cronPicker.at": {
+    "defaultMessage": "於"
+  },
+  "cronPicker.atMinute": {
+    "defaultMessage": "於第幾分"
+  },
+  "cronPicker.atSecond": {
+    "defaultMessage": "於第幾秒"
+  },
+  "cronPicker.august": {
+    "defaultMessage": "八月"
+  },
+  "cronPicker.cronExpression": {
+    "defaultMessage": "Cron 運算式"
+  },
+  "cronPicker.custom": {
+    "defaultMessage": "自訂 cron"
+  },
+  "cronPicker.day": {
+    "defaultMessage": "日"
+  },
+  "cronPicker.december": {
+    "defaultMessage": "十二月"
+  },
+  "cronPicker.emptyCronError": {
+    "defaultMessage": "Cron 運算式不可為空白"
+  },
+  "cronPicker.every": {
+    "defaultMessage": "每"
+  },
+  "cronPicker.february": {
+    "defaultMessage": "二月"
+  },
+  "cronPicker.friday": {
+    "defaultMessage": "星期五"
+  },
+  "cronPicker.hour": {
+    "defaultMessage": "時"
+  },
+  "cronPicker.inMonth": {
+    "defaultMessage": "於"
+  },
+  "cronPicker.invalidDayOfMonth": {
+    "defaultMessage": "日期必須介於 1 與 {max} 之間"
+  },
+  "cronPicker.january": {
+    "defaultMessage": "一月"
+  },
+  "cronPicker.july": {
+    "defaultMessage": "七月"
+  },
+  "cronPicker.june": {
+    "defaultMessage": "六月"
+  },
+  "cronPicker.march": {
+    "defaultMessage": "三月"
+  },
+  "cronPicker.may": {
+    "defaultMessage": "五月"
+  },
+  "cronPicker.minute": {
+    "defaultMessage": "分"
+  },
+  "cronPicker.mode": {
+    "defaultMessage": "模式"
+  },
+  "cronPicker.monday": {
+    "defaultMessage": "星期一"
+  },
+  "cronPicker.month": {
+    "defaultMessage": "月"
+  },
+  "cronPicker.november": {
+    "defaultMessage": "十一月"
+  },
+  "cronPicker.october": {
+    "defaultMessage": "十月"
+  },
+  "cronPicker.on": {
+    "defaultMessage": "於"
+  },
+  "cronPicker.onDay": {
+    "defaultMessage": "於第幾日"
+  },
+  "cronPicker.quarter": {
+    "defaultMessage": "季"
+  },
+  "cronPicker.saturday": {
+    "defaultMessage": "星期六"
+  },
+  "cronPicker.september": {
+    "defaultMessage": "九月"
+  },
+  "cronPicker.startingMonth": {
+    "defaultMessage": "起始月份"
+  },
+  "cronPicker.sunday": {
+    "defaultMessage": "星期日"
+  },
+  "cronPicker.thursday": {
+    "defaultMessage": "星期四"
+  },
+  "cronPicker.tuesday": {
+    "defaultMessage": "星期二"
+  },
+  "cronPicker.wednesday": {
+    "defaultMessage": "星期三"
+  },
+  "cronPicker.week": {
+    "defaultMessage": "週"
+  },
+  "cronPicker.year": {
+    "defaultMessage": "年"
+  },
+  "customProviderForm.add": {
+    "defaultMessage": "新增"
+  },
+  "customProviderForm.anthropicCompatible": {
+    "defaultMessage": "Anthropic 相容"
+  },
+  "customProviderForm.apiBasePath": {
+    "defaultMessage": "API 基底路徑（選用）"
+  },
+  "customProviderForm.apiBasePathHint": {
+    "defaultMessage": "覆寫預設的 API 路徑。留空則使用供應商的預設路徑。"
+  },
+  "customProviderForm.apiBasePathPlaceholder": {
+    "defaultMessage": "例如：v1/chat/completions 或 project_id/v1"
+  },
+  "customProviderForm.apiKey": {
+    "defaultMessage": "API 金鑰"
+  },
+  "customProviderForm.apiKeyPlaceholderExisting": {
+    "defaultMessage": "留空以保留現有金鑰"
+  },
+  "customProviderForm.apiKeyPlaceholderNew": {
+    "defaultMessage": "您的 API 金鑰"
+  },
+  "customProviderForm.apiKeyRequired": {
+    "defaultMessage": "API 金鑰為必填"
+  },
+  "customProviderForm.apiUrl": {
+    "defaultMessage": "API URL"
+  },
+  "customProviderForm.apiUrlPlaceholder": {
+    "defaultMessage": "https://api.example.com"
+  },
+  "customProviderForm.apiUrlRequired": {
+    "defaultMessage": "API URL 為必填"
+  },
+  "customProviderForm.attachments": {
+    "defaultMessage": "附件"
+  },
+  "customProviderForm.authHint": {
+    "defaultMessage": "Ollama 等本機 LLM 通常不需要 API 金鑰。"
+  },
+  "customProviderForm.authentication": {
+    "defaultMessage": "驗證"
+  },
+  "customProviderForm.availableModels": {
+    "defaultMessage": "可用模型（以逗號分隔）"
+  },
+  "customProviderForm.back": {
+    "defaultMessage": "← 返回"
+  },
+  "customProviderForm.cancel": {
+    "defaultMessage": "取消"
+  },
+  "customProviderForm.cannotDeleteActive": {
+    "defaultMessage": "此供應商目前正在使用中，無法刪除。請先切換至其他模型。"
+  },
+  "customProviderForm.chooseSetup": {
+    "defaultMessage": "選擇您要設定供應商的方式。"
+  },
+  "customProviderForm.clear": {
+    "defaultMessage": "清除"
+  },
+  "customProviderForm.configureManually": {
+    "defaultMessage": "手動設定"
+  },
+  "customProviderForm.configureManuallyDesc": {
+    "defaultMessage": "自行輸入所有供應商詳細資料"
+  },
+  "customProviderForm.confirmDelete": {
+    "defaultMessage": "確認刪除"
+  },
+  "customProviderForm.createProvider": {
+    "defaultMessage": "建立供應商"
+  },
+  "customProviderForm.customHeaders": {
+    "defaultMessage": "自訂標頭"
+  },
+  "customProviderForm.customHeadersHint": {
+    "defaultMessage": "新增自訂 HTTP 標頭，以納入傳送給供應商的請求中。填妥兩個欄位後，按一下「+」按鈕即可新增。"
+  },
+  "customProviderForm.deleteConfirmation": {
+    "defaultMessage": "您確定要刪除這個自訂供應商嗎？這會永久移除該供應商及其儲存的 API 金鑰。此動作無法復原。"
+  },
+  "customProviderForm.deleteProvider": {
+    "defaultMessage": "刪除供應商"
+  },
+  "customProviderForm.displayName": {
+    "defaultMessage": "顯示名稱"
+  },
+  "customProviderForm.displayNamePlaceholder": {
+    "defaultMessage": "您的供應商名稱"
+  },
+  "customProviderForm.displayNameRequired": {
+    "defaultMessage": "顯示名稱為必填"
+  },
+  "customProviderForm.docs": {
+    "defaultMessage": "文件"
+  },
+  "customProviderForm.headerBothRequired": {
+    "defaultMessage": "標頭名稱與值都必須輸入"
+  },
+  "customProviderForm.headerDuplicate": {
+    "defaultMessage": "已存在使用此名稱的標頭"
+  },
+  "customProviderForm.headerNamePlaceholder": {
+    "defaultMessage": "標頭名稱"
+  },
+  "customProviderForm.headerNoSpaces": {
+    "defaultMessage": "標頭名稱不可包含空格"
+  },
+  "customProviderForm.modelsPlaceholder": {
+    "defaultMessage": "model-a, model-b, model-c"
+  },
+  "customProviderForm.modelsRequired": {
+    "defaultMessage": "至少需要一個模型"
+  },
+  "customProviderForm.ollamaCompatible": {
+    "defaultMessage": "Ollama 相容"
+  },
+  "customProviderForm.openaiCompatible": {
+    "defaultMessage": "OpenAI 相容"
+  },
+  "customProviderForm.providerType": {
+    "defaultMessage": "供應商類型"
+  },
+  "customProviderForm.reasoning": {
+    "defaultMessage": "推理"
+  },
+  "customProviderForm.requiresApiKey": {
+    "defaultMessage": "此供應商需要 API 金鑰"
+  },
+  "customProviderForm.startFromTemplate": {
+    "defaultMessage": "從供應商範本開始"
+  },
+  "customProviderForm.startFromTemplateDesc": {
+    "defaultMessage": "選擇一個已知的供應商，我們會自動填入設定"
+  },
+  "customProviderForm.submitError": {
+    "defaultMessage": "無法儲存供應商。請檢查您的設定後再試一次。"
+  },
+  "customProviderForm.supportsStreaming": {
+    "defaultMessage": "供應商支援串流回應"
+  },
+  "customProviderForm.toolCalling": {
+    "defaultMessage": "工具呼叫"
+  },
+  "customProviderForm.updateProvider": {
+    "defaultMessage": "更新供應商"
+  },
+  "customProviderForm.usingTemplate": {
+    "defaultMessage": "使用範本：{name}"
+  },
+  "customProviderForm.valuePlaceholder": {
+    "defaultMessage": "值"
+  },
+  "defaultCardButtons.configureSettings": {
+    "defaultMessage": "設定 {name} 設定"
+  },
+  "defaultCardButtons.deleteSettings": {
+    "defaultMessage": "刪除 {name} 設定"
+  },
+  "defaultCardButtons.editSettings": {
+    "defaultMessage": "編輯 {name} 設定"
+  },
+  "defaultCardButtons.getStarted": {
+    "defaultMessage": "開始使用 goose！"
+  },
+  "defaultProviderSetupForm.apiHostLabel": {
+    "defaultMessage": "API 主機"
+  },
+  "defaultProviderSetupForm.apiHostPlaceholder": {
+    "defaultMessage": "https://api.example.com"
+  },
+  "defaultProviderSetupForm.apiKeyLabel": {
+    "defaultMessage": "API 金鑰"
+  },
+  "defaultProviderSetupForm.apiKeyPlaceholder": {
+    "defaultMessage": "您的 API 金鑰"
+  },
+  "defaultProviderSetupForm.hideOptions": {
+    "defaultMessage": "隱藏 {count} 個選項"
+  },
+  "defaultProviderSetupForm.loadingConfig": {
+    "defaultMessage": "正在載入設定值…"
+  },
+  "defaultProviderSetupForm.modelsLabel": {
+    "defaultMessage": "模型"
+  },
+  "defaultProviderSetupForm.modelsPlaceholder": {
+    "defaultMessage": "model-a, model-b"
+  },
+  "defaultProviderSetupForm.noConfigParameters": {
+    "defaultMessage": "此供應商沒有設定參數。"
+  },
+  "defaultProviderSetupForm.showOptions": {
+    "defaultMessage": "顯示 {count} 個選項"
+  },
+  "diagnosticsModal.attachHint": {
+    "defaultMessage": "如果您要回報錯誤，建議將診斷報告一併附上。"
+  },
+  "diagnosticsModal.cancel": {
+    "defaultMessage": "取消"
+  },
+  "diagnosticsModal.configSettings": {
+    "defaultMessage": "設定項目"
+  },
+  "diagnosticsModal.description": {
+    "defaultMessage": "您可以下載診斷 JSON 報告與團隊分享，或直接在 GitHub 上回報錯誤並預先填入您的系統詳細資料。診斷報告包含下列內容："
+  },
+  "diagnosticsModal.diagnosticsErrorMsg": {
+    "defaultMessage": "無法下載診斷報告"
+  },
+  "diagnosticsModal.diagnosticsErrorTitle": {
+    "defaultMessage": "診斷錯誤"
+  },
+  "diagnosticsModal.download": {
+    "defaultMessage": "下載"
+  },
+  "diagnosticsModal.downloading": {
+    "defaultMessage": "正在下載…"
+  },
+  "diagnosticsModal.fileBug": {
+    "defaultMessage": "在 GitHub 上回報錯誤"
+  },
+  "diagnosticsModal.logFiles": {
+    "defaultMessage": "最近的記錄檔"
+  },
+  "diagnosticsModal.opening": {
+    "defaultMessage": "正在開啟…"
+  },
+  "diagnosticsModal.reportProblem": {
+    "defaultMessage": "回報問題"
+  },
+  "diagnosticsModal.sensitiveWarning": {
+    "defaultMessage": "如果您的工作階段包含敏感資訊，請勿公開分享診斷檔案。"
+  },
+  "diagnosticsModal.sessionMessages": {
+    "defaultMessage": "您目前工作階段的訊息"
+  },
+  "diagnosticsModal.systemInfo": {
+    "defaultMessage": "基本系統資訊"
+  },
+  "diagnosticsModal.systemInfoErrorMsg": {
+    "defaultMessage": "無法取得系統資訊"
+  },
+  "diagnosticsModal.systemInfoErrorTitle": {
+    "defaultMessage": "錯誤"
+  },
+  "dialog.close": {
+    "defaultMessage": "關閉"
+  },
+  "dictationSettings.addApiKey": {
+    "defaultMessage": "新增 API 金鑰"
+  },
+  "dictationSettings.apiKey": {
+    "defaultMessage": "API 金鑰"
+  },
+  "dictationSettings.cancel": {
+    "defaultMessage": "取消"
+  },
+  "dictationSettings.chooseVoiceConversion": {
+    "defaultMessage": "選擇語音轉換為文字的方式"
+  },
+  "dictationSettings.configureApiKey": {
+    "defaultMessage": "在 <b>{settingsPath}</b> 中設定 API 金鑰"
+  },
+  "dictationSettings.configured": {
+    "defaultMessage": "（已設定）"
+  },
+  "dictationSettings.configuredIn": {
+    "defaultMessage": "✓ 已在 {settingsPath} 中設定"
+  },
+  "dictationSettings.disabled": {
+    "defaultMessage": "已停用"
+  },
+  "dictationSettings.enterApiKey": {
+    "defaultMessage": "輸入您的 API 金鑰"
+  },
+  "dictationSettings.notConfigured": {
+    "defaultMessage": "（尚未設定）"
+  },
+  "dictationSettings.removeApiKey": {
+    "defaultMessage": "移除 API 金鑰"
+  },
+  "dictationSettings.requiredForTranscription": {
+    "defaultMessage": "轉錄所需"
+  },
+  "dictationSettings.save": {
+    "defaultMessage": "儲存"
+  },
+  "dictationSettings.updateApiKey": {
+    "defaultMessage": "更新 API 金鑰"
+  },
+  "dictationSettings.voiceDictationProvider": {
+    "defaultMessage": "語音聽寫供應商"
+  },
+  "dirSwitcher.chooseDirectory": {
+    "defaultMessage": "選擇目錄…"
+  },
+  "dirSwitcher.currentDirectory": {
+    "defaultMessage": "目前目錄"
+  },
+  "dirSwitcher.failedToUpdateWorkingDir": {
+    "defaultMessage": "無法更新工作目錄"
+  },
+  "dirSwitcher.gitWorktrees": {
+    "defaultMessage": "Git 工作樹"
+  },
+  "dirSwitcher.noWorktreesFound": {
+    "defaultMessage": "找不到工作樹"
+  },
+  "dirSwitcher.openInFinder": {
+    "defaultMessage": "在檔案管理員中開啟"
+  },
+  "dirSwitcher.recentDirectories": {
+    "defaultMessage": "最近的目錄"
+  },
+  "elicitationRequest.accept": {
+    "defaultMessage": "接受"
+  },
+  "elicitationRequest.cancelled": {
+    "defaultMessage": "資訊要求已取消。"
+  },
+  "elicitationRequest.defaultMessage": {
+    "defaultMessage": "Goose 需要您提供一些資訊。"
+  },
+  "elicitationRequest.expired": {
+    "defaultMessage": "此要求已過期。擴充功能需要重新詢問。"
+  },
+  "elicitationRequest.submit": {
+    "defaultMessage": "提交"
+  },
+  "elicitationRequest.submitError": {
+    "defaultMessage": "此要求已不再有效。擴充功能需要重新詢問。"
+  },
+  "elicitationRequest.submitted": {
+    "defaultMessage": "資訊已提交"
+  },
+  "elicitationRequest.waitingForResponse": {
+    "defaultMessage": "正在等待您的回應（剩餘 {timeRemaining}）"
+  },
+  "envVarsSection.add": {
+    "defaultMessage": "新增"
+  },
+  "envVarsSection.bothRequired": {
+    "defaultMessage": "必須同時輸入變數名稱與值"
+  },
+  "envVarsSection.envVarsDescription": {
+    "defaultMessage": "新增環境變數的鍵值組。填妥兩個欄位後，按一下「+」按鈕即可新增。若要修改現有的密碼值，請按一下編輯按鈕。"
+  },
+  "envVarsSection.environmentVariables": {
+    "defaultMessage": "環境變數"
+  },
+  "envVarsSection.noSpaces": {
+    "defaultMessage": "變數名稱不可包含空格"
+  },
+  "envVarsSection.value": {
+    "defaultMessage": "值"
+  },
+  "envVarsSection.variableName": {
+    "defaultMessage": "變數名稱"
+  },
+  "environmentBadge.dev": {
+    "defaultMessage": "開發"
+  },
+  "errorBoundary.errorGeneric": {
+    "defaultMessage": "發生錯誤。"
+  },
+  "errorBoundary.errorWithVersion": {
+    "defaultMessage": "Goose v{version} 發生錯誤。"
+  },
+  "errorBoundary.heading": {
+    "defaultMessage": "Honk！"
+  },
+  "errorBoundary.reload": {
+    "defaultMessage": "重新載入"
+  },
+  "extensionConfigFields.commandLabel": {
+    "defaultMessage": "命令"
+  },
+  "extensionConfigFields.commandPlaceholder": {
+    "defaultMessage": "例如 npx -y @modelcontextprotocol/my-extension [filepath]"
+  },
+  "extensionConfigFields.commandRequired": {
+    "defaultMessage": "命令為必填"
+  },
+  "extensionConfigFields.endpointLabel": {
+    "defaultMessage": "端點"
+  },
+  "extensionConfigFields.endpointPlaceholder": {
+    "defaultMessage": "輸入端點 URL…"
+  },
+  "extensionConfigFields.endpointRequired": {
+    "defaultMessage": "端點 URL 為必填"
+  },
+  "extensionInfoFields.descriptionLabel": {
+    "defaultMessage": "說明"
+  },
+  "extensionInfoFields.descriptionPlaceholder": {
+    "defaultMessage": "選填說明…"
+  },
+  "extensionInfoFields.extensionName": {
+    "defaultMessage": "擴充功能名稱"
+  },
+  "extensionInfoFields.extensionNamePlaceholder": {
+    "defaultMessage": "輸入擴充功能名稱…"
+  },
+  "extensionInfoFields.nameRequired": {
+    "defaultMessage": "名稱為必填"
+  },
+  "extensionInfoFields.typeHttp": {
+    "defaultMessage": "HTTP"
+  },
+  "extensionInfoFields.typeLabel": {
+    "defaultMessage": "類型"
+  },
+  "extensionInfoFields.typeSseUnsupported": {
+    "defaultMessage": "SSE（不支援）"
+  },
+  "extensionInfoFields.typeStandardIo": {
+    "defaultMessage": "標準 IO (STDIO)"
+  },
+  "extensionInfoFields.typeStdio": {
+    "defaultMessage": "STDIO"
+  },
+  "extensionInfoFields.typeStreamableHttp": {
+    "defaultMessage": "Streamable HTTP"
+  },
+  "extensionInstallModal.alreadyInstalledMessage": {
+    "defaultMessage": "「{name}」擴充功能已成功安裝。請開始新的聊天工作階段以使用它。"
+  },
+  "extensionInstallModal.alreadyInstalledTitle": {
+    "defaultMessage": "擴充功能「{name}」已安裝"
+  },
+  "extensionInstallModal.blockedMessage": {
+    "defaultMessage": "此擴充功能命令不在允許清單中，安裝已遭封鎖。擴充功能：{name} 命令：{command} 請聯絡您的管理員以要求核准此擴充功能。"
+  },
+  "extensionInstallModal.blockedTitle": {
+    "defaultMessage": "擴充功能安裝遭封鎖"
+  },
+  "extensionInstallModal.cancel": {
+    "defaultMessage": "取消"
+  },
+  "extensionInstallModal.installAnyway": {
+    "defaultMessage": "仍要安裝"
+  },
+  "extensionInstallModal.installing": {
+    "defaultMessage": "正在安裝…"
+  },
+  "extensionInstallModal.no": {
+    "defaultMessage": "否"
+  },
+  "extensionInstallModal.ok": {
+    "defaultMessage": "確定"
+  },
+  "extensionInstallModal.trustedMessage": {
+    "defaultMessage": "您確定要安裝 {name} 擴充功能嗎？命令：{command}"
+  },
+  "extensionInstallModal.trustedTitle": {
+    "defaultMessage": "確認安裝擴充功能"
+  },
+  "extensionInstallModal.unknownCommand": {
+    "defaultMessage": "未知命令"
+  },
+  "extensionInstallModal.untrustedMessageWithCommand": {
+    "defaultMessage": "{securityMessage} 擴充功能：{name} 命令：{command} 如有疑問，請聯絡您的管理員。"
+  },
+  "extensionInstallModal.untrustedMessageWithUrl": {
+    "defaultMessage": "{securityMessage} 擴充功能：{name} URL：{url} 如有疑問，請聯絡您的管理員。"
+  },
+  "extensionInstallModal.untrustedSecurityMessage": {
+    "defaultMessage": "此擴充功能命令不在允許清單中，將能夠存取您的對話並提供額外功能。從不受信任的來源安裝擴充功能可能帶來安全風險。"
+  },
+  "extensionInstallModal.untrustedTitle": {
+    "defaultMessage": "要安裝不受信任的擴充功能嗎？"
+  },
+  "extensionInstallModal.yes": {
+    "defaultMessage": "是"
+  },
+  "extensionItem.configureExtension": {
+    "defaultMessage": "設定 {name} 擴充功能"
+  },
+  "extensionItem.toggleExtension": {
+    "defaultMessage": "開啟或關閉 {name} 擴充功能"
+  },
+  "extensionList.availableExtensions": {
+    "defaultMessage": "可用的擴充功能（{count}）"
+  },
+  "extensionList.builtInExtension": {
+    "defaultMessage": "內建擴充功能"
+  },
+  "extensionList.defaultExtensions": {
+    "defaultMessage": "預設擴充功能（{count}）"
+  },
+  "extensionList.noExtensions": {
+    "defaultMessage": "沒有可用的擴充功能"
+  },
+  "extensionModal.cancel": {
+    "defaultMessage": "取消"
+  },
+  "extensionModal.closeWithoutSaving": {
+    "defaultMessage": "不儲存並關閉"
+  },
+  "extensionModal.confirmRemoval": {
+    "defaultMessage": "確認移除"
+  },
+  "extensionModal.deleteDescription": {
+    "defaultMessage": "這將永久移除此擴充功能及其所有設定。"
+  },
+  "extensionModal.deleteExtensionTitle": {
+    "defaultMessage": "刪除擴充功能「{name}」"
+  },
+  "extensionModal.installationNotes": {
+    "defaultMessage": "安裝注意事項"
+  },
+  "extensionModal.removeExtension": {
+    "defaultMessage": "移除擴充功能"
+  },
+  "extensionModal.unsavedChangesMessage": {
+    "defaultMessage": "您對擴充功能設定有尚未儲存的變更。您確定要不儲存就關閉嗎？"
+  },
+  "extensionModal.unsavedChangesTitle": {
+    "defaultMessage": "尚未儲存的變更"
+  },
+  "extensionTimeoutField.timeoutLabel": {
+    "defaultMessage": "逾時"
+  },
+  "extensionsSection.addCustomExtension": {
+    "defaultMessage": "新增自訂擴充功能"
+  },
+  "extensionsSection.addExtension": {
+    "defaultMessage": "新增擴充功能"
+  },
+  "extensionsSection.browseExtensions": {
+    "defaultMessage": "瀏覽擴充功能"
+  },
+  "extensionsSection.saveChanges": {
+    "defaultMessage": "儲存變更"
+  },
+  "extensionsSection.updateExtension": {
+    "defaultMessage": "更新擴充功能"
+  },
+  "extensionsView.addCustomExtension": {
+    "defaultMessage": "新增自訂擴充功能"
+  },
+  "extensionsView.addExtension": {
+    "defaultMessage": "新增擴充功能"
+  },
+  "extensionsView.browseExtensions": {
+    "defaultMessage": "瀏覽擴充功能"
+  },
+  "extensionsView.defaultNote": {
+    "defaultMessage": "在此啟用的擴充功能會作為新聊天的預設值。您也可以在聊天期間切換使用中的擴充功能。"
+  },
+  "extensionsView.description": {
+    "defaultMessage": "這些擴充功能使用模型內容協定 (MCP)。它們可透過三個主要元件擴充 Goose 的能力：提示、資源與工具。{searchShortcut} 即可搜尋。"
+  },
+  "extensionsView.heading": {
+    "defaultMessage": "擴充功能"
+  },
+  "extensionsView.searchPlaceholder": {
+    "defaultMessage": "搜尋擴充功能…"
+  },
+  "externalBackendSection.certFingerprint": {
+    "defaultMessage": "憑證指紋（選填）"
+  },
+  "externalBackendSection.certFingerprintHelp": {
+    "defaultMessage": "釘選特定的 TLS 憑證指紋。若未填寫，將於首次使用時信任該憑證 (TOFU)。"
+  },
+  "externalBackendSection.certFingerprintPlaceholder": {
+    "defaultMessage": "AA:BB:CC:… 或 sha256/base64"
+  },
+  "externalBackendSection.description": {
+    "defaultMessage": "goose 預設會為您啟動伺服器，使用此選項以連線至外部 goose 伺服器"
+  },
+  "externalBackendSection.restartNote": {
+    "defaultMessage": "變更需要重新啟動 Goose 才會生效。新的聊天視窗將連線至外部伺服器。"
+  },
+  "externalBackendSection.secretKey": {
+    "defaultMessage": "密鑰"
+  },
+  "externalBackendSection.secretKeyHelp": {
+    "defaultMessage": "在 goosed 伺服器上設定的密鑰 (GOOSE_SERVER__SECRET_KEY)"
+  },
+  "externalBackendSection.secretKeyPlaceholder": {
+    "defaultMessage": "輸入伺服器的密鑰"
+  },
+  "externalBackendSection.serverUrl": {
+    "defaultMessage": "伺服器 URL"
+  },
+  "externalBackendSection.title": {
+    "defaultMessage": "Goose 伺服器"
+  },
+  "externalBackendSection.urlFormatError": {
+    "defaultMessage": "URL 格式無效"
+  },
+  "externalBackendSection.urlProtocolError": {
+    "defaultMessage": "URL 必須使用 http 或 https 通訊協定"
+  },
+  "externalBackendSection.useExternalServer": {
+    "defaultMessage": "使用外部伺服器"
+  },
+  "externalBackendSection.useExternalServerDescription": {
+    "defaultMessage": "連線至在其他位置執行的 goose 伺服器（需要重新啟動應用程式）"
+  },
+  "freeOptionCards.chooseOption": {
+    "defaultMessage": "選擇一個選項以開始使用。"
+  },
+  "freeOptionCards.freeAndPrivate": {
+    "defaultMessage": "免費且私密"
+  },
+  "freeOptionCards.localModelDescription": {
+    "defaultMessage": "下載模型並完全在您的電腦上執行。無需 API 金鑰，無需帳號。"
+  },
+  "freeOptionCards.localModelTitle": {
+    "defaultMessage": "使用本機模型"
+  },
+  "freeOptionCards.nanogptDescription": {
+    "defaultMessage": "註冊即可獲得 7 天 6,000 萬個免費權杖。"
+  },
+  "freeOptionCards.nanogptTitle": {
+    "defaultMessage": "NanoGPT"
+  },
+  "freeOptionCards.retry": {
+    "defaultMessage": "重試"
+  },
+  "freeOptionCards.tetrateDescription": {
+    "defaultMessage": "透過自動設定存取多種 AI 模型。註冊即可獲得 $10 點數。"
+  },
+  "freeOptionCards.tetrateTitle": {
+    "defaultMessage": "Tetrate 的 Agent Router"
+  },
+  "freeOptionCards.unexpectedError": {
+    "defaultMessage": "設定期間發生非預期的錯誤。"
+  },
+  "goosehintsModal.close": {
+    "defaultMessage": "關閉"
+  },
+  "goosehintsModal.developer": {
+    "defaultMessage": "開發者"
+  },
+  "goosehintsModal.dialogDescription": {
+    "defaultMessage": "提供有關您專案的額外內容，以改善與 Goose 的溝通"
+  },
+  "goosehintsModal.dialogTitle": {
+    "defaultMessage": "設定專案提示 (.goosehints)"
+  },
+  "goosehintsModal.errorReading": {
+    "defaultMessage": "讀取 .goosehints 檔案時發生錯誤：{error}"
+  },
+  "goosehintsModal.failedToAccess": {
+    "defaultMessage": "無法存取 .goosehints 檔案"
+  },
+  "goosehintsModal.failedToSave": {
+    "defaultMessage": "無法儲存 .goosehints 檔案"
+  },
+  "goosehintsModal.fileCreating": {
+    "defaultMessage": "正在於此處建立新的 .goosehints 檔案：{filePath}"
+  },
+  "goosehintsModal.fileFound": {
+    "defaultMessage": "在此處找到 .goosehints 檔案：{filePath}"
+  },
+  "goosehintsModal.helpText1": {
+    "defaultMessage": ".goosehints 是一個文字檔，用於提供有關您專案的額外內容，並改善與 Goose 的溝通。"
+  },
+  "goosehintsModal.helpText2": {
+    "defaultMessage": "請確認擴充功能頁面中已啟用 {bold} 擴充功能。使用 .goosehints 需要此擴充功能。您需要重新啟動工作階段，.goosehints 的更新才會生效。"
+  },
+  "goosehintsModal.helpText3": {
+    "defaultMessage": "如需更多資訊，請參閱 {link}。"
+  },
+  "goosehintsModal.helpTextLink": {
+    "defaultMessage": "使用 .goosehints"
+  },
+  "goosehintsModal.placeholder": {
+    "defaultMessage": "在此輸入專案提示…"
+  },
+  "goosehintsModal.save": {
+    "defaultMessage": "儲存"
+  },
+  "goosehintsModal.savedSuccessfully": {
+    "defaultMessage": "已成功儲存"
+  },
+  "goosehintsModal.saving": {
+    "defaultMessage": "正在儲存…"
+  },
+  "goosehintsSection.configure": {
+    "defaultMessage": "設定"
+  },
+  "goosehintsSection.description": {
+    "defaultMessage": "設定您專案的 .goosehints 檔案，為 Goose 提供額外內容"
+  },
+  "goosehintsSection.title": {
+    "defaultMessage": "專案提示 (.goosehints)"
+  },
+  "groupedExtensionLoadingToast.askGoose": {
+    "defaultMessage": "詢問 goose"
+  },
+  "groupedExtensionLoadingToast.collapseDetails": {
+    "defaultMessage": "收合詳細資料"
+  },
+  "groupedExtensionLoadingToast.copied": {
+    "defaultMessage": "已複製！"
+  },
+  "groupedExtensionLoadingToast.copyError": {
+    "defaultMessage": "複製錯誤"
+  },
+  "groupedExtensionLoadingToast.expandDetails": {
+    "defaultMessage": "展開詳細資料"
+  },
+  "groupedExtensionLoadingToast.failedToAddExtension": {
+    "defaultMessage": "無法新增擴充功能"
+  },
+  "groupedExtensionLoadingToast.failedToLoad": {
+    "defaultMessage": "{count,plural,one{# 個擴充功能載入失敗} other{# 個擴充功能載入失敗}}"
+  },
+  "groupedExtensionLoadingToast.loadingExtensions": {
+    "defaultMessage": "{count,plural,one{正在載入 # 個擴充功能…} other{正在載入 # 個擴充功能…}}"
+  },
+  "groupedExtensionLoadingToast.partiallyLoaded": {
+    "defaultMessage": "{totalCount,plural,one{已載入 {successCount}/# 個擴充功能} other{已載入 {successCount}/# 個擴充功能}}"
+  },
+  "groupedExtensionLoadingToast.showDetails": {
+    "defaultMessage": "顯示詳細資料"
+  },
+  "groupedExtensionLoadingToast.showLess": {
+    "defaultMessage": "顯示較少"
+  },
+  "groupedExtensionLoadingToast.successfullyLoaded": {
+    "defaultMessage": "{count,plural,one{已成功載入 # 個擴充功能} other{已成功載入 # 個擴充功能}}"
+  },
+  "headersSection.add": {
+    "defaultMessage": "新增"
+  },
+  "headersSection.bothRequired": {
+    "defaultMessage": "必須同時輸入標頭名稱與值"
+  },
+  "headersSection.duplicateHeader": {
+    "defaultMessage": "已存在同名的標頭"
+  },
+  "headersSection.headerName": {
+    "defaultMessage": "標頭名稱"
+  },
+  "headersSection.headersDescription": {
+    "defaultMessage": "新增要在傳送至 MCP 伺服器的要求中包含的自訂 HTTP 標頭。填妥兩個欄位後，按一下「+」按鈕即可新增。"
+  },
+  "headersSection.noSpaces": {
+    "defaultMessage": "標頭名稱不可包含空格"
+  },
+  "headersSection.requestHeaders": {
+    "defaultMessage": "要求標頭"
+  },
+  "headersSection.value": {
+    "defaultMessage": "值"
+  },
+  "hub.goodAfternoon": {
+    "defaultMessage": "午安"
+  },
+  "hub.goodEvening": {
+    "defaultMessage": "晚安"
+  },
+  "hub.goodMorning": {
+    "defaultMessage": "早安"
+  },
+  "huggingFaceModelSearch.download": {
+    "defaultMessage": "下載"
+  },
+  "huggingFaceModelSearch.downloaded": {
+    "defaultMessage": "已下載"
+  },
+  "huggingFaceModelSearch.downloading": {
+    "defaultMessage": "正在下載…"
+  },
+  "huggingFaceModelSearch.loadingVariants": {
+    "defaultMessage": "正在載入變體…"
+  },
+  "huggingFaceModelSearch.noGgufModels": {
+    "defaultMessage": "找不到符合此查詢的相容本機模型。"
+  },
+  "huggingFaceModelSearch.recommended": {
+    "defaultMessage": "推薦"
+  },
+  "huggingFaceModelSearch.searchError": {
+    "defaultMessage": "搜尋錯誤：{details}"
+  },
+  "huggingFaceModelSearch.searchFailed": {
+    "defaultMessage": "搜尋失敗。請再試一次。"
+  },
+  "huggingFaceModelSearch.searchHuggingFace": {
+    "defaultMessage": "搜尋 HuggingFace"
+  },
+  "huggingFaceModelSearch.searchNoData": {
+    "defaultMessage": "搜尋未傳回任何資料。"
+  },
+  "huggingFaceModelSearch.searchPlaceholder": {
+    "defaultMessage": "搜尋本機模型…"
+  },
+  "huggingFaceModelSearch.tooLarge": {
+    "defaultMessage": "可能無法載入記憶體（模型 {size}，可用 {available}）"
+  },
+  "huggingFaceSignInPrompt.failedToConfigure": {
+    "defaultMessage": "登入 Hugging Face 失敗：{error}"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "登入"
+  },
+  "huggingFaceSignInPrompt.signedIn": {
+    "defaultMessage": "已登入 Hugging Face"
+  },
+  "huggingFaceSignInPrompt.signingIn": {
+    "defaultMessage": "正在登入…"
+  },
+  "huggingFaceSignInPrompt.title": {
+    "defaultMessage": "Hugging Face"
+  },
+  "imagePreview.altText": {
+    "defaultMessage": "goose 圖片"
+  },
+  "imagePreview.clickToCollapse": {
+    "defaultMessage": "按一下以收合"
+  },
+  "imagePreview.clickToExpand": {
+    "defaultMessage": "按一下以展開"
+  },
+  "imagePreview.unableToLoad": {
+    "defaultMessage": "無法載入圖片"
+  },
+  "importRecipeForm.cancel": {
+    "defaultMessage": "取消"
+  },
+  "importRecipeForm.deeplinkHint": {
+    "defaultMessage": "貼上以「goose://recipe?config=」開頭的食譜深層連結"
+  },
+  "importRecipeForm.deeplinkPlaceholder": {
+    "defaultMessage": "在此貼上您的 goose://recipe?config=… 深層連結"
+  },
+  "importRecipeForm.example": {
+    "defaultMessage": "範例"
+  },
+  "importRecipeForm.expectedRecipeStructure": {
+    "defaultMessage": "預期的食譜結構"
+  },
+  "importRecipeForm.importRecipeButton": {
+    "defaultMessage": "匯入食譜"
+  },
+  "importRecipeForm.importRecipeTitle": {
+    "defaultMessage": "匯入食譜"
+  },
+  "importRecipeForm.importing": {
+    "defaultMessage": "正在匯入…"
+  },
+  "importRecipeForm.or": {
+    "defaultMessage": "或"
+  },
+  "importRecipeForm.recipeDeeplinkLabel": {
+    "defaultMessage": "食譜深層連結"
+  },
+  "importRecipeForm.recipeFileHint": {
+    "defaultMessage": "上傳包含食譜結構的 YAML 或 JSON 檔案"
+  },
+  "importRecipeForm.recipeFileLabel": {
+    "defaultMessage": "食譜檔案"
+  },
+  "importRecipeForm.reviewWarning": {
+    "defaultMessage": "在將食譜檔案加入您的 goose 介面之前，請務必檢閱其內容。"
+  },
+  "importRecipeForm.schemaDescription": {
+    "defaultMessage": "您的 YAML 或 JSON 檔案應遵循此結構。必填欄位為：title、description，以及 instructions 或 prompt 其中之一。"
+  },
+  "inlineEditText.clickToEdit": {
+    "defaultMessage": "按一下以編輯"
+  },
+  "inlineEditText.doubleClickToEdit": {
+    "defaultMessage": "按兩下以編輯"
+  },
+  "inlineEditText.enterText": {
+    "defaultMessage": "輸入文字"
+  },
+  "inlineEditText.failedToSave": {
+    "defaultMessage": "儲存失敗"
+  },
+  "instructionsEditor.cancel": {
+    "defaultMessage": "取消"
+  },
+  "instructionsEditor.insertExample": {
+    "defaultMessage": "插入範例"
+  },
+  "instructionsEditor.label": {
+    "defaultMessage": "指示"
+  },
+  "instructionsEditor.placeholder": {
+    "defaultMessage": "提供給 AI 的詳細指示，使用者看不到"
+  },
+  "instructionsEditor.save": {
+    "defaultMessage": "儲存指示"
+  },
+  "instructionsEditor.syntaxHelp": {
+    "defaultMessage": "使用 {code} 語法定義使用者可填入的參數"
+  },
+  "instructionsEditor.title": {
+    "defaultMessage": "指示編輯器"
+  },
+  "jsonSchemaEditor.cancel": {
+    "defaultMessage": "取消"
+  },
+  "jsonSchemaEditor.description": {
+    "defaultMessage": "使用 JSON Schema 格式定義 AI 回應的預期結構"
+  },
+  "jsonSchemaEditor.insertExample": {
+    "defaultMessage": "插入範例"
+  },
+  "jsonSchemaEditor.invalidJson": {
+    "defaultMessage": "JSON 格式無效"
+  },
+  "jsonSchemaEditor.label": {
+    "defaultMessage": "回應 JSON Schema"
+  },
+  "jsonSchemaEditor.save": {
+    "defaultMessage": "儲存結構描述"
+  },
+  "jsonSchemaEditor.title": {
+    "defaultMessage": "JSON Schema 編輯器"
+  },
+  "jsonSchemaForm.cancel": {
+    "defaultMessage": "取消"
+  },
+  "jsonSchemaForm.fieldRequired": {
+    "defaultMessage": "此欄位為必填"
+  },
+  "jsonSchemaForm.maxLength": {
+    "defaultMessage": "最大長度為 {maxLength}"
+  },
+  "jsonSchemaForm.maxValue": {
+    "defaultMessage": "最大值為 {maximum}"
+  },
+  "jsonSchemaForm.minLength": {
+    "defaultMessage": "最小長度為 {minLength}"
+  },
+  "jsonSchemaForm.minValue": {
+    "defaultMessage": "最小值為 {minimum}"
+  },
+  "jsonSchemaForm.noFields": {
+    "defaultMessage": "沒有可顯示的欄位"
+  },
+  "jsonSchemaForm.selectPlaceholder": {
+    "defaultMessage": "請選擇…"
+  },
+  "jsonSchemaForm.submit": {
+    "defaultMessage": "提交"
+  },
+  "keyValueEditor.addValue": {
+    "defaultMessage": "新增預先設定的值"
+  },
+  "keyValueEditor.defaultKeyPlaceholder": {
+    "defaultMessage": "參數名稱…"
+  },
+  "keyValueEditor.defaultValuePlaceholder": {
+    "defaultMessage": "參數值…"
+  },
+  "keyValueEditor.removeValue": {
+    "defaultMessage": "移除預先設定的值 {key}"
+  },
+  "keyboardShortcuts.alwaysOnTopDescription": {
+    "defaultMessage": "切換視窗永遠在最上層"
+  },
+  "keyboardShortcuts.alwaysOnTopLabel": {
+    "defaultMessage": "永遠在最上層"
+  },
+  "keyboardShortcuts.cancel": {
+    "defaultMessage": "取消"
+  },
+  "keyboardShortcuts.categoryApplication": {
+    "defaultMessage": "應用程式快速鍵"
+  },
+  "keyboardShortcuts.categoryApplicationDescription": {
+    "defaultMessage": "這些快速鍵在 Goose 為使用中的應用程式時生效"
+  },
+  "keyboardShortcuts.categoryGlobal": {
+    "defaultMessage": "全域快速鍵"
+  },
+  "keyboardShortcuts.categoryGlobalDescription": {
+    "defaultMessage": "這些快速鍵在整個系統都可使用，即使 Goose 並非焦點視窗"
+  },
+  "keyboardShortcuts.categorySearch": {
+    "defaultMessage": "搜尋快速鍵"
+  },
+  "keyboardShortcuts.categorySearchDescription": {
+    "defaultMessage": "這些快速鍵在對話中搜尋時生效"
+  },
+  "keyboardShortcuts.categoryWindow": {
+    "defaultMessage": "視窗快速鍵"
+  },
+  "keyboardShortcuts.categoryWindowDescription": {
+    "defaultMessage": "這些快速鍵用於控制視窗行為"
+  },
+  "keyboardShortcuts.change": {
+    "defaultMessage": "變更"
+  },
+  "keyboardShortcuts.disabled": {
+    "defaultMessage": "已停用"
+  },
+  "keyboardShortcuts.dismiss": {
+    "defaultMessage": "關閉"
+  },
+  "keyboardShortcuts.findDescription": {
+    "defaultMessage": "在對話中開啟搜尋"
+  },
+  "keyboardShortcuts.findLabel": {
+    "defaultMessage": "尋找"
+  },
+  "keyboardShortcuts.findNextDescription": {
+    "defaultMessage": "跳至下一個搜尋結果"
+  },
+  "keyboardShortcuts.findNextLabel": {
+    "defaultMessage": "尋找下一個"
+  },
+  "keyboardShortcuts.findPreviousDescription": {
+    "defaultMessage": "跳至上一個搜尋結果"
+  },
+  "keyboardShortcuts.findPreviousLabel": {
+    "defaultMessage": "尋找上一個"
+  },
+  "keyboardShortcuts.focusWindowDescription": {
+    "defaultMessage": "從任何位置將 Goose 視窗帶到前景"
+  },
+  "keyboardShortcuts.focusWindowLabel": {
+    "defaultMessage": "聚焦 Goose 視窗"
+  },
+  "keyboardShortcuts.loading": {
+    "defaultMessage": "載入中…"
+  },
+  "keyboardShortcuts.newChatDescription": {
+    "defaultMessage": "在目前視窗中建立新的對話"
+  },
+  "keyboardShortcuts.newChatLabel": {
+    "defaultMessage": "新對話"
+  },
+  "keyboardShortcuts.newChatWindowDescription": {
+    "defaultMessage": "開啟新的 Goose 視窗"
+  },
+  "keyboardShortcuts.newChatWindowLabel": {
+    "defaultMessage": "新對話視窗"
+  },
+  "keyboardShortcuts.openDirectoryDescription": {
+    "defaultMessage": "開啟目錄選擇對話框"
+  },
+  "keyboardShortcuts.openDirectoryLabel": {
+    "defaultMessage": "開啟目錄"
+  },
+  "keyboardShortcuts.quickLauncherDescription": {
+    "defaultMessage": "開啟快速啟動器覆蓋層"
+  },
+  "keyboardShortcuts.quickLauncherLabel": {
+    "defaultMessage": "快速啟動器"
+  },
+  "keyboardShortcuts.reassignShortcut": {
+    "defaultMessage": "重新指派快速鍵"
+  },
+  "keyboardShortcuts.resetAllShortcuts": {
+    "defaultMessage": "重設所有快速鍵"
+  },
+  "keyboardShortcuts.resetShortcutsDetail": {
+    "defaultMessage": "這會將所有快速鍵還原為原始設定。"
+  },
+  "keyboardShortcuts.resetShortcutsMessage": {
+    "defaultMessage": "要將所有鍵盤快速鍵重設為預設值嗎？"
+  },
+  "keyboardShortcuts.resetShortcutsTitle": {
+    "defaultMessage": "重設鍵盤快速鍵"
+  },
+  "keyboardShortcuts.resetToDefaultsDescription": {
+    "defaultMessage": "將所有鍵盤快速鍵還原為原始設定"
+  },
+  "keyboardShortcuts.resetToDefaultsHeading": {
+    "defaultMessage": "重設為預設值"
+  },
+  "keyboardShortcuts.restartDescription": {
+    "defaultMessage": "變更應用程式快速鍵（例如「新對話」、「設定」等）需要重新啟動 Goose 才會生效。全域快速鍵（聚焦視窗、快速啟動器）則會立即生效。"
+  },
+  "keyboardShortcuts.restartRequired": {
+    "defaultMessage": "需要重新啟動"
+  },
+  "keyboardShortcuts.settingsDescription": {
+    "defaultMessage": "開啟設定面板"
+  },
+  "keyboardShortcuts.settingsLabel": {
+    "defaultMessage": "設定"
+  },
+  "keyboardShortcuts.shortcutConflictSaveDetail": {
+    "defaultMessage": "儲存後會將此快速鍵從「{conflictLabel}」移除並指派給「{targetLabel}」。要繼續嗎？"
+  },
+  "keyboardShortcuts.shortcutConflictTitle": {
+    "defaultMessage": "快速鍵衝突"
+  },
+  "keyboardShortcuts.shortcutConflictToggleDetail": {
+    "defaultMessage": "啟用後會將此快速鍵從「{conflictLabel}」移除並指派給「{targetLabel}」。要繼續嗎？"
+  },
+  "keyboardShortcuts.shortcutConflictToggleMessage": {
+    "defaultMessage": "快速鍵 {shortcut} 已指派給「{conflictLabel}」。"
+  },
+  "keyboardShortcuts.toggleNavigationDescription": {
+    "defaultMessage": "顯示或隱藏導覽選單"
+  },
+  "keyboardShortcuts.toggleNavigationLabel": {
+    "defaultMessage": "切換導覽"
+  },
+  "launcher.placeholder": {
+    "defaultMessage": "向 goose 詢問任何問題…"
+  },
+  "loadingGoose.compacting": {
+    "defaultMessage": "goose 正在壓縮對話…"
+  },
+  "loadingGoose.idle": {
+    "defaultMessage": "goose 正在處理…"
+  },
+  "loadingGoose.loadingConversation": {
+    "defaultMessage": "正在載入對話…"
+  },
+  "loadingGoose.restartingAgent": {
+    "defaultMessage": "正在重新啟動工作階段…"
+  },
+  "loadingGoose.streaming": {
+    "defaultMessage": "goose 正在處理…"
+  },
+  "loadingGoose.thinking": {
+    "defaultMessage": "goose 正在思考…"
+  },
+  "loadingGoose.waiting": {
+    "defaultMessage": "goose 正在等待…"
+  },
+  "localInferenceSettings.deleteConfirm": {
+    "defaultMessage": "要刪除此模型嗎？您之後可以重新下載。"
+  },
+  "localInferenceSettings.description": {
+    "defaultMessage": "下載並管理本機 LLM 模型，無需 API 金鑰即可進行推論。在 HuggingFace 搜尋 GGUF 或 MLX 模型，或使用下方的精選推薦。"
+  },
+  "localInferenceSettings.dismiss": {
+    "defaultMessage": "關閉"
+  },
+  "localInferenceSettings.download": {
+    "defaultMessage": "下載"
+  },
+  "localInferenceSettings.downloadCancelled": {
+    "defaultMessage": "下載已取消"
+  },
+  "localInferenceSettings.downloadFailed": {
+    "defaultMessage": "下載失敗"
+  },
+  "localInferenceSettings.downloadProgress": {
+    "defaultMessage": "{downloaded} / {total}（{percent}%）"
+  },
+  "localInferenceSettings.downloadedModels": {
+    "defaultMessage": "已下載的模型"
+  },
+  "localInferenceSettings.downloading": {
+    "defaultMessage": "下載中"
+  },
+  "localInferenceSettings.featuredModels": {
+    "defaultMessage": "精選模型"
+  },
+  "localInferenceSettings.huggingFaceSignInNote": {
+    "defaultMessage": "登入以在搜尋與下載模型時提高速率上限，並存取私人或受限的 Hugging Face 儲存庫。"
+  },
+  "localInferenceSettings.modelSettings": {
+    "defaultMessage": "模型設定"
+  },
+  "localInferenceSettings.modelSettingsTitle": {
+    "defaultMessage": "模型設定"
+  },
+  "localInferenceSettings.noModels": {
+    "defaultMessage": "沒有可用的模型"
+  },
+  "localInferenceSettings.recommended": {
+    "defaultMessage": "建議"
+  },
+  "localInferenceSettings.remaining": {
+    "defaultMessage": "剩餘 {time}"
+  },
+  "localInferenceSettings.retry": {
+    "defaultMessage": "重試"
+  },
+  "localInferenceSettings.showAllFeatured": {
+    "defaultMessage": "顯示全部精選（還有 {count} 個）"
+  },
+  "localInferenceSettings.showRecommendedOnly": {
+    "defaultMessage": "僅顯示建議項目"
+  },
+  "localInferenceSettings.title": {
+    "defaultMessage": "本機推論模型"
+  },
+  "localInferenceSettings.vision": {
+    "defaultMessage": "視覺"
+  },
+  "localInferenceSettings.visionEncoderDownloading": {
+    "defaultMessage": "正在下載視覺編碼器…"
+  },
+  "localInferenceSettings.visionEncoderNotDownloaded": {
+    "defaultMessage": "尚未下載視覺編碼器"
+  },
+  "localModelManager.active": {
+    "defaultMessage": "使用中"
+  },
+  "localModelManager.deleteConfirm": {
+    "defaultMessage": "要刪除此模型嗎？您之後可以重新下載。"
+  },
+  "localModelManager.download": {
+    "defaultMessage": "下載"
+  },
+  "localModelManager.downloaded": {
+    "defaultMessage": "已下載"
+  },
+  "localModelManager.gpuAcceleration": {
+    "defaultMessage": "支援 GPU 加速（NVIDIA 使用 CUDA，Apple Silicon 使用 Metal）。硬體加速的 GPU 功能必須在建置時啟用。"
+  },
+  "localModelManager.noModels": {
+    "defaultMessage": "沒有可用的模型"
+  },
+  "localModelManager.recommended": {
+    "defaultMessage": "建議"
+  },
+  "localModelManager.recommendedForHardware": {
+    "defaultMessage": "為您的硬體建議"
+  },
+  "localModelManager.showAllModels": {
+    "defaultMessage": "顯示所有模型（還有 {count} 個）"
+  },
+  "localModelManager.showRecommendedOnly": {
+    "defaultMessage": "僅顯示建議項目"
+  },
+  "localModelPicker.back": {
+    "defaultMessage": "返回"
+  },
+  "localModelPicker.bestForMachine": {
+    "defaultMessage": "最適合您的電腦"
+  },
+  "localModelPicker.cancelDownload": {
+    "defaultMessage": "取消下載"
+  },
+  "localModelPicker.checkingModels": {
+    "defaultMessage": "正在檢查可用的模型…"
+  },
+  "localModelPicker.downloadModel": {
+    "defaultMessage": "下載 {modelId}（{size}）"
+  },
+  "localModelPicker.downloading": {
+    "defaultMessage": "正在下載 {modelId}"
+  },
+  "localModelPicker.failedToLoad": {
+    "defaultMessage": "載入可用模型失敗。請再試一次。"
+  },
+  "localModelPicker.failedToStartDownload": {
+    "defaultMessage": "無法開始下載。請再試一次。"
+  },
+  "localModelPicker.hideOtherSizes": {
+    "defaultMessage": "隱藏其他大小"
+  },
+  "localModelPicker.localModelsNote": {
+    "defaultMessage": "本機模型會將所有資料保留在您的電腦上，以確保完全的隱私。效能與上下文視窗大小可能因您的硬體與模型大小而異，與雲端供應商相比會有所不同。"
+  },
+  "localModelPicker.lostConnection": {
+    "defaultMessage": "與下載的連線中斷。請再試一次。"
+  },
+  "localModelPicker.modelNotFound": {
+    "defaultMessage": "找不到模型"
+  },
+  "localModelPicker.ready": {
+    "defaultMessage": "就緒"
+  },
+  "localModelPicker.selectModel": {
+    "defaultMessage": "選擇模型"
+  },
+  "localModelPicker.showOtherSizes": {
+    "defaultMessage": "顯示其他 {count} 種大小"
+  },
+  "localModelPicker.startingDownload": {
+    "defaultMessage": "正在開始下載…"
+  },
+  "localModelPicker.tryAgain": {
+    "defaultMessage": "再試一次"
+  },
+  "localModelPicker.useModel": {
+    "defaultMessage": "使用 {modelId}"
+  },
+  "markdownContent.cancel": {
+    "defaultMessage": "取消"
+  },
+  "markdownContent.copyCode": {
+    "defaultMessage": "複製程式碼"
+  },
+  "markdownContent.failedToOpenLink": {
+    "defaultMessage": "開啟連結失敗"
+  },
+  "markdownContent.noApplicationFound": {
+    "defaultMessage": "找不到可開啟此連結的應用程式。"
+  },
+  "markdownContent.open": {
+    "defaultMessage": "開啟"
+  },
+  "markdownContent.openExternalLink": {
+    "defaultMessage": "開啟外部連結"
+  },
+  "markdownContent.openProtocolLink": {
+    "defaultMessage": "要開啟 {protocol} 連結嗎？"
+  },
+  "markdownContent.thisWillOpen": {
+    "defaultMessage": "這會開啟：{href}"
+  },
+  "mcpAppRenderer.appFallbackTitle": {
+    "defaultMessage": "應用程式"
+  },
+  "mcpAppRenderer.cancelButton": {
+    "defaultMessage": "取消"
+  },
+  "mcpAppRenderer.close": {
+    "defaultMessage": "關閉"
+  },
+  "mcpAppRenderer.exitFullscreen": {
+    "defaultMessage": "結束全螢幕"
+  },
+  "mcpAppRenderer.exitFullscreenTitle": {
+    "defaultMessage": "結束全螢幕（Esc）"
+  },
+  "mcpAppRenderer.failedToInitSandbox": {
+    "defaultMessage": "初始化沙箱代理失敗"
+  },
+  "mcpAppRenderer.failedToLoadResource": {
+    "defaultMessage": "載入資源失敗"
+  },
+  "mcpAppRenderer.fullscreen": {
+    "defaultMessage": "全螢幕"
+  },
+  "mcpAppRenderer.invalidUrl": {
+    "defaultMessage": "無效的 URL"
+  },
+  "mcpAppRenderer.movePipWindow": {
+    "defaultMessage": "移動子母畫面視窗（使用方向鍵）"
+  },
+  "mcpAppRenderer.openButton": {
+    "defaultMessage": "開啟"
+  },
+  "mcpAppRenderer.openExternalLinkTitle": {
+    "defaultMessage": "開啟外部連結"
+  },
+  "mcpAppRenderer.openLinkDetail": {
+    "defaultMessage": "這會開啟：{url}"
+  },
+  "mcpAppRenderer.openProtocolLink": {
+    "defaultMessage": "要開啟 {protocol} 連結嗎？"
+  },
+  "mcpAppRenderer.pictureInPicture": {
+    "defaultMessage": "子母畫面"
+  },
+  "mcpAppRenderer.playingInPip": {
+    "defaultMessage": "正在子母畫面中播放"
+  },
+  "mcpUIResourceRenderer.cancelButton": {
+    "defaultMessage": "取消"
+  },
+  "mcpUIResourceRenderer.openButton": {
+    "defaultMessage": "開啟"
+  },
+  "mcpUIResourceRenderer.openExternalLinkTitle": {
+    "defaultMessage": "開啟外部連結"
+  },
+  "mcpUIResourceRenderer.openLinkDetail": {
+    "defaultMessage": "這會開啟：{url}"
+  },
+  "mcpUIResourceRenderer.openProtocolLink": {
+    "defaultMessage": "要開啟 {protocol} 連結嗎？"
+  },
+  "mcpUIResourceRenderer.toastMessageReceived": {
+    "defaultMessage": "已收到 {message} 的訊息。"
+  },
+  "mcpUIResourceRenderer.toastTitle": {
+    "defaultMessage": "MCP-UI {messageType} 訊息"
+  },
+  "mcpUIResourceRenderer.toastUnsupported": {
+    "defaultMessage": "已收到 {message} 的訊息。目前尚不支援 {messageType} 訊息，詳情請參閱主控台。"
+  },
+  "mentionPopover.itemsFound": {
+    "defaultMessage": "{count,plural,one{找到 # 個項目} other{找到 # 個項目}}"
+  },
+  "mentionPopover.loadingCommands": {
+    "defaultMessage": "正在載入指令…"
+  },
+  "mentionPopover.noCommandsFound": {
+    "defaultMessage": "找不到符合「{query}」的指令"
+  },
+  "mentionPopover.noItemsFound": {
+    "defaultMessage": "找不到符合「{query}」的項目"
+  },
+  "mentionPopover.scanningFiles": {
+    "defaultMessage": "正在掃描檔案…"
+  },
+  "messageCopyLink.copied": {
+    "defaultMessage": "已複製！"
+  },
+  "messageCopyLink.copy": {
+    "defaultMessage": "複製"
+  },
+  "messageQueue.cancel": {
+    "defaultMessage": "取消"
+  },
+  "messageQueue.cannotSendWhileEditing": {
+    "defaultMessage": "編輯時無法傳送"
+  },
+  "messageQueue.clearAll": {
+    "defaultMessage": "全部清除"
+  },
+  "messageQueue.clickToEdit": {
+    "defaultMessage": "{content}（點擊以編輯）"
+  },
+  "messageQueue.collapseQueue": {
+    "defaultMessage": "收合佇列"
+  },
+  "messageQueue.dragToReorder": {
+    "defaultMessage": "拖曳訊息以重新排序優先順序"
+  },
+  "messageQueue.expandQueue": {
+    "defaultMessage": "展開佇列"
+  },
+  "messageQueue.messageCount": {
+    "defaultMessage": "{count,plural,one{# 則訊息 {status}} other{# 則訊息 {status}}}"
+  },
+  "messageQueue.messageQueue": {
+    "defaultMessage": "訊息佇列"
+  },
+  "messageQueue.next": {
+    "defaultMessage": "下一個"
+  },
+  "messageQueue.paused": {
+    "defaultMessage": "已暫停"
+  },
+  "messageQueue.queuePaused": {
+    "defaultMessage": "佇列已暫停"
+  },
+  "messageQueue.queuePausedCompact": {
+    "defaultMessage": "佇列已暫停 - 點擊「傳送」或新增訊息以繼續"
+  },
+  "messageQueue.queuePausedExpanded": {
+    "defaultMessage": "佇列因中斷而暫停。請使用「立即傳送」或新增訊息以繼續。"
+  },
+  "messageQueue.queued": {
+    "defaultMessage": "已排入佇列"
+  },
+  "messageQueue.removeFromQueue": {
+    "defaultMessage": "從佇列中移除此訊息"
+  },
+  "messageQueue.save": {
+    "defaultMessage": "儲存"
+  },
+  "messageQueue.sendNow": {
+    "defaultMessage": "立即傳送此訊息"
+  },
+  "messageQueue.stopAndSend": {
+    "defaultMessage": "停止目前的處理並立即傳送此訊息"
+  },
+  "messageQueue.waiting": {
+    "defaultMessage": "等待中"
+  },
+  "microphoneSelector.chooseDescription": {
+    "defaultMessage": "選擇要用於聽寫的麥克風"
+  },
+  "microphoneSelector.grantAccess": {
+    "defaultMessage": "授予存取權"
+  },
+  "microphoneSelector.grantAccessDescription": {
+    "defaultMessage": "授予存取權以查看可用的麥克風"
+  },
+  "microphoneSelector.microphone": {
+    "defaultMessage": "麥克風"
+  },
+  "microphoneSelector.microphoneLabel": {
+    "defaultMessage": "麥克風 {index}"
+  },
+  "microphoneSelector.selectedMicrophone": {
+    "defaultMessage": "已選擇的麥克風"
+  },
+  "microphoneSelector.speakToTest": {
+    "defaultMessage": "說話以測試您的麥克風（{seconds} 秒）"
+  },
+  "microphoneSelector.stop": {
+    "defaultMessage": "停止"
+  },
+  "microphoneSelector.systemDefault": {
+    "defaultMessage": "系統預設"
+  },
+  "microphoneSelector.test": {
+    "defaultMessage": "測試"
+  },
+  "modeSelectionItem.autonomousDescription": {
+    "defaultMessage": "完整的檔案修改能力，可自由編輯、建立與刪除檔案。"
+  },
+  "modeSelectionItem.autonomousLabel": {
+    "defaultMessage": "自主"
+  },
+  "modeSelectionItem.chatOnlyDescription": {
+    "defaultMessage": "與選定的供應商互動，不使用工具或擴充功能。"
+  },
+  "modeSelectionItem.chatOnlyLabel": {
+    "defaultMessage": "僅對話"
+  },
+  "modeSelectionItem.manualDescription": {
+    "defaultMessage": "所有工具、擴充功能與檔案修改都需要人工核准"
+  },
+  "modeSelectionItem.manualLabel": {
+    "defaultMessage": "手動"
+  },
+  "modeSelectionItem.smartDescription": {
+    "defaultMessage": "根據風險程度智慧判斷哪些動作需要核准"
+  },
+  "modeSelectionItem.smartLabel": {
+    "defaultMessage": "智慧"
+  },
+  "modelAndProviderContext.modelChangeFailed": {
+    "defaultMessage": "{provider}/{model} 失敗"
+  },
+  "modelAndProviderContext.modelChangedTitle": {
+    "defaultMessage": "模型已變更"
+  },
+  "modelAndProviderContext.selectModel": {
+    "defaultMessage": "選擇模型"
+  },
+  "modelAndProviderContext.switchModelSuccess": {
+    "defaultMessage": "已成功切換模型 -- 正在使用來自 {provider} 的 {model}"
+  },
+  "modelAndProviderContext.unknownProviderMsg": {
+    "defaultMessage": "設定中有未知的供應商 -- 請檢查您的 config.yaml"
+  },
+  "modelAndProviderContext.unknownProviderTitle": {
+    "defaultMessage": "供應商名稱查詢"
+  },
+  "modelSettingsButtons.configureProviders": {
+    "defaultMessage": "設定供應商"
+  },
+  "modelSettingsButtons.switchModels": {
+    "defaultMessage": "切換模型"
+  },
+  "modelSettingsPanel.batchSize": {
+    "defaultMessage": "批次大小"
+  },
+  "modelSettingsPanel.batchSizeDescription": {
+    "defaultMessage": "提示處理批次"
+  },
+  "modelSettingsPanel.builtinChatTemplate": {
+    "defaultMessage": "內建範本"
+  },
+  "modelSettingsPanel.builtinChatTemplateDescription": {
+    "defaultMessage": "選擇 llama.cpp 內建範本名稱"
+  },
+  "modelSettingsPanel.chatTemplate": {
+    "defaultMessage": "對話範本"
+  },
+  "modelSettingsPanel.chatTemplateBuiltin": {
+    "defaultMessage": "內建"
+  },
+  "modelSettingsPanel.chatTemplateCustomInline": {
+    "defaultMessage": "自訂內嵌"
+  },
+  "modelSettingsPanel.chatTemplateDescription": {
+    "defaultMessage": "使用內嵌的 GGUF 中繼資料、llama.cpp 內建範本或內嵌 Jinja"
+  },
+  "modelSettingsPanel.chatTemplateEmbedded": {
+    "defaultMessage": "內嵌"
+  },
+  "modelSettingsPanel.contextAndGeneration": {
+    "defaultMessage": "上下文與生成"
+  },
+  "modelSettingsPanel.contextSize": {
+    "defaultMessage": "上下文大小"
+  },
+  "modelSettingsPanel.contextSizeDescription": {
+    "defaultMessage": "最大上下文視窗（0 = 模型預設值）"
+  },
+  "modelSettingsPanel.customChatTemplate": {
+    "defaultMessage": "自訂對話範本"
+  },
+  "modelSettingsPanel.customChatTemplateDescription": {
+    "defaultMessage": "貼上完整的 Jinja 對話範本原始碼"
+  },
+  "modelSettingsPanel.etaLearningRate": {
+    "defaultMessage": "Eta（學習率）"
+  },
+  "modelSettingsPanel.flashAttention": {
+    "defaultMessage": "Flash attention"
+  },
+  "modelSettingsPanel.flashAttentionDescription": {
+    "defaultMessage": "啟用 flash attention 最佳化"
+  },
+  "modelSettingsPanel.frequencyPenalty": {
+    "defaultMessage": "頻率懲罰"
+  },
+  "modelSettingsPanel.frequencyPenaltyDescription": {
+    "defaultMessage": "0.0 = 關閉"
+  },
+  "modelSettingsPanel.gpuLayers": {
+    "defaultMessage": "GPU 層數"
+  },
+  "modelSettingsPanel.gpuLayersDescription": {
+    "defaultMessage": "要卸載至 GPU 的層數"
+  },
+  "modelSettingsPanel.loadingSettings": {
+    "defaultMessage": "正在載入設定…"
+  },
+  "modelSettingsPanel.lockModelInRam": {
+    "defaultMessage": "將模型鎖定在 RAM 中（mlock）"
+  },
+  "modelSettingsPanel.lockModelInRamDescription": {
+    "defaultMessage": "防止模型被置換到磁碟"
+  },
+  "modelSettingsPanel.maxOutputTokens": {
+    "defaultMessage": "最大輸出 token 數"
+  },
+  "modelSettingsPanel.maxOutputTokensDescription": {
+    "defaultMessage": "生成 token 的上限"
+  },
+  "modelSettingsPanel.minP": {
+    "defaultMessage": "Min P"
+  },
+  "modelSettingsPanel.performance": {
+    "defaultMessage": "效能"
+  },
+  "modelSettingsPanel.presencePenalty": {
+    "defaultMessage": "出現懲罰"
+  },
+  "modelSettingsPanel.presencePenaltyDescription": {
+    "defaultMessage": "0.0 = 關閉"
+  },
+  "modelSettingsPanel.repeatPenalty": {
+    "defaultMessage": "重複懲罰"
+  },
+  "modelSettingsPanel.repeatPenaltyDescription": {
+    "defaultMessage": "1.0 = 關閉"
+  },
+  "modelSettingsPanel.repeatWindow": {
+    "defaultMessage": "重複視窗"
+  },
+  "modelSettingsPanel.repeatWindowDescription": {
+    "defaultMessage": "回溯的 token 數"
+  },
+  "modelSettingsPanel.repetitionPenalty": {
+    "defaultMessage": "重複懲罰"
+  },
+  "modelSettingsPanel.reset": {
+    "defaultMessage": "重設"
+  },
+  "modelSettingsPanel.resetToDefaults": {
+    "defaultMessage": "重設為預設值"
+  },
+  "modelSettingsPanel.samplingStrategy": {
+    "defaultMessage": "取樣策略"
+  },
+  "modelSettingsPanel.saving": {
+    "defaultMessage": "正在儲存…"
+  },
+  "modelSettingsPanel.seed": {
+    "defaultMessage": "種子"
+  },
+  "modelSettingsPanel.tauTargetEntropy": {
+    "defaultMessage": "Tau（目標熵）"
+  },
+  "modelSettingsPanel.temperature": {
+    "defaultMessage": "溫度"
+  },
+  "modelSettingsPanel.threads": {
+    "defaultMessage": "執行緒"
+  },
+  "modelSettingsPanel.threadsDescription": {
+    "defaultMessage": "用於生成的 CPU 執行緒"
+  },
+  "modelSettingsPanel.toolCalling": {
+    "defaultMessage": "工具呼叫"
+  },
+  "modelSettingsPanel.toolCallingAuto": {
+    "defaultMessage": "自動"
+  },
+  "modelSettingsPanel.toolCallingDescription": {
+    "defaultMessage": "選擇本機模型如何使用原生或模擬的工具呼叫"
+  },
+  "modelSettingsPanel.toolCallingForceEmulated": {
+    "defaultMessage": "強制模擬"
+  },
+  "modelSettingsPanel.toolCallingForceNative": {
+    "defaultMessage": "強制原生"
+  },
+  "modelSettingsPanel.topK": {
+    "defaultMessage": "Top K"
+  },
+  "modelSettingsPanel.topP": {
+    "defaultMessage": "Top P"
+  },
+  "modelsBottomBar.changeModel": {
+    "defaultMessage": "變更模型"
+  },
+  "modelsBottomBar.currentModel": {
+    "defaultMessage": "目前模型"
+  },
+  "modelsBottomBar.loadingModel": {
+    "defaultMessage": "正在載入模型…"
+  },
+  "modelsBottomBar.localModelSettings": {
+    "defaultMessage": "本機模型設定"
+  },
+  "modelsBottomBar.localModelSettingsTitle": {
+    "defaultMessage": "本機模型設定 — {modelName}"
+  },
+  "modelsBottomBar.resolvedModel": {
+    "defaultMessage": "已解析的模型"
+  },
+  "modelsBottomBar.selectModel": {
+    "defaultMessage": "選擇模型"
+  },
+  "modelsSection.resetDescription": {
+    "defaultMessage": "清除您選定的模型與供應商設定以重新開始"
+  },
+  "modelsSection.resetTitle": {
+    "defaultMessage": "重設供應商與模型"
+  },
+  "navigation.itemApps": {
+    "defaultMessage": "應用程式"
+  },
+  "navigation.itemExtensions": {
+    "defaultMessage": "擴充功能"
+  },
+  "navigation.itemHome": {
+    "defaultMessage": "新交談"
+  },
+  "navigation.itemRecipes": {
+    "defaultMessage": "配方"
+  },
+  "navigation.itemScheduler": {
+    "defaultMessage": "排程器"
+  },
+  "navigation.itemSessions": {
+    "defaultMessage": "工作階段紀錄"
+  },
+  "navigation.itemSettings": {
+    "defaultMessage": "設定"
+  },
+  "navigation.itemSkills": {
+    "defaultMessage": "技能"
+  },
+  "navigationPanel.chats": {
+    "defaultMessage": "交談"
+  },
+  "navigationPanel.noChats": {
+    "defaultMessage": "沒有最近的交談"
+  },
+  "navigationPanel.untitledSession": {
+    "defaultMessage": "未命名工作階段"
+  },
+  "onboardingGuard.checkProviderErrorDescription": {
+    "defaultMessage": "伺服器可能正在啟動或暫時無法使用。"
+  },
+  "onboardingGuard.checkProviderErrorTitle": {
+    "defaultMessage": "無法連線到 Goose 伺服器"
+  },
+  "onboardingGuard.retry": {
+    "defaultMessage": "重試"
+  },
+  "onboardingGuard.welcomeDescription": {
+    "defaultMessage": "您的本機 AI 代理。連線 AI 模型供應商即可開始使用。"
+  },
+  "onboardingGuard.welcomeTitle": {
+    "defaultMessage": "歡迎使用 goose"
+  },
+  "onboardingSuccess.allSet": {
+    "defaultMessage": "一切就緒，您可以開始使用 goose 了。"
+  },
+  "onboardingSuccess.connectedTo": {
+    "defaultMessage": "已連線到 {providerName}"
+  },
+  "onboardingSuccess.getStarted": {
+    "defaultMessage": "開始使用"
+  },
+  "onboardingSuccess.learnMore": {
+    "defaultMessage": "瞭解更多"
+  },
+  "onboardingSuccess.localModelReady": {
+    "defaultMessage": "本機模型已就緒"
+  },
+  "onboardingSuccess.privacyDescription": {
+    "defaultMessage": "匿名使用資料有助於改善 goose。我們絕不會收集您的對話、程式碼或個人資料。"
+  },
+  "onboardingSuccess.privacyTitle": {
+    "defaultMessage": "隱私權"
+  },
+  "onboardingSuccess.shareUsageData": {
+    "defaultMessage": "分享匿名使用資料"
+  },
+  "parameterInput.defaultValue": {
+    "defaultMessage": "預設值"
+  },
+  "parameterInput.defaultValuePlaceholder": {
+    "defaultMessage": "輸入預設值"
+  },
+  "parameterInput.deleteParameter": {
+    "defaultMessage": "刪除參數：{key}"
+  },
+  "parameterInput.description": {
+    "defaultMessage": "說明"
+  },
+  "parameterInput.descriptionHelp": {
+    "defaultMessage": "這是最終使用者將會看到的訊息。"
+  },
+  "parameterInput.descriptionPlaceholder": {
+    "defaultMessage": "例如：「輸入新元件的名稱」"
+  },
+  "parameterInput.inputType": {
+    "defaultMessage": "輸入類型"
+  },
+  "parameterInput.optional": {
+    "defaultMessage": "選用"
+  },
+  "parameterInput.optionsHelp": {
+    "defaultMessage": "每個選項各佔一行。這些選項將顯示為下拉式清單選項。"
+  },
+  "parameterInput.optionsLabel": {
+    "defaultMessage": "選項（每行一個）"
+  },
+  "parameterInput.optionsPlaceholder": {
+    "defaultMessage": "選項 1 選項 2 選項 3"
+  },
+  "parameterInput.required": {
+    "defaultMessage": "必填"
+  },
+  "parameterInput.requirement": {
+    "defaultMessage": "需求"
+  },
+  "parameterInput.typeBoolean": {
+    "defaultMessage": "布林值"
+  },
+  "parameterInput.typeNumber": {
+    "defaultMessage": "數字"
+  },
+  "parameterInput.typeSelect": {
+    "defaultMessage": "選取"
+  },
+  "parameterInput.typeString": {
+    "defaultMessage": "字串"
+  },
+  "parameterInput.unused": {
+    "defaultMessage": "未使用"
+  },
+  "parameterInput.unusedWarningTitle": {
+    "defaultMessage": "此參數未在指示或提示中使用。它可供手動輸入，但可能並非必要。"
+  },
+  "parameterInputModal.backToForm": {
+    "defaultMessage": "返回參數表單"
+  },
+  "parameterInputModal.cancel": {
+    "defaultMessage": "取消"
+  },
+  "parameterInputModal.cancelRecipeSetup": {
+    "defaultMessage": "取消配方設定"
+  },
+  "parameterInputModal.enterValue": {
+    "defaultMessage": "輸入 {key} 的值..."
+  },
+  "parameterInputModal.false": {
+    "defaultMessage": "False"
+  },
+  "parameterInputModal.recipeParameters": {
+    "defaultMessage": "配方參數"
+  },
+  "parameterInputModal.select": {
+    "defaultMessage": "選取..."
+  },
+  "parameterInputModal.selectOption": {
+    "defaultMessage": "選取一個選項..."
+  },
+  "parameterInputModal.startNewChat": {
+    "defaultMessage": "開始新交談（無配方）"
+  },
+  "parameterInputModal.startRecipe": {
+    "defaultMessage": "啟動配方"
+  },
+  "parameterInputModal.true": {
+    "defaultMessage": "True"
+  },
+  "parameterInputModal.whatToDo": {
+    "defaultMessage": "您想要執行什麼操作？"
+  },
+  "permissionModal.alwaysAllow": {
+    "defaultMessage": "一律允許"
+  },
+  "permissionModal.askBefore": {
+    "defaultMessage": "事前詢問"
+  },
+  "permissionModal.cancel": {
+    "defaultMessage": "取消"
+  },
+  "permissionModal.close": {
+    "defaultMessage": "關閉"
+  },
+  "permissionModal.failedToLoadTools": {
+    "defaultMessage": "無法載入工具"
+  },
+  "permissionModal.failedToLoadToolsDescription": {
+    "defaultMessage": "無法為此擴充功能載入工具。該擴充功能可能未在目前的工作階段中載入。"
+  },
+  "permissionModal.neverAllow": {
+    "defaultMessage": "永不允許"
+  },
+  "permissionModal.noActiveSession": {
+    "defaultMessage": "沒有作用中的工作階段"
+  },
+  "permissionModal.noActiveSessionDescription": {
+    "defaultMessage": "請先開始交談工作階段，以便為此擴充功能設定工具權限。工具權限會從作用中工作階段的擴充功能載入。"
+  },
+  "permissionModal.noToolsAvailable": {
+    "defaultMessage": "此擴充功能沒有可用的工具。"
+  },
+  "permissionModal.saveChanges": {
+    "defaultMessage": "儲存變更"
+  },
+  "permissionRulesModal.description": {
+    "defaultMessage": "為擴充功能設定工具權限，以控制它們與您系統互動的方式。"
+  },
+  "permissionRulesModal.extensionRules": {
+    "defaultMessage": "擴充功能規則"
+  },
+  "permissionRulesModal.title": {
+    "defaultMessage": "權限規則"
+  },
+  "permissionSetting.extensionRules": {
+    "defaultMessage": "擴充功能規則"
+  },
+  "permissionSetting.permissionRules": {
+    "defaultMessage": "權限規則"
+  },
+  "permissionSetting.permissionRulesDescription": {
+    "defaultMessage": "將傳遞給提供者的隱藏指示，用於引導並為您的回應補充背景資訊。"
+  },
+  "privacyInfoModal.collectErrors": {
+    "defaultMessage": "錯誤類型（例如「rate_limit」、「auth」－不含詳細資料）"
+  },
+  "privacyInfoModal.collectExtensions": {
+    "defaultMessage": "擴充功能與工具使用次數（僅名稱）"
+  },
+  "privacyInfoModal.collectOs": {
+    "defaultMessage": "作業系統、版本與架構"
+  },
+  "privacyInfoModal.collectProvider": {
+    "defaultMessage": "所使用的提供者與模型"
+  },
+  "privacyInfoModal.collectSession": {
+    "defaultMessage": "工作階段指標（持續時間、互動次數、權杖用量）"
+  },
+  "privacyInfoModal.collectVersion": {
+    "defaultMessage": "goose 版本與安裝方式"
+  },
+  "privacyInfoModal.description": {
+    "defaultMessage": "匿名使用資料有助於我們瞭解 goose 的使用情況並找出可改善的方面。"
+  },
+  "privacyInfoModal.neverCollect": {
+    "defaultMessage": "我們絕不會收集您的對話、程式碼、工具引數、錯誤訊息或任何個人資料。您隨時可以在「設定」中變更此設定。"
+  },
+  "privacyInfoModal.title": {
+    "defaultMessage": "隱私權詳細資料"
+  },
+  "privacyInfoModal.whatWeCollect": {
+    "defaultMessage": "我們收集的內容："
+  },
+  "progressiveMessageList.loadingMessages": {
+    "defaultMessage": "正在載入訊息... ({renderedCount}/{totalCount})"
+  },
+  "progressiveMessageList.modelChanged": {
+    "defaultMessage": "模型已變更：{previousModel} → {currentModel}"
+  },
+  "progressiveMessageList.searchHint": {
+    "defaultMessage": "按 Cmd/Ctrl+F 立即載入所有訊息以進行搜尋"
+  },
+  "promptsSettings.allPromptsReset": {
+    "defaultMessage": "所有提示已重設為預設值"
+  },
+  "promptsSettings.backToList": {
+    "defaultMessage": "返回清單"
+  },
+  "promptsSettings.confirmReplaceWithDefault": {
+    "defaultMessage": "要以預設內容取代目前的內容嗎？您的變更將會遺失。"
+  },
+  "promptsSettings.confirmResetAll": {
+    "defaultMessage": "您確定要將所有提示重設為預設值嗎？此操作無法復原。"
+  },
+  "promptsSettings.confirmResetOne": {
+    "defaultMessage": "您確定要將此提示重設為預設值嗎？此操作無法復原。"
+  },
+  "promptsSettings.confirmUnsavedBack": {
+    "defaultMessage": "您有未儲存的變更。您確定要返回嗎？"
+  },
+  "promptsSettings.customized": {
+    "defaultMessage": "已自訂"
+  },
+  "promptsSettings.edit": {
+    "defaultMessage": "編輯"
+  },
+  "promptsSettings.editPromptTitle": {
+    "defaultMessage": "編輯：{name}"
+  },
+  "promptsSettings.editingLabel": {
+    "defaultMessage": "正在編輯：{name}"
+  },
+  "promptsSettings.enterPromptContent": {
+    "defaultMessage": "輸入提示內容..."
+  },
+  "promptsSettings.failedToLoadPrompt": {
+    "defaultMessage": "無法載入提示"
+  },
+  "promptsSettings.failedToLoadPrompts": {
+    "defaultMessage": "無法載入提示"
+  },
+  "promptsSettings.failedToResetPrompt": {
+    "defaultMessage": "無法重設提示"
+  },
+  "promptsSettings.failedToResetPrompts": {
+    "defaultMessage": "無法重設提示"
+  },
+  "promptsSettings.failedToSavePrompt": {
+    "defaultMessage": "無法儲存提示"
+  },
+  "promptsSettings.promptEditingDescription": {
+    "defaultMessage": "自訂在不同情境中定義 goose 行為的提示。這些提示使用 Jinja2 範本語法。修改範本變數時請務必小心，因為不正確的變更可能會破壞功能。請與社群分享任何改善內容。"
+  },
+  "promptsSettings.promptEditingTitle": {
+    "defaultMessage": "提示編輯"
+  },
+  "promptsSettings.promptResetToDefault": {
+    "defaultMessage": "提示已重設為預設值"
+  },
+  "promptsSettings.promptSaved": {
+    "defaultMessage": "提示已儲存"
+  },
+  "promptsSettings.resetAll": {
+    "defaultMessage": "全部重設"
+  },
+  "promptsSettings.resetToDefault": {
+    "defaultMessage": "重設為預設值"
+  },
+  "promptsSettings.restoreDefault": {
+    "defaultMessage": "還原預設值"
+  },
+  "promptsSettings.save": {
+    "defaultMessage": "儲存"
+  },
+  "promptsSettings.templateTip": {
+    "defaultMessage": "範本變數（例如 {extensionsExample} 或 {forExample}）會在執行階段以實際值取代。請小心不要移除必要的變數。"
+  },
+  "promptsSettings.unsavedChanges": {
+    "defaultMessage": "您有未儲存的變更"
+  },
+  "providerCard.noMetadata": {
+    "defaultMessage": "ProviderCard 錯誤：未提供中繼資料"
+  },
+  "providerCard.unknownProvider": {
+    "defaultMessage": "未知的提供者"
+  },
+  "providerCatalogPicker.anthropicCompatible": {
+    "defaultMessage": "Anthropic 相容"
+  },
+  "providerCatalogPicker.apiFormat": {
+    "defaultMessage": "API 格式"
+  },
+  "providerCatalogPicker.cancel": {
+    "defaultMessage": "取消"
+  },
+  "providerCatalogPicker.chooseProvider": {
+    "defaultMessage": "選擇提供者"
+  },
+  "providerCatalogPicker.errorPrefix": {
+    "defaultMessage": "錯誤：{error}"
+  },
+  "providerCatalogPicker.loadingProviders": {
+    "defaultMessage": "正在載入提供者..."
+  },
+  "providerCatalogPicker.modelsAvailable": {
+    "defaultMessage": "{count} 個可用模型"
+  },
+  "providerCatalogPicker.noProvidersAvailable": {
+    "defaultMessage": "沒有可用的提供者"
+  },
+  "providerCatalogPicker.noProvidersFound": {
+    "defaultMessage": "找不到符合「{query}」的提供者"
+  },
+  "providerCatalogPicker.openaiCompatible": {
+    "defaultMessage": "OpenAI 相容"
+  },
+  "providerCatalogPicker.requiresEnvVar": {
+    "defaultMessage": "• 需要 {envVar}"
+  },
+  "providerCatalogPicker.searchProviders": {
+    "defaultMessage": "搜尋提供者..."
+  },
+  "providerCatalogPicker.selectFormatDescription": {
+    "defaultMessage": "選取 API 格式與提供者。我們會為您自動填入組態。"
+  },
+  "providerConfigForm.browserWindowOpen": {
+    "defaultMessage": "將開啟瀏覽器視窗供您完成登入。"
+  },
+  "providerConfigForm.configuring": {
+    "defaultMessage": "正在設定..."
+  },
+  "providerConfigForm.continue": {
+    "defaultMessage": "繼續"
+  },
+  "providerConfigForm.deviceCodeFlowHint": {
+    "defaultMessage": "將開啟瀏覽器視窗，且驗證碼會複製到您的剪貼簿。將其貼到瀏覽器中以完成登入。"
+  },
+  "providerConfigForm.noApiKey": {
+    "defaultMessage": "沒有 API 金鑰嗎？"
+  },
+  "providerConfigForm.signInWith": {
+    "defaultMessage": "使用 {providerName} 登入"
+  },
+  "providerConfigForm.signingIn": {
+    "defaultMessage": "正在登入..."
+  },
+  "providerConfigurationModal.addApiKeyDescription": {
+    "defaultMessage": "新增此提供者的 API 金鑰以整合至 goose"
+  },
+  "providerConfigurationModal.browserWindowHint": {
+    "defaultMessage": "將開啟瀏覽器視窗供您完成登入。"
+  },
+  "providerConfigurationModal.cancel": {
+    "defaultMessage": "取消"
+  },
+  "providerConfigurationModal.cannotDeleteActive": {
+    "defaultMessage": "此提供者目前正在使用中，您無法將其刪除。請先切換到其他模型。"
+  },
+  "providerConfigurationModal.checkConfigAgain": {
+    "defaultMessage": "再次檢查您的組態以使用此提供者。"
+  },
+  "providerConfigurationModal.close": {
+    "defaultMessage": "關閉"
+  },
+  "providerConfigurationModal.configureHeader": {
+    "defaultMessage": "設定 {providerName}"
+  },
+  "providerConfigurationModal.deleteConfigHeader": {
+    "defaultMessage": "刪除 {providerName} 的組態"
+  },
+  "providerConfigurationModal.deleteConfirmation": {
+    "defaultMessage": "這將永久刪除目前的提供者組態。"
+  },
+  "providerConfigurationModal.deviceCodeFlowHint": {
+    "defaultMessage": "將開啟瀏覽器視窗，且驗證碼會複製到您的剪貼簿。將其貼到瀏覽器中以完成登入。"
+  },
+  "providerConfigurationModal.errorCheckingConfig": {
+    "defaultMessage": "檢查此提供者組態時發生錯誤。"
+  },
+  "providerConfigurationModal.errorTitle": {
+    "defaultMessage": "錯誤"
+  },
+  "providerConfigurationModal.externalSetupIntro": {
+    "defaultMessage": "此提供者是在 goose 之外設定的。請依照下列步驟操作："
+  },
+  "providerConfigurationModal.goBack": {
+    "defaultMessage": "返回"
+  },
+  "providerConfigurationModal.huggingFaceOAuthDescription": {
+    "defaultMessage": "登入即可使用 Hugging Face 推論提供者，無需手動輸入 API 權杖。"
+  },
+  "providerConfigurationModal.oauthLoginFailed": {
+    "defaultMessage": "OAuth 登入失敗：{error}"
+  },
+  "providerConfigurationModal.oauthSignInDescription": {
+    "defaultMessage": "使用您的 {providerName} 帳戶登入以使用此提供者"
+  },
+  "providerConfigurationModal.parameterRequired": {
+    "defaultMessage": "{paramName} 為必填"
+  },
+  "providerConfigurationModal.removeConfiguration": {
+    "defaultMessage": "移除組態"
+  },
+  "providerConfigurationModal.seeDocumentation": {
+    "defaultMessage": "如需更多詳細資料，請參閱<link>說明文件</link>。"
+  },
+  "providerConfigurationModal.signInWith": {
+    "defaultMessage": "使用 {providerName} 登入"
+  },
+  "providerConfigurationModal.signingIn": {
+    "defaultMessage": "正在登入..."
+  },
+  "providerGrid.addProvider": {
+    "defaultMessage": "新增提供者"
+  },
+  "providerGrid.addProviderTitle": {
+    "defaultMessage": "新增提供者"
+  },
+  "providerGrid.chooseModel": {
+    "defaultMessage": "選擇模型"
+  },
+  "providerGrid.configureProvider": {
+    "defaultMessage": "設定提供者"
+  },
+  "providerGrid.editProvider": {
+    "defaultMessage": "編輯提供者"
+  },
+  "providerGrid.fromTemplateOrManual": {
+    "defaultMessage": "從範本或手動設定"
+  },
+  "providerLogo.alt": {
+    "defaultMessage": "{providerName} 標誌"
+  },
+  "providerSelector.addCustomProvider": {
+    "defaultMessage": "新增自訂提供者"
+  },
+  "providerSelector.addCustomProviderTitle": {
+    "defaultMessage": "新增自訂提供者"
+  },
+  "providerSelector.connectProvider": {
+    "defaultMessage": "連線到提供者"
+  },
+  "providerSelector.connectProviderDescription": {
+    "defaultMessage": "連線到 OpenAI、Anthropic、Google 等"
+  },
+  "providerSelector.freeLocalDescription": {
+    "defaultMessage": "使用本機模型或提供免費額度的提供者"
+  },
+  "providerSelector.selectProvider": {
+    "defaultMessage": "選取提供者"
+  },
+  "providerSelector.useFreeLocal": {
+    "defaultMessage": "使用免費／本機提供者"
+  },
+  "providerSettings.configurationSettings": {
+    "defaultMessage": "提供者組態設定"
+  },
+  "providerSettings.loadingProviders": {
+    "defaultMessage": "正在載入提供者..."
+  },
+  "providerSettings.onboardingDescription": {
+    "defaultMessage": "選取一個 AI 模型提供者以開始使用 goose。您需要使用各提供者產生的 API 金鑰，這些金鑰將會加密並儲存在本機。您隨時可以在設定中變更提供者。"
+  },
+  "providerSettings.otherProviders": {
+    "defaultMessage": "其他提供者"
+  },
+  "providerSetupActions.cancel": {
+    "defaultMessage": "取消"
+  },
+  "providerSetupActions.cannotDeleteActive": {
+    "defaultMessage": "{providerName} 目前正在使用中，您無法將其刪除。請先切換到其他模型再刪除此提供者。"
+  },
+  "providerSetupActions.confirmDelete": {
+    "defaultMessage": "確認刪除"
+  },
+  "providerSetupActions.confirmDeleteMessage": {
+    "defaultMessage": "您確定要刪除 {providerName} 的組態參數嗎？此操作無法復原。"
+  },
+  "providerSetupActions.deleteProvider": {
+    "defaultMessage": "刪除提供者"
+  },
+  "providerSetupActions.enableProvider": {
+    "defaultMessage": "啟用提供者"
+  },
+  "providerSetupActions.ok": {
+    "defaultMessage": "確定"
+  },
+  "providerSetupActions.submit": {
+    "defaultMessage": "提交"
+  },
+  "recipeActivityEditor.activitiesDescription": {
+    "defaultMessage": "將顯示在配方交談視窗中的頂端提示與活動按鈕。"
+  },
+  "recipeActivityEditor.activitiesLabel": {
+    "defaultMessage": "活動"
+  },
+  "recipeActivityEditor.activityButtonsDescription": {
+    "defaultMessage": "顯示在訊息下方的可點擊按鈕，協助使用者與您的配方互動。"
+  },
+  "recipeActivityEditor.activityButtonsLabel": {
+    "defaultMessage": "活動按鈕"
+  },
+  "recipeActivityEditor.addActivity": {
+    "defaultMessage": "新增活動"
+  },
+  "recipeActivityEditor.addNewActivityPlaceholder": {
+    "defaultMessage": "新增活動..."
+  },
+  "recipeActivityEditor.messageDescription": {
+    "defaultMessage": "顯示在配方頂端的格式化訊息。支援 Markdown 格式。"
+  },
+  "recipeActivityEditor.messageLabel": {
+    "defaultMessage": "訊息"
+  },
+  "recipeActivityEditor.messagePlaceholder": {
+    "defaultMessage": "為您的配方輸入一段面向使用者的介紹訊息（支援 **粗體**、*斜體*、`程式碼` 等）"
+  },
+  "recipeExtensionSelector.description": {
+    "defaultMessage": "選取執行此配方時應可使用的擴充功能。留空則使用預設擴充功能。"
+  },
+  "recipeExtensionSelector.extensionsSelected": {
+    "defaultMessage": "{count,plural,one{已選取 # 個擴充功能} other{已選取 # 個擴充功能}}"
+  },
+  "recipeExtensionSelector.label": {
+    "defaultMessage": "擴充功能（選用）"
+  },
+  "recipeExtensionSelector.noExtensionsAvailable": {
+    "defaultMessage": "沒有可用的擴充功能"
+  },
+  "recipeExtensionSelector.noExtensionsFound": {
+    "defaultMessage": "找不到擴充功能"
+  },
+  "recipeExtensionSelector.searchPlaceholder": {
+    "defaultMessage": "搜尋擴充功能..."
+  },
+  "recipeFormFields.addParameter": {
+    "defaultMessage": "新增參數"
+  },
+  "recipeFormFields.advancedOptions": {
+    "defaultMessage": "進階選項"
+  },
+  "recipeFormFields.advancedOptionsHint": {
+    "defaultMessage": "活動、參數、模型、擴充功能、回應結構描述、子配方"
+  },
+  "recipeFormFields.descriptionLabel": {
+    "defaultMessage": "說明"
+  },
+  "recipeFormFields.descriptionPlaceholder": {
+    "defaultMessage": "簡述此配方的功能"
+  },
+  "recipeFormFields.enterValueFor": {
+    "defaultMessage": "輸入 {key} 的值"
+  },
+  "recipeFormFields.initialPrompt": {
+    "defaultMessage": "初始提示"
+  },
+  "recipeFormFields.instructionsLabel": {
+    "defaultMessage": "指示"
+  },
+  "recipeFormFields.instructionsPlaceholder": {
+    "defaultMessage": "給 AI 的詳細指示，對使用者隱藏"
+  },
+  "recipeFormFields.openEditor": {
+    "defaultMessage": "開啟編輯器"
+  },
+  "recipeFormFields.parameterNamePlaceholder": {
+    "defaultMessage": "輸入參數名稱..."
+  },
+  "recipeFormFields.parametersDescription": {
+    "defaultMessage": "系統會自動從指示／提示／活動中的'{{parameter_name}}'語法偵測參數，您也可以在下方手動新增。"
+  },
+  "recipeFormFields.parametersLabel": {
+    "defaultMessage": "參數"
+  },
+  "recipeFormFields.promptOptionalHint": {
+    "defaultMessage": "（選用－必須提供指示或提示）"
+  },
+  "recipeFormFields.promptPlaceholder": {
+    "defaultMessage": "配方啟動時預先填入的提示"
+  },
+  "recipeFormFields.responseJsonSchema": {
+    "defaultMessage": "回應 JSON 結構描述"
+  },
+  "recipeFormFields.responseJsonSchemaDescription": {
+    "defaultMessage": "使用 JSON Schema 格式定義 AI 回應的預期結構"
+  },
+  "recipeFormFields.templateVarHint": {
+    "defaultMessage": "使用'{{parameter_name}}'來定義執行配方時可填入的參數。"
+  },
+  "recipeFormFields.titleLabel": {
+    "defaultMessage": "標題"
+  },
+  "recipeFormFields.titlePlaceholder": {
+    "defaultMessage": "配方標題"
+  },
+  "recipeHeader.recipeLabel": {
+    "defaultMessage": "配方"
+  },
+  "recipeModelSelector.backToModelList": {
+    "defaultMessage": "返回模型清單"
+  },
+  "recipeModelSelector.enterCustomModel": {
+    "defaultMessage": "輸入自訂模型名稱"
+  },
+  "recipeModelSelector.enterModelNotListed": {
+    "defaultMessage": "輸入未列出的模型..."
+  },
+  "recipeModelSelector.fetchError": {
+    "defaultMessage": "無法擷取模型。請稍後再試。"
+  },
+  "recipeModelSelector.loadingModels": {
+    "defaultMessage": "正在載入模型…"
+  },
+  "recipeModelSelector.modelHint": {
+    "defaultMessage": "留空則使用所選提供者的預設模型"
+  },
+  "recipeModelSelector.modelLabel": {
+    "defaultMessage": "模型（選用）"
+  },
+  "recipeModelSelector.providerHint": {
+    "defaultMessage": "留空則使用設定中所設定的預設提供者"
+  },
+  "recipeModelSelector.providerLabel": {
+    "defaultMessage": "提供者（選用）"
+  },
+  "recipeModelSelector.selectModel": {
+    "defaultMessage": "選取模型"
+  },
+  "recipeModelSelector.selectProvider": {
+    "defaultMessage": "選取提供者"
+  },
+  "recipeModelSelector.useDefaultProvider": {
+    "defaultMessage": "使用預設提供者"
+  },
+  "recipeNameField.defaultLabel": {
+    "defaultMessage": "配方名稱"
+  },
+  "recipeNameField.formatHint": {
+    "defaultMessage": "將自動格式化（小寫，空格以連字號取代）"
+  },
+  "recipeWarningModal.cancel": {
+    "defaultMessage": "取消"
+  },
+  "recipeWarningModal.descriptionLabel": {
+    "defaultMessage": "說明："
+  },
+  "recipeWarningModal.firstTimeDescription": {
+    "defaultMessage": "您即將執行一個尚未執行過的配方。"
+  },
+  "recipeWarningModal.hiddenCharsWarning": {
+    "defaultMessage": "為了您的安全，此配方包含的隱藏字元將被忽略，因為它們可能被用於惡意目的。"
+  },
+  "recipeWarningModal.instructionsLabel": {
+    "defaultMessage": "指示："
+  },
+  "recipeWarningModal.newRecipeWarningTitle": {
+    "defaultMessage": "⚠️ 新配方警告"
+  },
+  "recipeWarningModal.recipePreview": {
+    "defaultMessage": "配方預覽："
+  },
+  "recipeWarningModal.securityWarningTitle": {
+    "defaultMessage": "⚠️ 安全性警告"
+  },
+  "recipeWarningModal.titleLabel": {
+    "defaultMessage": "標題："
+  },
+  "recipeWarningModal.trustAndExecute": {
+    "defaultMessage": "信任並執行"
+  },
+  "recipeWarningModal.trustSource": {
+    "defaultMessage": "只有在您信任此配方的來源時才繼續進行。"
+  },
+  "recipesView.addSchedule": {
+    "defaultMessage": "新增排程"
+  },
+  "recipesView.addSlashCommand": {
+    "defaultMessage": "新增斜線命令"
+  },
+  "recipesView.adjustSearchTerms": {
+    "defaultMessage": "請嘗試調整您的搜尋字詞"
+  },
+  "recipesView.allFiles": {
+    "defaultMessage": "所有檔案"
+  },
+  "recipesView.cancel": {
+    "defaultMessage": "取消"
+  },
+  "recipesView.copyDeeplink": {
+    "defaultMessage": "複製深層連結"
+  },
+  "recipesView.copyDeeplinkFailedMsg": {
+    "defaultMessage": "無法將深層連結複製到剪貼簿"
+  },
+  "recipesView.copyFailedTitle": {
+    "defaultMessage": "複製失敗"
+  },
+  "recipesView.copyYaml": {
+    "defaultMessage": "複製 YAML"
+  },
+  "recipesView.copyYamlFailedMsg": {
+    "defaultMessage": "無法將配方 YAML 複製到剪貼簿"
+  },
+  "recipesView.createRecipe": {
+    "defaultMessage": "建立配方"
+  },
+  "recipesView.deeplinkCopiedMsg": {
+    "defaultMessage": "配方深層連結已複製到剪貼簿"
+  },
+  "recipesView.deeplinkCopiedTitle": {
+    "defaultMessage": "深層連結已複製"
+  },
+  "recipesView.deleteRecipe": {
+    "defaultMessage": "刪除配方"
+  },
+  "recipesView.deleteRecipeConfirm": {
+    "defaultMessage": "您確定要刪除「{title}」嗎？"
+  },
+  "recipesView.deleteRecipeDetail": {
+    "defaultMessage": "配方檔案將會被刪除。"
+  },
+  "recipesView.deleteRecipeTitle": {
+    "defaultMessage": "刪除配方"
+  },
+  "recipesView.editRecipe": {
+    "defaultMessage": "編輯配方"
+  },
+  "recipesView.editSchedule": {
+    "defaultMessage": "編輯排程"
+  },
+  "recipesView.editSlashCommand": {
+    "defaultMessage": "編輯斜線命令"
+  },
+  "recipesView.errorLoadingRecipes": {
+    "defaultMessage": "載入配方時發生錯誤"
+  },
+  "recipesView.exportFailedMsg": {
+    "defaultMessage": "無法將配方匯出至檔案"
+  },
+  "recipesView.exportFailedTitle": {
+    "defaultMessage": "匯出失敗"
+  },
+  "recipesView.exportRecipeDialogTitle": {
+    "defaultMessage": "匯出配方"
+  },
+  "recipesView.exportToFile": {
+    "defaultMessage": "匯出至檔案"
+  },
+  "recipesView.noMatchingRecipes": {
+    "defaultMessage": "找不到符合的食譜"
+  },
+  "recipesView.noSavedRecipes": {
+    "defaultMessage": "尚無已儲存的食譜"
+  },
+  "recipesView.noSavedRecipesDescription": {
+    "defaultMessage": "從聊天儲存的食譜會顯示在這裡。"
+  },
+  "recipesView.openInNewWindow": {
+    "defaultMessage": "在新視窗中開啟"
+  },
+  "recipesView.recipeDeletedSuccess": {
+    "defaultMessage": "食譜已成功刪除"
+  },
+  "recipesView.recipeExportedMsg": {
+    "defaultMessage": "食譜已儲存至 {filePath}"
+  },
+  "recipesView.recipeExportedTitle": {
+    "defaultMessage": "食譜已匯出"
+  },
+  "recipesView.recipesDescription": {
+    "defaultMessage": "檢視並管理您已儲存的食譜，以使用預先定義的設定快速開始新的工作階段。{shortcut} 即可搜尋。"
+  },
+  "recipesView.recipesTitle": {
+    "defaultMessage": "食譜"
+  },
+  "recipesView.remove": {
+    "defaultMessage": "移除"
+  },
+  "recipesView.removeSchedule": {
+    "defaultMessage": "移除排程"
+  },
+  "recipesView.runs": {
+    "defaultMessage": "執行 {schedule}"
+  },
+  "recipesView.save": {
+    "defaultMessage": "儲存"
+  },
+  "recipesView.scheduleDialogTitle": {
+    "defaultMessage": "{action}排程"
+  },
+  "recipesView.scheduleRemovedMsg": {
+    "defaultMessage": "食譜將不再自動執行"
+  },
+  "recipesView.scheduleRemovedTitle": {
+    "defaultMessage": "排程已移除"
+  },
+  "recipesView.scheduleSavedMsg": {
+    "defaultMessage": "食譜將於 {schedule} 執行"
+  },
+  "recipesView.scheduleSavedTitle": {
+    "defaultMessage": "排程已儲存"
+  },
+  "recipesView.searchRecipesPlaceholder": {
+    "defaultMessage": "搜尋食譜…"
+  },
+  "recipesView.shareRecipe": {
+    "defaultMessage": "分享食譜"
+  },
+  "recipesView.slashCommandDescription": {
+    "defaultMessage": "設定一個斜線指令，以便從任何聊天中快速執行此食譜"
+  },
+  "recipesView.slashCommandPlaceholder": {
+    "defaultMessage": "command-name"
+  },
+  "recipesView.slashCommandRemovedMsg": {
+    "defaultMessage": "食譜的斜線指令已移除"
+  },
+  "recipesView.slashCommandRemovedTitle": {
+    "defaultMessage": "斜線指令已移除"
+  },
+  "recipesView.slashCommandSavedMsg": {
+    "defaultMessage": "使用 /{command} 來執行此食譜"
+  },
+  "recipesView.slashCommandSavedTitle": {
+    "defaultMessage": "斜線指令已儲存"
+  },
+  "recipesView.slashCommandTitle": {
+    "defaultMessage": "斜線指令"
+  },
+  "recipesView.slashCommandUsageHint": {
+    "defaultMessage": "在任何聊天中使用 /{command} 來執行此食譜"
+  },
+  "recipesView.tryAgain": {
+    "defaultMessage": "再試一次"
+  },
+  "recipesView.useRecipe": {
+    "defaultMessage": "使用食譜"
+  },
+  "recipesView.yamlCopiedMsg": {
+    "defaultMessage": "食譜 YAML 已複製到剪貼簿"
+  },
+  "recipesView.yamlCopiedTitle": {
+    "defaultMessage": "YAML 已複製"
+  },
+  "recipesView.yamlFiles": {
+    "defaultMessage": "YAML 檔案"
+  },
+  "resetProviderSection.resetButton": {
+    "defaultMessage": "重設供應商與模型"
+  },
+  "resetProviderSection.resetDescription": {
+    "defaultMessage": "這會清除您所選的模型與供應商設定。若沒有可用的預設值，系統將帶您回到歡迎畫面重新進行設定。"
+  },
+  "responseStyle.conciseDescription": {
+    "defaultMessage": "工具呼叫預設為收合，僅顯示所使用的工具"
+  },
+  "responseStyle.conciseLabel": {
+    "defaultMessage": "精簡"
+  },
+  "responseStyle.detailedDescription": {
+    "defaultMessage": "工具呼叫預設為展開，以顯示詳細內容"
+  },
+  "responseStyle.detailedLabel": {
+    "defaultMessage": "詳細"
+  },
+  "scheduleDetailView.actions": {
+    "defaultMessage": "動作"
+  },
+  "scheduleDetailView.cannotModifyRunning": {
+    "defaultMessage": "排程正在執行時，無法觸發或修改。"
+  },
+  "scheduleDetailView.completedSession": {
+    "defaultMessage": "工作階段：{sessionId}"
+  },
+  "scheduleDetailView.created": {
+    "defaultMessage": "建立時間：{date}"
+  },
+  "scheduleDetailView.cronExpression": {
+    "defaultMessage": "Cron 運算式："
+  },
+  "scheduleDetailView.currentSession": {
+    "defaultMessage": "目前工作階段："
+  },
+  "scheduleDetailView.currentlyRunning": {
+    "defaultMessage": "目前正在執行"
+  },
+  "scheduleDetailView.dir": {
+    "defaultMessage": "目錄：{path}"
+  },
+  "scheduleDetailView.editSchedule": {
+    "defaultMessage": "編輯排程"
+  },
+  "scheduleDetailView.errorPrefix": {
+    "defaultMessage": "錯誤：{error}"
+  },
+  "scheduleDetailView.idLabel": {
+    "defaultMessage": "ID："
+  },
+  "scheduleDetailView.inspectJobError": {
+    "defaultMessage": "檢查工作錯誤"
+  },
+  "scheduleDetailView.inspectNoInfo": {
+    "defaultMessage": "沒有可用的詳細資訊"
+  },
+  "scheduleDetailView.inspectRunningJob": {
+    "defaultMessage": "檢查執行中的工作"
+  },
+  "scheduleDetailView.jobCancelled": {
+    "defaultMessage": "工作已取消"
+  },
+  "scheduleDetailView.jobCancelledMsg": {
+    "defaultMessage": "工作在啟動過程中已被取消。"
+  },
+  "scheduleDetailView.jobInspection": {
+    "defaultMessage": "工作檢查"
+  },
+  "scheduleDetailView.jobKilled": {
+    "defaultMessage": "工作已終止"
+  },
+  "scheduleDetailView.killJobError": {
+    "defaultMessage": "終止工作錯誤"
+  },
+  "scheduleDetailView.killRunningJob": {
+    "defaultMessage": "終止執行中的工作"
+  },
+  "scheduleDetailView.lastRun": {
+    "defaultMessage": "上次執行："
+  },
+  "scheduleDetailView.loadingSchedule": {
+    "defaultMessage": "正在載入排程…"
+  },
+  "scheduleDetailView.loadingSessions": {
+    "defaultMessage": "正在載入工作階段…"
+  },
+  "scheduleDetailView.messages": {
+    "defaultMessage": "訊息：{count}"
+  },
+  "scheduleDetailView.noScheduleId": {
+    "defaultMessage": "未提供排程 ID。請返回排程清單。"
+  },
+  "scheduleDetailView.noSessions": {
+    "defaultMessage": "找不到此排程的工作階段。"
+  },
+  "scheduleDetailView.pauseSchedule": {
+    "defaultMessage": "暫停排程"
+  },
+  "scheduleDetailView.pauseUnpauseError": {
+    "defaultMessage": "暫停／取消暫停錯誤"
+  },
+  "scheduleDetailView.paused": {
+    "defaultMessage": "已暫停"
+  },
+  "scheduleDetailView.pausedMsg": {
+    "defaultMessage": "已暫停「{id}」"
+  },
+  "scheduleDetailView.pausedWarning": {
+    "defaultMessage": "此排程已暫停，將不會自動執行。請使用「立即執行排程」手動觸發，或取消暫停以恢復自動執行。"
+  },
+  "scheduleDetailView.processStarted": {
+    "defaultMessage": "程序已啟動："
+  },
+  "scheduleDetailView.recentSessions": {
+    "defaultMessage": "最近的工作階段"
+  },
+  "scheduleDetailView.recipeSource": {
+    "defaultMessage": "食譜來源："
+  },
+  "scheduleDetailView.runScheduleError": {
+    "defaultMessage": "執行排程錯誤"
+  },
+  "scheduleDetailView.runScheduleNow": {
+    "defaultMessage": "立即執行排程"
+  },
+  "scheduleDetailView.scheduleCompleted": {
+    "defaultMessage": "執行已完成"
+  },
+  "scheduleDetailView.scheduleDetails": {
+    "defaultMessage": "排程詳細資料"
+  },
+  "scheduleDetailView.scheduleInformation": {
+    "defaultMessage": "排程資訊"
+  },
+  "scheduleDetailView.scheduleLabel": {
+    "defaultMessage": "排程："
+  },
+  "scheduleDetailView.scheduleNotFound": {
+    "defaultMessage": "找不到排程"
+  },
+  "scheduleDetailView.scheduleNotFoundError": {
+    "defaultMessage": "找不到排程"
+  },
+  "scheduleDetailView.schedulePaused": {
+    "defaultMessage": "排程已暫停"
+  },
+  "scheduleDetailView.scheduleUnpaused": {
+    "defaultMessage": "排程已取消暫停"
+  },
+  "scheduleDetailView.scheduleUpdated": {
+    "defaultMessage": "排程已更新"
+  },
+  "scheduleDetailView.sessionId": {
+    "defaultMessage": "工作階段 ID：{id}"
+  },
+  "scheduleDetailView.unpauseSchedule": {
+    "defaultMessage": "取消暫停排程"
+  },
+  "scheduleDetailView.unpausedMsg": {
+    "defaultMessage": "已取消暫停「{id}」"
+  },
+  "scheduleDetailView.updateScheduleError": {
+    "defaultMessage": "更新排程錯誤"
+  },
+  "scheduleDetailView.updatedMsg": {
+    "defaultMessage": "已更新「{id}」"
+  },
+  "scheduleDetailView.viewingScheduleId": {
+    "defaultMessage": "正在檢視排程 ID：{id}"
+  },
+  "scheduleModal.browseYaml": {
+    "defaultMessage": "瀏覽 YAML 檔案…"
+  },
+  "scheduleModal.cancel": {
+    "defaultMessage": "取消"
+  },
+  "scheduleModal.createNewSchedule": {
+    "defaultMessage": "建立新排程"
+  },
+  "scheduleModal.createSchedule": {
+    "defaultMessage": "建立排程"
+  },
+  "scheduleModal.creating": {
+    "defaultMessage": "正在建立…"
+  },
+  "scheduleModal.deepLink": {
+    "defaultMessage": "深層連結"
+  },
+  "scheduleModal.deepLinkPlaceholder": {
+    "defaultMessage": "在此貼上 goose://recipe 連結…"
+  },
+  "scheduleModal.editSchedule": {
+    "defaultMessage": "編輯排程"
+  },
+  "scheduleModal.failedParseRecipe": {
+    "defaultMessage": "無法從檔案剖析食譜。"
+  },
+  "scheduleModal.failedReadFile": {
+    "defaultMessage": "無法讀取所選檔案。"
+  },
+  "scheduleModal.invalidDeepLink": {
+    "defaultMessage": "無效的深層連結。請使用 goose://recipe 連結。"
+  },
+  "scheduleModal.invalidFileType": {
+    "defaultMessage": "無效的檔案類型：請選擇 YAML 檔案（.yaml 或 .yml）"
+  },
+  "scheduleModal.nameLabel": {
+    "defaultMessage": "名稱："
+  },
+  "scheduleModal.namePlaceholder": {
+    "defaultMessage": "例如：daily-summary-job"
+  },
+  "scheduleModal.provideValidRecipe": {
+    "defaultMessage": "請提供有效的食譜來源。"
+  },
+  "scheduleModal.recipeDescription": {
+    "defaultMessage": "描述：{description}"
+  },
+  "scheduleModal.recipeParsed": {
+    "defaultMessage": "食譜剖析成功"
+  },
+  "scheduleModal.recipeTitle": {
+    "defaultMessage": "標題：{title}"
+  },
+  "scheduleModal.scheduleIdRequired": {
+    "defaultMessage": "排程 ID 為必填。"
+  },
+  "scheduleModal.scheduleLabel": {
+    "defaultMessage": "排程："
+  },
+  "scheduleModal.selected": {
+    "defaultMessage": "已選取：{path}"
+  },
+  "scheduleModal.sourceLabel": {
+    "defaultMessage": "來源："
+  },
+  "scheduleModal.updateSchedule": {
+    "defaultMessage": "更新排程"
+  },
+  "scheduleModal.updating": {
+    "defaultMessage": "正在更新…"
+  },
+  "scheduleModal.yaml": {
+    "defaultMessage": "YAML"
+  },
+  "schedulesView.confirmDelete": {
+    "defaultMessage": "移除排程「{id}」？食譜將會保留。"
+  },
+  "schedulesView.createSchedule": {
+    "defaultMessage": "建立排程"
+  },
+  "schedulesView.description": {
+    "defaultMessage": "建立並管理排程任務，以在指定時間自動執行食譜。"
+  },
+  "schedulesView.edit": {
+    "defaultMessage": "編輯"
+  },
+  "schedulesView.errorPrefix": {
+    "defaultMessage": "錯誤：{error}"
+  },
+  "schedulesView.inspect": {
+    "defaultMessage": "檢查"
+  },
+  "schedulesView.inspectError": {
+    "defaultMessage": "檢查工作錯誤"
+  },
+  "schedulesView.inspectNoInfo": {
+    "defaultMessage": "此工作沒有可用的詳細資訊"
+  },
+  "schedulesView.jobInspection": {
+    "defaultMessage": "工作檢查"
+  },
+  "schedulesView.jobKilled": {
+    "defaultMessage": "工作已終止"
+  },
+  "schedulesView.kill": {
+    "defaultMessage": "終止"
+  },
+  "schedulesView.killError": {
+    "defaultMessage": "終止工作錯誤"
+  },
+  "schedulesView.lastRun": {
+    "defaultMessage": "上次執行：{date}"
+  },
+  "schedulesView.noSchedules": {
+    "defaultMessage": "尚無排程"
+  },
+  "schedulesView.pause": {
+    "defaultMessage": "暫停"
+  },
+  "schedulesView.pauseError": {
+    "defaultMessage": "暫停排程錯誤"
+  },
+  "schedulesView.paused": {
+    "defaultMessage": "已暫停"
+  },
+  "schedulesView.refresh": {
+    "defaultMessage": "重新整理"
+  },
+  "schedulesView.refreshing": {
+    "defaultMessage": "正在重新整理…"
+  },
+  "schedulesView.resume": {
+    "defaultMessage": "繼續"
+  },
+  "schedulesView.running": {
+    "defaultMessage": "執行中"
+  },
+  "schedulesView.schedulePaused": {
+    "defaultMessage": "排程已暫停"
+  },
+  "schedulesView.schedulePausedMsg": {
+    "defaultMessage": "已成功暫停排程「{id}」"
+  },
+  "schedulesView.scheduleUnpaused": {
+    "defaultMessage": "排程已取消暫停"
+  },
+  "schedulesView.scheduleUnpausedMsg": {
+    "defaultMessage": "已成功取消暫停排程「{id}」"
+  },
+  "schedulesView.scheduleUpdated": {
+    "defaultMessage": "排程已更新"
+  },
+  "schedulesView.scheduleUpdatedMsg": {
+    "defaultMessage": "已成功更新排程「{id}」"
+  },
+  "schedulesView.scheduler": {
+    "defaultMessage": "排程器"
+  },
+  "schedulesView.unpauseError": {
+    "defaultMessage": "取消暫停排程錯誤"
+  },
+  "searchBar.caseSensitive": {
+    "defaultMessage": "區分大小寫"
+  },
+  "searchBar.close": {
+    "defaultMessage": "關閉（{shortcut}）"
+  },
+  "searchBar.next": {
+    "defaultMessage": "下一個（{shortcut}）"
+  },
+  "searchBar.placeholder": {
+    "defaultMessage": "搜尋對話…"
+  },
+  "searchBar.previous": {
+    "defaultMessage": "上一個（{shortcut}）"
+  },
+  "secureStorageNotice.defaultMessage": {
+    "defaultMessage": "金鑰會安全地儲存在金鑰鏈中"
+  },
+  "securityToggle.apiTokenDescription": {
+    "defaultMessage": "分類服務的驗證權杖"
+  },
+  "securityToggle.apiTokenOptional": {
+    "defaultMessage": "API 權杖（選填）"
+  },
+  "securityToggle.classificationEndpoint": {
+    "defaultMessage": "分類端點"
+  },
+  "securityToggle.classificationEndpointDescription": {
+    "defaultMessage": "輸入您分類服務的完整 URL"
+  },
+  "securityToggle.commandClassifierActive": {
+    "defaultMessage": "指令分類器已啟用（已從環境自動設定）"
+  },
+  "securityToggle.commandEndpointDescription": {
+    "defaultMessage": "輸入您指令注入分類服務的完整 URL"
+  },
+  "securityToggle.commandInjectionDescription": {
+    "defaultMessage": "使用 ML 模型偵測惡意的 shell 指令"
+  },
+  "securityToggle.detectionModel": {
+    "defaultMessage": "偵測模型"
+  },
+  "securityToggle.detectionModelDescription": {
+    "defaultMessage": "選擇要用於提示注入偵測的 ML 模型"
+  },
+  "securityToggle.detectionThreshold": {
+    "defaultMessage": "偵測門檻"
+  },
+  "securityToggle.enableCommandInjection": {
+    "defaultMessage": "啟用指令注入 ML 偵測"
+  },
+  "securityToggle.enablePromptInjection": {
+    "defaultMessage": "啟用提示注入偵測"
+  },
+  "securityToggle.enablePromptInjectionMl": {
+    "defaultMessage": "啟用提示注入 ML 偵測"
+  },
+  "securityToggle.mlEndpointDescription": {
+    "defaultMessage": "輸入您 ML 分類服務的完整 URL（包含模型識別碼）"
+  },
+  "securityToggle.mlTokenDescription": {
+    "defaultMessage": "ML 服務的驗證權杖（例如 HuggingFace 權杖）"
+  },
+  "securityToggle.overrideNotice": {
+    "defaultMessage": "此設定由您的組織管理，無法變更。"
+  },
+  "securityToggle.promptInjectionDescription": {
+    "defaultMessage": "偵測並防範潛在的提示注入攻擊"
+  },
+  "securityToggle.promptInjectionMlDescription": {
+    "defaultMessage": "使用 ML 模型偵測您聊天中潛在的提示注入"
+  },
+  "securityToggle.thresholdDescription": {
+    "defaultMessage": "數值越高越嚴格（0.01 = 非常寬鬆，1.0 = 最嚴格）"
+  },
+  "securityToggle.warpNotice": {
+    "defaultMessage": "連線至 WARP 時，指令注入偵測的效果最佳（為了連接分類服務所必需）。"
+  },
+  "sessionActionsHeader.actionsLabel": {
+    "defaultMessage": "工作階段動作"
+  },
+  "sessionActionsHeader.cancel": {
+    "defaultMessage": "取消"
+  },
+  "sessionActionsHeader.close": {
+    "defaultMessage": "關閉"
+  },
+  "sessionActionsHeader.copiedJson": {
+    "defaultMessage": "工作階段 JSON 已複製"
+  },
+  "sessionActionsHeader.copiedText": {
+    "defaultMessage": "文字已複製"
+  },
+  "sessionActionsHeader.copyJson": {
+    "defaultMessage": "複製 JSON"
+  },
+  "sessionActionsHeader.copyText": {
+    "defaultMessage": "複製文字"
+  },
+  "sessionActionsHeader.duplicateFailed": {
+    "defaultMessage": "複製工作階段失敗：{error}"
+  },
+  "sessionActionsHeader.duplicateSession": {
+    "defaultMessage": "複製工作階段"
+  },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "工作階段已複製"
+  },
+  "sessionActionsHeader.fullTextTitle": {
+    "defaultMessage": "文字值"
+  },
+  "sessionActionsHeader.jsonFailed": {
+    "defaultMessage": "載入工作階段 JSON 失敗：{error}"
+  },
+  "sessionActionsHeader.jsonTitle": {
+    "defaultMessage": "工作階段 JSON"
+  },
+  "sessionActionsHeader.loadingJson": {
+    "defaultMessage": "正在載入 JSON…"
+  },
+  "sessionActionsHeader.renameFailed": {
+    "defaultMessage": "重新命名工作階段失敗：{error}"
+  },
+  "sessionActionsHeader.renamePlaceholder": {
+    "defaultMessage": "輸入工作階段名稱"
+  },
+  "sessionActionsHeader.renameSession": {
+    "defaultMessage": "重新命名工作階段"
+  },
+  "sessionActionsHeader.renameTitle": {
+    "defaultMessage": "重新命名工作階段"
+  },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "工作階段已重新命名"
+  },
+  "sessionActionsHeader.save": {
+    "defaultMessage": "儲存"
+  },
+  "sessionActionsHeader.saving": {
+    "defaultMessage": "正在儲存…"
+  },
+  "sessionActionsHeader.viewJson": {
+    "defaultMessage": "檢視工作階段 JSON"
+  },
+  "sessionIndicators.error": {
+    "defaultMessage": "工作階段發生錯誤"
+  },
+  "sessionIndicators.newActivity": {
+    "defaultMessage": "有新活動"
+  },
+  "sessionIndicators.streaming": {
+    "defaultMessage": "串流中"
+  },
+  "sessionViewComponents.empty.description": {
+    "defaultMessage": "此工作階段不包含任何訊息"
+  },
+  "sessionViewComponents.empty.title": {
+    "defaultMessage": "找不到訊息"
+  },
+  "sessionViewComponents.error.loading": {
+    "defaultMessage": "載入工作階段詳細資料時發生錯誤"
+  },
+  "sessionViewComponents.error.tryAgain": {
+    "defaultMessage": "再試一次"
+  },
+  "sessionViewComponents.role.assistant": {
+    "defaultMessage": "Goose"
+  },
+  "sessionViewComponents.role.user": {
+    "defaultMessage": "您"
+  },
+  "sessions.action.delete": {
+    "defaultMessage": "刪除工作階段"
+  },
+  "sessions.action.duplicate": {
+    "defaultMessage": "複製工作階段"
+  },
+  "sessions.action.editName": {
+    "defaultMessage": "編輯工作階段名稱"
+  },
+  "sessions.action.export": {
+    "defaultMessage": "匯出工作階段"
+  },
+  "sessions.action.openNewWindow": {
+    "defaultMessage": "在新視窗中開啟"
+  },
+  "sessions.action.shareNostr": {
+    "defaultMessage": "分享加密的 Nostr 連結"
+  },
+  "sessions.cancel": {
+    "defaultMessage": "取消"
+  },
+  "sessions.chatHistory": {
+    "defaultMessage": "聊天記錄"
+  },
+  "sessions.chatHistoryDesc": {
+    "defaultMessage": "檢視並搜尋您與 Goose 過去的對話。{shortcut} 即可搜尋。"
+  },
+  "sessions.close": {
+    "defaultMessage": "關閉"
+  },
+  "sessions.delete.message": {
+    "defaultMessage": "您確定要刪除工作階段「{name}」嗎？此動作無法復原。"
+  },
+  "sessions.delete.title": {
+    "defaultMessage": "刪除工作階段"
+  },
+  "sessions.edit.placeholder": {
+    "defaultMessage": "輸入工作階段描述"
+  },
+  "sessions.edit.title": {
+    "defaultMessage": "編輯工作階段描述"
+  },
+  "sessions.empty.description": {
+    "defaultMessage": "您的聊天記錄將會顯示在這裡"
+  },
+  "sessions.empty.title": {
+    "defaultMessage": "找不到聊天工作階段"
+  },
+  "sessions.error.loading": {
+    "defaultMessage": "載入工作階段時發生錯誤"
+  },
+  "sessions.error.tryAgain": {
+    "defaultMessage": "再試一次"
+  },
+  "sessions.import": {
+    "defaultMessage": "匯入工作階段"
+  },
+  "sessions.importNostr": {
+    "defaultMessage": "匯入連結"
+  },
+  "sessions.importNostr.description": {
+    "defaultMessage": "貼上 Goose Nostr 分享連結，以擷取、解密並匯入該工作階段。"
+  },
+  "sessions.importNostr.placeholder": {
+    "defaultMessage": "goose://sessions/nostr?nevent=...&key=..."
+  },
+  "sessions.importNostr.title": {
+    "defaultMessage": "匯入 Nostr 工作階段"
+  },
+  "sessions.importing": {
+    "defaultMessage": "正在匯入…"
+  },
+  "sessions.loadingMore": {
+    "defaultMessage": "正在載入更多工作階段…"
+  },
+  "sessions.save": {
+    "defaultMessage": "儲存"
+  },
+  "sessions.saving": {
+    "defaultMessage": "正在儲存…"
+  },
+  "sessions.search.noResults": {
+    "defaultMessage": "找不到符合的工作階段"
+  },
+  "sessions.search.noResultsDesc": {
+    "defaultMessage": "請嘗試調整您的搜尋字詞"
+  },
+  "sessions.searchPlaceholder": {
+    "defaultMessage": "搜尋記錄..."
+  },
+  "sessions.shareNostr.description": {
+    "defaultMessage": "任何持有此連結的人都能擷取並解密該工作階段。請將其視為機密。"
+  },
+  "sessions.shareNostr.title": {
+    "defaultMessage": "加密的 Nostr 分享連結"
+  },
+  "sessions.toast.copied": {
+    "defaultMessage": "已複製到剪貼簿"
+  },
+  "sessions.toast.deleteFailed": {
+    "defaultMessage": "無法刪除工作階段「{name}」：{error}"
+  },
+  "sessions.toast.deleted": {
+    "defaultMessage": "已成功刪除工作階段"
+  },
+  "sessions.toast.duplicateFailed": {
+    "defaultMessage": "無法複製工作階段：{error}"
+  },
+  "sessions.toast.duplicated": {
+    "defaultMessage": "已成功複製工作階段「{name}」"
+  },
+  "sessions.toast.exported": {
+    "defaultMessage": "已成功匯出工作階段"
+  },
+  "sessions.toast.importFailed": {
+    "defaultMessage": "無法匯入工作階段：{error}"
+  },
+  "sessions.toast.imported": {
+    "defaultMessage": "已成功匯入工作階段"
+  },
+  "sessions.toast.shareNostr": {
+    "defaultMessage": "已建立加密的 Nostr 分享連結"
+  },
+  "sessions.toast.shareNostrFailed": {
+    "defaultMessage": "無法建立 Nostr 分享連結：{error}"
+  },
+  "sessions.toast.updateFailed": {
+    "defaultMessage": "無法更新工作階段描述：{error}"
+  },
+  "sessions.toast.updated": {
+    "defaultMessage": "已成功更新工作階段描述"
+  },
+  "settings.appearance.description": {
+    "defaultMessage": "設定 goose 在您系統上的顯示方式"
+  },
+  "settings.appearance.title": {
+    "defaultMessage": "外觀"
+  },
+  "settings.close": {
+    "defaultMessage": "關閉"
+  },
+  "settings.costTracking.description": {
+    "defaultMessage": "顯示模型定價與使用費用"
+  },
+  "settings.costTracking.title": {
+    "defaultMessage": "費用追蹤"
+  },
+  "settings.dockIcon.description": {
+    "defaultMessage": "在 Dock 中顯示 goose"
+  },
+  "settings.dockIcon.title": {
+    "defaultMessage": "Dock 圖示"
+  },
+  "settings.help.description": {
+    "defaultMessage": "回報問題或申請新功能，協助我們改善 goose"
+  },
+  "settings.help.reportBug": {
+    "defaultMessage": "回報錯誤"
+  },
+  "settings.help.requestFeature": {
+    "defaultMessage": "申請功能"
+  },
+  "settings.help.title": {
+    "defaultMessage": "說明與意見回饋"
+  },
+  "settings.language.description": {
+    "defaultMessage": "選擇 goose 的顯示語言"
+  },
+  "settings.language.english": {
+    "defaultMessage": "English"
+  },
+  "settings.language.french": {
+    "defaultMessage": "法語"
+  },
+  "settings.language.german": {
+    "defaultMessage": "德語"
+  },
+  "settings.language.hindi": {
+    "defaultMessage": "印地語"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "印尼語"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "義大利語"
+  },
+  "settings.language.japanese": {
+    "defaultMessage": "日語"
+  },
+  "settings.language.korean": {
+    "defaultMessage": "韓語"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "馬來語"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "葡萄牙語"
+  },
+  "settings.language.russian": {
+    "defaultMessage": "俄語"
+  },
+  "settings.language.spanish": {
+    "defaultMessage": "西班牙語"
+  },
+  "settings.language.systemDefault": {
+    "defaultMessage": "系統預設"
+  },
+  "settings.language.title": {
+    "defaultMessage": "語言"
+  },
+  "settings.language.turkish": {
+    "defaultMessage": "土耳其語"
+  },
+  "settings.language.vietnamese": {
+    "defaultMessage": "越南語"
+  },
+  "settings.language.zhCN": {
+    "defaultMessage": "中文（簡體）"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "中文（繁體）"
+  },
+  "settings.menuBarIcon.description": {
+    "defaultMessage": "在選單列中顯示 goose"
+  },
+  "settings.menuBarIcon.title": {
+    "defaultMessage": "選單列圖示"
+  },
+  "settings.notifications.configGuide": {
+    "defaultMessage": "設定指南"
+  },
+  "settings.notifications.description": {
+    "defaultMessage": "通知由您的作業系統管理 - {link}"
+  },
+  "settings.notifications.modal.macInstructions": {
+    "defaultMessage": "若要在 macOS 上啟用通知："
+  },
+  "settings.notifications.modal.macStep1": {
+    "defaultMessage": "開啟「系統偏好設定」"
+  },
+  "settings.notifications.modal.macStep2": {
+    "defaultMessage": "點選「通知」"
+  },
+  "settings.notifications.modal.macStep3": {
+    "defaultMessage": "在應用程式清單中找到並選取 goose"
+  },
+  "settings.notifications.modal.macStep4": {
+    "defaultMessage": "啟用通知並依需求調整設定"
+  },
+  "settings.notifications.modal.title": {
+    "defaultMessage": "如何啟用通知"
+  },
+  "settings.notifications.modal.winInstructions": {
+    "defaultMessage": "若要在 Windows 上啟用通知："
+  },
+  "settings.notifications.modal.winStep1": {
+    "defaultMessage": "開啟「設定」"
+  },
+  "settings.notifications.modal.winStep2": {
+    "defaultMessage": "前往「系統」>「通知」"
+  },
+  "settings.notifications.modal.winStep3": {
+    "defaultMessage": "在應用程式清單中找到並選取 goose"
+  },
+  "settings.notifications.modal.winStep4": {
+    "defaultMessage": "開啟通知並依需求調整設定"
+  },
+  "settings.notifications.openSettings": {
+    "defaultMessage": "開啟設定"
+  },
+  "settings.notifications.task.description": {
+    "defaultMessage": "當視窗在背景執行時，Goose 完成工作後發出通知"
+  },
+  "settings.notifications.task.title": {
+    "defaultMessage": "工作完成通知"
+  },
+  "settings.notifications.title": {
+    "defaultMessage": "通知"
+  },
+  "settings.preventSleep.description": {
+    "defaultMessage": "在 goose 執行工作時讓電腦保持喚醒狀態（螢幕仍可鎖定）"
+  },
+  "settings.preventSleep.title": {
+    "defaultMessage": "防止睡眠"
+  },
+  "settings.theme.description": {
+    "defaultMessage": "自訂 goose 的外觀與風格"
+  },
+  "settings.theme.title": {
+    "defaultMessage": "佈景主題"
+  },
+  "settings.updates.description": {
+    "defaultMessage": "檢查並安裝更新，讓 goose 保持最佳運作狀態"
+  },
+  "settings.updates.title": {
+    "defaultMessage": "更新"
+  },
+  "settings.version.title": {
+    "defaultMessage": "版本"
+  },
+  "settingsView.tabApp": {
+    "defaultMessage": "應用程式"
+  },
+  "settingsView.tabAuth": {
+    "defaultMessage": "驗證"
+  },
+  "settingsView.tabChat": {
+    "defaultMessage": "聊天"
+  },
+  "settingsView.tabKeyboard": {
+    "defaultMessage": "鍵盤"
+  },
+  "settingsView.tabLocalInference": {
+    "defaultMessage": "本機推論"
+  },
+  "settingsView.tabModels": {
+    "defaultMessage": "模型"
+  },
+  "settingsView.tabPrompts": {
+    "defaultMessage": "提示"
+  },
+  "settingsView.tabSession": {
+    "defaultMessage": "工作階段"
+  },
+  "settingsView.title": {
+    "defaultMessage": "設定"
+  },
+  "sheet.close": {
+    "defaultMessage": "關閉"
+  },
+  "shortcutRecorder.cancel": {
+    "defaultMessage": "取消"
+  },
+  "shortcutRecorder.clickToRecord": {
+    "defaultMessage": "點選以錄製..."
+  },
+  "shortcutRecorder.conflictWarning": {
+    "defaultMessage": "此快速鍵已由 {label} 使用。儲存後將重新指派給此動作。"
+  },
+  "shortcutRecorder.pressShortcut": {
+    "defaultMessage": "請按下快速鍵..."
+  },
+  "shortcutRecorder.save": {
+    "defaultMessage": "儲存"
+  },
+  "skillsView.addSkill": {
+    "defaultMessage": "新增技能"
+  },
+  "skillsView.adjustSearchTerms": {
+    "defaultMessage": "請嘗試調整您的搜尋字詞"
+  },
+  "skillsView.comingSoon": {
+    "defaultMessage": "即將推出"
+  },
+  "skillsView.errorLoadingSkills": {
+    "defaultMessage": "載入技能時發生錯誤"
+  },
+  "skillsView.noMatchingSkills": {
+    "defaultMessage": "找不到符合的技能"
+  },
+  "skillsView.noSkillsDescription": {
+    "defaultMessage": "技能會從 ~/.config/agents/skills/、.goose/skills/ 或其他支援目錄中的 SKILL.md 檔案載入。"
+  },
+  "skillsView.noSkillsInstalled": {
+    "defaultMessage": "未安裝任何技能"
+  },
+  "skillsView.searchSkillsPlaceholder": {
+    "defaultMessage": "搜尋技能..."
+  },
+  "skillsView.skillsDescription": {
+    "defaultMessage": "檢視可擴充 Goose 功能的已安裝技能。{shortcut} 即可搜尋。"
+  },
+  "skillsView.skillsTitle": {
+    "defaultMessage": "技能"
+  },
+  "skillsView.tryAgain": {
+    "defaultMessage": "重試"
+  },
+  "spellcheckToggle.description": {
+    "defaultMessage": "檢查聊天輸入中的拼字。需重新啟動才會生效。"
+  },
+  "spellcheckToggle.title": {
+    "defaultMessage": "啟用拼字檢查"
+  },
+  "standaloneAppView.failedToLoad": {
+    "defaultMessage": "無法載入應用程式"
+  },
+  "standaloneAppView.initializing": {
+    "defaultMessage": "正在初始化應用程式..."
+  },
+  "standaloneAppView.missingParams": {
+    "defaultMessage": "缺少必要參數"
+  },
+  "stringUtils.configuredProvider": {
+    "defaultMessage": "已設定 {name} 提供者"
+  },
+  "stringUtils.ollamaApp": {
+    "defaultMessage": "Ollama 應用程式"
+  },
+  "stringUtils.ollamaNotConfiguredPrefix": {
+    "defaultMessage": "若要使用，請選擇"
+  },
+  "stringUtils.ollamaNotConfiguredSuffix": {
+    "defaultMessage": "必須安裝在您的電腦上並開啟，或者您必須輸入 OLLAMA_HOST 的值。"
+  },
+  "subRecipeEditor.addExisting": {
+    "defaultMessage": "新增現有項目"
+  },
+  "subRecipeEditor.createNew": {
+    "defaultMessage": "建立新的子配方"
+  },
+  "subRecipeEditor.deleteSubrecipe": {
+    "defaultMessage": "刪除子配方 {name}"
+  },
+  "subRecipeEditor.description": {
+    "defaultMessage": "子配方是可在執行期間作為工具呼叫的配方。它們可實現多步驟工作流程與可重複使用的元件。"
+  },
+  "subRecipeEditor.duplicateName": {
+    "defaultMessage": "名稱重複"
+  },
+  "subRecipeEditor.duplicateNameMsg": {
+    "defaultMessage": "名為「{name}」的子配方已存在。請使用唯一的名稱。"
+  },
+  "subRecipeEditor.editSubrecipe": {
+    "defaultMessage": "編輯子配方 {name}"
+  },
+  "subRecipeEditor.label": {
+    "defaultMessage": "子配方"
+  },
+  "subRecipeEditor.preconfiguredValues": {
+    "defaultMessage": "預先設定的值："
+  },
+  "subRecipeEditor.sequential": {
+    "defaultMessage": "循序"
+  },
+  "subRecipeModal.addTitle": {
+    "defaultMessage": "新增子配方"
+  },
+  "subRecipeModal.apply": {
+    "defaultMessage": "套用"
+  },
+  "subRecipeModal.browse": {
+    "defaultMessage": "瀏覽"
+  },
+  "subRecipeModal.cancel": {
+    "defaultMessage": "取消"
+  },
+  "subRecipeModal.closeModal": {
+    "defaultMessage": "關閉子配方對話方塊"
+  },
+  "subRecipeModal.configureTitle": {
+    "defaultMessage": "設定子配方"
+  },
+  "subRecipeModal.descriptionLabel": {
+    "defaultMessage": "描述"
+  },
+  "subRecipeModal.descriptionPlaceholder": {
+    "defaultMessage": "選填，說明此子配方的功能..."
+  },
+  "subRecipeModal.invalidFile": {
+    "defaultMessage": "無效的檔案"
+  },
+  "subRecipeModal.invalidFileMsg": {
+    "defaultMessage": "請選擇 YAML 檔案（.yaml 或 .yml）。"
+  },
+  "subRecipeModal.nameHint": {
+    "defaultMessage": "用於產生工具名稱的唯一識別碼"
+  },
+  "subRecipeModal.nameLabel": {
+    "defaultMessage": "名稱"
+  },
+  "subRecipeModal.namePlaceholder": {
+    "defaultMessage": "例如：security_scan"
+  },
+  "subRecipeModal.pathHint": {
+    "defaultMessage": "瀏覽現有的配方檔案或手動輸入路徑"
+  },
+  "subRecipeModal.pathLabel": {
+    "defaultMessage": "路徑"
+  },
+  "subRecipeModal.pathPlaceholder": {
+    "defaultMessage": "例如：./subrecipes/security-analysis.yaml"
+  },
+  "subRecipeModal.preconfiguredValues": {
+    "defaultMessage": "預先設定的值"
+  },
+  "subRecipeModal.preconfiguredValuesHint": {
+    "defaultMessage": "選填，一律會傳遞給子配方的參數值"
+  },
+  "subRecipeModal.sequentialHint": {
+    "defaultMessage": "（強制循序執行多個子配方執行個體）"
+  },
+  "subRecipeModal.sequentialLabel": {
+    "defaultMessage": "重複時循序執行"
+  },
+  "subRecipeModal.subtitle": {
+    "defaultMessage": "設定可在配方執行期間作為工具呼叫的子配方"
+  },
+  "switchModelModal.backToModelList": {
+    "defaultMessage": "返回模型清單"
+  },
+  "switchModelModal.cancel": {
+    "defaultMessage": "取消"
+  },
+  "switchModelModal.checkProviderConfig": {
+    "defaultMessage": "請在「設定」→「提供者」中檢查您的提供者設定"
+  },
+  "switchModelModal.chooseModel": {
+    "defaultMessage": "選擇模型："
+  },
+  "switchModelModal.claudeAdaptive": {
+    "defaultMessage": "適應性 - 由 Claude 決定何時思考及思考程度"
+  },
+  "switchModelModal.claudeDisabled": {
+    "defaultMessage": "停用 - 不進行延伸思考"
+  },
+  "switchModelModal.claudeEffortHigh": {
+    "defaultMessage": "高 - 深度推理（預設）"
+  },
+  "switchModelModal.claudeEffortLow": {
+    "defaultMessage": "低 - 最少思考，回應最快"
+  },
+  "switchModelModal.claudeEffortMax": {
+    "defaultMessage": "最高 - 思考深度不受限制"
+  },
+  "switchModelModal.claudeEffortMedium": {
+    "defaultMessage": "中 - 適度思考"
+  },
+  "switchModelModal.claudeEnabled": {
+    "defaultMessage": "啟用 - 思考使用固定的權杖預算"
+  },
+  "switchModelModal.couldNotContactProvider": {
+    "defaultMessage": "無法連絡提供者"
+  },
+  "switchModelModal.customModelName": {
+    "defaultMessage": "自訂模型名稱"
+  },
+  "switchModelModal.description": {
+    "defaultMessage": "選擇要用於對話的提供者與模型。"
+  },
+  "switchModelModal.enterModelNotListed": {
+    "defaultMessage": "輸入未列出的模型..."
+  },
+  "switchModelModal.extendedThinking": {
+    "defaultMessage": "延伸思考"
+  },
+  "switchModelModal.geminiOnly": {
+    "defaultMessage": "（僅限 Gemini 3 模型）"
+  },
+  "switchModelModal.goToSettings": {
+    "defaultMessage": "前往設定"
+  },
+  "switchModelModal.loadingModels": {
+    "defaultMessage": "正在載入模型…"
+  },
+  "switchModelModal.localModelsDescription": {
+    "defaultMessage": "若要使用本機推論，您必須先將模型下載到電腦。請前往「設定」→「模型」以管理本機模型。"
+  },
+  "switchModelModal.localModelsTitle": {
+    "defaultMessage": "本機模型需要先行下載"
+  },
+  "switchModelModal.providerPlaceholder": {
+    "defaultMessage": "提供者，輸入以搜尋"
+  },
+  "switchModelModal.quickStartGuide": {
+    "defaultMessage": "快速入門指南"
+  },
+  "switchModelModal.recommended": {
+    "defaultMessage": "建議"
+  },
+  "switchModelModal.selectEffortLevel": {
+    "defaultMessage": "選擇用力程度"
+  },
+  "switchModelModal.selectModel": {
+    "defaultMessage": "請選擇模型"
+  },
+  "switchModelModal.selectModelButton": {
+    "defaultMessage": "選擇模型"
+  },
+  "switchModelModal.selectModelPlaceholder": {
+    "defaultMessage": "選擇模型，輸入以搜尋"
+  },
+  "switchModelModal.selectOrEnterModel": {
+    "defaultMessage": "請選擇或輸入模型"
+  },
+  "switchModelModal.selectProvider": {
+    "defaultMessage": "請選擇提供者"
+  },
+  "switchModelModal.selectThinkingLevel": {
+    "defaultMessage": "選擇思考層級"
+  },
+  "switchModelModal.selectThinkingMode": {
+    "defaultMessage": "選擇思考模式"
+  },
+  "switchModelModal.thinkingBudget": {
+    "defaultMessage": "思考預算（權杖）"
+  },
+  "switchModelModal.thinkingEffort": {
+    "defaultMessage": "思考用力程度"
+  },
+  "switchModelModal.thinkingEffortOff": {
+    "defaultMessage": "關閉 - 不進行延伸思考"
+  },
+  "switchModelModal.thinkingLevel": {
+    "defaultMessage": "思考層級"
+  },
+  "switchModelModal.thinkingLevelHigh": {
+    "defaultMessage": "高 - 更深入的推理，延遲較高"
+  },
+  "switchModelModal.thinkingLevelLow": {
+    "defaultMessage": "低 - 延遲較佳，推理較輕量"
+  },
+  "switchModelModal.title": {
+    "defaultMessage": "切換模型"
+  },
+  "switchModelModal.typeModelName": {
+    "defaultMessage": "在此輸入模型名稱"
+  },
+  "switchModelModal.useOtherProvider": {
+    "defaultMessage": "使用其他提供者"
+  },
+  "telemetryConsentPrompt.description": {
+    "defaultMessage": "您願意分享匿名使用資料以協助改善 goose 嗎？我們絕不會收集您的對話、程式碼或個人資料。"
+  },
+  "telemetryConsentPrompt.heading": {
+    "defaultMessage": "協助改善 goose"
+  },
+  "telemetryConsentPrompt.learnMore": {
+    "defaultMessage": "瞭解詳情"
+  },
+  "telemetryConsentPrompt.optIn": {
+    "defaultMessage": "好的，分享匿名使用資料"
+  },
+  "telemetryConsentPrompt.optOut": {
+    "defaultMessage": "不用了，謝謝"
+  },
+  "telemetrySettings.configErrorTitle": {
+    "defaultMessage": "設定錯誤"
+  },
+  "telemetrySettings.description": {
+    "defaultMessage": "控制您的資料使用方式"
+  },
+  "telemetrySettings.learnMore": {
+    "defaultMessage": "瞭解詳情"
+  },
+  "telemetrySettings.loadError": {
+    "defaultMessage": "無法載入遙測設定。"
+  },
+  "telemetrySettings.title": {
+    "defaultMessage": "隱私"
+  },
+  "telemetrySettings.toggleDescription": {
+    "defaultMessage": "分享匿名使用統計資料以協助改善 goose。"
+  },
+  "telemetrySettings.toggleLabel": {
+    "defaultMessage": "匿名使用資料"
+  },
+  "telemetrySettings.updateError": {
+    "defaultMessage": "無法更新遙測設定。"
+  },
+  "themeSelector.dark": {
+    "defaultMessage": "深色"
+  },
+  "themeSelector.light": {
+    "defaultMessage": "淺色"
+  },
+  "themeSelector.system": {
+    "defaultMessage": "系統"
+  },
+  "themeSelector.theme": {
+    "defaultMessage": "佈景主題"
+  },
+  "toolApprovalButtons.allowOnce": {
+    "defaultMessage": "允許一次"
+  },
+  "toolApprovalButtons.allowedOnce": {
+    "defaultMessage": "已允許一次"
+  },
+  "toolApprovalButtons.alwaysAllow": {
+    "defaultMessage": "一律允許"
+  },
+  "toolApprovalButtons.alwaysAllowed": {
+    "defaultMessage": "已設為一律允許"
+  },
+  "toolApprovalButtons.cancelled": {
+    "defaultMessage": "已取消"
+  },
+  "toolApprovalButtons.denied": {
+    "defaultMessage": "已拒絕"
+  },
+  "toolApprovalButtons.deniedOnce": {
+    "defaultMessage": "已拒絕一次"
+  },
+  "toolApprovalButtons.deny": {
+    "defaultMessage": "拒絕"
+  },
+  "toolApprovalButtons.staleApprovalRequest": {
+    "defaultMessage": "此核准要求已不再有效。"
+  },
+  "toolCallStatusIndicator.toolStatus": {
+    "defaultMessage": "工具狀態：{status}"
+  },
+  "toolCallWithResponse.activityCount": {
+    "defaultMessage": "活動（{count}）"
+  },
+  "toolCallWithResponse.code": {
+    "defaultMessage": "程式碼"
+  },
+  "toolCallWithResponse.loadingSpinner": {
+    "defaultMessage": "載入指示器"
+  },
+  "toolCallWithResponse.logs": {
+    "defaultMessage": "記錄"
+  },
+  "toolCallWithResponse.mcpUiExperimental": {
+    "defaultMessage": "MCP UI 為實驗性功能，可能隨時變更。"
+  },
+  "toolCallWithResponse.output": {
+    "defaultMessage": "輸出"
+  },
+  "toolCallWithResponse.toolDetails": {
+    "defaultMessage": "工具詳細資料"
+  },
+  "toolCallWithResponse.toolResultAlt": {
+    "defaultMessage": "工具結果"
+  },
+  "toolCallWithResponse.viewSubagentSession": {
+    "defaultMessage": "檢視子代理工作階段"
+  },
+  "toolConfirmation.allowToolCallWithName": {
+    "defaultMessage": "允許 {toolName}？"
+  },
+  "toolConfirmation.gooseWouldLikeToCallWithName": {
+    "defaultMessage": "Goose 想要呼叫 {toolName}。要允許嗎？"
+  },
+  "updateSection.autoDownload": {
+    "defaultMessage": "Goose 會在背景下載更新，並於您下次結束或重新啟動時安裝。"
+  },
+  "updateSection.autoDownloadDisabledByEnv": {
+    "defaultMessage": "已透過 GOOSE_DISABLE_AUTO_DOWNLOAD 環境變數停用自動下載。"
+  },
+  "updateSection.autoDownloadDisabledNote": {
+    "defaultMessage": "已停用自動下載。請點選「立即下載」以手動下載。"
+  },
+  "updateSection.autoInstallNote": {
+    "defaultMessage": "無需手動安裝。"
+  },
+  "updateSection.checkForUpdates": {
+    "defaultMessage": "檢查更新"
+  },
+  "updateSection.checking": {
+    "defaultMessage": "正在檢查更新..."
+  },
+  "updateSection.currentVersion": {
+    "defaultMessage": "目前版本"
+  },
+  "updateSection.disableAutoDownload": {
+    "defaultMessage": "停用自動下載更新"
+  },
+  "updateSection.disableAutoDownloadDesc": {
+    "defaultMessage": "啟用後，Goose 會通知您有新版本，但不會自動下載。"
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "立即下載"
+  },
+  "updateSection.downloadReady": {
+    "defaultMessage": "更新已下載完成並可供安裝！"
+  },
+  "updateSection.downloadingProgress": {
+    "defaultMessage": "正在下載更新... {percent}%"
+  },
+  "updateSection.downloadingUpdate": {
+    "defaultMessage": "正在下載更新..."
+  },
+  "updateSection.installAndRestart": {
+    "defaultMessage": "安裝並重新啟動"
+  },
+  "updateSection.installNowHint": {
+    "defaultMessage": "請點選「安裝並重新啟動」以立即更新。"
+  },
+  "updateSection.latestVersion": {
+    "defaultMessage": "您執行的是最新版本！"
+  },
+  "updateSection.loading": {
+    "defaultMessage": "載入中..."
+  },
+  "updateSection.manualInstallNote": {
+    "defaultMessage": "下載後，您需要手動安裝更新。"
+  },
+  "updateSection.manualInstallRequired": {
+    "defaultMessage": "此更新方式需要手動安裝。"
+  },
+  "updateSection.readyInstallAuto": {
+    "defaultMessage": "✓ 更新已就緒。重新啟動 Goose 即可完成安裝，或在您完成後結束。"
+  },
+  "updateSection.readyInstallManual": {
+    "defaultMessage": "✓ 更新已就緒！請點選「安裝並重新啟動」以取得安裝指示。"
+  },
+  "updateSection.upToDate": {
+    "defaultMessage": "（為最新版本）"
+  },
+  "updateSection.updateAvailable": {
+    "defaultMessage": "有可用的更新！"
+  },
+  "updateSection.versionAvailable": {
+    "defaultMessage": "→ 有可用的 {version}"
+  },
+  "updateSection.versionIsAvailable": {
+    "defaultMessage": "{version} 版本已可使用"
+  },
+  "userMessage.cancel": {
+    "defaultMessage": "取消"
+  },
+  "userMessage.cancelAriaLabel": {
+    "defaultMessage": "取消編輯"
+  },
+  "userMessage.editAriaLabel": {
+    "defaultMessage": "編輯訊息內容"
+  },
+  "userMessage.editButton": {
+    "defaultMessage": "編輯"
+  },
+  "userMessage.editInPlace": {
+    "defaultMessage": "就地編輯"
+  },
+  "userMessage.editInPlaceAriaLabel": {
+    "defaultMessage": "就地編輯訊息"
+  },
+  "userMessage.editInPlaceDescription": {
+    "defaultMessage": "<b>就地編輯</b>會更新此工作階段 • <b>分支工作階段</b>會建立新的工作階段"
+  },
+  "userMessage.editInPlaceTitle": {
+    "defaultMessage": "更新此工作階段中的訊息"
+  },
+  "userMessage.editMessageAriaLabel": {
+    "defaultMessage": "編輯訊息：{preview}"
+  },
+  "userMessage.editMessageTitle": {
+    "defaultMessage": "編輯訊息"
+  },
+  "userMessage.editPlaceholder": {
+    "defaultMessage": "編輯您的訊息..."
+  },
+  "userMessage.emptyError": {
+    "defaultMessage": "訊息不可為空白"
+  },
+  "userMessage.forkSession": {
+    "defaultMessage": "分支工作階段"
+  },
+  "userMessage.forkSessionAriaLabel": {
+    "defaultMessage": "以編輯後的訊息分支工作階段"
+  },
+  "userMessage.forkSessionTitle": {
+    "defaultMessage": "以編輯後的訊息建立新的工作階段"
+  }
+}

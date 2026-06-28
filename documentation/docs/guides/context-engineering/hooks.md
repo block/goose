@@ -133,7 +133,7 @@ Use `${PLUGIN_ROOT}` in a command to reference the plugin directory. goose also 
 |---|---|---|
 | `SessionStart` | A session starts | None |
 | `SessionEnd` | A session ends | None |
-| `Stop` | goose receives a stop event | None |
+| `Stop` | goose finishes a turn or receives a stop event | None |
 | `UserPromptSubmit` | The user submits a prompt | Prompt text |
 | `PreToolUse` | Before goose runs a tool | Tool name |
 | `PostToolUse` | After a tool succeeds | Tool name |
@@ -161,6 +161,7 @@ When a hook runs, goose writes a JSON payload to the command's stdin. Every payl
 | `tool_name` | Name of the tool, on tool events. |
 | `tool_input` | Input arguments passed to the tool, on tool events. |
 | `message` | Prompt text the user submitted, on `UserPromptSubmit`. |
+| `last_assistant_message` | Final assistant text for the turn, on `Stop` when there is assistant output. |
 | `working_dir` | Working directory of the session, on tool events. |
 
 Example payload for a tool event:
@@ -184,6 +185,16 @@ Example payload for a prompt event, where the submitted prompt is in `message`:
   "session_id": "abc-123",
   "matcher_context": "summarize this file",
   "message": "summarize this file"
+}
+```
+
+Example payload for a `Stop` event after an assistant reply:
+
+```json
+{
+  "event": "Stop",
+  "session_id": "abc-123",
+  "last_assistant_message": "Done. I updated the file and ran the tests."
 }
 ```
 
@@ -339,6 +350,7 @@ Check the following:
 - The command path is correct. Use `${PLUGIN_ROOT}` for scripts inside the plugin.
 - The script is executable if you call it directly.
 - The plugin is not listed in `disabledPlugins`.
+- The event is not a subagent lifecycle event. `SubagentStart` and `SubagentStop` are not currently emitted by goose, so hooks registered for them will never run.
 
 ### My Hook Timed Out or Failed
 

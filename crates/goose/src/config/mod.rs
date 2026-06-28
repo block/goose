@@ -32,6 +32,6 @@ pub use extensions::DEFAULT_EXTENSION;
 pub use extensions::DEFAULT_EXTENSION_DESCRIPTION;
 pub use extensions::DEFAULT_EXTENSION_TIMEOUT;
 pub use providers::{
-    get_active_model, get_active_provider, get_provider_entry, set_active_provider,
-    set_provider_entry, ProviderEntry,
+    clear_active_provider, get_active_model, get_active_provider, get_provider_entry,
+    set_active_provider, set_provider_entry, ProviderEntry,
 };

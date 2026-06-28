@@ -280,9 +280,15 @@ pub async fn handle_term_run(prompt: Vec<String>) -> Result<()> {
         };
 
     if let Some(oldest_user) = user_messages_after_last_assistant.last() {
-        session_manager
-            .truncate_conversation(&session_id, oldest_user.created)
-            .await?;
+        if let Some(message_id) = oldest_user.id.as_deref() {
+            session_manager
+                .truncate_conversation_from_message(&session_id, message_id)
+                .await?;
+        } else {
+            session_manager
+                .truncate_conversation(&session_id, oldest_user.created)
+                .await?;
+        }
     }
 
     let prompt_with_context = if user_messages_after_last_assistant.is_empty() {

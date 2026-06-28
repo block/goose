@@ -3,8 +3,6 @@ pub mod agent;
 pub mod config_management;
 pub mod dictation;
 pub mod errors;
-pub mod features;
-pub mod gateway;
 #[cfg(feature = "local-inference")]
 pub mod local_inference;
 pub mod mcp_app_proxy;
@@ -20,7 +18,6 @@ pub mod session_events;
 pub mod setup;
 pub mod status;
 pub mod telemetry;
-pub mod tunnel;
 pub mod utils;
 
 use std::sync::Arc;
@@ -41,14 +38,11 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(schedule::routes(state.clone()))
         .merge(setup::routes(state.clone()))
         .merge(telemetry::routes(state.clone()))
-        .merge(tunnel::routes(state.clone()))
-        .merge(gateway::routes(state.clone()))
         .merge(mcp_ui_proxy::routes(secret_key.clone()))
         .merge(mcp_app_proxy::routes(secret_key))
         .merge(session_events::routes(state.clone()))
         .merge(sampling::routes(state.clone()))
-        .merge(dictation::routes(state.clone()))
-        .merge(features::routes());
+        .merge(dictation::routes(state.clone()));
 
     #[cfg(feature = "local-inference")]
     let router = router.merge(local_inference::routes(state));

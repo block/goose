@@ -14,9 +14,6 @@ export type ToolConfirmationRequestContent = ToolConfirmationRequest & {
 };
 export type NotificationEvent = Extract<MessageEvent, { type: 'Notification' }>;
 
-// Compaction response message - must match backend constant
-const COMPACTION_THINKING_TEXT = 'goose is compacting the conversation...';
-
 export interface ImageData {
   data: string; // base64 encoded image data
   mimeType: string;
@@ -50,28 +47,6 @@ export function createUserMessage(text: string, images?: ImageData[]): Message {
     created: Math.floor(Date.now() / 1000),
     content,
     metadata: { userVisible: true, agentVisible: true },
-  };
-}
-
-export function createElicitationResponseMessage(
-  elicitationId: string,
-  userData: Record<string, unknown>
-): Message {
-  return {
-    id: generateMessageId(),
-    role: 'user',
-    created: Math.floor(Date.now() / 1000),
-    content: [
-      {
-        type: 'actionRequired',
-        data: {
-          actionType: 'elicitationResponse',
-          id: elicitationId,
-          user_data: userData,
-        },
-      },
-    ],
-    metadata: { userVisible: false, agentVisible: true },
   };
 }
 
@@ -237,22 +212,6 @@ export function getThinkingMessage(message: Message | undefined): string | undef
   for (const content of message.content) {
     if (content.type === 'systemNotification' && content.notificationType === 'thinkingMessage') {
       return content.msg;
-    }
-  }
-
-  return undefined;
-}
-
-export function getCompactingMessage(message: Message | undefined): string | undefined {
-  if (!message || message.role !== 'assistant') {
-    return undefined;
-  }
-
-  for (const content of message.content) {
-    if (content.type === 'systemNotification' && content.notificationType === 'thinkingMessage') {
-      if (content.msg === COMPACTION_THINKING_TEXT) {
-        return content.msg;
-      }
     }
   }
 

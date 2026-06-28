@@ -51,7 +51,13 @@ async fn create_message(
         .as_deref()
         .unwrap_or("You are a helpful AI assistant.");
 
-    let model_config = provider.get_model_config();
+    let model_config = agent
+        .model_config_for_session(&session_id)
+        .await
+        .map_err(|e| {
+            tracing::error!("Failed to resolve model config: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
     let (response, usage) = provider
         .complete(&model_config, &session_id, system, &messages, &[])
         .await

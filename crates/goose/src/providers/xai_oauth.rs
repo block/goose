@@ -703,10 +703,6 @@ impl Provider for XaiOAuthProvider {
         self.inner.get_name()
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.inner.get_model_config()
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
@@ -760,9 +756,7 @@ impl Provider for XaiOAuthProvider {
     }
 }
 
-impl ProviderDef for XaiOAuthProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for XaiOAuthProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             XAI_OAUTH_PROVIDER_NAME,
@@ -777,9 +771,12 @@ impl ProviderDef for XaiOAuthProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for XaiOAuthProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
@@ -800,7 +797,6 @@ impl ProviderDef for XaiOAuthProvider {
             let inner = OpenAiCompatibleProvider::new(
                 XAI_OAUTH_PROVIDER_NAME.to_string(),
                 api_client,
-                model,
                 String::new(),
             );
 

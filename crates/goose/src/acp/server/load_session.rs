@@ -191,6 +191,7 @@ impl GooseAcpAgent {
 
         let replay_tool_requests = replay_conversation_to_client(cx, &session)?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
+        self.apply_session_recipe(&agent, &session).await?;
         self.register_acp_session(session_id_str.clone(), agent.clone(), replay_tool_requests)
             .await;
 
@@ -218,27 +219,7 @@ impl GooseAcpAgent {
             response = response.config_options(co);
         }
 
-        let mut meta = serde_json::Map::new();
-        if let Some(recipe) = &session.recipe {
-            if let Ok(v) = serde_json::to_value(recipe) {
-                meta.insert("recipe".to_string(), v);
-            }
-        }
-        if let Some(values) = &session.user_recipe_values {
-            if let Ok(v) = serde_json::to_value(values) {
-                meta.insert("userRecipeValues".to_string(), v);
-            }
-        }
-        if let Ok(v) = serde_json::to_value(&extension_results) {
-            meta.insert("extensionResults".to_string(), v);
-        }
-        meta.insert(
-            "workingDir".to_string(),
-            serde_json::Value::String(session.working_dir.to_string_lossy().to_string()),
-        );
-        if !meta.is_empty() {
-            response = response.meta(meta);
-        }
+        response = response.meta(session_response_meta(&session, &extension_results));
 
         debug!(
             target: "perf",

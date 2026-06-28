@@ -3,7 +3,8 @@ import { Input } from '../../../../../ui/input';
 import { Select } from '../../../../../ui/Select';
 import { Button } from '../../../../../ui/button';
 import { SecureStorageNotice } from '../SecureStorageNotice';
-import { UpdateCustomProviderRequest, type ProviderTemplate } from '../../../../../../api';
+import { UpdateCustomProviderRequest } from '../../../../../../api';
+import type { ProviderTemplateDto } from '@aaif/goose-sdk';
 import { Plus, X, Trash2, AlertTriangle, ExternalLink, Search, Settings } from 'lucide-react';
 import { cn } from '../../../../../../utils';
 import ProviderCatalogPicker from '../ProviderCatalogPicker';
@@ -92,7 +93,8 @@ const i18n = defineMessages({
   },
   apiBasePathHint: {
     id: 'customProviderForm.apiBasePathHint',
-    defaultMessage: "Override the default API path. Leave blank to use the provider's default path.",
+    defaultMessage:
+      "Override the default API path. Leave blank to use the provider's default path.",
   },
   authentication: {
     id: 'customProviderForm.authentication',
@@ -264,7 +266,7 @@ export default function CustomProviderForm({
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
 
   // Template + step state
-  const [selectedTemplate, setSelectedTemplate] = useState<ProviderTemplate | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<ProviderTemplateDto | null>(null);
   const [step, setStep] = useState<Step>(initialData ? 'form' : 'choice');
 
   useEffect(() => {
@@ -294,14 +296,14 @@ export default function CustomProviderForm({
     }
   }, [initialData]);
 
-  const handleTemplateSelect = (template: ProviderTemplate) => {
+  const handleTemplateSelect = (template: ProviderTemplateDto) => {
     setSelectedTemplate(template);
 
     // Prefill fields from template
     setDisplayName(template.name);
-    setApiUrl(template.api_url);
+    setApiUrl(template.apiUrl);
     setBasePath('');
-    setSupportsStreaming(template.supports_streaming);
+    setSupportsStreaming(template.supportsStreaming);
     setRequiresAuth(true);
 
     const formatToEngine: Record<string, string> = {
@@ -411,7 +413,8 @@ export default function CustomProviderForm({
     if (!displayName) errors.displayName = intl.formatMessage(i18n.displayNameRequired);
     if (!apiUrl) errors.apiUrl = intl.formatMessage(i18n.apiUrlRequired);
     const existingHadAuth = initialData && (initialData.requires_auth ?? true);
-    if (requiresAuth && !apiKey && !existingHadAuth) errors.apiKey = intl.formatMessage(i18n.apiKeyRequired);
+    if (requiresAuth && !apiKey && !existingHadAuth)
+      errors.apiKey = intl.formatMessage(i18n.apiKeyRequired);
     if (!models) errors.models = intl.formatMessage(i18n.modelsRequired);
 
     if (Object.keys(errors).length > 0) {
@@ -456,7 +459,8 @@ export default function CustomProviderForm({
         supports_streaming: supportsStreaming,
         requires_auth: requiresAuth,
         headers: headersObject,
-        catalog_provider_id: selectedTemplate?.id ?? initialData?.catalog_provider_id ?? undefined,
+        catalog_provider_id:
+          selectedTemplate?.providerId ?? initialData?.catalog_provider_id ?? undefined,
         base_path: basePath || undefined,
       });
     } catch (error) {
@@ -470,7 +474,7 @@ export default function CustomProviderForm({
     .filter((m) => !m.deprecated)
     .reduce(
       (acc, m) => {
-        if (m.capabilities.tool_call) acc.tool_call = true;
+        if (m.capabilities.toolCall) acc.tool_call = true;
         if (m.capabilities.reasoning) acc.reasoning = true;
         if (m.capabilities.attachment) acc.attachment = true;
         return acc;
@@ -491,7 +495,9 @@ export default function CustomProviderForm({
           <div className="flex items-center gap-3">
             <Search className="w-5 h-5 text-primary flex-shrink-0" />
             <div>
-              <div className="font-medium text-textStandard">{intl.formatMessage(i18n.startFromTemplate)}</div>
+              <div className="font-medium text-textStandard">
+                {intl.formatMessage(i18n.startFromTemplate)}
+              </div>
               <div className="text-sm text-textSubtle mt-0.5">
                 {intl.formatMessage(i18n.startFromTemplateDesc)}
               </div>
@@ -506,7 +512,9 @@ export default function CustomProviderForm({
           <div className="flex items-center gap-3">
             <Settings className="w-5 h-5 text-textSubtle flex-shrink-0" />
             <div>
-              <div className="font-medium text-textStandard">{intl.formatMessage(i18n.configureManually)}</div>
+              <div className="font-medium text-textStandard">
+                {intl.formatMessage(i18n.configureManually)}
+              </div>
               <div className="text-sm text-textSubtle mt-0.5">
                 {intl.formatMessage(i18n.configureManuallyDesc)}
               </div>
@@ -550,12 +558,12 @@ export default function CustomProviderForm({
               <div className="font-medium text-textStandard">
                 {intl.formatMessage(i18n.usingTemplate, { name: selectedTemplate.name })}
               </div>
-              <div className="text-textSubtle mt-1">{selectedTemplate.api_url}</div>
+              <div className="text-textSubtle mt-1">{selectedTemplate.apiUrl}</div>
             </div>
             <div className="flex items-center gap-2">
-              {selectedTemplate.doc_url && (
+              {selectedTemplate.docUrl && (
                 <a
-                  href={selectedTemplate.doc_url}
+                  href={selectedTemplate.docUrl}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-primary hover:underline text-sm flex items-center gap-1"
@@ -600,7 +608,10 @@ export default function CustomProviderForm({
             aria-describedby={validationErrors.providerType ? 'provider-select-error' : undefined}
             options={[
               { value: 'openai_compatible', label: intl.formatMessage(i18n.openaiCompatible) },
-              { value: 'anthropic_compatible', label: intl.formatMessage(i18n.anthropicCompatible) },
+              {
+                value: 'anthropic_compatible',
+                label: intl.formatMessage(i18n.anthropicCompatible),
+              },
               { value: 'ollama_compatible', label: intl.formatMessage(i18n.ollamaCompatible) },
             ]}
             value={{
@@ -695,18 +706,16 @@ export default function CustomProviderForm({
             onChange={(e) => setBasePath(e.target.value)}
             placeholder={intl.formatMessage(i18n.apiBasePathPlaceholder)}
           />
-          <p className="text-xs text-textSubtle mt-1">
-            {intl.formatMessage(i18n.apiBasePathHint)}
-          </p>
+          <p className="text-xs text-textSubtle mt-1">{intl.formatMessage(i18n.apiBasePathHint)}</p>
         </div>
       )}
 
       {/* Authentication */}
       <div>
-        <label className="block text-sm font-medium text-text-primary mb-2">{intl.formatMessage(i18n.authentication)}</label>
-        <p className="text-sm text-text-secondary mb-3">
-          {intl.formatMessage(i18n.authHint)}
-        </p>
+        <label className="block text-sm font-medium text-text-primary mb-2">
+          {intl.formatMessage(i18n.authentication)}
+        </label>
+        <p className="text-sm text-text-secondary mb-3">{intl.formatMessage(i18n.authHint)}</p>
         <div className="flex items-center space-x-2">
           <input
             type="checkbox"
@@ -727,9 +736,9 @@ export default function CustomProviderForm({
               className="flex items-center text-sm font-medium text-text-primary mb-2"
             >
               {intl.formatMessage(i18n.apiKey)}
-              {selectedTemplate?.env_var && (
+              {selectedTemplate?.envVar && (
                 <span className="text-textSubtle ml-1 font-normal">
-                  ({selectedTemplate.env_var})
+                  ({selectedTemplate.envVar})
                 </span>
               )}
               {!initialData && <span className="text-red-500 ml-1">*</span>}
@@ -739,7 +748,11 @@ export default function CustomProviderForm({
               type="password"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
-              placeholder={initialData ? intl.formatMessage(i18n.apiKeyPlaceholderExisting) : intl.formatMessage(i18n.apiKeyPlaceholderNew)}
+              placeholder={
+                initialData
+                  ? intl.formatMessage(i18n.apiKeyPlaceholderExisting)
+                  : intl.formatMessage(i18n.apiKeyPlaceholderNew)
+              }
               aria-invalid={!!validationErrors.apiKey}
               aria-describedby={validationErrors.apiKey ? 'api-key-error' : undefined}
               className={validationErrors.apiKey ? 'border-red-500' : ''}
@@ -819,7 +832,9 @@ export default function CustomProviderForm({
       {/* Custom headers */}
       {isEditable && (
         <div>
-          <label className="text-sm font-medium text-textStandard mb-2 block">{intl.formatMessage(i18n.customHeaders)}</label>
+          <label className="text-sm font-medium text-textStandard mb-2 block">
+            {intl.formatMessage(i18n.customHeaders)}
+          </label>
           <p className="text-xs text-textSubtle mb-4">
             {intl.formatMessage(i18n.customHeadersHint)}
           </p>
@@ -900,16 +915,12 @@ export default function CustomProviderForm({
             <div className="px-4 py-3 bg-yellow-600/20 border border-yellow-500/30 rounded">
               <p className="text-yellow-500 text-sm flex items-start">
                 <AlertTriangle className="h-4 w-4 mr-2 mt-0.5 flex-shrink-0" />
-                <span>
-                  {intl.formatMessage(i18n.cannotDeleteActive)}
-                </span>
+                <span>{intl.formatMessage(i18n.cannotDeleteActive)}</span>
               </p>
             </div>
           ) : (
             <div className="px-4 py-3 bg-red-900/20 border border-red-500/30 rounded">
-              <p className="text-red-400 text-sm">
-                {intl.formatMessage(i18n.deleteConfirmation)}
-              </p>
+              <p className="text-red-400 text-sm">{intl.formatMessage(i18n.deleteConfirmation)}</p>
             </div>
           )}
           <div className="flex justify-end space-x-2">
@@ -944,7 +955,11 @@ export default function CustomProviderForm({
           <Button type="button" variant="outline" onClick={onCancel}>
             {intl.formatMessage(i18n.cancel)}
           </Button>
-          <Button type="submit">{initialData ? intl.formatMessage(i18n.updateProvider) : intl.formatMessage(i18n.createProvider)}</Button>
+          <Button type="submit">
+            {initialData
+              ? intl.formatMessage(i18n.updateProvider)
+              : intl.formatMessage(i18n.createProvider)}
+          </Button>
         </div>
       )}
     </form>
