@@ -132,6 +132,7 @@ const i18n = defineMessages({
 
 const DEFAULT_IFRAME_HEIGHT = 200;
 const FULLSCREEN_HEADER_HEIGHT = 48;
+const DEFAULT_SANDBOX_PERMISSIONS = 'allow-scripts allow-same-origin allow-forms';
 
 const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
   inline: { width: 'fixed', height: 'unbounded' },
@@ -333,6 +334,7 @@ function GooseAppFrame({
       serverTools: {},
       serverResources: {},
       logging: {},
+      message: { text: {} },
     };
     const bridge = new AppBridge(
       null,
@@ -353,7 +355,7 @@ function GooseAppFrame({
     iframe.style.height = '600px';
     iframe.style.border = 'none';
     iframe.style.backgroundColor = 'transparent';
-    iframe.setAttribute('sandbox', sandbox.permissions || 'allow-scripts allow-same-origin allow-forms');
+    iframe.setAttribute('sandbox', sandbox.permissions || DEFAULT_SANDBOX_PERMISSIONS);
 
     let active = true;
     let settled = false;
@@ -989,7 +991,7 @@ export default function McpAppRenderer({
     if (!readySandboxUrl) return null;
     return {
       url: readySandboxUrl,
-      permissions: meta.permissions || 'allow-scripts allow-same-origin',
+      permissions: meta.permissions || DEFAULT_SANDBOX_PERMISSIONS,
       csp: mcpUiCsp,
     };
   }, [readySandboxUrl, meta.permissions, mcpUiCsp]);
