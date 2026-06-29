@@ -1,12 +1,11 @@
 use super::{
-    spawn_acp_server_in_process, Connection, DuplexTransport, OpenAiFixture, PermissionDecision,
+    spawn_acp_server_in_process, Connection, ModelStateFixture, OpenAiFixture, PermissionDecision,
     Session, SessionData, TestConnectionConfig, TestOutput,
 };
-use agent_client_protocol::schema::{
-    ListSessionsResponse, McpServer, ModelId, ModelInfo, SessionModelState, SessionUpdate,
-    ToolCallStatus,
+use agent_client_protocol::schema::v1::{
+    ListSessionsResponse, McpServer, SessionUpdate, ToolCallStatus,
 };
-use agent_client_protocol::{Channel, Client, ConnectTo, DynConnectTo};
+use agent_client_protocol::{Client, DynConnectTo};
 use async_trait::async_trait;
 use futures::StreamExt;
 use goose::acp::{AcpProvider, AcpProviderConfig};
@@ -17,7 +16,7 @@ use goose::permission::{Permission, PermissionConfirmation};
 use goose::providers::base::Provider;
 use goose_providers::model::ModelConfig;
 use goose_test_support::{ExpectedSessionId, IgnoreSessionId, TEST_MODEL};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::str::FromStr;
 use std::sync::Arc;
 use strum::VariantNames;
@@ -34,7 +33,6 @@ pub struct AcpProviderConnection {
     session_counter: usize,
     notification_sink: NotificationSink,
     session_models: SessionModels,
-    strip_config_options: bool,
     work_dir: std::path::PathBuf,
     data_root: std::path::PathBuf,
     _openai: OpenAiFixture,
@@ -45,7 +43,7 @@ pub struct AcpProviderConnection {
 #[allow(dead_code)]
 pub struct AcpProviderSession {
     provider: Arc<Mutex<Option<AcpProvider>>>,
-    session_id: agent_client_protocol::schema::SessionId,
+    session_id: agent_client_protocol::schema::v1::SessionId,
     notification_sink: NotificationSink,
     session_models: SessionModels,
     work_dir: std::path::PathBuf,
@@ -197,12 +195,7 @@ impl Connection for AcpProviderConnection {
             })),
         };
 
-        // Server always advertises both configOptions and legacy; only the client fallback needs testing.
-        let transport: DynConnectTo<Client> = if config.strip_config_options {
-            DynConnectTo::new(strip_config_options(transport))
-        } else {
-            DynConnectTo::new(transport)
-        };
+        let transport: DynConnectTo<Client> = DynConnectTo::new(transport);
         let provider = AcpProvider::connect_with_transport(
             "acp-test".to_string(),
             goose_mode,
@@ -218,7 +211,6 @@ impl Connection for AcpProviderConnection {
             session_counter: 0,
             notification_sink,
             session_models,
-            strip_config_options: config.strip_config_options,
             work_dir: cwd_path,
             data_root,
             _openai: openai,
@@ -231,24 +223,19 @@ impl Connection for AcpProviderConnection {
         self.session_counter += 1;
         let goose_id = format!("test-session-{}", self.session_counter);
 
-        let models = if self.strip_config_options {
-            None
-        } else {
+        let models = {
             let provider = self.provider.lock().await;
             let provider = provider.as_ref().unwrap();
             let available_models = provider.fetch_supported_models().await?;
-            Some(SessionModelState::new(
-                ModelId::new(TEST_MODEL.to_string()),
-                available_models
-                    .into_iter()
-                    .map(|model_id| ModelInfo::new(ModelId::new(model_id.clone()), model_id))
-                    .collect(),
-            ))
+            Some(ModelStateFixture {
+                current_model_id: TEST_MODEL.to_string(),
+                available_models,
+            })
         };
 
         let session = AcpProviderSession {
             provider: Arc::clone(&self.provider),
-            session_id: agent_client_protocol::schema::SessionId::new(goose_id),
+            session_id: agent_client_protocol::schema::v1::SessionId::new(goose_id),
             notification_sink: self.notification_sink.clone(),
             session_models: self.session_models.clone(),
             work_dir: self.work_dir.clone(),
@@ -318,7 +305,7 @@ impl Connection for AcpProviderConnection {
 
 #[async_trait]
 impl Session for AcpProviderSession {
-    fn session_id(&self) -> &agent_client_protocol::schema::SessionId {
+    fn session_id(&self) -> &agent_client_protocol::schema::v1::SessionId {
         &self.session_id
     }
 
@@ -355,112 +342,4 @@ impl Session for AcpProviderSession {
             .with_text(prompt);
         self.send_message(message, decision).await
     }
-}
-
-// Strips config_options from responses so goose falls back to legacy set_mode/set_model.
-#[allow(dead_code)]
-fn strip_config_options(transport: DuplexTransport) -> Channel {
-    let (server, server_future) = ConnectTo::<Client>::into_channel_and_future(transport);
-    let (client_channel, filter) = Channel::duplex();
-
-    tokio::spawn(async move {
-        if let Err(e) = server_future.await {
-            tracing::error!("config_options filter transport error: {e}");
-        }
-    });
-
-    tokio::spawn(async move {
-        let mut stripped_initial_config = HashSet::new();
-
-        let goose_to_server = async {
-            let mut from_goose = filter.rx;
-            while let Some(msg) = from_goose.next().await {
-                if server.tx.unbounded_send(msg).is_err() {
-                    break;
-                }
-            }
-        };
-
-        let server_to_goose = async {
-            let mut from_server = server.rx;
-            while let Some(msg) = from_server.next().await {
-                let msg = match msg {
-                    Ok(m) => match m {
-                        agent_client_protocol::jsonrpcmsg::Message::Response(mut resp) => {
-                            if let Some(ref mut result) = resp.result {
-                                if let Some(obj) = result.as_object_mut() {
-                                    obj.remove("configOptions");
-                                }
-                            }
-                            Ok(Some(agent_client_protocol::jsonrpcmsg::Message::Response(
-                                resp,
-                            )))
-                        }
-                        agent_client_protocol::jsonrpcmsg::Message::Request(req)
-                            if req.id.is_none()
-                                && req.method == "session/update"
-                                && req
-                                    .params
-                                    .as_ref()
-                                    .and_then(|params| match params {
-                                        agent_client_protocol::jsonrpcmsg::Params::Object(obj) => {
-                                            Some(obj)
-                                        }
-                                        _ => None,
-                                    })
-                                    .and_then(|obj| obj.get("update"))
-                                    .and_then(|update| update.get("sessionUpdate"))
-                                    .and_then(|session_update| session_update.as_str())
-                                    == Some("config_option_update") =>
-                        {
-                            let session_id = req
-                                .params
-                                .as_ref()
-                                .and_then(|params| match params {
-                                    agent_client_protocol::jsonrpcmsg::Params::Object(obj) => {
-                                        Some(obj)
-                                    }
-                                    _ => None,
-                                })
-                                .and_then(|obj| obj.get("sessionId"))
-                                .and_then(|session_id| session_id.as_str())
-                                .map(str::to_owned);
-                            if let Some(session_id) = session_id {
-                                if stripped_initial_config.insert(session_id) {
-                                    Ok(None)
-                                } else {
-                                    Ok(Some(agent_client_protocol::jsonrpcmsg::Message::Request(
-                                        req,
-                                    )))
-                                }
-                            } else {
-                                Ok(Some(agent_client_protocol::jsonrpcmsg::Message::Request(
-                                    req,
-                                )))
-                            }
-                        }
-                        other => Ok(Some(other)),
-                    },
-                    Err(err) => Err(err),
-                };
-                match msg {
-                    Ok(Some(msg)) => {
-                        if filter.tx.unbounded_send(Ok(msg)).is_err() {
-                            break;
-                        }
-                    }
-                    Ok(None) => continue,
-                    Err(err) => {
-                        if filter.tx.unbounded_send(Err(err)).is_err() {
-                            break;
-                        }
-                    }
-                }
-            }
-        };
-
-        futures::join!(goose_to_server, server_to_goose);
-    });
-
-    client_channel
 }

@@ -39,7 +39,7 @@ use crate::session::{
 };
 use crate::source_roots::SourceRoot;
 use crate::utils::sanitize_unicode_tags;
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     AgentCapabilities, Annotations, AuthMethod, AuthMethodAgent, AuthenticateRequest,
     AuthenticateResponse, BlobResourceContents, CancelNotification, CloseSessionRequest,
     CloseSessionResponse, ConfigOptionUpdate, Content, ContentBlock, ContentChunk, Cost,
@@ -51,10 +51,9 @@ use agent_client_protocol::schema::{
     RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
     SessionCloseCapabilities, SessionConfigOption, SessionId, SessionInfoUpdate,
     SessionListCapabilities, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
-    SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse,
-    SetSessionModelRequest, SetSessionModelResponse, StopReason, TextContent, TextResourceContents,
-    ToolCall, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus, ToolCallUpdate,
-    ToolCallUpdateFields, ToolKind, Usage, UsageUpdate,
+    SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse, StopReason,
+    TextContent, TextResourceContents, ToolCall, ToolCallContent, ToolCallId, ToolCallLocation,
+    ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind, Usage, UsageUpdate,
 };
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::{
@@ -1259,10 +1258,10 @@ impl GooseAcpAgent {
                                 roles
                                     .iter()
                                     .filter_map(|r| match r {
-                                        agent_client_protocol::schema::Role::Assistant => {
+                                        agent_client_protocol::schema::v1::Role::Assistant => {
                                             Some(Role::Assistant)
                                         }
-                                        agent_client_protocol::schema::Role::User => {
+                                        agent_client_protocol::schema::v1::Role::User => {
                                             Some(Role::User)
                                         }
                                         _ => None,
@@ -2759,7 +2758,7 @@ impl GooseAcpAgent {
         &self,
         session_id: &str,
         model_id: &str,
-    ) -> Result<SetSessionModelResponse, agent_client_protocol::Error> {
+    ) -> Result<(), agent_client_protocol::Error> {
         let agent = self.get_session_agent(session_id).await?;
         let current_provider = agent
             .provider()
@@ -2784,7 +2783,7 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to recreate provider")?;
         // model_config is already updated on the session by the agent's update_provider call.
-        Ok(SetSessionModelResponse::new())
+        Ok(())
     }
 
     async fn build_config_update(
@@ -3001,6 +3000,38 @@ where
     })
 }
 
+/// A lazily-initialized agent connection used by the HTTP/WebSocket transport.
+///
+/// The `agent-client-protocol-http` server takes a synchronous factory that
+/// yields a [`ConnectTo<Client>`] per connection, but creating a goose agent is
+/// async. Agent creation is therefore deferred into [`ConnectTo::connect_to`],
+/// which runs as the connection's serving future.
+pub struct GooseAgentConnection {
+    server: Arc<crate::acp::server_factory::AcpServer>,
+}
+
+impl GooseAgentConnection {
+    pub fn new(server: Arc<crate::acp::server_factory::AcpServer>) -> Self {
+        Self { server }
+    }
+}
+
+impl agent_client_protocol::ConnectTo<Client> for GooseAgentConnection {
+    async fn connect_to(
+        self,
+        client: impl agent_client_protocol::ConnectTo<SacpAgent>,
+    ) -> std::result::Result<(), agent_client_protocol::Error> {
+        let agent = self.server.create_agent().await.internal_err()?;
+        let handler = GooseAcpHandler { agent };
+        SacpAgent
+            .builder()
+            .name("goose-acp")
+            .with_handler(handler)
+            .connect_to(client)
+            .await
+    }
+}
+
 pub async fn run(builtins: Vec<String>) -> Result<()> {
     info!("listening on stdio");
 
@@ -3026,7 +3057,7 @@ mod tests {
     use super::*;
     use crate::conversation::message::{ToolRequest, ToolResponse};
     use crate::session::session_manager::SessionType;
-    use agent_client_protocol::schema::{
+    use agent_client_protocol::schema::v1::{
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
         PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
     };
@@ -3872,7 +3903,7 @@ print(\"hello, world\")
         let request =
             InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST)
                 .client_capabilities(
-                    agent_client_protocol::schema::ClientCapabilities::new().meta(meta),
+                    agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
                 );
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);

@@ -95,7 +95,7 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                     Ok(())
                 })
                 .await
-                // set_config_option (SACP 11) and legacy set_mode/set_model; custom _goose/* in otherwise.
+                // set_config_option (SACP 11) and set_mode; custom _goose/* in otherwise.
                 .if_request({
                     let agent = agent.clone();
                     let cx = cx.clone();
@@ -313,28 +313,6 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                 Err(e) => {
                                     responder.respond_with_error(e)?;
                                 }
-                            }
-                            Ok(())
-                        })?;
-                        Ok(())
-                    }
-                })
-                .await
-                .if_request({
-                    let agent = agent.clone();
-                    let cx = cx.clone();
-                    |req: SetSessionModelRequest, responder: Responder<SetSessionModelResponse>| async move {
-                        let cx_spawn = cx.clone();
-                        cx.spawn(async move {
-                            let cx = cx_spawn;
-                            let session_id = req.session_id.clone();
-                            match agent.on_set_model(&session_id.0, &req.model_id.0).await {
-                                Ok(resp) => {
-                                    let (notification, _) = agent.build_config_update(&session_id).await?;
-                                    cx.send_notification(notification)?;
-                                    responder.respond(resp)?;
-                                }
-                                Err(e) => responder.respond_with_error(e)?,
                             }
                             Ok(())
                         })?;

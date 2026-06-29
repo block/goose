@@ -1,16 +1,17 @@
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     ClientCapabilities, CloseSessionRequest, ContentBlock, ContentChunk, EnvVariable, HttpHeader,
     ImageContent, InitializeRequest, InitializeResponse, McpCapabilities, McpServer, McpServerHttp,
     McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse,
-    ProtocolVersion, RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
+    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
     SessionConfigKind, SessionConfigOption, SessionConfigOptionCategory,
     SessionConfigSelectOptions, SessionId, SessionNotification, SessionUpdate,
     SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
     TextContent, ToolCallContent, ToolCallStatus, ToolKind,
 };
+use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
-use agent_client_protocol_schema::Usage as AcpUsage;
-use agent_client_protocol_schema::AGENT_METHOD_NAMES;
+use agent_client_protocol_schema::v1::Usage as AcpUsage;
+use agent_client_protocol_schema::v1::AGENT_METHOD_NAMES;
 use anyhow::{Context, Result};
 use async_stream::try_stream;
 use futures::future::BoxFuture;
@@ -1118,7 +1119,7 @@ async fn handle_requests(
                 value,
                 response_tx,
             } => {
-                let value_id = agent_client_protocol::schema::SessionConfigValueId::new(value);
+                let value_id = agent_client_protocol::schema::v1::SessionConfigValueId::new(value);
                 let req = SetSessionConfigOptionRequest::new(session_id, config_id, value_id);
                 let result: Result<()> = cx
                     .send_request(req)
@@ -1184,7 +1185,7 @@ async fn apply_session_config_options(
     session_id: SessionId,
 ) -> Result<()> {
     for (config_id, value) in &config.session_config_options {
-        let value_id = agent_client_protocol::schema::SessionConfigValueId::new(value.clone());
+        let value_id = agent_client_protocol::schema::v1::SessionConfigValueId::new(value.clone());
         cx.send_request(SetSessionConfigOptionRequest::new(
             session_id.clone(),
             config_id.clone(),
@@ -1531,18 +1532,9 @@ fn resolve_model_info(
         }
     }
 
-    let models = response.models.as_ref().ok_or_else(|| {
-        ProviderError::RequestFailed(format!(
-            "{provider_name}: agent returned neither config_options nor models"
-        ))
-    })?;
-    let current = models.current_model_id.0.to_string();
-    let available = models
-        .available_models
-        .iter()
-        .map(|am| am.model_id.0.to_string())
-        .collect();
-    Ok((current, available))
+    Err(ProviderError::RequestFailed(format!(
+        "{provider_name}: agent returned no model config_options"
+    )))
 }
 
 fn reverse_mode_mapping(
@@ -1584,7 +1576,7 @@ fn permission_decision_from_mode(goose_mode: GooseMode) -> Option<PermissionDeci
 mod tests {
     use super::*;
     use crate::agents::extension::Envs;
-    use agent_client_protocol::schema::SessionConfigSelectOption;
+    use agent_client_protocol::schema::v1::SessionConfigSelectOption;
     use test_case::test_case;
 
     fn prompt_text(block: &ContentBlock) -> &str {
@@ -2009,14 +2001,6 @@ mod tests {
 
     #[test_case(
         NewSessionResponse::new("s1")
-            .models(agent_client_protocol::schema::SessionModelState::new(
-                "default",
-                vec![
-                    agent_client_protocol::schema::ModelInfo::new("default", "Default (recommended)"),
-                    agent_client_protocol::schema::ModelInfo::new("sonnet", "Sonnet"),
-                    agent_client_protocol::schema::ModelInfo::new("haiku", "Haiku"),
-                ],
-            ))
             .config_options(vec![
                 SessionConfigOption::select("model", "Model", "default", vec![
                     SessionConfigSelectOption::new("default", "Default (recommended)"),
@@ -2026,27 +2010,27 @@ mod tests {
                 .category(SessionConfigOptionCategory::Model),
             ])
         => Ok(("default".to_string(), vec!["default".to_string(), "sonnet".to_string(), "haiku".to_string()]))
-        ; "claude-agent-acp config_options supersedes models"
+        ; "model is resolved from config_options"
     )]
     #[test_case(
         NewSessionResponse::new("s1")
-            .models(agent_client_protocol::schema::SessionModelState::new(
-                "auto-gemini-3",
-                vec![
-                    agent_client_protocol::schema::ModelInfo::new("auto-gemini-3", "Auto (Gemini 3)"),
-                    agent_client_protocol::schema::ModelInfo::new("auto-gemini-2.5", "Auto (Gemini 2.5)"),
-                    agent_client_protocol::schema::ModelInfo::new("gemini-2.5-pro", "gemini-2.5-pro"),
-                ],
-            ))
+            .config_options(vec![
+                SessionConfigOption::select("model", "Model", "auto-gemini-3", vec![
+                    SessionConfigSelectOption::new("auto-gemini-3", "Auto (Gemini 3)"),
+                    SessionConfigSelectOption::new("auto-gemini-2.5", "Auto (Gemini 2.5)"),
+                    SessionConfigSelectOption::new("gemini-2.5-pro", "gemini-2.5-pro"),
+                ])
+                .category(SessionConfigOptionCategory::Model),
+            ])
         => Ok(("auto-gemini-3".to_string(), vec!["auto-gemini-3".to_string(), "auto-gemini-2.5".to_string(), "gemini-2.5-pro".to_string()]))
-        ; "gemini falls back to models"
+        ; "model with multiple options"
     )]
     #[test_case(
         NewSessionResponse::new("s1")
         => Err(ProviderError::RequestFailed(
-            "test: agent returned neither config_options nor models".to_string()
+            "test: agent returned no model config_options".to_string()
         ))
-        ; "neither config_options nor models is an error"
+        ; "missing model config_options is an error"
     )]
     fn test_resolve_model_info(
         response: NewSessionResponse,
@@ -2098,18 +2082,19 @@ mod tests {
 
     #[test]
     fn acp_tool_call_content_handles_text_diff_terminal_and_image() {
-        use agent_client_protocol::schema::{Diff, Terminal, TerminalId, TextContent};
+        use agent_client_protocol::schema::v1::{Diff, Terminal, TerminalId, TextContent};
 
         let diff_block = ToolCallContent::Diff(
             Diff::new(std::path::PathBuf::from("/tmp/file.txt"), "new\n").old_text("old\n"),
         );
         let terminal_block = ToolCallContent::Terminal(Terminal::new(TerminalId::new("term-7")));
-        let text_block = ToolCallContent::Content(agent_client_protocol::schema::Content::new(
+        let text_block = ToolCallContent::Content(agent_client_protocol::schema::v1::Content::new(
             ContentBlock::Text(TextContent::new("hello")),
         ));
-        let image_block = ToolCallContent::Content(agent_client_protocol::schema::Content::new(
-            ContentBlock::Image(ImageContent::new("base64data", "image/png")),
-        ));
+        let image_block =
+            ToolCallContent::Content(agent_client_protocol::schema::v1::Content::new(
+                ContentBlock::Image(ImageContent::new("base64data", "image/png")),
+            ));
 
         let out = acp_tool_call_content_to_rmcp(
             Some(vec![text_block, diff_block, terminal_block, image_block]),
