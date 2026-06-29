@@ -37,7 +37,6 @@ rustls-tls = [
     "reqwest/rustls",
     "axum-server/tls-rustls",
     "dep:rustls",
-    "dep:aws-lc-rs",
     "goose/rustls-tls",
     "goose-mcp/rustls-tls",
     "goose-providers/rustls-tls",
@@ -45,7 +44,6 @@ rustls-tls = [
 native-tls = [
     "reqwest/native-tls",
     "axum-server/tls-openssl",
-    "dep:openssl",
     "goose/native-tls",
     "goose-mcp/native-tls",
     "goose-providers/native-tls",
@@ -82,11 +80,7 @@ rand = { workspace = true }
 hex = { version = "0.4.3", default-features = false, features = ["std"] }
 rustls = { workspace = true, optional = true }
 uuid = { workspace = true }
-rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "crypto", "pem"] }
 axum-server = { version = "0.8", default-features = false }
-aws-lc-rs = { version = "1.17", default-features = false, optional = true }
-openssl = { version = "0.10.66", default-features = false, optional = true }
-pem = { version = "3.0.2", default-features = false, features = ["std"] }
 
 [target.'cfg(windows)'.dependencies]
 winreg = { version = "0.56", default-features = false }

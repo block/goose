@@ -5174,7 +5174,6 @@ name = "goose-server"
 version = "1.39.0"
 dependencies = [
  "anyhow",
- "aws-lc-rs",
  "axum",
  "axum-server",
  "base64 0.22.1",
@@ -5188,10 +5187,7 @@ dependencies = [
  "goose-providers",
  "hex",
  "http 1.4.2",
- "openssl",
- "pem",
  "rand 0.10.1",
- "rcgen",
  "reqwest 0.13.4",
  "rmcp",
  "rustls",
