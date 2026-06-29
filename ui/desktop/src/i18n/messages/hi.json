@@ -1949,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "पिक्चर-इन-पिक्चर में बजाना"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "रद्द करें"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "खुला"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "बाहरी लिंक खोलें"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "यह खुलेगा: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol} लिंक खोलें?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "{message} के लिए संदेश प्राप्त हुआ।"
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "एमसीपी-यूआई {messageType} संदेश"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "{message} के लिए संदेश प्राप्त हुआ। {messageType} संदेश अभी तक समर्थित नहीं हैं, अधिक विवरण के लिए कंसोल देखें।"
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# आइटम मिला} other{# आइटम मिले}}"
   },
@@ -4429,9 +4405,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "लॉग"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP यूआई प्रयोगात्मक है और किसी भी समय बदल सकता है।"
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "आउटपुट"

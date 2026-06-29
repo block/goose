@@ -1949,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "PIP(Picture-in-Picture)에서 재생 중"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "취소"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "열기"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "외부 링크 열기"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "열립니다: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol} 링크를 열까요?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "{message}에 대한 메시지가 수신되었습니다."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "MCP-UI {messageType} 메시지"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "{message}에 대한 메시지가 수신되었습니다. {messageType} 메시지는 아직 지원되지 않습니다. 자세한 내용은 콘솔을 참조하세요."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{#개 항목 발견} other{#개 항목 발견}}"
   },
@@ -4429,9 +4405,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "로그"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI는 실험적이며 언제든지 변경될 수 있습니다."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "출력"

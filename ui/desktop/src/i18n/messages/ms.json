@@ -1949,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Bermain dalam Gambar-dalam-Gambar"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Batal"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Buka"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Buka Pautan Luaran"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Ini akan membuka: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "Buka pautan {protocol}?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Mesej diterima untuk {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "Mesej MCP-UI {messageType}"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Mesej diterima untuk {message}. Mesej {messageType} belum disokong lagi, rujuk konsol untuk butiran lanjut."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# item dijumpai} other{# item dijumpai}}"
   },
@@ -4429,9 +4405,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Log"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI adalah eksperimen dan boleh berubah pada bila-bila masa."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Output"

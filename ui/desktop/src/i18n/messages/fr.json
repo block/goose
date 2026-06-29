@@ -1949,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Lecture en Picture-in-Picture"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Annuler"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Ouvrir"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Ouvrir le lien externe"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Cela ouvrira : {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "Ouvrir le lien {protocol} ?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Message reçu pour {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "Message MCP-UI {messageType}"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Message reçu pour {message}. Les messages {messageType} ne sont pas encore pris en charge, consultez la console pour plus de détails."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# élément trouvé} other{# éléments trouvés}}"
   },
@@ -4429,9 +4405,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Journaux"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "L'interface MCP est expérimentale et peut changer à tout moment."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Sortie"

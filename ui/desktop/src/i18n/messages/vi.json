@@ -1949,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Đang phát ở chế độ Hình-trong-hình"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Hủy"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Mở"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Mở liên kết bên ngoài"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Thao tác này sẽ mở: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "Mở liên kết {protocol}?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Đã nhận thông báo cho {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "Thông báo MCP-UI {messageType}"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Đã nhận thông báo cho {message}. Thông báo {messageType} chưa được hỗ trợ, hãy tham khảo console để biết thêm chi tiết."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# mục được tìm thấy} other{# mục được tìm thấy}}"
   },
@@ -4429,9 +4405,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Nhật ký"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI là thử nghiệm và có thể thay đổi bất kỳ lúc nào."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Đầu ra"

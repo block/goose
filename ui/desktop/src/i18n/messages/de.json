@@ -1949,30 +1949,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Wiedergabe im Bild-in-Bild-Modus"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Abbrechen"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Öffnen"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Externen Link öffnen"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Dies öffnet: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol}-Link öffnen?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Nachricht für {message} empfangen."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "MCP-UI-Nachricht {messageType}"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Nachricht für {message} empfangen. Nachrichten vom Typ {messageType} werden noch nicht unterstützt, weitere Details finden Sie in der Konsole."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# Element gefunden} other{# Elemente gefunden}}"
   },
@@ -4429,9 +4405,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Protokolle"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI ist experimentell und kann sich jederzeit ändern."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Ausgabe"
