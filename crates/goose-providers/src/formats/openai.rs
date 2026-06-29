@@ -239,7 +239,7 @@ pub fn format_messages_with_options(
                     if !text.text.is_empty() {
                         if message.role == Role::User {
                             if let Some(image_path) = detect_image_path(&text.text) {
-                                if let Ok(image) = load_image_file(image_path) {
+                                if let Ok(image) = load_image_file(image_path.as_ref()) {
                                     has_non_text_content = true;
                                     content_array.push(json!({"type": "text", "text": text.text}));
                                     content_array.push(convert_image(&image, image_format));

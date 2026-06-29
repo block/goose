@@ -34,7 +34,7 @@ struct DatabricksMessage {
 fn format_text_content(text: &str, image_format: &ImageFormat) -> (Vec<Value>, bool) {
     let mut items = vec![json!({"type": "text", "text": text})];
     let has_image = if let Some(path) = detect_image_path(text) {
-        if let Ok(image) = load_image_file(path) {
+        if let Ok(image) = load_image_file(path.as_ref()) {
             items.push(convert_image(&image, image_format));
         }
         true
