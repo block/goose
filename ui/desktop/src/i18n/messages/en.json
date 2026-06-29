@@ -41,14 +41,14 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "No apps available"
   },
-  "appsView.retry": {
-    "defaultMessage": "Retry"
-  },
   "appsView.retiredChatApp": {
     "defaultMessage": "Chat app retired"
   },
   "appsView.retiredChatAppDetail": {
     "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
+  "appsView.retry": {
+    "defaultMessage": "Retry"
   },
   "appsView.title": {
     "defaultMessage": "Apps"
