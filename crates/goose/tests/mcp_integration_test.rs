@@ -135,7 +135,8 @@ enum TestMode {
         CallToolRequestParams::new("echo").with_arguments(object!({"message": "Hello, world!" })),
         CallToolRequestParams::new("get-sum").with_arguments(object!({"a": 1, "b": 2 })),
         CallToolRequestParams::new("trigger-long-running-operation").with_arguments(object!({"duration": 1, "steps": 5 })),
-        CallToolRequestParams::new("get-structured-content").with_arguments(object!({"location": "New York"}))
+        CallToolRequestParams::new("get-structured-content").with_arguments(object!({"location": "New York"})),
+        CallToolRequestParams::new("trigger-sampling-request").with_arguments(object!({"prompt": "Please provide a quote from The Great Gatsby", "maxTokens": 100 }))
     ],
     vec![]
 )]
