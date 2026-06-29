@@ -5,18 +5,17 @@ use crate::session_context::{SESSION_ID_HEADER, TOOL_CALL_REQUEST_ID_HEADER, WOR
 use rmcp::model::{
     CreateElicitationRequestParams, CreateElicitationResult, ElicitationAction, ErrorCode,
     ExtensionCapabilities, Extensions, JsonObject, ListRootsResult, LoggingMessageNotification,
-    Meta, Root, SamplingMessageContent,
+    Meta, Root,
 };
 /// MCP client implementation for Goose
 use rmcp::{
     model::{
         CallToolRequestParams, CallToolResult, CancelledNotificationParam, ClientCapabilities,
-        ClientInfo, ClientRequest, CreateMessageRequestParams, CreateMessageResult,
-        GetPromptRequestParams, GetPromptResult, Implementation, InitializeRequestParams,
-        InitializeResult, ListPromptsResult, ListResourcesResult, ListToolsResult, Notification,
-        PaginatedRequestParams, ProtocolVersion, ReadResourceRequestParams, ReadResourceResult,
-        Request, RequestId, RequestOptionalParam, Role, SamplingMessage, ServerNotification,
-        ServerResult,
+        ClientInfo, ClientRequest, GetPromptRequestParams, GetPromptResult, Implementation,
+        InitializeRequestParams, InitializeResult, ListPromptsResult, ListResourcesResult,
+        ListToolsResult, Notification, PaginatedRequestParams, ProtocolVersion,
+        ReadResourceRequestParams, ReadResourceResult, Request, RequestId, RequestOptionalParam,
+        ServerNotification, ServerResult,
     },
     service::{
         ClientInitializeError, PeerRequestOptions, RequestContext, RequestHandle, RunningService,
@@ -41,13 +40,6 @@ pub type Error = rmcp::ServiceError;
 
 const MCP_APPS_UI_EXTENSION_ID: &str = "io.modelcontextprotocol/ui";
 const MCP_APPS_UI_MIME_TYPE: &str = "text/html;profile=mcp-app";
-
-fn resolve_sampling_model_config() -> anyhow::Result<goose_providers::model::ModelConfig> {
-    let config = crate::config::Config::global();
-    let provider_name = config.get_goose_provider()?;
-    let model_name = config.get_goose_model()?;
-    crate::model_config::model_config_from_user_config(&provider_name, &model_name)
-}
 
 fn default_mcp_apps_ui_extensions() -> ExtensionCapabilities {
     let mut extensions = ExtensionCapabilities::new();
@@ -175,7 +167,6 @@ impl Drop for ActiveToolCallGuard {
 
 pub struct GooseClient {
     notification_handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
-    provider: SharedProvider,
     session_id: Mutex<Option<String>>,
     active_tool_calls: Arc<StdMutex<HashMap<String, Vec<String>>>>,
     client_name: String,
@@ -186,14 +177,13 @@ pub struct GooseClient {
 impl GooseClient {
     pub fn new(
         handlers: Arc<Mutex<Vec<Sender<ServerNotification>>>>,
-        provider: SharedProvider,
+        _provider: SharedProvider,
         client_name: String,
         capabilities: GooseMcpClientCapabilities,
         working_dir: PathBuf,
     ) -> Self {
         GooseClient {
             notification_handlers: handlers,
-            provider,
             session_id: Mutex::new(None),
             active_tool_calls: Arc::new(StdMutex::new(HashMap::new())),
             client_name,
@@ -373,97 +363,6 @@ impl ClientHandler for GooseClient {
             });
     }
 
-    async fn create_message(
-        &self,
-        params: CreateMessageRequestParams,
-        context: RequestContext<RoleClient>,
-    ) -> Result<CreateMessageResult, ErrorData> {
-        let provider = self
-            .provider
-            .lock()
-            .await
-            .as_ref()
-            .ok_or(ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "Could not use provider",
-                None,
-            ))?
-            .clone();
-
-        // Prefer explicit MCP metadata, then the active request scope.
-        let session_id = self.resolve_session_id(&context.extensions).await;
-
-        let provider_ready_messages: Vec<crate::conversation::message::Message> = params
-            .messages
-            .iter()
-            .map(|msg| {
-                let base = match msg.role {
-                    Role::User => crate::conversation::message::Message::user(),
-                    Role::Assistant => crate::conversation::message::Message::assistant(),
-                };
-
-                match msg.content.first().and_then(|c| c.as_text()) {
-                    Some(text) => base.with_text(&text.text),
-                    None => base,
-                }
-            })
-            .collect();
-
-        let system_prompt = params
-            .system_prompt
-            .as_deref()
-            .unwrap_or("You are a general-purpose AI agent called goose");
-
-        let model_config = resolve_sampling_model_config().map_err(|e| {
-            ErrorData::new(
-                ErrorCode::INTERNAL_ERROR,
-                "Could not resolve model config",
-                Some(Value::from(e.to_string())),
-            )
-        })?;
-        let (response, usage) = provider
-            .complete(
-                &model_config,
-                session_id.as_deref().unwrap_or(""),
-                system_prompt,
-                &provider_ready_messages,
-                &[],
-            )
-            .await
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    "Unexpected error while completing the prompt",
-                    Some(Value::from(e.to_string())),
-                )
-            })?;
-
-        Ok(CreateMessageResult::new(
-            SamplingMessage::new(
-                Role::Assistant,
-                if let Some(content) = response.content.first() {
-                    match content {
-                        crate::conversation::message::MessageContent::Text(text) => {
-                            SamplingMessageContent::text(&text.text)
-                        }
-                        crate::conversation::message::MessageContent::Image(img) => {
-                            SamplingMessageContent::Image(rmcp::model::RawImageContent {
-                                data: img.data.clone(),
-                                mime_type: img.mime_type.clone(),
-                                meta: None,
-                            })
-                        }
-                        _ => SamplingMessageContent::text(""),
-                    }
-                } else {
-                    SamplingMessageContent::text("")
-                },
-            ),
-            usage.model,
-        )
-        .with_stop_reason(CreateMessageResult::STOP_REASON_END_TURN))
-    }
-
     async fn create_elicitation(
         &self,
         request: CreateElicitationRequestParams,
@@ -538,7 +437,6 @@ impl ClientHandler for GooseClient {
             ClientCapabilities::builder()
                 .enable_roots()
                 .enable_extensions_with(extensions)
-                .enable_sampling()
                 .enable_elicitation()
                 .build(),
             self.resolved_client_info(),

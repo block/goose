@@ -44,8 +44,6 @@ import {
   McpAppToolInputPartial,
   DimensionLayout,
   OnDisplayModeChange,
-  SamplingCreateMessageParams,
-  SamplingCreateMessageResponse,
 } from './types';
 import {
   useDisplayMode,
@@ -674,38 +672,12 @@ export default function McpAppRenderer({
 
   const handleFallbackRequest = useCallback(
     async (request: JSONRPCRequest, _extra: RequestHandlerExtra) => {
-      if (request.method === 'sampling/createMessage') {
-        if (!sessionId || !apiHost || !secretKey) {
-          throw new Error('Session not initialized for sampling request');
-        }
-        const { messages, systemPrompt, maxTokens } =
-          request.params as unknown as SamplingCreateMessageParams;
-        const response = await fetch(`${apiHost}/sessions/${sessionId}/sampling/message`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'X-Secret-Key': secretKey,
-          },
-          body: JSON.stringify({
-            messages: messages.map((m) => ({
-              role: m.role,
-              content: m.content,
-            })),
-            systemPrompt,
-            maxTokens,
-          }),
-        });
-        if (!response.ok) {
-          throw new Error(`Sampling request failed: ${response.statusText}`);
-        }
-        return (await response.json()) as SamplingCreateMessageResponse;
-      }
       return {
         status: 'error' as const,
         message: `Unhandled JSON-RPC method: ${request.method ?? '<unknown>'}`,
       };
     },
-    [sessionId, apiHost, secretKey]
+    []
   );
 
   const handleError = useCallback((err: Error) => {

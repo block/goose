@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/button';
-import { Download, Play, Upload } from 'lucide-react';
+import { AlertTriangle, Download, Play, Upload } from 'lucide-react';
 import type { GooseApp } from '../../api';
 import { exportMcpApp, importMcpApp, listMcpApps } from '../../acp/mcp-apps';
 import { useChatContext } from '../../contexts/ChatContext';
@@ -52,7 +52,19 @@ const i18n = defineMessages({
     id: 'appsView.launch',
     defaultMessage: 'Launch',
   },
+  retiredChatApp: {
+    id: 'appsView.retiredChatApp',
+    defaultMessage: 'Chat app retired',
+  },
+  retiredChatAppDetail: {
+    id: 'appsView.retiredChatAppDetail',
+    defaultMessage: 'We removed this feature because MCP sampling is no longer supported.',
+  },
 });
+
+function isRetiredChatApp(app: GooseApp) {
+  return app.mcpServers?.includes('apps') && app.name.trim().toLowerCase() === 'chat';
+}
 
 const GridLayout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -272,11 +284,21 @@ export default function AppsView() {
             <GridLayout>
               {apps.map((app) => {
                 const isCustomApp = app.mcpServers?.includes('apps') ?? false;
+                const retiredChatApp = isRetiredChatApp(app);
                 return (
                   <div
                     key={`${app.uri}-${app.mcpServers?.join(',')}`}
                     className="flex flex-col p-4 border rounded-lg hover:border-border-primary transition-colors"
+                    title={
+                      retiredChatApp ? intl.formatMessage(i18n.retiredChatAppDetail) : undefined
+                    }
                   >
+                    {retiredChatApp && (
+                      <div className="mb-3 flex items-center gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+                        <AlertTriangle className="h-4 w-4 shrink-0" />
+                        <span>{intl.formatMessage(i18n.retiredChatApp)}</span>
+                      </div>
+                    )}
                     <div className="flex-1 mb-4">
                       <h3 className="font-medium text-text-primary mb-2">
                         {formatAppName(app.name)}
@@ -297,6 +319,10 @@ export default function AppsView() {
                         variant="default"
                         size="sm"
                         onClick={() => handleLaunchApp(app)}
+                        disabled={retiredChatApp}
+                        title={
+                          retiredChatApp ? intl.formatMessage(i18n.retiredChatAppDetail) : undefined
+                        }
                         className="flex items-center gap-2 flex-1"
                       >
                         <Play className="h-4 w-4" />

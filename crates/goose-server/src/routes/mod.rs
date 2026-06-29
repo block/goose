@@ -11,7 +11,6 @@ pub mod prompts;
 pub mod recipe;
 pub mod recipe_utils;
 pub mod reply;
-pub mod sampling;
 pub mod schedule;
 pub mod session;
 pub mod session_events;
@@ -43,7 +42,6 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(mcp_ui_proxy::routes(secret_key.clone()))
         .merge(mcp_app_proxy::routes(secret_key))
         .merge(session_events::routes(state.clone()))
-        .merge(sampling::routes(state.clone()))
         .merge(dictation::routes(state.clone()));
 
     #[cfg(feature = "local-inference")]
