@@ -47,6 +47,8 @@ pub fn clear_otel_env(overrides: &[(&'static str, &'static str)]) -> OtelTestGua
         "OTEL_SDK_DISABLED",
         "OTEL_SERVICE_NAME",
         "OTEL_TRACES_EXPORTER",
+        "TRACEPARENT",
+        "TRACESTATE",
     ];
     for &(k, _) in overrides {
         if !keys.contains(&k) {

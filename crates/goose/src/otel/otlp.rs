@@ -1,5 +1,6 @@
-use opentelemetry::trace::TracerProvider;
-use opentelemetry::{global, KeyValue};
+use opentelemetry::propagation::TextMapPropagator;
+use opentelemetry::trace::{TraceContextExt, TracerProvider};
+use opentelemetry::{global, Context, KeyValue};
 use opentelemetry_appender_tracing::layer::{OpenTelemetryTracingBridge, TracingSpanAttributes};
 use opentelemetry_sdk::logs::{SdkLogger, SdkLoggerProvider};
 use opentelemetry_sdk::metrics::{SdkMeterProvider, Temporality};
@@ -7,6 +8,7 @@ use opentelemetry_sdk::propagation::TraceContextPropagator;
 use opentelemetry_sdk::resource::{EnvResourceDetector, TelemetryResourceDetector};
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
+use std::collections::HashMap;
 use std::env;
 use std::sync::{Arc, Mutex};
 use tracing::{Level, Metadata};
@@ -323,6 +325,69 @@ pub fn init_otlp_layers(
     layers
 }
 
+/// Extracts a parent [`Context`] from a W3C `traceparent` value (and optional
+/// `tracestate`).
+///
+/// Headless runs (`goose run`) are commonly launched as a child process by a
+/// larger orchestrator. Without a parent context goose starts a brand-new trace
+/// and its spans cannot be nested under the caller's span. When the orchestrator
+/// passes its active span down via a `traceparent`, this returns a context the
+/// caller can install as the parent of the run's root span so the two traces
+/// join up.
+///
+/// Returns `None` when `traceparent` is empty or unparseable, leaving the run as
+/// its own root trace.
+pub fn parent_context_from_traceparent(
+    traceparent: &str,
+    tracestate: Option<&str>,
+) -> Option<Context> {
+    if traceparent.trim().is_empty() {
+        return None;
+    }
+    let mut carrier = HashMap::new();
+    carrier.insert("traceparent".to_string(), traceparent.to_string());
+    if let Some(tracestate) = tracestate {
+        if !tracestate.trim().is_empty() {
+            carrier.insert("tracestate".to_string(), tracestate.to_string());
+        }
+    }
+    // Extract with a W3C propagator directly rather than the global one: the
+    // semantics of `traceparent` are W3C by definition, and this works even when
+    // the global propagator has not been initialised (e.g. telemetry disabled).
+    let cx = TraceContextPropagator::new().extract(&carrier);
+    // The propagator never errors; an unparseable header yields an invalid
+    // remote span context. Treat that as "no parent" rather than attaching a
+    // bogus one.
+    if cx.span().span_context().is_valid() {
+        Some(cx)
+    } else {
+        None
+    }
+}
+
+/// Extracts a parent [`Context`] from the standard W3C `TRACEPARENT` (and
+/// optional `TRACESTATE`) environment variables. See
+/// [`parent_context_from_traceparent`].
+pub fn parent_context_from_env() -> Option<Context> {
+    let traceparent = env::var("TRACEPARENT").ok()?;
+    let tracestate = env::var("TRACESTATE").ok();
+    parent_context_from_traceparent(&traceparent, tracestate.as_deref())
+}
+
+/// Installs the parent trace context parsed from a W3C `traceparent` onto
+/// `span`, so a headless run nests under the orchestrator's trace. No-op when
+/// `traceparent` is empty or unparseable.
+pub fn set_span_parent_from_traceparent(span: &tracing::Span, traceparent: &str) {
+    use tracing_opentelemetry::OpenTelemetrySpanExt;
+    if let Some(cx) = parent_context_from_traceparent(traceparent, None) {
+        // Best-effort: a failure here (e.g. the OTel layer is not installed)
+        // must not break the run, it just leaves the span as a local root.
+        if let Err(e) = span.set_parent(cx) {
+            tracing::debug!("failed to set parent trace context from traceparent: {e}");
+        }
+    }
+}
+
 fn create_otlp_tracing_layer() -> OtlpResult<OtlpTracingLayer> {
     let exporter = signal_exporter("traces").ok_or("Traces not enabled")?;
     let resource = create_resource();
@@ -626,6 +691,60 @@ mod tests {
     use goose_test_support::otel::clear_otel_env;
     use opentelemetry_sdk::metrics::Temporality;
     use test_case::test_case;
+
+    #[test]
+    fn parent_context_from_env_unset_returns_none() {
+        let _guard = clear_otel_env(&[]);
+        assert!(parent_context_from_env().is_none());
+    }
+
+    #[test]
+    fn parent_context_from_env_empty_returns_none() {
+        let _guard = clear_otel_env(&[("TRACEPARENT", "")]);
+        assert!(parent_context_from_env().is_none());
+    }
+
+    #[test]
+    fn parent_context_from_env_invalid_returns_none() {
+        let _guard = clear_otel_env(&[("TRACEPARENT", "not-a-valid-traceparent")]);
+        assert!(parent_context_from_env().is_none());
+    }
+
+    #[test]
+    fn parent_context_from_env_extracts_remote_span() {
+        let _guard = clear_otel_env(&[(
+            "TRACEPARENT",
+            "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+        )]);
+
+        let cx = parent_context_from_env().expect("a valid traceparent yields a context");
+        let span_context = cx.span().span_context().clone();
+
+        assert!(span_context.is_valid());
+        assert!(span_context.is_remote());
+        assert!(span_context.is_sampled());
+        assert_eq!(
+            span_context.trace_id().to_string(),
+            "0af7651916cd43dd8448eb211c80319c"
+        );
+        assert_eq!(span_context.span_id().to_string(), "b7ad6b7169203331");
+    }
+
+    #[test]
+    fn parent_context_from_traceparent_parses_valid_and_rejects_invalid() {
+        let cx = parent_context_from_traceparent(
+            "00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01",
+            None,
+        )
+        .expect("valid traceparent yields a context");
+        assert_eq!(
+            cx.span().span_context().trace_id().to_string(),
+            "0af7651916cd43dd8448eb211c80319c"
+        );
+
+        assert!(parent_context_from_traceparent("", None).is_none());
+        assert!(parent_context_from_traceparent("garbage", None).is_none());
+    }
 
     #[test]
     fn exporter_type_from_env_value() {

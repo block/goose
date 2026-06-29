@@ -92,6 +92,15 @@ impl SpanTracker {
     pub fn remove_span(&mut self, span_id: u64) -> Option<String> {
         self.active_spans.remove(&span_id)
     }
+
+    /// Seeds the trace id from an external source (e.g. a W3C `traceparent`) so
+    /// observations attach to the caller's existing trace instead of a freshly
+    /// generated UUID. No-op once a trace id has already been set.
+    pub fn set_trace_id_if_unset(&mut self, trace_id: String) {
+        if self.current_trace_id.is_none() {
+            self.current_trace_id = Some(trace_id);
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -378,6 +387,14 @@ mod tests {
     use std::time::Duration;
     use tokio::sync::mpsc;
     use tracing::dispatcher;
+
+    #[test]
+    fn set_trace_id_if_unset_only_sets_once() {
+        let mut tracker = SpanTracker::new();
+        tracker.set_trace_id_if_unset("first".to_string());
+        tracker.set_trace_id_if_unset("second".to_string());
+        assert_eq!(tracker.current_trace_id.as_deref(), Some("first"));
+    }
 
     type Events = Arc<Mutex<Vec<(String, Value)>>>;
     struct TestFixture {

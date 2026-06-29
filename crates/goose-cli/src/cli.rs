@@ -39,6 +39,7 @@ use goose::session::SessionManager;
 use std::io::Read;
 use std::path::PathBuf;
 use tracing::warn;
+use tracing::Instrument;
 
 const GOOSE_SERVER_SECRET_KEY_ENV: &str = "GOOSE_SERVER__SECRET_KEY";
 
@@ -376,6 +377,15 @@ pub struct RunBehavior {
         hide = true
     )]
     pub scheduled_job_id: Option<String>,
+
+    /// W3C traceparent to nest this run's traces under
+    #[arg(
+        long = "traceparent",
+        value_name = "TRACEPARENT",
+        help = "W3C traceparent to nest this run's traces under (falls back to the TRACEPARENT env var)",
+        long_help = "A W3C trace-context header value, e.g. 00-<32 hex trace-id>-<16 hex span-id>-01. When set, this headless run's OpenTelemetry spans are parented to it and, if Langfuse is configured, its observations attach to the matching trace instead of a freshly generated one. Falls back to the TRACEPARENT environment variable when the flag is omitted."
+    )]
+    pub traceparent: Option<String>,
 }
 
 async fn get_or_create_session_id(
@@ -1763,7 +1773,33 @@ async fn handle_run_command(
             "Headless session started"
         );
 
-        let result = session.headless(contents).await;
+        // A headless run is often launched as a child process by a larger
+        // orchestrator. When the caller passes its active span down via a W3C
+        // traceparent (the --traceparent flag, falling back to the TRACEPARENT
+        // env var), nest this run under it so the traces join up; otherwise this
+        // span is simply a local trace root.
+        let traceparent = run_behavior
+            .traceparent
+            .clone()
+            .or_else(|| std::env::var("TRACEPARENT").ok())
+            .filter(|tp| !tp.trim().is_empty());
+
+        // Seed Langfuse (when configured) so its observations attach to the
+        // caller's trace rather than a freshly generated UUID.
+        if let Some(trace_id) = traceparent
+            .as_deref()
+            .and_then(goose::tracing::langfuse_layer::traceparent_trace_id)
+        {
+            goose::tracing::langfuse_layer::seed_external_trace_id(trace_id).await;
+        }
+
+        let run_span = tracing::info_span!("goose.run.headless", session_type);
+        #[cfg(feature = "otel")]
+        if let Some(traceparent) = traceparent.as_deref() {
+            goose::otel::otlp::set_span_parent_from_traceparent(&run_span, traceparent);
+        }
+
+        let result = session.headless(contents).instrument(run_span).await;
         log_session_completion(&session, session_start, session_type, result.is_ok()).await;
         result
     } else {

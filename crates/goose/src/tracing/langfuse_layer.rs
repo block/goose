@@ -4,13 +4,56 @@ use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::env;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex as StdMutex, OnceLock};
 use std::time::Duration;
 use tokio::sync::Mutex;
 use url::Url;
 use uuid::Uuid;
 
 const DEFAULT_LANGFUSE_URL: &str = "http://localhost:3000";
+
+/// Handle to the live observer's span tracker, so a parent trace id resolved
+/// after logging setup (e.g. from a `--traceparent` flag) can be seeded into it.
+/// Set by [`create_langfuse_observer`]; `None` when Langfuse is not configured.
+static OBSERVER_SPAN_TRACKER: OnceLock<StdMutex<Option<Arc<Mutex<SpanTracker>>>>> = OnceLock::new();
+
+fn observer_span_tracker() -> &'static StdMutex<Option<Arc<Mutex<SpanTracker>>>> {
+    OBSERVER_SPAN_TRACKER.get_or_init(|| StdMutex::new(None))
+}
+
+/// Extracts the 32-hex trace-id field from a W3C `traceparent` value.
+///
+/// Returns `None` unless the value is well-formed (`version-traceid-spanid-flags`)
+/// with a non-zero 32-hex trace id. The trace id is lowercased so it can double
+/// as a stable Langfuse trace id shared with the OpenTelemetry trace.
+pub fn traceparent_trace_id(traceparent: &str) -> Option<String> {
+    let parts: Vec<&str> = traceparent.trim().split('-').collect();
+    if parts.len() != 4 {
+        return None;
+    }
+    let trace_id = parts[1];
+    if trace_id.len() != 32
+        || !trace_id.bytes().all(|b| b.is_ascii_hexdigit())
+        || trace_id.bytes().all(|b| b == b'0')
+    {
+        return None;
+    }
+    Some(trace_id.to_ascii_lowercase())
+}
+
+/// Seeds the live Langfuse observer's trace id with one resolved from an
+/// external source (e.g. a W3C `traceparent`), so this run's observations attach
+/// to the caller's existing trace instead of a freshly generated UUID. No-op
+/// when Langfuse is not configured or a trace id is already set.
+pub async fn seed_external_trace_id(trace_id: String) {
+    let tracker = observer_span_tracker()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .clone();
+    if let Some(tracker) = tracker {
+        tracker.lock().await.set_trace_id_if_unset(trace_id);
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 struct LangfuseIngestionResponse {
@@ -179,9 +222,16 @@ pub fn create_langfuse_observer() -> Option<ObservationLayer> {
         LangfuseBatchManager::spawn_sender(batch_manager.clone());
     }
 
+    let span_tracker = Arc::new(Mutex::new(SpanTracker::new()));
+    // Expose the tracker so a parent trace id resolved later (after logging is
+    // set up) can be seeded via `seed_external_trace_id`.
+    *observer_span_tracker()
+        .lock()
+        .unwrap_or_else(|e| e.into_inner()) = Some(span_tracker.clone());
+
     Some(ObservationLayer {
         batch_manager,
-        span_tracker: Arc::new(Mutex::new(SpanTracker::new())),
+        span_tracker,
     })
 }
 
@@ -194,6 +244,30 @@ mod tests {
     use tracing::dispatcher;
     use wiremock::matchers::{method, path};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    #[test]
+    fn traceparent_trace_id_extracts_valid_and_rejects_invalid() {
+        assert_eq!(
+            traceparent_trace_id("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01"),
+            Some("0af7651916cd43dd8448eb211c80319c".to_string())
+        );
+        // uppercase hex is normalised to lowercase
+        assert_eq!(
+            traceparent_trace_id("00-0AF7651916CD43DD8448EB211C80319C-B7AD6B7169203331-01"),
+            Some("0af7651916cd43dd8448eb211c80319c".to_string())
+        );
+        // an all-zero trace id is invalid per W3C
+        assert_eq!(
+            traceparent_trace_id("00-00000000000000000000000000000000-b7ad6b7169203331-01"),
+            None
+        );
+        assert_eq!(traceparent_trace_id(""), None);
+        assert_eq!(traceparent_trace_id("not-a-traceparent"), None);
+        assert_eq!(
+            traceparent_trace_id("00-tooshort-b7ad6b7169203331-01"),
+            None
+        );
+    }
 
     struct TestFixture {
         original_subscriber: Option<dispatcher::Dispatch>,
