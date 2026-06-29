@@ -13,9 +13,11 @@ impl GooseAcpAgent {
         let session_id = &req.session_id;
         let agent = self.get_session_agent(&req.session_id).await?;
         let goose_mode = agent.goose_mode().await;
-        // Read from the global static manager so REST-based confirmToolAction approvals
-        // (which update PermissionManager::instance()) are reflected here immediately.
-        let permission_manager = crate::config::PermissionManager::instance();
+        let permission_manager = self.permission_manager();
+        // REST-based confirmToolAction approvals still update the global manager when
+        // the desktop UI is not using ACP chat, so read both managers until that path
+        // is fully migrated.
+        let global_permission_manager = crate::config::PermissionManager::instance();
 
         let mut tools: Vec<ToolListItem> = agent
             .list_tools(session_id, req.extension_name)
@@ -24,9 +26,15 @@ impl GooseAcpAgent {
             .map(|tool| {
                 let permission = permission_manager
                     .get_user_permission(&tool.name)
+                    .or_else(|| global_permission_manager.get_user_permission(&tool.name))
                     .or_else(|| {
                         if goose_mode == GooseMode::SmartApprove {
-                            permission_manager.get_smart_approve_permission(&tool.name)
+                            permission_manager
+                                .get_smart_approve_permission(&tool.name)
+                                .or_else(|| {
+                                    global_permission_manager
+                                        .get_smart_approve_permission(&tool.name)
+                                })
                         } else if goose_mode == GooseMode::Approve {
                             Some(PermissionLevel::AskBefore)
                         } else {

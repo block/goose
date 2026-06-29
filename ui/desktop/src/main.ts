@@ -172,12 +172,20 @@ const validLanguageSettings = new Set<Settings['language']>([
   'system',
   'en',
   'es',
+  'fr',
+  'de',
+  'it',
+  'pt',
+  'id',
+  'ms',
+  'vi',
   'hi',
   'ja',
   'ko',
   'ru',
   'tr',
   'zh-CN',
+  'zh-TW',
 ]);
 
 function isValidLanguageSetting(value: unknown): value is Settings['language'] {

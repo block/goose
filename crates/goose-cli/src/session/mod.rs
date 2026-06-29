@@ -655,6 +655,8 @@ impl CliSession {
                             prefill.as_deref(),
                         ) {
                             Ok((message, true)) => {
+                                editor.add_history_entry(message.as_str())?;
+                                history.save(editor);
                                 self.handle_message_input(&message, history, editor).await?;
                             }
                             Ok((_, false)) => {}

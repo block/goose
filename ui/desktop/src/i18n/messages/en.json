@@ -3873,19 +3873,37 @@
     "defaultMessage": "Help & feedback"
   },
   "settings.language.description": {
-    "defaultMessage": "Choose the display language for goose"
+    "defaultMessage": "Choose the display language for ApeMind Agent"
   },
   "settings.language.english": {
     "defaultMessage": "English"
   },
+  "settings.language.french": {
+    "defaultMessage": "French"
+  },
+  "settings.language.german": {
+    "defaultMessage": "German"
+  },
   "settings.language.hindi": {
     "defaultMessage": "Hindi"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "Indonesian"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "Italian"
   },
   "settings.language.japanese": {
     "defaultMessage": "Japanese"
   },
   "settings.language.korean": {
     "defaultMessage": "Korean"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "Malay"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "Portuguese"
   },
   "settings.language.russian": {
     "defaultMessage": "Russian"
@@ -3902,8 +3920,14 @@
   "settings.language.turkish": {
     "defaultMessage": "Turkish"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "Vietnamese"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "Chinese (Simplified)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "Chinese (Traditional)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Show ApeMind Agent in the menu bar"
