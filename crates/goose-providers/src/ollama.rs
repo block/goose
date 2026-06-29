@@ -326,8 +326,10 @@ mod tests {
 
     #[test]
     fn test_apply_ollama_options_uses_input_limit() {
-        let mut options = OllamaOptions::default();
-        options.input_limit = Some(8192);
+        let options = OllamaOptions {
+            input_limit: Some(8192),
+            ..Default::default()
+        };
         let model_config = ModelConfig::new("qwen3").with_context_limit(Some(16_000));
         let mut payload = json!({});
         apply_ollama_options(&mut payload, &options, &model_config);
