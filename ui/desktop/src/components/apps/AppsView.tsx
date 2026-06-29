@@ -7,6 +7,7 @@ import { exportMcpApp, importMcpApp, listMcpApps } from '../../acp/mcp-apps';
 import { useChatContext } from '../../contexts/ChatContext';
 import { formatAppName } from '../../utils/conversionUtils';
 import { errorMessage } from '../../utils/conversionUtils';
+import { isRetiredGooseChatApp } from '../../utils/retiredApps';
 import { defineMessages, useIntl } from '../../i18n';
 
 const i18n = defineMessages({
@@ -61,18 +62,6 @@ const i18n = defineMessages({
     defaultMessage: 'We removed this feature because MCP sampling is no longer supported.',
   },
 });
-
-function isRetiredChatApp(app: GooseApp) {
-  return (
-    app.mcpServers?.includes('apps') &&
-    app.uri === 'ui://apps/chat' &&
-    app.name === 'chat' &&
-    app.description === 'Simple Chat UI' &&
-    app.width === 400 &&
-    app.height === 500 &&
-    app.resizable === true
-  );
-}
 
 const GridLayout = ({ children }: { children: React.ReactNode }) => {
   return (
@@ -292,7 +281,7 @@ export default function AppsView() {
             <GridLayout>
               {apps.map((app) => {
                 const isCustomApp = app.mcpServers?.includes('apps') ?? false;
-                const retiredChatApp = isRetiredChatApp(app);
+                const retiredChatApp = isRetiredGooseChatApp(app);
                 return (
                   <div
                     key={`${app.uri}-${app.mcpServers?.join(',')}`}
