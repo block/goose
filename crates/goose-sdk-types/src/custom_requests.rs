@@ -331,6 +331,9 @@ pub enum GooseExtension {
         timeout: Option<u64>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bundled: Option<bool>,
+        /// Tool allowlist for this extension. Omit this field to allow all tools.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        available_tools: Option<Vec<String>>,
     },
     Platform {
         name: String,
@@ -340,6 +343,9 @@ pub enum GooseExtension {
         display_name: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bundled: Option<bool>,
+        /// Tool allowlist for this extension. Omit this field to allow all tools.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        available_tools: Option<Vec<String>>,
     },
     Mcp {
         server: McpServer,
@@ -353,6 +359,9 @@ pub enum GooseExtension {
         socket: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
         bundled: Option<bool>,
+        /// Tool allowlist for this extension. Omit this field to allow all tools.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        available_tools: Option<Vec<String>>,
     },
 }
 
@@ -364,6 +373,7 @@ impl Default for GooseExtension {
             display_name: None,
             timeout: None,
             bundled: None,
+            available_tools: None,
         }
     }
 }
