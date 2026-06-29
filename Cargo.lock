@@ -4916,7 +4916,6 @@ dependencies = [
  "goose-test-support",
  "hf-hub 1.0.0-rc.1",
  "http 1.4.2",
- "http-body-util",
  "icu_calendar",
  "icu_locale",
  "ignore",
