@@ -29,6 +29,86 @@ mod tests {
             jobs: tokio::sync::Mutex<Vec<ScheduledJob>>,
         }
 
+        struct SessionsMockScheduler {
+            sessions: Vec<(String, Session)>,
+        }
+
+        impl SessionsMockScheduler {
+            fn new(sessions: Vec<(String, Session)>) -> Self {
+                Self { sessions }
+            }
+        }
+
+        #[async_trait]
+        impl SchedulerTrait for SessionsMockScheduler {
+            async fn add_scheduled_job(
+                &self,
+                _job: ScheduledJob,
+                _copy: bool,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn schedule_recipe(
+                &self,
+                _recipe_path: PathBuf,
+                _cron_schedule: Option<String>,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn list_scheduled_jobs(&self) -> Vec<ScheduledJob> {
+                Vec::new()
+            }
+
+            async fn remove_scheduled_job(
+                &self,
+                _id: &str,
+                _remove: bool,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn pause_schedule(&self, _id: &str) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn unpause_schedule(&self, _id: &str) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn run_now(&self, _id: &str) -> Result<String, SchedulerError> {
+                Ok("test_session_123".to_string())
+            }
+
+            async fn sessions(
+                &self,
+                _sched_id: &str,
+                _limit: usize,
+            ) -> Result<Vec<(String, Session)>, SchedulerError> {
+                Ok(self.sessions.clone())
+            }
+
+            async fn update_schedule(
+                &self,
+                _sched_id: &str,
+                _new_cron: String,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn kill_running_job(&self, _sched_id: &str) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn get_running_job_info(
+                &self,
+                _sched_id: &str,
+            ) -> Result<Option<(String, DateTime<Utc>)>, SchedulerError> {
+                Ok(None)
+            }
+        }
+
         impl MockScheduler {
             fn new() -> Self {
                 Self {
@@ -255,6 +335,58 @@ mod tests {
                         .contains("Session identifier for session_content action"));
                 }
             }
+        }
+
+        #[tokio::test]
+        async fn test_schedule_sessions_reports_message_count_without_conversation() {
+            let temp_dir = TempDir::new().unwrap();
+            let data_dir = temp_dir.path().to_path_buf();
+            let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+            let permission_manager = Arc::new(PermissionManager::new(data_dir));
+
+            let session = Session {
+                id: "session-123".to_string(),
+                message_count: 37,
+                conversation: None,
+                ..Default::default()
+            };
+
+            let mock_scheduler = Arc::new(SessionsMockScheduler::new(vec![(
+                "session-123".to_string(),
+                session,
+            )]));
+            let config = AgentConfig::new(
+                session_manager,
+                permission_manager,
+                Some(mock_scheduler),
+                GooseMode::Auto,
+                false,
+                GoosePlatform::GooseCli,
+            );
+            let agent = Agent::with_config(config);
+
+            let result = agent
+                .handle_schedule_management(
+                    serde_json::json!({
+                        "action": "sessions",
+                        "job_id": "daily-report"
+                    }),
+                    "test-request".to_string(),
+                )
+                .await
+                .expect("schedule sessions should succeed");
+
+            let text = result
+                .into_iter()
+                .filter_map(|content| match &content.raw {
+                    rmcp::model::RawContent::Text(text_content) => Some(text_content.text.clone()),
+                    _ => None,
+                })
+                .collect::<String>();
+            assert!(
+                text.contains("Messages: 37"),
+                "expected stored message_count in sessions output, got: {text}"
+            );
         }
     }
 

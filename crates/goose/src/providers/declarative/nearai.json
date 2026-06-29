@@ -9,6 +9,11 @@
   "dynamic_models": true,
   "models": [
     {
+      "name": "zai-org/GLM-5.2",
+      "context_limit": 1000000,
+      "reasoning": true
+    },
+    {
       "name": "zai-org/GLM-5.1-FP8",
       "context_limit": 202752,
       "reasoning": true

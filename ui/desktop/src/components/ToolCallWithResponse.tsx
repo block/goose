@@ -18,7 +18,7 @@ import { TooltipWrapper } from './settings/providers/subcomponents/buttons/Toolt
 import MCPUIResourceRenderer from './MCPUIResourceRenderer';
 import { isUIResource } from '@mcp-ui/client';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { CallToolResponse, ContentBlock, EmbeddedResource } from '../api';
+import type { ContentBlock, EmbeddedResource } from '../api';
 
 import McpAppRenderer from './McpApps/McpAppRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';
@@ -76,9 +76,16 @@ type UiMeta = {
   subagent_session_id?: string;
 };
 
+type ToolResultValue = {
+  content: ContentBlock[];
+  structuredContent?: unknown;
+  isError: boolean;
+  _meta?: UiMeta;
+};
+
 type ToolResultWithMeta = {
   status?: string;
-  value?: CallToolResponse & {
+  value?: ToolResultValue & {
     _meta?: UiMeta;
   };
 };
@@ -138,7 +145,7 @@ function getToolResultContent(toolResult: Record<string, unknown>): ContentBlock
   if (toolResult.status !== 'success') {
     return [];
   }
-  const value = toolResult.value as CallToolResponse;
+  const value = toolResult.value as ToolResultValue;
   return value.content.filter((item) => {
     const annotations = (item as { annotations?: { audience?: string[] } }).annotations;
     return !annotations?.audience || annotations.audience.includes('user');
@@ -874,7 +881,11 @@ function ToolCallView({
         <>
           {toolResults.map((result, index) => (
             <div key={index} className={cn('border-t border-border-primary')}>
-              <ToolResultView toolCall={toolCall} result={result} isStartExpanded={isExpandToolDetails} />
+              <ToolResultView
+                toolCall={toolCall}
+                result={result}
+                isStartExpanded={isExpandToolDetails}
+              />
             </div>
           ))}
         </>
@@ -1080,9 +1091,10 @@ function ToolLogsView({
   // down on the possibility of unwanted runs
 
   const subagentLogCount = logs.filter((l) => l.startsWith('[subagent:')).length;
-  const labelText = subagentLogCount > 0
-    ? intl.formatMessage(i18n.activityCount, { count: subagentLogCount })
-    : intl.formatMessage(i18n.logs);
+  const labelText =
+    subagentLogCount > 0
+      ? intl.formatMessage(i18n.activityCount, { count: subagentLogCount })
+      : intl.formatMessage(i18n.logs);
 
   return (
     <ToolCallExpandable
