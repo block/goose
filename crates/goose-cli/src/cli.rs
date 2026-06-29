@@ -1388,16 +1388,19 @@ async fn handle_serve_command(
     let router = create_router(server, secret_key, require_token);
 
     let config = Config::global();
-    let tls = tls || config.get_param::<bool>("GOOSE_TLS").unwrap_or(false);
+    let tls_cert_path =
+        tls_cert_path.or_else(|| config.get_param::<String>("GOOSE_TLS_CERT_PATH").ok());
+    let tls_key_path =
+        tls_key_path.or_else(|| config.get_param::<String>("GOOSE_TLS_KEY_PATH").ok());
+    let tls = tls
+        || config.get_param::<bool>("GOOSE_TLS").unwrap_or(false)
+        || tls_cert_path.is_some()
+        || tls_key_path.is_some();
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
     if tls {
         #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
         {
-            let tls_cert_path =
-                tls_cert_path.or_else(|| config.get_param::<String>("GOOSE_TLS_CERT_PATH").ok());
-            let tls_key_path =
-                tls_key_path.or_else(|| config.get_param::<String>("GOOSE_TLS_KEY_PATH").ok());
             let tls_setup = goose::acp::transport::tls::setup_tls(
                 tls_cert_path.as_deref(),
                 tls_key_path.as_deref(),
