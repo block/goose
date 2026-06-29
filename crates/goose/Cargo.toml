@@ -44,6 +44,11 @@ vulkan = ["local-inference", "llama-cpp-2/vulkan"]
 mlx = ["local-inference", "dep:mlx-rs", "dep:mlx-lm", "dep:mlx-lm-utils"]
 rustls-tls = [
     "dep:rustls",
+    "dep:rcgen",
+    "dep:pem",
+    "dep:axum-server",
+    "dep:aws-lc-rs",
+    "axum-server/tls-rustls",
     "reqwest/rustls",
     "rmcp/reqwest",
     "smithy-transport-reqwest?/rustls",
@@ -55,6 +60,11 @@ rustls-tls = [
     "goose-providers/rustls-tls",
 ]
 native-tls = [
+    "dep:rcgen",
+    "dep:pem",
+    "dep:axum-server",
+    "dep:openssl",
+    "axum-server/tls-openssl",
     "reqwest/native-tls",
     "rmcp/reqwest-native-tls",
     "smithy-transport-reqwest?/native-tls",
@@ -203,6 +213,11 @@ process-wrap = { version = "9", default-features = false, features = ["std"] }
 nostr = { version = "0.44", default-features = false, features = ["nip44", "std"], optional = true }
 nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"], optional = true }
 rustls = { workspace = true, optional = true }
+rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "crypto", "pem"], optional = true }
+axum-server = { version = "0.8", default-features = false, optional = true }
+aws-lc-rs = { version = "1.17", default-features = false, optional = true }
+openssl = { version = "0.10.66", default-features = false, optional = true }
+pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
 hf-hub = { version = "1.0.0-rc.1", default-features = false, optional = true }
 mlx-rs = { version = "0.25.3", default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true }
 mlx-lm = { git = "https://github.com/jh-block/mlx-lm", optional = true }
