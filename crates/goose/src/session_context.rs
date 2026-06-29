@@ -13,11 +13,7 @@ pub async fn with_session_id<F>(session_id: Option<String>, f: F) -> F::Output
 where
     F: std::future::Future,
 {
-    if let Some(id) = session_id {
-        SESSION_ID.scope(Some(id), f).await
-    } else {
-        f.await
-    }
+    SESSION_ID.scope(session_id, f).await
 }
 
 pub fn current_session_id() -> Option<String> {
@@ -70,6 +66,21 @@ mod tests {
     async fn test_session_id_none_when_explicitly_none() {
         with_session_id(None, async {
             assert_eq!(current_session_id(), None);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_session_id_none_clears_outer_scope() {
+        with_session_id(Some("outer-session".to_string()), async {
+            assert_eq!(current_session_id(), Some("outer-session".to_string()));
+
+            with_session_id(None, async {
+                assert_eq!(current_session_id(), None);
+            })
+            .await;
+
+            assert_eq!(current_session_id(), Some("outer-session".to_string()));
         })
         .await;
     }
