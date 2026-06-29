@@ -275,8 +275,8 @@ uv sync
      -h, --help  show this help message and exit
    ```
 
-     </TabItem>
-   </Tabs>
+  </TabItem>
+</Tabs>
 
 ---
 
