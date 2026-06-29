@@ -59,6 +59,7 @@ pub enum HookEvent {
     BeforeShellExecution,
     AfterShellExecution,
     Stop,
+    ToolDefinitionChanged,
 }
 
 impl HookEvent {
@@ -75,6 +76,7 @@ impl HookEvent {
             HookEvent::BeforeShellExecution => "BeforeShellExecution",
             HookEvent::AfterShellExecution => "AfterShellExecution",
             HookEvent::Stop => "Stop",
+            HookEvent::ToolDefinitionChanged => "ToolDefinitionChanged",
         }
     }
 
@@ -91,6 +93,7 @@ impl HookEvent {
             "BeforeShellExecution" => HookEvent::BeforeShellExecution,
             "AfterShellExecution" => HookEvent::AfterShellExecution,
             "Stop" => HookEvent::Stop,
+            "ToolDefinitionChanged" => HookEvent::ToolDefinitionChanged,
             _ => return None,
         })
     }
@@ -169,6 +172,11 @@ pub struct HookContext {
     pub last_assistant_message: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub working_dir: Option<String>,
+    /// Serialized `ToolDefinitionChange` for a `ToolDefinitionChanged` event:
+    /// the extension id, tool name, old/new hashes, and old/new canonical
+    /// definitions a classifier plugin needs to judge the rewrite.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub tool_definition_change: Option<Value>,
 }
 
 impl HookContext {
@@ -183,6 +191,7 @@ impl HookContext {
             message: None,
             last_assistant_message: None,
             working_dir: None,
+            tool_definition_change: None,
         }
     }
 
@@ -216,6 +225,18 @@ impl HookContext {
 
     pub fn with_working_dir(mut self, dir: impl Into<String>) -> Self {
         self.working_dir = Some(dir.into());
+        self
+    }
+
+    /// Attach a serialized tool-definition change. The matcher runs against the
+    /// `extension_id`, so a plugin can scope itself to specific extensions.
+    pub fn with_tool_definition_change(
+        mut self,
+        extension_id: impl Into<String>,
+        change: Value,
+    ) -> Self {
+        self.matcher_context = Some(extension_id.into());
+        self.tool_definition_change = Some(change);
         self
     }
 }
@@ -769,6 +790,81 @@ mod tests {
             decision,
             HookDecision::Deny {
                 reason: "say something first".into(),
+                plugin: "p".into(),
+            }
+        );
+    }
+
+    #[test]
+    fn tool_definition_changed_event_round_trips_by_name() {
+        assert_eq!(
+            HookEvent::ToolDefinitionChanged.name(),
+            "ToolDefinitionChanged"
+        );
+        assert_eq!(
+            HookEvent::from_name("ToolDefinitionChanged"),
+            Some(HookEvent::ToolDefinitionChanged)
+        );
+    }
+
+    #[tokio::test]
+    async fn tool_definition_change_matcher_filters_by_extension_id() {
+        let tmp = tempfile::tempdir().unwrap();
+        let marker = tmp.path().join("ran.txt");
+        let hooks = format!(
+            r#"{{"hooks":{{"ToolDefinitionChanged":[{{"matcher":"github","hooks":[{{"type":"command","command":"touch {}"}}]}}]}}}}"#,
+            marker.to_string_lossy(),
+        );
+        let root = write_plugin(tmp.path(), "p", &hooks);
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+
+        // Non-matching extension id: marker not created.
+        mgr.emit(
+            HookEvent::ToolDefinitionChanged,
+            HookContext::new(HookEvent::ToolDefinitionChanged, "s")
+                .with_tool_definition_change("other", serde_json::json!({"tool_name": "x"})),
+        )
+        .await;
+        assert!(!marker.exists());
+
+        // Matching extension id: marker created and payload carried.
+        let ctx = HookContext::new(HookEvent::ToolDefinitionChanged, "s")
+            .with_tool_definition_change("github", serde_json::json!({"tool_name": "x"}));
+        assert!(ctx.tool_definition_change.is_some());
+        mgr.emit(HookEvent::ToolDefinitionChanged, ctx).await;
+        assert!(marker.exists());
+    }
+
+    #[tokio::test]
+    async fn tool_definition_change_hook_can_block() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = write_plugin(
+            tmp.path(),
+            "p",
+            r#"{"hooks":{"ToolDefinitionChanged":[{"hooks":[{"type":"command","command":"printf '%s' '{\"decision\":\"block\",\"reason\":\"ATR rule matched\"}'"}]}]}}"#,
+        );
+        let mgr = make_manager(vec![DiscoveredPlugin {
+            name: "p".into(),
+            root,
+            scope: PluginScope::User,
+        }]);
+
+        let decision = mgr
+            .emit_blocking(
+                HookEvent::ToolDefinitionChanged,
+                HookContext::new(HookEvent::ToolDefinitionChanged, "s")
+                    .with_tool_definition_change("ext", serde_json::json!({})),
+            )
+            .await;
+
+        assert_eq!(
+            decision,
+            HookDecision::Deny {
+                reason: "ATR rule matched".into(),
                 plugin: "p".into(),
             }
         );

@@ -4,6 +4,8 @@ pub mod egress_inspector;
 pub mod patterns;
 pub mod scanner;
 pub mod security_inspector;
+pub mod tool_fingerprint;
+pub mod tool_fingerprint_store;
 
 use crate::config::Config;
 use crate::conversation::message::{Message, ToolRequest};
@@ -20,6 +22,22 @@ pub(crate) fn get_override(env_key: &str) -> Option<bool> {
         "false" => Some(false),
         _ => None,
     })
+}
+
+/// Whether trust-on-first-use detection of tool-definition drift runs.
+///
+/// Enabled by default so the standalone log signal ships without opt-in. The
+/// out-of-the-box cost of a benign edit is one log line, not a prompt; set
+/// `SECURITY_TOOL_CHANGE_DETECTION=false` (or the matching override env var)
+/// to turn it off entirely.
+pub fn is_tool_change_detection_enabled() -> bool {
+    if let Some(overridden) = get_override("SECURITY_TOOL_CHANGE_DETECTION_OVERRIDE") {
+        return overridden;
+    }
+
+    Config::global()
+        .get_param::<bool>("SECURITY_TOOL_CHANGE_DETECTION")
+        .unwrap_or(true)
 }
 
 pub struct SecurityManager {

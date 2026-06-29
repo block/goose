@@ -191,6 +191,21 @@ pub struct ExtensionManager {
     tools_cache_version: AtomicU64,
     client_name: String,
     capabilities: ExtensionManagerCapabilities,
+    /// Used to fire `ToolDefinitionChanged` when TOFU fingerprinting detects a
+    /// tool-definition rewrite. Loaded from the same plugins as the agent's
+    /// hook manager; empty when no plugin subscribes.
+    hook_manager: crate::hooks::HookManager,
+}
+
+/// TOFU fingerprinting only covers servers goose talks to over a wire (Stdio,
+/// StreamableHttp). Builtin and Platform extensions ship inside the goose
+/// binary the user already trusts, so fingerprinting them would only log churn
+/// on every release.
+fn is_fingerprint_scope(config: &ExtensionConfig) -> bool {
+    matches!(
+        config,
+        ExtensionConfig::Stdio { .. } | ExtensionConfig::StreamableHttp { .. }
+    )
 }
 
 /// A flattened representation of a resource used by the agent to prepare inference
@@ -860,6 +875,10 @@ impl ExtensionManager {
             tools_cache_version: AtomicU64::new(0),
             client_name,
             capabilities,
+            hook_manager: crate::hooks::HookManager::load(
+                std::env::current_dir().ok().as_deref(),
+                use_login_shell_path,
+            ),
         }
     }
 
@@ -1373,6 +1392,9 @@ impl ExtensionManager {
             let ext_name = name.clone();
             async move {
                 let mut tools = Vec::new();
+                let fingerprint =
+                    crate::security::is_tool_change_detection_enabled() && is_fingerprint_scope(&config);
+                let mut fingerprints = Vec::new();
                 let mut client_tools = match client
                     .list_tools(session_id, None, cancel_token.clone())
                     .await
@@ -1380,7 +1402,7 @@ impl ExtensionManager {
                     Ok(t) => t,
                     Err(e) => {
                         warn!(extension = %ext_name, error = %e, "Failed to list tools");
-                        return (name, vec![]);
+                        return (name, vec![], None);
                     }
                 };
 
@@ -1389,6 +1411,15 @@ impl ExtensionManager {
                 loop {
                     for mut tool in client_tools.tools {
                         if config.is_tool_available(&tool.name) {
+                            if fingerprint {
+                                // Capture the server-declared identity before the
+                                // name is prefixed and goose meta is attached.
+                                fingerprints.push(crate::security::tool_fingerprint::compute(
+                                    &tool.name,
+                                    tool.description.as_deref(),
+                                    tool.input_schema.as_ref(),
+                                ));
+                            }
                             let public_name = if expose_unprefixed {
                                 tool.name.to_string()
                             } else {
@@ -1428,7 +1459,9 @@ impl ExtensionManager {
                     };
                 }
 
-                (name, tools)
+                let fingerprint_batch =
+                    fingerprint.then(|| (config.key(), name.clone(), expose_unprefixed, fingerprints));
+                (name, tools, fingerprint_batch)
             }
         });
 
@@ -1436,7 +1469,11 @@ impl ExtensionManager {
 
         let mut seen_names: std::collections::HashSet<String> = std::collections::HashSet::new();
         let mut tools = Vec::new();
-        for (ext_name, client_tools) in results {
+        let mut fingerprint_batches = Vec::new();
+        for (ext_name, client_tools, fingerprint_batch) in results {
+            if let Some(batch) = fingerprint_batch {
+                fingerprint_batches.push(batch);
+            }
             for tool in client_tools {
                 let tool_name = tool.name.to_string();
                 if seen_names.contains(&tool_name) {
@@ -1452,7 +1489,108 @@ impl ExtensionManager {
             }
         }
 
+        let denied = self
+            .record_tool_fingerprints(session_id, fingerprint_batches)
+            .await;
+        if !denied.is_empty() {
+            tools.retain(|tool| !denied.contains(tool.name.as_ref()));
+        }
+
         Ok(tools)
+    }
+
+    /// Diff each extension's fresh listing against its stored fingerprints,
+    /// log any drift, fire `ToolDefinitionChanged` for subscribers, and return
+    /// the public (prefixed) tool names that a hook explicitly denied.
+    ///
+    /// The `tracing::warn!` is the standalone surface: with no classifier
+    /// plugin installed, a tool-definition rewrite still leaves a discoverable
+    /// log signal. With a plugin installed, a `decision: block` reply on the
+    /// blocking hook path drops the rewritten tool from the list returned to
+    /// the model, so an ATR-style classifier can quarantine a definition
+    /// rewrite without any further core changes (codex #10094 P2).
+    ///
+    /// Best effort throughout: a fingerprint store or hook failure can never
+    /// affect the tool list goose just built; only an explicit `Deny` removes
+    /// a tool, and only the tool the hook saw a change for.
+    async fn record_tool_fingerprints(
+        &self,
+        session_id: &str,
+        batches: Vec<(
+            String,
+            String,
+            bool,
+            Vec<crate::security::tool_fingerprint::ToolIdentity>,
+        )>,
+    ) -> std::collections::HashSet<String> {
+        use crate::hooks::{HookContext, HookDecision, HookEvent};
+
+        let mut denied: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+        for (extension_id, extension_name, expose_unprefixed, identities) in batches {
+            let changes = crate::security::tool_fingerprint_store::diff_and_record(
+                &extension_id,
+                &identities,
+                Utc::now(),
+            )
+            .await;
+
+            let has_hooks = self
+                .hook_manager
+                .has_hooks(HookEvent::ToolDefinitionChanged);
+
+            for change in &changes {
+                warn!(
+                    monotonic_counter.goose.tool_definition_changed = 1,
+                    security.event_type = "tool_definition_changed",
+                    security.extension_id = %change.extension_id,
+                    security.tool_name = %change.tool_name,
+                    security.old_hash = %change.old_hash_hex,
+                    security.new_hash = %change.new_hash_hex,
+                    "tool definition changed since first trust",
+                );
+
+                if !has_hooks {
+                    continue;
+                }
+
+                let payload = match serde_json::to_value(change) {
+                    Ok(v) => v,
+                    Err(e) => {
+                        warn!(error = %e, "Failed to serialize tool definition change for hook");
+                        continue;
+                    }
+                };
+                let ctx = HookContext::new(HookEvent::ToolDefinitionChanged, session_id)
+                    .with_tool_definition_change(change.extension_id.clone(), payload);
+
+                let decision = self
+                    .hook_manager
+                    .emit_blocking(HookEvent::ToolDefinitionChanged, ctx)
+                    .await;
+
+                if let HookDecision::Deny { reason, plugin } = decision {
+                    let public_name = if expose_unprefixed {
+                        change.tool_name.clone()
+                    } else {
+                        format!("{}__{}", extension_name, change.tool_name)
+                    };
+                    warn!(
+                        security.event_type = "tool_definition_changed",
+                        security.action = "BLOCK",
+                        security.extension_id = %change.extension_id,
+                        security.tool_name = %change.tool_name,
+                        security.public_name = %public_name,
+                        security.plugin = %plugin,
+                        security.reason = %reason,
+                        "tool definition drift blocked by hook"
+                    );
+                    denied.insert(public_name);
+                }
+            }
+        }
+
+        denied
     }
 
     /// Get the extension prompt including client instructions
