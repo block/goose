@@ -74,8 +74,8 @@ pub struct Identifier {
         long = "session-id",
         alias = "id",
         value_name = "SESSION_ID",
-        help = "Session ID (e.g., '20250921_143022')",
-        long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
+        help = "Session ID (requires --resume for session/run)",
+        long_help = "Specify a session ID directly. For goose session and goose run, this can only be used with --resume. Session management subcommands can use it directly to identify an existing session."
     )]
     pub session_id: Option<String>,
 
@@ -2252,6 +2252,19 @@ mod tests {
 
         let help = String::from_utf8(buffer).expect("utf8");
         assert!(help.contains("nu"));
+    }
+
+    #[test]
+    fn session_help_describes_session_id_resume_requirement() {
+        let mut cmd = Cli::command();
+        let session = cmd.find_subcommand_mut("session").expect("session command");
+        let mut buffer = Vec::new();
+
+        session.write_long_help(&mut buffer).expect("write help");
+
+        let help = String::from_utf8(buffer).expect("utf8");
+        assert!(help.contains("--session-id <SESSION_ID>"));
+        assert!(help.contains("can only be used with --resume"));
     }
 
     #[test]
