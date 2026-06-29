@@ -63,7 +63,15 @@ const i18n = defineMessages({
 });
 
 function isRetiredChatApp(app: GooseApp) {
-  return app.mcpServers?.includes('apps') && app.name.trim().toLowerCase() === 'chat';
+  return (
+    app.mcpServers?.includes('apps') &&
+    app.uri === 'ui://apps/chat' &&
+    app.name === 'chat' &&
+    app.description === 'Simple Chat UI' &&
+    app.width === 400 &&
+    app.height === 500 &&
+    app.resizable === true
+  );
 }
 
 const GridLayout = ({ children }: { children: React.ReactNode }) => {
