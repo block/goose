@@ -1605,11 +1605,6 @@ export type ToolInfo = {
     permission?: PermissionLevel | null;
 };
 
-export type ToolPermission = {
-    permission: PermissionLevel;
-    tool_name: string;
-};
-
 export type ToolRequest = {
     _meta?: {
         [key: string]: unknown;
@@ -1651,15 +1646,6 @@ export type TranscribeResponse = {
      */
     text: string;
 };
-
-export type TunnelInfo = {
-    hostname: string;
-    secret: string;
-    state: TunnelState;
-    url: string;
-};
-
-export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
 
 /**
  * UI-specific metadata for MCP resources
@@ -1745,10 +1731,6 @@ export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
     value: unknown;
-};
-
-export type UpsertPermissionsQuery = {
-    tool_permissions: Array<ToolPermission>;
 };
 
 /**
@@ -2402,29 +2384,6 @@ export type RemoveExtensionResponses = {
 
 export type RemoveExtensionResponse = RemoveExtensionResponses[keyof RemoveExtensionResponses];
 
-export type UpsertPermissionsData = {
-    body: UpsertPermissionsQuery;
-    path?: never;
-    query?: never;
-    url: '/config/permissions';
-};
-
-export type UpsertPermissionsErrors = {
-    /**
-     * Invalid request
-     */
-    400: unknown;
-};
-
-export type UpsertPermissionsResponses = {
-    /**
-     * Permission update completed
-     */
-    200: string;
-};
-
-export type UpsertPermissionsResponse = UpsertPermissionsResponses[keyof UpsertPermissionsResponses];
-
 export type GetPromptsData = {
     body?: never;
     path?: never;
@@ -2759,32 +2718,6 @@ export type GetProviderModelsResponses = {
 };
 
 export type GetProviderModelsResponse = GetProviderModelsResponses[keyof GetProviderModelsResponses];
-
-export type ConfigureProviderOauthData = {
-    body?: never;
-    path: {
-        /**
-         * Provider name
-         */
-        name: string;
-    };
-    query?: never;
-    url: '/config/providers/{name}/oauth';
-};
-
-export type ConfigureProviderOauthErrors = {
-    /**
-     * OAuth configuration failed
-     */
-    400: unknown;
-};
-
-export type ConfigureProviderOauthResponses = {
-    /**
-     * OAuth configuration completed
-     */
-    200: unknown;
-};
 
 export type ReadConfigData = {
     body: ConfigKeyQuery;
@@ -4340,19 +4273,3 @@ export type SendTelemetryEventResponses = {
      */
     202: unknown;
 };
-
-export type GetTunnelStatusData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/tunnel/status';
-};
-
-export type GetTunnelStatusResponses = {
-    /**
-     * Tunnel info
-     */
-    200: TunnelInfo;
-};
-
-export type GetTunnelStatusResponse = GetTunnelStatusResponses[keyof GetTunnelStatusResponses];

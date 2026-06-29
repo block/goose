@@ -35,7 +35,6 @@ system-keyring = ["goose/system-keyring"]
 portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel"]
 rustls-tls = [
     "reqwest/rustls",
-    "tokio-tungstenite/rustls-tls-native-roots",
     "axum-server/tls-rustls",
     "dep:rustls",
     "dep:aws-lc-rs",
@@ -45,7 +44,6 @@ rustls-tls = [
 ]
 native-tls = [
     "reqwest/native-tls",
-    "tokio-tungstenite/native-tls",
     "axum-server/tls-openssl",
     "dep:openssl",
     "goose/native-tls",
@@ -80,11 +78,8 @@ utoipa = { workspace = true, features = ["axum_extras", "chrono"] }
 reqwest = { workspace = true, features = ["json", "blocking", "multipart", "system-proxy"] }
 tokio-util = { workspace = true }
 serde_path_to_error = { version = "0.1.8", default-features = false }
-tokio-tungstenite = { version = "0.29", default-features = false, features = ["connect"] }
-url = { workspace = true }
 rand = { workspace = true }
 hex = { version = "0.4.3", default-features = false, features = ["std"] }
-socket2 = { version = "0.6", default-features = false }
 rustls = { workspace = true, optional = true }
 uuid = { workspace = true }
 rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "crypto", "pem"] }

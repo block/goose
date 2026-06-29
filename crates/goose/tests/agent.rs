@@ -29,6 +29,86 @@ mod tests {
             jobs: tokio::sync::Mutex<Vec<ScheduledJob>>,
         }
 
+        struct SessionsMockScheduler {
+            sessions: Vec<(String, Session)>,
+        }
+
+        impl SessionsMockScheduler {
+            fn new(sessions: Vec<(String, Session)>) -> Self {
+                Self { sessions }
+            }
+        }
+
+        #[async_trait]
+        impl SchedulerTrait for SessionsMockScheduler {
+            async fn add_scheduled_job(
+                &self,
+                _job: ScheduledJob,
+                _copy: bool,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn schedule_recipe(
+                &self,
+                _recipe_path: PathBuf,
+                _cron_schedule: Option<String>,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn list_scheduled_jobs(&self) -> Vec<ScheduledJob> {
+                Vec::new()
+            }
+
+            async fn remove_scheduled_job(
+                &self,
+                _id: &str,
+                _remove: bool,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn pause_schedule(&self, _id: &str) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn unpause_schedule(&self, _id: &str) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn run_now(&self, _id: &str) -> Result<String, SchedulerError> {
+                Ok("test_session_123".to_string())
+            }
+
+            async fn sessions(
+                &self,
+                _sched_id: &str,
+                _limit: usize,
+            ) -> Result<Vec<(String, Session)>, SchedulerError> {
+                Ok(self.sessions.clone())
+            }
+
+            async fn update_schedule(
+                &self,
+                _sched_id: &str,
+                _new_cron: String,
+            ) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn kill_running_job(&self, _sched_id: &str) -> Result<(), SchedulerError> {
+                Ok(())
+            }
+
+            async fn get_running_job_info(
+                &self,
+                _sched_id: &str,
+            ) -> Result<Option<(String, DateTime<Utc>)>, SchedulerError> {
+                Ok(None)
+            }
+        }
+
         impl MockScheduler {
             fn new() -> Self {
                 Self {
@@ -255,6 +335,58 @@ mod tests {
                         .contains("Session identifier for session_content action"));
                 }
             }
+        }
+
+        #[tokio::test]
+        async fn test_schedule_sessions_reports_message_count_without_conversation() {
+            let temp_dir = TempDir::new().unwrap();
+            let data_dir = temp_dir.path().to_path_buf();
+            let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+            let permission_manager = Arc::new(PermissionManager::new(data_dir));
+
+            let session = Session {
+                id: "session-123".to_string(),
+                message_count: 37,
+                conversation: None,
+                ..Default::default()
+            };
+
+            let mock_scheduler = Arc::new(SessionsMockScheduler::new(vec![(
+                "session-123".to_string(),
+                session,
+            )]));
+            let config = AgentConfig::new(
+                session_manager,
+                permission_manager,
+                Some(mock_scheduler),
+                GooseMode::Auto,
+                false,
+                GoosePlatform::GooseCli,
+            );
+            let agent = Agent::with_config(config);
+
+            let result = agent
+                .handle_schedule_management(
+                    serde_json::json!({
+                        "action": "sessions",
+                        "job_id": "daily-report"
+                    }),
+                    "test-request".to_string(),
+                )
+                .await
+                .expect("schedule sessions should succeed");
+
+            let text = result
+                .into_iter()
+                .filter_map(|content| match &content.raw {
+                    rmcp::model::RawContent::Text(text_content) => Some(text_content.text.clone()),
+                    _ => None,
+                })
+                .collect::<String>();
+            assert!(
+                text.contains("Messages: 37"),
+                "expected stored message_count in sessions output, got: {text}"
+            );
         }
     }
 
@@ -492,6 +624,188 @@ mod tests {
             } else {
                 panic!("Expected text content in last message");
             }
+            Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod unparseable_tool_call_tests {
+        use super::*;
+        use async_trait::async_trait;
+        use goose::agents::{AgentConfig, SessionConfig};
+        use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
+        use goose::conversation::message::{Message, MessageContent};
+        use goose::providers::base::{
+            stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+        };
+        use goose::session::session_manager::SessionType;
+        use goose::session::SessionManager;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
+        use rmcp::model::{ErrorCode, ErrorData, Tool};
+        use std::path::PathBuf;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use tempfile::TempDir;
+
+        /// First turn returns a tool request that failed to parse (mirroring what
+        /// the decoders emit for non-object arguments), subsequent turns return
+        /// plain text so the loop can finish.
+        struct UnparseableToolProvider {
+            call_count: AtomicUsize,
+        }
+
+        impl UnparseableToolProvider {
+            fn new() -> Self {
+                Self {
+                    call_count: AtomicUsize::new(0),
+                }
+            }
+        }
+
+        impl goose::providers::base::ProviderDescriptor for UnparseableToolProvider {
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "mock-unparseable".to_string(),
+                    display_name: "Mock Unparseable Provider".to_string(),
+                    description: "Mock provider for unparseable tool call tests".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                    model_selection_hint: None,
+                    fast_model: None,
+                }
+            }
+        }
+
+        impl ProviderDef for UnparseableToolProvider {
+            type Provider = Self;
+
+            fn from_env(
+                _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                Box::pin(async { Ok(Self::new()) })
+            }
+        }
+
+        #[async_trait]
+        impl Provider for UnparseableToolProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _session_id: &str,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let n = self.call_count.fetch_add(1, Ordering::SeqCst);
+                let message = if n == 0 {
+                    let error = ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        "Tool arguments must be a JSON object".to_string(),
+                        None,
+                    );
+                    Message::assistant().with_tool_request("call_bad", Err(error))
+                } else {
+                    Message::assistant().with_text("Recovered after the bad tool call.")
+                };
+
+                let usage = ProviderUsage::new(
+                    "mock-model".to_string(),
+                    Usage::new(Some(10), Some(5), Some(15)),
+                );
+                Ok(stream_from_single_message(message, usage))
+            }
+
+            fn get_name(&self) -> &str {
+                "mock-unparseable"
+            }
+        }
+
+        /// An unparseable tool call should be fed back to the model as a tool
+        /// response error so it can retry, rather than terminating the run.
+        #[tokio::test]
+        async fn test_unparseable_tool_call_feeds_back_and_continues() -> Result<()> {
+            let temp_dir = TempDir::new().unwrap();
+            let data_dir = temp_dir.path().to_path_buf();
+            let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+            let agent = Agent::with_config(AgentConfig::new(
+                session_manager.clone(),
+                Arc::new(PermissionManager::new(data_dir)),
+                None,
+                GooseMode::default(),
+                false,
+                GoosePlatform::GooseCli,
+            ));
+            let provider = Arc::new(UnparseableToolProvider::new());
+
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "unparseable-tool-test".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(5),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hello"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut saw_tool_response_error = false;
+            let mut saw_recovery_text = false;
+            while let Some(event) = reply_stream.next().await {
+                if let Ok(AgentEvent::Message(message)) = event {
+                    for content in &message.content {
+                        match content {
+                            MessageContent::ToolResponse(response)
+                                if response.id == "call_bad" && response.tool_result.is_err() =>
+                            {
+                                saw_tool_response_error = true;
+                            }
+                            MessageContent::Text(text)
+                                if text.text.contains("Recovered after the bad tool call") =>
+                            {
+                                saw_recovery_text = true;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+
+            assert!(
+                saw_tool_response_error,
+                "expected an error tool response fed back to the model for the unparseable call"
+            );
+            assert!(
+                saw_recovery_text,
+                "expected the loop to continue to a second provider turn instead of terminating"
+            );
+            assert!(
+                provider.call_count.load(Ordering::SeqCst) >= 2,
+                "provider should have been called again after the bad tool call"
+            );
             Ok(())
         }
     }

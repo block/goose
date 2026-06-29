@@ -23,7 +23,10 @@ export type DefaultKeyboardShortcuts = {
   [K in keyof KeyboardShortcuts]: string;
 };
 
-export type LanguageSetting = 'system' | 'en' | 'es' | 'hi' | 'ja' | 'ko' | 'ru' | 'tr' | 'zh-CN';
+// prettier-ignore
+export type LanguageSetting =
+  | 'system' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'id' | 'ms' | 'vi'
+  | 'hi' | 'ja' | 'ko' | 'ru' | 'tr' | 'zh-CN' | 'zh-TW';
 
 export interface Settings {
   // Desktop app settings

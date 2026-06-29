@@ -1,18 +1,18 @@
 use super::{
-    map_permission_response, spawn_acp_server_in_process, Connection, PermissionDecision, Session,
-    SessionData, TestConnectionConfig, TestOutput,
+    map_permission_response, spawn_acp_server_in_process, Connection, ModelStateFixture,
+    PermissionDecision, Session, SessionData, TestConnectionConfig, TestOutput,
 };
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     ClientCapabilities, CloseSessionRequest, ContentBlock, CreateTerminalRequest,
     FileSystemCapabilities, ImageContent, InitializeRequest, KillTerminalRequest,
-    ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, McpServer, ModelId, ModelInfo,
-    NewSessionRequest, PromptRequest, ProtocolVersion, ReadTextFileRequest, ReleaseTerminalRequest,
-    RequestPermissionRequest, SessionConfigKind, SessionConfigOptionCategory,
-    SessionConfigOptionValue, SessionId, SessionModeId, SessionModelState, SessionNotification,
-    SessionUpdate, SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModelRequest,
-    StopReason, TerminalOutputRequest, TextContent, ToolCallStatus, WaitForTerminalExitRequest,
-    WriteTextFileRequest,
+    ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, McpServer, NewSessionRequest,
+    PromptRequest, ReadTextFileRequest, ReleaseTerminalRequest, RequestPermissionRequest,
+    SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue, SessionId,
+    SessionModeId, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
+    SetSessionModeRequest, StopReason, TerminalOutputRequest, TextContent, ToolCallStatus,
+    WaitForTerminalExitRequest, WriteTextFileRequest,
 };
+use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
 use async_trait::async_trait;
 use goose::config::PermissionManager;
@@ -37,7 +37,7 @@ pub struct AcpServerConnection {
 
 pub struct AcpServerSession {
     cx: ConnectionTo<Agent>,
-    session_id: agent_client_protocol::schema::SessionId,
+    session_id: agent_client_protocol::schema::v1::SessionId,
     updates: Arc<Mutex<Vec<SessionNotification>>>,
     permission: Arc<Mutex<PermissionDecision>>,
     notify: Arc<Notify>,
@@ -342,9 +342,7 @@ impl Connection for AcpServerConnection {
             notify: self.notify.clone(),
             _work_dir: work_dir,
         };
-        let models = response.models.or_else(|| {
-            extract_model_state_from_config_options(response.config_options.as_deref())
-        });
+        let models = extract_model_state_from_config_options(response.config_options.as_deref());
         self.updates.lock().unwrap().clear();
         Ok(SessionData {
             session,
@@ -360,7 +358,7 @@ impl Connection for AcpServerConnection {
     ) -> anyhow::Result<SessionData<AcpServerSession>> {
         self.updates.lock().unwrap().clear();
         let work_dir = tempfile::tempdir().unwrap();
-        let session_id = agent_client_protocol::schema::SessionId::new(session_id.to_string());
+        let session_id = agent_client_protocol::schema::v1::SessionId::new(session_id.to_string());
         let response = self
             .cx
             .send_request(
@@ -377,9 +375,10 @@ impl Connection for AcpServerConnection {
             notify: self.notify.clone(),
             _work_dir: work_dir,
         };
+        let models = extract_model_state_from_config_options(response.config_options.as_deref());
         Ok(SessionData {
             session,
-            models: response.models,
+            models,
             modes: response.modes,
         })
     }
@@ -425,15 +424,7 @@ impl Connection for AcpServerConnection {
     }
 
     async fn set_model(&self, session_id: &str, model_id: &str) -> anyhow::Result<()> {
-        self.cx
-            .send_request(SetSessionModelRequest::new(
-                SessionId::new(session_id),
-                model_id.to_string(),
-            ))
-            .block_task()
-            .await
-            .map(|_| ())
-            .map_err(|e| e.into())
+        self.set_config_option(session_id, "model", model_id).await
     }
 
     async fn set_config_option(
@@ -470,7 +461,7 @@ impl Connection for AcpServerConnection {
 
 #[async_trait]
 impl Session for AcpServerSession {
-    fn session_id(&self) -> &agent_client_protocol::schema::SessionId {
+    fn session_id(&self) -> &agent_client_protocol::schema::v1::SessionId {
         &self.session_id
     }
 
@@ -514,8 +505,8 @@ impl Session for AcpServerSession {
 }
 
 fn extract_model_state_from_config_options(
-    config_options: Option<&[agent_client_protocol::schema::SessionConfigOption]>,
-) -> Option<SessionModelState> {
+    config_options: Option<&[agent_client_protocol::schema::v1::SessionConfigOption]>,
+) -> Option<ModelStateFixture> {
     let option = config_options?
         .iter()
         .find(|option| option.category.as_ref() == Some(&SessionConfigOptionCategory::Model))?;
@@ -524,33 +515,28 @@ fn extract_model_state_from_config_options(
     };
 
     let available_models = match &select.options {
-        agent_client_protocol::schema::SessionConfigSelectOptions::Ungrouped(options) => options
-            .iter()
-            .map(|option| {
-                ModelInfo::new(
-                    ModelId::new(option.value.0.to_string()),
-                    option.name.clone(),
-                )
-            })
-            .collect(),
-        agent_client_protocol::schema::SessionConfigSelectOptions::Grouped(groups) => groups
+        agent_client_protocol::schema::v1::SessionConfigSelectOptions::Ungrouped(options) => {
+            options
+                .iter()
+                .map(|option| option.value.0.to_string())
+                .collect()
+        }
+        agent_client_protocol::schema::v1::SessionConfigSelectOptions::Grouped(groups) => groups
             .iter()
             .flat_map(|group| {
-                group.options.iter().map(|option| {
-                    ModelInfo::new(
-                        ModelId::new(option.value.0.to_string()),
-                        option.name.clone(),
-                    )
-                })
+                group
+                    .options
+                    .iter()
+                    .map(|option| option.value.0.to_string())
             })
             .collect(),
         _ => Vec::new(),
     };
 
-    Some(SessionModelState::new(
-        ModelId::new(select.current_value.0.to_string()),
+    Some(ModelStateFixture {
+        current_model_id: select.current_value.0.to_string(),
         available_models,
-    ))
+    })
 }
 
 fn collect_agent_text(updates: &Arc<Mutex<Vec<SessionNotification>>>) -> String {

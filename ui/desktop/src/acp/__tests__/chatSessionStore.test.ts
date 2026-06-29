@@ -8,7 +8,9 @@ import { afterEach, describe, expect, it } from 'vitest';
 import type { Message, Session } from '../../api';
 import { ChatState } from '../../types/chatState';
 import {
+  acpElicitationUserInputRequestId,
   acpChatSessionActions,
+  acpPermissionUserInputRequestId,
   acpChatSessionStore,
   useAcpChatSessionSnapshot,
 } from '../chatSessionStore';
@@ -294,6 +296,58 @@ describe('acpChatSessionStore', () => {
     expect(clearedSnapshot?.pendingCancelPromptAttemptId).toBeNull();
   });
 
+  it('restores pending user input tracking when prompt cancellation is restored', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    acpChatSessionActions.applyPermissionRequest(permissionRequest(currentSessionId, 'tool-1'));
+    acpChatSessionActions.applyElicitationRequest(elicitationRequest(currentSessionId));
+    acpChatSessionActions.startPromptCancellation(currentSessionId, 'attempt-1');
+
+    const restoredSnapshot = acpChatSessionActions.restorePromptCancellation(
+      currentSessionId,
+      'attempt-1'
+    );
+
+    expect(restoredSnapshot?.chatState).toBe(ChatState.WaitingForUserInput);
+
+    const afterPermission = acpChatSessionActions.resolveUserInputRequest(
+      currentSessionId,
+      acpPermissionUserInputRequestId('tool-1')
+    );
+
+    expect(afterPermission?.chatState).toBe(ChatState.WaitingForUserInput);
+
+    const afterElicitation = acpChatSessionActions.resolveUserInputRequest(
+      currentSessionId,
+      acpElicitationUserInputRequestId('acp_elicitation_1')
+    );
+
+    expect(afterElicitation?.chatState).toBe(ChatState.Streaming);
+  });
+
+  it('waits for prompt cancellation to clear', async () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    acpChatSessionActions.startPromptCancellation(currentSessionId, 'attempt-1');
+
+    let didResolve = false;
+    const waitPromise = acpChatSessionActions
+      .waitForPromptCancellation(currentSessionId, 'attempt-1')
+      .then(() => {
+        didResolve = true;
+      });
+
+    await Promise.resolve();
+    expect(didResolve).toBe(false);
+
+    acpChatSessionActions.clearPromptCancellation(currentSessionId, 'attempt-1');
+
+    await waitPromise;
+    expect(didResolve).toBe(true);
+  });
+
   it('removes pending local steer messages when cancellation starts', () => {
     const currentSessionId = sessionId('session-1');
     const localSteerMessage = {
@@ -463,6 +517,41 @@ describe('acpChatSessionStore', () => {
         id: 'tool-1',
       },
     });
+  });
+
+  it('resumes streaming only after the final pending user input request resolves', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.startPromptAttempt(currentSessionId, 'attempt-1');
+    acpChatSessionActions.applyPermissionRequest(permissionRequest(currentSessionId, 'tool-1'));
+    acpChatSessionActions.applyElicitationRequest(elicitationRequest(currentSessionId));
+
+    const afterElicitation = acpChatSessionActions.resolveUserInputRequest(
+      currentSessionId,
+      acpElicitationUserInputRequestId('acp_elicitation_1')
+    );
+
+    expect(afterElicitation?.chatState).toBe(ChatState.WaitingForUserInput);
+
+    const afterPermission = acpChatSessionActions.resolveUserInputRequest(
+      currentSessionId,
+      acpPermissionUserInputRequestId('tool-1')
+    );
+
+    expect(afterPermission?.chatState).toBe(ChatState.Streaming);
+  });
+
+  it('does not resume streaming after user input resolves without an active prompt', () => {
+    const currentSessionId = sessionId('session-1');
+
+    acpChatSessionActions.applyPermissionRequest(permissionRequest(currentSessionId, 'tool-1'));
+
+    const snapshot = acpChatSessionActions.resolveUserInputRequest(
+      currentSessionId,
+      acpPermissionUserInputRequestId('tool-1')
+    );
+
+    expect(snapshot?.chatState).toBe(ChatState.WaitingForUserInput);
   });
 
   it('applies elicitation requests as waiting action-required messages', () => {

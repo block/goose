@@ -1,7 +1,7 @@
 #[allow(dead_code)]
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     ListSessionsRequest, ListSessionsResponse, NewSessionRequest, SessionConfigKind,
     SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo,
     SetSessionConfigOptionRequest,
@@ -445,7 +445,7 @@ fn test_get_session_info() {
 
         assert_eq!(
             response.session.session_id,
-            agent_client_protocol::schema::SessionId::new(session.id)
+            agent_client_protocol::schema::v1::SessionId::new(session.id)
         );
         assert_eq!(response.session.cwd, cwd.to_path_buf());
         assert_eq!(response.session.title.as_deref(), Some("Session info"));

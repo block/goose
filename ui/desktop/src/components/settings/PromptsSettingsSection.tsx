@@ -1,12 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
-  getPrompt,
-  getPrompts,
-  PromptContentResponse,
-  Template,
-  resetPrompt,
-  savePrompt,
-} from '../../api';
+  acpGetPrompt,
+  acpListPrompts,
+  acpResetPrompt,
+  acpSavePrompt,
+  type PromptContent,
+  type PromptTemplate,
+} from '../../acp/prompts';
 import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
 import { Button } from '../ui/button';
 import { AlertTriangle, RotateCcw, ArrowLeft } from 'lucide-react';
@@ -24,7 +24,8 @@ const i18n = defineMessages({
   },
   confirmResetAll: {
     id: 'promptsSettings.confirmResetAll',
-    defaultMessage: 'Are you sure you want to reset all prompts to their defaults? This cannot be undone.',
+    defaultMessage:
+      'Are you sure you want to reset all prompts to their defaults? This cannot be undone.',
   },
   allPromptsReset: {
     id: 'promptsSettings.allPromptsReset',
@@ -44,7 +45,8 @@ const i18n = defineMessages({
   },
   confirmResetOne: {
     id: 'promptsSettings.confirmResetOne',
-    defaultMessage: 'Are you sure you want to reset this prompt to its default? This cannot be undone.',
+    defaultMessage:
+      'Are you sure you want to reset this prompt to its default? This cannot be undone.',
   },
   promptResetToDefault: {
     id: 'promptsSettings.promptResetToDefault',
@@ -84,7 +86,8 @@ const i18n = defineMessages({
   },
   templateTip: {
     id: 'promptsSettings.templateTip',
-    defaultMessage: 'Template variables like {extensionsExample} or {forExample} are replaced with actual values at runtime. Be careful not to remove required variables.',
+    defaultMessage:
+      'Template variables like {extensionsExample} or {forExample} are replaced with actual values at runtime. Be careful not to remove required variables.',
   },
   editingLabel: {
     id: 'promptsSettings.editingLabel',
@@ -108,7 +111,8 @@ const i18n = defineMessages({
   },
   promptEditingDescription: {
     id: 'promptsSettings.promptEditingDescription',
-    defaultMessage: "Customize the prompts that define goose's behavior in different contexts. These prompts use Jinja2 templating syntax. Be careful when modifying template variables, as incorrect changes can break functionality. Please share any improvements with the community.",
+    defaultMessage:
+      "Customize the prompts that define goose's behavior in different contexts. These prompts use Jinja2 templating syntax. Be careful when modifying template variables, as incorrect changes can break functionality. Please share any improvements with the community.",
   },
   resetAll: {
     id: 'promptsSettings.resetAll',
@@ -122,18 +126,16 @@ const i18n = defineMessages({
 
 export default function PromptsSettingsSection() {
   const intl = useIntl();
-  const [prompts, setPrompts] = useState<Template[]>([]);
+  const [prompts, setPrompts] = useState<PromptTemplate[]>([]);
   const [selectedPrompt, setSelectedPrompt] = useState<string | null>(null);
-  const [promptData, setPromptData] = useState<PromptContentResponse | null>(null);
+  const [promptData, setPromptData] = useState<PromptContent | null>(null);
   const [content, setContent] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
 
   const fetchPrompts = useCallback(async () => {
     try {
-      const response = await getPrompts();
-      if (response.data) {
-        setPrompts(response.data.prompts);
-      }
+      const prompts = await acpListPrompts();
+      setPrompts(prompts);
     } catch (error) {
       console.error('Failed to fetch prompts:', error);
       toast.error(intl.formatMessage(i18n.failedToLoadPrompts));
@@ -148,11 +150,9 @@ export default function PromptsSettingsSection() {
     if (selectedPrompt) {
       const fetchPrompt = async () => {
         try {
-          const response = await getPrompt({ path: { name: selectedPrompt } });
-          if (response.data) {
-            setPromptData(response.data);
-            setContent(response.data.content);
-          }
+          const prompt = await acpGetPrompt(selectedPrompt);
+          setPromptData(prompt);
+          setContent(prompt.content);
         } catch (error) {
           console.error('Failed to fetch prompt:', error);
           toast.error(intl.formatMessage(i18n.failedToLoadPrompt));
@@ -169,18 +169,14 @@ export default function PromptsSettingsSection() {
   }, [content, promptData]);
 
   const handleResetAll = async () => {
-    if (
-      !window.confirm(
-        intl.formatMessage(i18n.confirmResetAll)
-      )
-    ) {
+    if (!window.confirm(intl.formatMessage(i18n.confirmResetAll))) {
       return;
     }
 
     try {
-      const customizedPrompts = prompts.filter((p) => p.is_customized);
+      const customizedPrompts = prompts.filter((p) => p.isCustomized);
       for (const prompt of customizedPrompts) {
-        await resetPrompt({ path: { name: prompt.name } });
+        await acpResetPrompt(prompt.name);
       }
       toast.success(intl.formatMessage(i18n.allPromptsReset));
       fetchPrompts();
@@ -193,12 +189,9 @@ export default function PromptsSettingsSection() {
   const handleSave = async () => {
     if (!selectedPrompt) return;
     try {
-      await savePrompt({
-        path: { name: selectedPrompt },
-        body: { content },
-      });
+      await acpSavePrompt(selectedPrompt, content);
       toast.success(intl.formatMessage(i18n.promptSaved));
-      setPromptData((prev) => (prev ? { ...prev, content, is_customized: true } : null));
+      setPromptData((prev) => (prev ? { ...prev, content, isCustomized: true } : null));
       fetchPrompts();
     } catch (error) {
       console.error('Failed to save prompt:', error);
@@ -208,19 +201,15 @@ export default function PromptsSettingsSection() {
 
   const handleReset = async () => {
     if (!selectedPrompt) return;
-    if (
-      !window.confirm(
-        intl.formatMessage(i18n.confirmResetOne)
-      )
-    ) {
+    if (!window.confirm(intl.formatMessage(i18n.confirmResetOne))) {
       return;
     }
 
     try {
-      await resetPrompt({ path: { name: selectedPrompt } });
+      await acpResetPrompt(selectedPrompt);
       if (promptData) {
-        setContent(promptData.default_content);
-        setPromptData({ ...promptData, content: promptData.default_content, is_customized: false });
+        setContent(promptData.defaultContent);
+        setPromptData({ ...promptData, content: promptData.defaultContent, isCustomized: false });
       }
       fetchPrompts();
       toast.success(intl.formatMessage(i18n.promptResetToDefault));
@@ -237,7 +226,7 @@ export default function PromptsSettingsSection() {
           return;
         }
       }
-      setContent(promptData.default_content);
+      setContent(promptData.defaultContent);
     }
   };
 
@@ -252,7 +241,7 @@ export default function PromptsSettingsSection() {
     setContent('');
   };
 
-  const hasCustomizedPrompts = prompts.some((p) => p.is_customized);
+  const hasCustomizedPrompts = prompts.some((p) => p.isCustomized);
 
   if (selectedPrompt) {
     return (
@@ -270,7 +259,7 @@ export default function PromptsSettingsSection() {
                 {intl.formatMessage(i18n.backToList)}
               </Button>
               <div className="flex items-center gap-2">
-                {promptData?.is_customized && (
+                {promptData?.isCustomized && (
                   <Button
                     variant="outline"
                     size="sm"
@@ -287,8 +276,10 @@ export default function PromptsSettingsSection() {
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <CardTitle>{intl.formatMessage(i18n.editPromptTitle, { name: selectedPrompt })}</CardTitle>
-              {promptData?.is_customized && (
+              <CardTitle>
+                {intl.formatMessage(i18n.editPromptTitle, { name: selectedPrompt })}
+              </CardTitle>
+              {promptData?.isCustomized && (
                 <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400">
                   {intl.formatMessage(i18n.customized)}
                 </span>
@@ -307,8 +298,10 @@ export default function PromptsSettingsSection() {
 
             <div className="space-y-2 flex-1 flex flex-col min-h-0">
               <div className="flex items-center justify-between">
-                <label className="text-sm font-medium">{intl.formatMessage(i18n.editingLabel, { name: selectedPrompt })}</label>
-                {promptData?.is_customized && content !== promptData.default_content && (
+                <label className="text-sm font-medium">
+                  {intl.formatMessage(i18n.editingLabel, { name: selectedPrompt })}
+                </label>
+                {promptData?.isCustomized && content !== promptData.defaultContent && (
                   <Button
                     variant="ghost"
                     size="sm"
@@ -346,7 +339,9 @@ export default function PromptsSettingsSection() {
           <div className="flex items-start gap-3">
             <AlertTriangle className="h-5 w-5 text-yellow-500 flex-shrink-0 mt-1" />
             <div className="flex-1">
-              <CardTitle className="text-yellow-600 dark:text-yellow-400">{intl.formatMessage(i18n.promptEditingTitle)}</CardTitle>
+              <CardTitle className="text-yellow-600 dark:text-yellow-400">
+                {intl.formatMessage(i18n.promptEditingTitle)}
+              </CardTitle>
               <p className="text-sm text-text-secondary mt-2">
                 {intl.formatMessage(i18n.promptEditingDescription)}
               </p>
@@ -374,7 +369,7 @@ export default function PromptsSettingsSection() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <h4 className="font-medium text-text-primary truncate">{prompt.name}</h4>
-                    {prompt.is_customized && (
+                    {prompt.isCustomized && (
                       <span className="px-2 py-0.5 text-xs rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400">
                         {intl.formatMessage(i18n.customized)}
                       </span>

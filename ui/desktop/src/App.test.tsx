@@ -34,24 +34,11 @@ vi.mock('./utils/costDatabase', () => ({
 }));
 
 vi.mock('./api', () => {
-  const test_chat = {
-    data: {
-      session_id: 'test',
-      messages: [],
-      metadata: {
-        description: '',
-      },
-    },
-  };
-
   return {
     initConfig: vi.fn().mockResolvedValue(undefined),
-    readAllConfig: vi.fn().mockResolvedValue(undefined),
     backupConfig: vi.fn().mockResolvedValue(undefined),
     recoverConfig: vi.fn().mockResolvedValue(undefined),
     validateConfig: vi.fn().mockResolvedValue(undefined),
-    startAgent: vi.fn().mockResolvedValue(test_chat),
-    resumeAgent: vi.fn().mockResolvedValue(test_chat),
   };
 });
 
@@ -61,6 +48,15 @@ vi.mock('./sessions', () => ({
     .mockResolvedValue({ sessionId: 'test', messages: [], metadata: { description: '' } }),
   generateSessionId: vi.fn(),
   createSession: vi.fn(),
+}));
+
+// Mock the ACP providers module used by OnboardingGuard so it doesn't try to
+// open a real ACP client connection during tests. Returning null defaults
+// keeps the app in the "brand new" (no provider configured) onboarding state.
+vi.mock('./acp/providers', () => ({
+  acpReadDefaults: vi.fn().mockResolvedValue({ providerId: null, modelId: null }),
+  acpSaveDefaults: vi.fn().mockResolvedValue(undefined),
+  acpListProviderDetails: vi.fn().mockResolvedValue([]),
 }));
 
 // Mock the ConfigContext module
