@@ -415,13 +415,6 @@ export default function McpAppRenderer({
 
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const [containerHeight, setContainerHeight] = useState<number>(0);
-  const [apiHost, setApiHost] = useState<string | null>(null);
-  const [secretKey, setSecretKey] = useState<string | null>(null);
-
-  useEffect(() => {
-    window.electron.getGoosedHostPort().then(setApiHost);
-    window.electron.getSecretKey().then(setSecretKey);
-  }, []);
 
   // Fetch the resource from the extension to get HTML and metadata (CSP, permissions, etc.).
   // If cachedHtml is provided we show it immediately; the fetch updates metadata and
