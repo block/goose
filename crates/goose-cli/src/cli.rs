@@ -42,17 +42,6 @@ use tracing::warn;
 
 const GOOSE_SERVER_SECRET_KEY_ENV: &str = "GOOSE_SERVER__SECRET_KEY";
 
-fn env_bool(name: &str) -> bool {
-    std::env::var(name)
-        .map(|value| {
-            matches!(
-                value.to_ascii_lowercase().as_str(),
-                "1" | "true" | "yes" | "on"
-            )
-        })
-        .unwrap_or(false)
-}
-
 fn generate_serve_secret_key() -> String {
     use rand::distr::{Alphanumeric, SampleString};
 
@@ -1398,14 +1387,17 @@ async fn handle_serve_command(
     let secret_key = env_secret.unwrap_or_else(generate_serve_secret_key);
     let router = create_router(server, secret_key, require_token);
 
-    let tls = tls || env_bool("GOOSE_TLS");
+    let config = Config::global();
+    let tls = tls || config.get_param::<bool>("GOOSE_TLS").unwrap_or(false);
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
     if tls {
         #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
         {
-            let tls_cert_path = tls_cert_path.or_else(|| std::env::var("GOOSE_TLS_CERT_PATH").ok());
-            let tls_key_path = tls_key_path.or_else(|| std::env::var("GOOSE_TLS_KEY_PATH").ok());
+            let tls_cert_path =
+                tls_cert_path.or_else(|| config.get_param::<String>("GOOSE_TLS_CERT_PATH").ok());
+            let tls_key_path =
+                tls_key_path.or_else(|| config.get_param::<String>("GOOSE_TLS_KEY_PATH").ok());
             let tls_setup = goose::acp::transport::tls::setup_tls(
                 tls_cert_path.as_deref(),
                 tls_key_path.as_deref(),
