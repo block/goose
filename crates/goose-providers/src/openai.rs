@@ -746,16 +746,7 @@ pub fn from_custom_config(
     let url = url::Url::parse(&normalized_base_url)
         .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
 
-    let host = if let Some(port) = url.port() {
-        format!(
-            "{}://{}:{}",
-            url.scheme(),
-            url.host_str().unwrap_or(""),
-            port
-        )
-    } else {
-        format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
-    };
+    let host = url[..url::Position::BeforePath].to_string();
     let base_path = if let Some(ref explicit_path) = config.base_path {
         explicit_path.trim_start_matches('/').to_string()
     } else {
@@ -1083,6 +1074,60 @@ mod tests {
         assert_eq!(
             ensure_url_scheme("https://api.openai.com/v1"),
             "https://api.openai.com/v1"
+        );
+    }
+
+    fn custom_config(base_url: &str) -> DeclarativeProviderConfig {
+        DeclarativeProviderConfig {
+            name: "test-openai".to_string(),
+            engine: crate::declarative::ProviderEngine::OpenAI,
+            display_name: "Test OpenAI".to_string(),
+            description: None,
+            api_key_env: String::new(),
+            base_url: base_url.to_string(),
+            models: vec![crate::base::ModelInfo::new("test-model", 4096)],
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming: None,
+            requires_auth: false,
+            catalog_provider_id: None,
+            base_path: None,
+            env_vars: None,
+            dynamic_models: Some(false),
+            skip_canonical_filtering: false,
+            model_doc_link: None,
+            setup_steps: vec![],
+            fast_model: None,
+            preserves_thinking: false,
+        }
+    }
+
+    #[test]
+    fn from_custom_config_preserves_ipv6_authority() {
+        let provider = from_custom_config(
+            custom_config("http://[::1]:1234/v1"),
+            None,
+            crate::declarative::EnvKeyResolver,
+        )
+        .unwrap()
+        .build();
+
+        assert_eq!(provider.api_client.host(), "http://[::1]:1234");
+    }
+
+    #[test]
+    fn from_custom_config_preserves_userinfo_authority() {
+        let provider = from_custom_config(
+            custom_config("https://user:pass@gateway.example/v1"),
+            None,
+            crate::declarative::EnvKeyResolver,
+        )
+        .unwrap()
+        .build();
+
+        assert_eq!(
+            provider.api_client.host(),
+            "https://user:pass@gateway.example"
         );
     }
 
