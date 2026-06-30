@@ -3,8 +3,8 @@ import { defineMessages, useIntl } from '../i18n';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 
-import type { Session } from '../api';
 import type { TokenState } from '../types/chat';
+import type { Session } from '../types/session';
 
 import {
   createUserMessage,
