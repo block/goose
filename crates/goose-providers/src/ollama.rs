@@ -15,7 +15,7 @@ use anyhow::{Error, Result};
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::TryStreamExt;
-use reqwest::Response;
+use reqwest::{Response, StatusCode};
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -181,6 +181,48 @@ impl OllamaProvider {
     pub fn with_options(mut self, options: OllamaOptions) -> Self {
         self.options = options;
         self
+    }
+
+    async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
+        let response = self
+            .api_client
+            .request("api/tags")
+            .response_get()
+            .await
+            .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
+
+        if response.status() == StatusCode::NOT_FOUND {
+            return Err(ProviderError::EndpointNotFound(
+                "Ollama models endpoint not found".to_string(),
+            ));
+        }
+
+        if !response.status().is_success() {
+            return Err(ProviderError::RequestFailed(format!(
+                "Failed to fetch models: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let json_response = response.json::<Value>().await.map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to parse response: {}", e))
+        })?;
+
+        let models = json_response
+            .get("models")
+            .and_then(|m| m.as_array())
+            .ok_or_else(|| {
+                ProviderError::RequestFailed("No models array in response".to_string())
+            })?;
+
+        let mut model_names: Vec<String> = models
+            .iter()
+            .filter_map(|model| model.get("name").and_then(|n| n.as_str()).map(String::from))
+            .collect();
+
+        model_names.sort();
+
+        Ok(model_names)
     }
 }
 
@@ -396,41 +438,22 @@ impl Provider for OllamaProvider {
             if self.dynamic_models == Some(false) {
                 return Ok(custom_models.clone());
             }
+
+            match self.fetch_models_from_api().await {
+                Ok(models) => return Ok(models),
+                Err(e) if e.is_endpoint_not_found() => {
+                    tracing::debug!(
+                        "Models endpoint not implemented for provider '{}' ({}), using predefined list",
+                        self.name,
+                        e
+                    );
+                    return Ok(custom_models.clone());
+                }
+                Err(e) => return Err(e),
+            }
         }
 
-        let response = self
-            .api_client
-            .request("api/tags")
-            .response_get()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
-
-        if !response.status().is_success() {
-            return Err(ProviderError::RequestFailed(format!(
-                "Failed to fetch models: HTTP {}",
-                response.status()
-            )));
-        }
-
-        let json_response = response.json::<Value>().await.map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to parse response: {}", e))
-        })?;
-
-        let models = json_response
-            .get("models")
-            .and_then(|m| m.as_array())
-            .ok_or_else(|| {
-                ProviderError::RequestFailed("No models array in response".to_string())
-            })?;
-
-        let mut model_names: Vec<String> = models
-            .iter()
-            .filter_map(|model| model.get("name").and_then(|n| n.as_str()).map(String::from))
-            .collect();
-
-        model_names.sort();
-
-        Ok(model_names)
+        self.fetch_models_from_api().await
     }
 }
 
@@ -576,6 +599,37 @@ mod tests {
         assert!(err
             .to_string()
             .contains("dynamic_models: false but no static models listed"));
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_falls_back_to_static_models_on_404() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/tags"))
+            .respond_with(ResponseTemplate::new(404))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = from_custom_config(
+            ollama_config_with_base_url(
+                None,
+                vec![ModelInfo::new("static-model", 4096)],
+                &server.uri(),
+            ),
+            None,
+            crate::declarative::EnvKeyResolver,
+        )
+        .unwrap()
+        .build();
+
+        assert_eq!(
+            provider.fetch_supported_models().await.unwrap(),
+            vec!["static-model".to_string()]
+        );
     }
 
     #[test]
