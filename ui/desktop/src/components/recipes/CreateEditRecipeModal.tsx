@@ -261,7 +261,7 @@ export default function CreateEditRecipeModal({
     const cleanedExtensions = extensions?.map(
       (extension: RecipeExtension & { enabled?: boolean }) => {
         const { enabled: _enabled, ...rest } = extension;
-        if (Array.isArray(rest.available_tools) && rest.available_tools.length === 0) {
+        if (rest.available_tools == null || rest.available_tools.length === 0) {
           const { available_tools: _availableTools, ...withoutAvailableTools } = rest;
           return withoutAvailableTools;
         }
