@@ -16,12 +16,17 @@ pub struct TerminalGuard {
     old_sigint: libc::sighandler_t,
 }
 
+impl Default for TerminalGuard {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TerminalGuard {
     pub fn new() -> Self {
         #[cfg(unix)]
-        let old_sigint = unsafe {
-            libc::signal(libc::SIGINT, sigint_handler as libc::sighandler_t)
-        };
+        let old_sigint =
+            unsafe { libc::signal(libc::SIGINT, sigint_handler as libc::sighandler_t) };
         Self {
             #[cfg(unix)]
             old_sigint,
