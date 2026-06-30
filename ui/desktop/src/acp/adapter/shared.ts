@@ -1,5 +1,6 @@
 import type { ToolCall, ToolCallUpdate } from '@agentclientprotocol/sdk';
-import type { Message, TokenState } from '../../api';
+import type { Message } from '../../api';
+import type { TokenState } from '../../types/chat';
 import type { NotificationEvent } from '../../types/message';
 
 export type AcpChatStateChange =

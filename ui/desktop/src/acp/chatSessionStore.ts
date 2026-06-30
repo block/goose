@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
-import type { Message, Session, TokenState } from '../api';
+import type { Message, Session } from '../api';
+import type { TokenState } from '../types/chat';
 import { ChatState } from '../types/chatState';
 import type { NotificationEvent } from '../types/message';
 import {
