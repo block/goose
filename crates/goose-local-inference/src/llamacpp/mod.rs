@@ -742,7 +742,25 @@ mod tests {
 
     #[test]
     fn local_inference_cpu_support_check_accepts_current_host() {
-        check_cpu_supports_local_inference().unwrap();
+        let result = check_cpu_supports_local_inference();
+
+        #[cfg(target_arch = "x86_64")]
+        {
+            let supports_required_features = std::arch::is_x86_feature_detected!("fma")
+                && std::arch::is_x86_feature_detected!("avx2");
+
+            if supports_required_features {
+                assert!(
+                    result.is_ok(),
+                    "expected supported x86_64 host to pass: {result:?}"
+                );
+            } else {
+                assert!(result.is_err(), "expected unsupported x86_64 host to fail");
+            }
+        }
+
+        #[cfg(not(target_arch = "x86_64"))]
+        assert!(result.is_ok());
     }
 
     #[test]
