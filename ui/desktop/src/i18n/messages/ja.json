@@ -1916,30 +1916,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "ピクチャ・イン・ピクチャで再生中"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "キャンセル"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "開く"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "外部リンクを開く"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "次を開きます: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol}リンクを開きますか？"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "{message}のメッセージを受信しました。"
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "MCP-UI {messageType}メッセージ"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "{message}のメッセージを受信しました。{messageType}メッセージはまだサポートされていません。詳細はコンソールを確認してください。"
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# 件見つかりました} other{# 件見つかりました}}"
   },
@@ -3854,14 +3830,32 @@
   "settings.language.english": {
     "defaultMessage": "英語"
   },
+  "settings.language.french": {
+    "defaultMessage": "フランス語"
+  },
+  "settings.language.german": {
+    "defaultMessage": "ドイツ語"
+  },
   "settings.language.hindi": {
     "defaultMessage": "ヒンディー語"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "インドネシア語"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "イタリア語"
   },
   "settings.language.japanese": {
     "defaultMessage": "日本語"
   },
   "settings.language.korean": {
     "defaultMessage": "韓国語"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "マレー語"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "ポルトガル語"
   },
   "settings.language.russian": {
     "defaultMessage": "ロシア語"
@@ -3878,8 +3872,14 @@
   "settings.language.turkish": {
     "defaultMessage": "トルコ語"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "ベトナム語"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "中国語（簡体字）"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "中国語（繁体字）"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "メニューバーにgooseを表示します"
@@ -4372,9 +4372,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "ログ"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UIは実験的な機能であり、予告なく変更される場合があります。"
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "出力"

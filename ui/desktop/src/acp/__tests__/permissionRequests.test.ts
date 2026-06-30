@@ -7,10 +7,6 @@ import {
 } from '../permissionRequests';
 import { acpChatSessionActions } from '../chatSessionStore';
 
-vi.mock('../../acpChatFeatureFlag', () => ({
-  USE_ACP_CHAT: true,
-}));
-
 vi.mock('../chatSessionStore', () => ({
   acpPermissionUserInputRequestId: (toolCallId: string) => `permission:${toolCallId}`,
   acpChatSessionActions: {

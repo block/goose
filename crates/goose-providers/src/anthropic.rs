@@ -135,7 +135,7 @@ impl AnthropicProviderBuilder {
 
 impl AnthropicProvider {
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
-        let response = self.api_client.request(None, "v1/models").api_get().await?;
+        let response = self.api_client.request("v1/models").api_get().await?;
 
         if response.status == StatusCode::NOT_FOUND {
             let msg = response
@@ -241,7 +241,6 @@ impl Provider for AnthropicProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -263,7 +262,7 @@ impl Provider for AnthropicProvider {
 
         let response = self
             .with_retry(|| async {
-                let request = self.api_client.request(Some(session_id), "v1/messages");
+                let request = self.api_client.request("v1/messages");
                 let resp = request.response_post(&payload).await?;
                 handle_status(resp).await
             })

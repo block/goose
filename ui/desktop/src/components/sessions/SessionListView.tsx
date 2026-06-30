@@ -48,7 +48,6 @@ import { acpChatSessionActions } from '../../acp/chatSessionStore';
 import { cancelAcpPermissionRequestsForSession } from '../../acp/permissionRequests';
 import { cancelAcpElicitationRequestsForSession } from '../../acp/elicitationRequests';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
-import { clearSessionCache } from '../../hooks/useChatStream';
 
 const i18n = defineMessages({
   editSessionTitle: { id: 'sessions.edit.title', defaultMessage: 'Edit Session Description' },
@@ -484,7 +483,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         window.dispatchEvent(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
-        clearSessionCache(sessionToDeleteId);
         cancelAcpPermissionRequestsForSession(sessionToDeleteId);
         cancelAcpElicitationRequestsForSession(sessionToDeleteId);
         acpChatSessionActions.deleteSnapshot(sessionToDeleteId);

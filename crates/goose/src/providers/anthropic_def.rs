@@ -43,6 +43,7 @@ async fn from_env(
     };
 
     let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
+        .with_request_builder(crate::session_context::session_id_request_builder())
         .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
     Ok(AnthropicProviderBuilder::new(api_client).build())
@@ -85,6 +86,7 @@ pub fn from_custom_config(
     let format_options = format_options_for_provider(config.preserves_thinking);
 
     let mut api_client = ApiClient::new_with_tls(config.base_url, auth, tls_config)?
+        .with_request_builder(crate::session_context::session_id_request_builder())
         .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
 
     if let Some(headers) = &config.headers {

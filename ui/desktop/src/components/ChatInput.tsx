@@ -16,7 +16,6 @@ import { cn } from '../utils';
 import { AlertType, useAlerts } from './alerts';
 import { useModelAndProvider } from './ModelAndProviderContext';
 import { acpListProviderDetails } from '../acp/providers';
-import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 import { useAudioRecorder } from '../hooks/useAudioRecorder';
 import { toastError } from '../toasts';
 import MentionPopover, { DisplayItemWithMatch } from './MentionPopover';
@@ -161,7 +160,6 @@ interface ChatInputProps {
   sessionId: string | null;
   handleSubmit: (input: UserInput) => void;
   chatState: ChatState;
-  setChatState?: (state: ChatState) => void;
   onStop?: () => void;
   onSteerQueuedMessage?: (input: UserInput) => Promise<boolean>;
   pauseQueueOnStop?: boolean;
@@ -197,7 +195,6 @@ export default function ChatInput({
   sessionId,
   handleSubmit,
   chatState = ChatState.Idle,
-  setChatState,
   onStop,
   onSteerQueuedMessage,
   pauseQueueOnStop = false,
@@ -1682,10 +1679,6 @@ export default function ChatInput({
               await onWorkingDirChange?.(newDir);
               setWorkingDirOverride(newDir);
             }}
-            onRestartStart={
-              USE_ACP_CHAT ? undefined : () => setChatState?.(ChatState.RestartingAgent)
-            }
-            onRestartEnd={USE_ACP_CHAT ? undefined : () => setChatState?.(ChatState.Idle)}
           />
         )}
 

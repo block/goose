@@ -1916,30 +1916,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Resim İçinde Resim'de Oynatma"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "İptal"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Açık"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Dış Bağlantıyı Aç"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Bu açılacak: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol} bağlantısı açılsın mı?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "{message} için mesaj alındı."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "MCP-UI {messageType} mesajı"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "{message} için mesaj alındı. {messageType} mesajları henüz desteklenmiyor; daha fazla ayrıntı için konsola bakın."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# öğe bulundu} other{# öğe bulundu}}"
   },
@@ -3854,14 +3830,32 @@
   "settings.language.english": {
     "defaultMessage": "İngilizce"
   },
+  "settings.language.french": {
+    "defaultMessage": "Fransızca"
+  },
+  "settings.language.german": {
+    "defaultMessage": "Almanca"
+  },
   "settings.language.hindi": {
     "defaultMessage": "Hintçe"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "Endonezce"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "İtalyanca"
   },
   "settings.language.japanese": {
     "defaultMessage": "Japonca"
   },
   "settings.language.korean": {
     "defaultMessage": "Korece"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "Malayca"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "Portekizce"
   },
   "settings.language.russian": {
     "defaultMessage": "Rusça"
@@ -3878,8 +3872,14 @@
   "settings.language.turkish": {
     "defaultMessage": "Türkçe"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "Vietnamca"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "Çince (Basitleştirilmiş)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "Çince (Geleneksel)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Menü çubuğunda goose'yi göster"
@@ -4372,9 +4372,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Günlükler"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP Kullanıcı arayüzü deneyseldir ve herhangi bir zamanda değişebilir."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Çıkış"

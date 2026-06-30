@@ -87,7 +87,7 @@ thiserror = { workspace = true }
 futures = { workspace = true }
 dirs = { workspace = true }
 reqwest = { workspace = true, features = ["json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "multipart", "system-proxy"] }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "fs", "process", "net", "signal", "io-std", "io-util"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_path_to_error = { version = "0.1.8", default-features = false }
@@ -132,6 +132,7 @@ tokio-cron-scheduler = { version = "0.15", default-features = false }
 urlencoding = { workspace = true }
 v_htmlescape = { version = "0.17", default-features = false, features = ["std"] }
 sqlx = { version = "0.8.5", default-features = false, features = [
+    "runtime-tokio",
     "sqlite",
     "chrono",
     "json",
@@ -158,6 +159,7 @@ tempfile = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
 agent-client-protocol-schema = { workspace = true }
 agent-client-protocol = { workspace = true, features = ["unstable"] }
+agent-client-protocol-http = { workspace = true }
 unicode-normalization = { version = "0.1.22", default-features = false, features = ["std"] }
 
 # For local Whisper transcription (optional, behind "local-inference" feature)
@@ -196,7 +198,6 @@ pastey = { version = "0.2", default-features = false }
 shell-words = { workspace = true }
 goose-acp-macros = { path = "../goose-acp-macros", default-features = false }
 tower-http = { workspace = true, features = ["cors"] }
-http-body-util = { version = "0.1.2", default-features = false }
 tracing-appender = { workspace = true }
 process-wrap = { version = "9", default-features = false, features = ["std"] }
 nostr = { version = "0.44", default-features = false, features = ["nip44", "std"], optional = true }

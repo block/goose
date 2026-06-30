@@ -57,6 +57,7 @@ impl OpenRouterProvider {
 
         let auth = AuthMethod::BearerToken(api_key);
         let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
+            .with_request_builder(crate::session_context::session_id_request_builder())
             .with_header("HTTP-Referer", "https://goose-docs.ai")?
             .with_header("X-Title", "goose")?;
 
@@ -195,7 +196,7 @@ impl Provider for OpenRouterProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
-            .request(None, "api/v1/models")
+            .request("api/v1/models")
             .response_get()
             .await
             .map_err(|e| {
@@ -242,11 +243,11 @@ impl Provider for OpenRouterProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         let mut payload = create_request(
             model_config,
             system,
@@ -282,7 +283,7 @@ impl Provider for OpenRouterProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(Some(session_id), "api/v1/chat/completions", &payload)
+                    .response_post("api/v1/chat/completions", &payload)
                     .await?;
                 handle_status(resp).await
             })

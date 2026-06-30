@@ -1916,30 +1916,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Playing in Picture-in-Picture"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Cancel"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Open"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Open External Link"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "This will open: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "Open {protocol} link?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Message received for {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "MCP-UI {messageType} message"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Message received for {message}. {messageType} messages aren't supported yet, refer to console for more details."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# item found} other{# items found}}"
   },
@@ -3854,14 +3830,32 @@
   "settings.language.english": {
     "defaultMessage": "English"
   },
+  "settings.language.french": {
+    "defaultMessage": "French"
+  },
+  "settings.language.german": {
+    "defaultMessage": "German"
+  },
   "settings.language.hindi": {
     "defaultMessage": "Hindi"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "Indonesian"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "Italian"
   },
   "settings.language.japanese": {
     "defaultMessage": "Japanese"
   },
   "settings.language.korean": {
     "defaultMessage": "Korean"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "Malay"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "Portuguese"
   },
   "settings.language.russian": {
     "defaultMessage": "Russian"
@@ -3878,8 +3872,14 @@
   "settings.language.turkish": {
     "defaultMessage": "Turkish"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "Vietnamese"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "Chinese (Simplified)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "Chinese (Traditional)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Show goose in the menu bar"
@@ -4372,9 +4372,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Logs"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI is experimental and may change at any time."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Output"

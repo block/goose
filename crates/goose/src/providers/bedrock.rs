@@ -734,15 +734,15 @@ impl Provider for BedrockProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         let session_id_opt = if session_id.is_empty() {
             None
         } else {
-            Some(session_id)
+            Some(session_id.as_str())
         };
 
         let without_prefix = model_config
@@ -1102,7 +1102,7 @@ mod tests {
 
         let messages = vec![crate::conversation::message::Message::user().with_text("hi")];
         let mut stream = provider
-            .stream(&model.clone(), "", "", &messages, &[])
+            .stream(&model.clone(), "", &messages, &[])
             .await
             .unwrap();
 

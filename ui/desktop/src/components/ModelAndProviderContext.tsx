@@ -2,7 +2,13 @@ import React, { createContext, useContext, useState, useEffect, useMemo, useCall
 import { toastError, toastSuccess } from '../toasts';
 import Model, { getProviderMetadata } from './settings/models/modelInterface';
 import { ProviderMetadata } from '../api';
-import { acpReadDefaults, acpSaveDefaults, acpSetSessionProviderModel } from '../acp/providers';
+import { acpChatSessionActions, acpChatSessionStore } from '../acp/chatSessionStore';
+import {
+  acpReadDefaults,
+  acpSaveDefaults,
+  acpSetSessionProviderModel,
+  type AppliedSessionProviderModel,
+} from '../acp/providers';
 import { errorMessage } from '../utils/conversionUtils';
 import {
   getModelDisplayName,
@@ -57,6 +63,27 @@ const ModelAndProviderContext = createContext<ModelAndProviderContextType | unde
 
 export { i18n as modelAndProviderMessages };
 
+function patchAcpSessionProviderModel(
+  sessionId: string,
+  { providerId, modelId }: AppliedSessionProviderModel
+) {
+  if (!providerId && !modelId) return;
+
+  const currentSession = acpChatSessionStore.getSnapshot(sessionId)?.session;
+  if (!currentSession) return;
+
+  acpChatSessionActions.setSessionMetadata(sessionId, {
+    ...currentSession,
+    provider_name: providerId ?? currentSession.provider_name,
+    model_config: modelId
+      ? {
+          ...(currentSession.model_config ?? { toolshim: false }),
+          model_name: modelId,
+        }
+      : currentSession.model_config,
+  });
+}
+
 export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> = ({ children }) => {
   const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [currentProvider, setCurrentProvider] = useState<string | null>(null);
@@ -70,7 +97,13 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
 
       try {
         if (sessionId) {
-          await acpSetSessionProviderModel(sessionId, providerName, modelName);
+          const applied = await acpSetSessionProviderModel(
+            sessionId,
+            providerName,
+            modelName,
+            model.request_params?.thinking_effort ?? null
+          );
+          patchAcpSessionProviderModel(sessionId, applied);
         }
 
         // Only update the global config default when there's no session

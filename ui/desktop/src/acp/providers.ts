@@ -198,6 +198,55 @@ export async function acpSaveThinkingEffort(effort: ThinkingEffort): Promise<voi
   });
 }
 
+export type AppliedSessionProviderModel = {
+  providerId?: string;
+  modelId?: string;
+};
+
+function extractAppliedSessionProviderModel(configOptions: unknown): AppliedSessionProviderModel {
+  if (!Array.isArray(configOptions)) {
+    return {};
+  }
+
+  const applied: AppliedSessionProviderModel = {};
+
+  for (const option of configOptions) {
+    if (!option || typeof option !== 'object') {
+      continue;
+    }
+
+    const id = 'id' in option ? option.id : undefined;
+    if (id !== 'provider' && id !== 'model') {
+      continue;
+    }
+
+    const currentValue = selectCurrentValue(option);
+    if (typeof currentValue !== 'string') {
+      continue;
+    }
+
+    if (id === 'provider') {
+      applied.providerId = currentValue;
+    } else {
+      applied.modelId = currentValue;
+    }
+  }
+
+  return applied;
+}
+
+function selectCurrentValue(kind: unknown): unknown {
+  if (!kind || typeof kind !== 'object') {
+    return undefined;
+  }
+
+  if ('type' in kind && kind.type === 'select' && 'currentValue' in kind) {
+    return kind.currentValue;
+  }
+
+  return undefined;
+}
+
 /**
  * Switch the provider (and model) for an active session via ACP config options.
  *
@@ -207,11 +256,29 @@ export async function acpSaveThinkingEffort(effort: ThinkingEffort): Promise<voi
 export async function acpSetSessionProviderModel(
   sessionId: string,
   providerId: string,
-  modelId?: string | null
-): Promise<void> {
+  modelId?: string | null,
+  thinkingEffort?: ThinkingEffort | null
+): Promise<AppliedSessionProviderModel> {
   const client = await getAcpClient();
-  await client.setSessionConfigOption({ sessionId, configId: 'provider', value: providerId });
+  let response = await client.setSessionConfigOption({
+    sessionId,
+    configId: 'provider',
+    value: providerId,
+  });
   if (modelId) {
-    await client.setSessionConfigOption({ sessionId, configId: 'model', value: modelId });
+    response = await client.setSessionConfigOption({
+      sessionId,
+      configId: 'model',
+      value: modelId,
+    });
   }
+  if (thinkingEffort != null) {
+    response = await client.setSessionConfigOption({
+      sessionId,
+      configId: 'thinking_effort',
+      value: thinkingEffort,
+    });
+  }
+
+  return extractAppliedSessionProviderModel(response.configOptions);
 }

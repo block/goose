@@ -201,8 +201,16 @@ fn format_messages_with_options(
                             }));
                         }
                         Err(_tool_error) => {
-                            // Skip malformed tool requests - they shouldn't be sent to Anthropic
-                            // This maintains the existing behavior for ToolRequest errors
+                            // The paired tool response carries the parse error and
+                            // serializes to a tool_result below; Anthropic rejects a
+                            // tool_result without a preceding tool_use, so emit a
+                            // placeholder tool_use with the same id to keep history valid.
+                            content.push(json!({
+                                TYPE_FIELD: TOOL_USE_TYPE,
+                                ID_FIELD: tool_request.id,
+                                NAME_FIELD: "unparseable_tool_call",
+                                INPUT_FIELD: json!({})
+                            }));
                         }
                     }
                 }
@@ -1570,6 +1578,42 @@ mod tests {
         assert!(value.is_object(), "expected JSON object, got {value:?}");
         assert_eq!(value, json!({}));
         assert!(!value.is_null());
+    }
+
+    #[test]
+    fn test_unparseable_tool_request_emits_placeholder_tool_use() {
+        use rmcp::model::{ErrorCode, ErrorData};
+
+        let err = ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Tool arguments for id call_bad must be a JSON object".to_string(),
+            None,
+        );
+        let mut response = Message::user();
+        response.add_tool_response_with_metadata("call_bad", Err(err.clone()), None);
+        let messages = vec![
+            Message::assistant().with_tool_request("call_bad", Err(err)),
+            response,
+        ];
+
+        let spec = format_messages(&messages);
+
+        let mut open = std::collections::HashSet::new();
+        for m in &spec {
+            for block in m["content"].as_array().into_iter().flatten() {
+                match block["type"].as_str() {
+                    Some("tool_use") => {
+                        open.insert(block["id"].as_str().unwrap().to_string());
+                    }
+                    Some("tool_result") => {
+                        let id = block["tool_use_id"].as_str().unwrap();
+                        assert!(open.contains(id), "orphan tool_result for id {id:?}");
+                    }
+                    _ => {}
+                }
+            }
+        }
+        assert!(open.contains("call_bad"));
     }
 
     #[test]

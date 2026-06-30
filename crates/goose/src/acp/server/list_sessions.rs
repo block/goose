@@ -2,7 +2,9 @@ use super::{build_session_info, meta_string, GooseAcpAgent, ResultExt};
 use crate::session::session_manager::{
     SessionListCursor, SessionListFilters, SessionListPageQuery, SessionType,
 };
-use agent_client_protocol::schema::{ListSessionsRequest, ListSessionsResponse, Meta, SessionInfo};
+use agent_client_protocol::schema::v1::{
+    ListSessionsRequest, ListSessionsResponse, Meta, SessionInfo,
+};
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine as _};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};

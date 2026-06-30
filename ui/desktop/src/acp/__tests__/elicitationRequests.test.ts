@@ -8,10 +8,6 @@ import {
 } from '../elicitationRequests';
 import { acpChatSessionActions } from '../chatSessionStore';
 
-vi.mock('../../acpChatFeatureFlag', () => ({
-  USE_ACP_CHAT: true,
-}));
-
 vi.mock('../chatSessionStore', () => ({
   acpElicitationUserInputRequestId: (elicitationId: string) => `elicitation:${elicitationId}`,
   acpChatSessionActions: {

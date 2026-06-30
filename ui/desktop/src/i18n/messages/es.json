@@ -1916,30 +1916,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Reproduciendo en imagen en imagen"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Cancelar"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Abrir"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Abrir enlace externo"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Esto abrirá: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "¿Abrir enlace {protocol}?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Mensaje recibido para {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "Mensaje {messageType} de MCP-UI"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Mensaje recibido para {message}. Los mensajes {messageType} aún no se admiten, consulta la consola para más detalles."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# elemento encontrado} other{# elementos encontrados}}"
   },
@@ -3854,14 +3830,32 @@
   "settings.language.english": {
     "defaultMessage": "Inglés"
   },
+  "settings.language.french": {
+    "defaultMessage": "Francés"
+  },
+  "settings.language.german": {
+    "defaultMessage": "Alemán"
+  },
   "settings.language.hindi": {
     "defaultMessage": "Hindi"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "Indonesio"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "Italiano"
   },
   "settings.language.japanese": {
     "defaultMessage": "Japonés"
   },
   "settings.language.korean": {
     "defaultMessage": "Coreano"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "Malayo"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "Portugués"
   },
   "settings.language.russian": {
     "defaultMessage": "Ruso"
@@ -3878,8 +3872,14 @@
   "settings.language.turkish": {
     "defaultMessage": "Turco"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "Vietnamita"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "Chino (simplificado)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "Chino (tradicional)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Muestra goose en la barra de menús"
@@ -4372,9 +4372,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Logs"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "La UI de MCP es experimental y puede cambiar en cualquier momento."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Salida"

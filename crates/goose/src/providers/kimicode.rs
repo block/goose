@@ -1,6 +1,5 @@
 use crate::config::paths::Paths;
 use crate::config::Config;
-use crate::session_context::SESSION_ID_HEADER;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -17,6 +16,7 @@ use tokio::pin;
 use tokio_util::io::StreamReader;
 use uuid::Uuid;
 
+use super::api_client::RequestBuilderDecorator;
 use super::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
@@ -138,7 +138,7 @@ impl TokenCache {
 
 // ── Provider ─────────────────────────────────────────────────────────────────
 
-#[derive(Debug, serde::Serialize)]
+#[derive(serde::Serialize)]
 pub struct KimiCodeProvider {
     #[serde(skip)]
     client: Client,
@@ -154,6 +154,8 @@ pub struct KimiCodeProvider {
     api_base: String,
     #[serde(skip)]
     name: String,
+    #[serde(skip)]
+    request_builder: RequestBuilderDecorator,
 }
 
 impl KimiCodeProvider {
@@ -176,6 +178,7 @@ impl KimiCodeProvider {
             auth_host: KIMI_AUTH_HOST.to_string(),
             api_base: KIMI_API_BASE.to_string(),
             name: KIMI_CODE_PROVIDER_NAME.to_string(),
+            request_builder: crate::session_context::session_id_request_builder(),
         })
     }
 
@@ -306,27 +309,20 @@ impl KimiCodeProvider {
 
     // ── HTTP ─────────────────────────────────────────────────────────────────
 
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<reqwest::Response, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<reqwest::Response, ProviderError> {
         let access_token = self.get_access_token().await.map_err(|e| {
             ProviderError::Authentication(format!("Failed to get Kimi access token: {}", e))
         })?;
 
-        let mut builder = self
+        let builder = self
             .client
             .post(format!("{}/v1/messages", self.api_base))
             .bearer_auth(access_token)
             .headers(self.kimi_headers())
             .json(payload);
 
-        if let Some(sid) = session_id {
-            builder = builder.header(SESSION_ID_HEADER, sid);
-        }
-
-        builder
+        (self.request_builder)(builder)
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
             .send()
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))
@@ -385,7 +381,6 @@ impl Provider for KimiCodeProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -409,7 +404,7 @@ impl Provider for KimiCodeProvider {
 
         let response = self
             .with_retry(|| async {
-                let resp = self.post(Some(session_id), &payload).await?;
+                let resp = self.post(&payload).await?;
                 handle_status(resp).await
             })
             .await
@@ -508,6 +503,7 @@ mod tests {
             auth_host: server_uri.to_string(),
             api_base: server_uri.to_string(),
             name: KIMI_CODE_PROVIDER_NAME.to_string(),
+            request_builder: std::sync::Arc::new(Ok),
         }
     }
 
