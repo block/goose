@@ -148,6 +148,7 @@ fn is_path_terminator(c: char) -> bool {
                 ..='\u{201F}' | '\u{2026}' | '\u{2039}' | '\u{203A}'
         )
         || ('\u{2600}'..='\u{27BF}').contains(&c)
+        || ('\u{1F1E6}'..='\u{1F1FF}').contains(&c)
         || ('\u{1F300}'..='\u{1FAFF}').contains(&c)
 }
 
@@ -376,6 +377,10 @@ mod tests {
 
         assert_eq!(
             detect_image_path(&format!("{png_path_str}🙂")).as_deref(),
+            Some(png_path_str)
+        );
+        assert_eq!(
+            detect_image_path(&format!("{png_path_str}🇺🇸")).as_deref(),
             Some(png_path_str)
         );
         assert_eq!(
