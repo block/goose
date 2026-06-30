@@ -261,7 +261,7 @@ export default function BaseChat({
     }
   }, [messages.length]);
 
-  // Listen for global scroll-to-bottom requests (e.g., from MCP UI prompt actions)
+  // Listen for global scroll-to-bottom requests (e.g., from MCP App message actions)
   useEffect(() => {
     const handleGlobalScrollRequest = () => {
       // Add a small delay to ensure content has been rendered

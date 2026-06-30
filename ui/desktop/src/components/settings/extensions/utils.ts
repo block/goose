@@ -38,6 +38,7 @@ export interface ExtensionFormData {
     isEdited?: boolean;
   }[];
   installation_notes?: string;
+  available_tools?: string[];
 }
 
 export function getDefaultFormData(): ExtensionFormData {
@@ -95,6 +96,11 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     );
   }
 
+  const availableTools =
+    'available_tools' in extension
+      ? availableToolsOrUndefined(extension.available_tools)
+      : undefined;
+
   return {
     name: extension.name || '',
     description: extension.description || '',
@@ -116,7 +122,17 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
     installation_notes: (extension as Record<string, unknown>)['installation_notes'] as
       | string
       | undefined,
+    ...(availableTools ? { available_tools: availableTools } : {}),
   };
+}
+
+function availableToolsOrUndefined(availableTools?: string[] | null): string[] | undefined {
+  return availableTools && availableTools.length > 0 ? availableTools : undefined;
+}
+
+function availableToolsConfig(availableTools?: string[] | null) {
+  const normalized = availableToolsOrUndefined(availableTools);
+  return normalized ? { available_tools: normalized } : undefined;
 }
 
 export function createExtensionConfig(formData: ExtensionFormData): ExtensionConfig {
@@ -135,6 +151,7 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       args: args,
       timeout: formData.timeout,
       ...(env_keys.length > 0 ? { env_keys } : {}),
+      ...availableToolsConfig(formData.available_tools),
     };
   } else if (formData.type === 'streamable_http') {
     // Extract headers
@@ -156,14 +173,22 @@ export function createExtensionConfig(formData: ExtensionFormData): ExtensionCon
       uri: formData.endpoint || '',
       ...(env_keys.length > 0 ? { env_keys } : {}),
       headers,
+      ...availableToolsConfig(formData.available_tools),
     };
-  } else {
-    // For other types
+  } else if (formData.type === 'builtin') {
     return {
       type: formData.type,
       name: formData.name,
       description: formData.description,
       timeout: formData.timeout,
+      ...availableToolsConfig(formData.available_tools),
+    };
+  } else {
+    return {
+      type: formData.type,
+      name: formData.name,
+      description: formData.description,
+      uri: formData.endpoint || '',
     };
   }
 }

@@ -1643,66 +1643,6 @@
         }
       }
     },
-    "/handle_nanogpt": {
-      "post": {
-        "tags": [
-          "super::routes::setup"
-        ],
-        "operationId": "start_nanogpt_setup",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SetupResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/handle_openrouter": {
-      "post": {
-        "tags": [
-          "super::routes::setup"
-        ],
-        "operationId": "start_openrouter_setup",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SetupResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/handle_tetrate": {
-      "post": {
-        "tags": [
-          "super::routes::setup"
-        ],
-        "operationId": "start_tetrate_setup",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SetupResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/local-inference/chat-templates/builtin": {
       "get": {
         "tags": [
@@ -2037,33 +1977,6 @@
         "responses": {
           "200": {
             "description": "Featured models synced to registry"
-          }
-        }
-      }
-    },
-    "/mcp-ui-proxy": {
-      "get": {
-        "tags": [
-          "super::routes::mcp_ui_proxy"
-        ],
-        "operationId": "mcp_ui_proxy",
-        "parameters": [
-          {
-            "name": "secret",
-            "in": "query",
-            "description": "Secret key for authentication",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "MCP UI proxy HTML page"
-          },
-          "401": {
-            "description": "Unauthorized - invalid or missing secret"
           }
         }
       }
@@ -7736,21 +7649,6 @@
             "type": "number",
             "format": "float",
             "nullable": true
-          }
-        }
-      },
-      "SetupResponse": {
-        "type": "object",
-        "required": [
-          "success",
-          "message"
-        ],
-        "properties": {
-          "message": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
           }
         }
       },
