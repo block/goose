@@ -9,10 +9,9 @@
  * automatically coalesce into a single network call.
  */
 
-import type { ToolInfo } from '../../api/types.gen';
-import { listMcpAppTools } from '../../acp/mcp-apps';
+import { listMcpAppTools, type McpAppTool } from '../../acp/mcp-apps';
 
-type ToolsList = Array<ToolInfo>;
+type ToolsList = Array<McpAppTool>;
 
 const cache = new Map<string, Promise<ToolsList | null>>();
 
