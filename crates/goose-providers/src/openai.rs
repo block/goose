@@ -775,6 +775,13 @@ pub fn from_custom_config(
         tls_config,
     )?;
 
+    if let Some(query) = url.query() {
+        let query_params = url::form_urlencoded::parse(query.as_bytes())
+            .map(|(key, value)| (key.into_owned(), value.into_owned()))
+            .collect();
+        api_client = api_client.with_query(query_params);
+    }
+
     if let Some(headers) = &config.headers {
         let mut header_map = reqwest::header::HeaderMap::new();
         for (key, value) in headers {
@@ -807,7 +814,7 @@ pub fn parse_custom_headers(s: String) -> HashMap<String, String> {
         .collect()
 }
 
-fn derive_base_path(url_path: &str) -> String {
+pub fn derive_base_path(url_path: &str) -> String {
     let stripped = url_path.trim_start_matches('/');
     let normalized = stripped.trim_end_matches('/');
     if normalized.is_empty() {

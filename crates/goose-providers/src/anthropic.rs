@@ -341,28 +341,46 @@ pub fn from_custom_config(
         ));
     }
 
-    let api_key = key_resolver
-        .resolve_key(config.api_key_env.as_str())
-        .map_err(|_| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
+    let api_key = if config.api_key_env.is_empty() {
+        None
+    } else {
+        match key_resolver.resolve_key(config.api_key_env.as_str()) {
+            Ok(key) => Some(key),
+            Err(err) => {
+                if config.requires_auth {
+                    anyhow::bail!("missing required key {}: {}", config.api_key_env, err);
+                }
+                None
+            }
+        }
+    };
 
-    let auth = AuthMethod::ApiKey {
-        header_name: "x-api-key".to_string(),
-        key: api_key,
+    let auth = match api_key {
+        Some(key) if !key.is_empty() => AuthMethod::ApiKey {
+            header_name: "x-api-key".to_string(),
+            key,
+        },
+        _ => AuthMethod::NoAuth,
     };
 
     let format_options = format_options_for_provider(config.preserves_thinking);
 
-    let mut api_client = ApiClient::new_with_tls(config.base_url, auth, tls_config)?
-        .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
+    let mut api_client = ApiClient::new_with_tls(config.base_url, auth, tls_config)?;
 
     if let Some(headers) = &config.headers {
         let mut header_map = reqwest::header::HeaderMap::new();
+        header_map.insert(
+            reqwest::header::HeaderName::from_static("anthropic-version"),
+            reqwest::header::HeaderValue::from_static(ANTHROPIC_API_VERSION),
+        );
         for (key, value) in headers {
             let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
             let header_value = reqwest::header::HeaderValue::from_str(value)?;
             header_map.insert(header_name, header_value);
         }
         api_client = api_client.with_headers(header_map)?;
+    } else {
+        api_client = api_client.with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
     }
 
     let supports_streaming = config.supports_streaming.unwrap_or(true);

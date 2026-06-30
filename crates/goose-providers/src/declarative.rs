@@ -128,6 +128,12 @@ impl EnvKeyResolver {
     }
 }
 
+impl Default for EnvKeyResolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl KeyResolver for EnvKeyResolver {
     type Error = std::env::VarError;
 
@@ -136,12 +142,59 @@ impl KeyResolver for EnvKeyResolver {
     }
 }
 
+fn expand_env_vars(template: &str, env_vars: &[EnvVarConfig]) -> Result<String> {
+    let mut result = template.to_string();
+
+    for var in env_vars {
+        let placeholder = format!("${{{}}}", var.name);
+        if !result.contains(&placeholder) {
+            continue;
+        }
+
+        let value = match std::env::var(&var.name) {
+            Ok(value) => value,
+            Err(_) => match &var.default {
+                Some(default) => default.clone(),
+                None if var.required => {
+                    anyhow::bail!("Required environment variable {} is not set", var.name)
+                }
+                None => continue,
+            },
+        };
+
+        result = result.replace(&placeholder, &value);
+    }
+
+    Ok(result)
+}
+
+fn resolve_config(config: &mut DeclarativeProviderConfig) -> Result<()> {
+    if let Some(env_vars) = &config.env_vars {
+        config.base_url = expand_env_vars(&config.base_url, env_vars)?;
+
+        for var in env_vars {
+            if var.name.ends_with("_STREAMING") {
+                let value = std::env::var(&var.name)
+                    .ok()
+                    .or_else(|| var.default.clone())
+                    .map(|value| value.eq_ignore_ascii_case("true"));
+                if let Some(value) = value {
+                    config.supports_streaming = Some(value);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
 pub fn from_json(
     json: &str,
     tls_config: Option<TlsConfig>,
     key_resolver: impl KeyResolver,
 ) -> Result<Box<dyn Provider>> {
-    let config: DeclarativeProviderConfig = serde_json::from_str(json)?;
+    let mut config: DeclarativeProviderConfig = serde_json::from_str(json)?;
+    resolve_config(&mut config)?;
 
     match config.engine {
         ProviderEngine::OpenAI => openai::from_custom_config(config, tls_config, key_resolver)
@@ -152,5 +205,74 @@ pub fn from_json(
             anthropic::from_custom_config(config, tls_config, key_resolver)
                 .map(|provider| Box::new(provider.build()) as Box<dyn Provider>)
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn model_json() -> serde_json::Value {
+        json!({
+            "name": "test-model",
+            "context_limit": 4096,
+            "input_token_cost": null,
+            "output_token_cost": null,
+            "currency": null,
+            "supports_cache_control": null,
+            "reasoning": false
+        })
+    }
+
+    #[test]
+    fn from_json_expands_base_url_from_env_var_default() {
+        let _guard = env_lock::lock_env([("TEST_PROVIDER_HOST", None::<&str>)]);
+        let json = json!({
+            "name": "test-provider",
+            "engine": "openai",
+            "display_name": "Test Provider",
+            "base_url": "${TEST_PROVIDER_HOST}/v1/chat/completions",
+            "models": [model_json()],
+            "requires_auth": false,
+            "dynamic_models": false,
+            "env_vars": [{
+                "name": "TEST_PROVIDER_HOST",
+                "default": "http://localhost:1234"
+            }]
+        })
+        .to_string();
+
+        let provider = from_json(&json, None, EnvKeyResolver).unwrap();
+
+        assert_eq!(provider.get_name(), "test-provider");
+    }
+
+    #[test]
+    fn from_json_errors_when_required_env_var_is_missing() {
+        let _guard = env_lock::lock_env([("TEST_PROVIDER_REQUIRED_HOST", None::<&str>)]);
+        let json = json!({
+            "name": "test-provider",
+            "engine": "openai",
+            "display_name": "Test Provider",
+            "base_url": "${TEST_PROVIDER_REQUIRED_HOST}/v1/chat/completions",
+            "models": [model_json()],
+            "requires_auth": false,
+            "dynamic_models": false,
+            "env_vars": [{
+                "name": "TEST_PROVIDER_REQUIRED_HOST",
+                "required": true
+            }]
+        })
+        .to_string();
+
+        let err = match from_json(&json, None, EnvKeyResolver) {
+            Ok(_) => panic!("expected missing required env var error"),
+            Err(err) => err,
+        };
+
+        assert!(err
+            .to_string()
+            .contains("Required environment variable TEST_PROVIDER_REQUIRED_HOST is not set"));
     }
 }
