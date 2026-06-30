@@ -4458,6 +4458,10 @@
           {
             "type": "object",
             "properties": {
+              "deletable": {
+                "type": "boolean",
+                "description": "Whether this app can be deleted by the user (i.e. not a bundled default)."
+              },
               "mcpServers": {
                 "type": "array",
                 "items": {

@@ -46,6 +46,11 @@
       "responseType": "AppsImportResponse_unstable"
     },
     {
+      "method": "_goose/unstable/apps/delete",
+      "requestType": "AppsDeleteRequest_unstable",
+      "responseType": "AppsDeleteResponse_unstable"
+    },
+    {
       "method": "_goose/unstable/session/working-dir/update",
       "requestType": "UpdateWorkingDirRequest_unstable",
       "responseType": "EmptyResponse"
