@@ -217,11 +217,11 @@ pub async fn handle_schedule_sessions(schedule_id: String, limit: Option<usize>)
                 println!("No sessions found for schedule ID '{}'.", schedule_id);
             } else {
                 println!("Sessions for schedule ID '{}':", schedule_id);
-                // sessions is now Vec<(String, SessionMetadata)>
                 for (session_name, metadata) in sessions {
                     println!(
-                        "  - Session ID: {}, Working Dir: {}, Description: \"{}\", Schedule ID: {:?}",
-                        session_name, // Display the session_name as Session ID
+                        "  - Session ID: {}, Messages: {}, Working Dir: {}, Description: \"{}\", Schedule ID: {:?}",
+                        session_name,
+                        metadata.message_count,
                         metadata.working_dir.display(),
                         metadata.name,
                         metadata.schedule_id.as_deref().unwrap_or("N/A")

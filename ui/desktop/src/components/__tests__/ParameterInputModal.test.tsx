@@ -92,6 +92,31 @@ describe('ParameterInputModal', () => {
       });
       expect(defaultProps.onSubmit).not.toHaveBeenCalled();
     });
+
+    it('shows validation errors for user-prompt parameters', async () => {
+      const user = userEvent.setup();
+      renderWithIntl(
+        <ParameterInputModal
+          {...defaultProps}
+          parameters={[
+            {
+              key: 'topic',
+              description: 'Topic',
+              input_type: 'string',
+              requirement: 'user_prompt',
+            },
+          ]}
+        />
+      );
+
+      const submitButton = screen.getByText('Start Recipe');
+      await user.click(submitButton);
+
+      await waitFor(() => {
+        expect(screen.getByText('Topic is required')).toBeInTheDocument();
+      });
+      expect(defaultProps.onSubmit).not.toHaveBeenCalled();
+    });
   });
 
   describe('Cancel Behavior', () => {

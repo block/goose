@@ -81,6 +81,19 @@ const i18n = defineMessages({
   languageTurkish: { id: 'settings.language.turkish', defaultMessage: 'Turkish' },
   languageHindi: { id: 'settings.language.hindi', defaultMessage: 'Hindi' },
   languageJapanese: { id: 'settings.language.japanese', defaultMessage: 'Japanese' },
+  languageSpanish: { id: 'settings.language.spanish', defaultMessage: 'Spanish' },
+  languageKorean: { id: 'settings.language.korean', defaultMessage: 'Korean' },
+  languageFrench: { id: 'settings.language.french', defaultMessage: 'French' },
+  languageGerman: { id: 'settings.language.german', defaultMessage: 'German' },
+  languageItalian: { id: 'settings.language.italian', defaultMessage: 'Italian' },
+  languagePortuguese: { id: 'settings.language.portuguese', defaultMessage: 'Portuguese' },
+  languageIndonesian: { id: 'settings.language.indonesian', defaultMessage: 'Indonesian' },
+  languageMalay: { id: 'settings.language.malay', defaultMessage: 'Malay' },
+  languageVietnamese: { id: 'settings.language.vietnamese', defaultMessage: 'Vietnamese' },
+  languageChineseTraditional: {
+    id: 'settings.language.zhTW',
+    defaultMessage: 'Chinese (Traditional)',
+  },
   helpTitle: { id: 'settings.help.title', defaultMessage: 'Help & feedback' },
   helpDesc: {
     id: 'settings.help.description',
@@ -144,11 +157,21 @@ const i18n = defineMessages({
 const LANGUAGE_OPTIONS: Array<{ value: LanguageSetting; message: keyof typeof i18n }> = [
   { value: 'system', message: 'languageSystem' },
   { value: 'en', message: 'languageEnglish' },
+  { value: 'es', message: 'languageSpanish' },
+  { value: 'fr', message: 'languageFrench' },
+  { value: 'de', message: 'languageGerman' },
+  { value: 'it', message: 'languageItalian' },
+  { value: 'pt', message: 'languagePortuguese' },
+  { value: 'id', message: 'languageIndonesian' },
+  { value: 'ms', message: 'languageMalay' },
+  { value: 'vi', message: 'languageVietnamese' },
   { value: 'hi', message: 'languageHindi' },
   { value: 'ja', message: 'languageJapanese' },
+  { value: 'ko', message: 'languageKorean' },
   { value: 'ru', message: 'languageRussian' },
   { value: 'tr', message: 'languageTurkish' },
   { value: 'zh-CN', message: 'languageChineseSimplified' },
+  { value: 'zh-TW', message: 'languageChineseTraditional' },
 ];
 
 interface AppSettingsSectionProps {

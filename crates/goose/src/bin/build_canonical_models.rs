@@ -619,11 +619,11 @@ async fn build_canonical_models() -> Result<()> {
 
 async fn check_provider(
     provider_name: &str,
-    model_for_init: &str,
+    _model_for_init: &str,
 ) -> Result<(Vec<String>, Vec<ModelMapping>, Vec<String>)> {
     println!("Checking provider: {}", provider_name);
 
-    let provider = match create_with_named_model(provider_name, model_for_init, Vec::new()).await {
+    let provider = match create_with_named_model(provider_name, Vec::new()).await {
         Ok(p) => p,
         Err(e) => {
             println!("  ⚠ Failed to create provider: {}", e);
@@ -644,7 +644,7 @@ async fn check_provider(
         }
     };
 
-    let recommended_models = match provider.fetch_recommended_models().await {
+    let recommended_models = match provider.fetch_recommended_models(false).await {
         Ok(models) => {
             println!("  ✓ Found {} recommended models", models.len());
             models

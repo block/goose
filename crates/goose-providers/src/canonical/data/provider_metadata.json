@@ -85,7 +85,7 @@
     "env": [
       "ALIBABA_TOKEN_PLAN_API_KEY"
     ],
-    "model_count": 16
+    "model_count": 18
   },
   {
     "id": "alibaba-token-plan-cn",
@@ -96,7 +96,7 @@
     "env": [
       "ALIBABA_TOKEN_PLAN_API_KEY"
     ],
-    "model_count": 16
+    "model_count": 18
   },
   {
     "id": "ambient",
@@ -107,7 +107,7 @@
     "env": [
       "AMBIENT_API_KEY"
     ],
-    "model_count": 2
+    "model_count": 3
   },
   {
     "id": "anyapi",
@@ -162,7 +162,7 @@
     "env": [
       "BASETEN_API_KEY"
     ],
-    "model_count": 11
+    "model_count": 13
   },
   {
     "id": "berget",
@@ -173,7 +173,7 @@
     "env": [
       "BERGET_API_KEY"
     ],
-    "model_count": 7
+    "model_count": 8
   },
   {
     "id": "chutes",
@@ -184,7 +184,7 @@
     "env": [
       "CHUTES_API_KEY"
     ],
-    "model_count": 39
+    "model_count": 13
   },
   {
     "id": "clarifai",
@@ -206,7 +206,7 @@
     "env": [
       "CLAUDINIO_API_KEY"
     ],
-    "model_count": 1
+    "model_count": 2
   },
   {
     "id": "cloudferro-sherlock",
@@ -229,7 +229,7 @@
       "CLOUDFLARE_ACCOUNT_ID",
       "CLOUDFLARE_API_KEY"
     ],
-    "model_count": 20
+    "model_count": 22
   },
   {
     "id": "cortecs",
@@ -240,7 +240,7 @@
     "env": [
       "CORTECS_API_KEY"
     ],
-    "model_count": 51
+    "model_count": 56
   },
   {
     "id": "crof",
@@ -251,7 +251,7 @@
     "env": [
       "CROF_API_KEY"
     ],
-    "model_count": 21
+    "model_count": 23
   },
   {
     "id": "databricks",
@@ -318,7 +318,7 @@
     "env": [
       "EVROC_API_KEY"
     ],
-    "model_count": 13
+    "model_count": 15
   },
   {
     "id": "fastrouter",
@@ -332,17 +332,6 @@
     "model_count": 47
   },
   {
-    "id": "firepass",
-    "display_name": "Fireworks (Firepass)",
-    "npm": "@ai-sdk/openai-compatible",
-    "api": "https://api.fireworks.ai/inference/v1/",
-    "doc": "https://docs.fireworks.ai/firepass",
-    "env": [
-      "FIREPASS_API_KEY"
-    ],
-    "model_count": 1
-  },
-  {
     "id": "fireworks-ai",
     "display_name": "Fireworks AI",
     "npm": "@ai-sdk/openai-compatible",
@@ -351,7 +340,7 @@
     "env": [
       "FIREWORKS_API_KEY"
     ],
-    "model_count": 13
+    "model_count": 16
   },
   {
     "id": "freemodel",
@@ -373,7 +362,7 @@
     "env": [
       "FRIENDLI_TOKEN"
     ],
-    "model_count": 6
+    "model_count": 7
   },
   {
     "id": "frogbot",
@@ -395,7 +384,7 @@
     "env": [
       "GITHUB_TOKEN"
     ],
-    "model_count": 23
+    "model_count": 22
   },
   {
     "id": "github-models",
@@ -417,7 +406,7 @@
     "env": [
       "GMICLOUD_API_KEY"
     ],
-    "model_count": 8
+    "model_count": 11
   },
   {
     "id": "helicone",
@@ -450,7 +439,7 @@
     "env": [
       "HF_TOKEN"
     ],
-    "model_count": 24
+    "model_count": 50
   },
   {
     "id": "iflowcn",
@@ -483,7 +472,7 @@
     "env": [
       "INCEPTRON_API_KEY"
     ],
-    "model_count": 4
+    "model_count": 6
   },
   {
     "id": "inference",
@@ -538,7 +527,7 @@
     "env": [
       "KIMI_API_KEY"
     ],
-    "model_count": 3
+    "model_count": 4
   },
   {
     "id": "kuae-cloud-coding-plan",
@@ -571,7 +560,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 191
+    "model_count": 180
   },
   {
     "id": "llmtr",
@@ -597,14 +586,14 @@
   },
   {
     "id": "lucidquery",
-    "display_name": "LucidQuery AI",
+    "display_name": "LucidQuery",
     "npm": "@ai-sdk/openai-compatible",
-    "api": "https://lucidquery.com/api/v1",
-    "doc": "https://lucidquery.com/api/docs",
+    "api": "https://api.lucidquery.com/v1",
+    "doc": "https://lucidquery.com/docs",
     "env": [
       "LUCIDQUERY_API_KEY"
     ],
-    "model_count": 2
+    "model_count": 4
   },
   {
     "id": "meganova",
@@ -714,7 +703,7 @@
     "env": [
       "MOONSHOT_API_KEY"
     ],
-    "model_count": 7
+    "model_count": 9
   },
   {
     "id": "moonshotai-cn",
@@ -725,7 +714,7 @@
     "env": [
       "MOONSHOT_API_KEY"
     ],
-    "model_count": 7
+    "model_count": 9
   },
   {
     "id": "morph",
@@ -769,7 +758,7 @@
     "env": [
       "NEBIUS_API_KEY"
     ],
-    "model_count": 29
+    "model_count": 30
   },
   {
     "id": "neon",
@@ -792,7 +781,7 @@
     "env": [
       "NEURALWATT_API_KEY"
     ],
-    "model_count": 14
+    "model_count": 18
   },
   {
     "id": "nova",
@@ -814,7 +803,7 @@
     "env": [
       "NOVITA_API_KEY"
     ],
-    "model_count": 104
+    "model_count": 105
   },
   {
     "id": "nvidia",
@@ -825,7 +814,7 @@
     "env": [
       "NVIDIA_API_KEY"
     ],
-    "model_count": 83
+    "model_count": 84
   },
   {
     "id": "ollama-cloud",
@@ -836,7 +825,7 @@
     "env": [
       "OLLAMA_API_KEY"
     ],
-    "model_count": 41
+    "model_count": 43
   },
   {
     "id": "opencode",
@@ -847,7 +836,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 70
+    "model_count": 71
   },
   {
     "id": "opencode-go",
@@ -858,7 +847,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 17
+    "model_count": 19
   },
   {
     "id": "orcarouter",
@@ -880,7 +869,7 @@
     "env": [
       "OVHCLOUD_API_KEY"
     ],
-    "model_count": 15
+    "model_count": 14
   },
   {
     "id": "perplexity-agent",
@@ -1002,7 +991,7 @@
     "env": [
       "SCALEWAY_API_KEY"
     ],
-    "model_count": 16
+    "model_count": 17
   },
   {
     "id": "siliconflow",
@@ -1013,7 +1002,7 @@
     "env": [
       "SILICONFLOW_API_KEY"
     ],
-    "model_count": 76
+    "model_count": 49
   },
   {
     "id": "siliconflow-cn",
@@ -1024,7 +1013,7 @@
     "env": [
       "SILICONFLOW_CN_API_KEY"
     ],
-    "model_count": 82
+    "model_count": 47
   },
   {
     "id": "snowflake-cortex",
@@ -1058,7 +1047,7 @@
     "env": [
       "STEPFUN_API_KEY"
     ],
-    "model_count": 4
+    "model_count": 5
   },
   {
     "id": "stepfun-ai",
@@ -1070,6 +1059,17 @@
       "STEPFUN_API_KEY"
     ],
     "model_count": 2
+  },
+  {
+    "id": "subconscious",
+    "display_name": "Subconscious",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.subconscious.dev/v1",
+    "doc": "https://docs.subconscious.dev",
+    "env": [
+      "SUBCONSCIOUS_API_KEY"
+    ],
+    "model_count": 1
   },
   {
     "id": "submodel",
@@ -1091,7 +1091,7 @@
     "env": [
       "SYNTHETIC_API_KEY"
     ],
-    "model_count": 33
+    "model_count": 10
   },
   {
     "id": "tencent-coding-plan",
@@ -1127,6 +1127,28 @@
     "model_count": 9
   },
   {
+    "id": "tinfoil",
+    "display_name": "Tinfoil",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://inference.tinfoil.sh/v1",
+    "doc": "https://docs.tinfoil.sh",
+    "env": [
+      "TINFOIL_API_KEY"
+    ],
+    "model_count": 7
+  },
+  {
+    "id": "umans-ai",
+    "display_name": "Umans AI",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.code.umans.ai/v1",
+    "doc": "https://app.umans.ai/offers/code/docs/orgs",
+    "env": [
+      "UMANS_AI_API_KEY"
+    ],
+    "model_count": 5
+  },
+  {
     "id": "umans-ai-coding-plan",
     "display_name": "Umans AI Coding Plan",
     "npm": "@ai-sdk/openai-compatible",
@@ -1135,7 +1157,7 @@
     "env": [
       "UMANS_AI_CODING_PLAN_API_KEY"
     ],
-    "model_count": 5
+    "model_count": 6
   },
   {
     "id": "upstage",
@@ -1179,7 +1201,7 @@
     "env": [
       "WAFER_API_KEY"
     ],
-    "model_count": 7
+    "model_count": 8
   },
   {
     "id": "wandb",
@@ -1256,7 +1278,7 @@
     "env": [
       "ZHIPU_API_KEY"
     ],
-    "model_count": 13
+    "model_count": 14
   },
   {
     "id": "zai-coding-plan",
@@ -1267,7 +1289,7 @@
     "env": [
       "ZHIPU_API_KEY"
     ],
-    "model_count": 5
+    "model_count": 6
   },
   {
     "id": "zeldoc",
@@ -1289,7 +1311,7 @@
     "env": [
       "ZENMUX_API_KEY"
     ],
-    "model_count": 108
+    "model_count": 112
   },
   {
     "id": "zhipuai",
@@ -1300,7 +1322,7 @@
     "env": [
       "ZHIPU_API_KEY"
     ],
-    "model_count": 12
+    "model_count": 13
   },
   {
     "id": "zhipuai-coding-plan",
@@ -1311,6 +1333,6 @@
     "env": [
       "ZHIPU_API_KEY"
     ],
-    "model_count": 6
+    "model_count": 7
   }
 ]

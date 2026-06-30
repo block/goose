@@ -1,25 +1,34 @@
 import {
   DEFAULT_GOOSE_MCP_HOST_CAPABILITIES,
   GooseClient,
-  type Client,
+  type GooseClientCallbacks,
 } from '@aaif/goose-sdk';
-import { PROTOCOL_VERSION } from '@agentclientprotocol/sdk';
+import { PROTOCOL_VERSION, type InitializeResponse } from '@agentclientprotocol/sdk';
 import packageJson from '../../package.json';
+import {
+  handleAcpGooseSessionNotification,
+  handleAcpSessionNotification,
+} from './chatNotifications';
 import { createWebSocketStream } from './createWebSocketStream';
+import { requestAcpElicitation } from './elicitationRequests';
+import { requestAcpPermission } from './permissionRequests';
+import { requestAcpRecipeParams } from './recipeParamRequests';
 
-let clientPromise: Promise<GooseClient> | null = null;
-let resolvedClient: GooseClient | null = null;
+type InitializedAcpClient = {
+  client: GooseClient;
+  initializeResponse: InitializeResponse;
+};
 
-function createClientCallbacks(): () => Client {
+let clientPromise: Promise<InitializedAcpClient> | null = null;
+let resolvedClient: InitializedAcpClient | null = null;
+
+function createClientCallbacks(): () => GooseClientCallbacks {
   return () => ({
-    requestPermission: async () => {
-      return {
-        outcome: {
-          outcome: 'cancelled',
-        },
-      };
-    },
-    sessionUpdate: async () => {},
+    requestPermission: requestAcpPermission,
+    unstable_createElicitation: requestAcpElicitation,
+    unstable_sessionRecipeRequestParams: requestAcpRecipeParams,
+    sessionUpdate: handleAcpSessionNotification,
+    unstable_sessionUpdate: handleAcpGooseSessionNotification,
   });
 }
 
@@ -35,7 +44,7 @@ function monitorConnection(client: GooseClient): void {
     });
 }
 
-async function initializeConnection(): Promise<GooseClient> {
+async function initializeConnection(): Promise<InitializedAcpClient> {
   const wsUrl = await window.electron.getAcpUrl();
   if (!wsUrl) {
     throw new Error('ACP URL is not available');
@@ -44,12 +53,15 @@ async function initializeConnection(): Promise<GooseClient> {
   const stream = createWebSocketStream(wsUrl);
   const client = new GooseClient(createClientCallbacks(), stream);
 
-  await client.initialize({
+  const initializeResponse = await client.initialize({
     protocolVersion: PROTOCOL_VERSION,
     clientCapabilities: {
+      elicitation: { form: {} },
       _meta: {
         goose: {
           mcpHostCapabilities: DEFAULT_GOOSE_MCP_HOST_CAPABILITIES,
+          customNotifications: true,
+          recipeParameterRequests: true,
         },
       },
     },
@@ -60,19 +72,35 @@ async function initializeConnection(): Promise<GooseClient> {
   });
 
   monitorConnection(client);
-  return client;
+  return { client, initializeResponse };
 }
 
 export async function getAcpClient(): Promise<GooseClient> {
+  return (await getInitializedAcpClient()).client;
+}
+
+export function getAcpClientSync(): GooseClient | null {
+  return resolvedClient?.client ?? null;
+}
+
+export async function getAcpInitializeResponse(): Promise<InitializeResponse> {
+  return (await getInitializedAcpClient()).initializeResponse;
+}
+
+export function isAcpClientReady(): boolean {
+  return resolvedClient !== null;
+}
+
+async function getInitializedAcpClient(): Promise<InitializedAcpClient> {
   if (resolvedClient) {
     return resolvedClient;
   }
 
   if (!clientPromise) {
     clientPromise = initializeConnection()
-      .then((client) => {
-        resolvedClient = client;
-        return client;
+      .then((clientState) => {
+        resolvedClient = clientState;
+        return clientState;
       })
       .catch((error) => {
         clientPromise = null;
@@ -81,12 +109,4 @@ export async function getAcpClient(): Promise<GooseClient> {
   }
 
   return clientPromise;
-}
-
-export function getAcpClientSync(): GooseClient | null {
-  return resolvedClient;
-}
-
-export function isAcpClientReady(): boolean {
-  return resolvedClient !== null;
 }

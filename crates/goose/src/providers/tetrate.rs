@@ -5,7 +5,6 @@ use super::openai_compatible::{
     stream_openai_compat,
 };
 use super::retry::ProviderRetry;
-use super::utils::RequestLog;
 use crate::config::signup_tetrate::TETRATE_DEFAULT_MODEL;
 use crate::conversation::message::Message;
 use anyhow::Result;
@@ -14,8 +13,9 @@ use futures::future::BoxFuture;
 use goose_providers::errors::ProviderError;
 use goose_providers::images::ImageFormat;
 
-use crate::model::ModelConfig;
-use goose_providers::formats::openai::{create_request, ModelConfigParams};
+use goose_providers::formats::openai::create_request;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 use serde_json::Value;
 
@@ -40,14 +40,15 @@ pub const TETRATE_KNOWN_MODELS: &[&str] = &[
 pub struct TetrateProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     supports_streaming: bool,
     #[serde(skip)]
     name: String,
 }
 
 impl TetrateProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
+    pub async fn from_env(
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("TETRATE_API_KEY")?;
         let host: String = config
@@ -55,13 +56,13 @@ impl TetrateProvider {
             .unwrap_or_else(|_| "https://api.router.tetrate.ai".to_string());
 
         let auth = AuthMethod::BearerToken(api_key);
-        let api_client = ApiClient::new(host, auth)?
+        let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
+            .with_request_builder(crate::session_context::session_id_request_builder())
             .with_header("HTTP-Referer", "https://goose-docs.ai")?
             .with_header("X-Title", "goose")?;
 
         Ok(Self {
             api_client,
-            model,
             supports_streaming: true,
             name: TETRATE_PROVIDER_NAME.to_string(),
         })
@@ -89,9 +90,7 @@ impl TetrateProvider {
     }
 }
 
-impl ProviderDef for TetrateProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for TetrateProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             TETRATE_PROVIDER_NAME,
@@ -112,12 +111,16 @@ impl ProviderDef for TetrateProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for TetrateProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -127,26 +130,15 @@ impl Provider for TetrateProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let payload = create_request(
-            ModelConfigParams {
-                model_name: model_config.model_name.as_str(),
-                thinking_effort: model_config.thinking_effort(),
-                temperature: model_config.temperature,
-                max_tokens: model_config.max_tokens,
-                request_params: model_config.request_params.as_ref(),
-            },
+            model_config,
             system,
             messages,
             tools,
@@ -154,13 +146,13 @@ impl Provider for TetrateProvider {
             true,
         )?;
 
-        let mut log = RequestLog::start(model_config, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = self
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(Some(session_id), "v1/chat/completions", &payload)
+                    .response_post("v1/chat/completions", &payload)
                     .await?;
                 let resp = handle_status(resp)
                     .await
@@ -206,7 +198,7 @@ impl Provider for TetrateProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
-            .response_get(None, "v1/models")
+            .response_get("v1/models")
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         let json = handle_response_openai_compat(response).await?;

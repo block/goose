@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { configureProviderOauth, ProviderDetails } from '../../api';
-import { useConfig } from '../ConfigContext';
+import { ProviderDetails } from '../../api';
+import { acpAuthenticateProvider } from '../../acp/providers';
 import DefaultProviderSetupForm, {
   ConfigInput,
 } from '../settings/providers/modal/subcomponents/forms/DefaultProviderSetupForm';
@@ -78,10 +78,7 @@ function OAuthForm({
   const handleLogin = async () => {
     setIsLoading(true);
     try {
-      await configureProviderOauth({
-        path: { name: provider.name },
-        throwOnError: true,
-      });
+      await acpAuthenticateProvider(provider.name);
       onConfigured(provider.name);
     } catch (err) {
       onError(`Sign-in failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -101,7 +98,9 @@ function OAuthForm({
         size="lg"
       >
         <LogIn size={20} />
-        {isLoading ? intl.formatMessage(i18n.signingIn) : intl.formatMessage(i18n.signInWith, { providerName: provider.metadata.display_name })}
+        {isLoading
+          ? intl.formatMessage(i18n.signingIn)
+          : intl.formatMessage(i18n.signInWith, { providerName: provider.metadata.display_name })}
       </Button>
       <p className="text-xs text-text-muted text-center">
         {isDeviceCodeFlow
@@ -122,7 +121,6 @@ function ApiKeyForm({
   onError: (msg: string) => void;
 }) {
   const intl = useIntl();
-  const { upsert } = useConfig();
   const [configValues, setConfigValues] = useState<Record<string, ConfigInput>>({});
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -158,7 +156,7 @@ function ApiKeyForm({
 
     setIsSubmitting(true);
     try {
-      await providerConfigSubmitHandler(upsert, provider, toSubmit);
+      await providerConfigSubmitHandler(provider, toSubmit);
       onConfigured(provider.name);
     } catch (err) {
       const msg =

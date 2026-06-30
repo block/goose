@@ -15,7 +15,7 @@ import ExtensionConfigFields from './ExtensionConfigFields';
 import { PlusIcon, Edit, Trash2, AlertTriangle, Info } from 'lucide-react';
 import ExtensionInfoFields from './ExtensionInfoFields';
 import ExtensionTimeoutField from './ExtensionTimeoutField';
-import { upsertConfig } from '../../../../api';
+import { acpUpsertConfig } from '../../../../acp/config';
 import { ConfirmationModal } from '../../../ui/ConfirmationModal';
 import { defineMessages, useIntl } from '../../../../i18n';
 
@@ -244,13 +244,7 @@ export default function ExtensionModal({
   // Function to store a secret value
   const storeSecret = async (key: string, value: string) => {
     try {
-      await upsertConfig({
-        body: {
-          is_secret: true,
-          key: key,
-          value: value,
-        },
-      });
+      await acpUpsertConfig(key, value, true);
       return true;
     } catch (error) {
       console.error('Failed to store secret:', error);

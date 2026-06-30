@@ -61,6 +61,10 @@ interface ParameterInputModalProps {
   initialValues?: Record<string, string>;
 }
 
+function needsUserValue(param: Parameter): boolean {
+  return param.requirement === 'required' || param.requirement === 'user_prompt';
+}
+
 const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   parameters,
   onSubmit,
@@ -93,7 +97,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
   const handleSubmit = (): void => {
     setValidationErrors({});
 
-    const requiredParams: Parameter[] = parameters.filter((p) => p.requirement === 'required');
+    const requiredParams: Parameter[] = parameters.filter(needsUserValue);
     const errors: Record<string, string> = {};
 
     requiredParams.forEach((param) => {
@@ -159,9 +163,7 @@ const ParameterInputModal: React.FC<ParameterInputModalProps> = ({
                     className="block text-md font-medium text-text-primary mb-2"
                   >
                     {param.description || param.key}
-                    {param.requirement === 'required' && (
-                      <span className="text-red-500 ml-1">*</span>
-                    )}
+                    {needsUserValue(param) && <span className="text-red-500 ml-1">*</span>}
                   </label>
 
                   {param.input_type === 'select' && param.options ? (

@@ -1,4 +1,4 @@
-import type { ExtensionConfig } from '../../../api/types.gen';
+import type { ExtensionConfig } from '../../../types/extensions';
 import { FixedExtensionEntry } from '../../ConfigContext';
 import bundledExtensionsData from './bundled-extensions.json';
 import deprecatedBundledExtensionsData from './deprecated-bundled-extensions.json';

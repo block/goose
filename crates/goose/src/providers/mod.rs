@@ -1,7 +1,12 @@
 mod acp_tooling;
 pub mod amp_acp;
-pub mod anthropic;
-pub mod api_client;
+pub mod anthropic {
+    pub use goose_providers::anthropic::*;
+}
+pub mod anthropic_def;
+pub mod api_client {
+    pub use goose_providers::api_client::*;
+}
 pub mod avian;
 pub mod azure;
 pub mod azureauth;
@@ -26,7 +31,6 @@ pub mod cursor_agent;
 pub mod databricks;
 pub mod databricks_auth;
 pub mod databricks_v2;
-pub mod embedding;
 pub mod formats;
 mod gcpauth;
 pub mod gcpvertexai;
@@ -34,7 +38,9 @@ pub mod gemini_cli;
 pub mod gemini_oauth;
 pub mod githubcopilot;
 pub mod google;
-pub mod http_status;
+pub mod http_status {
+    pub use goose_providers::http_status::*;
+}
 pub mod huggingface;
 pub mod huggingface_auth;
 mod init;
@@ -46,14 +52,25 @@ pub mod local_inference;
 pub mod nanogpt;
 pub mod oauth;
 pub mod oauth_device_flow;
-pub mod ollama;
-pub mod openai;
-pub mod openai_compatible;
+pub mod ollama {
+    pub use goose_providers::ollama::*;
+}
+pub mod ollama_def;
+pub mod openai {
+    pub use goose_providers::openai::*;
+}
+pub mod openai_compatible {
+    pub use goose_providers::openai_compatible::*;
+}
 pub mod openrouter;
 pub mod pi_acp;
 pub mod provider_registry;
+pub mod provider_secrets;
 pub mod provider_test;
-mod retry;
+mod retry {
+    pub use goose_providers::retry::*;
+}
+pub mod openai_def;
 #[cfg(feature = "aws-providers")]
 pub mod sagemaker_tgi;
 pub mod snowflake;

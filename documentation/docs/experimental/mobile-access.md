@@ -2,7 +2,7 @@
 title: Mobile Access via Secure Tunneling
 sidebar_position: 3
 sidebar_label: Mobile Access
-description: Enable remote access to goose from mobile devices using secure tunneling.
+description: Mobile access via secure tunneling is no longer available in goose Desktop.
 unlisted: true
 ---
 

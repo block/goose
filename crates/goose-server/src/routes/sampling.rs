@@ -51,14 +51,22 @@ async fn create_message(
         .as_deref()
         .unwrap_or("You are a helpful AI assistant.");
 
-    let model_config = provider.get_model_config();
-    let (response, usage) = provider
-        .complete(&model_config, &session_id, system, &messages, &[])
+    let model_config = agent
+        .model_config_for_session(&session_id)
         .await
         .map_err(|e| {
-            tracing::error!("Sampling completion failed: {}", e);
+            tracing::error!("Failed to resolve model config: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
+    let (response, usage) = goose::session_context::with_session_id(
+        Some(session_id.clone()),
+        provider.complete(&model_config, system, &messages, &[]),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("Sampling completion failed: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let text = response.as_concat_text();
 

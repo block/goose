@@ -17,6 +17,7 @@ fn test_router(require_token: bool, dir: &tempfile::TempDir) -> Router {
         config_dir: dir.path().join("config"),
         goose_platform: GoosePlatform::GooseCli,
         additional_source_roots: Vec::new(),
+        scheduler: None,
     }));
     create_router(server, SECRET.to_string(), require_token)
 }

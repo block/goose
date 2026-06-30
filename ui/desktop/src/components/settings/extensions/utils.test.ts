@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   nameToKey,
   getDefaultFormData,
@@ -155,6 +155,34 @@ describe('Extension Utils', () => {
         envVars: [],
         headers: [],
       });
+    });
+
+    it('should preserve available tools metadata', () => {
+      const extension: FixedExtensionEntry = {
+        type: 'builtin',
+        name: 'developer',
+        description: 'developer',
+        enabled: true,
+        available_tools: ['shell', 'read_file'],
+      };
+
+      const formData = extensionToFormData(extension);
+
+      expect(formData.available_tools).toEqual(['shell', 'read_file']);
+    });
+
+    it('should omit empty available tools metadata', () => {
+      const extension: FixedExtensionEntry = {
+        type: 'builtin',
+        name: 'developer',
+        description: 'developer',
+        enabled: true,
+        available_tools: [],
+      };
+
+      const formData = extensionToFormData(extension);
+
+      expect(formData).not.toHaveProperty('available_tools');
     });
 
     it('should not escape @ in command args', () => {
@@ -320,6 +348,73 @@ describe('Extension Utils', () => {
         timeout: 300,
       });
     });
+
+    it('should create sse extension config', () => {
+      const formData = {
+        name: 'test-sse',
+        description: 'Test SSE extension',
+        type: 'sse' as const,
+        cmd: '',
+        endpoint: 'http://api.example.com/sse',
+        enabled: true,
+        timeout: 300,
+        envVars: [],
+        headers: [],
+      };
+
+      const config = createExtensionConfig(formData);
+
+      expect(config).toEqual({
+        type: 'sse',
+        name: 'test-sse',
+        description: 'Test SSE extension',
+        uri: 'http://api.example.com/sse',
+      });
+    });
+
+    it('should preserve available tools metadata', () => {
+      const formData = {
+        name: 'developer',
+        description: 'developer',
+        type: 'builtin' as const,
+        cmd: '',
+        endpoint: '',
+        enabled: true,
+        timeout: 300,
+        envVars: [],
+        headers: [],
+        available_tools: ['shell', 'read_file'],
+      };
+
+      const config = createExtensionConfig(formData);
+
+      expect(config).toEqual({
+        type: 'builtin',
+        name: 'developer',
+        description: 'developer',
+        timeout: 300,
+        available_tools: ['shell', 'read_file'],
+      });
+    });
+
+    it('should omit empty available tools metadata', () => {
+      const formData = {
+        name: 'developer',
+        description: 'developer',
+        type: 'builtin' as const,
+        cmd: '',
+        endpoint: '',
+        enabled: true,
+        timeout: 300,
+        envVars: [],
+        headers: [],
+        available_tools: [],
+      };
+
+      const config = createExtensionConfig(formData);
+
+      expect(config).not.toHaveProperty('available_tools');
+    });
   });
 
   describe('splitCmdAndArgs', () => {
@@ -345,6 +440,36 @@ describe('Extension Utils', () => {
       ['', { cmd: '', args: [] }],
     ])('splits %j correctly', (input, expected) => {
       expect(splitCmdAndArgs(input)).toEqual(expected);
+    });
+
+    describe('on Windows', () => {
+      beforeEach(() => {
+        vi.stubGlobal('window', { electron: { platform: 'win32' } });
+      });
+      afterEach(() => {
+        vi.unstubAllGlobals();
+      });
+
+      it('preserves backslashes in a Windows path', () => {
+        expect(splitCmdAndArgs('C:\\Users\\name\\path\\to\\extension.js')).toEqual({
+          cmd: 'C:\\Users\\name\\path\\to\\extension.js',
+          args: [],
+        });
+      });
+
+      it('preserves backslashes in cmd and args', () => {
+        expect(splitCmdAndArgs('node C:\\Users\\name\\ext.js')).toEqual({
+          cmd: 'node',
+          args: ['C:\\Users\\name\\ext.js'],
+        });
+      });
+
+      it('handles a quoted Windows path containing spaces', () => {
+        expect(splitCmdAndArgs('"C:\\Program Files\\app\\ext.js"')).toEqual({
+          cmd: 'C:\\Program Files\\app\\ext.js',
+          args: [],
+        });
+      });
     });
   });
 

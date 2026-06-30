@@ -30,7 +30,13 @@ async fn test_adversary_disabled_without_config_file() {
     let tmp = tempfile::tempdir().unwrap();
 
     let provider = Arc::new(Mutex::new(None));
-    let inspector = AdversaryInspector::with_config_dir(provider, tmp.path().to_path_buf());
+    let inspector = AdversaryInspector::with_config_dir(
+        provider,
+        Arc::new(goose::session::SessionManager::new(
+            tmp.path().to_path_buf(),
+        )),
+        tmp.path().to_path_buf(),
+    );
 
     assert_eq!(inspector.name(), "adversary");
     assert!(!inspector.is_enabled());
@@ -58,7 +64,13 @@ async fn test_adversary_enabled_default_tools() {
     write_adversary_md(tmp.path(), "BLOCK everything for testing");
 
     let provider = Arc::new(Mutex::new(None));
-    let inspector = AdversaryInspector::with_config_dir(provider, tmp.path().to_path_buf());
+    let inspector = AdversaryInspector::with_config_dir(
+        provider,
+        Arc::new(goose::session::SessionManager::new(
+            tmp.path().to_path_buf(),
+        )),
+        tmp.path().to_path_buf(),
+    );
 
     assert!(inspector.is_enabled());
 
@@ -116,7 +128,13 @@ async fn test_adversary_custom_tool_filter() {
     );
 
     let provider = Arc::new(Mutex::new(None));
-    let inspector = AdversaryInspector::with_config_dir(provider, tmp.path().to_path_buf());
+    let inspector = AdversaryInspector::with_config_dir(
+        provider,
+        Arc::new(goose::session::SessionManager::new(
+            tmp.path().to_path_buf(),
+        )),
+        tmp.path().to_path_buf(),
+    );
 
     assert!(inspector.is_enabled());
 

@@ -73,6 +73,7 @@ pub(super) fn commands_from_sources(sources: Vec<SourceEntry>) -> Vec<SlashComma
                 name,
                 description: source.description,
                 source: SlashCommandSource::Skill,
+                source_path: None,
                 input_hint,
             })
         })
