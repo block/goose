@@ -437,6 +437,63 @@ fn helper() { validate(0); }
     }
 
     #[tokio::test]
+    async fn c_lists_pointer_returning_functions() {
+        let tmp = tempdir().unwrap();
+        let file = tmp.path().join("ptr.c");
+        fs::write(
+            &file,
+            "int plain(void) { return 0; }\nchar *single(void) { return 0; }\nchar **doubl(void) { return 0; }\nint proto(int);\n",
+        )
+        .unwrap();
+
+        let client = AnalyzeClient::new(ctx()).unwrap();
+        let result = client.analyze(
+            AnalyzeParams {
+                path: file.to_str().unwrap().into(),
+                focus: None,
+                max_depth: 3,
+                follow_depth: 2,
+                force: false,
+            },
+            file,
+        );
+        let out = text(&result);
+
+        assert!(out.contains("plain"));
+        assert!(out.contains("single"));
+        assert!(out.contains("doubl"));
+        assert!(!out.contains("proto"));
+    }
+
+    #[tokio::test]
+    async fn c_lists_typedef_aggregates() {
+        let tmp = tempdir().unwrap();
+        let file = tmp.path().join("types.c");
+        fs::write(
+            &file,
+            "typedef struct { int x; } Point;\ntypedef enum { A, B } State;\nstruct Named { int y; };\n",
+        )
+        .unwrap();
+
+        let client = AnalyzeClient::new(ctx()).unwrap();
+        let result = client.analyze(
+            AnalyzeParams {
+                path: file.to_str().unwrap().into(),
+                focus: None,
+                max_depth: 3,
+                follow_depth: 2,
+                force: false,
+            },
+            file,
+        );
+        let out = text(&result);
+
+        assert!(out.contains("Point"));
+        assert!(out.contains("State"));
+        assert!(out.contains("Named"));
+    }
+
+    #[tokio::test]
     async fn error_and_edge() {
         let client = AnalyzeClient::new(ctx()).unwrap();
 

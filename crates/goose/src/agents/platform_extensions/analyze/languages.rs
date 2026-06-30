@@ -328,19 +328,21 @@ static LANGUAGES: &[LangInfo] = &[
         class_kinds: &["struct_specifier", "union_specifier", "enum_specifier"],
         queries: LangQueries {
             functions: r#"
-                (function_definition
-                    declarator: [
-                        (function_declarator declarator:
-                            (identifier) @name)
-                        (pointer_declarator declarator:
-                            (function_declarator declarator:
-                                (identifier) @name))
-                    ])
+                (function_definition declarator: [
+                    (function_declarator declarator: (identifier) @name)
+                    (pointer_declarator
+                        (function_declarator declarator: (identifier) @name))
+                    (pointer_declarator (pointer_declarator
+                        (function_declarator declarator: (identifier) @name)))
+                ])
             "#,
             classes: r#"
                 (struct_specifier name: (type_identifier) @name)
                 (union_specifier name: (type_identifier) @name)
                 (enum_specifier name: (type_identifier) @name)
+                (type_definition
+                    type: [(struct_specifier) (union_specifier) (enum_specifier)]
+                    declarator: (type_identifier) @name)
             "#,
             imports: r#"
                 (preproc_include
