@@ -1199,36 +1199,6 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Conecte-se a um servidor goose em execução em outro lugar (requer reinicialização do app)"
   },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Escolha uma opção para começar."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Gratuito e privado"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Baixe um modelo e execute-o inteiramente na sua máquina. Sem chaves de API, sem contas."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Usar um modelo local"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Inscreva-se para receber 60 milhões de tokens gratuitos por 7 dias."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Tentar novamente"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Acesse vários modelos de IA com configuração automática. Inscreva-se para receber US$ 10 em crédito."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router by Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Ocorreu um erro inesperado durante a configuração."
-  },
   "goosehintsModal.close": {
     "defaultMessage": "Fechar"
   },
@@ -1822,9 +1792,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Mostrar apenas os recomendados"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "Voltar"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Melhor para a sua máquina"
@@ -2786,14 +2753,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Ligar OpenAI, Anthropic, Google, etc."
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Use um modelo local ou um fornecedor com créditos gratuitos"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Baixe um modelo e execute-o inteiramente na sua máquina. Sem chaves de API, sem contas."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Selecione um fornecedor"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Usar fornecedores gratuitos/locais"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Usar um modelo local"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Definições de configuração do fornecedor"

@@ -1199,36 +1199,6 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Se connecter à un serveur goose exécuté ailleurs (nécessite le redémarrage de l'application)"
   },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Choisissez une option pour commencer."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Gratuit et privé"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Téléchargez un modèle et exécutez-le entièrement sur votre machine. Aucune clé d'API, aucun compte."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Utiliser un modèle local"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Inscrivez-vous pour recevoir 60 M de jetons gratuits pendant 7 jours."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Réessayer"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Accédez à plusieurs modèles d'IA avec une configuration automatique. Inscrivez-vous pour recevoir 10 $ de crédit."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router par Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Une erreur inattendue s'est produite lors de la configuration."
-  },
   "goosehintsModal.close": {
     "defaultMessage": "Fermer"
   },
@@ -1822,9 +1792,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Afficher uniquement les modèles recommandés"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "Retour"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Idéal pour votre machine"
@@ -2786,14 +2753,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Connectez OpenAI, Anthropic, Google, etc."
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Utilisez un modèle local ou un fournisseur offrant des crédits gratuits"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Téléchargez un modèle et exécutez-le entièrement sur votre machine. Aucune clé d'API, aucun compte."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Sélectionner un fournisseur"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Utiliser des fournisseurs gratuits/locaux"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Utiliser un modèle local"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Paramètres de configuration du fournisseur"

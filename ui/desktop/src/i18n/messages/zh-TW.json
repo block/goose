@@ -1199,36 +1199,6 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "連線至在其他位置執行的 goose 伺服器（需要重新啟動應用程式）"
   },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "選擇一個選項以開始使用。"
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "免費且私密"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "下載模型並完全在您的電腦上執行。無需 API 金鑰，無需帳號。"
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "使用本機模型"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "註冊即可獲得 7 天 6,000 萬個免費權杖。"
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "重試"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "透過自動設定存取多種 AI 模型。註冊即可獲得 $10 點數。"
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Tetrate 的 Agent Router"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "設定期間發生非預期的錯誤。"
-  },
   "goosehintsModal.close": {
     "defaultMessage": "關閉"
   },
@@ -1822,9 +1792,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "僅顯示建議項目"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "返回"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "最適合您的電腦"
@@ -2786,14 +2753,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "連線到 OpenAI、Anthropic、Google 等"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "使用本機模型或提供免費額度的提供者"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "下載模型並完全在您的電腦上執行。無需 API 金鑰，無需帳號。"
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "選取提供者"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "使用免費／本機提供者"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "使用本機模型"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "提供者組態設定"

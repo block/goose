@@ -1199,36 +1199,6 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Kết nối tới một máy chủ goose đang chạy ở nơi khác (cần khởi động lại ứng dụng)"
   },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Chọn một tùy chọn để bắt đầu."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Miễn phí & Riêng tư"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Tải xuống một mô hình và chạy hoàn toàn trên máy của bạn. Không cần khóa API, không cần tài khoản."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Sử dụng mô hình cục bộ"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Đăng ký để nhận 60 triệu token miễn phí trong 7 ngày."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Thử lại"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Truy cập nhiều mô hình AI với thiết lập tự động. Đăng ký để nhận 10 đô la tín dụng."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router by Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Đã xảy ra lỗi không mong muốn trong quá trình thiết lập."
-  },
   "goosehintsModal.close": {
     "defaultMessage": "Đóng"
   },
@@ -1822,9 +1792,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Chỉ hiển thị được đề xuất"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "Quay lại"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Tốt nhất cho máy của bạn"
@@ -2786,14 +2753,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Kết nối OpenAI, Anthropic, Google, v.v."
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Sử dụng mô hình cục bộ hoặc nhà cung cấp có tín dụng miễn phí"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Tải xuống một mô hình và chạy hoàn toàn trên máy của bạn. Không cần khóa API, không cần tài khoản."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Chọn một nhà cung cấp"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Sử dụng nhà cung cấp Miễn phí/Cục bộ"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Sử dụng mô hình cục bộ"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Cài đặt cấu hình nhà cung cấp"
