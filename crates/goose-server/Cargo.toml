@@ -37,8 +37,6 @@ rustls-tls = [
     "reqwest/rustls",
     "axum-server/tls-rustls",
     "dep:rustls",
-    "dep:aws-lc-rs",
-    "rcgen/aws_lc_rs",
     "goose/rustls-tls",
     "goose-mcp/rustls-tls",
     "goose-providers/rustls-tls",
@@ -82,7 +80,6 @@ rand = { workspace = true }
 hex = { version = "0.4.3", default-features = false, features = ["std"] }
 rustls = { workspace = true, optional = true }
 uuid = { workspace = true }
-rcgen = { version = "0.14", default-features = false, features = ["crypto", "pem"] }
 axum-server = { version = "0.8", default-features = false }
 
 [target.'cfg(windows)'.dependencies]
