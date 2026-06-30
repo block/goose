@@ -50,3 +50,9 @@ export type ExtensionConfig =
 export type ExtensionEntry = ExtensionConfig & {
   enabled: boolean;
 };
+
+export type ExtensionLoadResult = {
+  error?: string | null;
+  name: string;
+  success: boolean;
+};
