@@ -1,5 +1,5 @@
 import type { FixedExtensionEntry } from '../../ConfigContext';
-import type { ExtensionConfig } from '../../../api/types.gen';
+import type { ExtensionConfig } from '../../../types/extensions';
 import { parse as parseShellQuote } from 'shell-quote';
 
 // Default extension timeout in seconds
@@ -110,7 +110,7 @@ export function extensionToFormData(extension: FixedExtensionEntry): ExtensionFo
       extension.type === 'platform'
         ? 'stdio'
         : extension.type,
-    cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args) : undefined,
+    cmd: extension.type === 'stdio' ? combineCmdAndArgs(extension.cmd, extension.args ?? []) : undefined,
     endpoint:
       extension.type === 'streamable_http' || extension.type === 'sse'
         ? (extension.uri ?? undefined)

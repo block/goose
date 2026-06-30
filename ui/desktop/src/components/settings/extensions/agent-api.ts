@@ -1,5 +1,5 @@
 import { toastService } from '../../../toasts';
-import { ExtensionConfig } from '../../../api';
+import type { ExtensionConfig } from '../../../types/extensions';
 import { addSessionExtension, removeSessionExtension } from '../../../acp/session-extensions';
 import { errorMessage } from '../../../utils/conversionUtils';
 import {

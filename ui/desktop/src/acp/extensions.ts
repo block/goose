@@ -1,4 +1,4 @@
-import type { ExtensionConfig, ExtensionEntry } from '../api';
+import type { ExtensionConfig, ExtensionEntry } from '../types/extensions';
 import type { GooseExtension, GooseExtensionEntry } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
 
@@ -115,7 +115,7 @@ export function extensionConfigToGooseExtension(config: ExtensionConfig): GooseE
     case 'stdio':
       return {
         type: 'mcp',
-        server: { name: config.name, command: config.cmd, args: config.args, env: [] },
+        server: { name: config.name, command: config.cmd, args: config.args ?? [], env: [] },
         envKeys: config.env_keys ?? [],
         description: config.description,
         timeout: config.timeout,
