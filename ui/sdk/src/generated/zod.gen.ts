@@ -2308,7 +2308,8 @@ export const zDictationLocalModelStatus = z.object({
     description: z.string(),
     sizeMb: z.number().int().gte(0),
     downloaded: z.boolean(),
-    downloadInProgress: z.boolean()
+    downloadInProgress: z.boolean(),
+    recommended: z.boolean()
 });
 
 export const zDictationModelsListResponse_unstable = z.object({

@@ -2256,6 +2256,7 @@ export type DictationLocalModelStatus = {
     sizeMb: number;
     downloaded: boolean;
     downloadInProgress: boolean;
+    recommended: boolean;
 };
 
 /**

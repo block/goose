@@ -2145,6 +2145,7 @@ pub struct DictationLocalModelStatus {
     pub size_mb: u32,
     pub downloaded: bool,
     pub download_in_progress: bool,
+    pub recommended: bool,
 }
 
 /// Kick off a background download of a local Whisper model.

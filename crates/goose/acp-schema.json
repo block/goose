@@ -5548,6 +5548,9 @@
         },
         "downloadInProgress": {
           "type": "boolean"
+        },
+        "recommended": {
+          "type": "boolean"
         }
       },
       "required": [
@@ -5556,7 +5559,8 @@
         "description",
         "sizeMb",
         "downloaded",
-        "downloadInProgress"
+        "downloadInProgress",
+        "recommended"
       ]
     },
     "DictationModelDownloadRequest_unstable": {
