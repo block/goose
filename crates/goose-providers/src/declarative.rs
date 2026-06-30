@@ -28,8 +28,11 @@ pub struct EnvVarConfig {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
 #[serde(rename_all = "lowercase")]
 pub enum ProviderEngine {
+    #[serde(alias = "openai_compatible")]
     OpenAI,
+    #[serde(alias = "ollama_compatible")]
     Ollama,
+    #[serde(alias = "anthropic_compatible")]
     Anthropic,
 }
 
@@ -89,6 +92,10 @@ pub struct DeclarativeProviderConfig {
 
 fn default_requires_auth() -> bool {
     true
+}
+
+fn should_preserve_thinking_by_default(engine: &ProviderEngine) -> bool {
+    matches!(engine, ProviderEngine::OpenAI)
 }
 
 /// Deserialize an optional string, treating empty/whitespace-only values as None.
@@ -188,13 +195,25 @@ fn resolve_config(config: &mut DeclarativeProviderConfig) -> Result<()> {
     Ok(())
 }
 
+fn config_from_json(json: &str) -> Result<DeclarativeProviderConfig> {
+    let raw: serde_json::Value = serde_json::from_str(json)?;
+    let preserves_thinking_was_set = raw.get("preserves_thinking").is_some();
+    let mut config: DeclarativeProviderConfig = serde_json::from_value(raw)?;
+
+    if !preserves_thinking_was_set {
+        config.preserves_thinking = should_preserve_thinking_by_default(&config.engine);
+    }
+
+    resolve_config(&mut config)?;
+    Ok(config)
+}
+
 pub fn from_json(
     json: &str,
     tls_config: Option<TlsConfig>,
     key_resolver: impl KeyResolver,
 ) -> Result<Box<dyn Provider>> {
-    let mut config: DeclarativeProviderConfig = serde_json::from_str(json)?;
-    resolve_config(&mut config)?;
+    let config = config_from_json(json)?;
 
     match config.engine {
         ProviderEngine::OpenAI => openai::from_custom_config(config, tls_config, key_resolver)
@@ -223,6 +242,76 @@ mod tests {
             "supports_cache_control": null,
             "reasoning": false
         })
+    }
+
+    #[test]
+    fn provider_engine_deserializes_compatible_aliases() {
+        let openai: DeclarativeProviderConfig = serde_json::from_value(json!({
+            "name": "test-openai",
+            "engine": "openai_compatible",
+            "display_name": "Test OpenAI",
+            "base_url": "http://localhost:1234",
+            "models": [model_json()]
+        }))
+        .unwrap();
+        assert_eq!(openai.engine, ProviderEngine::OpenAI);
+
+        let anthropic: DeclarativeProviderConfig = serde_json::from_value(json!({
+            "name": "test-anthropic",
+            "engine": "anthropic_compatible",
+            "display_name": "Test Anthropic",
+            "base_url": "http://localhost:1234",
+            "models": [model_json()]
+        }))
+        .unwrap();
+        assert_eq!(anthropic.engine, ProviderEngine::Anthropic);
+
+        let ollama: DeclarativeProviderConfig = serde_json::from_value(json!({
+            "name": "test-ollama",
+            "engine": "ollama_compatible",
+            "display_name": "Test Ollama",
+            "base_url": "http://localhost:11434",
+            "models": [model_json()]
+        }))
+        .unwrap();
+        assert_eq!(ollama.engine, ProviderEngine::Ollama);
+    }
+
+    #[test]
+    fn from_json_defaults_openai_preserves_thinking_to_true() {
+        let json = json!({
+            "name": "test-provider",
+            "engine": "openai",
+            "display_name": "Test Provider",
+            "base_url": "http://localhost:1234/v1/chat/completions",
+            "models": [model_json()],
+            "requires_auth": false,
+            "dynamic_models": false
+        })
+        .to_string();
+
+        let config = config_from_json(&json).unwrap();
+
+        assert!(config.preserves_thinking);
+    }
+
+    #[test]
+    fn from_json_preserves_explicit_openai_preserves_thinking_false() {
+        let json = json!({
+            "name": "test-provider",
+            "engine": "openai",
+            "display_name": "Test Provider",
+            "base_url": "http://localhost:1234/v1/chat/completions",
+            "models": [model_json()],
+            "requires_auth": false,
+            "dynamic_models": false,
+            "preserves_thinking": false
+        })
+        .to_string();
+
+        let config = config_from_json(&json).unwrap();
+
+        assert!(!config.preserves_thinking);
     }
 
     #[test]
