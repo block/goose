@@ -900,6 +900,42 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     recipeParameters,
   } = options;
   const settings = getSettings();
+
+  if (settings.externalGoosed?.enabled && settings.externalGoosed.certFingerprint) {
+    const url = settings.externalGoosed.url;
+    const usesHttps = (() => {
+      try {
+        return new URL(url).protocol === 'https:';
+      } catch {
+        return false;
+      }
+    })();
+
+    if (!usesHttps) {
+      const response = dialog.showMessageBoxSync({
+        type: 'error',
+        title: 'External Backend Misconfigured',
+        message: 'Certificate fingerprint requires an HTTPS external backend URL.',
+        detail: 'Use an https:// URL or remove the configured certificate fingerprint.',
+        buttons: ['Disable External Backend & Retry', 'Quit'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+
+      if (response === 0) {
+        updateSettings((s) => {
+          if (s.externalGoosed) {
+            s.externalGoosed.enabled = false;
+          }
+        });
+        return createChat(app, options);
+      }
+
+      app.quit();
+      return;
+    }
+  }
+
   const serverSecret = getServerSecret(settings);
 
   // Update the cached trusted-external-hostname so the TLS handlers allow
