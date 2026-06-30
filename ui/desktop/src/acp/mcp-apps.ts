@@ -1,6 +1,6 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
 import type { ToolListItem } from '@aaif/goose-sdk';
-import type { GooseApp } from '../api';
+import type { GooseApp } from '../types/apps';
 import { getAcpClient } from './acpConnection';
 
 type JsonRecord = Record<string, unknown>;
