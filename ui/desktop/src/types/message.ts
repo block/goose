@@ -1,11 +1,37 @@
 import {
   Message,
   MessageEvent,
-  ActionRequired,
   ToolRequest,
   ToolResponse,
   ToolConfirmationRequest,
 } from '../api';
+
+type JsonObject = Record<string, unknown>;
+
+export type ActionRequired = {
+  data: ActionRequiredData;
+};
+
+export type ActionRequiredData =
+  | {
+      actionType: 'toolConfirmation';
+      arguments: JsonObject;
+      id: string;
+      prompt?: string | null;
+      toolName: string;
+    }
+  | {
+      actionType: 'elicitation';
+      id: string;
+      message: string;
+      requested_schema: unknown;
+    }
+  | {
+      action?: string;
+      actionType: 'elicitationResponse';
+      id: string;
+      user_data: unknown;
+    };
 
 export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };
 export type ToolResponseMessageContent = ToolResponse & { type: 'toolResponse' };
