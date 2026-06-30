@@ -8,14 +8,25 @@ impl GooseAcpAgent {
         method: &str,
         params: serde_json::Value,
     ) -> Result<serde_json::Value, agent_client_protocol::Error> {
-        if <SaveRecipeRequest as agent_client_protocol::JsonRpcMessage>::matches_method(method) {
-            let req = recipe::deserialize_save_recipe_request(params)?;
-            let result = self.on_save_recipe(req).await?;
-            return serde_json::to_value(&result)
-                .map_err(|e| agent_client_protocol::Error::internal_error().data(e.to_string()));
+        let result = async {
+            if <SaveRecipeRequest as agent_client_protocol::JsonRpcMessage>::matches_method(method)
+            {
+                let req = recipe::deserialize_save_recipe_request(params)?;
+                let result = self.on_save_recipe(req).await?;
+                return serde_json::to_value(&result).map_err(|e| {
+                    agent_client_protocol::Error::internal_error().data(e.to_string())
+                });
+            }
+
+            self.handle_custom_request(method, params).await
+        }
+        .await;
+
+        if let Err(error) = &result {
+            tracing::error!(method, error = ?error, "ACP custom request failed");
         }
 
-        self.handle_custom_request(method, params).await
+        result
     }
 
     #[custom_method(AddSessionExtensionRequest)]
