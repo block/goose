@@ -5,12 +5,12 @@ use futures::future::BoxFuture;
 use url::Url;
 
 use crate::{
-    config::declarative_providers::DeclarativeProviderConfig, providers::base::ProviderDef,
+    config::{declarative_providers::DeclarativeProviderConfig, Config},
+    providers::{base::ProviderDef, custom_provider_config::ConfigKeyResolver},
 };
 use goose_providers::{
     api_client::{ApiClient, AuthMethod},
     base::ProviderDescriptor,
-    declarative::EnvKeyResolver,
     ollama::{
         self, OllamaOptions, OllamaProvider, OllamaProviderBuilder,
         OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS, OLLAMA_DEFAULT_PORT, OLLAMA_HOST, OLLAMA_PROVIDER_NAME,
@@ -83,15 +83,17 @@ pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<crate::providers::api_client::TlsConfig>,
 ) -> Result<OllamaProvider> {
-    ollama::from_custom_config(config, tls_config, EnvKeyResolver::new()).map(|builder| {
-        builder
-            .map_api_client(|api_client| {
-                api_client
-                    .with_request_builder(crate::session_context::session_id_request_builder())
-            })
-            .options(options_from_config())
-            .build()
-    })
+    ollama::from_custom_config(config, tls_config, ConfigKeyResolver::new(Config::global())).map(
+        |builder| {
+            builder
+                .map_api_client(|api_client| {
+                    api_client
+                        .with_request_builder(crate::session_context::session_id_request_builder())
+                })
+                .options(options_from_config())
+                .build()
+        },
+    )
 }
 
 pub fn options_from_config() -> OllamaOptions {
