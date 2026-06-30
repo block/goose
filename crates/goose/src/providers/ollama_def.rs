@@ -68,7 +68,8 @@ pub async fn from_env(
         AuthMethod::NoAuth,
         timeout,
         tls_config,
-    )?;
+    )?
+    .with_request_builder(crate::session_context::session_id_request_builder());
 
     Ok(OllamaProvider::new(
         api_client,
@@ -109,7 +110,8 @@ pub fn from_custom_config(
         AuthMethod::NoAuth,
         timeout,
         tls_config,
-    )?;
+    )?
+    .with_request_builder(crate::session_context::session_id_request_builder());
 
     if let Some(headers) = &config.headers {
         let mut header_map = reqwest::header::HeaderMap::new();
