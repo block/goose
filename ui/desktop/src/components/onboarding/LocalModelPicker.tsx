@@ -175,20 +175,26 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
     pollRef.current = setInterval(async () => {
       try {
         const progress = await getLocalModelDownloadProgress(modelId);
-        if (progress) {
-          setDownloadProgress(progress);
-          if (progress.status === 'completed') {
-            cleanup();
-            finishSetup(modelId);
-          } else if (progress.status === 'failed') {
-            cleanup();
-            setErrorMessage(progress.error || 'Download failed.');
-            trackOnboardingSetupFailed(LOCAL_PROVIDER, progress.error || 'download_failed');
-            setPhase('error');
-          } else if (progress.status === 'cancelled') {
-            cleanup();
-            setPhase('select');
-          }
+        if (!progress) {
+          cleanup();
+          setErrorMessage(intl.formatMessage(i18n.lostConnection));
+          trackOnboardingSetupFailed(LOCAL_PROVIDER, 'progress_missing');
+          setPhase('error');
+          return;
+        }
+
+        setDownloadProgress(progress);
+        if (progress.status === 'completed') {
+          cleanup();
+          finishSetup(modelId);
+        } else if (progress.status === 'failed') {
+          cleanup();
+          setErrorMessage(progress.error || 'Download failed.');
+          trackOnboardingSetupFailed(LOCAL_PROVIDER, progress.error || 'download_failed');
+          setPhase('error');
+        } else if (progress.status === 'cancelled') {
+          cleanup();
+          setPhase('select');
         }
       } catch {
         cleanup();
