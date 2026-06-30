@@ -303,12 +303,48 @@ fn select_generation_template<'a>(
     })
 }
 
+#[cfg(any(target_arch = "x86_64", test))]
+fn unsupported_cpu_features_error_message(missing_features: &[&str]) -> String {
+    format!(
+        "Local inference with the bundled llama.cpp backend requires CPU support for {}. \
+         This CPU is missing {}. Use a CPU with those instruction sets or switch to a non-local provider.",
+        missing_features.join(" and "),
+        missing_features.join(", ")
+    )
+}
+
+#[cfg(target_arch = "x86_64")]
+fn check_cpu_supports_local_inference() -> Result<()> {
+    let missing_features = [
+        (!std::arch::is_x86_feature_detected!("fma")).then_some("FMA"),
+        (!std::arch::is_x86_feature_detected!("avx2")).then_some("AVX2"),
+    ]
+    .into_iter()
+    .flatten()
+    .collect::<Vec<_>>();
+
+    if missing_features.is_empty() {
+        Ok(())
+    } else {
+        Err(anyhow::anyhow!(unsupported_cpu_features_error_message(
+            &missing_features
+        )))
+    }
+}
+
+#[cfg(not(target_arch = "x86_64"))]
+fn check_cpu_supports_local_inference() -> Result<()> {
+    Ok(())
+}
+
 pub(super) struct LlamaCppBackend {
     backend: LlamaBackend,
 }
 
 impl LlamaCppBackend {
     pub(super) fn new() -> Result<Self> {
+        check_cpu_supports_local_inference()?;
+
         let backend = match LlamaBackend::init() {
             Ok(backend) => backend,
             Err(llama_cpp_2::LlamaCppError::BackendAlreadyInitialized) => {
@@ -702,5 +738,18 @@ mod tests {
         assert!(!is_legacy_builtin_template_name(
             "{% for message in messages %}{{ message.content }}{% endfor %}"
         ));
+    }
+
+    #[test]
+    fn local_inference_cpu_support_check_accepts_current_host() {
+        check_cpu_supports_local_inference().unwrap();
+    }
+
+    #[test]
+    fn local_inference_cpu_support_error_names_missing_instruction_sets() {
+        let message = unsupported_cpu_features_error_message(&["FMA", "AVX2"]);
+
+        assert!(message.contains("FMA"));
+        assert!(message.contains("AVX2"));
     }
 }
