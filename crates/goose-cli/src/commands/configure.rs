@@ -42,6 +42,8 @@ pub async fn handle_configure() -> anyhow::Result<()> {
         );
     }
 
+    let _terminal_guard = crate::terminal::TerminalGuard::new();
+
     let config = Config::global();
 
     if !config.exists() {

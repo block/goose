@@ -65,6 +65,7 @@ sha2 = { workspace = true }
 sigstore-verify = { version = "0.9", default-features = false, optional = true }
 axum.workspace = true
 clap_complete_nushell = { version = "4", default-features = false }
+libc = { version = "0.2.182", default-features = false, features = ["std"] }
 
 [target.'cfg(target_os = "windows")'.dependencies]
 anstream = { version = "1", default-features = false, features = ["wincon"] }
