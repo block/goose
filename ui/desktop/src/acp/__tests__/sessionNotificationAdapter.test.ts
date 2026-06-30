@@ -1,7 +1,7 @@
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
-import type { Message, MessageContent } from '../../api';
+import type { Message } from '../../api';
 import type { NotificationEvent } from '../../types/message';
 import {
   createAcpSessionNotificationAdapter,
@@ -97,7 +97,7 @@ function expectOnlyNotificationChange(chatStateChanges: AcpChatStateChange[]): N
   return chatStateChange.notification;
 }
 
-function firstContent(message: Message): MessageContent {
+function firstContent(message: Message): Message['content'][number] {
   const content = message.content[0];
   expect(content).toBeDefined();
   return content;

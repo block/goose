@@ -7,6 +7,14 @@ import {
 } from '../api';
 
 type JsonObject = Record<string, unknown>;
+type ContentAnnotations =
+  | {
+      audience?: string[];
+      lastModified?: string;
+      priority?: number;
+      _meta?: JsonObject;
+    }
+  | JsonObject;
 
 export type ContentBlock =
   | ({ type: 'text' } & RawTextContent)
@@ -17,11 +25,13 @@ export type ContentBlock =
 
 type RawTextContent = {
   _meta?: JsonObject;
+  annotations?: ContentAnnotations;
   text: string;
 };
 
 type RawImageContent = {
   _meta?: JsonObject;
+  annotations?: ContentAnnotations;
   data: string;
   mimeType: string;
 };
