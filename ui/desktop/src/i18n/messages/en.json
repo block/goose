@@ -1199,36 +1199,6 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Connect to a goose server running elsewhere (requires app restart)"
   },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Choose an option to get started."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Free & Private"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Download a model and run entirely on your machine. No API keys, no accounts."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Use a Local Model"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Sign up to receive 60M free tokens for 7 days."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Retry"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Access multiple AI models with automatic setup. Sign up to receive $10 credit."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router by Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "An unexpected error occurred during setup."
-  },
   "goosehintsModal.close": {
     "defaultMessage": "Close"
   },
@@ -1823,9 +1793,6 @@
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Show recommended only"
   },
-  "localModelPicker.back": {
-    "defaultMessage": "Back"
-  },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Best for your machine"
   },
@@ -1948,30 +1915,6 @@
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Playing in Picture-in-Picture"
-  },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Cancel"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Open"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Open External Link"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "This will open: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "Open {protocol} link?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Message received for {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "MCP-UI {messageType} message"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Message received for {message}. {messageType} messages aren't supported yet, refer to console for more details."
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# item found} other{# items found}}"
@@ -2810,14 +2753,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Connect OpenAI, Anthropic, Google, etc"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Use a local model or a provider with free credits"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Download a model and run it on this device. No API key or account needed."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Select a provider"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Use Free/Local Providers"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Use a Local Model"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Provider Configuration Settings"
@@ -3887,14 +3830,32 @@
   "settings.language.english": {
     "defaultMessage": "English"
   },
+  "settings.language.french": {
+    "defaultMessage": "French"
+  },
+  "settings.language.german": {
+    "defaultMessage": "German"
+  },
   "settings.language.hindi": {
     "defaultMessage": "Hindi"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "Indonesian"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "Italian"
   },
   "settings.language.japanese": {
     "defaultMessage": "Japanese"
   },
   "settings.language.korean": {
     "defaultMessage": "Korean"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "Malay"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "Portuguese"
   },
   "settings.language.russian": {
     "defaultMessage": "Russian"
@@ -3911,8 +3872,14 @@
   "settings.language.turkish": {
     "defaultMessage": "Turkish"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "Vietnamese"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "Chinese (Simplified)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "Chinese (Traditional)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Show goose in the menu bar"
@@ -4405,9 +4372,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Logs"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI is experimental and may change at any time."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Output"

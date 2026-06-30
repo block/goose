@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
 use crate::permission::Permission;
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     PermissionOption, PermissionOptionKind, RequestPermissionOutcome, RequestPermissionRequest,
     RequestPermissionResponse, SelectedPermissionOutcome,
 };
@@ -110,7 +110,7 @@ fn find_option(options: &[PermissionOption], kind: PermissionOptionKind) -> Opti
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_client_protocol::schema::{
+    use agent_client_protocol::schema::v1::{
         PermissionOptionId, ToolCallId, ToolCallUpdate, ToolCallUpdateFields,
     };
     use test_case::test_case;

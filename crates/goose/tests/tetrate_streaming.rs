@@ -30,7 +30,6 @@ mod tetrate_streaming_tests {
         let mut stream = provider
             .stream(
                 &model_config,
-                "test-session-id",
                 "You are a helpful assistant that counts numbers.",
                 &messages,
                 &[],
@@ -105,7 +104,6 @@ mod tetrate_streaming_tests {
         let mut stream = provider
             .stream(
                 &model_config,
-                "test-session-id",
                 "You are a helpful assistant with access to weather information.",
                 &messages,
                 &[weather_tool],
@@ -156,7 +154,6 @@ mod tetrate_streaming_tests {
         let mut stream = provider
             .stream(
                 &model_config,
-                "test-session-id",
                 "You are a helpful assistant.",
                 &messages,
                 &[],
@@ -194,7 +191,6 @@ mod tetrate_streaming_tests {
         let mut stream = provider
             .stream(
                 &model_config,
-                "test-session-id",
                 "You are a helpful assistant that writes detailed essays.",
                 &messages,
                 &[],
@@ -256,7 +252,6 @@ mod tetrate_streaming_tests {
         let result = provider
             .stream(
                 &model_config,
-                "test-session-id",
                 "You are a helpful assistant.",
                 &messages,
                 &[],
@@ -287,7 +282,6 @@ mod tetrate_streaming_tests {
         let stream1 = provider
             .stream(
                 &model_config,
-                "test-session-id",
                 "You are a helpful assistant.",
                 &messages1,
                 &[],
@@ -297,7 +291,6 @@ mod tetrate_streaming_tests {
         let stream2 = provider
             .stream(
                 &model_config,
-                "test-session-id",
                 "You are a helpful assistant.",
                 &messages2,
                 &[],

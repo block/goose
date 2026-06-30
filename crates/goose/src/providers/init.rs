@@ -30,7 +30,6 @@ use super::{
     kimicode::KimiCodeProvider,
     litellm::LiteLLMProvider,
     nanogpt::NanoGptProvider,
-    ollama::OllamaProvider,
     openrouter::OpenRouterProvider,
     pi_acp::PiAcpProvider,
     provider_registry::ProviderRegistry,
@@ -42,6 +41,7 @@ use super::{
 use crate::config::ExtensionConfig;
 use crate::providers::anthropic_def::AnthropicProviderDef;
 use crate::providers::base::ProviderType;
+use crate::providers::ollama_def::OllamaProviderDef;
 use crate::providers::openai_def::OpenAiProviderDef;
 use crate::{
     config::declarative_providers::register_declarative_providers,
@@ -115,7 +115,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<KimiCodeProvider>(true);
         registry.register::<LiteLLMProvider>(false);
         registry.register::<NanoGptProvider>(true);
-        registry.register_with_inventory::<OllamaProvider>(
+        registry.register_with_inventory::<OllamaProviderDef>(
             true,
             Some(registrations::ollama_inventory()),
         );

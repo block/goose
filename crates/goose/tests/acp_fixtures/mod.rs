@@ -1,11 +1,11 @@
 #![recursion_limit = "256"]
 #![allow(unused_attributes)]
 
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     CreateTerminalResponse, KillTerminalResponse, ListSessionsResponse, McpServer,
     ReadTextFileRequest, ReadTextFileResponse, ReleaseTerminalResponse, SessionModeState,
-    SessionModelState, SessionUpdate, TerminalExitStatus, TerminalId, TerminalOutputResponse,
-    ToolCallContent, ToolCallStatus, ToolKind, WaitForTerminalExitResponse, WriteTextFileRequest,
+    SessionUpdate, TerminalExitStatus, TerminalId, TerminalOutputResponse, ToolCallContent,
+    ToolCallStatus, ToolKind, WaitForTerminalExitResponse, WriteTextFileRequest,
     WriteTextFileResponse,
 };
 use async_trait::async_trait;
@@ -665,10 +665,16 @@ impl TerminalFixture {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ModelStateFixture {
+    pub current_model_id: String,
+    pub available_models: Vec<String>,
+}
+
 #[derive(Debug)]
 pub struct SessionData<S> {
     pub session: S,
-    pub models: Option<SessionModelState>,
+    pub models: Option<ModelStateFixture>,
     pub modes: Option<SessionModeState>,
 }
 
@@ -682,9 +688,6 @@ pub struct TestConnectionConfig {
     pub read_text_file: Option<ReadTextFileHandler>,
     pub write_text_file: Option<WriteTextFileHandler>,
     pub terminal: Option<Arc<TerminalFixture>>,
-    // When true, strips config_options from responses to test the legacy set_mode/set_model path.
-    #[allow(dead_code)]
-    pub strip_config_options: bool,
     // The model the server-side provider starts with. Defaults to TEST_MODEL.
     pub current_model: String,
     pub disable_session_naming: bool,
@@ -702,7 +705,6 @@ impl Default for TestConnectionConfig {
             read_text_file: None,
             write_text_file: None,
             terminal: None,
-            strip_config_options: false,
             current_model: TEST_MODEL.to_string(),
             disable_session_naming: true,
         }
@@ -739,7 +741,7 @@ pub trait Connection: Sized {
 
 #[async_trait]
 pub trait Session: std::fmt::Debug {
-    fn session_id(&self) -> &agent_client_protocol::schema::SessionId;
+    fn session_id(&self) -> &agent_client_protocol::schema::v1::SessionId;
     fn work_dir(&self) -> std::path::PathBuf;
     /// Drains and returns raw session updates collected by the fixture.
     fn session_updates(&self) -> Vec<SessionUpdate>;

@@ -52,7 +52,10 @@ pub mod local_inference;
 pub mod nanogpt;
 pub mod oauth;
 pub mod oauth_device_flow;
-pub mod ollama;
+pub mod ollama {
+    pub use goose_providers::ollama::*;
+}
+pub mod ollama_def;
 pub mod openai {
     pub use goose_providers::openai::*;
 }
@@ -62,6 +65,7 @@ pub mod openai_compatible {
 pub mod openrouter;
 pub mod pi_acp;
 pub mod provider_registry;
+pub mod provider_secrets;
 pub mod provider_test;
 mod retry {
     pub use goose_providers::retry::*;

@@ -1430,11 +1430,6 @@ export type Settings = {
     temperature?: number | null;
 };
 
-export type SetupResponse = {
-    message: string;
-    success: boolean;
-};
-
 export type SlashCommand = {
     command: string;
     command_type: CommandType;
@@ -1646,15 +1641,6 @@ export type TranscribeResponse = {
      */
     text: string;
 };
-
-export type TunnelInfo = {
-    hostname: string;
-    secret: string;
-    state: TunnelState;
-    url: string;
-};
-
-export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
 
 /**
  * UI-specific metadata for MCP resources
@@ -2728,32 +2714,6 @@ export type GetProviderModelsResponses = {
 
 export type GetProviderModelsResponse = GetProviderModelsResponses[keyof GetProviderModelsResponses];
 
-export type ConfigureProviderOauthData = {
-    body?: never;
-    path: {
-        /**
-         * Provider name
-         */
-        name: string;
-    };
-    query?: never;
-    url: '/config/providers/{name}/oauth';
-};
-
-export type ConfigureProviderOauthErrors = {
-    /**
-     * OAuth configuration failed
-     */
-    400: unknown;
-};
-
-export type ConfigureProviderOauthResponses = {
-    /**
-     * OAuth configuration completed
-     */
-    200: unknown;
-};
-
 export type ReadConfigData = {
     body: ConfigKeyQuery;
     path?: never;
@@ -3094,45 +3054,6 @@ export type TranscribeDictationResponses = {
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
 
-export type StartNanogptSetupData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/handle_nanogpt';
-};
-
-export type StartNanogptSetupResponses = {
-    200: SetupResponse;
-};
-
-export type StartNanogptSetupResponse = StartNanogptSetupResponses[keyof StartNanogptSetupResponses];
-
-export type StartOpenrouterSetupData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/handle_openrouter';
-};
-
-export type StartOpenrouterSetupResponses = {
-    200: SetupResponse;
-};
-
-export type StartOpenrouterSetupResponse = StartOpenrouterSetupResponses[keyof StartOpenrouterSetupResponses];
-
-export type StartTetrateSetupData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/handle_tetrate';
-};
-
-export type StartTetrateSetupResponses = {
-    200: SetupResponse;
-};
-
-export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
-
 export type ListBuiltinChatTemplatesData = {
     body?: never;
     path?: never;
@@ -3374,32 +3295,6 @@ export type SyncFeaturedModelsData = {
 export type SyncFeaturedModelsResponses = {
     /**
      * Featured models synced to registry
-     */
-    200: unknown;
-};
-
-export type McpUiProxyData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Secret key for authentication
-         */
-        secret: string;
-    };
-    url: '/mcp-ui-proxy';
-};
-
-export type McpUiProxyErrors = {
-    /**
-     * Unauthorized - invalid or missing secret
-     */
-    401: unknown;
-};
-
-export type McpUiProxyResponses = {
-    /**
-     * MCP UI proxy HTML page
      */
     200: unknown;
 };
@@ -4308,19 +4203,3 @@ export type SendTelemetryEventResponses = {
      */
     202: unknown;
 };
-
-export type GetTunnelStatusData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/tunnel/status';
-};
-
-export type GetTunnelStatusResponses = {
-    /**
-     * Tunnel info
-     */
-    200: TunnelInfo;
-};
-
-export type GetTunnelStatusResponse = GetTunnelStatusResponses[keyof GetTunnelStatusResponses];

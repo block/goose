@@ -10,7 +10,7 @@
     "license": {
       "name": "Apache-2.0"
     },
-    "version": "1.39.0"
+    "version": "1.40.0"
   },
   "paths": {
     "/action-required/tool-confirmation": {
@@ -1207,33 +1207,6 @@
         }
       }
     },
-    "/config/providers/{name}/oauth": {
-      "post": {
-        "tags": [
-          "super::routes::config_management"
-        ],
-        "operationId": "configure_provider_oauth",
-        "parameters": [
-          {
-            "name": "name",
-            "in": "path",
-            "description": "Provider name",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OAuth configuration completed"
-          },
-          "400": {
-            "description": "OAuth configuration failed"
-          }
-        }
-      }
-    },
     "/config/read": {
       "post": {
         "tags": [
@@ -1670,66 +1643,6 @@
         }
       }
     },
-    "/handle_nanogpt": {
-      "post": {
-        "tags": [
-          "super::routes::setup"
-        ],
-        "operationId": "start_nanogpt_setup",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SetupResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/handle_openrouter": {
-      "post": {
-        "tags": [
-          "super::routes::setup"
-        ],
-        "operationId": "start_openrouter_setup",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SetupResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/handle_tetrate": {
-      "post": {
-        "tags": [
-          "super::routes::setup"
-        ],
-        "operationId": "start_tetrate_setup",
-        "responses": {
-          "200": {
-            "description": "",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/SetupResponse"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
     "/local-inference/chat-templates/builtin": {
       "get": {
         "tags": [
@@ -2064,33 +1977,6 @@
         "responses": {
           "200": {
             "description": "Featured models synced to registry"
-          }
-        }
-      }
-    },
-    "/mcp-ui-proxy": {
-      "get": {
-        "tags": [
-          "super::routes::mcp_ui_proxy"
-        ],
-        "operationId": "mcp_ui_proxy",
-        "parameters": [
-          {
-            "name": "secret",
-            "in": "query",
-            "description": "Secret key for authentication",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "MCP UI proxy HTML page"
-          },
-          "401": {
-            "description": "Unauthorized - invalid or missing secret"
           }
         }
       }
@@ -3289,27 +3175,6 @@
         "responses": {
           "202": {
             "description": "Event accepted for processing"
-          }
-        }
-      }
-    },
-    "/tunnel/status": {
-      "get": {
-        "tags": [
-          "super::routes::tunnel"
-        ],
-        "summary": "Get tunnel info",
-        "operationId": "get_tunnel_status",
-        "responses": {
-          "200": {
-            "description": "Tunnel info",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/TunnelInfo"
-                }
-              }
-            }
           }
         }
       }
@@ -7787,21 +7652,6 @@
           }
         }
       },
-      "SetupResponse": {
-        "type": "object",
-        "required": [
-          "success",
-          "message"
-        ],
-        "properties": {
-          "message": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          }
-        }
-      },
       "SlashCommand": {
         "type": "object",
         "required": [
@@ -8401,39 +8251,6 @@
             "description": "Transcribed text from the audio"
           }
         }
-      },
-      "TunnelInfo": {
-        "type": "object",
-        "required": [
-          "state",
-          "url",
-          "hostname",
-          "secret"
-        ],
-        "properties": {
-          "hostname": {
-            "type": "string"
-          },
-          "secret": {
-            "type": "string"
-          },
-          "state": {
-            "$ref": "#/components/schemas/TunnelState"
-          },
-          "url": {
-            "type": "string"
-          }
-        }
-      },
-      "TunnelState": {
-        "type": "string",
-        "enum": [
-          "idle",
-          "starting",
-          "running",
-          "error",
-          "disabled"
-        ]
       },
       "UiMetadata": {
         "type": "object",

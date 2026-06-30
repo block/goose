@@ -274,10 +274,12 @@ impl AppsManagerClient {
 
         let model_config = self.context.model_config_for_session(session_id).await?;
 
-        let (response, usage) = provider
-            .complete(&model_config, session_id, &system_prompt, &messages, &tools)
-            .await
-            .map_err(|e| format!("LLM call failed: {}", e))?;
+        let (response, usage) = crate::session_context::with_session_id(
+            Some(session_id.to_string()),
+            provider.complete(&model_config, &system_prompt, &messages, &tools),
+        )
+        .await
+        .map_err(|e| format!("LLM call failed: {}", e))?;
 
         if let (Some(output), Some(max)) = (usage.usage.output_tokens, model_config.max_tokens) {
             if output >= max {
@@ -317,10 +319,12 @@ impl AppsManagerClient {
 
         let model_config = self.context.model_config_for_session(session_id).await?;
 
-        let (response, usage) = provider
-            .complete(&model_config, session_id, &system_prompt, &messages, &tools)
-            .await
-            .map_err(|e| format!("LLM call failed: {}", e))?;
+        let (response, usage) = crate::session_context::with_session_id(
+            Some(session_id.to_string()),
+            provider.complete(&model_config, &system_prompt, &messages, &tools),
+        )
+        .await
+        .map_err(|e| format!("LLM call failed: {}", e))?;
 
         if let (Some(output), Some(max)) = (usage.usage.output_tokens, model_config.max_tokens) {
             if output >= max {

@@ -1,10 +1,11 @@
-use tokio::task_local;
+use reqwest::header::{HeaderName, HeaderValue};
 
 pub const SESSION_ID_HEADER: &str = "agent-session-id";
+
 pub const TOOL_CALL_REQUEST_ID_HEADER: &str = "agent-tool-call-request-id";
 pub const WORKING_DIR_HEADER: &str = "agent-working-dir";
 
-task_local! {
+tokio::task_local! {
     pub static SESSION_ID: Option<String>;
 }
 
@@ -12,15 +13,27 @@ pub async fn with_session_id<F>(session_id: Option<String>, f: F) -> F::Output
 where
     F: std::future::Future,
 {
-    if let Some(id) = session_id {
-        SESSION_ID.scope(Some(id), f).await
-    } else {
-        f.await
-    }
+    SESSION_ID.scope(session_id, f).await
 }
 
 pub fn current_session_id() -> Option<String> {
     SESSION_ID.try_with(|id| id.clone()).ok().flatten()
+}
+
+pub fn session_id_request_builder() -> goose_providers::api_client::RequestBuilderDecorator {
+    std::sync::Arc::new(|request| {
+        let (client, request) = request.build_split();
+        let mut request = request?;
+        let session_header = HeaderName::from_static(SESSION_ID_HEADER);
+        request.headers_mut().remove(&session_header);
+
+        if let Some(session_id) = current_session_id() {
+            let value = HeaderValue::from_str(&session_id)?;
+            request.headers_mut().insert(session_header, value);
+        }
+
+        Ok(reqwest::RequestBuilder::from_parts(client, request))
+    })
 }
 
 /// Local OS user running goose, shared by the OTLP `user.name` resource
@@ -59,6 +72,21 @@ mod tests {
     async fn test_session_id_none_when_explicitly_none() {
         with_session_id(None, async {
             assert_eq!(current_session_id(), None);
+        })
+        .await;
+    }
+
+    #[tokio::test]
+    async fn test_session_id_none_clears_outer_scope() {
+        with_session_id(Some("outer-session".to_string()), async {
+            assert_eq!(current_session_id(), Some("outer-session".to_string()));
+
+            with_session_id(None, async {
+                assert_eq!(current_session_id(), None);
+            })
+            .await;
+
+            assert_eq!(current_session_id(), Some("outer-session".to_string()));
         })
         .await;
     }

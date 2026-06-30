@@ -49,7 +49,7 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client } from './api/client';
-import { GooseApp } from './api';
+import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
@@ -172,12 +172,20 @@ const validLanguageSettings = new Set<Settings['language']>([
   'system',
   'en',
   'es',
+  'fr',
+  'de',
+  'it',
+  'pt',
+  'id',
+  'ms',
+  'vi',
   'hi',
   'ja',
   'ko',
   'ru',
   'tr',
   'zh-CN',
+  'zh-TW',
 ]);
 
 function isValidLanguageSetting(value: unknown): value is Settings['language'] {
@@ -806,6 +814,7 @@ let appConfig = {
   GOOSE_LOCALE: process.env.GOOSE_LOCALE || undefined,
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
+  GOOSE_DISABLE_NOSTR_SHARING: process.env.GOOSE_DISABLE_NOSTR_SHARING === 'true',
 };
 
 const windowMap = new Map<number, BrowserWindow>();

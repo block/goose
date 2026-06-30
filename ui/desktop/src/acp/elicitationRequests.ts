@@ -5,7 +5,6 @@ import type {
   ElicitationSchema,
 } from '@agentclientprotocol/sdk';
 import { v7 as uuidv7 } from 'uuid';
-import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 import { acpChatSessionActions, acpElicitationUserInputRequestId } from './chatSessionStore';
 
 type SessionScopedFormElicitationRequest = CreateElicitationRequest & {
@@ -32,7 +31,7 @@ export const ACP_ELICITATION_TIMEOUT_SECONDS = 300;
 export async function requestAcpElicitation(
   request: CreateElicitationRequest
 ): Promise<CreateElicitationResponse> {
-  if (!USE_ACP_CHAT || !isSessionScopedFormElicitation(request)) {
+  if (!isSessionScopedFormElicitation(request)) {
     return cancelledElicitationResponse();
   }
 

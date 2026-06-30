@@ -1,7 +1,5 @@
 import { getAcpClient } from './acpConnection';
-import type { DiagnosticsReport } from '../api';
-
-export type DiagnosticsLevel = 'summary' | 'full';
+import type { DiagnosticsLevel, DiagnosticsReport } from '../types/diagnostics';
 
 export async function getDiagnosticsReport(
   sessionId: string,
