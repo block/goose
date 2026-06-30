@@ -58,13 +58,15 @@ async fn create_message(
             tracing::error!("Failed to resolve model config: {}", e);
             StatusCode::INTERNAL_SERVER_ERROR
         })?;
-    let (response, usage) = provider
-        .complete(&model_config, &session_id, system, &messages, &[])
-        .await
-        .map_err(|e| {
-            tracing::error!("Sampling completion failed: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let (response, usage) = goose::session_context::with_session_id(
+        Some(session_id.clone()),
+        provider.complete(&model_config, system, &messages, &[]),
+    )
+    .await
+    .map_err(|e| {
+        tracing::error!("Sampling completion failed: {}", e);
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let text = response.as_concat_text();
 

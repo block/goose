@@ -26,15 +26,16 @@ pub async fn test_provider_configuration(
         vec![]
     };
 
-    let mut stream = provider
-        .stream(
+    let mut stream = crate::session_context::with_session_id(
+        Some("test-session-id".to_string()),
+        provider.stream(
             &model_config,
-            "test-session-id",
             "You are an AI agent called goose. You use tools of connected extensions to solve problems.",
             &messages,
             &tools.into_iter().collect::<Vec<_>>(),
-        )
-        .await?;
+        ),
+    )
+    .await?;
 
     let first_chunk = stream
         .next()

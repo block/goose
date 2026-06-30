@@ -1193,36 +1193,6 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Sambung ke pelayan goose yang berjalan di tempat lain (memerlukan memulakan semula aplikasi)"
   },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Pilih satu pilihan untuk bermula."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Percuma & Peribadi"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Muat turun model dan jalankan sepenuhnya pada mesin anda. Tiada kunci API, tiada akaun."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Guna Model Tempatan"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Daftar untuk menerima 60J token percuma selama 7 hari."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Cuba Semula"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Akses pelbagai model AI dengan persediaan automatik. Daftar untuk menerima kredit $10."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router oleh Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Ralat tidak dijangka berlaku semasa persediaan."
-  },
   "goosehintsModal.close": {
     "defaultMessage": "Tutup"
   },
@@ -1817,9 +1787,6 @@
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Tunjukkan yang disyorkan sahaja"
   },
-  "localModelPicker.back": {
-    "defaultMessage": "Kembali"
-  },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Terbaik untuk mesin anda"
   },
@@ -1942,30 +1909,6 @@
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Bermain dalam Gambar-dalam-Gambar"
-  },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Batal"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Buka"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Buka Pautan Luaran"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Ini akan membuka: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "Buka pautan {protocol}?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Mesej diterima untuk {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "Mesej MCP-UI {messageType}"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Mesej diterima untuk {message}. Mesej {messageType} belum disokong lagi, rujuk konsol untuk butiran lanjut."
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# item dijumpai} other{# item dijumpai}}"
@@ -2804,14 +2747,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Sambung OpenAI, Anthropic, Google, dll"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Gunakan model setempat atau penyedia dengan kredit percuma"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Muat turun model dan jalankan sepenuhnya pada mesin anda. Tiada kunci API, tiada akaun."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Pilih penyedia"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Gunakan Penyedia Percuma/Setempat"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Guna Model Tempatan"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Tetapan Konfigurasi Penyedia"
@@ -4420,9 +4363,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Log"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI adalah eksperimen dan boleh berubah pada bila-bila masa."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Output"

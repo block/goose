@@ -59,14 +59,14 @@
   "authSettings.deleteCredential": {
     "defaultMessage": "删除凭据"
   },
+  "authSettings.deleted": {
+    "defaultMessage": "凭据已删除"
+  },
   "authSettings.deleteMessage": {
     "defaultMessage": "要删除 {provider} 的 {name} 凭据吗？"
   },
   "authSettings.deleteTitle": {
     "defaultMessage": "删除凭据"
-  },
-  "authSettings.deleted": {
-    "defaultMessage": "凭据已删除"
   },
   "authSettings.description": {
     "defaultMessage": "管理 goose 在本地存储的提供商凭据。"
@@ -92,11 +92,11 @@
   "authSettings.reauthorize": {
     "defaultMessage": "重新授权"
   },
-  "authSettings.signIn": {
-    "defaultMessage": "登录"
-  },
   "authSettings.signedIn": {
     "defaultMessage": "凭据已配置"
+  },
+  "authSettings.signIn": {
+    "defaultMessage": "登录"
   },
   "authSettings.storageProviderCache": {
     "defaultMessage": "提供商缓存"
@@ -116,6 +116,12 @@
   "baseChat.goHome": {
     "defaultMessage": "回到首页"
   },
+  "bottomMenuExtensionSelection.extensionsForNewChats": {
+    "defaultMessage": "新聊天使用的扩展"
+  },
+  "bottomMenuExtensionSelection.extensionsForThisSession": {
+    "defaultMessage": "当前聊天会话使用的扩展"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "扩展已更新"
   },
@@ -124,12 +130,6 @@
   },
   "bottomMenuExtensionSelection.extensionWillBeEnabled": {
     "defaultMessage": "{name} 将在新聊天中被启用"
-  },
-  "bottomMenuExtensionSelection.extensionsForNewChats": {
-    "defaultMessage": "新聊天使用的扩展"
-  },
-  "bottomMenuExtensionSelection.extensionsForThisSession": {
-    "defaultMessage": "当前聊天会话使用的扩展"
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "管理扩展"
@@ -632,11 +632,11 @@
   "customProviderForm.attachments": {
     "defaultMessage": "附件"
   },
-  "customProviderForm.authHint": {
-    "defaultMessage": "像 Ollama 这样的本地大模型通常不需要 API 密钥。"
-  },
   "customProviderForm.authentication": {
     "defaultMessage": "认证"
+  },
+  "customProviderForm.authHint": {
+    "defaultMessage": "像 Ollama 这样的本地大模型通常不需要 API 密钥。"
   },
   "customProviderForm.availableModels": {
     "defaultMessage": "可用模型（用逗号分隔）"
@@ -935,17 +935,20 @@
   "elicitationRequest.waitingForResponse": {
     "defaultMessage": "正在等待你的回复（剩余 {timeRemaining}）"
   },
+  "environmentBadge.dev": {
+    "defaultMessage": "开发"
+  },
   "envVarsSection.add": {
     "defaultMessage": "添加"
   },
   "envVarsSection.bothRequired": {
     "defaultMessage": "变量名和值都必须填写"
   },
-  "envVarsSection.envVarsDescription": {
-    "defaultMessage": "添加环境变量的键值对。填完两个字段后点击“+”按钮添加。若要修改已有的密钥值，点击编辑按钮。"
-  },
   "envVarsSection.environmentVariables": {
     "defaultMessage": "环境变量"
+  },
+  "envVarsSection.envVarsDescription": {
+    "defaultMessage": "添加环境变量的键值对。填完两个字段后点击“+”按钮添加。若要修改已有的密钥值，点击编辑按钮。"
   },
   "envVarsSection.noSpaces": {
     "defaultMessage": "变量名不能包含空格"
@@ -955,9 +958,6 @@
   },
   "envVarsSection.variableName": {
     "defaultMessage": "变量名"
-  },
-  "environmentBadge.dev": {
-    "defaultMessage": "开发"
   },
   "errorBoundary.errorGeneric": {
     "defaultMessage": "发生了错误。"
@@ -1118,9 +1118,6 @@
   "extensionModal.unsavedChangesTitle": {
     "defaultMessage": "未保存的更改"
   },
-  "extensionTimeoutField.timeoutLabel": {
-    "defaultMessage": "超时"
-  },
   "extensionsSection.addCustomExtension": {
     "defaultMessage": "添加自定义扩展"
   },
@@ -1150,6 +1147,9 @@
   },
   "extensionsView.searchPlaceholder": {
     "defaultMessage": "搜索扩展…"
+  },
+  "extensionTimeoutField.timeoutLabel": {
+    "defaultMessage": "超时"
   },
   "externalBackendSection.certFingerprint": {
     "defaultMessage": "证书指纹（可选）"
@@ -1192,36 +1192,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "连接到运行在其他位置的 goose 服务器（需要重启应用）"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "选择一个选项以开始。"
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "免费 & 私密"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "下载模型并完全运行在你的机器上。无需 API 密钥，无需账号。"
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "使用本地模型"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "注册即可获得 7 天 6000 万免费令牌。"
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "重试"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "通过自动设置访问多个 AI 模型。注册即可获得 $10 额度。"
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Tetrate 的 Agent Router"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "设置过程中发生意外错误。"
   },
   "goosehintsModal.close": {
     "defaultMessage": "关闭"
@@ -1391,11 +1361,11 @@
   "huggingFaceSignInPrompt.failedToConfigure": {
     "defaultMessage": "登录 Hugging Face 失败：{error}"
   },
-  "huggingFaceSignInPrompt.signIn": {
-    "defaultMessage": "登录"
-  },
   "huggingFaceSignInPrompt.signedIn": {
     "defaultMessage": "已登录 Hugging Face"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "登录"
   },
   "huggingFaceSignInPrompt.signingIn": {
     "defaultMessage": "正在登录..."
@@ -1430,14 +1400,14 @@
   "importRecipeForm.expectedRecipeStructure": {
     "defaultMessage": "期望的配方结构"
   },
+  "importRecipeForm.importing": {
+    "defaultMessage": "导入中…"
+  },
   "importRecipeForm.importRecipeButton": {
     "defaultMessage": "导入配方"
   },
   "importRecipeForm.importRecipeTitle": {
     "defaultMessage": "导入配方"
-  },
-  "importRecipeForm.importing": {
-    "defaultMessage": "导入中…"
   },
   "importRecipeForm.or": {
     "defaultMessage": "或"
@@ -1537,18 +1507,6 @@
   },
   "jsonSchemaForm.submit": {
     "defaultMessage": "提交"
-  },
-  "keyValueEditor.addValue": {
-    "defaultMessage": "添加预设值"
-  },
-  "keyValueEditor.defaultKeyPlaceholder": {
-    "defaultMessage": "参数名…"
-  },
-  "keyValueEditor.defaultValuePlaceholder": {
-    "defaultMessage": "参数值…"
-  },
-  "keyValueEditor.removeValue": {
-    "defaultMessage": "移除预设值 {key}"
   },
   "keyboardShortcuts.alwaysOnTopDescription": {
     "defaultMessage": "切换窗口始终置顶"
@@ -1694,6 +1652,18 @@
   "keyboardShortcuts.toggleNavigationLabel": {
     "defaultMessage": "切换导航"
   },
+  "keyValueEditor.addValue": {
+    "defaultMessage": "添加预设值"
+  },
+  "keyValueEditor.defaultKeyPlaceholder": {
+    "defaultMessage": "参数名…"
+  },
+  "keyValueEditor.defaultValuePlaceholder": {
+    "defaultMessage": "参数值…"
+  },
+  "keyValueEditor.removeValue": {
+    "defaultMessage": "移除预设值 {key}"
+  },
   "launcher.placeholder": {
     "defaultMessage": "问 goose 任何问题…"
   },
@@ -1733,17 +1703,17 @@
   "localInferenceSettings.downloadCancelled": {
     "defaultMessage": "下载已取消"
   },
-  "localInferenceSettings.downloadFailed": {
-    "defaultMessage": "下载失败"
-  },
-  "localInferenceSettings.downloadProgress": {
-    "defaultMessage": "{downloaded} / {total}（{percent}%）"
-  },
   "localInferenceSettings.downloadedModels": {
     "defaultMessage": "已下载的模型"
   },
+  "localInferenceSettings.downloadFailed": {
+    "defaultMessage": "下载失败"
+  },
   "localInferenceSettings.downloading": {
     "defaultMessage": "下载中"
+  },
+  "localInferenceSettings.downloadProgress": {
+    "defaultMessage": "{downloaded} / {total}（{percent}%）"
   },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "推荐模型"
@@ -1817,9 +1787,6 @@
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "仅显示推荐"
   },
-  "localModelPicker.back": {
-    "defaultMessage": "返回"
-  },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "最适合你的机器"
   },
@@ -1829,11 +1796,11 @@
   "localModelPicker.checkingModels": {
     "defaultMessage": "正在检查可用模型…"
   },
-  "localModelPicker.downloadModel": {
-    "defaultMessage": "下载 {modelId}（{size}）"
-  },
   "localModelPicker.downloading": {
     "defaultMessage": "正在下载 {modelId}"
+  },
+  "localModelPicker.downloadModel": {
+    "defaultMessage": "下载 {modelId}（{size}）"
   },
   "localModelPicker.failedToLoad": {
     "defaultMessage": "加载可用模型失败，请重试。"
@@ -1943,30 +1910,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "正在以画中画播放"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "取消"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "打开"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "打开外部链接"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "这将打开：{url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "打开 {protocol} 链接？"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "已收到 {message} 的消息。"
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "MCP-UI {messageType} 消息"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "已收到 {message} 的消息。目前尚不支持 {messageType} 类型的消息，详见控制台。"
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{找到 # 项} other{找到 # 项}}"
   },
@@ -2021,6 +1964,9 @@
   "messageQueue.paused": {
     "defaultMessage": "已暂停"
   },
+  "messageQueue.queued": {
+    "defaultMessage": "已排队"
+  },
   "messageQueue.queuePaused": {
     "defaultMessage": "队列已暂停"
   },
@@ -2029,9 +1975,6 @@
   },
   "messageQueue.queuePausedExpanded": {
     "defaultMessage": "队列因中断而暂停。使用“立即发送”或添加新消息以恢复。"
-  },
-  "messageQueue.queued": {
-    "defaultMessage": "已排队"
   },
   "messageQueue.removeFromQueue": {
     "defaultMessage": "将此消息从队列中移除"
@@ -2078,35 +2021,11 @@
   "microphoneSelector.test": {
     "defaultMessage": "测试"
   },
-  "modeSelectionItem.autonomousDescription": {
-    "defaultMessage": "完整文件修改能力，可自由编辑、创建和删除文件。"
-  },
-  "modeSelectionItem.autonomousLabel": {
-    "defaultMessage": "自主"
-  },
-  "modeSelectionItem.chatOnlyDescription": {
-    "defaultMessage": "仅与所选提供商交互，不使用工具或扩展。"
-  },
-  "modeSelectionItem.chatOnlyLabel": {
-    "defaultMessage": "仅聊天"
-  },
-  "modeSelectionItem.manualDescription": {
-    "defaultMessage": "所有工具、扩展和文件修改都需要人工批准"
-  },
-  "modeSelectionItem.manualLabel": {
-    "defaultMessage": "手动"
-  },
-  "modeSelectionItem.smartDescription": {
-    "defaultMessage": "根据风险级别智能判断哪些操作需要批准"
-  },
-  "modeSelectionItem.smartLabel": {
-    "defaultMessage": "智能"
+  "modelAndProviderContext.modelChangedTitle": {
+    "defaultMessage": "模型已切换"
   },
   "modelAndProviderContext.modelChangeFailed": {
     "defaultMessage": "{provider}/{model} 失败"
-  },
-  "modelAndProviderContext.modelChangedTitle": {
-    "defaultMessage": "模型已切换"
   },
   "modelAndProviderContext.selectModel": {
     "defaultMessage": "选择模型"
@@ -2119,6 +2038,27 @@
   },
   "modelAndProviderContext.unknownProviderTitle": {
     "defaultMessage": "提供商名称查找"
+  },
+  "modelsBottomBar.changeModel": {
+    "defaultMessage": "切换模型"
+  },
+  "modelsBottomBar.currentModel": {
+    "defaultMessage": "当前模型"
+  },
+  "modelsBottomBar.loadingModel": {
+    "defaultMessage": "正在加载模型…"
+  },
+  "modelsBottomBar.localModelSettings": {
+    "defaultMessage": "本地模型设置"
+  },
+  "modelsBottomBar.localModelSettingsTitle": {
+    "defaultMessage": "本地模型设置 — {modelName}"
+  },
+  "modelsBottomBar.resolvedModel": {
+    "defaultMessage": "解析后的模型"
+  },
+  "modelsBottomBar.selectModel": {
+    "defaultMessage": "选择模型"
   },
   "modelSettingsButtons.configureProviders": {
     "defaultMessage": "配置提供商"
@@ -2279,32 +2219,35 @@
   "modelSettingsPanel.topP": {
     "defaultMessage": "Top P"
   },
-  "modelsBottomBar.changeModel": {
-    "defaultMessage": "切换模型"
-  },
-  "modelsBottomBar.currentModel": {
-    "defaultMessage": "当前模型"
-  },
-  "modelsBottomBar.loadingModel": {
-    "defaultMessage": "正在加载模型…"
-  },
-  "modelsBottomBar.localModelSettings": {
-    "defaultMessage": "本地模型设置"
-  },
-  "modelsBottomBar.localModelSettingsTitle": {
-    "defaultMessage": "本地模型设置 — {modelName}"
-  },
-  "modelsBottomBar.resolvedModel": {
-    "defaultMessage": "解析后的模型"
-  },
-  "modelsBottomBar.selectModel": {
-    "defaultMessage": "选择模型"
-  },
   "modelsSection.resetDescription": {
     "defaultMessage": "清空已选的模型和提供商设置，重新开始"
   },
   "modelsSection.resetTitle": {
     "defaultMessage": "重置提供商和模型"
+  },
+  "modeSelectionItem.autonomousDescription": {
+    "defaultMessage": "完整文件修改能力，可自由编辑、创建和删除文件。"
+  },
+  "modeSelectionItem.autonomousLabel": {
+    "defaultMessage": "自主"
+  },
+  "modeSelectionItem.chatOnlyDescription": {
+    "defaultMessage": "仅与所选提供商交互，不使用工具或扩展。"
+  },
+  "modeSelectionItem.chatOnlyLabel": {
+    "defaultMessage": "仅聊天"
+  },
+  "modeSelectionItem.manualDescription": {
+    "defaultMessage": "所有工具、扩展和文件修改都需要人工批准"
+  },
+  "modeSelectionItem.manualLabel": {
+    "defaultMessage": "手动"
+  },
+  "modeSelectionItem.smartDescription": {
+    "defaultMessage": "根据风险级别智能判断哪些操作需要批准"
+  },
+  "modeSelectionItem.smartLabel": {
+    "defaultMessage": "智能"
   },
   "navigation.itemApps": {
     "defaultMessage": "应用"
@@ -2585,11 +2528,11 @@
   "promptsSettings.edit": {
     "defaultMessage": "编辑"
   },
-  "promptsSettings.editPromptTitle": {
-    "defaultMessage": "编辑：{name}"
-  },
   "promptsSettings.editingLabel": {
     "defaultMessage": "正在编辑：{name}"
+  },
+  "promptsSettings.editPromptTitle": {
+    "defaultMessage": "编辑：{name}"
   },
   "promptsSettings.enterPromptContent": {
     "defaultMessage": "输入提示词内容…"
@@ -2699,11 +2642,11 @@
   "providerConfigForm.noApiKey": {
     "defaultMessage": "没有 API 密钥？"
   },
-  "providerConfigForm.signInWith": {
-    "defaultMessage": "使用 {providerName} 登录"
-  },
   "providerConfigForm.signingIn": {
     "defaultMessage": "登录中…"
+  },
+  "providerConfigForm.signInWith": {
+    "defaultMessage": "使用 {providerName} 登录"
   },
   "providerConfigurationModal.addApiKeyDescription": {
     "defaultMessage": "添加此提供商的 API 密钥以接入 goose"
@@ -2765,11 +2708,11 @@
   "providerConfigurationModal.seeDocumentation": {
     "defaultMessage": "详见 <link>文档</link>。"
   },
-  "providerConfigurationModal.signInWith": {
-    "defaultMessage": "使用 {providerName} 登录"
-  },
   "providerConfigurationModal.signingIn": {
     "defaultMessage": "登录中…"
+  },
+  "providerConfigurationModal.signInWith": {
+    "defaultMessage": "使用 {providerName} 登录"
   },
   "providerGrid.addProvider": {
     "defaultMessage": "添加提供商"
@@ -2804,14 +2747,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "连接 OpenAI、Anthropic、Google 等"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "使用本地模型或带有免费额度的提供商"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "下载模型并完全运行在你的机器上。无需 API 密钥，无需账号。"
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "选择提供商"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "使用免费/本地提供商"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "使用本地模型"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "提供商配置项"
@@ -2999,39 +2942,6 @@
   "recipeNameField.formatHint": {
     "defaultMessage": "将自动格式化（小写字母，空格转为短横线）"
   },
-  "recipeWarningModal.cancel": {
-    "defaultMessage": "取消"
-  },
-  "recipeWarningModal.descriptionLabel": {
-    "defaultMessage": "描述："
-  },
-  "recipeWarningModal.firstTimeDescription": {
-    "defaultMessage": "你即将执行一个从未运行过的配方。"
-  },
-  "recipeWarningModal.hiddenCharsWarning": {
-    "defaultMessage": "此配方包含隐藏字符，为了你的安全这些字符会被忽略，因为它们可能被用于恶意目的。"
-  },
-  "recipeWarningModal.instructionsLabel": {
-    "defaultMessage": "指令："
-  },
-  "recipeWarningModal.newRecipeWarningTitle": {
-    "defaultMessage": "⚠️ 新配方警告"
-  },
-  "recipeWarningModal.recipePreview": {
-    "defaultMessage": "配方预览："
-  },
-  "recipeWarningModal.securityWarningTitle": {
-    "defaultMessage": "⚠️ 安全警告"
-  },
-  "recipeWarningModal.titleLabel": {
-    "defaultMessage": "标题："
-  },
-  "recipeWarningModal.trustAndExecute": {
-    "defaultMessage": "信任并执行"
-  },
-  "recipeWarningModal.trustSource": {
-    "defaultMessage": "只有在你信任此配方来源的情况下才应继续。"
-  },
   "recipesView.addSchedule": {
     "defaultMessage": "添加计划"
   },
@@ -3206,6 +3116,39 @@
   "recipesView.yamlFiles": {
     "defaultMessage": "YAML 文件"
   },
+  "recipeWarningModal.cancel": {
+    "defaultMessage": "取消"
+  },
+  "recipeWarningModal.descriptionLabel": {
+    "defaultMessage": "描述："
+  },
+  "recipeWarningModal.firstTimeDescription": {
+    "defaultMessage": "你即将执行一个从未运行过的配方。"
+  },
+  "recipeWarningModal.hiddenCharsWarning": {
+    "defaultMessage": "此配方包含隐藏字符，为了你的安全这些字符会被忽略，因为它们可能被用于恶意目的。"
+  },
+  "recipeWarningModal.instructionsLabel": {
+    "defaultMessage": "指令："
+  },
+  "recipeWarningModal.newRecipeWarningTitle": {
+    "defaultMessage": "⚠️ 新配方警告"
+  },
+  "recipeWarningModal.recipePreview": {
+    "defaultMessage": "配方预览："
+  },
+  "recipeWarningModal.securityWarningTitle": {
+    "defaultMessage": "⚠️ 安全警告"
+  },
+  "recipeWarningModal.titleLabel": {
+    "defaultMessage": "标题："
+  },
+  "recipeWarningModal.trustAndExecute": {
+    "defaultMessage": "信任并执行"
+  },
+  "recipeWarningModal.trustSource": {
+    "defaultMessage": "只有在你信任此配方来源的情况下才应继续。"
+  },
   "resetProviderSection.resetButton": {
     "defaultMessage": "重置提供商和模型"
   },
@@ -3239,11 +3182,11 @@
   "scheduleDetailView.cronExpression": {
     "defaultMessage": "Cron 表达式："
   },
-  "scheduleDetailView.currentSession": {
-    "defaultMessage": "当前会话："
-  },
   "scheduleDetailView.currentlyRunning": {
     "defaultMessage": "正在运行"
+  },
+  "scheduleDetailView.currentSession": {
+    "defaultMessage": "当前会话："
   },
   "scheduleDetailView.dir": {
     "defaultMessage": "目录：{path}"
@@ -3302,12 +3245,6 @@
   "scheduleDetailView.noSessions": {
     "defaultMessage": "此计划下没有会话。"
   },
-  "scheduleDetailView.pauseSchedule": {
-    "defaultMessage": "暂停计划"
-  },
-  "scheduleDetailView.pauseUnpauseError": {
-    "defaultMessage": "暂停/取消暂停错误"
-  },
   "scheduleDetailView.paused": {
     "defaultMessage": "已暂停"
   },
@@ -3316,6 +3253,12 @@
   },
   "scheduleDetailView.pausedWarning": {
     "defaultMessage": "此计划已暂停，将不会自动运行。使用“立即运行计划”手动触发，或取消暂停以恢复自动执行。"
+  },
+  "scheduleDetailView.pauseSchedule": {
+    "defaultMessage": "暂停计划"
+  },
+  "scheduleDetailView.pauseUnpauseError": {
+    "defaultMessage": "暂停/取消暂停错误"
   },
   "scheduleDetailView.processStarted": {
     "defaultMessage": "进程已启动："
@@ -3362,17 +3305,17 @@
   "scheduleDetailView.sessionId": {
     "defaultMessage": "会话 ID：{id}"
   },
-  "scheduleDetailView.unpauseSchedule": {
-    "defaultMessage": "恢复计划"
-  },
   "scheduleDetailView.unpausedMsg": {
     "defaultMessage": "已恢复“{id}”"
   },
-  "scheduleDetailView.updateScheduleError": {
-    "defaultMessage": "更新计划错误"
+  "scheduleDetailView.unpauseSchedule": {
+    "defaultMessage": "恢复计划"
   },
   "scheduleDetailView.updatedMsg": {
     "defaultMessage": "已更新“{id}”"
+  },
+  "scheduleDetailView.updateScheduleError": {
+    "defaultMessage": "更新计划错误"
   },
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "正在查看计划 ID：{id}"
@@ -3494,11 +3437,11 @@
   "schedulesView.pause": {
     "defaultMessage": "暂停"
   },
-  "schedulesView.pauseError": {
-    "defaultMessage": "暂停计划错误"
-  },
   "schedulesView.paused": {
     "defaultMessage": "已暂停"
+  },
+  "schedulesView.pauseError": {
+    "defaultMessage": "暂停计划错误"
   },
   "schedulesView.refresh": {
     "defaultMessage": "刷新"
@@ -3518,6 +3461,9 @@
   "schedulesView.schedulePausedMsg": {
     "defaultMessage": "已成功暂停计划“{id}”"
   },
+  "schedulesView.scheduler": {
+    "defaultMessage": "调度"
+  },
   "schedulesView.scheduleUnpaused": {
     "defaultMessage": "计划已恢复"
   },
@@ -3529,9 +3475,6 @@
   },
   "schedulesView.scheduleUpdatedMsg": {
     "defaultMessage": "已成功更新计划“{id}”"
-  },
-  "schedulesView.scheduler": {
-    "defaultMessage": "调度"
   },
   "schedulesView.unpauseError": {
     "defaultMessage": "恢复计划错误"
@@ -3635,14 +3578,14 @@
   "sessionActionsHeader.copyText": {
     "defaultMessage": "Copy text"
   },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "Session duplicated"
+  },
   "sessionActionsHeader.duplicateFailed": {
     "defaultMessage": "Failed to duplicate session: {error}"
   },
   "sessionActionsHeader.duplicateSession": {
     "defaultMessage": "Duplicate session"
-  },
-  "sessionActionsHeader.duplicated": {
-    "defaultMessage": "Session duplicated"
   },
   "sessionActionsHeader.fullTextTitle": {
     "defaultMessage": "Text value"
@@ -3656,6 +3599,9 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Loading JSON..."
   },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "Session renamed"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Failed to rename session: {error}"
   },
@@ -3667,9 +3613,6 @@
   },
   "sessionActionsHeader.renameTitle": {
     "defaultMessage": "Rename Session"
-  },
-  "sessionActionsHeader.renamed": {
-    "defaultMessage": "Session renamed"
   },
   "sessionActionsHeader.save": {
     "defaultMessage": "Save"
@@ -3688,24 +3631,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "流式传输中"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "此会话不包含任何消息"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "未找到消息"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "加载会话详情出错"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "重试"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "你"
   },
   "sessions.action.delete": {
     "defaultMessage": "删除会话"
@@ -3764,6 +3689,9 @@
   "sessions.import": {
     "defaultMessage": "导入会话"
   },
+  "sessions.importing": {
+    "defaultMessage": "正在导入..."
+  },
   "sessions.importNostr": {
     "defaultMessage": "导入链接"
   },
@@ -3775,9 +3703,6 @@
   },
   "sessions.importNostr.title": {
     "defaultMessage": "导入 Nostr 会话"
-  },
-  "sessions.importing": {
-    "defaultMessage": "正在导入..."
   },
   "sessions.loadingMore": {
     "defaultMessage": "正在加载更多会话…"
@@ -3806,26 +3731,26 @@
   "sessions.toast.copied": {
     "defaultMessage": "已复制到剪贴板"
   },
-  "sessions.toast.deleteFailed": {
-    "defaultMessage": "删除会话“{name}”失败：{error}"
-  },
   "sessions.toast.deleted": {
     "defaultMessage": "会话删除成功"
   },
-  "sessions.toast.duplicateFailed": {
-    "defaultMessage": "复制会话失败：{error}"
+  "sessions.toast.deleteFailed": {
+    "defaultMessage": "删除会话“{name}”失败：{error}"
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "会话“{name}”复制成功"
   },
+  "sessions.toast.duplicateFailed": {
+    "defaultMessage": "复制会话失败：{error}"
+  },
   "sessions.toast.exported": {
     "defaultMessage": "会话导出成功"
   },
-  "sessions.toast.importFailed": {
-    "defaultMessage": "导入会话失败：{error}"
-  },
   "sessions.toast.imported": {
     "defaultMessage": "会话导入成功"
+  },
+  "sessions.toast.importFailed": {
+    "defaultMessage": "导入会话失败：{error}"
   },
   "sessions.toast.shareNostr": {
     "defaultMessage": "已创建加密的 Nostr 分享链接"
@@ -3833,11 +3758,29 @@
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "创建 Nostr 分享链接失败：{error}"
   },
+  "sessions.toast.updated": {
+    "defaultMessage": "会话描述更新成功"
+  },
   "sessions.toast.updateFailed": {
     "defaultMessage": "更新会话描述失败：{error}"
   },
-  "sessions.toast.updated": {
-    "defaultMessage": "会话描述更新成功"
+  "sessionViewComponents.empty.description": {
+    "defaultMessage": "此会话不包含任何消息"
+  },
+  "sessionViewComponents.empty.title": {
+    "defaultMessage": "未找到消息"
+  },
+  "sessionViewComponents.error.loading": {
+    "defaultMessage": "加载会话详情出错"
+  },
+  "sessionViewComponents.error.tryAgain": {
+    "defaultMessage": "重试"
+  },
+  "sessionViewComponents.role.assistant": {
+    "defaultMessage": "Goose"
+  },
+  "sessionViewComponents.role.user": {
+    "defaultMessage": "你"
   },
   "settings.appearance.description": {
     "defaultMessage": "配置 goose 在你系统中的外观"
@@ -4379,11 +4322,11 @@
   "themeSelector.theme": {
     "defaultMessage": "主题"
   },
-  "toolApprovalButtons.allowOnce": {
-    "defaultMessage": "仅此次允许"
-  },
   "toolApprovalButtons.allowedOnce": {
     "defaultMessage": "已单次允许"
+  },
+  "toolApprovalButtons.allowOnce": {
+    "defaultMessage": "仅此次允许"
   },
   "toolApprovalButtons.alwaysAllow": {
     "defaultMessage": "始终允许"
@@ -4420,9 +4363,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "日志"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI 是实验性功能，随时可能更改。"
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "输出"
@@ -4469,17 +4409,17 @@
   "updateSection.disableAutoDownloadDesc": {
     "defaultMessage": "启用后，Goose 会通知你有新版本，但不会自动下载。"
   },
-  "updateSection.downloadNow": {
-    "defaultMessage": "立即下载"
-  },
-  "updateSection.downloadReady": {
-    "defaultMessage": "更新已下载，可以安装！"
-  },
   "updateSection.downloadingProgress": {
     "defaultMessage": "正在下载更新… {percent}%"
   },
   "updateSection.downloadingUpdate": {
     "defaultMessage": "正在下载更新…"
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "立即下载"
+  },
+  "updateSection.downloadReady": {
+    "defaultMessage": "更新已下载，可以安装！"
   },
   "updateSection.installAndRestart": {
     "defaultMessage": "安装并重启"
@@ -4505,11 +4445,11 @@
   "updateSection.readyInstallManual": {
     "defaultMessage": "✓ 更新已就绪！点击“安装并重启”查看安装说明。"
   },
-  "updateSection.upToDate": {
-    "defaultMessage": "（已是最新）"
-  },
   "updateSection.updateAvailable": {
     "defaultMessage": "有可用更新！"
+  },
+  "updateSection.upToDate": {
+    "defaultMessage": "（已是最新）"
   },
   "updateSection.versionAvailable": {
     "defaultMessage": "→ {version} 可用"

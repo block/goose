@@ -204,7 +204,6 @@ impl Provider for GeminiCliProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        _session_id: &str, // CLI has no external session-id flag to propagate.
         system: &str,
         messages: &[Message],
         _tools: &[Tool],

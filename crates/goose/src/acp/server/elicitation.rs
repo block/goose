@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     CreateElicitationRequest, CreateElicitationResponse, ElicitationAction as AcpElicitationAction,
     ElicitationFormMode, ElicitationSchema, ElicitationSessionScope, Meta, SessionId,
     CLIENT_METHOD_NAMES,
@@ -204,7 +204,7 @@ impl JsonRpcResponse for CreateElicitationResponseMessage {
 }
 
 pub(super) fn client_supports_form_elicitation(
-    args: &agent_client_protocol::schema::InitializeRequest,
+    args: &agent_client_protocol::schema::v1::InitializeRequest,
 ) -> bool {
     args.client_capabilities
         .elicitation

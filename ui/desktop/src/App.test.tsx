@@ -8,6 +8,7 @@ import { screen, render, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { AppInner, resolveSessionInitialMessage } from './App';
 import { IntlTestWrapper } from './i18n/test-utils';
+import { FeaturesProvider } from './contexts/FeaturesContext';
 
 // Set up globals for jsdom
 Object.defineProperty(window, 'location', {
@@ -48,6 +49,10 @@ vi.mock('./sessions', () => ({
     .mockResolvedValue({ sessionId: 'test', messages: [], metadata: { description: '' } }),
   generateSessionId: vi.fn(),
   createSession: vi.fn(),
+}));
+
+vi.mock('./acp/capabilities', () => ({
+  getAcpFeatureCapabilities: vi.fn().mockResolvedValue({ localInference: true }),
 }));
 
 // Mock the ACP providers module used by OnboardingGuard so it doesn't try to
@@ -186,6 +191,14 @@ Object.defineProperty(window, 'matchMedia', {
   })),
 });
 
+function AppInnerTestWrapper({ children }: { children: React.ReactNode }) {
+  return (
+    <IntlTestWrapper>
+      <FeaturesProvider>{children}</FeaturesProvider>
+    </IntlTestWrapper>
+  );
+}
+
 describe('App Component - Brand New State', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -218,7 +231,7 @@ describe('App Component - Brand New State', () => {
       GOOSE_ALLOWLIST_WARNING: false,
     });
 
-    render(<AppInner />, { wrapper: IntlTestWrapper });
+    render(<AppInner />, { wrapper: AppInnerTestWrapper });
 
     // Wait for initialization
     await waitFor(() => {
@@ -241,7 +254,7 @@ describe('App Component - Brand New State', () => {
     // Set up search params to simulate view=settings deep link
     mockSearchParams.set('view', 'settings');
 
-    render(<AppInner />, { wrapper: IntlTestWrapper });
+    render(<AppInner />, { wrapper: AppInnerTestWrapper });
 
     // Wait for initialization
     await waitFor(() => {
@@ -259,7 +272,7 @@ describe('App Component - Brand New State', () => {
       GOOSE_ALLOWLIST_WARNING: false,
     });
 
-    render(<AppInner />, { wrapper: IntlTestWrapper });
+    render(<AppInner />, { wrapper: AppInnerTestWrapper });
 
     // Wait for initialization
     await waitFor(() => {
@@ -277,13 +290,15 @@ describe('App Component - Brand New State', () => {
       GOOSE_ALLOWLIST_WARNING: false,
     });
 
-    render(<AppInner />, { wrapper: IntlTestWrapper });
+    render(<AppInner />, { wrapper: AppInnerTestWrapper });
 
     await waitFor(() => {
       expect(mockElectron.reactReady).toHaveBeenCalled();
     });
 
-    const newChatHandler = mockElectron.on.mock.calls.find(([channel]) => channel === 'new-chat')?.[1];
+    const newChatHandler = mockElectron.on.mock.calls.find(
+      ([channel]) => channel === 'new-chat'
+    )?.[1];
     expect(newChatHandler).toBeDefined();
 
     newChatHandler?.({} as any);

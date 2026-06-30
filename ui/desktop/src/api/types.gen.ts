@@ -1430,11 +1430,6 @@ export type Settings = {
     temperature?: number | null;
 };
 
-export type SetupResponse = {
-    message: string;
-    success: boolean;
-};
-
 export type SlashCommand = {
     command: string;
     command_type: CommandType;
@@ -3059,45 +3054,6 @@ export type TranscribeDictationResponses = {
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
 
-export type StartNanogptSetupData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/handle_nanogpt';
-};
-
-export type StartNanogptSetupResponses = {
-    200: SetupResponse;
-};
-
-export type StartNanogptSetupResponse = StartNanogptSetupResponses[keyof StartNanogptSetupResponses];
-
-export type StartOpenrouterSetupData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/handle_openrouter';
-};
-
-export type StartOpenrouterSetupResponses = {
-    200: SetupResponse;
-};
-
-export type StartOpenrouterSetupResponse = StartOpenrouterSetupResponses[keyof StartOpenrouterSetupResponses];
-
-export type StartTetrateSetupData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/handle_tetrate';
-};
-
-export type StartTetrateSetupResponses = {
-    200: SetupResponse;
-};
-
-export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
-
 export type ListBuiltinChatTemplatesData = {
     body?: never;
     path?: never;
@@ -3339,32 +3295,6 @@ export type SyncFeaturedModelsData = {
 export type SyncFeaturedModelsResponses = {
     /**
      * Featured models synced to registry
-     */
-    200: unknown;
-};
-
-export type McpUiProxyData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Secret key for authentication
-         */
-        secret: string;
-    };
-    url: '/mcp-ui-proxy';
-};
-
-export type McpUiProxyErrors = {
-    /**
-     * Unauthorized - invalid or missing secret
-     */
-    401: unknown;
-};
-
-export type McpUiProxyResponses = {
-    /**
-     * MCP UI proxy HTML page
      */
     200: unknown;
 };

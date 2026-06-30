@@ -1193,36 +1193,6 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Verbindung zu einem anderswo laufenden goose-Server herstellen (erfordert Neustart der App)"
   },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Wählen Sie eine Option, um loszulegen."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Kostenlos & privat"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Laden Sie ein Modell herunter und führen Sie es vollständig auf Ihrem Rechner aus. Keine API-Schlüssel, keine Konten."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Ein lokales Modell verwenden"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Registrieren Sie sich, um 7 Tage lang 60 Mio. kostenlose Token zu erhalten."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Erneut versuchen"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Greifen Sie mit automatischer Einrichtung auf mehrere KI-Modelle zu. Registrieren Sie sich, um ein Guthaben von 10 $ zu erhalten."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router von Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Bei der Einrichtung ist ein unerwarteter Fehler aufgetreten."
-  },
   "goosehintsModal.close": {
     "defaultMessage": "Schließen"
   },
@@ -1817,9 +1787,6 @@
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Nur empfohlene anzeigen"
   },
-  "localModelPicker.back": {
-    "defaultMessage": "Zurück"
-  },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Am besten für Ihren Computer"
   },
@@ -1942,30 +1909,6 @@
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Wiedergabe im Bild-in-Bild-Modus"
-  },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Abbrechen"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Öffnen"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Externen Link öffnen"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Dies öffnet: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "{protocol}-Link öffnen?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Nachricht für {message} empfangen."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "MCP-UI-Nachricht {messageType}"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Nachricht für {message} empfangen. Nachrichten vom Typ {messageType} werden noch nicht unterstützt, weitere Details finden Sie in der Konsole."
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# Element gefunden} other{# Elemente gefunden}}"
@@ -2804,14 +2747,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Verbinden Sie OpenAI, Anthropic, Google usw."
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Verwenden Sie ein lokales Modell oder einen Anbieter mit kostenlosem Guthaben"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Laden Sie ein Modell herunter und führen Sie es vollständig auf Ihrem Rechner aus. Keine API-Schlüssel, keine Konten."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Einen Anbieter auswählen"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Kostenlose/lokale Anbieter verwenden"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Ein lokales Modell verwenden"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Einstellungen zur Anbieterkonfiguration"
@@ -4420,9 +4363,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Protokolle"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI ist experimentell und kann sich jederzeit ändern."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Ausgabe"

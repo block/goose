@@ -1193,36 +1193,6 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Connettiti a un server goose in esecuzione altrove (richiede il riavvio dell'app)"
   },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Scegli un'opzione per iniziare."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Gratuito e privato"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Scarica un modello ed eseguilo interamente sul tuo computer. Niente chiavi API, niente account."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Usa un modello locale"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Registrati per ricevere 60 milioni di token gratuiti per 7 giorni."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Riprova"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Accedi a più modelli di IA con configurazione automatica. Registrati per ricevere 10 $ di credito."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router di Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Si è verificato un errore imprevisto durante la configurazione."
-  },
   "goosehintsModal.close": {
     "defaultMessage": "Chiudi"
   },
@@ -1817,9 +1787,6 @@
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Mostra solo i consigliati"
   },
-  "localModelPicker.back": {
-    "defaultMessage": "Indietro"
-  },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Ideale per la tua macchina"
   },
@@ -1942,30 +1909,6 @@
   },
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "In riproduzione in Picture-in-Picture"
-  },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Annulla"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Apri"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Apri link esterno"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Questo aprirà: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "Aprire il link {protocol}?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Messaggio ricevuto per {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "Messaggio MCP-UI {messageType}"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Messaggio ricevuto per {message}. I messaggi {messageType} non sono ancora supportati, consulta la console per maggiori dettagli."
   },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count,plural,one{# elemento trovato} other{# elementi trovati}}"
@@ -2804,14 +2747,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Connetti OpenAI, Anthropic, Google, ecc."
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Usa un modello locale o un provider con crediti gratuiti"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Scarica un modello ed eseguilo interamente sul tuo computer. Niente chiavi API, niente account."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Seleziona un provider"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Usa provider gratuiti/locali"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Usa un modello locale"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Impostazioni di configurazione del provider"
@@ -4420,9 +4363,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Log"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "L'interfaccia MCP è sperimentale e può cambiare in qualsiasi momento."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Output"

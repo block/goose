@@ -1,7 +1,7 @@
 use super::*;
 use crate::agents::extension::Envs;
 use crate::config::extensions::ExtensionEntry;
-use agent_client_protocol::schema::{HttpHeader, McpServer, McpServerHttp, McpServerStdio};
+use agent_client_protocol::schema::v1::{HttpHeader, McpServer, McpServerHttp, McpServerStdio};
 
 impl GooseAcpAgent {
     pub(super) async fn on_add_session_extension(
@@ -362,7 +362,7 @@ fn empty_string_to_none(value: &str) -> Option<String> {
 mod tests {
     use super::*;
     use crate::agents::extension::Envs;
-    use agent_client_protocol::schema::{McpServer, McpServerSse};
+    use agent_client_protocol::schema::v1::{McpServer, McpServerSse};
     use std::collections::HashMap;
 
     #[test]
@@ -641,8 +641,11 @@ mod tests {
     fn goose_mcp_stdio_extension_extracts_literal_envs_for_config_add() {
         let extension = GooseExtension::Mcp {
             server: McpServer::Stdio(McpServerStdio::new("test-stdio", "test-command").env(vec![
-                agent_client_protocol::schema::EnvVariable::new("SECRET_TOKEN", "literal-secret"),
-                agent_client_protocol::schema::EnvVariable::new("OTHER_TOKEN", "other-secret"),
+                agent_client_protocol::schema::v1::EnvVariable::new(
+                    "SECRET_TOKEN",
+                    "literal-secret",
+                ),
+                agent_client_protocol::schema::v1::EnvVariable::new("OTHER_TOKEN", "other-secret"),
             ])),
             env_keys: vec!["SECRET_TOKEN".to_string()],
             description: Some("Test stdio".to_string()),

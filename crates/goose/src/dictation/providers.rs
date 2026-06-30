@@ -287,7 +287,7 @@ pub async fn transcribe_with_provider(
         .text(model_param, model_value);
 
     let response = client
-        .request(None, &endpoint_path)
+        .request(&endpoint_path)
         .multipart_post(form)
         .await
         .map_err(|e| {

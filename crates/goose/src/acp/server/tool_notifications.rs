@@ -1,4 +1,4 @@
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     Meta, SessionUpdate, ToolCallId, ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields,
 };
 use rmcp::model::{LoggingMessageNotificationParam, ProgressNotificationParam, ServerNotification};
