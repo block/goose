@@ -639,7 +639,7 @@ mod tests {
         // formatter. Without max_tokens set there is nothing to clamp against.
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("low"));
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
         config.request_params = Some(params);
         config.reasoning = Some(true);
         config.max_tokens = Some(3000);
@@ -662,7 +662,7 @@ mod tests {
         // cap, thinking is dropped rather than emitting an unsatisfiable request.
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("low"));
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
         config.request_params = Some(params);
         config.reasoning = Some(true);
         config.max_tokens = Some(1500);
@@ -1338,7 +1338,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_inference_config_sets_max_tokens_and_temperature() {
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let mut config = ModelConfig::new("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
         config.max_tokens = Some(8192);
         config.temperature = Some(0.5);
 
@@ -1350,7 +1350,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_inference_config_omits_max_tokens_without_config() {
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let mut config = ModelConfig::new("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
         config.max_tokens = None;
         config.temperature = None;
 
@@ -1367,7 +1367,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_inference_config_sends_explicit_max_tokens() {
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let mut config = ModelConfig::new("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
         config.max_tokens = Some(4096);
 
         let inference_config = bedrock_inference_config(&config);
@@ -1381,7 +1381,7 @@ mod tests {
         // The Anthropic canonical registry maps this id and reports whether a
         // custom temperature may be sent; when it cannot, temperature is left
         // unset so the server default is used.
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        let mut config = ModelConfig::new("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
         config.temperature = Some(0.5);
 
         let supported = bedrock_model_supports_temperature(&config);
@@ -1396,7 +1396,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_inference_config_omits_temperature_for_bedrock_registry_unsupported_model() {
-        let mut config = ModelConfig::new_or_fail("openai.gpt-5.4");
+        let mut config = ModelConfig::new("openai.gpt-5.4");
         config.temperature = Some(0.5);
 
         let inference_config = bedrock_inference_config(&config);
