@@ -1,4 +1,4 @@
-use rand::seq::SliceRandom;
+use rand::seq::IndexedRandom;
 
 /// Extended list of playful thinking messages including both goose and general AI actions
 const THINKING_MESSAGES: &[&str] = &[
@@ -215,6 +215,6 @@ const THINKING_MESSAGES: &[&str] = &[
 /// Returns a random thinking message from the extended list
 pub fn get_random_thinking_message() -> &'static str {
     THINKING_MESSAGES
-        .choose(&mut rand::thread_rng())
+        .choose(&mut rand::rng())
         .unwrap_or(&THINKING_MESSAGES[0])
 }

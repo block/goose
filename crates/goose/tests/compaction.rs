@@ -101,7 +101,6 @@ impl Provider for MockCompactionProvider {
     async fn stream(
         &self,
         _model_config: &ModelConfig,
-        _session_id: &str,
         system_prompt: &str,
         messages: &[Message],
         _tools: &[Tool],
@@ -170,18 +169,12 @@ impl Provider for MockCompactionProvider {
         Ok(stream_from_single_message(message, usage))
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        ModelConfig::new("mock-model").unwrap()
-    }
-
     fn get_name(&self) -> &str {
         "mock-compaction"
     }
 }
 
-impl ProviderDef for MockCompactionProvider {
-    type Provider = Self;
-
+impl goose::providers::base::ProviderDescriptor for MockCompactionProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata {
             name: "mock".to_string(),
@@ -193,11 +186,15 @@ impl ProviderDef for MockCompactionProvider {
             config_keys: vec![],
             setup_steps: vec![],
             model_selection_hint: None,
+            fast_model: None,
         }
     }
+}
+
+impl ProviderDef for MockCompactionProvider {
+    type Provider = Self;
 
     fn from_env(
-        _model: ModelConfig,
         _extensions: Vec<goose::config::ExtensionConfig>,
         _tls_config: Option<goose::providers::api_client::TlsConfig>,
     ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
@@ -346,7 +343,9 @@ async fn test_manual_compaction_updates_token_counts_and_conversation() -> Resul
 
     // Setup mock provider
     let provider = Arc::new(MockCompactionProvider::new());
-    agent.update_provider(provider, &session.id).await?;
+    agent
+        .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
+        .await?;
 
     // Execute manual compaction
     let result = agent.execute_command("/compact", &session.id).await?;
@@ -442,7 +441,9 @@ async fn test_auto_compaction_during_reply() -> Result<()> {
 
     // Setup mock provider (no context limit enforcement)
     let provider = Arc::new(MockCompactionProvider::new());
-    agent.update_provider(provider, &session.id).await?;
+    agent
+        .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
+        .await?;
 
     // Trigger a reply
     // Expected tokens for reply:
@@ -598,7 +599,9 @@ async fn test_context_limit_recovery_compaction() -> Result<()> {
     // Setup mock provider with context limit of 20000 tokens
     // Initial context (6000 system + 15400 messages = 21400) exceeds this limit
     let provider = Arc::new(MockCompactionProvider::new());
-    agent.update_provider(provider, &session.id).await?;
+    agent
+        .update_provider(provider, ModelConfig::new("mock-model"), &session.id)
+        .await?;
 
     // Try to send a message - should trigger context limit, then recover via compaction
     let session_config = SessionConfig {

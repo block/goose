@@ -42,24 +42,6 @@ export type Author = {
     metadata?: string | null;
 };
 
-export type AuthorRequest = {
-    contact?: string | null;
-    metadata?: string | null;
-};
-
-export type CallToolRequest = {
-    arguments: unknown;
-    name: string;
-    session_id: string;
-};
-
-export type CallToolResponse = {
-    _meta?: unknown;
-    content: Array<ContentBlock>;
-    isError: boolean;
-    structuredContent?: unknown;
-};
-
 export type CancelRequest = {
     request_id: string;
 };
@@ -178,16 +160,6 @@ export type CreateCustomProviderResponse = {
     provider_name: string;
 };
 
-export type CreateRecipeRequest = {
-    author?: AuthorRequest | null;
-    session_id: string;
-};
-
-export type CreateRecipeResponse = {
-    error?: string | null;
-    recipe?: Recipe | null;
-};
-
 export type CreateScheduleRequest = {
     cron: string;
     id: string;
@@ -260,6 +232,59 @@ export type DecodeRecipeResponse = {
 
 export type DeleteRecipeRequest = {
     id: string;
+};
+
+export type DiagnosticsConfig = {
+    configPath: string;
+    configYaml?: string | null;
+    truncated: boolean;
+};
+
+export type DiagnosticsError = {
+    message: string;
+    path?: string | null;
+};
+
+export type DiagnosticsExtensions = {
+    enabled: Array<string>;
+};
+
+export type DiagnosticsLevel = 'summary' | 'full';
+
+export type DiagnosticsLogs = {
+    llm: Array<DiagnosticsTextFile>;
+    server?: DiagnosticsTextFile | null;
+};
+
+export type DiagnosticsPrompt = {
+    content: string;
+    name: string;
+};
+
+export type DiagnosticsReport = {
+    config?: DiagnosticsConfig | null;
+    errors: Array<DiagnosticsError>;
+    extensions: DiagnosticsExtensions;
+    generatedAt: string;
+    level: DiagnosticsLevel;
+    logs: DiagnosticsLogs;
+    prompts: Array<DiagnosticsPrompt>;
+    schedule?: unknown;
+    scheduledRecipes: Array<DiagnosticsScheduledRecipe>;
+    schemaVersion: number;
+    session?: unknown;
+    system: SystemInfo;
+};
+
+export type DiagnosticsScheduledRecipe = {
+    content: string;
+    path: string;
+};
+
+export type DiagnosticsTextFile = {
+    content: string;
+    path: string;
+    truncated: boolean;
 };
 
 export type DictationProvider = 'openai' | 'elevenlabs' | 'groq' | 'local';
@@ -514,15 +539,6 @@ export type ExtensionResponse = {
     warnings?: Array<string>;
 };
 
-export type FeaturesResponse = {
-    /**
-     * Map of feature name to enabled status
-     */
-    features: {
-        [key: string]: boolean;
-    };
-};
-
 export type ForkRequest = {
     copy: boolean;
     timestamp?: number | null;
@@ -623,19 +639,6 @@ export type ImageContent = {
     mimeType: string;
 };
 
-export type ImportAppRequest = {
-    html: string;
-};
-
-export type ImportAppResponse = {
-    message: string;
-    name: string;
-};
-
-export type ImportSessionNostrRequest = {
-    deeplink: string;
-};
-
 export type InferenceMetadata = {
     provider: string;
     requestedModel: string;
@@ -654,14 +657,6 @@ export type JsonObject = {
 
 export type KillJobResponse = {
     message: string;
-};
-
-export type ListAppsRequest = {
-    session_id?: string | null;
-};
-
-export type ListAppsResponse = {
-    apps: Array<GooseApp>;
 };
 
 export type ListRecipeResponse = {
@@ -1040,6 +1035,11 @@ export type ProviderMetadata = {
      */
     display_name: string;
     /**
+     * The name of a fast/cheap model to use for lightweight tasks (e.g. session naming,
+     * compaction). When set, fast-path callers prefer this model over the main model.
+     */
+    fast_model?: string | null;
+    /**
      * A list of currently known models with their capabilities
      */
     known_models: Array<ModelInfo>;
@@ -1143,21 +1143,6 @@ export type RawTextContent = {
         [key: string]: unknown;
     };
     text: string;
-};
-
-export type ReadResourceRequest = {
-    extension_name: string;
-    session_id: string;
-    uri: string;
-};
-
-export type ReadResourceResponse = {
-    _meta?: {
-        [key: string]: unknown;
-    } | null;
-    mimeType?: string | null;
-    text: string;
-    uri: string;
 };
 
 export type Recipe = {
@@ -1371,6 +1356,7 @@ export type Session = {
     extension_data: ExtensionData;
     goose_mode?: GooseMode;
     id: string;
+    last_message_at?: string | null;
     last_message_snippet?: string | null;
     message_count: number;
     model_config?: ModelConfig | null;
@@ -1442,22 +1428,6 @@ export type Settings = {
     goose_provider?: string | null;
     max_turns?: number | null;
     temperature?: number | null;
-};
-
-export type SetupResponse = {
-    message: string;
-    success: boolean;
-};
-
-export type ShareSessionNostrRequest = {
-    relays?: Array<string>;
-};
-
-export type ShareSessionNostrResponse = {
-    deeplink: string;
-    eventId: string;
-    nevent: string;
-    relays: Array<string>;
 };
 
 export type SlashCommand = {
@@ -1630,11 +1600,6 @@ export type ToolInfo = {
     permission?: PermissionLevel | null;
 };
 
-export type ToolPermission = {
-    permission: PermissionLevel;
-    tool_name: string;
-};
-
 export type ToolRequest = {
     _meta?: {
         [key: string]: unknown;
@@ -1676,15 +1641,6 @@ export type TranscribeResponse = {
      */
     text: string;
 };
-
-export type TunnelInfo = {
-    hostname: string;
-    secret: string;
-    state: TunnelState;
-    url: string;
-};
-
-export type TunnelState = 'idle' | 'starting' | 'running' | 'error' | 'disabled';
 
 /**
  * UI-specific metadata for MCP resources
@@ -1770,10 +1726,6 @@ export type UpsertConfigQuery = {
     is_secret: boolean;
     key: string;
     value: unknown;
-};
-
-export type UpsertPermissionsQuery = {
-    tool_permissions: Array<ToolPermission>;
 };
 
 /**
@@ -1877,176 +1829,6 @@ export type AgentAddExtensionResponses = {
 };
 
 export type AgentAddExtensionResponse = AgentAddExtensionResponses[keyof AgentAddExtensionResponses];
-
-export type CallToolData = {
-    body: CallToolRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/call_tool';
-};
-
-export type CallToolErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Forbidden - tool is not app-visible
-     */
-    403: ErrorResponse;
-    /**
-     * Resource not found
-     */
-    404: ErrorResponse;
-    /**
-     * Frontend tool execution requires the frontend host
-     */
-    424: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type CallToolError = CallToolErrors[keyof CallToolErrors];
-
-export type CallToolResponses = {
-    /**
-     * Resource read successfully
-     */
-    200: CallToolResponse;
-};
-
-export type CallToolResponse2 = CallToolResponses[keyof CallToolResponses];
-
-export type ExportAppData = {
-    body?: never;
-    path: {
-        /**
-         * Name of the app to export
-         */
-        name: string;
-    };
-    query?: never;
-    url: '/agent/export_app/{name}';
-};
-
-export type ExportAppErrors = {
-    /**
-     * App not found
-     */
-    404: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type ExportAppError = ExportAppErrors[keyof ExportAppErrors];
-
-export type ExportAppResponses = {
-    /**
-     * App HTML exported successfully
-     */
-    200: string;
-};
-
-export type ExportAppResponse = ExportAppResponses[keyof ExportAppResponses];
-
-export type ImportAppData = {
-    body: ImportAppRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/import_app';
-};
-
-export type ImportAppErrors = {
-    /**
-     * Bad request - Invalid HTML
-     */
-    400: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type ImportAppError = ImportAppErrors[keyof ImportAppErrors];
-
-export type ImportAppResponses = {
-    /**
-     * App imported successfully
-     */
-    201: ImportAppResponse;
-};
-
-export type ImportAppResponse2 = ImportAppResponses[keyof ImportAppResponses];
-
-export type ListAppsData = {
-    body?: never;
-    path?: never;
-    query?: {
-        session_id?: string | null;
-    };
-    url: '/agent/list_apps';
-};
-
-export type ListAppsErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type ListAppsError = ListAppsErrors[keyof ListAppsErrors];
-
-export type ListAppsResponses = {
-    /**
-     * List of apps retrieved successfully
-     */
-    200: ListAppsResponse;
-};
-
-export type ListAppsResponse2 = ListAppsResponses[keyof ListAppsResponses];
-
-export type ReadResourceData = {
-    body: ReadResourceRequest;
-    path?: never;
-    query?: never;
-    url: '/agent/read_resource';
-};
-
-export type ReadResourceErrors = {
-    /**
-     * Unauthorized - invalid secret key
-     */
-    401: unknown;
-    /**
-     * Resource not found
-     */
-    404: unknown;
-    /**
-     * Agent not initialized
-     */
-    424: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ReadResourceResponses = {
-    /**
-     * Resource read successfully
-     */
-    200: ReadResourceResponse;
-};
-
-export type ReadResourceResponse2 = ReadResourceResponses[keyof ReadResourceResponses];
 
 export type AgentRemoveExtensionData = {
     body: RemoveExtensionRequest;
@@ -2597,29 +2379,6 @@ export type RemoveExtensionResponses = {
 
 export type RemoveExtensionResponse = RemoveExtensionResponses[keyof RemoveExtensionResponses];
 
-export type UpsertPermissionsData = {
-    body: UpsertPermissionsQuery;
-    path?: never;
-    query?: never;
-    url: '/config/permissions';
-};
-
-export type UpsertPermissionsErrors = {
-    /**
-     * Invalid request
-     */
-    400: unknown;
-};
-
-export type UpsertPermissionsResponses = {
-    /**
-     * Permission update completed
-     */
-    200: string;
-};
-
-export type UpsertPermissionsResponse = UpsertPermissionsResponses[keyof UpsertPermissionsResponses];
-
 export type GetPromptsData = {
     body?: never;
     path?: never;
@@ -2955,32 +2714,6 @@ export type GetProviderModelsResponses = {
 
 export type GetProviderModelsResponse = GetProviderModelsResponses[keyof GetProviderModelsResponses];
 
-export type ConfigureProviderOauthData = {
-    body?: never;
-    path: {
-        /**
-         * Provider name
-         */
-        name: string;
-    };
-    query?: never;
-    url: '/config/providers/{name}/oauth';
-};
-
-export type ConfigureProviderOauthErrors = {
-    /**
-     * OAuth configuration failed
-     */
-    400: unknown;
-};
-
-export type ConfigureProviderOauthResponses = {
-    /**
-     * OAuth configuration completed
-     */
-    200: unknown;
-};
-
 export type ReadConfigData = {
     body: ConfigKeyQuery;
     path?: never;
@@ -3108,7 +2841,9 @@ export type DiagnosticsData = {
     path: {
         session_id: string;
     };
-    query?: never;
+    query?: {
+        level?: DiagnosticsLevel | null;
+    };
     url: '/diagnostics/{session_id}';
 };
 
@@ -3121,9 +2856,9 @@ export type DiagnosticsErrors = {
 
 export type DiagnosticsResponses = {
     /**
-     * Diagnostics zip file
+     * Diagnostics report
      */
-    200: Blob | File;
+    200: DiagnosticsReport;
 };
 
 export type DiagnosticsResponse = DiagnosticsResponses[keyof DiagnosticsResponses];
@@ -3318,61 +3053,6 @@ export type TranscribeDictationResponses = {
 };
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
-
-export type GetFeaturesData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/features';
-};
-
-export type GetFeaturesResponses = {
-    /**
-     * Compile-time feature flags
-     */
-    200: FeaturesResponse;
-};
-
-export type GetFeaturesResponse = GetFeaturesResponses[keyof GetFeaturesResponses];
-
-export type StartNanogptSetupData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/handle_nanogpt';
-};
-
-export type StartNanogptSetupResponses = {
-    200: SetupResponse;
-};
-
-export type StartNanogptSetupResponse = StartNanogptSetupResponses[keyof StartNanogptSetupResponses];
-
-export type StartOpenrouterSetupData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/handle_openrouter';
-};
-
-export type StartOpenrouterSetupResponses = {
-    200: SetupResponse;
-};
-
-export type StartOpenrouterSetupResponse = StartOpenrouterSetupResponses[keyof StartOpenrouterSetupResponses];
-
-export type StartTetrateSetupData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/handle_tetrate';
-};
-
-export type StartTetrateSetupResponses = {
-    200: SetupResponse;
-};
-
-export type StartTetrateSetupResponse = StartTetrateSetupResponses[keyof StartTetrateSetupResponses];
 
 export type ListBuiltinChatTemplatesData = {
     body?: never;
@@ -3618,63 +3298,6 @@ export type SyncFeaturedModelsResponses = {
      */
     200: unknown;
 };
-
-export type McpUiProxyData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Secret key for authentication
-         */
-        secret: string;
-    };
-    url: '/mcp-ui-proxy';
-};
-
-export type McpUiProxyErrors = {
-    /**
-     * Unauthorized - invalid or missing secret
-     */
-    401: unknown;
-};
-
-export type McpUiProxyResponses = {
-    /**
-     * MCP UI proxy HTML page
-     */
-    200: unknown;
-};
-
-export type CreateRecipeData = {
-    body: CreateRecipeRequest;
-    path?: never;
-    query?: never;
-    url: '/recipes/create';
-};
-
-export type CreateRecipeErrors = {
-    /**
-     * Bad request
-     */
-    400: unknown;
-    /**
-     * Precondition failed - Agent not available
-     */
-    412: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type CreateRecipeResponses = {
-    /**
-     * Recipe created successfully
-     */
-    200: CreateRecipeResponse;
-};
-
-export type CreateRecipeResponse2 = CreateRecipeResponses[keyof CreateRecipeResponses];
 
 export type DecodeRecipeData = {
     body: DecodeRecipeRequest;
@@ -4260,37 +3883,6 @@ export type UnpauseScheduleResponses = {
 
 export type UnpauseScheduleResponse = UnpauseScheduleResponses[keyof UnpauseScheduleResponses];
 
-export type ImportSessionNostrData = {
-    body: ImportSessionNostrRequest;
-    path?: never;
-    query?: never;
-    url: '/sessions/import/nostr';
-};
-
-export type ImportSessionNostrErrors = {
-    /**
-     * Bad request - Invalid Nostr share link
-     */
-    400: unknown;
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ImportSessionNostrResponses = {
-    /**
-     * Nostr shared session imported successfully
-     */
-    200: Session;
-};
-
-export type ImportSessionNostrResponse = ImportSessionNostrResponses[keyof ImportSessionNostrResponses];
-
 export type SessionCancelData = {
     body: CancelRequest;
     path: {
@@ -4528,42 +4120,6 @@ export type UpdateSessionNameResponses = {
     200: unknown;
 };
 
-export type ShareSessionNostrData = {
-    body: ShareSessionNostrRequest;
-    path: {
-        /**
-         * Unique identifier for the session
-         */
-        session_id: string;
-    };
-    query?: never;
-    url: '/sessions/{session_id}/share/nostr';
-};
-
-export type ShareSessionNostrErrors = {
-    /**
-     * Unauthorized - Invalid or missing API key
-     */
-    401: unknown;
-    /**
-     * Session not found
-     */
-    404: unknown;
-    /**
-     * Internal server error
-     */
-    500: unknown;
-};
-
-export type ShareSessionNostrResponses = {
-    /**
-     * Session shared to Nostr successfully
-     */
-    200: ShareSessionNostrResponse;
-};
-
-export type ShareSessionNostrResponse2 = ShareSessionNostrResponses[keyof ShareSessionNostrResponses];
-
 export type UpdateSessionUserRecipeValuesData = {
     body: UpdateSessionUserRecipeValuesRequest;
     path: {
@@ -4646,72 +4202,4 @@ export type SendTelemetryEventResponses = {
      * Event accepted for processing
      */
     202: unknown;
-};
-
-export type StartTunnelData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/tunnel/start';
-};
-
-export type StartTunnelErrors = {
-    /**
-     * Bad request
-     */
-    400: ErrorResponse;
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type StartTunnelError = StartTunnelErrors[keyof StartTunnelErrors];
-
-export type StartTunnelResponses = {
-    /**
-     * Tunnel started successfully
-     */
-    200: TunnelInfo;
-};
-
-export type StartTunnelResponse = StartTunnelResponses[keyof StartTunnelResponses];
-
-export type GetTunnelStatusData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/tunnel/status';
-};
-
-export type GetTunnelStatusResponses = {
-    /**
-     * Tunnel info
-     */
-    200: TunnelInfo;
-};
-
-export type GetTunnelStatusResponse = GetTunnelStatusResponses[keyof GetTunnelStatusResponses];
-
-export type StopTunnelData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/tunnel/stop';
-};
-
-export type StopTunnelErrors = {
-    /**
-     * Internal server error
-     */
-    500: ErrorResponse;
-};
-
-export type StopTunnelError = StopTunnelErrors[keyof StopTunnelErrors];
-
-export type StopTunnelResponses = {
-    /**
-     * Tunnel stopped successfully
-     */
-    200: unknown;
 };

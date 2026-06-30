@@ -1,11 +1,8 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { View } from '../../../utils/navigationUtils';
 import ModelSettingsButtons from './subcomponents/ModelSettingsButtons';
-import { useConfig } from '../../ConfigContext';
-import {
-  modelAndProviderMessages,
-  useModelAndProvider,
-} from '../../ModelAndProviderContext';
+import { acpListProviderDetails, acpReadDefaults } from '../../../acp/providers';
+import { modelAndProviderMessages, useModelAndProvider } from '../../ModelAndProviderContext';
 import { toastError } from '../../../toasts';
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
@@ -32,7 +29,6 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
   const [provider, setProvider] = useState<string | null>(null);
   const [displayModelName, setDisplayModelName] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(true);
-  const { read, getProviders } = useConfig();
   const {
     getCurrentModelDisplayName,
     getCurrentProviderDisplayName,
@@ -54,8 +50,8 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
         setProvider(providerDisplayName);
       } else {
         // Fallback to original provider lookup
-        const gooseProvider = (await read('GOOSE_PROVIDER', false)) as string;
-        const providers = await getProviders(true);
+        const { providerId: gooseProvider } = await acpReadDefaults();
+        const providers = await acpListProviderDetails();
         const providerDetailsList = providers.filter((provider) => provider.name === gooseProvider);
 
         if (providerDetailsList.length != 1) {
@@ -74,7 +70,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [read, getProviders, getCurrentModelDisplayName, getCurrentProviderDisplayName, intl]);
+  }, [getCurrentModelDisplayName, getCurrentProviderDisplayName, intl]);
 
   useEffect(() => {
     loadModelData();
@@ -117,9 +113,7 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
       <Card className="pb-2 rounded-lg">
         <CardHeader className="pb-0">
           <CardTitle className="">{intl.formatMessage(i18n.resetTitle)}</CardTitle>
-          <CardDescription>
-            {intl.formatMessage(i18n.resetDescription)}
-          </CardDescription>
+          <CardDescription>{intl.formatMessage(i18n.resetDescription)}</CardDescription>
         </CardHeader>
         <CardContent className="px-2">
           <ResetProviderSection setView={setView} />

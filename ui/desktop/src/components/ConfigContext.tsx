@@ -1,29 +1,23 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
+import { acpReadAllConfig, acpReadConfig, acpRemoveConfig, acpUpsertConfig } from '../acp/config';
+import { acpListProviderDetails } from '../acp/providers';
 import {
-  readAllConfig,
-  readConfig,
-  removeConfig,
-  upsertConfig,
-  addExtension as apiAddExtension,
-  removeExtension as apiRemoveExtension,
-  providers,
-} from '../api';
-import { getConfiguredExtensions } from '../acp/extensions';
+  getConfiguredExtensions,
+  addConfigExtension,
+  removeConfigExtension,
+  setConfigExtensionEnabled,
+} from '../acp/extensions';
 import { pruneDeprecatedBundledExtensions, syncBundledExtensions } from './settings/extensions';
-import type {
-  ConfigResponse,
-  UpsertConfigQuery,
-  ConfigKeyQuery,
-  ProviderDetails,
-  ExtensionQuery,
-  ExtensionConfig,
-} from '../api';
+import { nameToKey } from './settings/extensions/utils';
+import type { ConfigResponse, ProviderDetails } from '../api';
+import type { ExtensionConfig } from '../types/extensions';
 
-export type { ExtensionConfig } from '../api/types.gen';
+export type { ExtensionConfig } from '../types/extensions';
 
 // Define a local version that matches the structure of the imported one
 export type FixedExtensionEntry = ExtensionConfig & {
   enabled: boolean;
+  configKey?: string;
 };
 
 interface ConfigContextType {
@@ -35,12 +29,10 @@ interface ConfigContextType {
   read: (key: string, is_secret: boolean, options?: { throwOnError?: boolean }) => Promise<unknown>;
   remove: (key: string, is_secret: boolean) => Promise<void>;
   addExtension: (name: string, config: ExtensionConfig, enabled: boolean) => Promise<void>;
-  toggleExtension: (name: string) => Promise<void>;
+  setExtensionEnabled: (configKey: string, enabled: boolean) => Promise<void>;
   removeExtension: (name: string) => Promise<void>;
   getProviders: (b: boolean) => Promise<ProviderDetails[]>;
   getExtensions: (b: boolean) => Promise<FixedExtensionEntry[]>;
-  disableAllExtensions: () => Promise<void>;
-  enableBotExtensions: (extensions: ExtensionConfig[]) => Promise<void>;
 }
 
 interface ConfigProviderProps {
@@ -60,20 +52,13 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   providersListRef.current = providersList;
 
   const reloadConfig = useCallback(async () => {
-    const response = await readAllConfig();
-    setConfig(response.data?.config || {});
+    const config = await acpReadAllConfig();
+    setConfig(config);
   }, []);
 
   const upsert = useCallback(
     async (key: string, value: unknown, isSecret: boolean = false) => {
-      const query: UpsertConfigQuery = {
-        key: key,
-        value: value,
-        is_secret: isSecret,
-      };
-      await upsertConfig({
-        body: query,
-      });
+      await acpUpsertConfig(key, value, isSecret);
       await reloadConfig();
     },
     [reloadConfig]
@@ -81,24 +66,21 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
   const read = useCallback(
     async (key: string, is_secret: boolean = false, options?: { throwOnError?: boolean }) => {
-      const query: ConfigKeyQuery = { key: key, is_secret: is_secret };
-      const response = await readConfig({
-        body: query,
-      });
-      if (options?.throwOnError && response.error) {
-        throw response.error;
+      try {
+        return await acpReadConfig(key, is_secret);
+      } catch (error) {
+        if (options?.throwOnError) {
+          throw error;
+        }
+        return null;
       }
-      return response.data;
     },
     []
   );
 
   const remove = useCallback(
     async (key: string, is_secret: boolean) => {
-      const query: ConfigKeyQuery = { key: key, is_secret: is_secret };
-      await removeConfig({
-        body: query,
-      });
+      await acpRemoveConfig(key, is_secret);
       await reloadConfig();
     },
     [reloadConfig]
@@ -112,11 +94,8 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   }, []);
 
   const addExtension = useCallback(
-    async (name: string, config: ExtensionConfig, enabled: boolean) => {
-      const query: ExtensionQuery = { name, config, enabled };
-      await apiAddExtension({
-        body: query,
-      });
+    async (_name: string, config: ExtensionConfig, enabled: boolean) => {
+      await addConfigExtension(config, enabled);
       await reloadConfig();
       // Refresh extensions list after successful addition
       await refreshExtensions();
@@ -126,12 +105,13 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
 
   const removeExtension = useCallback(
     async (name: string) => {
-      await apiRemoveExtension({ path: { name: name } });
+      const entry = extensionsList.find((ext) => ext.name === name);
+      await removeConfigExtension(entry?.configKey ?? nameToKey(name));
       await reloadConfig();
       // Refresh extensions list after successful removal
       await refreshExtensions();
     },
-    [reloadConfig, refreshExtensions]
+    [extensionsList, reloadConfig, refreshExtensions]
   );
 
   const getExtensions = useCallback(
@@ -144,23 +124,19 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     [extensionsList, refreshExtensions]
   );
 
-  const toggleExtension = useCallback(
-    async (name: string) => {
-      const exts = await getExtensions(true);
-      const extension = exts.find((ext) => ext.name === name);
-
-      if (extension) {
-        await addExtension(name, extension, !extension.enabled);
-      }
+  const setExtensionEnabled = useCallback(
+    async (configKey: string, enabled: boolean) => {
+      await setConfigExtensionEnabled(configKey, enabled);
+      await reloadConfig();
+      await refreshExtensions();
     },
-    [addExtension, getExtensions]
+    [reloadConfig, refreshExtensions]
   );
 
   const getProviders = useCallback(async (forceRefresh = false): Promise<ProviderDetails[]> => {
     if (forceRefresh || providersListRef.current.length === 0) {
       try {
-        const response = await providers();
-        const providersData = response.data || [];
+        const providersData = await acpListProviderDetails();
         providersListRef.current = providersData;
         setProvidersList(providersData);
         return providersData;
@@ -176,13 +152,12 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     // Load all configuration data and providers on mount
     (async () => {
       // Load config
-      const configResponse = await readAllConfig();
-      setConfig(configResponse.data?.config || {});
+      const configResponse = await acpReadAllConfig();
+      setConfig(configResponse);
 
       // Load providers
       try {
-        const providersResponse = await providers();
-        const providersData = providersResponse.data || [];
+        const providersData = await acpListProviderDetails();
         providersListRef.current = providersData;
         setProvidersList(providersData);
       } catch (error) {
@@ -202,15 +177,14 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
         // The syncBundledExtensions function skips extensions that already exist and are marked as bundled
         // Platform extensions (code_execution, todo, etc.) are handled by the backend
         const addExtensionForSync = async (
-          name: string,
+          _name: string,
           config: ExtensionConfig,
           enabled: boolean
         ) => {
-          const query: ExtensionQuery = { name, config, enabled };
-          await apiAddExtension({ body: query });
+          await addConfigExtension(config, enabled);
         };
-        const removeExtensionForSync = async (name: string) => {
-          await apiRemoveExtension({ path: { name } });
+        const removeExtensionForSync = async (configKey: string) => {
+          await removeConfigExtension(configKey);
         };
         extensions = await pruneDeprecatedBundledExtensions(extensions, removeExtensionForSync);
         await syncBundledExtensions(extensions, addExtensionForSync);
@@ -227,23 +201,6 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
   }, []);
 
   const contextValue = useMemo(() => {
-    const disableAllExtensions = async () => {
-      const currentExtensions = await getExtensions(true);
-      for (const ext of currentExtensions) {
-        if (ext.enabled) {
-          await addExtension(ext.name, ext, false);
-        }
-      }
-      await reloadConfig();
-    };
-
-    const enableBotExtensions = async (extensions: ExtensionConfig[]) => {
-      for (const ext of extensions) {
-        await addExtension(ext.name, ext, true);
-      }
-      await reloadConfig();
-    };
-
     return {
       config,
       providersList,
@@ -254,11 +211,9 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
       remove,
       addExtension,
       removeExtension,
-      toggleExtension,
+      setExtensionEnabled,
       getProviders,
       getExtensions,
-      disableAllExtensions,
-      enableBotExtensions,
     };
   }, [
     config,
@@ -270,10 +225,9 @@ export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
     remove,
     addExtension,
     removeExtension,
-    toggleExtension,
+    setExtensionEnabled,
     getProviders,
     getExtensions,
-    reloadConfig,
   ]);
 
   return <ConfigContext.Provider value={contextValue}>{children}</ConfigContext.Provider>;

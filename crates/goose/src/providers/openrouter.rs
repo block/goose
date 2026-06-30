@@ -40,7 +40,6 @@ pub const OPENROUTER_DOC_URL: &str = "https://openrouter.ai/models";
 pub struct OpenRouterProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     supports_streaming: bool,
     #[serde(skip)]
     name: String,
@@ -48,15 +47,8 @@ pub struct OpenRouterProvider {
 
 impl OpenRouterProvider {
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
-        let model = crate::model_config::with_configured_fast_model(
-            model,
-            OPENROUTER_PROVIDER_NAME,
-            OPENROUTER_DEFAULT_FAST_MODEL,
-        )?;
-
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("OPENROUTER_API_KEY")?;
         let host: String = config
@@ -65,12 +57,12 @@ impl OpenRouterProvider {
 
         let auth = AuthMethod::BearerToken(api_key);
         let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
+            .with_request_builder(crate::session_context::session_id_request_builder())
             .with_header("HTTP-Referer", "https://goose-docs.ai")?
             .with_header("X-Title", "goose")?;
 
         Ok(Self {
             api_client,
-            model,
             supports_streaming: true,
             name: OPENROUTER_PROVIDER_NAME.to_string(),
         })
@@ -154,9 +146,7 @@ fn is_gemini_model(model_name: &str) -> bool {
     model_name.starts_with("google/")
 }
 
-impl ProviderDef for OpenRouterProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for OpenRouterProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             OPENROUTER_PROVIDER_NAME,
@@ -181,14 +171,18 @@ impl ProviderDef for OpenRouterProvider {
             "Click 'Create' or use an existing API key",
             "Copy the key and paste it above",
         ])
+        .with_fast_model(OPENROUTER_DEFAULT_FAST_MODEL)
     }
+}
+
+impl ProviderDef for OpenRouterProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -198,15 +192,11 @@ impl Provider for OpenRouterProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     /// Fetch supported models from OpenRouter API (only models with tool support)
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
-            .request(None, "api/v1/models")
+            .request("api/v1/models")
             .response_get()
             .await
             .map_err(|e| {
@@ -250,20 +240,14 @@ impl Provider for OpenRouterProvider {
         Ok(models)
     }
 
-    async fn supports_cache_control(&self) -> bool {
-        self.model
-            .model_name
-            .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         let mut payload = create_request(
             model_config,
             system,
@@ -280,7 +264,7 @@ impl Provider for OpenRouterProvider {
             }
         }
 
-        if self.supports_cache_control().await {
+        if supports_cache_control(model_config) {
             payload = update_request_for_anthropic(&payload);
         }
 
@@ -299,7 +283,7 @@ impl Provider for OpenRouterProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(Some(session_id), "api/v1/chat/completions", &payload)
+                    .response_post("api/v1/chat/completions", &payload)
                     .await?;
                 handle_status(resp).await
             })
@@ -310,4 +294,10 @@ impl Provider for OpenRouterProvider {
 
         stream_openai_compat(response, log)
     }
+}
+
+fn supports_cache_control(model: &ModelConfig) -> bool {
+    model
+        .model_name
+        .starts_with(OPENROUTER_MODEL_PREFIX_ANTHROPIC)
 }

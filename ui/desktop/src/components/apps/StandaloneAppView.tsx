@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import McpAppRenderer from '../McpApps/McpAppRenderer';
-import { startAgent, resumeAgent, listApps, stopAgent } from '../../api';
+import { listMcpApps } from '../../acp/mcp-apps';
+import { acpCloseSession, acpNewSession } from '../../acp/sessions';
 import { formatAppName } from '../../utils/conversionUtils';
 import { errorMessage } from '../../utils/conversionUtils';
 import { defineMessages, useIntl } from '../../i18n';
@@ -48,11 +49,7 @@ export default function StandaloneAppView() {
       }
 
       try {
-        const response = await listApps({
-          throwOnError: true,
-        });
-
-        const apps = response.data?.apps || [];
+        const apps = await listMcpApps();
         const cachedApp = apps.find(
           (app) => app.uri === resourceUri && app.mcpServers?.includes(extensionName)
         );
@@ -76,21 +73,7 @@ export default function StandaloneAppView() {
       }
 
       try {
-        const startResponse = await startAgent({
-          body: { working_dir: workingDir },
-          throwOnError: true,
-        });
-
-        const sid = startResponse.data.id;
-
-        await resumeAgent({
-          body: {
-            session_id: sid,
-            load_model_and_extensions: true,
-          },
-          throwOnError: true,
-        });
-
+        const { sessionId: sid } = await acpNewSession(workingDir, []);
         setSessionId(sid);
         setLoading(false);
       } catch (err) {
@@ -115,10 +98,7 @@ export default function StandaloneAppView() {
   useEffect(() => {
     return () => {
       if (sessionId) {
-        stopAgent({
-          body: { session_id: sessionId },
-          throwOnError: false,
-        }).catch((err: unknown) => {
+        acpCloseSession(sessionId).catch((err: unknown) => {
           console.warn('Failed to stop agent on unmount:', err);
         });
       }
@@ -139,7 +119,9 @@ export default function StandaloneAppView() {
           padding: '24px',
         }}
       >
-        <h2 style={{ color: 'var(--text-error, #ef4444)' }}>{intl.formatMessage(i18n.failedToLoad)}</h2>
+        <h2 style={{ color: 'var(--text-error, #ef4444)' }}>
+          {intl.formatMessage(i18n.failedToLoad)}
+        </h2>
         <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>{error}</p>
       </div>
     );
@@ -156,7 +138,9 @@ export default function StandaloneAppView() {
           justifyContent: 'center',
         }}
       >
-        <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>{intl.formatMessage(i18n.initializing)}</p>
+        <p style={{ color: 'var(--color-text-secondary, #6b7280)' }}>
+          {intl.formatMessage(i18n.initializing)}
+        </p>
       </div>
     );
   }

@@ -70,10 +70,6 @@ const mockSettings: Record<string, unknown> = {
   language: 'system',
   responseStyle: 'concise',
   showPricing: true,
-  sessionSharing: {
-    enabled: false,
-    baseUrl: '',
-  },
   seenAnnouncementIds: [],
 };
 

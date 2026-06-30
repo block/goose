@@ -15,14 +15,20 @@ use std::sync::{Arc, RwLock};
 pub struct PermissionInspector {
     pub permission_manager: Arc<PermissionManager>,
     provider: SharedProvider,
+    session_manager: Arc<crate::session::SessionManager>,
     readonly_tools: RwLock<HashSet<String>>,
 }
 
 impl PermissionInspector {
-    pub fn new(permission_manager: Arc<PermissionManager>, provider: SharedProvider) -> Self {
+    pub fn new(
+        permission_manager: Arc<PermissionManager>,
+        provider: SharedProvider,
+        session_manager: Arc<crate::session::SessionManager>,
+    ) -> Self {
         Self {
             permission_manager,
             provider,
+            session_manager,
             readonly_tools: RwLock::new(HashSet::new()),
         }
     }
@@ -212,12 +218,15 @@ impl ToolInspector for PermissionInspector {
         // LLM-based read-only detection for deferred SmartApprove candidates
         if !llm_detect_candidates.is_empty() {
             let detected: HashSet<String> = match self.provider.lock().await.clone() {
-                Some(provider) => {
-                    detect_read_only_tools(provider, session_id, llm_detect_candidates.to_vec())
-                        .await
-                        .into_iter()
-                        .collect()
-                }
+                Some(provider) => detect_read_only_tools(
+                    provider,
+                    &self.session_manager,
+                    session_id,
+                    llm_detect_candidates.to_vec(),
+                )
+                .await
+                .into_iter()
+                .collect(),
                 None => Default::default(),
             };
 
@@ -288,7 +297,10 @@ mod tests {
         if let Some(level) = cache {
             pm.update_smart_approve_permission("tool", level);
         }
-        let inspector = PermissionInspector::new(pm, Arc::new(Mutex::new(None)));
+        let session_manager = Arc::new(crate::session::SessionManager::new(
+            tempfile::tempdir().unwrap().keep(),
+        ));
+        let inspector = PermissionInspector::new(pm, Arc::new(Mutex::new(None)), session_manager);
         if smart_approved {
             *inspector.readonly_tools.write().unwrap() = ["tool".to_string()].into_iter().collect();
         }

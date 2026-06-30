@@ -34,14 +34,12 @@ pub struct SageMakerTgiProvider {
     #[serde(skip)]
     sagemaker_client: SageMakerClient,
     endpoint_name: String,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
 }
 
 impl SageMakerTgiProvider {
     pub async fn from_env(
-        model: ModelConfig,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -91,12 +89,16 @@ impl SageMakerTgiProvider {
         Ok(Self {
             sagemaker_client,
             endpoint_name,
-            model,
             name: SAGEMAKER_TGI_PROVIDER_NAME.to_string(),
         })
     }
 
-    fn create_tgi_request(&self, system: &str, messages: &[Message]) -> Result<Value> {
+    fn create_tgi_request(
+        &self,
+        model: &ModelConfig,
+        system: &str,
+        messages: &[Message],
+    ) -> Result<Value> {
         // Create a simplified prompt for TGI models using recent user and assistant messages.
         // Uses a minimal system prompt and avoids HTML or tool-related formatting.
         let mut prompt = String::new();
@@ -155,8 +157,8 @@ impl SageMakerTgiProvider {
         let request = json!({
             "inputs": prompt,
             "parameters": {
-                "max_new_tokens": self.model.max_output_tokens(),
-                "temperature": self.model.temperature.unwrap_or(0.7),
+                "max_new_tokens": model.max_output_tokens(),
+                "temperature": model.temperature.unwrap_or(0.7),
                 "do_sample": true,
                 "return_full_text": false
             }
@@ -278,9 +280,7 @@ impl SageMakerTgiProvider {
     }
 }
 
-impl ProviderDef for SageMakerTgiProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for SageMakerTgiProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             SAGEMAKER_TGI_PROVIDER_NAME,
@@ -296,13 +296,16 @@ impl ProviderDef for SageMakerTgiProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for SageMakerTgiProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -312,28 +315,26 @@ impl Provider for SageMakerTgiProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         let session_id = if session_id.is_empty() {
             None
         } else {
-            Some(session_id)
+            Some(session_id.as_str())
         };
         let model_name = &model_config.model_name;
 
-        let request_payload = self.create_tgi_request(system, messages).map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to create request: {}", e))
-        })?;
+        let request_payload = self
+            .create_tgi_request(model_config, system, messages)
+            .map_err(|e| {
+                ProviderError::RequestFailed(format!("Failed to create request: {}", e))
+            })?;
 
         let response = self
             .with_retry(|| self.invoke_endpoint(session_id, request_payload.clone()))
@@ -354,7 +355,7 @@ impl Provider for SageMakerTgiProvider {
             "messages": messages,
             "tools": tools
         });
-        let mut log = start_log(&self.model, &debug_payload)?;
+        let mut log = start_log(model_config, &debug_payload)?;
         log.write(
             &serde_json::to_value(&message).unwrap_or_default(),
             Some(&usage),

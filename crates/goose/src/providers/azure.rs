@@ -6,7 +6,6 @@ use super::azureauth::{AuthError, AzureAuth};
 use super::base::{ConfigKey, ProviderDef, ProviderMetadata};
 use super::openai_compatible::OpenAiCompatibleProvider;
 use futures::future::BoxFuture;
-use goose_providers::model::ModelConfig;
 
 const AZURE_PROVIDER_NAME: &str = "azure_openai";
 pub const AZURE_DEFAULT_MODEL: &str = "gpt-4o";
@@ -50,9 +49,7 @@ impl AuthProvider for AzureAuthProvider {
     }
 }
 
-impl ProviderDef for AzureProvider {
-    type Provider = OpenAiCompatibleProvider;
-
+impl goose_providers::base::ProviderDescriptor for AzureProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             AZURE_PROVIDER_NAME,
@@ -70,9 +67,12 @@ impl ProviderDef for AzureProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for AzureProvider {
+    type Provider = OpenAiCompatibleProvider;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
@@ -110,7 +110,8 @@ impl ProviderDef for AzureProvider {
                 host,
                 AuthMethod::Custom(Box::new(auth_provider)),
                 tls_config,
-            )?;
+            )?
+            .with_request_builder(crate::session_context::session_id_request_builder());
             if let Some(version) = api_version {
                 api_client = api_client.with_query(vec![("api-version".to_string(), version)]);
             }
@@ -118,7 +119,6 @@ impl ProviderDef for AzureProvider {
             Ok(OpenAiCompatibleProvider::new(
                 AZURE_PROVIDER_NAME.to_string(),
                 api_client,
-                model,
                 format!("deployments/{}/", deployment_name),
             ))
         })

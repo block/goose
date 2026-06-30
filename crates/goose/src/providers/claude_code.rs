@@ -22,7 +22,6 @@ use super::base::{
     ProviderMetadata,
 };
 use super::utils::filter_extensions_from_system_prompt;
-use crate::config::base::ClaudeCodeCommand;
 use crate::config::paths::Paths;
 use crate::config::search_path::SearchPaths;
 use crate::config::{Config, ExtensionConfig, GooseMode};
@@ -260,7 +259,6 @@ impl Drop for CliProcess {
 #[derive(Debug, serde::Serialize)]
 pub struct ClaudeCodeProvider {
     command: PathBuf,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
     /// Temp file holding MCP config JSON (auto-deleted on drop).
@@ -365,7 +363,11 @@ impl ClaudeCodeProvider {
         }
     }
 
-    async fn spawn_process(&self, filtered_system: &str) -> Result<CliProcess, ProviderError> {
+    async fn spawn_process(
+        &self,
+        model: &ModelConfig,
+        filtered_system: &str,
+    ) -> Result<CliProcess, ProviderError> {
         let mut cmd = self.build_stream_json_command();
 
         if let Some(f) = &self.mcp_config_file {
@@ -377,7 +379,7 @@ impl ClaudeCodeProvider {
             .arg("--system-prompt")
             .arg(filtered_system)
             .arg("--model")
-            .arg(&self.model.model_name);
+            .arg(&model.model_name);
 
         let control_protocol_enabled = Self::apply_permission_flags(&mut cmd)?;
 
@@ -412,7 +414,7 @@ impl ClaudeCodeProvider {
             stdin: Box::new(stdin),
             reader: BufReader::new(Box::new(stdout)),
             stderr_handle,
-            current_model: self.model.model_name.clone(),
+            current_model: model.model_name.clone(),
             log_model_update: false,
             next_request_id: 0,
             needs_drain: false,
@@ -429,12 +431,13 @@ impl ClaudeCodeProvider {
 
     async fn get_or_init_process(
         &self,
+        model_config: &ModelConfig,
         filtered_system: &str,
     ) -> Result<&Arc<tokio::sync::Mutex<CliProcess>>, ProviderError> {
         self.cli_process
             .get_or_try_init(|| async {
                 Ok(Arc::new(tokio::sync::Mutex::new(
-                    self.spawn_process(filtered_system).await?,
+                    self.spawn_process(model_config, filtered_system).await?,
                 )))
             })
             .await
@@ -583,9 +586,7 @@ fn write_mcp_config_file(state_dir: &Path, json: &str) -> Result<NamedTempFile, 
     Ok(tmp)
 }
 
-impl ProviderDef for ClaudeCodeProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for ClaudeCodeProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             CLAUDE_CODE_PROVIDER_NAME,
@@ -595,14 +596,21 @@ impl ProviderDef for ClaudeCodeProvider {
             // Only a few agentic choices; fetched dynamically via fetch_supported_models.
             vec![],
             CLAUDE_CODE_DOC_URL,
-            vec![ConfigKey::from_value_type::<ClaudeCodeCommand>(
-                true, false, true,
+            vec![ConfigKey::new(
+                "CLAUDE_CODE_COMMAND",
+                true,
+                false,
+                Some("claude"),
+                true,
             )],
         )
     }
+}
+
+impl ProviderDef for ClaudeCodeProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         extensions: Vec<ExtensionConfig>,
         _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
@@ -622,7 +630,6 @@ impl ProviderDef for ClaudeCodeProvider {
 
             Ok(Self {
                 command: resolved_command,
-                model,
                 name: CLAUDE_CODE_PROVIDER_NAME.to_string(),
                 mcp_config_file,
                 cli_process: tokio::sync::OnceCell::new(),
@@ -641,10 +648,6 @@ impl Provider for ClaudeCodeProvider {
 
     fn manages_own_context(&self) -> bool {
         true
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
@@ -711,11 +714,11 @@ impl Provider for ClaudeCodeProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         _tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         if super::cli_common::is_session_description_request(system) {
             let (message, usage) = super::cli_common::generate_simple_session_description(
                 &model_config.model_name,
@@ -725,11 +728,14 @@ impl Provider for ClaudeCodeProvider {
         }
 
         let filtered_system = filter_extensions_from_system_prompt(system);
-        let process_arc = Arc::clone(self.get_or_init_process(&filtered_system).await?);
+        let process_arc = Arc::clone(
+            self.get_or_init_process(model_config, &filtered_system)
+                .await?,
+        );
 
         // Prepare the payload outside the lock — these don't need the process.
         let blocks = self.last_user_content_blocks(messages);
-        let ndjson_line = build_stream_json_input(&blocks, session_id);
+        let ndjson_line = build_stream_json_input(&blocks, &session_id);
         let model_name = model_config.model_name.clone();
         let message_id = uuid::Uuid::new_v4().to_string();
         let pending_confirmations = Arc::clone(&self.pending_confirmations);
@@ -1270,9 +1276,6 @@ mod tests {
     fn make_provider() -> ClaudeCodeProvider {
         ClaudeCodeProvider {
             command: PathBuf::from("claude"),
-            model: ModelConfig::new(CLAUDE_CODE_DEFAULT_MODEL)
-                .unwrap()
-                .with_canonical_limits(CLAUDE_CODE_PROVIDER_NAME),
             name: "claude-code".to_string(),
             mcp_config_file: None,
             cli_process: tokio::sync::OnceCell::new(),
@@ -1311,10 +1314,9 @@ mod tests {
         provider.cli_process.set(process_arc).unwrap();
 
         let messages = vec![Message::user().with_text("test")];
-        let stream = provider
-            .stream(&provider.model, "test-session", "", &messages, &[])
-            .await
-            .unwrap();
+        let model = ModelConfig::new(CLAUDE_CODE_DEFAULT_MODEL)
+            .with_canonical_limits(CLAUDE_CODE_PROVIDER_NAME);
+        let stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
         (provider, stream, stdin_reader)
     }
 
@@ -1519,10 +1521,9 @@ mod tests {
             .insert("stale_1".to_string(), tx);
 
         let messages = vec![Message::user().with_text("test")];
-        let mut stream = provider
-            .stream(&provider.model, "test-session", "", &messages, &[])
-            .await
-            .unwrap();
+        let model = ModelConfig::new(CLAUDE_CODE_DEFAULT_MODEL)
+            .with_canonical_limits(CLAUDE_CODE_PROVIDER_NAME);
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
 
         while let Some(item) = stream.next().await {
             item.unwrap();

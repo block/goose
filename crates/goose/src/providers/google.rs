@@ -60,22 +60,14 @@ pub const GOOGLE_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs/models";
 pub struct GoogleProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
 }
 
 impl GoogleProvider {
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
-        let model = crate::model_config::with_configured_fast_model(
-            model,
-            GOOGLE_PROVIDER_NAME,
-            GOOGLE_DEFAULT_FAST_MODEL,
-        )?;
-
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GOOGLE_API_KEY")?;
         let host: String = config
@@ -88,33 +80,27 @@ impl GoogleProvider {
         };
 
         let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
+            .with_request_builder(crate::session_context::session_id_request_builder())
             .with_header("Content-Type", "application/json")?;
 
         Ok(Self {
             api_client,
-            model,
             name: GOOGLE_PROVIDER_NAME.to_string(),
         })
     }
 
     async fn post_stream(
         &self,
-        session_id: Option<&str>,
         model_name: &str,
         payload: &Value,
     ) -> Result<reqwest::Response, ProviderError> {
         let path = format!("v1beta/models/{}:streamGenerateContent?alt=sse", model_name);
-        let response = self
-            .api_client
-            .response_post(session_id, &path, payload)
-            .await?;
+        let response = self.api_client.response_post(&path, payload).await?;
         handle_status(response).await
     }
 }
 
-impl ProviderDef for GoogleProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for GoogleProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             GOOGLE_PROVIDER_NAME,
@@ -128,6 +114,7 @@ impl ProviderDef for GoogleProvider {
                 ConfigKey::new("GOOGLE_HOST", false, false, Some(GOOGLE_API_HOST), false),
             ],
         )
+        .with_fast_model(GOOGLE_DEFAULT_FAST_MODEL)
         .with_setup_steps(vec![
             "Go to https://aistudio.google.com and sign in with your Google account",
             "Click 'Get API key' on the left sidebar",
@@ -135,13 +122,16 @@ impl ProviderDef for GoogleProvider {
             "Copy the key and paste it above",
         ])
     }
+}
+
+impl ProviderDef for GoogleProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -151,14 +141,10 @@ impl Provider for GoogleProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
-            .request(None, "v1beta/models")
+            .request("v1beta/models")
             .response_get()
             .await?;
         let status = response.status();
@@ -190,7 +176,6 @@ impl Provider for GoogleProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -199,10 +184,7 @@ impl Provider for GoogleProvider {
         let mut log = start_log(model_config, &payload)?;
 
         let response = self
-            .with_retry(|| async {
-                self.post_stream(Some(session_id), &model_config.model_name, &payload)
-                    .await
-            })
+            .with_retry(|| async { self.post_stream(&model_config.model_name, &payload).await })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);

@@ -24,7 +24,6 @@ const NANOGPT_API_KEY: &str = "NANOGPT_API_KEY";
 pub struct NanoGptProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
 }
@@ -52,7 +51,7 @@ impl NanoGptProvider {
             Err(_) => return false,
         };
 
-        match client.response_get(None, "usage").await {
+        match client.response_get("usage").await {
             Ok(resp) => resp
                 .json::<serde_json::Value>()
                 .await
@@ -64,7 +63,6 @@ impl NanoGptProvider {
     }
 
     pub async fn from_env(
-        model: ModelConfig,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> Result<Self> {
         let config = crate::config::Config::global();
@@ -79,19 +77,17 @@ impl NanoGptProvider {
             NANOGPT_API_HOST.to_string()
         };
 
-        let api_client = Self::build_client(&host, &api_key, tls_config)?;
+        let api_client = Self::build_client(&host, &api_key, tls_config)?
+            .with_request_builder(crate::session_context::session_id_request_builder());
 
         Ok(Self {
             api_client,
-            model,
             name: NANOGPT_PROVIDER_NAME.to_string(),
         })
     }
 }
 
-impl ProviderDef for NanoGptProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for NanoGptProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             NANOGPT_PROVIDER_NAME,
@@ -103,13 +99,16 @@ impl ProviderDef for NanoGptProvider {
             vec![ConfigKey::new(NANOGPT_API_KEY, true, true, None, true)],
         )
     }
+}
+
+impl ProviderDef for NanoGptProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
         tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model, tls_config))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -119,14 +118,10 @@ impl Provider for NanoGptProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
-            .request(None, "models?detailed=true")
+            .request("models?detailed=true")
             .response_get()
             .await
             .map_err(|e| {
@@ -182,7 +177,6 @@ impl Provider for NanoGptProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -202,7 +196,7 @@ impl Provider for NanoGptProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(Some(session_id), "chat/completions", &payload)
+                    .response_post("chat/completions", &payload)
                     .await?;
                 handle_status(resp).await
             })
@@ -218,6 +212,7 @@ impl Provider for NanoGptProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use goose_providers::base::ProviderDescriptor as _;
 
     #[test]
     fn test_metadata() {

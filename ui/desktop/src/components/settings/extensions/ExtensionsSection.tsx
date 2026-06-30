@@ -11,10 +11,11 @@ import {
   ExtensionFormData,
   extensionToFormData,
   getDefaultFormData,
+  nameToKey,
 } from './utils';
 
 import { activateExtensionDefault, deleteExtension, toggleExtensionDefault } from './index';
-import { ExtensionConfig } from '../../../api/types.gen';
+import type { ExtensionConfig } from '../../../types/extensions';
 
 const i18n = defineMessages({
   addCustomExtension: {
@@ -61,7 +62,8 @@ export default function ExtensionsSection({
   searchTerm = '',
 }: ExtensionSectionProps) {
   const intl = useIntl();
-  const { getExtensions, addExtension, removeExtension, extensionsList } = useConfig();
+  const { getExtensions, addExtension, removeExtension, setExtensionEnabled, extensionsList } =
+    useConfig();
   const [selectedExtension, setSelectedExtension] = useState<FixedExtensionEntry | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -113,11 +115,12 @@ export default function ExtensionsSection({
     }
 
     const toggleDirection = extensionConfig.enabled ? 'toggleOff' : 'toggleOn';
+    const configKey = extensionConfig.configKey ?? nameToKey(extensionConfig.name);
 
     await toggleExtensionDefault({
       toggle: toggleDirection,
       extensionConfig: extensionConfig,
-      addToConfig: addExtension,
+      setEnabled: (enabled) => setExtensionEnabled(configKey, enabled),
     });
 
     await fetchExtensions();

@@ -249,7 +249,6 @@ export class GitHubUpdater {
 
       // Combine chunks into a single buffer
       log.info('GitHubUpdater: Combining chunks into buffer...');
-      // eslint-disable-next-line no-undef
       const buffer = Buffer.concat(chunks.map((chunk) => Buffer.from(chunk)));
       log.info(`GitHubUpdater: Buffer created - ${buffer.length} bytes`);
 

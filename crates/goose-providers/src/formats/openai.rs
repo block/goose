@@ -2,7 +2,7 @@ use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
 use crate::conversation::token_usage::{ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
-use crate::json::safely_parse_json;
+use crate::json::{parse_tool_arguments, truncation_error_message};
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
 use crate::thinking::{
@@ -39,6 +39,17 @@ where
     D: serde::Deserializer<'de>,
 {
     Ok(Option::<String>::deserialize(deserializer)?.unwrap_or_default())
+}
+
+fn describe_json_value(value: &Value) -> &'static str {
+    match value {
+        Value::Array(_) => "an array",
+        Value::String(_) => "a string",
+        Value::Number(_) => "a number",
+        Value::Bool(_) => "a boolean",
+        Value::Null => "null",
+        Value::Object(_) => "an object",
+    }
 }
 
 fn is_reserved_request_param_key(key: &str) -> bool {
@@ -182,10 +193,35 @@ pub fn format_messages_with_options(
 ) -> Vec<Value> {
     let mut messages_spec = Vec::new();
     let mut pending_assistant_reasoning = String::new();
+    // Reasoning to propagate across consecutive tool-call messages in the same turn.
+    // DeepSeek/Kimi require reasoning_content on every assistant tool-call message.
+    let mut tool_call_turn_reasoning = String::new();
+    let mut saw_tool_response = false;
 
     for message in messages {
         if options.preserve_thinking_context && message.role != Role::Assistant {
             pending_assistant_reasoning.clear();
+        }
+
+        if options.preserve_thinking_context && message.role == Role::User {
+            if message
+                .content
+                .iter()
+                .any(|c| matches!(c, MessageContent::ToolResponse(_)))
+            {
+                saw_tool_response = true;
+            } else {
+                tool_call_turn_reasoning.clear();
+                saw_tool_response = false;
+            }
+        }
+
+        // A new assistant message after tool results creates a new turn.
+        // Prevents reasoning from the previous turn leaking into the new one.
+        if options.preserve_thinking_context && message.role == Role::Assistant && saw_tool_response
+        {
+            tool_call_turn_reasoning.clear();
+            saw_tool_response = false;
         }
 
         let mut converted = json!({
@@ -260,11 +296,27 @@ pub fn format_messages_with_options(
 
                         tool_calls.as_array_mut().unwrap().push(tool_call_json);
                     }
-                    Err(e) => {
-                        output.push(json!({
-                            "role": "tool",
-                            "content": format!("Error: {}", e),
-                            "tool_call_id": request.id
+                    Err(_e) => {
+                        // An unparseable tool call still needs a valid assistant
+                        // `tool_calls` entry. Emitting the error as a bare `role:"tool"`
+                        // message (the old behavior) leaves the paired tool response —
+                        // which carries the parse error — as an orphan `role:"tool"` with
+                        // no preceding assistant `tool_calls`, which strict
+                        // OpenAI-compatible APIs reject. Emit a placeholder call with the
+                        // same id so the history stays well-formed; the error rides on the
+                        // following tool response.
+                        let tool_calls = converted
+                            .as_object_mut()
+                            .unwrap()
+                            .entry("tool_calls")
+                            .or_insert(json!([]));
+                        tool_calls.as_array_mut().unwrap().push(json!({
+                            "id": request.id,
+                            "type": "function",
+                            "function": {
+                                "name": "unparseable_tool_call",
+                                "arguments": "{}",
+                            }
                         }));
                     }
                 },
@@ -407,6 +459,25 @@ pub fn format_messages_with_options(
                 reasoning_text =
                     merge_reasoning_text(&pending_assistant_reasoning, &reasoning_text);
                 pending_assistant_reasoning.clear();
+            }
+
+            let has_tool_calls = converted
+                .get("tool_calls")
+                .and_then(|tc| tc.as_array())
+                .is_some_and(|a| !a.is_empty());
+
+            if has_tool_calls {
+                if reasoning_text.is_empty() {
+                    reasoning_text = tool_call_turn_reasoning.clone();
+                } else {
+                    tool_call_turn_reasoning = reasoning_text.clone();
+                }
+            } else {
+                // Carry reasoning forward even through non-tool assistant messages
+                // (e.g., a visible text chunk that's is sent before a tool-call chunk
+                // in the same streaming turn). An empty reasoning_text is equivalent
+                // to clear.
+                tool_call_turn_reasoning = reasoning_text.clone();
             }
         }
 
@@ -653,8 +724,8 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         metadata.as_ref(),
                     ));
                 } else {
-                    match safely_parse_json(&arguments_str) {
-                        Ok(params) => {
+                    match parse_tool_arguments(&arguments_str) {
+                        Some(params) if params.is_object() => {
                             content.push(MessageContent::tool_request_with_metadata(
                                 id,
                                 Ok(CallToolRequestParams::new(function_name)
@@ -662,13 +733,36 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                                 metadata.as_ref(),
                             ));
                         }
-                        Err(e) => {
+                        // Valid JSON but NOT an object (a bare array/string/number).
+                        // Weaker models emit this; surface a tool error so the model
+                        // retries with a proper object instead of crashing the run
+                        // (rmcp's `object()` debug-asserts on non-objects).
+                        Some(other) => {
                             let error = ErrorData {
                                 code: ErrorCode::INVALID_PARAMS,
                                 message: Cow::from(format!(
-                                    "Could not interpret tool use parameters for id {}: {}. Raw arguments: '{}'",
-                                    id, e, arguments_str
+                                    "Tool arguments for {} (id {}) must be a JSON object, got {}. Raw arguments: '{}'",
+                                    function_name,
+                                    id,
+                                    describe_json_value(&other),
+                                    arguments_str
                                 )),
+                                data: None,
+                            };
+                            content.push(MessageContent::tool_request_with_metadata(
+                                id,
+                                Err(error),
+                                metadata.as_ref(),
+                            ));
+                        }
+                        None => {
+                            let message_text = truncation_error_message(&arguments_str)
+                                .unwrap_or_else(|| {
+                                    format!("Could not interpret tool use parameters for id {id}")
+                                });
+                            let error = ErrorData {
+                                code: ErrorCode::INVALID_PARAMS,
+                                message: Cow::from(message_text),
                                 data: None,
                             };
                             content.push(MessageContent::tool_request_with_metadata(
@@ -959,8 +1053,9 @@ where
                 let mut tool_call_data: ToolCallData = HashMap::new();
 
                 if let Some(tool_calls) = &chunk.choices[0].delta.tool_calls {
-                    for tool_call in tool_calls {
-                        if let (Some(index), Some(id), Some(name)) = (tool_call.index, &tool_call.id, &tool_call.function.name) {
+                    for (position, tool_call) in tool_calls.iter().enumerate() {
+                        if let (Some(id), Some(name)) = (&tool_call.id, &tool_call.function.name) {
+                            let index = tool_call.index.unwrap_or(position as i32);
                             tool_call_data.insert(index, (id.clone(), name.clone(), tool_call.function.arguments.clone(), tool_call.extra.clone()));
                         }
                     }
@@ -1085,12 +1180,6 @@ where
 
                 for index in sorted_indices {
                     if let Some((id, function_name, arguments, extra_fields)) = tool_call_data.get(&index) {
-                        let parsed = if arguments.is_empty() {
-                            Ok(json!({}))
-                        } else {
-                            safely_parse_json(arguments)
-                        };
-
                         let metadata = if let Some(sig) = &last_signature {
                             let mut combined = extra_fields.clone().unwrap_or_default();
                             combined.insert(
@@ -1102,26 +1191,49 @@ where
                             extra_fields.as_ref().filter(|m| !m.is_empty()).cloned()
                         };
 
-                        let content = match parsed {
-                            Ok(params) => {
-                                MessageContent::tool_request_with_metadata(
+                        let content = if arguments.is_empty() {
+                            MessageContent::tool_request_with_metadata(
+                                id.clone(),
+                                Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(json!({})))),
+                                metadata.as_ref(),
+                            )
+                        } else {
+                            match parse_tool_arguments(arguments) {
+                                Some(params) if params.is_object() => MessageContent::tool_request_with_metadata(
                                     id.clone(),
                                     Ok(CallToolRequestParams::new(function_name.clone()).with_arguments(object(params))),
                                     metadata.as_ref(),
-                                )
-                            },
-                            Err(e) => {
-                                let error = ErrorData {
-                                    code: ErrorCode::INVALID_PARAMS,
-                                    message: Cow::from(format!(
-                                        "Could not interpret tool use parameters for id {}: {}",
-                                        id, e
-                                    )),
-                                    data: None,
-                                };
-                                MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                                ),
+                                // Valid JSON but NOT an object (a bare array/string/number).
+                                // Surface a tool error so the model retries instead of
+                                // crashing the run (rmcp's `object()` debug-asserts on
+                                // non-objects). Mirrors the non-streaming decoder.
+                                Some(other) => {
+                                    let error = ErrorData {
+                                        code: ErrorCode::INVALID_PARAMS,
+                                        message: Cow::from(format!(
+                                            "Tool arguments for {} (id {}) must be a JSON object, got {}. Raw arguments: '{}'",
+                                            function_name, id, describe_json_value(&other), arguments
+                                        )),
+                                        data: None,
+                                    };
+                                    MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                                }
+                                None => {
+                                    let message_text = truncation_error_message(arguments)
+                                        .unwrap_or_else(|| {
+                                            format!("Could not interpret tool use parameters for id {id}")
+                                        });
+                                    let error = ErrorData {
+                                        code: ErrorCode::INVALID_PARAMS,
+                                        message: Cow::from(message_text),
+                                        data: None,
+                                    };
+                                    MessageContent::tool_request_with_metadata(id.clone(), Err(error), metadata.as_ref())
+                                }
                             }
                         };
+
                         contents.push(content);
                     }
                 }
@@ -1452,10 +1564,7 @@ mod tests {
     use tokio_stream::{self, StreamExt};
 
     fn test_model_config(model_name: &str) -> ModelConfig {
-        ModelConfig {
-            model_name: model_name.to_string(),
-            ..Default::default()
-        }
+        ModelConfig::new(model_name)
     }
 
     #[test]
@@ -1934,9 +2043,43 @@ mod tests {
                     message: msg,
                     data: None,
                 }) => {
-                    assert!(msg.starts_with("Could not interpret tool use parameters"));
+                    assert!(msg.contains("tool arguments") || msg.contains("truncated"));
                 }
                 _ => panic!("Expected InvalidParameters error"),
+            }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_non_object_arguments() -> anyhow::Result<()> {
+        // Weaker models sometimes emit tool arguments that are valid JSON but
+        // not an object (here, a bare array). This must surface as a tool error,
+        // NOT panic via rmcp's `object()` debug-assert.
+        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
+            json!("[1, 2, 3]");
+
+        let message = response_to_message(&response)?;
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            match &request.tool_call {
+                Err(ErrorData {
+                    code: ErrorCode::INVALID_PARAMS,
+                    message: msg,
+                    data: None,
+                }) => {
+                    assert!(msg.contains("must be a JSON object"));
+                    assert!(msg.contains("an array"));
+                    assert!(
+                        msg.contains("example_fn"),
+                        "error must name the original tool so the model can retry it: {msg}"
+                    );
+                }
+                _ => panic!("Expected InvalidParameters error for non-object args"),
             }
         } else {
             panic!("Expected ToolRequest content");
@@ -2734,6 +2877,42 @@ data: [DONE]"#;
     }
 
     #[tokio::test]
+    async fn test_streaming_non_object_arguments_does_not_panic() -> anyhow::Result<()> {
+        // Streamed tool call whose arguments are valid JSON but NOT an object.
+        // Must yield an INVALID_PARAMS tool error, not panic via rmcp `object()`.
+        let response_lines = r#"data: {"model":"test-model","choices":[{"delta":{"role":"assistant","tool_calls":[{"id":"call_bad","function":{"name":"test_tool","arguments":"[1, 2, 3]"},"type":"function","index":0}]},"index":0,"finish_reason":"tool_calls"}],"usage":{"prompt_tokens":100,"completion_tokens":10,"total_tokens":110},"object":"chat.completion.chunk","id":"test-id","created":1234567890}
+data: [DONE]"#;
+
+        let response_stream =
+            tokio_stream::iter(response_lines.lines().map(|line| Ok(line.to_string())));
+        let messages = response_to_streaming_message(response_stream);
+        pin!(messages);
+
+        while let Some(Ok((message, _usage))) = messages.next().await {
+            if let Some(msg) = message {
+                if let MessageContent::ToolRequest(request) = &msg.content[0] {
+                    match &request.tool_call {
+                        Err(ErrorData {
+                            code: ErrorCode::INVALID_PARAMS,
+                            message: m,
+                            ..
+                        }) => {
+                            assert!(m.contains("must be a JSON object"));
+                            assert!(
+                                m.contains("test_tool"),
+                                "error must name the original tool so the model can retry it: {m}"
+                            );
+                            return Ok(());
+                        }
+                        _ => panic!("expected INVALID_PARAMS for non-object streamed args"),
+                    }
+                }
+            }
+        }
+        panic!("expected a tool request message");
+    }
+
+    #[tokio::test]
     async fn test_streaming_response_extracts_inline_think_blocks() -> anyhow::Result<()> {
         let response_lines = concat!(
             "data: {\"id\":\"chunk-1\",\"choices\":[{\"delta\":{\"content\":\"<thi\"},\"index\":0,\"finish_reason\":null}]}\n",
@@ -3135,6 +3314,180 @@ data: [DONE]"#;
         Ok(())
     }
 
+    #[test]
+    fn test_format_messages_carries_reasoning_through_text_only_chunks() -> anyhow::Result<()> {
+        // Scenario B from the streaming bug: thinking arrives first, then multiple
+        // text-only assistant messages, then a tool call with thinking re-attached
+        // by agent.rs (via the earlier-chunk lookback).
+        // Text-only messages set tool_call_turn_reasoning="" (line 453 else-branch),
+        // but the TC's own Thinking content must repopulate it.
+        let messages = vec![
+            Message::assistant().with_content(MessageContent::thinking("reason", "")),
+            Message::assistant().with_text("partial answer"),
+            Message::assistant().with_text("more text"),
+            // agent.rs attaches the earlier thinking to the TC message
+            Message::assistant()
+                .with_content(MessageContent::thinking("reason", ""))
+                .with_tool_request(
+                    "tool1",
+                    Ok(CallToolRequestParams::new("test_tool").with_arguments(object!({}))),
+                ),
+        ];
+
+        let spec = format_messages_with_options(
+            &messages,
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+            },
+        );
+
+        let tool_call_msgs: Vec<_> = spec
+            .iter()
+            .filter(|m| {
+                m.get("tool_calls")
+                    .and_then(|tc| tc.as_array())
+                    .is_some_and(|a| !a.is_empty())
+            })
+            .collect();
+
+        assert_eq!(tool_call_msgs.len(), 1);
+        assert_eq!(
+            tool_call_msgs[0]["reasoning_content"], "reason",
+            "reasoning_content must survive text-only chunks between thinking and tool call"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_format_messages_carries_reasoning_to_all_split_tool_calls() -> anyhow::Result<()> {
+        // Simulates DeepSeek/Kimi streaming: a thinking-only chunk arrives first,
+        // then the agent splits two tool calls into separate messages, each with
+        // the same reasoning attached (as agent.rs does via response_thinking).
+        // The formatter must keep reasoning_content on both so that
+        // merge_split_tool_call_messages can reunite them into one assistant message.
+        let tool_result1 = Message::user().with_tool_response(
+            "tool1",
+            Ok(rmcp::model::CallToolResult::success(vec![
+                rmcp::model::Content::text("result1"),
+            ])),
+        );
+        let messages = vec![
+            // Standalone thinking message (created by agent.rs alongside request_msgs)
+            Message::assistant().with_content(MessageContent::thinking("reasoning", "")),
+            // Each request_msg has thinking explicitly attached (agent.rs behaviour)
+            Message::assistant()
+                .with_content(MessageContent::thinking("reasoning", ""))
+                .with_tool_request(
+                    "tool1",
+                    Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({}))),
+                ),
+            tool_result1,
+            Message::assistant()
+                .with_content(MessageContent::thinking("reasoning", ""))
+                .with_tool_request(
+                    "tool2",
+                    Ok(CallToolRequestParams::new("tool_b").with_arguments(object!({}))),
+                ),
+        ];
+
+        let spec = format_messages_with_options(
+            &messages,
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+            },
+        );
+
+        // After merge: one assistant message with both tool calls
+        let assistant_msgs: Vec<_> = spec
+            .iter()
+            .filter(|m| m.get("role") == Some(&json!("assistant")))
+            .collect();
+        assert_eq!(assistant_msgs.len(), 1);
+        assert_eq!(assistant_msgs[0]["reasoning_content"], "reasoning");
+        let tool_calls = assistant_msgs[0]["tool_calls"].as_array().unwrap();
+        assert_eq!(tool_calls.len(), 2);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_sequential_tool_calls_not_merged() -> anyhow::Result<()> {
+        // Verifies that two tool calls from *different* turns are never merged,
+        // even when the second call carries no fresh reasoning (the previous
+        // turn's reasoning must not leak into it).
+        let tool_result1 = Message::user().with_tool_response(
+            "tool1",
+            Ok(rmcp::model::CallToolResult::success(vec![
+                rmcp::model::Content::text("result1"),
+            ])),
+        );
+        let messages = vec![
+            // Turn 1: thinking then tool call
+            Message::assistant().with_content(MessageContent::thinking("turn1_reasoning", "")),
+            Message::assistant().with_tool_request(
+                "tool1",
+                Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({}))),
+            ),
+            tool_result1,
+            // Turn 2: new tool call, no fresh thinking
+            Message::assistant().with_tool_request(
+                "tool2",
+                Ok(CallToolRequestParams::new("tool_b").with_arguments(object!({}))),
+            ),
+        ];
+
+        let spec = format_messages_with_options(
+            &messages,
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+            },
+        );
+
+        let assistant_msgs: Vec<_> = spec
+            .iter()
+            .filter(|m| m.get("role") == Some(&json!("assistant")))
+            .collect();
+
+        // Must remain two separate assistant messages — not merged across turns.
+        assert_eq!(
+            assistant_msgs.len(),
+            2,
+            "sequential tool calls must not be merged"
+        );
+
+        // Turn 1 carries reasoning; turn 2 must not inherit it.
+        assert_eq!(assistant_msgs[0]["reasoning_content"], "turn1_reasoning");
+        assert!(
+            assistant_msgs[1].get("reasoning_content").is_none()
+                || assistant_msgs[1]["reasoning_content"].is_null(),
+            "turn 2 must not inherit stale reasoning from turn 1"
+        );
+
+        // The tool result must appear between the two assistant messages.
+        let tool_idx = spec
+            .iter()
+            .position(|m| m.get("role") == Some(&json!("tool")))
+            .expect("tool result must be present");
+        let asst1_idx = spec
+            .iter()
+            .position(|m| m.get("role") == Some(&json!("assistant")))
+            .unwrap();
+        let asst2_idx = spec
+            .iter()
+            .rposition(|m| m.get("role") == Some(&json!("assistant")))
+            .unwrap();
+        assert!(
+            asst1_idx < tool_idx && tool_idx < asst2_idx,
+            "tool result must sit between the two assistant messages"
+        );
+
+        Ok(())
+    }
+
     #[test_case(
         "data: {\"error\":{\"message\":\"Internal server error\",\"type\":\"server_error\",\"code\":500}}\ndata: [DONE]",
         "Internal server error";
@@ -3434,6 +3787,66 @@ data: [DONE]"#;
         Ok(())
     }
 
+    #[tokio::test]
+    async fn test_streaming_tool_call_without_tool_call_index() -> anyhow::Result<()> {
+        let response_lines = concat!(
+            "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"functions.get_weather:0\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n",
+            "data: [DONE]"
+        );
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let mut tool_calls = Vec::new();
+        while let Some(result) = messages.next().await {
+            let (message, _usage) = result?;
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    if let MessageContent::ToolRequest(request) = content {
+                        let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+                        tool_calls.push((tool_call.name.to_string(), tool_call.arguments.clone()));
+                    }
+                }
+            }
+        }
+
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(tool_calls[0].0, "get_weather");
+        assert_eq!(tool_calls[0].1, Some(object!({"city": "Paris"})));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_multiple_tool_calls_without_tool_call_index() -> anyhow::Result<()> {
+        let response_lines = concat!(
+            "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"functions.get_weather:0\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}},{\"id\":\"functions.get_weather:1\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Tokyo\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n",
+            "data: [DONE]"
+        );
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let mut tool_calls = Vec::new();
+        while let Some(result) = messages.next().await {
+            let (message, _usage) = result?;
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    if let MessageContent::ToolRequest(request) = content {
+                        let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+                        tool_calls.push((tool_call.name.to_string(), tool_call.arguments.clone()));
+                    }
+                }
+            }
+        }
+
+        assert_eq!(tool_calls.len(), 2);
+        assert_eq!(tool_calls[0].0, "get_weather");
+        assert_eq!(tool_calls[0].1, Some(object!({"city": "Paris"})));
+        assert_eq!(tool_calls[1].0, "get_weather");
+        assert_eq!(tool_calls[1].1, Some(object!({"city": "Tokyo"})));
+        Ok(())
+    }
+
     // Streaming counterpart: both fields in one delta must parse and yield
     // thinking content, not fail with "duplicate field `reasoning_content`".
     #[tokio::test]
@@ -3553,5 +3966,49 @@ data: [DONE]"#;
         assert!(is_valid_function_name("hello_world"));
         assert!(!is_valid_function_name("hello world"));
         assert!(!is_valid_function_name("hello@world"));
+    }
+
+    #[test]
+    fn formatter_post_parse_error_history_is_wellformed() {
+        use rmcp::model::{ErrorCode, ErrorData};
+        let err = ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Tool arguments for id call_bad must be a JSON object".to_string(),
+            None,
+        );
+        // Shape the agent loop builds today for a failed parse:
+        let request_msg = Message::assistant().with_tool_request("call_bad", Err(err.clone()));
+        let mut final_resp = Message::user();
+        final_resp.add_tool_response_with_metadata("call_bad", Err(err), None);
+        let messages = vec![
+            Message::user().with_text("do the thing"),
+            request_msg,
+            final_resp,
+        ];
+
+        let spec = format_messages(&messages, &ImageFormat::OpenAi);
+
+        let mut open = std::collections::HashSet::new();
+        for m in &spec {
+            match m.get("role").and_then(|v| v.as_str()) {
+                Some("assistant") => {
+                    for tc in m
+                        .get("tool_calls")
+                        .and_then(|v| v.as_array())
+                        .into_iter()
+                        .flatten()
+                    {
+                        if let Some(id) = tc.get("id").and_then(|v| v.as_str()) {
+                            open.insert(id.to_string());
+                        }
+                    }
+                }
+                Some("tool") => {
+                    let id = m.get("tool_call_id").and_then(|v| v.as_str()).unwrap_or("");
+                    assert!(open.contains(id), "orphan role:tool message for id {id:?}");
+                }
+                _ => {}
+            }
+        }
     }
 }

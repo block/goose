@@ -48,10 +48,6 @@ const i18n = defineMessages({
     id: 'localModelPicker.downloadModel',
     defaultMessage: 'Download {modelId} ({size})',
   },
-  back: {
-    id: 'localModelPicker.back',
-    defaultMessage: 'Back',
-  },
   downloading: {
     id: 'localModelPicker.downloading',
     defaultMessage: 'Downloading {modelId}',
@@ -88,7 +84,6 @@ const i18n = defineMessages({
 
 interface LocalModelPickerProps {
   onConfigured: (providerName: string, modelId: string) => void;
-  onBack?: () => void;
 }
 
 const formatBytes = (bytes: number): string => {
@@ -107,7 +102,7 @@ const LOCAL_PROVIDER = 'local';
 
 type Phase = 'loading' | 'select' | 'downloading' | 'error';
 
-export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPickerProps) {
+export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps) {
   const intl = useIntl();
   const [phase, setPhase] = useState<Phase>('loading');
   const [models, setModels] = useState<LocalModelResponse[]>([]);
@@ -384,14 +379,6 @@ export default function LocalModelPicker({ onConfigured, onBack }: LocalModelPic
                   : intl.formatMessage(i18n.selectModel)}
             </button>
 
-            {onBack && (
-              <button
-                onClick={onBack}
-                className="w-full px-4 py-2.5 text-blue-600 dark:text-blue-400 text-sm font-medium border border-blue-300 dark:border-blue-700 rounded-lg hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors cursor-pointer"
-              >
-                {intl.formatMessage(i18n.back)}
-              </button>
-            )}
           </div>
         )}
 
