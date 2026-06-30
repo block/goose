@@ -13,22 +13,16 @@ import {
 } from '../types/message';
 import { cn, snakeToTitleCase } from '../utils';
 import { LoadingStatus } from './ui/Dot';
-import { ChevronRight, ExternalLink, FlaskConical } from 'lucide-react';
+import { ChevronRight, ExternalLink } from 'lucide-react';
 import { TooltipWrapper } from './settings/providers/subcomponents/buttons/TooltipWrapper';
-import MCPUIResourceRenderer from './MCPUIResourceRenderer';
-import { isUIResource } from '@mcp-ui/client';
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import { CallToolResponse, ContentBlock, EmbeddedResource } from '../api';
+import type { ContentBlock } from '../types/message';
 
 import McpAppRenderer from './McpApps/McpAppRenderer';
 import ToolApprovalButtons from './ToolApprovalButtons';
 import { defineMessages, useIntl } from '../i18n';
 
 const i18n = defineMessages({
-  mcpUiExperimental: {
-    id: 'toolCallWithResponse.mcpUiExperimental',
-    defaultMessage: 'MCP UI is experimental and may change at any time.',
-  },
   viewSubagentSession: {
     id: 'toolCallWithResponse.viewSubagentSession',
     defaultMessage: 'View subagent session',
@@ -76,9 +70,16 @@ type UiMeta = {
   subagent_session_id?: string;
 };
 
+type ToolResultValue = {
+  content: ContentBlock[];
+  structuredContent?: unknown;
+  isError: boolean;
+  _meta?: UiMeta;
+};
+
 type ToolResultWithMeta = {
   status?: string;
-  value?: CallToolResponse & {
+  value?: ToolResultValue & {
     _meta?: UiMeta;
   };
 };
@@ -138,18 +139,11 @@ function getToolResultContent(toolResult: Record<string, unknown>): ContentBlock
   if (toolResult.status !== 'success') {
     return [];
   }
-  const value = toolResult.value as CallToolResponse;
+  const value = toolResult.value as ToolResultValue;
   return value.content.filter((item) => {
     const annotations = (item as { annotations?: { audience?: string[] } }).annotations;
     return !annotations?.audience || annotations.audience.includes('user');
   });
-}
-
-function isEmbeddedResource(
-  content: ContentBlock
-): content is EmbeddedResource & { type: 'resource' } {
-  const c = content as Record<string, unknown>;
-  return c.type === 'resource' && typeof c.resource === 'object' && c.resource !== null;
 }
 
 interface McpAppWrapperProps {
@@ -229,7 +223,6 @@ export default function ToolCallWithResponse({
   confirmationContent,
   isApprovalClicked,
 }: ToolCallWithResponseProps) {
-  const intl = useIntl();
   // Handle both the wrapped ToolResult format and the unwrapped format
   // The server serializes ToolResult<T> as { status: "success", value: T } or { status: "error", error: string }
   const toolCallData = toolRequest.toolCall as Record<string, unknown>;
@@ -291,28 +284,6 @@ export default function ToolCallWithResponse({
           </div>
         )}
       </div>
-      {/* MCP UI — Inline */}
-      {shouldShowMcpContent &&
-        !hasMcpAppResourceURI &&
-        toolResponse?.toolResult &&
-        getToolResultContent(toolResponse.toolResult).map((content, index) => {
-          if (!isEmbeddedResource(content)) return null;
-          if (isUIResource(content)) {
-            return (
-              <div key={index} className="mt-3">
-                <MCPUIResourceRenderer content={content} appendPromptToChat={append} />
-                <div className="mt-3 p-4 py-3 border border-border-primary rounded-lg bg-background-secondary flex items-center">
-                  <FlaskConical className="mr-2" size={20} />
-                  <div className="text-sm font-sans">
-                    {intl.formatMessage(i18n.mcpUiExperimental)}
-                  </div>
-                </div>
-              </div>
-            );
-          } else {
-            return null;
-          }
-        })}
 
       {/* MCP App */}
       {shouldShowMcpContent && hasMcpAppResourceURI && sessionId && (
@@ -874,7 +845,11 @@ function ToolCallView({
         <>
           {toolResults.map((result, index) => (
             <div key={index} className={cn('border-t border-border-primary')}>
-              <ToolResultView toolCall={toolCall} result={result} isStartExpanded={isExpandToolDetails} />
+              <ToolResultView
+                toolCall={toolCall}
+                result={result}
+                isStartExpanded={isExpandToolDetails}
+              />
             </div>
           ))}
         </>
@@ -1080,9 +1055,10 @@ function ToolLogsView({
   // down on the possibility of unwanted runs
 
   const subagentLogCount = logs.filter((l) => l.startsWith('[subagent:')).length;
-  const labelText = subagentLogCount > 0
-    ? intl.formatMessage(i18n.activityCount, { count: subagentLogCount })
-    : intl.formatMessage(i18n.logs);
+  const labelText =
+    subagentLogCount > 0
+      ? intl.formatMessage(i18n.activityCount, { count: subagentLogCount })
+      : intl.formatMessage(i18n.logs);
 
   return (
     <ToolCallExpandable

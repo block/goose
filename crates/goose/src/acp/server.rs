@@ -35,11 +35,11 @@ use crate::providers::inventory::{
 };
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::{
-    EnabledExtensionsState, ExtensionData, ExtensionState, Session, SessionManager,
+    EnabledExtensionsState, ExtensionData, ExtensionState, Session, SessionManager, SessionType,
 };
 use crate::source_roots::SourceRoot;
 use crate::utils::sanitize_unicode_tags;
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     AgentCapabilities, Annotations, AuthMethod, AuthMethodAgent, AuthenticateRequest,
     AuthenticateResponse, BlobResourceContents, CancelNotification, CloseSessionRequest,
     CloseSessionResponse, ConfigOptionUpdate, Content, ContentBlock, ContentChunk, Cost,
@@ -51,10 +51,9 @@ use agent_client_protocol::schema::{
     RequestPermissionOutcome, RequestPermissionRequest, ResourceLink, SessionCapabilities,
     SessionCloseCapabilities, SessionConfigOption, SessionId, SessionInfoUpdate,
     SessionListCapabilities, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest,
-    SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse,
-    SetSessionModelRequest, SetSessionModelResponse, StopReason, TextContent, TextResourceContents,
-    ToolCall, ToolCallContent, ToolCallId, ToolCallLocation, ToolCallStatus, ToolCallUpdate,
-    ToolCallUpdateFields, ToolKind, Usage, UsageUpdate,
+    SetSessionConfigOptionResponse, SetSessionModeRequest, SetSessionModeResponse, StopReason,
+    TextContent, TextResourceContents, ToolCall, ToolCallContent, ToolCallId, ToolCallLocation,
+    ToolCallStatus, ToolCallUpdate, ToolCallUpdateFields, ToolKind, Usage, UsageUpdate,
 };
 use agent_client_protocol::util::MatchDispatchFrom;
 use agent_client_protocol::{
@@ -83,6 +82,7 @@ use uuid::Uuid;
 mod agent_requests;
 pub use agent_requests::agent_request_schemas;
 mod agent_mentions;
+mod apps;
 mod config;
 mod custom_dispatch;
 mod diagnostics;
@@ -96,9 +96,11 @@ mod load_session;
 mod manage_sessions;
 mod new_session;
 mod onboarding;
+mod prompts;
 mod providers;
 mod recipe;
 mod resources;
+mod schedule;
 mod slash_commands;
 mod sources;
 mod tool_notifications;
@@ -253,6 +255,21 @@ fn meta_string(
         );
     };
     Ok(Some(value.to_string()))
+}
+
+fn agent_capabilities_meta() -> Option<Meta> {
+    let mut goose = serde_json::Map::new();
+    if cfg!(feature = "local-inference") {
+        goose.insert("localInference".to_string(), serde_json::json!({}));
+    }
+
+    if goose.is_empty() {
+        return None;
+    }
+
+    let mut meta = serde_json::Map::new();
+    meta.insert("goose".to_string(), serde_json::Value::Object(goose));
+    Some(meta)
 }
 
 fn spawn_session_name_update_notifier(
@@ -1003,6 +1020,7 @@ impl GooseAcpAgent {
     fn initial_session_extensions(
         &self,
         config: &Config,
+        project_root: &Path,
         mcp_servers: Vec<McpServer>,
         goose_extensions: Option<Vec<GooseExtension>>,
         recipe_extensions: Option<&[ExtensionConfig]>,
@@ -1022,6 +1040,11 @@ impl GooseAcpAgent {
             }
         } else if mcp_servers.is_empty() {
             for extension in get_enabled_extensions_with_config(config) {
+                push_or_replace_extension(&mut extensions, extension);
+            }
+            for extension in
+                crate::plugins::mcp_servers::enabled_plugin_mcp_servers(Some(project_root))
+            {
                 push_or_replace_extension(&mut extensions, extension);
             }
         } else {
@@ -1176,6 +1199,7 @@ impl GooseAcpAgent {
     ) -> Result<ExtensionData, agent_client_protocol::Error> {
         let extensions = self.initial_session_extensions(
             config,
+            &session.working_dir,
             mcp_servers,
             goose_extensions,
             recipe_extensions,
@@ -1234,10 +1258,10 @@ impl GooseAcpAgent {
                                 roles
                                     .iter()
                                     .filter_map(|r| match r {
-                                        agent_client_protocol::schema::Role::Assistant => {
+                                        agent_client_protocol::schema::v1::Role::Assistant => {
                                             Some(Role::Assistant)
                                         }
-                                        agent_client_protocol::schema::Role::User => {
+                                        agent_client_protocol::schema::v1::Role::User => {
                                             Some(Role::User)
                                         }
                                         _ => None,
@@ -1482,15 +1506,16 @@ impl GooseAcpAgent {
                         // common cases without paying for the regular model.
                         let mut llm_outcome: Option<String> = None;
                         for attempt in 0..2 {
-                            match provider
-                                .complete(
+                            match crate::session_context::with_session_id(
+                                Some(sid.0.to_string()),
+                                provider.complete(
                                     &fast_model_config,
-                                    &sid.0,
                                     system,
                                     std::slice::from_ref(&message),
                                     &[],
-                                )
-                                .await
+                                ),
+                            )
+                            .await
                             {
                                 Ok((response, _)) => {
                                     let summary: String = response
@@ -1772,15 +1797,16 @@ impl GooseAcpAgent {
             // momentarily flaky, without escalating to the regular model.
             let mut summary: Option<String> = None;
             for attempt in 0..2 {
-                match provider
-                    .complete(
+                match crate::session_context::with_session_id(
+                    Some(sid.0.to_string()),
+                    provider.complete(
                         &fast_model_config,
-                        &sid.0,
                         system,
                         std::slice::from_ref(&message),
                         &[],
-                    )
-                    .await
+                    ),
+                )
+                .await
                 {
                     Ok((response, _)) => {
                         let s = response
@@ -2197,7 +2223,8 @@ impl GooseAcpAgent {
                     .audio(false)
                     .embedded_context(true),
             )
-            .mcp_capabilities(McpCapabilities::new().http(true));
+            .mcp_capabilities(McpCapabilities::new().http(true))
+            .meta(agent_capabilities_meta());
         Ok(InitializeResponse::new(args.protocol_version)
             .agent_info(Implementation::new("goose", env!("CARGO_PKG_VERSION")))
             .agent_capabilities(capabilities)
@@ -2733,7 +2760,7 @@ impl GooseAcpAgent {
         &self,
         session_id: &str,
         model_id: &str,
-    ) -> Result<SetSessionModelResponse, agent_client_protocol::Error> {
+    ) -> Result<(), agent_client_protocol::Error> {
         let agent = self.get_session_agent(session_id).await?;
         let current_provider = agent
             .provider()
@@ -2758,7 +2785,7 @@ impl GooseAcpAgent {
             .await
             .internal_err_ctx("Failed to recreate provider")?;
         // model_config is already updated on the session by the agent's update_provider call.
-        Ok(SetSessionModelResponse::new())
+        Ok(())
     }
 
     async fn build_config_update(
@@ -2975,6 +3002,38 @@ where
     })
 }
 
+/// A lazily-initialized agent connection used by the HTTP/WebSocket transport.
+///
+/// The `agent-client-protocol-http` server takes a synchronous factory that
+/// yields a [`ConnectTo<Client>`] per connection, but creating a goose agent is
+/// async. Agent creation is therefore deferred into [`ConnectTo::connect_to`],
+/// which runs as the connection's serving future.
+pub struct GooseAgentConnection {
+    server: Arc<crate::acp::server_factory::AcpServer>,
+}
+
+impl GooseAgentConnection {
+    pub fn new(server: Arc<crate::acp::server_factory::AcpServer>) -> Self {
+        Self { server }
+    }
+}
+
+impl agent_client_protocol::ConnectTo<Client> for GooseAgentConnection {
+    async fn connect_to(
+        self,
+        client: impl agent_client_protocol::ConnectTo<SacpAgent>,
+    ) -> std::result::Result<(), agent_client_protocol::Error> {
+        let agent = self.server.create_agent().await.internal_err()?;
+        let handler = GooseAcpHandler { agent };
+        SacpAgent
+            .builder()
+            .name("goose-acp")
+            .with_handler(handler)
+            .connect_to(client)
+            .await
+    }
+}
+
 pub async fn run(builtins: Vec<String>) -> Result<()> {
     info!("listening on stdio");
 
@@ -3000,7 +3059,7 @@ mod tests {
     use super::*;
     use crate::conversation::message::{ToolRequest, ToolResponse};
     use crate::session::session_manager::SessionType;
-    use agent_client_protocol::schema::{
+    use agent_client_protocol::schema::v1::{
         EnvVariable, HttpHeader, McpServer, McpServerHttp, McpServerSse, McpServerStdio,
         PermissionOptionId, ResourceLink, SelectedPermissionOutcome,
     };
@@ -3846,7 +3905,7 @@ print(\"hello, world\")
         let request =
             InitializeRequest::new(agent_client_protocol::schema::ProtocolVersion::LATEST)
                 .client_capabilities(
-                    agent_client_protocol::schema::ClientCapabilities::new().meta(meta),
+                    agent_client_protocol::schema::v1::ClientCapabilities::new().meta(meta),
                 );
         let goose_client_capabilities =
             extract_client_capabilities_meta(&request).and_then(|meta| meta.goose);

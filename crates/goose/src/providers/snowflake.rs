@@ -105,6 +105,7 @@ impl SnowflakeProvider {
 
         let auth = AuthMethod::BearerToken(token?);
         let api_client = ApiClient::new_with_tls(base_url, auth, tls_config)?
+            .with_request_builder(crate::session_context::session_id_request_builder())
             .with_header("User-Agent", "goose")?;
 
         Ok(Self {
@@ -114,14 +115,10 @@ impl SnowflakeProvider {
         })
     }
 
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post(session_id, "api/v2/cortex/inference:complete", payload)
+            .response_post("api/v2/cortex/inference:complete", payload)
             .await?;
 
         let status = response.status();
@@ -344,16 +341,10 @@ impl Provider for SnowflakeProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = if session_id.is_empty() {
-            None
-        } else {
-            Some(session_id)
-        };
         let payload = create_request(model_config, system, messages, tools)?;
 
         let mut log = start_log(model_config, &payload)?;
@@ -361,7 +352,7 @@ impl Provider for SnowflakeProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(session_id, &payload_clone).await
+                self.post(&payload_clone).await
             })
             .await?;
 

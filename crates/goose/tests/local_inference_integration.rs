@@ -37,7 +37,7 @@ async fn test_local_inference_stream_produces_output() {
     let messages = vec![Message::user().with_text("Say hello.")];
 
     let mut stream = provider
-        .stream(&model_config, "test-session", system, &messages, &[])
+        .stream(&model_config, system, &messages, &[])
         .await
         .expect("stream should start");
 
@@ -82,7 +82,7 @@ async fn test_local_inference_large_prompt() {
 
     let start = std::time::Instant::now();
     let (response, _usage) = provider
-        .complete(&model_config, "test-session", "", &messages, &[])
+        .complete(&model_config, "", &messages, &[])
         .await
         .expect("large prompt completion should succeed");
     let elapsed = start.elapsed();
@@ -149,7 +149,7 @@ async fn test_local_inference_vision_produces_output() {
         .with_image(image_b64, "image/png")];
 
     let mut stream = provider
-        .stream(&model_config, "test-vision-session", system, &messages, &[])
+        .stream(&model_config, system, &messages, &[])
         .await
         .expect("stream should start for vision input");
 
@@ -194,7 +194,7 @@ async fn test_local_inference_vision_text_only_model_graceful() {
         .with_image(image_b64, "image/png")];
 
     let mut stream = provider
-        .stream(&model_config, "test-session", system, &messages, &[])
+        .stream(&model_config, system, &messages, &[])
         .await
         .expect("stream should start");
 

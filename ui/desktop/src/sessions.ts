@@ -1,9 +1,9 @@
-import { Session, startAgent, ExtensionConfig } from './api';
+import type { Session } from './types/session';
+import type { ExtensionConfig } from './types/extensions';
 import { DEFAULT_CHAT_TITLE } from './contexts/ChatContext';
 import type { setViewType } from './hooks/useNavigation';
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
-import { USE_ACP_CHAT } from './acpChatFeatureFlag';
 import { acpChatSessionController } from './acp/chatSessionController';
 import { getConfiguredGooseExtensions, gooseExtensionName } from './acp/extensions';
 
@@ -85,35 +85,7 @@ export async function createSession(
   workingDir: string,
   options?: CreateSessionOptions
 ): Promise<Session> {
-  if (USE_ACP_CHAT) {
-    return createAcpSession(workingDir, options);
-  }
-
-  const body: {
-    working_dir: string;
-    recipe_deeplink?: string;
-    recipe_id?: string;
-    extension_overrides?: ExtensionConfig[];
-  } = {
-    working_dir: workingDir,
-  };
-
-  if (options?.recipeId) {
-    body.recipe_id = options.recipeId;
-  } else if (options?.recipeDeeplink) {
-    body.recipe_deeplink = options.recipeDeeplink;
-  }
-
-  const extensionConfigs = selectedExtensionConfigs(options);
-  if (extensionConfigs.length > 0) {
-    body.extension_overrides = extensionConfigs;
-  }
-
-  const newAgent = await startAgent({
-    body,
-    throwOnError: true,
-  });
-  return newAgent.data;
+  return createAcpSession(workingDir, options);
 }
 
 export async function startNewSession(

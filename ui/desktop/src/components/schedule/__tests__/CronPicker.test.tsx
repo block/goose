@@ -1,9 +1,9 @@
 import { render, screen, type RenderOptions, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
+import type { ScheduledJobDto } from '@aaif/goose-sdk';
 import { IntlTestWrapper } from '../../../i18n/test-utils';
 import { CronPicker } from '../CronPicker';
-import type { ScheduledJob } from '../../../schedule';
 
 const renderWithIntl = (ui: React.ReactElement, options?: RenderOptions) =>
   render(ui, { wrapper: IntlTestWrapper, ...options });
@@ -13,10 +13,12 @@ const getLastCron = (onChange: ReturnType<typeof vi.fn>) => {
   return calls[calls.length - 1]?.[0];
 };
 
-const scheduledJob = (cron: string): ScheduledJob => ({
+const scheduledJob = (cron: string): ScheduledJobDto => ({
   id: 'quarterly-report',
   source: 'dummy.yaml',
   cron,
+  currentlyRunning: false,
+  paused: false,
 });
 
 describe('CronPicker', () => {

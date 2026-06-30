@@ -1,6 +1,6 @@
 import type { ContentBlock, PromptResponse } from '@agentclientprotocol/sdk';
 import type { SteerSessionRequest_unstable, SteerSessionResponse_unstable } from '@aaif/goose-sdk';
-import type { Message } from '../api';
+import type { Message } from '../types/message';
 import { getAcpClient } from './acpConnection';
 
 export async function acpPromptSession(

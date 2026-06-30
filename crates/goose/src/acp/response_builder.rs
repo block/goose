@@ -3,11 +3,10 @@ use crate::config::{Config, GooseMode};
 use crate::providers::inventory::{ProviderInventoryEntry, ProviderInventoryService};
 use crate::session::Session;
 use crate::slash_commands::types::{SlashCommandEntry, SlashCommandSource};
-use agent_client_protocol::schema::{
-    AvailableCommand, AvailableCommandInput, AvailableCommandsUpdate, ModelId, ModelInfo,
-    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOption, SessionId,
-    SessionInfo, SessionMode, SessionModeId, SessionModeState, SessionModelState,
-    SessionNotification, SessionUpdate, UnstructuredCommandInput,
+use agent_client_protocol::schema::v1::{
+    AvailableCommand, AvailableCommandInput, AvailableCommandsUpdate, SessionConfigOption,
+    SessionConfigOptionCategory, SessionConfigSelectOption, SessionId, SessionInfo, SessionMode,
+    SessionModeId, SessionModeState, SessionNotification, SessionUpdate, UnstructuredCommandInput,
 };
 use agent_client_protocol::{Client, ConnectionTo};
 use goose_providers::model::ModelConfig;
@@ -110,25 +109,51 @@ pub(super) fn build_session_info(session: Session) -> SessionInfo {
     info
 }
 
+/// A model and its label, used to build the "model" session config option.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ModelOption {
+    pub id: String,
+    pub name: String,
+}
+
+/// The currently selected model and the set of available models for a session.
+///
+/// Replaces the removed `SessionModelState` ACP schema type; goose now surfaces
+/// model selection through the generic session config option API.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ModelSelection {
+    pub current_model_id: String,
+    pub available_models: Vec<ModelOption>,
+}
+
 pub(super) fn build_model_state(
     current_model: &str,
     inventory: &ProviderInventoryEntry,
-) -> SessionModelState {
+) -> ModelSelection {
     let mut available_models = inventory
         .models
         .iter()
-        .map(|model| ModelInfo::new(ModelId::new(model.id.as_str()), model.name.as_str()))
+        .map(|model| ModelOption {
+            id: model.id.clone(),
+            name: model.name.clone(),
+        })
         .collect::<Vec<_>>();
     if !available_models
         .iter()
-        .any(|model| model.model_id.0.as_ref() == current_model)
+        .any(|model| model.id == current_model)
     {
         available_models.insert(
             0,
-            ModelInfo::new(ModelId::new(current_model), current_model),
+            ModelOption {
+                id: current_model.to_string(),
+                name: current_model.to_string(),
+            },
         );
     }
-    SessionModelState::new(ModelId::new(current_model), available_models)
+    ModelSelection {
+        current_model_id: current_model.to_string(),
+        available_models,
+    }
 }
 
 struct ProviderOptionEntry {
@@ -209,27 +234,20 @@ pub(super) fn build_mode_state(
 pub(super) async fn build_session_setup_config(
     provider_inventory: &ProviderInventoryService,
     session: &Session,
-) -> Result<
-    (
-        SessionModeState,
-        Option<SessionModelState>,
-        Option<Vec<SessionConfigOption>>,
-    ),
-    agent_client_protocol::Error,
-> {
+) -> Result<(SessionModeState, Option<Vec<SessionConfigOption>>), agent_client_protocol::Error> {
     let mode_state = build_mode_state(session.goose_mode)?;
 
     let (Some(provider_name), Some(model_config)) = (
         session.provider_name.as_deref(),
         session.model_config.as_ref(),
     ) else {
-        return Ok((mode_state, None, None));
+        return Ok((mode_state, None));
     };
     let Some(inventory) = provider_inventory
         .find_entry_for_provider(provider_name)
         .await
     else {
-        return Ok((mode_state, None, None));
+        return Ok((mode_state, None));
     };
     let model_state = build_model_state(model_config.model_name.as_str(), &inventory);
     let provider_selection = session_provider_selection(session);
@@ -241,12 +259,12 @@ pub(super) async fn build_session_setup_config(
         provider_selection,
         provider_options,
     );
-    Ok((mode_state, Some(model_state), Some(config_options)))
+    Ok((mode_state, Some(config_options)))
 }
 
 pub(super) fn build_config_options(
     mode_state: &SessionModeState,
-    model_state: &SessionModelState,
+    model_state: &ModelSelection,
     model_config: &ModelConfig,
     provider_selection: &str,
     provider_options: Vec<SessionConfigSelectOption>,
@@ -262,7 +280,7 @@ pub(super) fn build_config_options(
     let model_options: Vec<SessionConfigSelectOption> = model_state
         .available_models
         .iter()
-        .map(|m| SessionConfigSelectOption::new(m.model_id.0.clone(), m.name.clone()))
+        .map(|m| SessionConfigSelectOption::new(m.id.clone(), m.name.clone()))
         .collect();
     let thinking_effort_options = thinking_effort_values(model_config)
         .iter()
@@ -289,7 +307,7 @@ pub(super) fn build_config_options(
         SessionConfigOption::select(
             "model",
             "Model",
-            model_state.current_model_id.0.clone(),
+            model_state.current_model_id.clone(),
             model_options,
         )
         .category(SessionConfigOptionCategory::Model),
@@ -404,28 +422,33 @@ pub(super) fn send_session_setup_notifications(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use agent_client_protocol::schema::SessionConfigKind;
+    use agent_client_protocol::schema::v1::SessionConfigKind;
     use test_case::test_case;
+
+    fn model_selection(current: &str, models: &[&str]) -> ModelSelection {
+        ModelSelection {
+            current_model_id: current.to_string(),
+            available_models: models
+                .iter()
+                .map(|m| ModelOption {
+                    id: m.to_string(),
+                    name: m.to_string(),
+                })
+                .collect(),
+        }
+    }
 
     #[test_case(
         vec!["model-a".into(), "model-b".into()]
-        => SessionModelState::new(
-            ModelId::new("unused"),
-            vec![ModelInfo::new(ModelId::new("unused"), "unused"),
-                 ModelInfo::new(ModelId::new("model-a"), "model-a"),
-                 ModelInfo::new(ModelId::new("model-b"), "model-b")],
-        )
+        => model_selection("unused", &["unused", "model-a", "model-b"])
         ; "returns current and available models"
     )]
     #[test_case(
         vec![]
-        => SessionModelState::new(
-            ModelId::new("unused"),
-            vec![ModelInfo::new(ModelId::new("unused"), "unused")],
-        )
+        => model_selection("unused", &["unused"])
         ; "empty model list"
     )]
-    fn test_build_model_state(models: Vec<String>) -> SessionModelState {
+    fn test_build_model_state(models: Vec<String>) -> ModelSelection {
         let inventory = ProviderInventoryEntry {
             provider_id: "mock".to_string(),
             provider_name: "Mock".to_string(),
@@ -547,10 +570,7 @@ mod tests {
             SessionConfigSelectOption::new("anthropic", "anthropic"),
             SessionConfigSelectOption::new("openai", "openai"),
         ],
-        SessionModelState::new(
-            ModelId::new("gpt-4"),
-            vec![ModelInfo::new(ModelId::new("gpt-4"), "gpt-4"), ModelInfo::new(ModelId::new("gpt-3.5"), "gpt-3.5")],
-        )
+        model_selection("gpt-4", &["gpt-4", "gpt-3.5"])
         => vec![
             SessionConfigOption::select(
                 "provider", "Provider", "openai",
@@ -588,7 +608,7 @@ mod tests {
         build_mode_state(GooseMode::Approve).unwrap(),
         "openai",
         vec![SessionConfigSelectOption::new("openai", "openai")],
-        SessionModelState::new(ModelId::new("only-model"), vec![ModelInfo::new(ModelId::new("only-model"), "only-model")])
+        model_selection("only-model", &["only-model"])
         => vec![
             SessionConfigOption::select(
                 "provider", "Provider", "openai",
@@ -620,9 +640,9 @@ mod tests {
         mode_state: SessionModeState,
         provider_name: &'static str,
         provider_options: Vec<SessionConfigSelectOption>,
-        model_state: SessionModelState,
+        model_state: ModelSelection,
     ) -> Vec<SessionConfigOption> {
-        let model_config = ModelConfig::new(model_state.current_model_id.0.as_ref())
+        let model_config = ModelConfig::new(model_state.current_model_id.as_str())
             .with_merged_request_params(std::collections::HashMap::from([(
                 "thinking_effort".to_string(),
                 serde_json::json!("off"),
@@ -639,13 +659,7 @@ mod tests {
     #[test]
     fn test_build_config_options_uses_current_thinking_effort() {
         let mode_state = build_mode_state(GooseMode::Auto).unwrap();
-        let model_state = SessionModelState::new(
-            ModelId::new("claude-sonnet-4"),
-            vec![ModelInfo::new(
-                ModelId::new("claude-sonnet-4"),
-                "claude-sonnet-4",
-            )],
-        );
+        let model_state = model_selection("claude-sonnet-4", &["claude-sonnet-4"]);
         let model_config = ModelConfig::new("claude-sonnet-4").with_merged_request_params(
             std::collections::HashMap::from([(
                 "thinking_effort".to_string(),
@@ -675,10 +689,7 @@ mod tests {
     #[test]
     fn test_build_config_options_masks_non_reasoning_thinking_effort() {
         let mode_state = build_mode_state(GooseMode::Auto).unwrap();
-        let model_state = SessionModelState::new(
-            ModelId::new("gpt-4"),
-            vec![ModelInfo::new(ModelId::new("gpt-4"), "gpt-4")],
-        );
+        let model_state = model_selection("gpt-4", &["gpt-4"]);
         let mut model_config =
             ModelConfig::new("gpt-4").with_merged_request_params(std::collections::HashMap::from(
                 [("thinking_effort".to_string(), serde_json::json!("high"))],
@@ -704,7 +715,7 @@ mod tests {
         assert_eq!(select.current_value.0.as_ref(), "off");
         assert_eq!(
             select.options,
-            agent_client_protocol::schema::SessionConfigSelectOptions::Ungrouped(vec![
+            agent_client_protocol::schema::v1::SessionConfigSelectOptions::Ungrouped(vec![
                 SessionConfigSelectOption::new("off", "off")
             ])
         );

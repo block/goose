@@ -1813,7 +1813,6 @@ pub async fn handle_openrouter_auth() -> anyhow::Result<()> {
             let test_result = provider
                 .complete(
                     &model_config,
-                    "",
                     "You are goose, an AI assistant.",
                     &[Message::user().with_text("Say 'Configuration test successful!'")],
                     &[],

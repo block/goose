@@ -10,6 +10,19 @@ use goose_providers::{
     openai::OpenAiProvider,
 };
 
+async fn stream(provider: impl Provider, model: ModelConfig) -> Result<()> {
+    let system = "You are a knowledgable geography expert";
+    let messages = [Message::user().with_text("what is the capital of France?")];
+
+    let mut stream = provider.stream(&model, system, &messages, &[]).await?;
+
+    while let Some((Some(msg), _)) = stream.next().await.transpose()? {
+        print!("{}", msg.as_concat_text());
+    }
+    println!();
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let key = env::var("OPENAI_API_KEY").map_err(|_| anyhow::anyhow!("need an OpenAI key"))?;
@@ -18,26 +31,9 @@ async fn main() -> Result<()> {
         AuthMethod::BearerToken(key),
         Some(Default::default()),
     )?;
+
     let provider = OpenAiProvider::new(api_client);
-
-    let system = "You are a knowledgable geography expert";
-    let messages = [Message::user().with_text("what is the capital of France?")];
-
     let model = ModelConfig::new("gpt-5.4-mini");
-    let mut stream = provider
-        .stream(
-            &model,
-            "", // session-id
-            system,
-            &messages,
-            &[],
-        )
-        .await?;
 
-    while let Some((Some(msg), _)) = stream.next().await.transpose()? {
-        print!("{}", msg.as_concat_text());
-    }
-    println!();
-
-    Ok(())
+    stream(provider, model).await
 }

@@ -10,11 +10,12 @@ import { defineMessages, useIntl } from '../../../i18n';
 const i18n = defineMessages({
   modeTitle: {
     id: 'chatSettings.modeTitle',
-    defaultMessage: 'Mode',
+    defaultMessage: 'Default Mode',
   },
   modeDescription: {
     id: 'chatSettings.modeDescription',
-    defaultMessage: 'Configure how Goose interacts with tools and extensions',
+    defaultMessage:
+      'Choose the default mode Goose uses for new sessions. Existing sessions keep their current mode.',
   },
   responseStylesTitle: {
     id: 'chatSettings.responseStylesTitle',
@@ -26,7 +27,7 @@ const i18n = defineMessages({
   },
 });
 
-export default function ChatSettingsSection({ sessionId }: { sessionId?: string }) {
+export default function ChatSettingsSection() {
   const intl = useIntl();
 
   return (
@@ -37,7 +38,7 @@ export default function ChatSettingsSection({ sessionId }: { sessionId?: string 
           <CardDescription>{intl.formatMessage(i18n.modeDescription)}</CardDescription>
         </CardHeader>
         <CardContent className="px-2">
-          <ModeSection sessionId={sessionId} />
+          <ModeSection />
         </CardContent>
       </Card>
 

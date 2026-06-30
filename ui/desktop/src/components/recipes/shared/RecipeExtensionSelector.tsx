@@ -38,6 +38,12 @@ type DisplayRecipeExtension = RecipeExtension & {
   enabled?: boolean;
 };
 
+function availableToolsProps(availableTools?: string[] | null) {
+  return availableTools && availableTools.length > 0
+    ? { available_tools: availableTools }
+    : undefined;
+}
+
 function toRecipeExtension(
   extension: FixedExtensionEntry | DisplayRecipeExtension
 ): DisplayRecipeExtension | null {
@@ -45,21 +51,74 @@ function toRecipeExtension(
 
   switch (extension.type) {
     case 'builtin': {
-      const { name, description, display_name, timeout, bundled, type } = extension;
-      return { name, description, display_name, timeout, bundled, type, enabled };
+      const { name, description, display_name, timeout, bundled, available_tools, type } =
+        extension;
+      return {
+        name,
+        description,
+        display_name,
+        timeout,
+        bundled,
+        ...availableToolsProps(available_tools),
+        type,
+        enabled,
+      };
     }
     case 'platform': {
-      const { name, description, display_name, bundled, type } = extension;
-      return { name, description, display_name, bundled, type, enabled };
+      const { name, description, display_name, bundled, available_tools, type } = extension;
+      return {
+        name,
+        description,
+        display_name,
+        bundled,
+        ...availableToolsProps(available_tools),
+        type,
+        enabled,
+      };
     }
     case 'stdio': {
-      const { name, description, cmd, args, envs, env_keys, timeout, cwd, bundled, type } =
-        extension;
-      return { name, description, cmd, args, envs, env_keys, timeout, cwd, bundled, type, enabled };
+      const {
+        name,
+        description,
+        cmd,
+        args,
+        envs,
+        env_keys,
+        timeout,
+        cwd,
+        bundled,
+        available_tools,
+        type,
+      } = extension;
+      return {
+        name,
+        description,
+        cmd,
+        args,
+        envs,
+        env_keys,
+        timeout,
+        cwd,
+        bundled,
+        ...availableToolsProps(available_tools),
+        type,
+        enabled,
+      };
     }
     case 'streamable_http': {
-      const { name, description, uri, envs, env_keys, headers, timeout, socket, bundled, type } =
-        extension;
+      const {
+        name,
+        description,
+        uri,
+        envs,
+        env_keys,
+        headers,
+        timeout,
+        socket,
+        bundled,
+        available_tools,
+        type,
+      } = extension;
       return {
         name,
         description,
@@ -70,6 +129,7 @@ function toRecipeExtension(
         timeout,
         socket,
         bundled,
+        ...availableToolsProps(available_tools),
         type,
         enabled,
       };

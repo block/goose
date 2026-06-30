@@ -49,8 +49,7 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client } from './api/client';
-import { GooseApp } from './api';
-import * as mesh from './mesh';
+import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
@@ -173,12 +172,20 @@ const validLanguageSettings = new Set<Settings['language']>([
   'system',
   'en',
   'es',
+  'fr',
+  'de',
+  'it',
+  'pt',
+  'id',
+  'ms',
+  'vi',
   'hi',
   'ja',
   'ko',
   'ru',
   'tr',
   'zh-CN',
+  'zh-TW',
 ]);
 
 function isValidLanguageSetting(value: unknown): value is Settings['language'] {
@@ -205,10 +212,6 @@ function getSettings(): Settings {
       keyboardShortcuts: {
         ...defaultSettings.keyboardShortcuts,
         ...(stored.keyboardShortcuts ?? {}),
-      },
-      sessionSharing: {
-        ...defaultSettings.sessionSharing,
-        ...(stored.sessionSharing ?? {}),
       },
     };
   }
@@ -748,7 +751,6 @@ interface BundledConfig {
   defaultProvider?: string;
   defaultModel?: string;
   predefinedModels?: string;
-  baseUrlShare?: string;
   version?: string;
 }
 
@@ -760,13 +762,11 @@ const getBundledConfig = (): BundledConfig => {
     defaultProvider: process.env.GOOSE_DEFAULT_PROVIDER,
     defaultModel: process.env.GOOSE_DEFAULT_MODEL,
     predefinedModels: process.env.GOOSE_PREDEFINED_MODELS,
-    baseUrlShare: process.env.GOOSE_BASE_URL_SHARE,
     version: process.env.GOOSE_VERSION,
   };
 };
 
-const { defaultProvider, defaultModel, predefinedModels, baseUrlShare, version } =
-  getBundledConfig();
+const { defaultProvider, defaultModel, predefinedModels, version } = getBundledConfig();
 
 const resolveGoosePathRoot = (): string | undefined => {
   const pathRoot = process.env.GOOSE_PATH_ROOT?.trim();
@@ -814,6 +814,7 @@ let appConfig = {
   GOOSE_LOCALE: process.env.GOOSE_LOCALE || undefined,
   // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
   GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
+  GOOSE_DISABLE_NOSTR_SHARING: process.env.GOOSE_DISABLE_NOSTR_SHARING === 'true',
 };
 
 const windowMap = new Map<number, BrowserWindow>();
@@ -986,7 +987,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
           GOOSE_API_HOST: baseUrl,
           GOOSE_WORKING_DIR: workingDir,
           REQUEST_DIR: dir,
-          GOOSE_BASE_URL_SHARE: baseUrlShare,
           GOOSE_VERSION: version,
           recipeDeeplink: recipeDeeplink,
           recipeId: recipeId,
@@ -1092,19 +1092,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   // Stop collecting stderr to avoid unbounded memory growth over long sessions.
   stopErrorLogCollection();
   errorLog.length = 0;
-
-  // Nudge the user if mesh is their provider but isn't running.
-  // Delay to let the renderer mount before sending the IPC event.
-  setTimeout(() => {
-    mesh
-      .checkProviderRunning(goosedClient)
-      .then((ok) => {
-        if (!ok && !mainWindow.isDestroyed()) {
-          mainWindow.webContents.send('mesh-not-running');
-        }
-      })
-      .catch(() => {});
-  }, 5000);
 
   // Let windowStateKeeper manage the window
   mainWindowState.manage(mainWindow);
@@ -1216,7 +1203,6 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     skills: '/skills',
     permission: '/permission',
     ConfigureProviders: '/configure-providers',
-    sharedSession: '/shared-session',
   };
 
   if (viewType) {
@@ -1735,7 +1721,6 @@ const validSettingKeys: Set<string> = new Set([
   'language',
   'responseStyle',
   'showPricing',
-  'sessionSharing',
   'seenAnnouncementIds',
   'disableAutoDownload',
 ]);
@@ -2036,12 +2021,6 @@ ipcMain.handle('select-import-session-file', async () => {
     return { filePath, contents: '', error: errorMessage(err) };
   }
 });
-
-// ── Mesh-LLM lifecycle (see mesh.ts) ────────────────────────────────
-
-ipcMain.handle('check-mesh', () => mesh.check());
-ipcMain.handle('start-mesh', (_event, args: string[]) => mesh.start(args));
-ipcMain.handle('stop-mesh', () => mesh.stop());
 
 ipcMain.handle('check-ollama', async () => {
   try {
@@ -2925,9 +2904,6 @@ async function getAllowList(): Promise<string[]> {
 }
 
 app.on('will-quit', async () => {
-  // Stop the mesh child process if we spawned one.
-  mesh.cleanup();
-
   const goosedLeases = new Set(goosedLeasesByWindowId.values());
   if (goosedLeases.size > 0) {
     log.info(`App quitting, terminating ${goosedLeases.size} goosed server(s)`);

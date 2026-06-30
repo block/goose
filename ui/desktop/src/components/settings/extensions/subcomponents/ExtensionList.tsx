@@ -1,6 +1,6 @@
 import ExtensionItem from './ExtensionItem';
 import builtInExtensionsData from '../../../../built-in-extensions.json';
-import { ExtensionConfig } from '../../../../api';
+import type { ExtensionConfig } from '../../../../types/extensions';
 import { FixedExtensionEntry } from '../../../ConfigContext';
 import { combineCmdAndArgs } from '../utils';
 import { defineMessages, useIntl } from '../../../../i18n';
@@ -164,7 +164,7 @@ export function getSubtitle(config: ExtensionConfig) {
     default:
       return {
         description: config.description || null,
-        command: 'cmd' in config ? combineCmdAndArgs(config.cmd, config.args) : null,
+        command: 'cmd' in config ? combineCmdAndArgs(config.cmd, config.args ?? []) : null,
       };
   }
 }

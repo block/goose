@@ -34,8 +34,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../ui/dialog';
-import { importSessionNostr, shareSessionNostr } from '../../api';
-import { getTunnelStatus } from '../../api/sdk.gen';
 import {
   acpDeleteSession,
   acpExportSession,
@@ -43,13 +41,13 @@ import {
   acpImportSession,
   acpListSessions,
   acpRenameSession,
+  acpShareSessionNostr,
   type SessionListItem,
 } from '../../acp/sessions';
 import { acpChatSessionActions } from '../../acp/chatSessionStore';
 import { cancelAcpPermissionRequestsForSession } from '../../acp/permissionRequests';
 import { cancelAcpElicitationRequestsForSession } from '../../acp/elicitationRequests';
 import { getSearchShortcutText } from '../../utils/keyboardShortcuts';
-import { clearSessionCache } from '../../hooks/useChatStream';
 
 const i18n = defineMessages({
   editSessionTitle: { id: 'sessions.edit.title', defaultMessage: 'Edit Session Description' },
@@ -232,11 +230,10 @@ function useDebounce<T>(value: T, delay: number): T {
 
 interface SessionListViewProps {
   onSelectSession: (sessionId: string) => void;
-  selectedSessionId?: string | null;
 }
 
 const SessionListView: React.FC<SessionListViewProps> = React.memo(
-  ({ onSelectSession, selectedSessionId }) => {
+  ({ onSelectSession }) => {
     const intl = useIntl();
     const [sessions, setSessions] = useState<SessionListItem[]>([]);
     const [isPrefetchingSessions, setIsPrefetchingSessions] = useState(false);
@@ -273,16 +270,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
     const containerRef = useRef<HTMLDivElement>(null);
     const loadGenerationRef = useRef(0);
     const hasLoadedRef = useRef(false);
-
-    // Track session to element ref
-    const sessionRefs = useRef<Record<string, HTMLElement>>({});
-    const setSessionRefs = (itemId: string, element: HTMLDivElement | null) => {
-      if (element) {
-        sessionRefs.current[itemId] = element;
-      } else {
-        delete sessionRefs.current[itemId];
-      }
-    };
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -395,15 +382,12 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
       };
     }, [loadSessions, debouncedSearchTerm]);
 
-    // Hide Nostr sharing when tunnel is disabled (restricted/enterprise bundles)
+    // Hide Nostr sharing when explicitly disabled via env var (restricted/enterprise bundles)
     useEffect(() => {
-      getTunnelStatus()
-        .then(({ data }) => {
-          if (data?.state === 'disabled') {
-            setNostrEnabled(false);
-          }
-        })
-        .catch(() => {});
+      const config = window.electron.getConfig();
+      if (config.GOOSE_DISABLE_NOSTR_SHARING === true) {
+        setNostrEnabled(false);
+      }
     }, []);
 
     // Timing logic to prevent flicker between skeleton and content on initial load
@@ -434,18 +418,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         setDateGroups(memoizedDateGroups);
       });
     }, [memoizedDateGroups]);
-
-    // Scroll to the selected session when returning from session history view
-    useEffect(() => {
-      if (selectedSessionId) {
-        const element = sessionRefs.current[selectedSessionId];
-        if (element) {
-          element.scrollIntoView({
-            block: 'center',
-          });
-        }
-      }
-    }, [selectedSessionId, sessions]);
 
     // Handle immediate search input (updates search term for debouncing).
     const handleSearch = useCallback((term: string) => {
@@ -511,7 +483,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         window.dispatchEvent(
           new CustomEvent(AppEvents.SESSION_DELETED, { detail: { sessionId: sessionToDeleteId } })
         );
-        clearSessionCache(sessionToDeleteId);
         cancelAcpPermissionRequestsForSession(sessionToDeleteId);
         cancelAcpElicitationRequestsForSession(sessionToDeleteId);
         acpChatSessionActions.deleteSnapshot(sessionToDeleteId);
@@ -548,12 +519,8 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         e.stopPropagation();
         setSharingSessionId(session.id);
         try {
-          const response = await shareSessionNostr({
-            path: { session_id: session.id },
-            body: {},
-            throwOnError: true,
-          });
-          setShareLink(response.data.deeplink);
+          const response = await acpShareSessionNostr(session.id, []);
+          setShareLink(response.deeplink);
           setShowShareLinkModal(true);
           toast.success(intl.formatMessage(i18n.shareNostrSuccess));
         } catch (error) {
@@ -575,7 +542,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
             toast.error(intl.formatMessage(i18n.importFailed, { error: result.error }));
             return;
           }
-          await acpImportSession(result.contents);
+          await acpImportSession(result.contents, 'json');
           toast.success(intl.formatMessage(i18n.importSuccess));
           window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
           await loadSessions();
@@ -596,10 +563,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
       setIsImportingNostr(true);
       try {
-        await importSessionNostr({
-          body: { deeplink },
-          throwOnError: true,
-        });
+        await acpImportSession(deeplink, 'nostr');
         setNostrImportLink('');
         setShowImportLinkModal(false);
         toast.success(intl.formatMessage(i18n.importSuccess));
@@ -628,7 +592,7 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
 
         try {
           const json = await file.text();
-          await acpImportSession(json);
+          await acpImportSession(json, 'json');
 
           toast.success(intl.formatMessage(i18n.importSuccess));
           window.dispatchEvent(new CustomEvent(AppEvents.SESSION_CREATED));
@@ -727,7 +691,6 @@ const SessionListView: React.FC<SessionListViewProps> = React.memo(
         <Card
           onClick={handleCardClick}
           className="h-full py-3 px-4 hover:shadow-default cursor-pointer transition-all duration-150 flex flex-col justify-between relative group"
-          ref={(el) => setSessionRefs(session.id, el)}
         >
           <div>
             <h3 className="text-base break-words line-clamp-2 w-full mb-1">{displayName}</h3>

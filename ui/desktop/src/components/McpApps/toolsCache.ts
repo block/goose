@@ -9,10 +9,9 @@
  * automatically coalesce into a single network call.
  */
 
-import type { ToolInfo } from '../../api/types.gen';
-import { getTools } from '../../api';
+import { listMcpAppTools, type McpAppTool } from '../../acp/mcp-apps';
 
-type ToolsList = Array<ToolInfo>;
+type ToolsList = Array<McpAppTool>;
 
 const cache = new Map<string, Promise<ToolsList | null>>();
 
@@ -28,15 +27,11 @@ export function getCachedTools(
   const existing = cache.get(key);
   if (existing) return existing;
 
-  const promise = getTools({
-    query: { session_id: sessionId, extension_name: extensionName || undefined },
-  })
-    .then((response) => response.data ?? null)
-    .catch(() => {
-      // Evict on failure so the next caller retries
-      cache.delete(key);
-      return null;
-    });
+  const promise = listMcpAppTools(sessionId, extensionName || undefined).catch(() => {
+    // Evict on failure so the next caller retries
+    cache.delete(key);
+    return null;
+  });
 
   cache.set(key, promise);
   return promise;
