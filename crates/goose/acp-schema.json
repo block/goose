@@ -5684,6 +5684,837 @@
       "x-side": "agent",
       "x-method": "_goose/unstable/dictation/models/select"
     },
+    "LocalInferenceModelsListRequest_unstable": {
+      "type": "object",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/list"
+    },
+    "LocalInferenceModelsListResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "models": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LocalInferenceModelDto"
+          }
+        }
+      },
+      "required": [
+        "models"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/list"
+    },
+    "LocalInferenceModelDto": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "repoId": {
+          "type": "string"
+        },
+        "filename": {
+          "type": "string"
+        },
+        "quantization": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "$ref": "#/$defs/LocalInferenceModelDownloadStatusDto"
+        },
+        "recommended": {
+          "type": "boolean"
+        },
+        "settings": {
+          "$ref": "#/$defs/LocalInferenceModelSettingsDto"
+        },
+        "visionCapable": {
+          "type": "boolean"
+        },
+        "mmprojStatus": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalInferenceModelDownloadStatusDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "repoId",
+        "filename",
+        "quantization",
+        "sizeBytes",
+        "status",
+        "recommended",
+        "settings",
+        "visionCapable"
+      ]
+    },
+    "LocalInferenceModelDownloadStatusDto": {
+      "type": "object",
+      "properties": {
+        "state": {
+          "$ref": "#/$defs/LocalInferenceDownloadState"
+        },
+        "progressPercent": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "float"
+        },
+        "bytesDownloaded": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "totalBytes": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "speedBps": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "required": [
+        "state"
+      ]
+    },
+    "LocalInferenceDownloadState": {
+      "type": "string",
+      "enum": [
+        "NotDownloaded",
+        "Downloading",
+        "Downloaded"
+      ]
+    },
+    "LocalInferenceModelSettingsDto": {
+      "type": "object",
+      "properties": {
+        "backendId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "contextSize": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "maxOutputTokens": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "draftModel": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sampling": {
+          "$ref": "#/$defs/LocalInferenceSamplingConfig",
+          "default": {
+            "type": "Temperature",
+            "temperature": 0.800000011920929,
+            "topK": 40,
+            "topP": 0.949999988079071,
+            "minP": 0.05000000074505806
+          }
+        },
+        "repeatPenalty": {
+          "type": "number",
+          "format": "float"
+        },
+        "repeatLastN": {
+          "type": "integer"
+        },
+        "frequencyPenalty": {
+          "type": "number",
+          "format": "float"
+        },
+        "presencePenalty": {
+          "type": "number",
+          "format": "float"
+        },
+        "nBatch": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "nGpuLayers": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "useMlock": {
+          "type": "boolean"
+        },
+        "flashAttention": {
+          "type": [
+            "boolean",
+            "null"
+          ]
+        },
+        "nThreads": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "toolCalling": {
+          "$ref": "#/$defs/LocalInferenceToolCallingMode",
+          "default": "auto"
+        },
+        "chatTemplate": {
+          "$ref": "#/$defs/LocalInferenceChatTemplate",
+          "default": {
+            "type": "embedded"
+          }
+        },
+        "enableThinking": {
+          "type": "boolean"
+        },
+        "visionCapable": {
+          "type": "boolean"
+        },
+        "imageTokenEstimate": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mmprojSizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "repeatPenalty",
+        "repeatLastN",
+        "frequencyPenalty",
+        "presencePenalty",
+        "useMlock",
+        "enableThinking",
+        "visionCapable",
+        "imageTokenEstimate",
+        "mmprojSizeBytes"
+      ]
+    },
+    "LocalInferenceSamplingConfig": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "Greedy"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "temperature": {
+              "type": "number",
+              "format": "float"
+            },
+            "topK": {
+              "type": "integer"
+            },
+            "topP": {
+              "type": "number",
+              "format": "float"
+            },
+            "minP": {
+              "type": "number",
+              "format": "float"
+            },
+            "seed": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "Temperature"
+            }
+          },
+          "required": [
+            "type",
+            "temperature",
+            "topK",
+            "topP",
+            "minP"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "tau": {
+              "type": "number",
+              "format": "float"
+            },
+            "eta": {
+              "type": "number",
+              "format": "float"
+            },
+            "seed": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "MirostatV2"
+            }
+          },
+          "required": [
+            "type",
+            "tau",
+            "eta"
+          ]
+        }
+      ]
+    },
+    "LocalInferenceToolCallingMode": {
+      "type": "string",
+      "enum": [
+        "auto",
+        "force_native",
+        "force_emulated"
+      ]
+    },
+    "LocalInferenceChatTemplate": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "embedded"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "builtin"
+            }
+          },
+          "required": [
+            "type",
+            "name"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "template": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "custom_inline"
+            }
+          },
+          "required": [
+            "type",
+            "template"
+          ]
+        }
+      ]
+    },
+    "LocalInferenceModelDownloadRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "spec": {
+          "type": "string"
+        },
+        "backendId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "variantId": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "spec"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/download"
+    },
+    "LocalInferenceModelDownloadResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "modelId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/download"
+    },
+    "LocalInferenceModelDownloadProgressRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "modelId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/download/progress"
+    },
+    "LocalInferenceModelDownloadProgressResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "progress": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LocalInferenceDownloadProgressDto"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/download/progress"
+    },
+    "LocalInferenceDownloadProgressDto": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "bytesDownloaded": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "totalBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "progressPercent": {
+          "type": "number",
+          "format": "float"
+        },
+        "speedBps": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "etaSeconds": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "error": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "taskExited": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "modelId",
+        "status",
+        "bytesDownloaded",
+        "totalBytes",
+        "progressPercent",
+        "taskExited"
+      ]
+    },
+    "LocalInferenceModelDownloadCancelRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "modelId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/download/cancel"
+    },
+    "LocalInferenceModelDeleteRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "modelId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/delete"
+    },
+    "LocalInferenceModelSettingsReadRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "modelId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/settings/read"
+    },
+    "LocalInferenceModelSettingsReadResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "settings": {
+          "$ref": "#/$defs/LocalInferenceModelSettingsDto"
+        }
+      },
+      "required": [
+        "settings"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/settings/read"
+    },
+    "LocalInferenceModelSettingsUpdateRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "modelId": {
+          "type": "string"
+        },
+        "settings": {
+          "$ref": "#/$defs/LocalInferenceModelSettingsDto"
+        }
+      },
+      "required": [
+        "modelId",
+        "settings"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/settings/update"
+    },
+    "LocalInferenceModelSettingsUpdateResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "settings": {
+          "$ref": "#/$defs/LocalInferenceModelSettingsDto"
+        }
+      },
+      "required": [
+        "settings"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/models/settings/update"
+    },
+    "LocalInferenceHuggingFaceSearchRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string"
+        },
+        "limit": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/huggingface/search"
+    },
+    "LocalInferenceHuggingFaceSearchResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "models": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LocalInferenceHfModelInfoDto"
+          }
+        }
+      },
+      "required": [
+        "models"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/huggingface/search"
+    },
+    "LocalInferenceHfModelInfoDto": {
+      "type": "object",
+      "properties": {
+        "repoId": {
+          "type": "string"
+        },
+        "author": {
+          "type": "string"
+        },
+        "modelName": {
+          "type": "string"
+        },
+        "downloads": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "ggufFiles": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LocalInferenceHfGgufFileDto"
+          },
+          "default": []
+        },
+        "variants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LocalInferenceHfModelVariantDto"
+          },
+          "default": []
+        }
+      },
+      "required": [
+        "repoId",
+        "author",
+        "modelName",
+        "downloads"
+      ]
+    },
+    "LocalInferenceHfGgufFileDto": {
+      "type": "object",
+      "properties": {
+        "filename": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "quantization": {
+          "type": "string"
+        },
+        "downloadUrl": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "filename",
+        "sizeBytes",
+        "quantization",
+        "downloadUrl"
+      ]
+    },
+    "LocalInferenceHfModelVariantDto": {
+      "type": "object",
+      "properties": {
+        "variantId": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "backendId": {
+          "type": "string"
+        },
+        "format": {
+          "type": "string"
+        },
+        "modelId": {
+          "type": "string"
+        },
+        "downloadId": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "filename": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "downloadUrl": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": "string"
+        },
+        "qualityRank": {
+          "type": "integer",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "sharded": {
+          "type": "boolean"
+        },
+        "supported": {
+          "type": "boolean"
+        },
+        "unsupportedReason": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      },
+      "required": [
+        "variantId",
+        "label",
+        "backendId",
+        "format",
+        "modelId",
+        "downloadId",
+        "sizeBytes",
+        "description",
+        "qualityRank",
+        "sharded",
+        "supported"
+      ]
+    },
+    "LocalInferenceHuggingFaceRepoVariantsRequest_unstable": {
+      "type": "object",
+      "properties": {
+        "repoId": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "repoId"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/huggingface/repo/variants"
+    },
+    "LocalInferenceHuggingFaceRepoVariantsResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "variants": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/LocalInferenceHfModelVariantDto"
+          }
+        },
+        "recommendedIndex": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "availableMemoryBytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "downloadedQuants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "downloadedVariants": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "variants",
+        "availableMemoryBytes",
+        "downloadedQuants",
+        "downloadedVariants"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/huggingface/repo/variants"
+    },
+    "LocalInferenceBuiltinChatTemplatesListRequest_unstable": {
+      "type": "object",
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/chat-templates/builtin/list"
+    },
+    "LocalInferenceBuiltinChatTemplatesListResponse_unstable": {
+      "type": "object",
+      "properties": {
+        "templates": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "templates"
+      ],
+      "x-side": "agent",
+      "x-method": "_goose/unstable/local-inference/chat-templates/builtin/list"
+    },
     "GooseSessionNotification_unstable": {
       "type": "object",
       "properties": {
@@ -6788,6 +7619,96 @@
                   ],
                   "description": "Params for _goose/unstable/dictation/models/select",
                   "title": "DictationModelSelectRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/LocalInferenceModelsListRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/local-inference/models/list",
+                  "title": "LocalInferenceModelsListRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/LocalInferenceModelDownloadRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/local-inference/models/download",
+                  "title": "LocalInferenceModelDownloadRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/LocalInferenceModelDownloadProgressRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/local-inference/models/download/progress",
+                  "title": "LocalInferenceModelDownloadProgressRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/LocalInferenceModelDownloadCancelRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/local-inference/models/download/cancel",
+                  "title": "LocalInferenceModelDownloadCancelRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/LocalInferenceModelDeleteRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/local-inference/models/delete",
+                  "title": "LocalInferenceModelDeleteRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/LocalInferenceModelSettingsReadRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/local-inference/models/settings/read",
+                  "title": "LocalInferenceModelSettingsReadRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/LocalInferenceModelSettingsUpdateRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/local-inference/models/settings/update",
+                  "title": "LocalInferenceModelSettingsUpdateRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/LocalInferenceHuggingFaceSearchRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/local-inference/huggingface/search",
+                  "title": "LocalInferenceHuggingFaceSearchRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/LocalInferenceHuggingFaceRepoVariantsRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/local-inference/huggingface/repo/variants",
+                  "title": "LocalInferenceHuggingFaceRepoVariantsRequest_unstable"
+                },
+                {
+                  "allOf": [
+                    {
+                      "$ref": "#/$defs/LocalInferenceBuiltinChatTemplatesListRequest_unstable"
+                    }
+                  ],
+                  "description": "Params for _goose/unstable/local-inference/chat-templates/builtin/list",
+                  "title": "LocalInferenceBuiltinChatTemplatesListRequest_unstable"
                 }
               ]
             },
@@ -7346,6 +8267,70 @@
                         }
                       ],
                       "title": "DictationModelDownloadProgressResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/LocalInferenceModelsListResponse_unstable"
+                        }
+                      ],
+                      "title": "LocalInferenceModelsListResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/LocalInferenceModelDownloadResponse_unstable"
+                        }
+                      ],
+                      "title": "LocalInferenceModelDownloadResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/LocalInferenceModelDownloadProgressResponse_unstable"
+                        }
+                      ],
+                      "title": "LocalInferenceModelDownloadProgressResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/LocalInferenceModelSettingsReadResponse_unstable"
+                        }
+                      ],
+                      "title": "LocalInferenceModelSettingsReadResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/LocalInferenceModelSettingsUpdateResponse_unstable"
+                        }
+                      ],
+                      "title": "LocalInferenceModelSettingsUpdateResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/LocalInferenceHuggingFaceSearchResponse_unstable"
+                        }
+                      ],
+                      "title": "LocalInferenceHuggingFaceSearchResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/LocalInferenceHuggingFaceRepoVariantsResponse_unstable"
+                        }
+                      ],
+                      "title": "LocalInferenceHuggingFaceRepoVariantsResponse_unstable"
+                    },
+                    {
+                      "allOf": [
+                        {
+                          "$ref": "#/$defs/LocalInferenceBuiltinChatTemplatesListResponse_unstable"
+                        }
+                      ],
+                      "title": "LocalInferenceBuiltinChatTemplatesListResponse_unstable"
                     }
                   ]
                 },

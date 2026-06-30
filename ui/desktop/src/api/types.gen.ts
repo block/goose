@@ -59,16 +59,6 @@ export type ChatRequest = {
     user_message: Message;
 };
 
-export type ChatTemplate = {
-    type: 'embedded';
-} | {
-    name: string;
-    type: 'builtin';
-} | {
-    template: string;
-    type: 'custom_inline';
-};
-
 export type CheckProviderRequest = {
     provider: string;
 };
@@ -316,21 +306,6 @@ export type DictationProviderStatus = {
     uses_provider_config: boolean;
 };
 
-export type DownloadModelRequest = {
-    /**
-     * Optional backend id for callers selecting a concrete variant row.
-     */
-    backend_id?: string | null;
-    /**
-     * Model spec/download id like "bartowski/Llama-3.2-3B-Instruct-GGUF:Q4_K_M" or "google/gemma-4-31B-it"
-     */
-    spec: string;
-    /**
-     * Optional backend-specific variant id, such as a GGUF quantization or MLX dtype.
-     */
-    variant_id?: string | null;
-};
-
 export type DownloadProgress = {
     /**
      * Bytes downloaded so far
@@ -568,55 +543,6 @@ export type GooseApp = McpAppResource & (WindowProps | null) & {
 
 export type GooseMode = 'auto' | 'approve' | 'smart_approve' | 'chat';
 
-/**
- * A single downloadable GGUF file (used internally and for downloads).
- */
-export type HfGgufFile = {
-    download_url: string;
-    filename: string;
-    quantization: string;
-    size_bytes: number;
-};
-
-export type HfModelInfo = {
-    author: string;
-    downloads: number;
-    gguf_files: Array<HfGgufFile>;
-    model_name: string;
-    repo_id: string;
-    variants?: Array<HfModelVariant>;
-};
-
-export type HfModelVariant = {
-    backend_id: string;
-    description: string;
-    download_id: string;
-    download_url?: string | null;
-    filename?: string | null;
-    format: string;
-    label: string;
-    model_id: string;
-    quality_rank: number;
-    sharded?: boolean;
-    size_bytes: number;
-    supported?: boolean;
-    unsupported_reason?: string | null;
-    variant_id: string;
-};
-
-/**
- * A quantization variant — groups sharded files into one logical entry.
- */
-export type HfQuantVariant = {
-    description: string;
-    download_url: string;
-    filename: string;
-    quality_rank: number;
-    quantization: string;
-    sharded?: boolean;
-    size_bytes: number;
-};
-
 export type Icon = {
     mimeType?: string;
     sizes?: Array<string>;
@@ -670,19 +596,6 @@ export type ListSchedulesResponse = {
 export type LoadedProvider = {
     config: DeclarativeProviderConfig;
     is_editable: boolean;
-};
-
-export type LocalModelResponse = {
-    filename: string;
-    id: string;
-    mmproj_status?: ModelDownloadStatus | null;
-    quantization: string;
-    recommended: boolean;
-    repo_id: string;
-    settings: ModelSettings;
-    size_bytes: number;
-    status: ModelDownloadStatus;
-    vision_capable: boolean;
 };
 
 /**
@@ -824,18 +737,6 @@ export type ModelConfig = {
     toolshim_model?: string | null;
 };
 
-export type ModelDownloadStatus = {
-    state: 'NotDownloaded';
-} | {
-    bytes_downloaded: number;
-    progress_percent: number;
-    speed_bps?: number | null;
-    state: 'Downloading';
-    total_bytes: number;
-} | {
-    state: 'Downloaded';
-};
-
 /**
  * Information about a model's capabilities
  */
@@ -895,43 +796,6 @@ export type ModelInfoQuery = {
 export type ModelInfoResponse = {
     model_info?: ModelInfoData | null;
     source: string;
-};
-
-export type ModelSettings = {
-    /**
-     * Backend implementation to use for this model. Defaults to llama.cpp.
-     */
-    backend_id?: string | null;
-    chat_template?: ChatTemplate;
-    context_size?: number | null;
-    draft_model?: string | null;
-    enable_thinking?: boolean;
-    flash_attention?: boolean | null;
-    frequency_penalty?: number;
-    /**
-     * Estimated tokens per image for budget planning before mtmd tokenization.
-     * The actual count is determined after tokenization via `chunks.total_tokens()`.
-     */
-    image_token_estimate?: number;
-    max_output_tokens?: number | null;
-    /**
-     * Size of the mmproj file in bytes, used for memory accounting.
-     */
-    mmproj_size_bytes?: number;
-    n_batch?: number | null;
-    n_gpu_layers?: number | null;
-    n_threads?: number | null;
-    presence_penalty?: number;
-    repeat_last_n?: number;
-    repeat_penalty?: number;
-    sampling?: SamplingConfig;
-    tool_calling?: ToolCallingMode;
-    use_mlock?: boolean;
-    /**
-     * Whether this model architecture supports vision input.
-     * Derived from associated mmproj metadata, not user-configurable.
-     */
-    vision_capable?: boolean;
 };
 
 export type ModelTemplate = {
@@ -1200,14 +1064,6 @@ export type RemoveExtensionRequest = {
     session_id: string;
 };
 
-export type RepoVariantsResponse = {
-    available_memory_bytes: number;
-    downloaded_quants: Array<string>;
-    downloaded_variants: Array<string>;
-    recommended_index?: number | null;
-    variants: Array<HfModelVariant>;
-};
-
 export type ResourceContents = {
     _meta?: {
         [key: string]: unknown;
@@ -1283,22 +1139,6 @@ export type Role = 'user' | 'assistant';
 
 export type RunNowResponse = {
     session_id: string;
-};
-
-export type SamplingConfig = {
-    type: 'Greedy';
-} | {
-    min_p: number;
-    seed?: number | null;
-    temperature: number;
-    top_k: number;
-    top_p: number;
-    type: 'Temperature';
-} | {
-    eta: number;
-    seed?: number | null;
-    tau: number;
-    type: 'MirostatV2';
 };
 
 export type SavePromptRequest = {
@@ -1571,8 +1411,6 @@ export type ToolAnnotations = {
     readOnlyHint?: boolean;
     title?: string;
 };
-
-export type ToolCallingMode = 'auto' | 'force_native' | 'force_emulated';
 
 export type ToolConfirmationRequest = {
     arguments: JsonObject;
@@ -3053,251 +2891,6 @@ export type TranscribeDictationResponses = {
 };
 
 export type TranscribeDictationResponse = TranscribeDictationResponses[keyof TranscribeDictationResponses];
-
-export type ListBuiltinChatTemplatesData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/local-inference/chat-templates/builtin';
-};
-
-export type ListBuiltinChatTemplatesResponses = {
-    /**
-     * llama.cpp built-in chat template names
-     */
-    200: Array<string>;
-};
-
-export type ListBuiltinChatTemplatesResponse = ListBuiltinChatTemplatesResponses[keyof ListBuiltinChatTemplatesResponses];
-
-export type DownloadHfModelData = {
-    body: DownloadModelRequest;
-    path?: never;
-    query?: never;
-    url: '/local-inference/download';
-};
-
-export type DownloadHfModelErrors = {
-    /**
-     * Invalid request
-     */
-    400: unknown;
-};
-
-export type DownloadHfModelResponses = {
-    /**
-     * Download started
-     */
-    202: string;
-};
-
-export type DownloadHfModelResponse = DownloadHfModelResponses[keyof DownloadHfModelResponses];
-
-export type ListLocalModelsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/local-inference/models';
-};
-
-export type ListLocalModelsResponses = {
-    /**
-     * List of available local LLM models
-     */
-    200: Array<LocalModelResponse>;
-};
-
-export type ListLocalModelsResponse = ListLocalModelsResponses[keyof ListLocalModelsResponses];
-
-export type DeleteLocalModelData = {
-    body?: never;
-    path: {
-        model_id: string;
-    };
-    query?: never;
-    url: '/local-inference/models/{model_id}';
-};
-
-export type DeleteLocalModelErrors = {
-    /**
-     * Model not found
-     */
-    404: unknown;
-};
-
-export type DeleteLocalModelResponses = {
-    /**
-     * Model deleted
-     */
-    200: unknown;
-};
-
-export type CancelLocalModelDownloadData = {
-    body?: never;
-    path: {
-        model_id: string;
-    };
-    query?: never;
-    url: '/local-inference/models/{model_id}/download';
-};
-
-export type CancelLocalModelDownloadErrors = {
-    /**
-     * No active download
-     */
-    404: unknown;
-};
-
-export type CancelLocalModelDownloadResponses = {
-    /**
-     * Download cancelled
-     */
-    200: unknown;
-};
-
-export type GetLocalModelDownloadProgressData = {
-    body?: never;
-    path: {
-        model_id: string;
-    };
-    query?: never;
-    url: '/local-inference/models/{model_id}/download';
-};
-
-export type GetLocalModelDownloadProgressErrors = {
-    /**
-     * No active download
-     */
-    404: unknown;
-};
-
-export type GetLocalModelDownloadProgressResponses = {
-    /**
-     * Download progress
-     */
-    200: DownloadProgress;
-};
-
-export type GetLocalModelDownloadProgressResponse = GetLocalModelDownloadProgressResponses[keyof GetLocalModelDownloadProgressResponses];
-
-export type GetModelSettingsData = {
-    body?: never;
-    path: {
-        model_id: string;
-    };
-    query?: never;
-    url: '/local-inference/models/{model_id}/settings';
-};
-
-export type GetModelSettingsErrors = {
-    /**
-     * Model not found
-     */
-    404: unknown;
-};
-
-export type GetModelSettingsResponses = {
-    /**
-     * Model settings
-     */
-    200: ModelSettings;
-};
-
-export type GetModelSettingsResponse = GetModelSettingsResponses[keyof GetModelSettingsResponses];
-
-export type UpdateModelSettingsData = {
-    body: ModelSettings;
-    path: {
-        model_id: string;
-    };
-    query?: never;
-    url: '/local-inference/models/{model_id}/settings';
-};
-
-export type UpdateModelSettingsErrors = {
-    /**
-     * Model not found
-     */
-    404: unknown;
-    /**
-     * Failed to save settings
-     */
-    500: unknown;
-};
-
-export type UpdateModelSettingsResponses = {
-    /**
-     * Settings updated
-     */
-    200: ModelSettings;
-};
-
-export type UpdateModelSettingsResponse = UpdateModelSettingsResponses[keyof UpdateModelSettingsResponses];
-
-export type GetRepoFilesData = {
-    body?: never;
-    path: {
-        author: string;
-        repo: string;
-    };
-    query?: never;
-    url: '/local-inference/repo/{author}/{repo}/files';
-};
-
-export type GetRepoFilesResponses = {
-    /**
-     * GGUF files in the repo
-     */
-    200: RepoVariantsResponse;
-};
-
-export type GetRepoFilesResponse = GetRepoFilesResponses[keyof GetRepoFilesResponses];
-
-export type SearchHfModelsData = {
-    body?: never;
-    path?: never;
-    query: {
-        /**
-         * Search query
-         */
-        q: string;
-        /**
-         * Max results
-         */
-        limit?: number | null;
-    };
-    url: '/local-inference/search';
-};
-
-export type SearchHfModelsErrors = {
-    /**
-     * Search failed
-     */
-    500: unknown;
-};
-
-export type SearchHfModelsResponses = {
-    /**
-     * Search results
-     */
-    200: Array<HfModelInfo>;
-};
-
-export type SearchHfModelsResponse = SearchHfModelsResponses[keyof SearchHfModelsResponses];
-
-export type SyncFeaturedModelsData = {
-    body?: never;
-    path?: never;
-    query?: never;
-    url: '/local-inference/sync-featured';
-};
-
-export type SyncFeaturedModelsResponses = {
-    /**
-     * Featured models synced to registry
-     */
-    200: unknown;
-};
 
 export type DecodeRecipeData = {
     body: DecodeRecipeRequest;

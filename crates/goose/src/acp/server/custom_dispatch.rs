@@ -823,4 +823,85 @@ impl GooseAcpAgent {
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         self.on_dictation_model_select(req).await
     }
+
+    #[custom_method(LocalInferenceModelsListRequest)]
+    async fn dispatch_local_inference_models_list(
+        &self,
+        req: LocalInferenceModelsListRequest,
+    ) -> Result<LocalInferenceModelsListResponse, agent_client_protocol::Error> {
+        self.on_local_inference_models_list(req).await
+    }
+
+    #[custom_method(LocalInferenceModelDownloadRequest)]
+    async fn dispatch_local_inference_model_download(
+        &self,
+        req: LocalInferenceModelDownloadRequest,
+    ) -> Result<LocalInferenceModelDownloadResponse, agent_client_protocol::Error> {
+        self.on_local_inference_model_download(req).await
+    }
+
+    #[custom_method(LocalInferenceModelDownloadProgressRequest)]
+    async fn dispatch_local_inference_model_download_progress(
+        &self,
+        req: LocalInferenceModelDownloadProgressRequest,
+    ) -> Result<LocalInferenceModelDownloadProgressResponse, agent_client_protocol::Error> {
+        self.on_local_inference_model_download_progress(req).await
+    }
+
+    #[custom_method(LocalInferenceModelDownloadCancelRequest)]
+    async fn dispatch_local_inference_model_download_cancel(
+        &self,
+        req: LocalInferenceModelDownloadCancelRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_local_inference_model_download_cancel(req).await
+    }
+
+    #[custom_method(LocalInferenceModelDeleteRequest)]
+    async fn dispatch_local_inference_model_delete(
+        &self,
+        req: LocalInferenceModelDeleteRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_local_inference_model_delete(req).await
+    }
+
+    #[custom_method(LocalInferenceModelSettingsReadRequest)]
+    async fn dispatch_local_inference_model_settings_read(
+        &self,
+        req: LocalInferenceModelSettingsReadRequest,
+    ) -> Result<LocalInferenceModelSettingsReadResponse, agent_client_protocol::Error> {
+        self.on_local_inference_model_settings_read(req).await
+    }
+
+    #[custom_method(LocalInferenceModelSettingsUpdateRequest)]
+    async fn dispatch_local_inference_model_settings_update(
+        &self,
+        req: LocalInferenceModelSettingsUpdateRequest,
+    ) -> Result<LocalInferenceModelSettingsUpdateResponse, agent_client_protocol::Error> {
+        self.on_local_inference_model_settings_update(req).await
+    }
+
+    #[custom_method(LocalInferenceHuggingFaceSearchRequest)]
+    async fn dispatch_local_inference_huggingface_search(
+        &self,
+        req: LocalInferenceHuggingFaceSearchRequest,
+    ) -> Result<LocalInferenceHuggingFaceSearchResponse, agent_client_protocol::Error> {
+        self.on_local_inference_huggingface_search(req).await
+    }
+
+    #[custom_method(LocalInferenceHuggingFaceRepoVariantsRequest)]
+    async fn dispatch_local_inference_huggingface_repo_variants(
+        &self,
+        req: LocalInferenceHuggingFaceRepoVariantsRequest,
+    ) -> Result<LocalInferenceHuggingFaceRepoVariantsResponse, agent_client_protocol::Error> {
+        self.on_local_inference_huggingface_repo_variants(req).await
+    }
+
+    #[custom_method(LocalInferenceBuiltinChatTemplatesListRequest)]
+    async fn dispatch_local_inference_builtin_chat_templates_list(
+        &self,
+        req: LocalInferenceBuiltinChatTemplatesListRequest,
+    ) -> Result<LocalInferenceBuiltinChatTemplatesListResponse, agent_client_protocol::Error> {
+        self.on_local_inference_builtin_chat_templates_list(req)
+            .await
+    }
 }

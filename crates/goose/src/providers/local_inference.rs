@@ -2,6 +2,7 @@ mod backend;
 pub mod hf_models;
 mod llamacpp;
 pub mod local_model_registry;
+pub mod management;
 mod mlx;
 pub(crate) mod multimodal;
 #[cfg(feature = "mlx")]
