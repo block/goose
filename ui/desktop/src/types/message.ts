@@ -78,6 +78,14 @@ type ContentIcon = {
   theme?: 'light' | 'dark' | JsonObject;
 };
 
+export type SystemNotificationType = 'thinkingMessage' | 'inlineMessage' | 'creditsExhausted';
+
+export type SystemNotificationContent = {
+  data?: unknown;
+  msg: string;
+  notificationType: SystemNotificationType;
+};
+
 export type ActionRequired = {
   data: ActionRequiredData;
 };

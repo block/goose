@@ -1,5 +1,6 @@
 import React from 'react';
-import { Message, SystemNotificationContent } from '../../api';
+import type { Message } from '../../api';
+import type { SystemNotificationContent } from '../../types/message';
 
 interface SystemNotificationInlineProps {
   notification: SystemNotificationContent;
