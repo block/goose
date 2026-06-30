@@ -504,7 +504,6 @@ fn with_line_timeout(
 /// preventing duplicate content from being emitted to the UI.
 /// Timeout is applied at the raw SSE line level via with_line_timeout so that
 /// buffering inside response_to_streaming_message_ollama does not cause false stalls.
-
 fn stream_ollama(
     response: Response,
     chunk_timeout: u64,
