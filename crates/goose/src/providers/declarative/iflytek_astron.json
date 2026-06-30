@@ -25,7 +25,7 @@
     {"name": "xopdeepseekv4flash", "context_limit": 131072},
     {"name": "xopdeepseekv32", "context_limit": 131072},
     {"name": "xopkimik26", "context_limit": 262144},
-    {"name": "xminimaxm25", "context_limit": 204800},
+    {"name": "xminimaxm25", "context_limit": 131072},
     {"name": "xopqwen35397b", "context_limit": 262144},
     {"name": "astron-code-latest", "context_limit": 131072}
   ],
