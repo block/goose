@@ -328,6 +328,16 @@ impl AgentManager {
         Ok(())
     }
 
+    /// Drops an in-memory agent when one is loaded for `session_id`.
+    /// Returns `Ok(false)` when no agent was loaded, `Ok(true)` when removed.
+    pub async fn remove_session_if_loaded(&self, session_id: &str) -> Result<bool> {
+        if !self.has_session(session_id).await {
+            return Ok(false);
+        }
+        self.remove_session(session_id).await?;
+        Ok(true)
+    }
+
     pub async fn has_session(&self, session_id: &str) -> bool {
         self.sessions.read().await.contains(session_id)
     }
@@ -482,6 +492,19 @@ mod tests {
         assert!(!manager.has_session(&session).await);
 
         assert!(manager.remove_session(&session).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_remove_session_if_loaded() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
+        let session = String::from("remove-if-loaded-test");
+
+        assert!(!manager.remove_session_if_loaded(&session).await.unwrap());
+
+        manager.get_or_create_agent(session.clone()).await.unwrap();
+        assert!(manager.remove_session_if_loaded(&session).await.unwrap());
+        assert!(!manager.has_session(&session).await);
     }
 
     #[tokio::test]
