@@ -27,6 +27,9 @@ use goose_sdk_types::custom_requests::{
     LocalInferenceModelsListResponse, LocalInferenceSamplingConfig, LocalInferenceToolCallingMode,
 };
 use std::path::PathBuf;
+use std::sync::{Arc, OnceLock};
+
+static MANAGEMENT_RUNTIME: OnceLock<Arc<InferenceRuntime>> = OnceLock::new();
 
 #[derive(Clone)]
 struct LocalModelSelection {
@@ -38,7 +41,7 @@ struct LocalModelSelection {
 pub async fn list_models() -> Result<LocalInferenceModelsListResponse> {
     ensure_featured_models_current().await?;
 
-    let runtime = InferenceRuntime::get_or_init()?;
+    let runtime = management_runtime()?;
     let recommended_id = recommend_local_model(&runtime);
 
     let registry = get_registry()
@@ -81,7 +84,7 @@ pub async fn huggingface_repo_variants(
 ) -> Result<LocalInferenceHuggingFaceRepoVariantsResponse> {
     let variants = hf_models::get_repo_local_variants(&repo_id).await?;
 
-    let runtime = InferenceRuntime::get_or_init()?;
+    let runtime = management_runtime()?;
     let available_memory = available_inference_memory_bytes(&runtime);
     let gguf_variants: Vec<_> = variants
         .iter()
@@ -230,6 +233,21 @@ pub fn update_model_settings(
 pub fn list_builtin_chat_templates() -> LocalInferenceBuiltinChatTemplatesListResponse {
     LocalInferenceBuiltinChatTemplatesListResponse {
         templates: builtin_chat_template_names(),
+    }
+}
+
+fn management_runtime() -> Result<Arc<InferenceRuntime>> {
+    if let Some(runtime) = MANAGEMENT_RUNTIME.get() {
+        return Ok(runtime.clone());
+    }
+
+    let runtime = InferenceRuntime::get_or_init()?;
+    match MANAGEMENT_RUNTIME.set(runtime.clone()) {
+        Ok(()) => Ok(runtime),
+        Err(_) => Ok(MANAGEMENT_RUNTIME
+            .get()
+            .expect("local inference management runtime initialized by another thread")
+            .clone()),
     }
 }
 
