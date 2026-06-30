@@ -248,6 +248,27 @@ mod tests {
         assert_eq!(provider.get_name(), "test-provider");
     }
 
+    #[tokio::test]
+    async fn from_json_ollama_returns_static_models_when_dynamic_models_false() {
+        let json = json!({
+            "name": "test-ollama",
+            "engine": "ollama",
+            "display_name": "Test Ollama",
+            "base_url": "http://localhost:11434",
+            "models": [model_json()],
+            "requires_auth": false,
+            "dynamic_models": false
+        })
+        .to_string();
+
+        let provider = from_json(&json, None, EnvKeyResolver).unwrap();
+
+        assert_eq!(
+            provider.fetch_supported_models().await.unwrap(),
+            vec!["test-model".to_string()]
+        );
+    }
+
     #[test]
     fn from_json_errors_when_required_env_var_is_missing() {
         let _guard = env_lock::lock_env([("TEST_PROVIDER_REQUIRED_HOST", None::<&str>)]);
