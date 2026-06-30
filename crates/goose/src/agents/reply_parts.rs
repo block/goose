@@ -153,6 +153,7 @@ fn message_has_first_token_content(message: &Message) -> bool {
         MessageContent::Text(text) => !text.text.is_empty(),
         MessageContent::Thinking(thinking) => !thinking.thinking.is_empty(),
         MessageContent::RedactedThinking(redacted) => !redacted.data.is_empty(),
+        MessageContent::ToolRequest(_) | MessageContent::FrontendToolRequest(_) => true,
         _ => false,
     })
 }
@@ -718,7 +719,6 @@ mod tests {
         async fn stream(
             &self,
             _model_config: &ModelConfig,
-            _session_id: &str,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -781,6 +781,31 @@ mod tests {
                 Some(Message::assistant().with_text("hello")),
                 Some(ProviderUsage::new("mock".to_string(), Usage::default())),
             ))],
+        )
+        .await
+        .expect("stream should drain")
+        .expect("usage should be yielded");
+
+        let stats = final_usage.stats.expect("usage should include stats");
+        assert!(stats.time_to_first_token_ms.is_some());
+        assert!(stats.elapsed_ms.is_some());
+    }
+
+    #[tokio::test]
+    async fn stream_response_sets_first_token_on_tool_only_turn() {
+        let tool_message = Message::assistant().with_tool_request(
+            "tool-1",
+            Ok(rmcp::model::CallToolRequestParams::new("test_tool")),
+        );
+        let final_usage = collect_final_usage(
+            ModelConfig::new("test-model"),
+            vec![
+                Ok((Some(tool_message), None)),
+                Ok((
+                    None,
+                    Some(ProviderUsage::new("mock".to_string(), Usage::default())),
+                )),
+            ],
         )
         .await
         .expect("stream should drain")

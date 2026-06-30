@@ -1764,9 +1764,11 @@ impl CliSession {
 }
 
 fn message_has_text(message: &Message) -> bool {
-    message.content.iter().any(
-        |content| matches!(content, MessageContent::Text(text) if !text.text.trim().is_empty()),
-    )
+    message.content.iter().any(|content| match content {
+        MessageContent::Text(text) => !text.text.trim().is_empty(),
+        MessageContent::ToolRequest(_) | MessageContent::FrontendToolRequest(_) => true,
+        _ => false,
+    })
 }
 
 fn print_run_stats(
