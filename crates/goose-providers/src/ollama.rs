@@ -82,6 +82,8 @@ pub struct OllamaProvider {
     #[serde(skip)]
     api_client: ApiClient,
     name: String,
+    custom_models: Option<Vec<String>>,
+    dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     options: OllamaOptions,
 }
@@ -89,6 +91,8 @@ pub struct OllamaProvider {
 pub struct OllamaProviderBuilder {
     api_client: ApiClient,
     name: String,
+    custom_models: Option<Vec<String>>,
+    dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     options: OllamaOptions,
 }
@@ -98,6 +102,8 @@ impl OllamaProviderBuilder {
         Self {
             api_client,
             name: OLLAMA_PROVIDER_NAME.to_string(),
+            custom_models: None,
+            dynamic_models: None,
             skip_canonical_filtering: false,
             options: OllamaOptions::default(),
         }
@@ -126,6 +132,16 @@ impl OllamaProviderBuilder {
         self
     }
 
+    pub fn custom_models(mut self, custom_models: Option<Vec<String>>) -> Self {
+        self.custom_models = custom_models;
+        self
+    }
+
+    pub fn dynamic_models(mut self, dynamic_models: Option<bool>) -> Self {
+        self.dynamic_models = dynamic_models;
+        self
+    }
+
     pub fn skip_canonical_filtering(mut self, skip_canonical_filtering: bool) -> Self {
         self.skip_canonical_filtering = skip_canonical_filtering;
         self
@@ -140,6 +156,8 @@ impl OllamaProviderBuilder {
         OllamaProvider {
             api_client: self.api_client,
             name: self.name,
+            custom_models: self.custom_models,
+            dynamic_models: self.dynamic_models,
             skip_canonical_filtering: self.skip_canonical_filtering,
             options: self.options,
         }
@@ -208,6 +226,26 @@ pub fn from_custom_config(
     tls_config: Option<TlsConfig>,
     _key_resolver: impl KeyResolver,
 ) -> Result<OllamaProviderBuilder> {
+    let custom_models = if !config.models.is_empty() {
+        Some(
+            config
+                .models
+                .iter()
+                .map(|m| m.name.clone())
+                .collect::<Vec<String>>(),
+        )
+    } else {
+        None
+    };
+
+    if config.dynamic_models == Some(false) && custom_models.is_none() {
+        return Err(anyhow::anyhow!(
+            "Provider '{}' has dynamic_models: false but no static models listed; \
+             at least one entry in `models` is required.",
+            config.name
+        ));
+    }
+
     let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
 
     let base = if config.base_url.starts_with("http://") || config.base_url.starts_with("https://")
@@ -258,6 +296,8 @@ pub fn from_custom_config(
 
     Ok(OllamaProviderBuilder::new(api_client)
         .name(config.name.clone())
+        .custom_models(custom_models)
+        .dynamic_models(config.dynamic_models)
         .skip_canonical_filtering(config.skip_canonical_filtering))
 }
 
@@ -338,6 +378,12 @@ impl Provider for OllamaProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
+        if let Some(custom_models) = &self.custom_models {
+            if self.dynamic_models == Some(false) {
+                return Ok(custom_models.clone());
+            }
+        }
+
         let response = self
             .api_client
             .request("api/tags")
@@ -421,6 +467,7 @@ fn with_line_timeout(
 /// preventing duplicate content from being emitted to the UI.
 /// Timeout is applied at the raw SSE line level via with_line_timeout so that
 /// buffering inside response_to_streaming_message_ollama does not cause false stalls.
+
 fn stream_ollama(
     response: Response,
     chunk_timeout: u64,
@@ -448,6 +495,66 @@ fn stream_ollama(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::base::ModelInfo;
+
+    fn ollama_config(
+        dynamic_models: Option<bool>,
+        models: Vec<ModelInfo>,
+    ) -> DeclarativeProviderConfig {
+        DeclarativeProviderConfig {
+            name: "test-ollama".to_string(),
+            engine: crate::declarative::ProviderEngine::Ollama,
+            display_name: "Test Ollama".to_string(),
+            description: None,
+            api_key_env: String::new(),
+            base_url: "http://localhost:11434".to_string(),
+            models,
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming: None,
+            requires_auth: false,
+            catalog_provider_id: None,
+            base_path: None,
+            env_vars: None,
+            dynamic_models,
+            skip_canonical_filtering: false,
+            model_doc_link: None,
+            setup_steps: vec![],
+            fast_model: None,
+            preserves_thinking: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_uses_static_models_when_dynamic_models_false() {
+        let provider = from_custom_config(
+            ollama_config(Some(false), vec![ModelInfo::new("static-model", 4096)]),
+            None,
+            crate::declarative::EnvKeyResolver,
+        )
+        .unwrap()
+        .build();
+
+        assert_eq!(
+            provider.fetch_supported_models().await.unwrap(),
+            vec!["static-model".to_string()]
+        );
+    }
+
+    #[test]
+    fn from_custom_config_requires_static_models_when_dynamic_models_false() {
+        let err = from_custom_config(
+            ollama_config(Some(false), vec![]),
+            None,
+            crate::declarative::EnvKeyResolver,
+        )
+        .err()
+        .expect("expected static models validation error");
+
+        assert!(err
+            .to_string()
+            .contains("dynamic_models: false but no static models listed"));
+    }
 
     #[test]
     fn test_apply_ollama_options_uses_input_limit() {
