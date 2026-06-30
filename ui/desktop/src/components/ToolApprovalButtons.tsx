@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { Permission } from '../api';
+import type { Permission } from '../types/permissions';
 import { resolveAcpPermissionRequest } from '../acp/permissionRequests';
 import { defineMessages, useIntl } from '../i18n';
 

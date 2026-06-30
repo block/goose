@@ -127,6 +127,7 @@ describe('ACP MCP app helpers', () => {
         {
           name: 'weather__refresh',
           description: 'Refresh weather',
+          parameters: [],
           inputSchema: {
             type: 'object',
             properties: {
@@ -137,6 +138,7 @@ describe('ACP MCP app helpers', () => {
         {
           name: 'calendar__refresh',
           description: 'Refresh calendar',
+          parameters: [],
           inputSchema: { type: 'object' },
         },
       ],
@@ -150,7 +152,7 @@ describe('ACP MCP app helpers', () => {
         name: 'weather__refresh',
         description: 'Refresh weather',
         parameters: [],
-        input_schema: {
+        inputSchema: {
           type: 'object',
           properties: {
             city: { type: 'string' },

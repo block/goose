@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { Message } from '../../api';
+import type { Message } from '../../types/message';
 import { messageToAcpPromptContent } from '../prompt';
 
 describe('messageToAcpPromptContent', () => {

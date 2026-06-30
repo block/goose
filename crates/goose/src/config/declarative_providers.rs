@@ -5,7 +5,7 @@ use crate::providers::base::{ModelInfo, ProviderType};
 use crate::providers::huggingface::HuggingFaceProvider;
 use crate::providers::huggingface_auth;
 use crate::providers::inventory::declarative_inventory_identity;
-use crate::providers::ollama::OllamaProvider;
+use crate::providers::ollama_def::OllamaProviderDef;
 use crate::providers::openai_def::OpenAiProviderDef;
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
@@ -624,14 +624,14 @@ pub fn register_declarative_provider(
         ProviderEngine::Ollama => {
             let captured = config.clone();
             let identity_config = config.clone();
-            registry.register_with_name::<OllamaProvider, _, _>(
+            registry.register_with_name::<OllamaProviderDef, _, _>(
                 &config,
                 provider_type,
                 config.dynamic_models.unwrap_or(false),
                 move |tls_config| {
                     let mut cfg = captured.clone();
                     resolve_config(&mut cfg)?;
-                    OllamaProvider::from_custom_config(cfg, tls_config)
+                    crate::providers::ollama_def::from_custom_config(cfg, tls_config)
                 },
                 move || {
                     let mut cfg = identity_config.clone();

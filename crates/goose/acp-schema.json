@@ -53,6 +53,16 @@
                 "null"
               ]
             },
+            "available_tools": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Tool allowlist for this extension. Omit this field to allow all tools."
+            },
             "type": {
               "type": "string",
               "const": "builtin"
@@ -86,6 +96,16 @@
                 "boolean",
                 "null"
               ]
+            },
+            "available_tools": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Tool allowlist for this extension. Omit this field to allow all tools."
             },
             "type": {
               "type": "string",
@@ -133,6 +153,16 @@
                 "boolean",
                 "null"
               ]
+            },
+            "available_tools": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Tool allowlist for this extension. Omit this field to allow all tools."
             },
             "type": {
               "type": "string",
@@ -3630,6 +3660,16 @@
                 "null"
               ]
             },
+            "available_tools": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Tool allowlist for this extension. Omit this field to allow all tools."
+            },
             "type": {
               "type": "string",
               "const": "builtin"
@@ -3663,6 +3703,16 @@
                 "boolean",
                 "null"
               ]
+            },
+            "available_tools": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Tool allowlist for this extension. Omit this field to allow all tools."
             },
             "type": {
               "type": "string",
@@ -3726,6 +3776,16 @@
                 "null"
               ]
             },
+            "available_tools": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Tool allowlist for this extension. Omit this field to allow all tools."
+            },
             "type": {
               "type": "string",
               "const": "stdio"
@@ -3788,6 +3848,16 @@
                 "boolean",
                 "null"
               ]
+            },
+            "available_tools": {
+              "type": [
+                "array",
+                "null"
+              ],
+              "items": {
+                "type": "string"
+              },
+              "description": "Tool allowlist for this extension. Omit this field to allow all tools."
             },
             "type": {
               "type": "string",

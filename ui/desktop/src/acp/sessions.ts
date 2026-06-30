@@ -8,7 +8,8 @@ import type {
 import type { GooseExtension, SessionImportSource } from '@aaif/goose-sdk';
 import { getAcpClient } from './acpConnection';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
-import type { ExtensionLoadResult, Session } from '../api';
+import type { ExtensionLoadResult } from '../types/extensions';
+import type { Session } from '../types/session';
 import type { Recipe } from '../recipe';
 
 interface GooseSessionInfoMeta {

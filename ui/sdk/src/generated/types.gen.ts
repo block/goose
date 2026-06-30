@@ -15,12 +15,20 @@ export type GooseExtension = {
     display_name?: string | null;
     timeout?: number | null;
     bundled?: boolean | null;
+    /**
+     * Tool allowlist for this extension. Omit this field to allow all tools.
+     */
+    available_tools?: Array<string> | null;
     type: 'builtin';
 } | {
     name: string;
     description?: string | null;
     display_name?: string | null;
     bundled?: boolean | null;
+    /**
+     * Tool allowlist for this extension. Omit this field to allow all tools.
+     */
+    available_tools?: Array<string> | null;
     type: 'platform';
 } | {
     server: McpServer;
@@ -29,6 +37,10 @@ export type GooseExtension = {
     timeout?: number | null;
     socket?: string | null;
     bundled?: boolean | null;
+    /**
+     * Tool allowlist for this extension. Omit this field to allow all tools.
+     */
+    available_tools?: Array<string> | null;
     type: 'mcp';
 };
 
@@ -1527,12 +1539,20 @@ export type RecipeExtensionDto = {
     display_name?: string | null;
     timeout?: number | null;
     bundled?: boolean | null;
+    /**
+     * Tool allowlist for this extension. Omit this field to allow all tools.
+     */
+    available_tools?: Array<string> | null;
     type: 'builtin';
 } | {
     name: string;
     description?: string | null;
     display_name?: string | null;
     bundled?: boolean | null;
+    /**
+     * Tool allowlist for this extension. Omit this field to allow all tools.
+     */
+    available_tools?: Array<string> | null;
     type: 'platform';
 } | {
     name: string;
@@ -1546,6 +1566,10 @@ export type RecipeExtensionDto = {
     timeout?: number | null;
     cwd?: string | null;
     bundled?: boolean | null;
+    /**
+     * Tool allowlist for this extension. Omit this field to allow all tools.
+     */
+    available_tools?: Array<string> | null;
     type: 'stdio';
 } | {
     name: string;
@@ -1561,6 +1585,10 @@ export type RecipeExtensionDto = {
     timeout?: number | null;
     socket?: string | null;
     bundled?: boolean | null;
+    /**
+     * Tool allowlist for this extension. Omit this field to allow all tools.
+     */
+    available_tools?: Array<string> | null;
     type: 'streamable_http';
 };
 

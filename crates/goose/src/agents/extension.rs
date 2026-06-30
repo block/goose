@@ -195,6 +195,7 @@ pub enum ExtensionConfig {
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
+        #[serde(skip_serializing_if = "Vec::is_empty")]
         available_tools: Vec<String>,
     },
     /// Built-in extension that is part of the bundled goose MCP server
@@ -211,6 +212,7 @@ pub enum ExtensionConfig {
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
+        #[serde(skip_serializing_if = "Vec::is_empty")]
         available_tools: Vec<String>,
     },
     /// Platform extensions that have direct access to the agent etc and run in the agent process
@@ -226,6 +228,7 @@ pub enum ExtensionConfig {
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
+        #[serde(skip_serializing_if = "Vec::is_empty")]
         available_tools: Vec<String>,
     },
     /// Streamable HTTP client with a URI endpoint using MCP Streamable HTTP specification
@@ -256,6 +259,7 @@ pub enum ExtensionConfig {
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
+        #[serde(skip_serializing_if = "Vec::is_empty")]
         available_tools: Vec<String>,
     },
     /// Frontend-provided tools that will be called through the frontend
@@ -274,6 +278,7 @@ pub enum ExtensionConfig {
         #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
+        #[serde(skip_serializing_if = "Vec::is_empty")]
         available_tools: Vec<String>,
     },
     /// Inline Python code that will be executed using uvx
@@ -293,6 +298,7 @@ pub enum ExtensionConfig {
         #[serde(default)]
         dependencies: Option<Vec<String>>,
         #[serde(default)]
+        #[serde(skip_serializing_if = "Vec::is_empty")]
         available_tools: Vec<String>,
     },
 }
@@ -683,6 +689,39 @@ available_tools: []
 
         assert!(!map.contains_key("LD_PRELOAD"));
         assert_eq!(map.get("SAFE_VAR"), Some(&"ok".to_string()));
+    }
+
+    #[test]
+    fn serialization_omits_empty_available_tools() {
+        let config = ExtensionConfig::Builtin {
+            name: "developer".into(),
+            description: "dev".into(),
+            display_name: Some("Developer".into()),
+            timeout: Some(300),
+            bundled: Some(true),
+            available_tools: vec![],
+        };
+
+        let yaml = serde_yaml::to_string(&config).unwrap();
+
+        assert!(!yaml.contains("available_tools"));
+    }
+
+    #[test]
+    fn serialization_preserves_available_tools() {
+        let config = ExtensionConfig::Builtin {
+            name: "developer".into(),
+            description: "dev".into(),
+            display_name: Some("Developer".into()),
+            timeout: Some(300),
+            bundled: Some(true),
+            available_tools: vec!["shell".to_string()],
+        };
+
+        let yaml = serde_yaml::to_string(&config).unwrap();
+
+        assert!(yaml.contains("available_tools"));
+        assert!(yaml.contains("- shell"));
     }
 
     #[test_case(

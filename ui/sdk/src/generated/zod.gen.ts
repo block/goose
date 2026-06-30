@@ -134,6 +134,10 @@ export const zGooseExtension = z.union([
             z.boolean(),
             z.null()
         ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
+            z.null()
+        ]).optional(),
         type: z.literal('builtin')
     }),
     z.object({
@@ -148,6 +152,10 @@ export const zGooseExtension = z.union([
         ]).optional(),
         bundled: z.union([
             z.boolean(),
+            z.null()
+        ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
             z.null()
         ]).optional(),
         type: z.literal('platform')
@@ -169,6 +177,10 @@ export const zGooseExtension = z.union([
         ]).optional(),
         bundled: z.union([
             z.boolean(),
+            z.null()
+        ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
             z.null()
         ]).optional(),
         type: z.literal('mcp')
@@ -1464,6 +1476,10 @@ export const zRecipeExtensionDto = z.union([
             z.boolean(),
             z.null()
         ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
+            z.null()
+        ]).optional(),
         type: z.literal('builtin')
     }),
     z.object({
@@ -1478,6 +1494,10 @@ export const zRecipeExtensionDto = z.union([
         ]).optional(),
         bundled: z.union([
             z.boolean(),
+            z.null()
+        ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
             z.null()
         ]).optional(),
         type: z.literal('platform')
@@ -1504,6 +1524,10 @@ export const zRecipeExtensionDto = z.union([
             z.boolean(),
             z.null()
         ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
+            z.null()
+        ]).optional(),
         type: z.literal('stdio')
     }),
     z.object({
@@ -1526,6 +1550,10 @@ export const zRecipeExtensionDto = z.union([
         ]).optional(),
         bundled: z.union([
             z.boolean(),
+            z.null()
+        ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
             z.null()
         ]).optional(),
         type: z.literal('streamable_http')

@@ -367,7 +367,7 @@ export default function McpAppRenderer({
         const tool: Tool = {
           name: toolName,
           description: match.description || undefined,
-          inputSchema: (match.input_schema as Tool['inputSchema']) ?? { type: 'object' as const },
+          inputSchema: (match.inputSchema as Tool['inputSchema']) ?? { type: 'object' as const },
         };
         toolDefRef.current = tool;
         setMcpTool(tool);

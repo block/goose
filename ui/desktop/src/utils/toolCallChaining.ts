@@ -1,5 +1,9 @@
-import { getToolRequests, getTextAndImageContent, getToolResponses } from '../types/message';
-import { Message } from '../api';
+import {
+  getToolRequests,
+  getTextAndImageContent,
+  getToolResponses,
+  type Message,
+} from '../types/message';
 
 export function identifyConsecutiveToolCalls(messages: Message[]): number[][] {
   const chains: number[][] = [];

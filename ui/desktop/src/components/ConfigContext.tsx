@@ -9,9 +9,10 @@ import {
 } from '../acp/extensions';
 import { pruneDeprecatedBundledExtensions, syncBundledExtensions } from './settings/extensions';
 import { nameToKey } from './settings/extensions/utils';
-import type { ConfigResponse, ProviderDetails, ExtensionConfig } from '../api';
+import type { ConfigResponse, ProviderDetails } from '../api';
+import type { ExtensionConfig } from '../types/extensions';
 
-export type { ExtensionConfig } from '../api/types.gen';
+export type { ExtensionConfig } from '../types/extensions';
 
 // Define a local version that matches the structure of the imported one
 export type FixedExtensionEntry = ExtensionConfig & {
