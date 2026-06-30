@@ -52,7 +52,9 @@ impl GooseAcpAgent {
             .await?;
 
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &goose_session).await?;
-        self.apply_session_recipe(&agent, &goose_session).await?;
+        let recipe_hydration_error = self
+            .apply_session_recipe_best_effort(&agent, &goose_session)
+            .await;
         self.register_acp_session(goose_session.id.clone(), agent, HashMap::new())
             .await;
 
@@ -60,6 +62,12 @@ impl GooseAcpAgent {
         let mut meta = session_meta(&goose_session);
         if let Ok(v) = serde_json::to_value(&extension_results) {
             meta.insert("extensionResults".to_string(), v);
+        }
+        if let Some(error) = recipe_hydration_error {
+            meta.insert(
+                "recipeHydrationError".to_string(),
+                serde_json::Value::String(error),
+            );
         }
 
         let (mode_state, config_options) =

@@ -348,6 +348,31 @@ impl GooseAcpAgent {
         Ok(())
     }
 
+    /// Best-effort variant for session reload paths where the transcript must load even when
+    /// stored recipe metadata is stale or no longer passes current validation rules.
+    pub(super) async fn apply_session_recipe_best_effort(
+        &self,
+        agent: &Arc<Agent>,
+        session: &Session,
+    ) -> Option<String> {
+        if let Err(err) = self.apply_session_recipe(agent, session).await {
+            let message = err
+                .data
+                .as_ref()
+                .and_then(|value| value.as_str())
+                .map(str::to_string)
+                .unwrap_or_else(|| "failed to hydrate session recipe".to_string());
+            tracing::warn!(
+                session_id = %session.id,
+                error = %message,
+                "failed to hydrate session recipe; continuing with transcript only"
+            );
+            Some(message)
+        } else {
+            None
+        }
+    }
+
     pub(super) async fn render_recipe_for_session(
         &self,
         cx: &ConnectionTo<Client>,
@@ -566,5 +591,18 @@ mod tests {
             message.starts_with("Save recipe validation failed: invalid type: string"),
             "{message}"
         );
+    }
+
+    #[test]
+    fn session_recipe_hydration_error_preserves_error_data() {
+        let err = agent_client_protocol::Error::internal_error()
+            .data("recipe: Invalid recipe:\nUnnecessary parameter definitions: pr.");
+        let message = err
+            .data
+            .as_ref()
+            .and_then(|value| value.as_str())
+            .map(str::to_string)
+            .unwrap_or_else(|| "failed to hydrate session recipe".to_string());
+        assert!(message.contains("Unnecessary parameter definitions: pr."));
     }
 }

@@ -191,7 +191,9 @@ impl GooseAcpAgent {
 
         let replay_tool_requests = replay_conversation_to_client(cx, &session)?;
         let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
-        self.apply_session_recipe(&agent, &session).await?;
+        let recipe_hydration_error = self
+            .apply_session_recipe_best_effort(&agent, &session)
+            .await;
         self.register_acp_session(session_id_str.clone(), agent.clone(), replay_tool_requests)
             .await;
 
@@ -216,7 +218,14 @@ impl GooseAcpAgent {
             response = response.config_options(co);
         }
 
-        response = response.meta(session_response_meta(&session, &extension_results));
+        let mut meta = session_response_meta(&session, &extension_results);
+        if let Some(error) = recipe_hydration_error {
+            meta.insert(
+                "recipeHydrationError".to_string(),
+                serde_json::Value::String(error),
+            );
+        }
+        response = response.meta(meta);
 
         debug!(
             target: "perf",
