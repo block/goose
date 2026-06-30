@@ -6,7 +6,7 @@ import { ErrorBoundary } from './components/ErrorBoundary';
 import SuspenseLoader from './suspense-loader';
 import { client } from './api/client.gen';
 import { setTelemetryEnabled } from './utils/analytics';
-import { readConfig } from './api';
+import { acpReadConfig } from './acp/config';
 import { applyThemeTokens } from './theme/theme-tokens';
 import { currentLocale, currentMessageLocale, loadMessages } from './i18n';
 
@@ -50,10 +50,8 @@ function handleIntlError(err: { code: string; message?: string }) {
     });
 
     try {
-      const telemetryResponse = await readConfig({
-        body: { key: TELEMETRY_CONFIG_KEY, is_secret: false },
-      });
-      const isTelemetryEnabled = telemetryResponse.data !== false;
+      const telemetryValue = await acpReadConfig(TELEMETRY_CONFIG_KEY, false);
+      const isTelemetryEnabled = telemetryValue !== false;
       setTelemetryEnabled(isTelemetryEnabled);
     } catch (error) {
       console.warn('[Analytics] Failed to initialize analytics:', error);

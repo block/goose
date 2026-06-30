@@ -4,17 +4,18 @@ import userEvent from '@testing-library/user-event';
 import ExtensionModal from './ExtensionModal';
 import { ExtensionFormData } from '../utils';
 import { IntlTestWrapper } from '../../../../i18n/test-utils';
-import { upsertConfig } from '../../../../api';
+import { acpUpsertConfig } from '../../../../acp/config';
 
-vi.mock('../../../../api', async () => {
-  const actual = await vi.importActual<typeof import('../../../../api')>('../../../../api');
+vi.mock('../../../../acp/config', async () => {
+  const actual =
+    await vi.importActual<typeof import('../../../../acp/config')>('../../../../acp/config');
   return {
     ...actual,
-    upsertConfig: vi.fn().mockResolvedValue({ data: 'ok' }),
+    acpUpsertConfig: vi.fn().mockResolvedValue(undefined),
   };
 });
 
-const mockedUpsertConfig = vi.mocked(upsertConfig);
+const mockedUpsertConfig = vi.mocked(acpUpsertConfig);
 
 const renderWithIntl = (ui: React.ReactElement, options?: RenderOptions) =>
   render(ui, { wrapper: IntlTestWrapper, ...options });
@@ -261,12 +262,7 @@ describe('ExtensionModal', () => {
   describe('pending env var capture (fix for #8969)', () => {
     beforeEach(() => {
       mockedUpsertConfig.mockClear();
-      mockedUpsertConfig.mockResolvedValue({
-        data: 'ok',
-        error: undefined,
-        request: new globalThis.Request('http://localhost/test'),
-        response: new globalThis.Response(),
-      });
+      mockedUpsertConfig.mockResolvedValue(undefined);
     });
 
     const emptyInitialData: ExtensionFormData = {
@@ -330,15 +326,7 @@ describe('ExtensionModal', () => {
         expect(mockOnSubmit).toHaveBeenCalled();
       });
 
-      expect(mockedUpsertConfig).toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({
-            is_secret: true,
-            key: 'JWT_TOKEN',
-            value: 'my_very_long_token',
-          }),
-        })
-      );
+      expect(mockedUpsertConfig).toHaveBeenCalledWith('JWT_TOKEN', 'my_very_long_token', true);
 
       const submittedData = mockOnSubmit.mock.calls[0][0];
       expect(submittedData.envVars).toEqual(
@@ -382,9 +370,9 @@ describe('ExtensionModal', () => {
       });
 
       expect(mockedUpsertConfig).not.toHaveBeenCalledWith(
-        expect.objectContaining({
-          body: expect.objectContaining({ key: 'LONELY_KEY' }),
-        })
+        'LONELY_KEY',
+        expect.anything(),
+        expect.anything()
       );
 
       const submittedData = mockOnSubmit.mock.calls[0][0];

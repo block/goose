@@ -1,8 +1,14 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { toastError, toastSuccess } from '../toasts';
 import Model, { getProviderMetadata } from './settings/models/modelInterface';
-import { ProviderMetadata, setConfigProvider, updateAgentProvider } from '../api';
-import { useConfig } from './ConfigContext';
+import { ProviderMetadata } from '../api';
+import { acpChatSessionActions, acpChatSessionStore } from '../acp/chatSessionStore';
+import {
+  acpReadDefaults,
+  acpSaveDefaults,
+  acpSetSessionProviderModel,
+  type AppliedSessionProviderModel,
+} from '../acp/providers';
 import { errorMessage } from '../utils/conversionUtils';
 import {
   getModelDisplayName,
@@ -57,10 +63,30 @@ const ModelAndProviderContext = createContext<ModelAndProviderContextType | unde
 
 export { i18n as modelAndProviderMessages };
 
+function patchAcpSessionProviderModel(
+  sessionId: string,
+  { providerId, modelId }: AppliedSessionProviderModel
+) {
+  if (!providerId && !modelId) return;
+
+  const currentSession = acpChatSessionStore.getSnapshot(sessionId)?.session;
+  if (!currentSession) return;
+
+  acpChatSessionActions.setSessionMetadata(sessionId, {
+    ...currentSession,
+    provider_name: providerId ?? currentSession.provider_name,
+    model_config: modelId
+      ? {
+          ...(currentSession.model_config ?? { toolshim: false }),
+          model_name: modelId,
+        }
+      : currentSession.model_config,
+  });
+}
+
 export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> = ({ children }) => {
   const [currentModel, setCurrentModel] = useState<string | null>(null);
   const [currentProvider, setCurrentProvider] = useState<string | null>(null);
-  const { read, getProviders } = useConfig();
   const intl = useIntl();
 
   const changeModel = useCallback(
@@ -71,31 +97,20 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
 
       try {
         if (sessionId) {
-          const response = await updateAgentProvider({
-            body: {
-              session_id: sessionId,
-              provider: providerName,
-              model: modelName,
-              context_limit: model.context_limit,
-              request_params: model.request_params,
-            },
-          });
-          if (response.error) {
-            throw new Error(`Failed to update agent provider: ${response.error}`);
-          }
+          const applied = await acpSetSessionProviderModel(
+            sessionId,
+            providerName,
+            modelName,
+            model.request_params?.thinking_effort ?? null
+          );
+          patchAcpSessionProviderModel(sessionId, applied);
         }
 
         // Only update the global config default when there's no session
         // (i.e. changing from settings, not from within an existing chat)
         if (!sessionId) {
           phase = 'config';
-          await setConfigProvider({
-            body: {
-              provider: providerName,
-              model: modelName,
-            },
-            throwOnError: true,
-          });
+          await acpSaveDefaults(providerName, modelName);
         }
 
         if (!sessionId) {
@@ -132,13 +147,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     const model = window.appConfig.get('GOOSE_DEFAULT_MODEL') as string;
     if (provider && model) {
       try {
-        await setConfigProvider({
-          body: {
-            provider: provider,
-            model: model,
-          },
-          throwOnError: true,
-        });
+        await acpSaveDefaults(provider, model);
       } catch (error) {
         console.error('[getFallbackModelAndProvider] Failed to write to config', error);
       }
@@ -147,22 +156,22 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
   }, []);
 
   const getCurrentModelAndProvider = useCallback(async () => {
-    let model: string;
-    let provider: string;
+    let model: string | null;
+    let provider: string | null;
 
-    // read from config
     try {
-      model = (await read('GOOSE_MODEL', false)) as string;
-      provider = (await read('GOOSE_PROVIDER', false)) as string;
+      const defaults = await acpReadDefaults();
+      model = defaults.modelId;
+      provider = defaults.providerId;
     } catch {
-      console.error(`Failed to read GOOSE_MODEL or GOOSE_PROVIDER from config`);
-      throw new Error('Failed to read GOOSE_MODEL or GOOSE_PROVIDER from config');
+      console.error(`Failed to read default model or provider`);
+      throw new Error('Failed to read default model or provider');
     }
     if (!model || !provider) {
       return getFallbackModelAndProvider();
     }
     return { model: model, provider: provider };
-  }, [read, getFallbackModelAndProvider]);
+  }, [getFallbackModelAndProvider]);
 
   const getCurrentModelAndProviderForDisplay = useCallback(async () => {
     const modelProvider = await getCurrentModelAndProvider();
@@ -173,28 +182,28 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     let metadata: ProviderMetadata;
 
     try {
-      metadata = await getProviderMetadata(String(gooseProvider), getProviders);
+      metadata = await getProviderMetadata(String(gooseProvider));
     } catch {
       return { model: gooseModel, provider: gooseProvider };
     }
     const providerDisplayName = metadata.display_name;
 
     return { model: gooseModel, provider: providerDisplayName };
-  }, [getCurrentModelAndProvider, getProviders]);
+  }, [getCurrentModelAndProvider]);
 
   const getCurrentModelDisplayName = useCallback(async () => {
     try {
-      const currentModelName = (await read('GOOSE_MODEL', false)) as string;
-      return getModelDisplayName(currentModelName);
+      const { modelId } = await acpReadDefaults();
+      return getModelDisplayName(modelId ?? '');
     } catch {
       return intl.formatMessage(i18n.selectModel);
     }
-  }, [read, intl]);
+  }, [intl]);
 
   const getCurrentProviderDisplayName = useCallback(async () => {
     try {
-      const currentModelName = (await read('GOOSE_MODEL', false)) as string;
-      const providerDisplayName = getProviderDisplayName(currentModelName);
+      const { modelId } = await acpReadDefaults();
+      const providerDisplayName = getProviderDisplayName(modelId ?? '');
       if (providerDisplayName) {
         return providerDisplayName;
       }
@@ -204,7 +213,7 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     } catch {
       return '';
     }
-  }, [read, getCurrentModelAndProviderForDisplay]);
+  }, [getCurrentModelAndProviderForDisplay]);
 
   const refreshCurrentModelAndProvider = useCallback(async () => {
     try {

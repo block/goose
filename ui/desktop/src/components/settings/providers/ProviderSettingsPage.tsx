@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ScrollArea } from '../../ui/scroll-area';
 import BackButton from '../../ui/BackButton';
 import ProviderGrid from './ProviderGrid';
-import { useConfig } from '../../ConfigContext';
+import { acpListProviderDetails } from '../../../acp/providers';
 import { ProviderDetails } from '../../../api';
 import { createNavigationHandler } from '../../../utils/navigationUtils';
 import { defineMessages, useIntl } from '../../../i18n';
@@ -40,7 +40,6 @@ export default function ProviderSettings({
   onProviderLaunched,
 }: ProviderSettingsProps) {
   const intl = useIntl();
-  const { getProviders } = useConfig();
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [providers, setProviders] = useState<ProviderDetails[]>([]);
@@ -52,8 +51,7 @@ export default function ProviderSettings({
   const loadProviders = useCallback(async () => {
     setLoading(true);
     try {
-      // Only force refresh when explicitly requested, not on initial load
-      const result = await getProviders(!initialLoadDone.current);
+      const result = await acpListProviderDetails();
       if (result) {
         setProviders(result);
         initialLoadDone.current = true;
@@ -63,7 +61,7 @@ export default function ProviderSettings({
     } finally {
       setLoading(false);
     }
-  }, [getProviders]);
+  }, []);
 
   // Load providers only once when component mounts
   useEffect(() => {
@@ -74,10 +72,10 @@ export default function ProviderSettings({
   // This function will be passed to ProviderGrid for manual refreshes after config changes
   const refreshProviders = useCallback(async () => {
     if (initialLoadDone.current) {
-      const result = await getProviders(true);
+      const result = await acpListProviderDetails();
       if (result) setProviders(result);
     }
-  }, [getProviders]);
+  }, []);
 
   return (
     <div className="h-screen w-full flex flex-col bg-background-primary text-text-primary">

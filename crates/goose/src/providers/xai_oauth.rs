@@ -4,7 +4,6 @@ use super::openai_compatible::OpenAiCompatibleProvider;
 use super::xai::{XAI_API_HOST, XAI_DEFAULT_MODEL, XAI_KNOWN_MODELS};
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use axum::{extract::Query, response::Html, routing::get, Router};
@@ -12,6 +11,7 @@ use base64::Engine;
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -703,20 +703,15 @@ impl Provider for XaiOAuthProvider {
         self.inner.get_name()
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.inner.get_model_config()
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         self.inner
-            .stream(model_config, session_id, system, messages, tools)
+            .stream(model_config, system, messages, tools)
             .await
     }
 
@@ -760,9 +755,7 @@ impl Provider for XaiOAuthProvider {
     }
 }
 
-impl ProviderDef for XaiOAuthProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for XaiOAuthProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             XAI_OAUTH_PROVIDER_NAME,
@@ -777,10 +770,14 @@ impl ProviderDef for XaiOAuthProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for XaiOAuthProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();
@@ -790,15 +787,16 @@ impl ProviderDef for XaiOAuthProvider {
 
             let auth_provider = Arc::new(XaiOAuthAuthProvider::new(XaiAuthState::instance()));
             let auth_for_client = Arc::clone(&auth_provider);
-            let api_client = ApiClient::new(
+            let api_client = ApiClient::new_with_tls(
                 host,
                 AuthMethod::Custom(Box::new(SharedAuthProvider(auth_for_client))),
-            )?;
+                tls_config,
+            )?
+            .with_request_builder(crate::session_context::session_id_request_builder());
 
             let inner = OpenAiCompatibleProvider::new(
                 XAI_OAUTH_PROVIDER_NAME.to_string(),
                 api_client,
-                model,
                 String::new(),
             );
 

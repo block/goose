@@ -347,12 +347,12 @@ async fn sessions_handler(
             working_dir: session.working_dir.to_string_lossy().into_owned(),
             schedule_id: session.schedule_id,
             message_count: session.message_count,
-            total_tokens: session.total_tokens,
-            input_tokens: session.input_tokens,
-            output_tokens: session.output_tokens,
-            accumulated_total_tokens: session.accumulated_total_tokens,
-            accumulated_input_tokens: session.accumulated_input_tokens,
-            accumulated_output_tokens: session.accumulated_output_tokens,
+            total_tokens: session.usage.total_tokens,
+            input_tokens: session.usage.input_tokens,
+            output_tokens: session.usage.output_tokens,
+            accumulated_total_tokens: session.accumulated_usage.total_tokens,
+            accumulated_input_tokens: session.accumulated_usage.input_tokens,
+            accumulated_output_tokens: session.accumulated_usage.output_tokens,
         });
     }
     Ok(Json(display_infos))

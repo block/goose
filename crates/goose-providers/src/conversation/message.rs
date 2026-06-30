@@ -1088,9 +1088,17 @@ pub struct TokenState {
     pub input_tokens: i32,
     pub output_tokens: i32,
     pub total_tokens: i32,
+    #[serde(default)]
+    pub cache_read_tokens: i32,
+    #[serde(default)]
+    pub cache_write_tokens: i32,
     pub accumulated_input_tokens: i32,
     pub accumulated_output_tokens: i32,
     pub accumulated_total_tokens: i32,
+    #[serde(default)]
+    pub accumulated_cache_read_tokens: i32,
+    #[serde(default)]
+    pub accumulated_cache_write_tokens: i32,
     pub accumulated_cost: Option<f64>,
 }
 

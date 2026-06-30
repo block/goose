@@ -289,6 +289,7 @@ Need to connect to multiple OpenAI-compatible endpoints? [Configure custom provi
 | `OPENAI_ORGANIZATION` | No | Organization ID for usage tracking and governance |
 | `OPENAI_PROJECT` | No | Project identifier for resource management |
 | `OPENAI_CUSTOM_HEADERS` | No | Additional headers to include in the request. Can be set via environment variable, configuration file, or CLI, in the format `HEADER_A=VALUE_A,HEADER_B=VALUE_B`. |
+| `OPENAI_STORE` | No | Whether to persist the generated Responses API response for later retrieval via API. Defaults to `false`. |
 
 #### Example Configurations
 
@@ -1482,7 +1483,7 @@ When thinking is enabled, you can view the model's reasoning process. See [Viewi
 
 :::info Priority Order
 The thinking level is determined in this order (highest to lowest priority):
-1. `request_params.thinking_level` in model configuration (via `GOOSE_PREDEFINED_MODELS`)
+1. `request_params.thinking_level` in model configuration
 2. `GEMINI3_THINKING_LEVEL` environment variable
 3. Default value: `low`
 :::

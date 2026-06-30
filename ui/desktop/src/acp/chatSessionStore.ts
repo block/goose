@@ -1,8 +1,10 @@
+import { useEffect, useState } from 'react';
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
-import type { Message, Session, TokenState } from '../api';
+import type { TokenState } from '../types/chat';
 import { ChatState } from '../types/chatState';
-import type { NotificationEvent } from '../types/message';
+import type { Message, NotificationEvent } from '../types/message';
+import type { Session } from '../types/session';
 import {
   createAcpSessionNotificationAdapter,
   type AcpChatStateChange,
@@ -20,12 +22,21 @@ export interface AcpChatSessionSnapshot {
   chatState: ChatState;
   sessionLoadError: string | undefined;
   activePromptAttemptId: string | null;
+  activeRunId: string | null;
+  pendingCancelPromptAttemptId: string | null;
 }
 
 type SnapshotListener = (snapshot: AcpChatSessionSnapshot) => void;
 
 interface StoreEntry extends AcpChatSessionSnapshot {
   adapter: AcpSessionNotificationAdapter;
+  promptCancellationRestoreState: {
+    activeRunId: string | null;
+    chatState: ChatState;
+    pendingUserInputRequestIds: Set<string>;
+  } | null;
+  pendingUserInputRequestIds: Set<string>;
+  pendingLocalSteerMessageIds: Set<string>;
 }
 
 const initialTokenState: TokenState = {
@@ -39,25 +50,11 @@ const initialTokenState: TokenState = {
 
 export interface AcpChatSessionStore {
   getSnapshot(sessionId: string): AcpChatSessionSnapshot | undefined;
-  subscribe(sessionId: string, listener: (snapshot: AcpChatSessionSnapshot) => void): () => void;
+}
+
+export interface AcpChatSessionActions {
   deleteSnapshot(sessionId: string): void;
-  setLoadedSession(
-    sessionId: string,
-    session: Session,
-    tokenState?: TokenState
-  ): AcpChatSessionSnapshot;
-  setSessionMetadata(sessionId: string, session: Session | undefined): AcpChatSessionSnapshot;
-  setMessages(sessionId: string, messages: Message[]): AcpChatSessionSnapshot;
-  setTokenState(sessionId: string, tokenState: TokenState): AcpChatSessionSnapshot;
-  setChatState(sessionId: string, chatState: ChatState): AcpChatSessionSnapshot;
-  setSessionLoadError(
-    sessionId: string,
-    sessionLoadError: string | undefined
-  ): AcpChatSessionSnapshot;
-  startPromptAttempt(sessionId: string, promptAttemptId: string): AcpChatSessionSnapshot;
-  finishPromptAttemptIfCurrent(sessionId: string, promptAttemptId: string, error?: string): boolean;
-  clearActivePromptAttempt(sessionId: string): AcpChatSessionSnapshot | undefined;
-  isCurrentPromptAttempt(sessionId: string, promptAttemptId: string): boolean;
+
   applyAcpSessionNotification(notification: SessionNotification): AcpChatSessionSnapshot;
   applyAcpGooseSessionNotification(
     notification: GooseSessionNotification_unstable
@@ -69,9 +66,48 @@ export interface AcpChatSessionStore {
     elicitationId: string,
     status: ElicitationStatus
   ): AcpChatSessionSnapshot | undefined;
+
+  setSessionMetadata(sessionId: string, session: Session | undefined): AcpChatSessionSnapshot;
+  startSessionLoad(sessionId: string): AcpChatSessionSnapshot;
+  finishSessionLoad(sessionId: string, session: Session): AcpChatSessionSnapshot;
+  failSessionLoad(sessionId: string, sessionLoadError: string): AcpChatSessionSnapshot;
+  setSessionLoadError(
+    sessionId: string,
+    sessionLoadError: string | undefined
+  ): AcpChatSessionSnapshot;
+
+  setMessages(sessionId: string, messages: Message[]): AcpChatSessionSnapshot;
+  addPendingLocalSteerMessage(sessionId: string, message: Message): AcpChatSessionSnapshot;
+  setChatState(sessionId: string, chatState: ChatState): AcpChatSessionSnapshot;
+  resolveUserInputRequest(
+    sessionId: string,
+    userInputRequestId: string
+  ): AcpChatSessionSnapshot | undefined;
+
+  startPromptAttempt(sessionId: string, promptAttemptId: string): AcpChatSessionSnapshot;
+  startPromptCancellation(
+    sessionId: string,
+    promptAttemptId: string
+  ): AcpChatSessionSnapshot | undefined;
+  clearPromptCancellation(
+    sessionId: string,
+    promptAttemptId: string
+  ): AcpChatSessionSnapshot | undefined;
+  restorePromptCancellation(
+    sessionId: string,
+    promptAttemptId: string
+  ): AcpChatSessionSnapshot | undefined;
+  waitForPromptCancellation(sessionId: string, promptAttemptId: string): Promise<void>;
+  finishPromptAttemptIfCurrent(sessionId: string, promptAttemptId: string, error?: string): boolean;
+  clearActivePromptAttempt(sessionId: string): AcpChatSessionSnapshot | undefined;
+  isCurrentPromptAttempt(sessionId: string, promptAttemptId: string): boolean;
 }
 
-export function createAcpChatSessionStore(): AcpChatSessionStore {
+interface AcpChatSessionStoreInternal extends AcpChatSessionStore, AcpChatSessionActions {
+  subscribe(sessionId: string, listener: (snapshot: AcpChatSessionSnapshot) => void): () => void;
+}
+
+function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
   const sessionsById = new Map<string, StoreEntry>();
   const listenersBySessionId = new Map<string, Set<SnapshotListener>>();
 
@@ -80,7 +116,7 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     return entry ? snapshotFromEntry(entry) : undefined;
   };
 
-  const subscribe: AcpChatSessionStore['subscribe'] = (sessionId, listener) => {
+  const subscribe: AcpChatSessionStoreInternal['subscribe'] = (sessionId, listener) => {
     const listeners = listenersBySessionId.get(sessionId) ?? new Set<SnapshotListener>();
     listeners.add(listener);
     listenersBySessionId.set(sessionId, listeners);
@@ -104,7 +140,7 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     };
   };
 
-  const deleteSnapshot: AcpChatSessionStore['deleteSnapshot'] = (sessionId) => {
+  const deleteSnapshot: AcpChatSessionActions['deleteSnapshot'] = (sessionId) => {
     sessionsById.delete(sessionId);
   };
 
@@ -122,6 +158,11 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
       chatState: ChatState.Idle,
       sessionLoadError: undefined,
       activePromptAttemptId: null,
+      activeRunId: null,
+      pendingCancelPromptAttemptId: null,
+      promptCancellationRestoreState: null,
+      pendingUserInputRequestIds: new Set(),
+      pendingLocalSteerMessageIds: new Set(),
       adapter: createAcpSessionNotificationAdapter(),
     };
     sessionsById.set(sessionId, entry);
@@ -139,47 +180,91 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     return snapshot;
   };
 
-  const setLoadedSession: AcpChatSessionStore['setLoadedSession'] = (
+  const setSessionMetadata: AcpChatSessionActions['setSessionMetadata'] = (sessionId, session) => {
+    const entry = getOrCreateEntry(sessionId);
+    entry.session = session;
+    return notify(sessionId, entry);
+  };
+
+  const startSessionLoad: AcpChatSessionActions['startSessionLoad'] = (sessionId) => {
+    const entry = getOrCreateEntry(sessionId);
+    resetReplayState(entry);
+    entry.sessionLoadError = undefined;
+    entry.chatState = ChatState.LoadingConversation;
+    return notify(sessionId, entry);
+  };
+
+  const finishSessionLoad: AcpChatSessionActions['finishSessionLoad'] = (sessionId, session) => {
+    const entry = getOrCreateEntry(sessionId);
+    entry.session = session;
+    entry.sessionLoadError = undefined;
+    entry.chatState = entry.activePromptAttemptId ? ChatState.Streaming : ChatState.Idle;
+    return notify(sessionId, entry);
+  };
+
+  const failSessionLoad: AcpChatSessionActions['failSessionLoad'] = (
     sessionId,
-    session,
-    tokenState = tokenStateFromSession(session)
+    sessionLoadError
   ) => {
     const entry = getOrCreateEntry(sessionId);
-    entry.session = session;
-    entry.messages = cloneMessages(session.conversation ?? []);
-    entry.tokenState = { ...tokenState };
-    entry.chatState = entry.activePromptAttemptId ? ChatState.Streaming : ChatState.Idle;
-    entry.sessionLoadError = undefined;
-    entry.adapter = createAcpSessionNotificationAdapter(entry.messages);
+    entry.sessionLoadError = sessionLoadError;
+    entry.chatState = ChatState.Idle;
     return notify(sessionId, entry);
   };
 
-  const setSessionMetadata: AcpChatSessionStore['setSessionMetadata'] = (sessionId, session) => {
-    const entry = getOrCreateEntry(sessionId);
-    entry.session = session;
-    return notify(sessionId, entry);
-  };
-
-  const setMessages: AcpChatSessionStore['setMessages'] = (sessionId, messages) => {
+  const setMessages: AcpChatSessionActions['setMessages'] = (sessionId, messages) => {
     const entry = getOrCreateEntry(sessionId);
     entry.messages = cloneMessages(messages);
-    entry.adapter = createAcpSessionNotificationAdapter(entry.messages);
+    retainPendingLocalSteerMessageIds(entry);
+    entry.adapter = createAdapterForEntry(entry);
     return notify(sessionId, entry);
   };
 
-  const setTokenState: AcpChatSessionStore['setTokenState'] = (sessionId, tokenState) => {
+  const addPendingLocalSteerMessage: AcpChatSessionActions['addPendingLocalSteerMessage'] = (
+    sessionId,
+    message
+  ) => {
     const entry = getOrCreateEntry(sessionId);
-    entry.tokenState = { ...tokenState };
+    if (!message.id || entry.messages.some((existing) => existing.id === message.id)) {
+      return notify(sessionId, entry);
+    }
+
+    entry.messages = [...entry.messages, cloneMessage(message)];
+    entry.pendingLocalSteerMessageIds.add(message.id);
+    entry.adapter = createAdapterForEntry(entry);
     return notify(sessionId, entry);
   };
 
-  const setChatState: AcpChatSessionStore['setChatState'] = (sessionId, chatState) => {
+  const setChatState: AcpChatSessionActions['setChatState'] = (sessionId, chatState) => {
     const entry = getOrCreateEntry(sessionId);
     entry.chatState = chatState;
     return notify(sessionId, entry);
   };
 
-  const setSessionLoadError: AcpChatSessionStore['setSessionLoadError'] = (
+  const resolveUserInputRequest: AcpChatSessionActions['resolveUserInputRequest'] = (
+    sessionId,
+    userInputRequestId
+  ) => {
+    const entry = sessionsById.get(sessionId);
+    if (!entry) {
+      return undefined;
+    }
+
+    entry.pendingUserInputRequestIds.delete(userInputRequestId);
+
+    if (
+      entry.activePromptAttemptId &&
+      entry.chatState === ChatState.WaitingForUserInput &&
+      entry.pendingUserInputRequestIds.size === 0
+    ) {
+      entry.chatState = ChatState.Streaming;
+      return notify(sessionId, entry);
+    }
+
+    return snapshotFromEntry(entry);
+  };
+
+  const setSessionLoadError: AcpChatSessionActions['setSessionLoadError'] = (
     sessionId,
     sessionLoadError
   ) => {
@@ -188,19 +273,103 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     return notify(sessionId, entry);
   };
 
-  const startPromptAttempt: AcpChatSessionStore['startPromptAttempt'] = (
+  const startPromptAttempt: AcpChatSessionActions['startPromptAttempt'] = (
     sessionId,
     promptAttemptId
   ) => {
     const entry = getOrCreateEntry(sessionId);
+    discardPendingLocalSteerMessages(entry);
     entry.activePromptAttemptId = promptAttemptId;
+    entry.activeRunId = null;
+    entry.pendingCancelPromptAttemptId = null;
+    entry.promptCancellationRestoreState = null;
+    entry.pendingUserInputRequestIds.clear();
     entry.chatState = ChatState.Streaming;
     entry.sessionLoadError = undefined;
     entry.notifications = [];
     return notify(sessionId, entry);
   };
 
-  const finishPromptAttemptIfCurrent: AcpChatSessionStore['finishPromptAttemptIfCurrent'] = (
+  const startPromptCancellation: AcpChatSessionActions['startPromptCancellation'] = (
+    sessionId,
+    promptAttemptId
+  ) => {
+    const entry = sessionsById.get(sessionId);
+    if (!entry || entry.activePromptAttemptId !== promptAttemptId) {
+      return undefined;
+    }
+
+    entry.promptCancellationRestoreState = {
+      activeRunId: entry.activeRunId,
+      chatState: entry.chatState,
+      pendingUserInputRequestIds: new Set(entry.pendingUserInputRequestIds),
+    };
+    entry.activePromptAttemptId = null;
+    entry.activeRunId = null;
+    entry.pendingCancelPromptAttemptId = promptAttemptId;
+    entry.pendingUserInputRequestIds.clear();
+    discardPendingLocalSteerMessages(entry);
+    entry.chatState = ChatState.Idle;
+    return notify(sessionId, entry);
+  };
+
+  const clearPromptCancellation: AcpChatSessionActions['clearPromptCancellation'] = (
+    sessionId,
+    promptAttemptId
+  ) => {
+    const entry = sessionsById.get(sessionId);
+    if (!entry || entry.pendingCancelPromptAttemptId !== promptAttemptId) {
+      return undefined;
+    }
+
+    entry.pendingCancelPromptAttemptId = null;
+    entry.promptCancellationRestoreState = null;
+    return notify(sessionId, entry);
+  };
+
+  const restorePromptCancellation: AcpChatSessionActions['restorePromptCancellation'] = (
+    sessionId,
+    promptAttemptId
+  ) => {
+    const entry = sessionsById.get(sessionId);
+    if (
+      !entry ||
+      entry.pendingCancelPromptAttemptId !== promptAttemptId ||
+      !entry.promptCancellationRestoreState
+    ) {
+      return undefined;
+    }
+
+    const restoreState = entry.promptCancellationRestoreState;
+    entry.activePromptAttemptId = promptAttemptId;
+    entry.activeRunId = restoreState.activeRunId;
+    entry.pendingCancelPromptAttemptId = null;
+    entry.promptCancellationRestoreState = null;
+    entry.pendingUserInputRequestIds = new Set(restoreState.pendingUserInputRequestIds);
+    entry.chatState = restoreState.chatState;
+    return notify(sessionId, entry);
+  };
+
+  const waitForPromptCancellation: AcpChatSessionActions['waitForPromptCancellation'] = (
+    sessionId,
+    promptAttemptId
+  ) => {
+    const entry = sessionsById.get(sessionId);
+    if (!entry || entry.pendingCancelPromptAttemptId !== promptAttemptId) {
+      return Promise.resolve();
+    }
+
+    return new Promise((resolve) => {
+      const unsubscribe = subscribe(sessionId, (snapshot) => {
+        if (snapshot.pendingCancelPromptAttemptId !== promptAttemptId) {
+          unsubscribe();
+          resolve();
+        }
+      });
+    });
+  };
+
+  const finishPromptAttemptIfCurrent: AcpChatSessionActions['finishPromptAttemptIfCurrent'] = (
     sessionId,
     promptAttemptId,
     error
@@ -211,29 +380,39 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     }
 
     entry.activePromptAttemptId = null;
+    entry.activeRunId = null;
+    entry.pendingCancelPromptAttemptId = null;
+    entry.promptCancellationRestoreState = null;
+    entry.pendingUserInputRequestIds.clear();
+    discardPendingLocalSteerMessages(entry);
     entry.chatState = ChatState.Idle;
     entry.sessionLoadError = error;
     notify(sessionId, entry);
     return true;
   };
 
-  const clearActivePromptAttempt: AcpChatSessionStore['clearActivePromptAttempt'] = (sessionId) => {
+  const clearActivePromptAttempt: AcpChatSessionActions['clearActivePromptAttempt'] = (
+    sessionId
+  ) => {
     const entry = sessionsById.get(sessionId);
     if (!entry) {
       return undefined;
     }
 
     entry.activePromptAttemptId = null;
+    entry.activeRunId = null;
+    entry.pendingUserInputRequestIds.clear();
+    discardPendingLocalSteerMessages(entry);
     entry.chatState = ChatState.Idle;
     return notify(sessionId, entry);
   };
 
-  const isCurrentPromptAttempt: AcpChatSessionStore['isCurrentPromptAttempt'] = (
+  const isCurrentPromptAttempt: AcpChatSessionActions['isCurrentPromptAttempt'] = (
     sessionId,
     promptAttemptId
   ) => sessionsById.get(sessionId)?.activePromptAttemptId === promptAttemptId;
 
-  const applyAcpSessionNotification: AcpChatSessionStore['applyAcpSessionNotification'] = (
+  const applyAcpSessionNotification: AcpChatSessionActions['applyAcpSessionNotification'] = (
     notification
   ) => {
     const entry = getOrCreateEntry(notification.sessionId);
@@ -242,7 +421,7 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     return notify(notification.sessionId, entry);
   };
 
-  const applyAcpGooseSessionNotification: AcpChatSessionStore['applyAcpGooseSessionNotification'] =
+  const applyAcpGooseSessionNotification: AcpChatSessionActions['applyAcpGooseSessionNotification'] =
     (notification) => {
       const entry = getOrCreateEntry(notification.sessionId);
       const changes = entry.adapter.applyGoose(notification);
@@ -250,23 +429,27 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
       return notify(notification.sessionId, entry);
     };
 
-  const applyPermissionRequest: AcpChatSessionStore['applyPermissionRequest'] = (request) => {
+  const applyPermissionRequest: AcpChatSessionActions['applyPermissionRequest'] = (request) => {
     const entry = getOrCreateEntry(request.sessionId);
     const changes = entry.adapter.applyPermissionRequest(request);
     applyChatStateChanges(entry, changes);
+    entry.pendingUserInputRequestIds.add(
+      acpPermissionUserInputRequestId(request.toolCall.toolCallId)
+    );
     entry.chatState = ChatState.WaitingForUserInput;
     return notify(request.sessionId, entry);
   };
 
-  const applyElicitationRequest: AcpChatSessionStore['applyElicitationRequest'] = (request) => {
+  const applyElicitationRequest: AcpChatSessionActions['applyElicitationRequest'] = (request) => {
     const entry = getOrCreateEntry(request.sessionId);
     const changes = entry.adapter.applyElicitationRequest(request);
     applyChatStateChanges(entry, changes);
+    entry.pendingUserInputRequestIds.add(acpElicitationUserInputRequestId(request.id));
     entry.chatState = ChatState.WaitingForUserInput;
     return notify(request.sessionId, entry);
   };
 
-  const setElicitationStatus: AcpChatSessionStore['setElicitationStatus'] = (
+  const setElicitationStatus: AcpChatSessionActions['setElicitationStatus'] = (
     sessionId,
     elicitationId,
     status
@@ -289,13 +472,20 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
     getSnapshot,
     subscribe,
     deleteSnapshot,
-    setLoadedSession,
     setSessionMetadata,
-    setMessages,
-    setTokenState,
-    setChatState,
+    startSessionLoad,
+    finishSessionLoad,
+    failSessionLoad,
     setSessionLoadError,
+    setMessages,
+    addPendingLocalSteerMessage,
+    setChatState,
+    resolveUserInputRequest,
     startPromptAttempt,
+    startPromptCancellation,
+    clearPromptCancellation,
+    restorePromptCancellation,
+    waitForPromptCancellation,
     finishPromptAttemptIfCurrent,
     clearActivePromptAttempt,
     isCurrentPromptAttempt,
@@ -307,19 +497,76 @@ export function createAcpChatSessionStore(): AcpChatSessionStore {
   };
 }
 
-export const acpChatSessionStore = createAcpChatSessionStore();
+const acpChatSessionStoreInternal = createAcpChatSessionStoreInternal();
 
-export function tokenStateFromSession(session: Session | undefined): TokenState {
+export const acpChatSessionStore: AcpChatSessionStore = storeFromInternal(
+  acpChatSessionStoreInternal
+);
+
+export const acpChatSessionActions: AcpChatSessionActions = actionsFromStore(
+  acpChatSessionStoreInternal
+);
+
+interface AcpChatSessionSnapshotState {
+  sessionId: string;
+  snapshot: AcpChatSessionSnapshot | undefined;
+}
+
+export function useAcpChatSessionSnapshot(sessionId: string): AcpChatSessionSnapshot | undefined {
+  const [snapshotState, setSnapshotState] = useState<AcpChatSessionSnapshotState>(() => ({
+    sessionId,
+    snapshot: acpChatSessionStoreInternal.getSnapshot(sessionId),
+  }));
+
+  useEffect(() => {
+    setSnapshotState({
+      sessionId,
+      snapshot: acpChatSessionStoreInternal.getSnapshot(sessionId),
+    });
+
+    return acpChatSessionStoreInternal.subscribe(sessionId, (snapshot) => {
+      setSnapshotState({ sessionId, snapshot });
+    });
+  }, [sessionId]);
+
+  if (snapshotState.sessionId !== sessionId) {
+    return acpChatSessionStoreInternal.getSnapshot(sessionId);
+  }
+
+  return snapshotState.snapshot;
+}
+
+function storeFromInternal(store: AcpChatSessionStoreInternal): AcpChatSessionStore {
   return {
-    inputTokens: session?.input_tokens ?? 0,
-    outputTokens: session?.output_tokens ?? 0,
-    totalTokens: session?.total_tokens ?? 0,
-    accumulatedInputTokens: session?.accumulated_input_tokens ?? 0,
-    accumulatedOutputTokens: session?.accumulated_output_tokens ?? 0,
-    accumulatedTotalTokens: session?.accumulated_total_tokens ?? 0,
-    ...(session?.accumulated_cost !== undefined
-      ? { accumulatedCost: session.accumulated_cost }
-      : {}),
+    getSnapshot: store.getSnapshot,
+  };
+}
+
+function actionsFromStore(store: AcpChatSessionStoreInternal): AcpChatSessionActions {
+  return {
+    deleteSnapshot: store.deleteSnapshot,
+    applyAcpSessionNotification: store.applyAcpSessionNotification,
+    applyAcpGooseSessionNotification: store.applyAcpGooseSessionNotification,
+    applyPermissionRequest: store.applyPermissionRequest,
+    applyElicitationRequest: store.applyElicitationRequest,
+    setElicitationStatus: store.setElicitationStatus,
+    setSessionMetadata: store.setSessionMetadata,
+    startSessionLoad: store.startSessionLoad,
+    finishSessionLoad: store.finishSessionLoad,
+    failSessionLoad: store.failSessionLoad,
+    setSessionLoadError: store.setSessionLoadError,
+    setMessages: store.setMessages,
+    addPendingLocalSteerMessage: store.addPendingLocalSteerMessage,
+    setChatState: store.setChatState,
+    resolveUserInputRequest: store.resolveUserInputRequest,
+    startPromptAttempt: store.startPromptAttempt,
+    startPromptCancellation: store.startPromptCancellation,
+    clearPromptCancellation: store.clearPromptCancellation,
+    restorePromptCancellation: store.restorePromptCancellation,
+    waitForPromptCancellation: store.waitForPromptCancellation,
+    finishPromptAttemptIfCurrent: store.finishPromptAttemptIfCurrent,
+    clearActivePromptAttempt: store.clearActivePromptAttempt,
+    isCurrentPromptAttempt: store.isCurrentPromptAttempt,
   };
 }
 
@@ -328,6 +575,7 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
     switch (change.type) {
       case 'messages':
         entry.messages = cloneMessages(change.messages);
+        retainPendingLocalSteerMessageIds(entry);
         break;
       case 'tokenState':
         entry.tokenState = { ...entry.tokenState, ...change.tokenState };
@@ -336,12 +584,89 @@ function applyChatStateChanges(entry: StoreEntry, changes: AcpChatStateChange[])
         if (change.name && entry.session) {
           entry.session = { ...entry.session, name: change.name };
         }
+        if (change.activeRunId !== undefined) {
+          entry.activeRunId = change.activeRunId;
+        }
+        break;
+      case 'localSteerConfirmed':
+        entry.pendingLocalSteerMessageIds.delete(change.messageId);
         break;
       case 'notification':
         entry.notifications = [...entry.notifications, change.notification];
         break;
     }
   }
+}
+
+function resetReplayState(entry: StoreEntry): void {
+  entry.messages = [];
+  entry.tokenState = { ...initialTokenState };
+  entry.notifications = [];
+  entry.activeRunId = null;
+  entry.pendingCancelPromptAttemptId = null;
+  entry.promptCancellationRestoreState = null;
+  entry.pendingUserInputRequestIds.clear();
+  entry.pendingLocalSteerMessageIds.clear();
+  entry.adapter = createAcpSessionNotificationAdapter();
+}
+
+export function acpPermissionUserInputRequestId(toolCallId: string): string {
+  return `permission:${toolCallId}`;
+}
+
+export function acpElicitationUserInputRequestId(elicitationId: string): string {
+  return `elicitation:${elicitationId}`;
+}
+
+function retainPendingLocalSteerMessageIds(entry: StoreEntry): void {
+  if (entry.pendingLocalSteerMessageIds.size === 0) {
+    return;
+  }
+
+  const messageIds = new Set(entry.messages.map((message) => message.id).filter(Boolean));
+  entry.pendingLocalSteerMessageIds = new Set(
+    [...entry.pendingLocalSteerMessageIds].filter((messageId) => messageIds.has(messageId))
+  );
+}
+
+function discardPendingLocalSteerMessages(entry: StoreEntry): void {
+  if (entry.pendingLocalSteerMessageIds.size === 0) {
+    return;
+  }
+
+  entry.messages = entry.messages.filter(
+    (message) => !message.id || !entry.pendingLocalSteerMessageIds.has(message.id)
+  );
+  entry.pendingLocalSteerMessageIds.clear();
+  entry.adapter = createAdapterForEntry(entry);
+}
+
+function createAdapterForEntry(entry: StoreEntry): AcpSessionNotificationAdapter {
+  return createAcpSessionNotificationAdapter(
+    entry.messages,
+    confirmedLocalSteerTextByMessageId(entry)
+  );
+}
+
+function confirmedLocalSteerTextByMessageId(entry: StoreEntry): Map<string, string> {
+  const textByMessageId = new Map<string, string>();
+
+  for (const message of entry.messages) {
+    if (
+      !message.id ||
+      !message.metadata.steer ||
+      entry.pendingLocalSteerMessageIds.has(message.id)
+    ) {
+      continue;
+    }
+
+    const firstContent = message.content[0];
+    if (firstContent?.type === 'text') {
+      textByMessageId.set(message.id, firstContent.text);
+    }
+  }
+
+  return textByMessageId;
 }
 
 function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
@@ -353,6 +678,8 @@ function snapshotFromEntry(entry: StoreEntry): AcpChatSessionSnapshot {
     chatState: entry.chatState,
     sessionLoadError: entry.sessionLoadError,
     activePromptAttemptId: entry.activePromptAttemptId,
+    activeRunId: entry.activeRunId,
+    pendingCancelPromptAttemptId: entry.pendingCancelPromptAttemptId,
   };
 }
 

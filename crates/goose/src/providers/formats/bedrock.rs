@@ -15,12 +15,12 @@ use rmcp::model::{
 use serde_json::Value;
 
 use crate::conversation::message::{Message, MessageContent};
-use crate::model::ModelConfig;
 use crate::providers::formats::anthropic::{
     adaptive_output_effort, thinking_budget_tokens, thinking_type_for_provider, ThinkingType,
     ANTHROPIC_PROVIDER_NAME,
 };
 use goose_providers::conversation::token_usage::Usage;
+use goose_providers::model::ModelConfig;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -150,8 +150,14 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     .input(to_bedrock_json(&args_to_value(call.arguments.clone())))
                     .build()
             } else {
+                // Unparseable tool call: emit a placeholder tool_use so the paired
+                // tool_result isn't orphaned — Bedrock rejects a tool_use with no name
+                // and a tool_result with no matching tool_use. Mirrors the
+                // OpenAI/Databricks/Anthropic formatters.
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
+                    .name("unparseable_tool_call")
+                    .input(to_bedrock_json(&args_to_value(None)))
                     .build()
             }?;
             bedrock::ContentBlock::ToolUse(tool_use)
@@ -165,8 +171,14 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     .input(to_bedrock_json(&args_to_value(call.arguments.clone())))
                     .build()
             } else {
+                // Unparseable tool call: emit a placeholder tool_use so the paired
+                // tool_result isn't orphaned — Bedrock rejects a tool_use with no name
+                // and a tool_result with no matching tool_use. Mirrors the
+                // OpenAI/Databricks/Anthropic formatters.
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
+                    .name("unparseable_tool_call")
+                    .input(to_bedrock_json(&args_to_value(None)))
                     .build()
             }?;
             bedrock::ContentBlock::ToolUse(tool_use)
@@ -491,10 +503,12 @@ pub fn from_bedrock_role(role: &bedrock::ConversationRole) -> Result<Role> {
 }
 
 pub fn from_bedrock_usage(usage: &bedrock::TokenUsage) -> Usage {
-    Usage::new(
+    Usage::from_cache_exclusive_input(
         Some(usage.input_tokens),
         Some(usage.output_tokens),
         Some(usage.total_tokens),
+        usage.cache_read_input_tokens,
+        usage.cache_write_input_tokens,
     )
 }
 
@@ -533,7 +547,7 @@ mod tests {
     fn test_bedrock_anthropic_thinking_fields_enabled() {
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("low"));
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
         config.request_params = Some(params);
         config.reasoning = Some(true);
 
@@ -551,7 +565,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_anthropic_thinking_fields_disabled() {
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
         config.reasoning = Some(true);
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
@@ -563,7 +577,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_anthropic_thinking_fields_always_on_adaptive() {
-        let mut config = ModelConfig::new_or_fail("global.anthropic.claude-fable-5");
+        let mut config = ModelConfig::new("global.anthropic.claude-fable-5");
         config.reasoning = Some(true);
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
@@ -582,7 +596,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_anthropic_thinking_fields_adaptive_with_effort() {
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-opus-4.7");
+        let mut config = ModelConfig::new("us.anthropic.claude-opus-4.7");
         config.reasoning = Some(true);
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
@@ -601,7 +615,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_anthropic_thinking_fields_adaptive_with_version_suffix() {
-        let mut config = ModelConfig::new_or_fail("us.anthropic.claude-opus-4-7-20251101-v1:0");
+        let mut config = ModelConfig::new("us.anthropic.claude-opus-4-7-20251101-v1:0");
         config.reasoning = Some(true);
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
@@ -620,7 +634,7 @@ mod tests {
 
     #[test]
     fn test_bedrock_thinking_fields_skipped_for_non_anthropic() {
-        let mut config = ModelConfig::new_or_fail("us.deepseek.r1-v1:0");
+        let mut config = ModelConfig::new("us.deepseek.r1-v1:0");
         config.reasoning = Some(true);
         config.request_params = Some(HashMap::from([(
             "thinking_effort".to_string(),
@@ -759,6 +773,25 @@ mod tests {
         assert_eq!(empty_msg.content.len(), 0);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_from_bedrock_usage_folds_cache_tokens_into_input() {
+        let usage = bedrock::TokenUsage::builder()
+            .input_tokens(7)
+            .output_tokens(50)
+            .total_tokens(57)
+            .cache_read_input_tokens(5000)
+            .cache_write_input_tokens(1000)
+            .build()
+            .unwrap();
+
+        let converted = from_bedrock_usage(&usage);
+        assert_eq!(converted.input_tokens, Some(6007));
+        assert_eq!(converted.output_tokens, Some(50));
+        assert_eq!(converted.total_tokens, Some(6057));
+        assert_eq!(converted.cache_read_input_tokens, Some(5000));
+        assert_eq!(converted.cache_write_input_tokens, Some(1000));
     }
 
     #[test]
@@ -1091,6 +1124,28 @@ mod tests {
             bedrock::ContentBlock::CachePoint(_)
         ));
 
+        Ok(())
+    }
+
+    #[test]
+    fn tool_request_parse_error_gets_placeholder_name() -> Result<()> {
+        use rmcp::model::{ErrorCode, ErrorData};
+        // An unparseable tool call (ToolRequest(Err)) must still produce a tool_use
+        // with a non-empty name; otherwise Bedrock rejects the tool_use / orphans the
+        // paired tool_result. Mirrors the OpenAI/Databricks/Anthropic formatters.
+        let err = ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Tool arguments must be a JSON object".to_string(),
+            None,
+        );
+        let content = MessageContent::tool_request("call_bad".to_string(), Err(err));
+        match to_bedrock_message_content(&content)? {
+            bedrock::ContentBlock::ToolUse(tu) => {
+                assert_eq!(tu.tool_use_id, "call_bad");
+                assert_eq!(tu.name, "unparseable_tool_call");
+            }
+            other => panic!("expected ToolUse, got {other:?}"),
+        }
         Ok(())
     }
 

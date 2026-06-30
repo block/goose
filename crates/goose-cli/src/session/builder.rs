@@ -6,6 +6,7 @@ use console::style;
 use goose::agents::{Agent, Container, ExtensionError};
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, ExtensionConfig, GooseMode};
+use goose::model_config::model_config_from_user_config;
 use goose::providers::create;
 use goose::recipe::Recipe;
 use goose::session::session_manager::SessionType;
@@ -229,14 +230,14 @@ async fn load_extensions(
 struct ResolvedProviderConfig {
     provider_name: String,
     model_name: String,
-    model_config: goose::model::ModelConfig,
+    model_config: goose_providers::model::ModelConfig,
 }
 
 fn resolve_provider_and_model(
     session_config: &SessionBuilderConfig,
     config: &Config,
     saved_provider: Option<String>,
-    saved_model_config: Option<goose::model::ModelConfig>,
+    saved_model_config: Option<goose_providers::model::ModelConfig>,
 ) -> ResolvedProviderConfig {
     let recipe_settings = session_config
         .recipe
@@ -277,14 +278,16 @@ fn resolve_provider_and_model(
         }
         config
     } else {
-        let temperature = recipe_settings.and_then(|s| s.temperature);
-        goose::model::ModelConfig::new(&model_name)
-            .unwrap_or_else(|e| {
-                output::render_error(&format!("Failed to create model configuration: {}", e));
-                process::exit(1);
-            })
-            .with_canonical_limits(&provider_name)
-            .with_temperature(temperature)
+        let mut config =
+            goose::model_config::model_config_from_user_config(&provider_name, &model_name)
+                .unwrap_or_else(|e| {
+                    output::render_error(&format!("Failed to create model configuration: {}", e));
+                    process::exit(1);
+                });
+        if let Some(temp) = recipe_settings.and_then(|s| s.temperature) {
+            config = config.with_temperature(Some(temp));
+        }
+        config
     };
 
     ResolvedProviderConfig {
@@ -541,81 +544,79 @@ pub async fn build_session(session_config: SessionBuilderConfig) -> CliSession {
             }
         };
 
-    let (new_provider, effective_provider_name, effective_model_name) = match create(
-        &resolved.provider_name,
-        resolved.model_config.clone(),
-        extensions_for_provider.clone(),
-    )
-    .await
-    {
-        Ok(provider) => (
-            provider,
-            resolved.provider_name.clone(),
-            resolved.model_name.clone(),
-        ),
-        Err(e)
-            if session_config.resume
-                && session_config.provider.is_none()
-                && is_provider_unavailable_error(&e) =>
-        {
-            let fallback_provider = config.get_goose_provider().unwrap_or_else(|_| {
-                output::render_error("No provider configured. Run 'goose configure' first.");
-                process::exit(1);
-            });
-            let fallback_model = config.get_goose_model().unwrap_or_else(|_| {
-                output::render_error("No model configured. Run 'goose configure' first.");
-                process::exit(1);
-            });
-            eprintln!(
-                "{}",
-                style(format!(
-                    "Warning: Could not create the session's original provider '{}' ({}). \
-                    Falling back to the default provider '{}'.",
-                    resolved.provider_name, e, fallback_provider
-                ))
-                .yellow()
-            );
-            let fallback_model_config = goose::model::ModelConfig::new(&fallback_model)
-                .unwrap_or_else(|e| {
-                    output::render_error(&format!("Failed to create model configuration: {}", e));
-                    process::exit(1);
-                })
-                .with_canonical_limits(&fallback_provider);
-            match create(
-                &fallback_provider,
-                fallback_model_config,
-                extensions_for_provider.clone(),
-            )
-            .await
+    let (new_provider, effective_provider_name, effective_model_name, effective_model_config) =
+        match create(&resolved.provider_name, extensions_for_provider.clone()).await {
+            Ok(provider) => (
+                provider,
+                resolved.provider_name.clone(),
+                resolved.model_name.clone(),
+                resolved.model_config.clone(),
+            ),
+            Err(e)
+                if session_config.resume
+                    && session_config.provider.is_none()
+                    && is_provider_unavailable_error(&e) =>
             {
-                Ok(provider) => (provider, fallback_provider, fallback_model),
-                Err(e2) => {
-                    output::render_error(&format!(
+                let fallback_provider = config.get_goose_provider().unwrap_or_else(|_| {
+                    output::render_error("No provider configured. Run 'goose configure' first.");
+                    process::exit(1);
+                });
+                let fallback_model = config.get_goose_model().unwrap_or_else(|_| {
+                    output::render_error("No model configured. Run 'goose configure' first.");
+                    process::exit(1);
+                });
+                eprintln!(
+                    "{}",
+                    style(format!(
+                        "Warning: Could not create the session's original provider '{}' ({}). \
+                    Falling back to the default provider '{}'.",
+                        resolved.provider_name, e, fallback_provider
+                    ))
+                    .yellow()
+                );
+                let fallback_model_config =
+                    model_config_from_user_config(fallback_provider.as_str(), &fallback_model)
+                        .unwrap_or_else(|e| {
+                            output::render_error(&format!(
+                                "Failed to create model configuration: {}",
+                                e
+                            ));
+                            process::exit(1);
+                        });
+                match create(&fallback_provider, extensions_for_provider.clone()).await {
+                    Ok(provider) => (
+                        provider,
+                        fallback_provider,
+                        fallback_model,
+                        fallback_model_config,
+                    ),
+                    Err(e2) => {
+                        output::render_error(&format!(
                         "Error {}.\n\
                         Please check your system keychain and run 'goose configure' again.\n\
                         If your system is unable to use the keyring, please try setting secret key(s) via environment variables.\n\
                         For more info, see: https://goose-docs.ai/docs/troubleshooting/#keychainkeyring-errors",
                         e2
                     ));
-                    process::exit(1);
+                        process::exit(1);
+                    }
                 }
             }
-        }
-        Err(e) => {
-            output::render_error(&format!(
+            Err(e) => {
+                output::render_error(&format!(
                 "Error {}.\n\
                 Please check your system keychain and run 'goose configure' again.\n\
                 If your system is unable to use the keyring, please try setting secret key(s) via environment variables.\n\
                 For more info, see: https://goose-docs.ai/docs/troubleshooting/#keychainkeyring-errors",
                 e
             ));
-            process::exit(1);
-        }
-    };
+                process::exit(1);
+            }
+        };
     tracing::info!("🤖 Using model: {}", effective_model_name);
 
     agent
-        .update_provider(new_provider, &session_id)
+        .update_provider(new_provider, effective_model_config, &session_id)
         .await
         .unwrap_or_else(|e| {
             output::render_error(&format!("Failed to initialize agent: {}", e));

@@ -1,14 +1,14 @@
 use crate::config::paths::Paths;
 use anyhow::{anyhow, Result};
 use fs_err::File;
-use goose_providers::conversation::token_usage::Usage;
 use goose_providers::errors::{GoogleErrorCode, ProviderError};
+use goose_providers::request_log::{install_logger, RequestLogHandle, RequestLogger};
 use reqwest::{Response, StatusCode};
-use serde::Serialize;
 use serde_json::Value;
-use std::fmt::Display;
+use std::error::Error;
 use std::io::{BufWriter, Write};
 use std::path::PathBuf;
+use std::sync::OnceLock;
 use std::time::Duration;
 use uuid::Uuid;
 
@@ -134,7 +134,7 @@ pub async fn handle_response_google_compat(response: Response) -> Result<Value, 
                     error_msg = error.get("message").and_then(|m| m.as_str()).unwrap_or("Unknown error").to_string();
                     let error_status = error.get("status").and_then(|s| s.as_str()).unwrap_or("Unknown status");
                     if error_status == "INVALID_ARGUMENT"
-                        && super::http_status::is_context_length_exceeded_message(&error_msg)
+                        && goose_providers::http_status::is_context_length_exceeded_message(&error_msg)
                     {
                         return Err(ProviderError::ContextLengthExceeded(error_msg.to_string()));
                     }
@@ -212,19 +212,38 @@ fn unescape_json_values_in_place(value: &mut Value) {
     }
 }
 
-pub struct RequestLog {
-    writer: Option<BufWriter<File>>,
-    temp_path: PathBuf,
-}
-
 pub const LOGS_TO_KEEP: usize = 10;
 
+static INIT_LOGGER: OnceLock<Result<()>> = OnceLock::new();
+
+pub fn init_goose_request_log() -> Result<()> {
+    INIT_LOGGER
+        .get_or_init(|| Ok(install_logger(RequestLog::new(LOGS_TO_KEEP)?)?))
+        .as_ref()
+        .map_err(|e| anyhow::anyhow!("failed to set up logger: {}", e))?;
+    Ok(())
+}
+
+pub struct RequestLog {
+    logs_to_keep: usize,
+}
+
 impl RequestLog {
-    pub fn start<ModelConfig, Payload>(model_config: ModelConfig, payload: &Payload) -> Result<Self>
-    where
-        ModelConfig: Serialize,
-        Payload: Serialize,
-    {
+    pub fn new(logs_to_keep: usize) -> Result<Self> {
+        let logs_dir = Paths::in_state_dir("logs");
+        fs_err::create_dir_all(&logs_dir)?;
+        Ok(Self { logs_to_keep })
+    }
+}
+
+struct FileLogHandle {
+    writer: Option<BufWriter<File>>,
+    temp_path: PathBuf,
+    logs_to_keep: usize,
+}
+
+impl RequestLogger for RequestLog {
+    fn start(&self) -> Result<Box<dyn RequestLogHandle>, Box<dyn Error + Send + Sync>> {
         let logs_dir = Paths::in_state_dir("logs");
         fs_err::create_dir_all(&logs_dir)?;
 
@@ -232,7 +251,7 @@ impl RequestLog {
         let temp_name = format!("llm_request.{request_id}.jsonl");
         let temp_path = logs_dir.join(PathBuf::from(temp_name));
 
-        let mut writer = BufWriter::new(
+        let writer = BufWriter::new(
             File::options()
                 .write(true)
                 .create(true)
@@ -240,53 +259,38 @@ impl RequestLog {
                 .open(&temp_path)?,
         );
 
-        let data = serde_json::json!({
-            "model_config": model_config,
-            "input": payload,
-        });
-        writeln!(writer, "{}", serde_json::to_string(&data)?)?;
-
-        Ok(Self {
+        Ok(Box::new(FileLogHandle {
             writer: Some(writer),
             temp_path,
-        })
+            logs_to_keep: self.logs_to_keep,
+        }))
     }
+}
 
-    fn write_json(&mut self, line: &serde_json::Value) -> Result<()> {
+impl RequestLogHandle for FileLogHandle {
+    fn write(&mut self, s: &str) -> Result<(), Box<dyn Error + Send + Sync>> {
         let writer = self
             .writer
             .as_mut()
             .ok_or_else(|| anyhow!("logger is finished"))?;
-        writeln!(writer, "{}", serde_json::to_string(line)?)?;
+        writeln!(writer, "{}", s)?;
         Ok(())
     }
+}
 
-    pub fn error<E>(&mut self, error: E) -> Result<()>
-    where
-        E: Display,
-    {
-        self.write_json(&serde_json::json!({
-            "error": format!("{}", error),
-        }))
-    }
-
-    pub fn write<Payload>(&mut self, data: &Payload, usage: Option<&Usage>) -> Result<()>
-    where
-        Payload: Serialize,
-    {
-        self.write_json(&serde_json::json!({
-            "data": data,
-            "usage": usage,
-        }))
-    }
-
+impl FileLogHandle {
     fn finish(&mut self) -> Result<()> {
         if let Some(mut writer) = self.writer.take() {
             writer.flush()?;
             let logs_dir = Paths::in_state_dir("logs");
             let log_path = |i| logs_dir.join(format!("llm_request.{}.jsonl", i));
 
-            for i in (0..LOGS_TO_KEEP - 1).rev() {
+            if self.logs_to_keep == 0 {
+                fs_err::remove_file(&self.temp_path)?;
+                return Ok(());
+            }
+
+            for i in (0..self.logs_to_keep.saturating_sub(1)).rev() {
                 let _ = fs_err::rename(log_path(i), log_path(i + 1));
             }
 
@@ -296,7 +300,7 @@ impl RequestLog {
     }
 }
 
-impl Drop for RequestLog {
+impl Drop for FileLogHandle {
     fn drop(&mut self) {
         if std::thread::panicking() {
             return;
@@ -309,24 +313,6 @@ impl Drop for RequestLog {
 mod tests {
     use super::*;
     use serde_json::json;
-
-    #[test]
-    fn test_request_log_start_creates_logs_dir() {
-        let _guard = env_lock::lock_env([("GOOSE_PATH_ROOT", None::<&str>)]);
-        let temp_dir = tempfile::tempdir().unwrap();
-        std::env::set_var("GOOSE_PATH_ROOT", temp_dir.path());
-
-        let logs_dir = Paths::in_state_dir("logs");
-        assert!(!logs_dir.exists(), "logs dir should not exist yet");
-
-        let log = RequestLog::start(json!({"name": "test"}), &json!({"model": "test"}))
-            .expect("RequestLog::start should create missing logs dir");
-        drop(log);
-
-        assert!(logs_dir.is_dir(), "logs dir should have been created");
-
-        std::env::remove_var("GOOSE_PATH_ROOT");
-    }
 
     #[test]
     fn unescape_json_values_with_object() {

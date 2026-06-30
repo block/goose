@@ -133,7 +133,7 @@ Use `${PLUGIN_ROOT}` in a command to reference the plugin directory. goose also 
 |---|---|---|
 | `SessionStart` | A session starts | None |
 | `SessionEnd` | A session ends | None |
-| `Stop` | goose receives a stop event | None |
+| `Stop` | goose finishes a turn or receives a stop event | None |
 | `UserPromptSubmit` | The user submits a prompt | Prompt text |
 | `PreToolUse` | Before goose runs a tool | Tool name |
 | `PostToolUse` | After a tool succeeds | Tool name |
@@ -151,7 +151,18 @@ The matcher is a regular expression matched against the most relevant string for
 
 ## Hook Payload
 
-When a hook runs, goose writes a JSON payload to the command's stdin. The payload always includes the event name and session ID, and may include fields such as the tool name, tool input, user message, or working directory.
+When a hook runs, goose writes a JSON payload to the command's stdin. Every payload includes the event name and session ID. The remaining fields are only present when they apply to the event, so a hook should treat them as optional.
+
+| Field | Description |
+|---|---|
+| `event` | Name of the event that fired, such as `PostToolUse` or `UserPromptSubmit`. |
+| `session_id` | ID of the current goose session. |
+| `matcher_context` | String the rule's `matcher` is tested against (for example, the tool name on tool events or the prompt text on `UserPromptSubmit`). |
+| `tool_name` | Name of the tool, on tool events. |
+| `tool_input` | Input arguments passed to the tool, on tool events. |
+| `message` | Prompt text the user submitted, on `UserPromptSubmit`. |
+| `last_assistant_message` | Final assistant text for the turn, on `Stop` when there is assistant output. |
+| `working_dir` | Working directory of the session, on tool events. |
 
 Example payload for a tool event:
 
@@ -163,6 +174,27 @@ Example payload for a tool event:
   "tool_name": "developer__shell",
   "tool_input": { "command": "rg TODO" },
   "working_dir": "/Users/you/project"
+}
+```
+
+Example payload for a prompt event, where the submitted prompt is in `message`:
+
+```json
+{
+  "event": "UserPromptSubmit",
+  "session_id": "abc-123",
+  "matcher_context": "summarize this file",
+  "message": "summarize this file"
+}
+```
+
+Example payload for a `Stop` event after an assistant reply:
+
+```json
+{
+  "event": "Stop",
+  "session_id": "abc-123",
+  "last_assistant_message": "Done. I updated the file and ran the tests."
 }
 ```
 
@@ -318,6 +350,7 @@ Check the following:
 - The command path is correct. Use `${PLUGIN_ROOT}` for scripts inside the plugin.
 - The script is executable if you call it directly.
 - The plugin is not listed in `disabledPlugins`.
+- The event is not a subagent lifecycle event. `SubagentStart` and `SubagentStop` are not currently emitted by goose, so hooks registered for them will never run.
 
 ### My Hook Timed Out or Failed
 

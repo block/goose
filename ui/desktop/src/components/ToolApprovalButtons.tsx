@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Button } from './ui/button';
-import { confirmToolAction, Permission } from '../api';
+import type { Permission } from '../types/permissions';
 import { resolveAcpPermissionRequest } from '../acp/permissionRequests';
-import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
 import { defineMessages, useIntl } from '../i18n';
 
 const i18n = defineMessages({
@@ -38,6 +37,10 @@ const i18n = defineMessages({
     id: 'toolApprovalButtons.cancelled',
     defaultMessage: 'Cancelled',
   },
+  staleApprovalRequest: {
+    id: 'toolApprovalButtons.staleApprovalRequest',
+    defaultMessage: 'This approval request is no longer active.',
+  },
 });
 
 const globalApprovalState = new Map<
@@ -63,6 +66,13 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
   const storedState = globalApprovalState.get(id);
   const [decision, setDecision] = useState<Permission | null>(storedState?.decision ?? null);
   const [isClicked, setIsClicked] = useState(storedState?.isClicked ?? initialIsClicked ?? false);
+  const [approvalError, setApprovalError] = useState<string | null>(null);
+
+  const setResolvedDecision = (action: Permission) => {
+    setDecision(action);
+    setIsClicked(true);
+    setApprovalError(null);
+  };
 
   useEffect(() => {
     const currentState = globalApprovalState.get(id);
@@ -70,6 +80,7 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
       setDecision(currentState.decision);
       setIsClicked(currentState.isClicked);
     }
+    setApprovalError(null);
   }, [id]);
 
   useEffect(() => {
@@ -78,27 +89,10 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
 
   const handleAction = async (action: Permission) => {
     try {
-      // Edit-in-place reruns go through the legacy REST path even when ACP chat is
-      // enabled, so fall back to confirmToolAction when no ACP request is pending.
-      if (USE_ACP_CHAT && resolveAcpPermissionRequest(sessionId, id, action)) {
-        setDecision(action);
-        setIsClicked(true);
-        return;
-      }
-
-      setDecision(action);
-      setIsClicked(true);
-
-      const response = await confirmToolAction({
-        body: {
-          sessionId,
-          id,
-          action,
-          principalType: 'Tool',
-        },
-      });
-      if (response.error) {
-        console.error('Failed to confirm tool action:', response.error);
+      if (resolveAcpPermissionRequest(sessionId, id, action)) {
+        setResolvedDecision(action);
+      } else {
+        setApprovalError(intl.formatMessage(i18n.staleApprovalRequest));
       }
     } catch (err) {
       console.error('Error confirming tool action:', err);
@@ -121,26 +115,33 @@ export default function ToolApprovalButtons({ data }: { data: ToolApprovalData }
   }
 
   return (
-    <div className="flex items-center gap-2 mt-2">
-      <Button
-        className="rounded-full"
-        variant="secondary"
-        onClick={() => handleAction('allow_once')}
-      >
-        {intl.formatMessage(i18n.allowOnce)}
-      </Button>
-      {!prompt && (
+    <>
+      <div className="flex items-center gap-2 mt-2">
         <Button
           className="rounded-full"
           variant="secondary"
-          onClick={() => handleAction('always_allow')}
+          onClick={() => handleAction('allow_once')}
         >
-          {intl.formatMessage(i18n.alwaysAllow)}
+          {intl.formatMessage(i18n.allowOnce)}
         </Button>
+        {!prompt && (
+          <Button
+            className="rounded-full"
+            variant="secondary"
+            onClick={() => handleAction('always_allow')}
+          >
+            {intl.formatMessage(i18n.alwaysAllow)}
+          </Button>
+        )}
+        <Button className="rounded-full" variant="outline" onClick={() => handleAction('deny_once')}>
+          {intl.formatMessage(i18n.deny)}
+        </Button>
+      </div>
+      {approvalError && (
+        <p className="text-sm text-red-500 mt-2" role="alert">
+          {approvalError}
+        </p>
       )}
-      <Button className="rounded-full" variant="outline" onClick={() => handleAction('deny_once')}>
-        {intl.formatMessage(i18n.deny)}
-      </Button>
-    </div>
+    </>
   );
 }

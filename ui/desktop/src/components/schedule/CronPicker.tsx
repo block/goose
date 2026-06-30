@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { ScheduledJob } from '../../schedule';
+import type { ScheduledJobDto } from '@aaif/goose-sdk';
 import { errorMessage } from '../../utils/conversionUtils';
 import { defineMessages, useIntl } from '../../i18n';
 import {
@@ -61,7 +61,7 @@ const i18n = defineMessages({
 });
 
 interface CronPickerProps {
-  schedule: ScheduledJob | null;
+  schedule: ScheduledJobDto | null;
   onChange: (cron: string) => void;
   isValid: (valid: boolean) => void;
 }
