@@ -224,7 +224,7 @@ fn apply_ollama_options(payload: &mut Value, options: &OllamaOptions, model_conf
 pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<TlsConfig>,
-    _key_resolver: impl KeyResolver,
+    key_resolver: impl KeyResolver,
 ) -> Result<OllamaProviderBuilder> {
     let custom_models = if !config.models.is_empty() {
         Some(
@@ -248,8 +248,9 @@ pub fn from_custom_config(
 
     let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
 
-    let base = if config.base_url.starts_with("http://") || config.base_url.starts_with("https://")
-    {
+    let base_has_scheme =
+        config.base_url.starts_with("http://") || config.base_url.starts_with("https://");
+    let base = if base_has_scheme {
         config.base_url.clone()
     } else {
         format!("http://{}", config.base_url)
@@ -258,22 +259,35 @@ pub fn from_custom_config(
     let mut base_url = Url::parse(&base)
         .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
 
-    let explicit_default_port =
-        config.base_url.ends_with(":80") || config.base_url.ends_with(":443");
-    let is_https = base_url.scheme() == "https";
+    let is_localhost = matches!(base_url.host_str(), Some("localhost" | "127.0.0.1" | "::1"));
 
-    if base_url.port().is_none() && !explicit_default_port && !is_https {
+    if base_url.port().is_none() && !base_has_scheme && is_localhost {
         base_url
             .set_port(Some(OLLAMA_DEFAULT_PORT))
             .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
     }
 
-    let mut api_client = ApiClient::with_timeout_and_tls(
-        base_url.to_string(),
-        AuthMethod::NoAuth,
-        timeout,
-        tls_config,
-    )?;
+    let api_key = if config.api_key_env.is_empty() {
+        None
+    } else {
+        match key_resolver.resolve_key(config.api_key_env.as_str()) {
+            Ok(key) => Some(key),
+            Err(err) => {
+                if config.requires_auth {
+                    anyhow::bail!("missing required key {}: {}", config.api_key_env, err);
+                }
+                None
+            }
+        }
+    };
+
+    let auth = match api_key {
+        Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
+        _ => AuthMethod::NoAuth,
+    };
+
+    let mut api_client =
+        ApiClient::with_timeout_and_tls(base_url.to_string(), auth, timeout, tls_config)?;
 
     if let Some(headers) = &config.headers {
         let mut header_map = reqwest::header::HeaderMap::new();
@@ -501,13 +515,21 @@ mod tests {
         dynamic_models: Option<bool>,
         models: Vec<ModelInfo>,
     ) -> DeclarativeProviderConfig {
+        ollama_config_with_base_url(dynamic_models, models, "http://localhost:11434")
+    }
+
+    fn ollama_config_with_base_url(
+        dynamic_models: Option<bool>,
+        models: Vec<ModelInfo>,
+        base_url: &str,
+    ) -> DeclarativeProviderConfig {
         DeclarativeProviderConfig {
             name: "test-ollama".to_string(),
             engine: crate::declarative::ProviderEngine::Ollama,
             display_name: "Test Ollama".to_string(),
             description: None,
             api_key_env: String::new(),
-            base_url: "http://localhost:11434".to_string(),
+            base_url: base_url.to_string(),
             models,
             headers: None,
             timeout_seconds: None,
