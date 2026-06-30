@@ -471,7 +471,7 @@ fn helper() { validate(0); }
         let file = tmp.path().join("types.c");
         fs::write(
             &file,
-            "typedef struct { int x; } Point;\ntypedef enum { A, B } State;\nstruct Named { int y; };\n",
+            "typedef struct { int x; } Point;\ntypedef enum { A, B } State;\nstruct Named { int y; };\ntypedef struct Tagged { int z; } Tagged;\n",
         )
         .unwrap();
 
@@ -491,6 +491,9 @@ fn helper() { validate(0); }
         assert!(out.contains("Point"));
         assert!(out.contains("State"));
         assert!(out.contains("Named"));
+        // typedef struct Tagged {...} Tagged matches both the tag and the
+        // typedef alias patterns; it must be reported only once.
+        assert_eq!(out.matches("Tagged").count(), 1);
     }
 
     #[tokio::test]

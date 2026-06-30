@@ -188,6 +188,9 @@ fn extract_classes(
             }
         }
     }
+
+    let mut seen = std::collections::HashSet::new();
+    symbols.retain(|s| seen.insert((s.name.clone(), s.line)));
     symbols
 }
 
