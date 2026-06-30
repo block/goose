@@ -1609,23 +1609,32 @@ impl SummonClient {
 
         if let Some(model) = override_model {
             if model != model_config.model_name {
-                // Build the new config from scratch so canonical fields
-                // (context_limit, max_tokens, reasoning) and env-derived
-                // overrides (GOOSE_CONTEXT_LIMIT, GOOSE_MAX_TOKENS) match the
-                // overridden model, then preserve session-level state that is
-                // not model-specific from the parent.
+                // Build the overridden config through the canonical session-settings
+                // path. This materializes model-specific fields (context_limit,
+                // max_tokens, reasoning) and env overrides for the *new* model, and
+                // inherits only model-family-agnostic session state from the parent:
+                //
+                //   - `thinking_effort` is inherited via `previous` with the correct
+                //     precedence (explicit child param > parent session > global
+                //     default), so a parent that raised its effort above the global
+                //     default still wins — fixing the prior `or_insert` bug.
+                //   - Provider-specific request_params (e.g. `anthropic_beta`) are
+                //     *not* carried over, so they can't bleed into a child targeting a
+                //     different model family and trigger a 400 INVALID_ARGUMENT.
                 let parent = model_config;
                 let mut cfg =
-                    crate::model_config::model_config_from_user_config(provider_name, &model)?;
+                    crate::model_config::model_config_from_user_config_with_session_settings(
+                        provider_name,
+                        &model,
+                        Some(&parent),
+                        None,
+                        None,
+                    )?;
+                // Remaining model-agnostic session settings the helper doesn't
+                // touch, copied from the parent explicitly.
                 cfg.toolshim = parent.toolshim;
                 cfg.toolshim_model = parent.toolshim_model;
                 cfg.temperature = cfg.temperature.or(parent.temperature);
-                if let Some(parent_params) = parent.request_params {
-                    let merged = cfg.request_params.get_or_insert_with(Default::default);
-                    for (k, v) in parent_params {
-                        merged.insert(k, v);
-                    }
-                }
                 model_config = cfg;
             }
         }
@@ -2616,13 +2625,17 @@ You review code."#;
 
     #[tokio::test]
     #[serial]
-    async fn test_resolve_model_config_preserves_parent_request_params_on_override() {
+    async fn test_resolve_model_config_does_not_inherit_provider_specific_request_params() {
         let _env = env_lock::lock_env([
             ("GOOSE_CONTEXT_LIMIT", None::<&str>),
             ("GOOSE_MAX_TOKENS", None::<&str>),
             ("GOOSE_SUBAGENT_MODEL", None::<&str>),
         ]);
 
+        // Parent session is a Claude model with anthropic_beta in request_params.
+        // When delegate() overrides to a different model (e.g. Gemini), provider-
+        // specific params like anthropic_beta must not bleed through — they would
+        // cause a 400 INVALID_ARGUMENT from the target API.
         let mut parent = parent_config();
         parent.request_params = Some(HashMap::from([(
             "anthropic_beta".to_string(),
@@ -2636,7 +2649,47 @@ You review code."#;
                 .request_params
                 .as_ref()
                 .and_then(|p| p.get("anthropic_beta")),
-            Some(&serde_json::json!("custom-beta-header")),
+            None,
+            "anthropic_beta must not be inherited by a child session with a different model"
+        );
+    }
+
+    #[tokio::test]
+    #[serial]
+    async fn test_resolve_model_config_inherits_thinking_effort_on_override() {
+        let _env = env_lock::lock_env([
+            ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ("GOOSE_MAX_TOKENS", None::<&str>),
+            ("GOOSE_SUBAGENT_MODEL", None::<&str>),
+        ]);
+
+        // thinking_effort is model-family-agnostic and should always be inherited.
+        let mut parent = parent_config();
+        parent.request_params = Some(HashMap::from([
+            ("thinking_effort".to_string(), serde_json::json!("high")),
+            (
+                "anthropic_beta".to_string(),
+                serde_json::json!("custom-beta-header"),
+            ),
+        ]));
+
+        let resolved = resolve_with_override(Some(OVERRIDE_MODEL), parent);
+
+        assert_eq!(
+            resolved
+                .request_params
+                .as_ref()
+                .and_then(|p| p.get("thinking_effort")),
+            Some(&serde_json::json!("high")),
+            "thinking_effort should be inherited across model families"
+        );
+        assert_eq!(
+            resolved
+                .request_params
+                .as_ref()
+                .and_then(|p| p.get("anthropic_beta")),
+            None,
+            "anthropic_beta must not be inherited alongside thinking_effort"
         );
     }
 
