@@ -1613,14 +1613,11 @@ impl SummonClient {
                 // path. This materializes model-specific fields (context_limit,
                 // max_tokens, reasoning) and env overrides for the *new* model, and
                 // inherits only model-family-agnostic session state from the parent:
-                //
-                //   - `thinking_effort` is inherited via `previous` with the correct
-                //     precedence (explicit child param > parent session > global
-                //     default), so a parent that raised its effort above the global
-                //     default still wins — fixing the prior `or_insert` bug.
-                //   - Provider-specific request_params (e.g. `anthropic_beta`) are
-                //     *not* carried over, so they can't bleed into a child targeting a
-                //     different model family and trigger a 400 INVALID_ARGUMENT.
+                // reasoning controls like `thinking_effort` and `budget_tokens` carry
+                // over (with the child > parent > global-default precedence the helper
+                // applies), while provider-specific request_params such as
+                // `anthropic_beta` are dropped so they can't bleed into a child
+                // targeting a different model family and trigger a 400 INVALID_ARGUMENT.
                 let parent = model_config;
                 let mut cfg =
                     crate::model_config::model_config_from_user_config_with_session_settings(
@@ -2663,10 +2660,12 @@ You review code."#;
             ("GOOSE_SUBAGENT_MODEL", None::<&str>),
         ]);
 
-        // thinking_effort is model-family-agnostic and should always be inherited.
+        // Reasoning controls are model-family-agnostic and should be inherited,
+        // while provider-specific params like anthropic_beta must not.
         let mut parent = parent_config();
         parent.request_params = Some(HashMap::from([
             ("thinking_effort".to_string(), serde_json::json!("high")),
+            ("budget_tokens".to_string(), serde_json::json!(8192)),
             (
                 "anthropic_beta".to_string(),
                 serde_json::json!("custom-beta-header"),
@@ -2687,9 +2686,17 @@ You review code."#;
             resolved
                 .request_params
                 .as_ref()
+                .and_then(|p| p.get("budget_tokens")),
+            Some(&serde_json::json!(8192)),
+            "budget_tokens should be inherited across model families"
+        );
+        assert_eq!(
+            resolved
+                .request_params
+                .as_ref()
                 .and_then(|p| p.get("anthropic_beta")),
             None,
-            "anthropic_beta must not be inherited alongside thinking_effort"
+            "anthropic_beta must not be inherited alongside reasoning controls"
         );
     }
 
