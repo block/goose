@@ -8,6 +8,66 @@ import {
 
 type JsonObject = Record<string, unknown>;
 
+export type ContentBlock =
+  | ({ type: 'text' } & RawTextContent)
+  | ({ type: 'image' } & RawImageContent)
+  | ({ type: 'resource' } & RawEmbeddedResource)
+  | ({ type: 'audio' } & RawAudioContent)
+  | ({ type: 'resource_link' } & RawResource);
+
+type RawTextContent = {
+  _meta?: JsonObject;
+  text: string;
+};
+
+type RawImageContent = {
+  _meta?: JsonObject;
+  data: string;
+  mimeType: string;
+};
+
+type RawAudioContent = {
+  data: string;
+  mimeType: string;
+};
+
+type RawEmbeddedResource = {
+  _meta?: JsonObject;
+  resource: ResourceContents;
+};
+
+type RawResource = {
+  _meta?: JsonObject;
+  description?: string;
+  icons?: ContentIcon[];
+  mimeType?: string;
+  name: string;
+  size?: number;
+  title?: string;
+  uri: string;
+};
+
+type ResourceContents =
+  | {
+      _meta?: JsonObject;
+      mimeType?: string;
+      text: string;
+      uri: string;
+    }
+  | {
+      _meta?: JsonObject;
+      blob: string;
+      mimeType?: string;
+      uri: string;
+    };
+
+type ContentIcon = {
+  mimeType?: string;
+  sizes?: string[];
+  src: string;
+  theme?: 'light' | 'dark' | JsonObject;
+};
+
 export type ActionRequired = {
   data: ActionRequiredData;
 };
