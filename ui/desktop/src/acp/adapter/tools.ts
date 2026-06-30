@@ -3,7 +3,7 @@ import type {
   ToolCall,
   ToolCallUpdate,
 } from '@agentclientprotocol/sdk';
-import type { Message } from '../../api';
+import type { Message } from '../../types/message';
 import type { ContentBlock as GooseContentBlock } from '../../types/message';
 import { findMessageForChunk } from './messages';
 import { toolNotificationChange } from './toolNotifications';

@@ -5,7 +5,8 @@ import type {
 } from '@agentclientprotocol/sdk';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import type { Message, Session } from '../../api';
+import type { Session } from '../../api';
+import type { Message } from '../../types/message';
 import { ChatState } from '../../types/chatState';
 import {
   acpElicitationUserInputRequestId,

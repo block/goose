@@ -12,9 +12,9 @@ import {
   getThinkingContent,
   ToolRequestMessageContent,
   ToolResponseMessageContent,
+  type Message,
 } from '../../types/message';
 import { formatMessageTimestamp } from '../../utils/timeUtils';
-import { Message } from '../../api';
 
 const i18n = defineMessages({
   errorLoadingDetails: {

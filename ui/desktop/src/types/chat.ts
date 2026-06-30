@@ -1,5 +1,5 @@
 import { Recipe } from '../recipe';
-import type { Message } from '../api';
+import type { Message } from './message';
 
 export type TokenState = {
   accumulatedCacheReadTokens?: number;

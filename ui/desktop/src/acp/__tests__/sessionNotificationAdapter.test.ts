@@ -1,8 +1,7 @@
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
-import type { Message } from '../../api';
-import type { NotificationEvent } from '../../types/message';
+import type { Message, NotificationEvent } from '../../types/message';
 import {
   createAcpSessionNotificationAdapter,
   type AcpChatStateChange,

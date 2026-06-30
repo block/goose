@@ -1,20 +1,35 @@
-import {
-  Message,
-  MessageEvent,
-  ToolRequest,
-  ToolResponse,
-  ToolConfirmationRequest,
-} from '../api';
+import type { TokenState } from './chat';
 
 type JsonObject = Record<string, unknown>;
+export type Role = 'user' | 'assistant';
+
+export type Annotations = {
+  audience?: Role[];
+  lastModified?: string;
+  priority?: number;
+};
+
 type ContentAnnotations =
   | {
-      audience?: string[];
+      audience?: Role[];
       lastModified?: string;
       priority?: number;
       _meta?: JsonObject;
     }
   | JsonObject;
+
+export type TextContent = {
+  _meta?: JsonObject;
+  annotations?: Annotations | JsonObject;
+  text: string;
+};
+
+export type ImageContent = {
+  _meta?: JsonObject;
+  annotations?: Annotations | JsonObject;
+  data: string;
+  mimeType: string;
+};
 
 export type ContentBlock =
   | ({ type: 'text' } & RawTextContent)
@@ -109,6 +124,107 @@ export type ActionRequiredData =
       actionType: 'elicitationResponse';
       id: string;
       user_data: unknown;
+    };
+
+export type FrontendToolRequest = {
+  id: string;
+  toolCall: JsonObject;
+};
+
+export type ThinkingContent = {
+  signature: string;
+  thinking: string;
+};
+
+export type RedactedThinkingContent = {
+  data: string;
+};
+
+export type ToolConfirmationRequest = {
+  arguments: JsonObject;
+  id: string;
+  prompt?: string | null;
+  toolName: string;
+};
+
+export type ToolRequest = {
+  _meta?: JsonObject;
+  id: string;
+  metadata?: JsonObject;
+  toolCall: JsonObject;
+};
+
+export type ToolResponse = {
+  id: string;
+  metadata?: JsonObject;
+  toolResult: JsonObject;
+};
+
+export type InferenceMetadata = {
+  provider: string;
+  requestedModel: string;
+  resolvedModel?: string | null;
+};
+
+export type MessageMetadata = {
+  agentVisible: boolean;
+  inference?: InferenceMetadata | null;
+  steer?: boolean;
+  userVisible: boolean;
+};
+
+export type MessageContent =
+  | (TextContent & { type: 'text' })
+  | (ImageContent & { type: 'image' })
+  | (ToolRequest & { type: 'toolRequest' })
+  | (ToolResponse & { type: 'toolResponse' })
+  | (ToolConfirmationRequest & { type: 'toolConfirmationRequest' })
+  | (ActionRequired & { type: 'actionRequired' })
+  | (FrontendToolRequest & { type: 'frontendToolRequest' })
+  | (ThinkingContent & { type: 'thinking' })
+  | (RedactedThinkingContent & { type: 'redactedThinking' })
+  | (SystemNotificationContent & { type: 'systemNotification' });
+
+export type Message = {
+  content: MessageContent[];
+  created: number;
+  id?: string | null;
+  metadata: MessageMetadata;
+  role: Role;
+};
+
+export type Conversation = Message[];
+
+export type MessageEvent =
+  | {
+      message: Message;
+      token_state: TokenState;
+      type: 'Message';
+    }
+  | {
+      error: string;
+      type: 'Error';
+    }
+  | {
+      reason: string;
+      token_state: TokenState;
+      type: 'Finish';
+    }
+  | {
+      message: JsonObject;
+      request_id: string;
+      type: 'Notification';
+    }
+  | {
+      conversation: Conversation;
+      type: 'UpdateConversation';
+    }
+  | {
+      request_ids: string[];
+      type: 'ActiveRequests';
+    }
+  | {
+      type: 'Ping';
     };
 
 export type ToolRequestMessageContent = ToolRequest & { type: 'toolRequest' };

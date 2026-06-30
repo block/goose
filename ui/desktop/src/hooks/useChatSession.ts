@@ -3,10 +3,15 @@ import { defineMessages, useIntl } from '../i18n';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 
-import type { Message, Session } from '../api';
+import type { Session } from '../api';
 import type { TokenState } from '../types/chat';
 
-import { createUserMessage, NotificationEvent, UserInput } from '../types/message';
+import {
+  createUserMessage,
+  type Message,
+  type NotificationEvent,
+  type UserInput,
+} from '../types/message';
 import { errorMessage } from '../utils/conversionUtils';
 import type { UseChatSessionParams, UseChatSessionResult } from './useChatSessionTypes';
 import { resolveAcpElicitationRequest } from '../acp/elicitationRequests';

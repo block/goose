@@ -1,7 +1,7 @@
-import type { Message, Session } from '../api';
+import type { Session } from '../api';
 import type { ChatState } from '../types/chatState';
 import type { TokenState } from '../types/chat';
-import type { NotificationEvent, UserInput } from '../types/message';
+import type { Message, NotificationEvent, UserInput } from '../types/message';
 
 export interface UseChatSessionParams {
   sessionId: string;

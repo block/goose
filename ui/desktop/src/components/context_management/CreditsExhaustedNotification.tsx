@@ -1,7 +1,6 @@
 import React from 'react';
 import { AlertTriangle, ExternalLink } from 'lucide-react';
-import type { Message } from '../../api';
-import type { SystemNotificationContent } from '../../types/message';
+import type { Message, SystemNotificationContent } from '../../types/message';
 import { WEB_PROTOCOLS } from '../../utils/urlSecurity';
 import { defineMessages, useIntl } from '../../i18n';
 

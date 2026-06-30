@@ -15,7 +15,7 @@ import { getModelDisplayName } from '../predefinedModelsUtils';
 import { ModelSettingsPanel } from '../../localInference/ModelSettingsPanel';
 import { ScrollArea } from '../../../ui/scroll-area';
 import { defineMessages, useIntl } from '../../../../i18n';
-import type { Message } from '../../../../api';
+import type { Message } from '../../../../types/message';
 
 const i18n = defineMessages({
   selectModel: {

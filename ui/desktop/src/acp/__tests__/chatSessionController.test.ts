@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Message, Session } from '../../api';
+import type { Session } from '../../api';
+import type { Message } from '../../types/message';
 import { ChatState } from '../../types/chatState';
 import { acpChatSessionController } from '../chatSessionController';
 import {
