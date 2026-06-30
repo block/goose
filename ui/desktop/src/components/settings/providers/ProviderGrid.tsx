@@ -2,8 +2,9 @@ import React, { memo, useMemo, useCallback, useState } from 'react';
 import { ProviderCard } from './subcomponents/ProviderCard';
 import CardContainer from './subcomponents/CardContainer';
 import ProviderConfigurationModal from './modal/ProviderConfigurationModal';
-import { ProviderDetails, UpdateCustomProviderRequest } from '../../../api';
+import type { ProviderDetails } from '../../../api';
 import type { CustomProviderConfigDto } from '@aaif/goose-sdk';
+import type { UpdateCustomProviderRequest } from '../../../types/providers';
 import {
   acpCreateCustomProviderFromRequest,
   acpGetCustomProvider,
