@@ -120,6 +120,12 @@ pub trait KeyResolver {
 
 pub struct EnvKeyResolver;
 
+impl EnvKeyResolver {
+    pub fn new() -> Self {
+        EnvKeyResolver {}
+    }
+}
+
 impl KeyResolver for EnvKeyResolver {
     type Error = std::env::VarError;
 
@@ -138,6 +144,7 @@ pub fn from_json(
     match config.engine {
         ProviderEngine::OpenAI => {
             crate::openai::from_custom_config(config, tls_config, key_resolver)
+                .map(|builder| builder.build())
         }
         ProviderEngine::Ollama => todo!(),
         ProviderEngine::Anthropic => todo!(),

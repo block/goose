@@ -181,6 +181,19 @@ impl OpenAiProviderBuilder {
         self
     }
 
+    pub fn map_api_client(mut self, f: impl FnOnce(ApiClient) -> ApiClient) -> Self {
+        self.api_client = f(self.api_client);
+        self
+    }
+
+    pub fn try_map_api_client(
+        mut self,
+        f: impl FnOnce(ApiClient) -> Result<ApiClient>,
+    ) -> Result<Self> {
+        self.api_client = f(self.api_client)?;
+        Ok(self)
+    }
+
     pub fn base_path(mut self, base_path: impl Into<String>) -> Self {
         self.base_path = base_path.into();
         self
@@ -694,7 +707,7 @@ pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<TlsConfig>,
     key_resolver: impl KeyResolver,
-) -> Result<OpenAiProvider> {
+) -> Result<OpenAiProviderBuilder> {
     let custom_models = if !config.models.is_empty() {
         Some(
             config
@@ -718,11 +731,15 @@ pub fn from_custom_config(
     let api_key = if config.api_key_env.is_empty() {
         None
     } else {
-        Some(
-            key_resolver
-                .resolve_key(config.api_key_env.as_str())
-                .map_err(|e| anyhow::Error::from(e))?,
-        )
+        match key_resolver.resolve_key(config.api_key_env.as_str()) {
+            Ok(key) => Some(key),
+            Err(err) => {
+                if config.requires_auth {
+                    anyhow::bail!("missing required key {}: {}", config.api_key_env, err);
+                }
+                None
+            }
+        }
     };
 
     let normalized_base_url = ensure_url_scheme(&config.base_url);
@@ -776,8 +793,7 @@ pub fn from_custom_config(
         .custom_models(custom_models)
         .dynamic_models(config.dynamic_models)
         .skip_canonical_filtering(config.skip_canonical_filtering)
-        .preserve_thinking_context(config.preserves_thinking)
-        .build())
+        .preserve_thinking_context(config.preserves_thinking))
 }
 
 pub fn parse_custom_headers(s: String) -> HashMap<String, String> {
@@ -1082,5 +1098,38 @@ mod tests {
             ]
         });
         assert_eq!(parse_n_ctx_from_models(&body, "model-c"), None);
+    }
+
+    #[test]
+    fn derive_base_path_not_removing_api_path() {
+        let r = derive_base_path("https://opencode.ai/zen/go");
+        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_should_support_v1() {
+        let r = derive_base_path("https://opencode.ai/zen/go/v1");
+        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_should_support_no_base_path() {
+        let r = derive_base_path("https://opencode.ai/");
+        assert_eq!(r, "https://opencode.ai/v1/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_preserves_non_v1_version_prefix() {
+        // Zhipu's default base_url is https://open.bigmodel.cn/api/paas/v4 and
+        // from_custom_config passes url.path() ("/api/paas/v4") here. The
+        // existing /api/paas/v4 version must not gain an extra /v1 segment.
+        let r = derive_base_path("/api/paas/v4");
+        assert_eq!(r, "api/paas/v4/chat/completions");
+    }
+
+    #[test]
+    fn derive_base_path_does_not_treat_v_word_as_version() {
+        let r = derive_base_path("/api/voice");
+        assert_eq!(r, "api/voice/v1/chat/completions");
     }
 }

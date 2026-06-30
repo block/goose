@@ -2,8 +2,10 @@ use super::api_client::ApiClient;
 use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata};
 use super::openai_compatible::handle_status;
 use super::retry::{ProviderRetry, RetryConfig};
+use crate::api_client::{AuthMethod, TlsConfig};
 use crate::base::ProviderDescriptor;
 use crate::conversation::message::Message;
+use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
 use crate::errors::ProviderError;
 use crate::formats::ollama::{create_request, response_to_streaming_message_ollama};
 use crate::images::ImageFormat;
@@ -21,6 +23,7 @@ use tokio::pin;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
+use url::Url;
 
 pub const OLLAMA_PROVIDER_NAME: &str = "ollama";
 pub const OLLAMA_HOST: &str = "localhost";
@@ -97,6 +100,11 @@ impl OllamaProvider {
             options,
         }
     }
+
+    pub fn with_options(mut self, options: OllamaOptions) -> Self {
+        self.options = options;
+        self
+    }
 }
 
 fn resolve_ollama_num_ctx(options: &OllamaOptions, model_config: &ModelConfig) -> Option<usize> {
@@ -134,6 +142,67 @@ fn apply_ollama_options(payload: &mut Value, options: &OllamaOptions, model_conf
             }
         }
     }
+}
+
+pub fn from_custom_config(
+    config: DeclarativeProviderConfig,
+    tls_config: Option<TlsConfig>,
+    _key_resolver: impl KeyResolver,
+) -> Result<OllamaProvider> {
+    let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
+
+    let base = if config.base_url.starts_with("http://") || config.base_url.starts_with("https://")
+    {
+        config.base_url.clone()
+    } else {
+        format!("http://{}", config.base_url)
+    };
+
+    let mut base_url = Url::parse(&base)
+        .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
+
+    let explicit_default_port =
+        config.base_url.ends_with(":80") || config.base_url.ends_with(":443");
+    let is_https = base_url.scheme() == "https";
+
+    if base_url.port().is_none() && !explicit_default_port && !is_https {
+        base_url
+            .set_port(Some(OLLAMA_DEFAULT_PORT))
+            .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
+    }
+
+    let mut api_client = ApiClient::with_timeout_and_tls(
+        base_url.to_string(),
+        AuthMethod::NoAuth,
+        timeout,
+        tls_config,
+    )?;
+
+    if let Some(headers) = &config.headers {
+        let mut header_map = reqwest::header::HeaderMap::new();
+        for (key, value) in headers {
+            let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+            let header_value = reqwest::header::HeaderValue::from_str(value)?;
+            header_map.insert(header_name, header_value);
+        }
+        api_client = api_client.with_headers(header_map)?;
+    }
+
+    let supports_streaming = config.supports_streaming.unwrap_or(true);
+
+    if !supports_streaming {
+        return Err(anyhow::anyhow!(
+            "Ollama provider does not support non-streaming mode. All Ollama models support streaming. \
+            Please remove 'supports_streaming: false' from your provider configuration."
+        ));
+    }
+
+    Ok(OllamaProvider::new(
+        api_client,
+        config.name.clone(),
+        config.skip_canonical_filtering,
+        OllamaOptions::default(),
+    ))
 }
 
 impl ProviderDescriptor for OllamaProvider {

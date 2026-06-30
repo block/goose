@@ -10,9 +10,10 @@ use crate::{
 use goose_providers::{
     api_client::{ApiClient, AuthMethod},
     base::ProviderDescriptor,
+    declarative::EnvKeyResolver,
     ollama::{
-        OllamaOptions, OllamaProvider, OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS, OLLAMA_DEFAULT_PORT,
-        OLLAMA_HOST, OLLAMA_PROVIDER_NAME, OLLAMA_TIMEOUT,
+        self, OllamaOptions, OllamaProvider, OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS,
+        OLLAMA_DEFAULT_PORT, OLLAMA_HOST, OLLAMA_PROVIDER_NAME, OLLAMA_TIMEOUT,
     },
 };
 
@@ -83,61 +84,8 @@ pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<crate::providers::api_client::TlsConfig>,
 ) -> Result<OllamaProvider> {
-    let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
-
-    let base = if config.base_url.starts_with("http://") || config.base_url.starts_with("https://")
-    {
-        config.base_url.clone()
-    } else {
-        format!("http://{}", config.base_url)
-    };
-
-    let mut base_url = Url::parse(&base)
-        .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
-
-    let explicit_default_port =
-        config.base_url.ends_with(":80") || config.base_url.ends_with(":443");
-    let is_https = base_url.scheme() == "https";
-
-    if base_url.port().is_none() && !explicit_default_port && !is_https {
-        base_url
-            .set_port(Some(OLLAMA_DEFAULT_PORT))
-            .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
-    }
-
-    let mut api_client = ApiClient::with_timeout_and_tls(
-        base_url.to_string(),
-        AuthMethod::NoAuth,
-        timeout,
-        tls_config,
-    )?
-    .with_request_builder(crate::session_context::session_id_request_builder());
-
-    if let Some(headers) = &config.headers {
-        let mut header_map = reqwest::header::HeaderMap::new();
-        for (key, value) in headers {
-            let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
-            let header_value = reqwest::header::HeaderValue::from_str(value)?;
-            header_map.insert(header_name, header_value);
-        }
-        api_client = api_client.with_headers(header_map)?;
-    }
-
-    let supports_streaming = config.supports_streaming.unwrap_or(true);
-
-    if !supports_streaming {
-        return Err(anyhow::anyhow!(
-            "Ollama provider does not support non-streaming mode. All Ollama models support streaming. \
-            Please remove 'supports_streaming: false' from your provider configuration."
-        ));
-    }
-
-    Ok(OllamaProvider::new(
-        api_client,
-        config.name.clone(),
-        config.skip_canonical_filtering,
-        options_from_config(),
-    ))
+    ollama::from_custom_config(config, tls_config, EnvKeyResolver::new())
+        .map(|p| p.with_options(options_from_config()))
 }
 
 pub fn options_from_config() -> OllamaOptions {
