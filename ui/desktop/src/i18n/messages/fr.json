@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Application personnalisée"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Applications provenant de vos serveurs MCP et applications créées par goose lui-même. Vous pouvez lui demander de créer de nouvelles applications via l'interface de chat et elles apparaîtront ici."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Erreur lors du chargement des applications : {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Importer une application"

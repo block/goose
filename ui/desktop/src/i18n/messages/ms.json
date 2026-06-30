@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Apl tersuai"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Aplikasi daripada pelayan MCP anda dan Apl yang dibina oleh goose sendiri. Anda boleh memintanya mencipta apl baharu melalui antara muka sembang dan ia akan muncul di sini."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Ralat memuatkan apl: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Import Apl"

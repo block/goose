@@ -20,11 +20,20 @@
   "appsView.customApp": {
     "defaultMessage": "Aplikasi khusus"
   },
+  "appsView.deleteApp": {
+    "defaultMessage": "Delete app"
+  },
+  "appsView.deleteConfirm": {
+    "defaultMessage": "Delete \"{name}\"? This cannot be undone."
+  },
   "appsView.description": {
     "defaultMessage": "Aplikasi dari server MCP Anda dan Aplikasi yang dibuat oleh goose sendiri. Anda dapat memintanya membuat aplikasi baru melalui antarmuka obrolan dan aplikasi tersebut akan muncul di sini."
   },
   "appsView.errorLoading": {
     "defaultMessage": "Kesalahan saat memuat aplikasi: {error}"
+  },
+  "appsView.errorPrefix": {
+    "defaultMessage": "Error: {error}"
   },
   "appsView.importApp": {
     "defaultMessage": "Impor Aplikasi"
