@@ -318,6 +318,9 @@ fn check_cpu_supports_local_inference() -> Result<()> {
     let missing_features = [
         (!std::arch::is_x86_feature_detected!("fma")).then_some("FMA"),
         (!std::arch::is_x86_feature_detected!("avx2")).then_some("AVX2"),
+        (!std::arch::is_x86_feature_detected!("f16c")).then_some("F16C"),
+        (!std::arch::is_x86_feature_detected!("bmi2")).then_some("BMI2"),
+        (!std::arch::is_x86_feature_detected!("sse4.2")).then_some("SSE4.2"),
     ]
     .into_iter()
     .flatten()
@@ -747,7 +750,10 @@ mod tests {
         #[cfg(target_arch = "x86_64")]
         {
             let supports_required_features = std::arch::is_x86_feature_detected!("fma")
-                && std::arch::is_x86_feature_detected!("avx2");
+                && std::arch::is_x86_feature_detected!("avx2")
+                && std::arch::is_x86_feature_detected!("f16c")
+                && std::arch::is_x86_feature_detected!("bmi2")
+                && std::arch::is_x86_feature_detected!("sse4.2");
 
             if supports_required_features {
                 assert!(
