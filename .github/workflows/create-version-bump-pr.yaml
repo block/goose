@@ -85,7 +85,7 @@ jobs:
 
           **Please follow these steps:**
 
-          1. Close and reopen this PR to trigger CI checks. Reason: workflows don't run on PRs opened by `GITHUB_TOKEN` ([docs](https://docs.github.com/en/actions/using-workflows/triggering-a-workflow#triggering-a-workflow-from-a-workflow)).
+          1. Approve workflows for this PR to trigger CI checks.
           2. Review and resolve any merge conflicts.
           3. Approve and merge this PR.
           4. The `release/${{ env.version }}` PR will be created automatically.
