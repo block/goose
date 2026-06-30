@@ -22,7 +22,7 @@ use axum::Router;
 
 // Function to configure all routes
 pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Router {
-    let router = Router::new()
+    Router::new()
         .merge(status::routes(state.clone()))
         .merge(reply::routes(state.clone()))
         .merge(action_required::routes(state.clone()))
@@ -36,7 +36,5 @@ pub fn configure(state: Arc<crate::state::AppState>, secret_key: String) -> Rout
         .merge(mcp_app_proxy::routes(secret_key))
         .merge(session_events::routes(state.clone()))
         .merge(sampling::routes(state.clone()))
-        .merge(dictation::routes(state.clone()));
-
-    router
+        .merge(dictation::routes(state.clone()))
 }
