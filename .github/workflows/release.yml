@@ -17,6 +17,11 @@ permissions:
   pull-requests: write  # Required for npm publish workflow
   attestations: write  # Required for SLSA build provenance attestations
 
+env:
+  # Set this repository Actions variable to "true" in GitHub Settings > Secrets and variables
+  # > Actions > Variables after a release containing desktop app-update.yml has shipped.
+  ENABLE_MAC_NATIVE_AUTO_UPDATE: ${{ vars.ENABLE_MAC_NATIVE_AUTO_UPDATE || 'false' }}
+
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -119,7 +124,14 @@ jobs:
           merge-multiple: true
 
       - name: Generate macOS update manifest
+        if: ${{ env.ENABLE_MAC_NATIVE_AUTO_UPDATE == 'true' }}
         run: node ui/desktop/scripts/generate-mac-update-manifest.js --version "${GITHUB_REF_NAME}" --directory .
+
+      - name: Attest macOS update manifest
+        if: ${{ env.ENABLE_MAC_NATIVE_AUTO_UPDATE == 'true' }}
+        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
+        with:
+          subject-path: latest-mac.yml
 
       - name: Attest build provenance
         uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
@@ -132,7 +144,6 @@ jobs:
             *.deb
             *.rpm
             *.flatpak
-            latest-mac.yml
             download_cli.sh
 
       # Create/update the versioned release
@@ -148,7 +159,6 @@ jobs:
             *.deb
             *.rpm
             *.flatpak
-            latest-mac.yml
             download_cli.sh
           allowUpdates: true
           omitBody: true
@@ -169,8 +179,15 @@ jobs:
             *.deb
             *.rpm
             *.flatpak
-            latest-mac.yml
             download_cli.sh
           allowUpdates: true
           omitBody: true
           omitPrereleaseDuringUpdate: true
+
+      - name: Upload macOS update manifest
+        if: ${{ env.ENABLE_MAC_NATIVE_AUTO_UPDATE == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release upload "${GITHUB_REF_NAME}" latest-mac.yml --clobber
+          gh release upload stable latest-mac.yml --clobber

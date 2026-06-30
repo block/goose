@@ -152,6 +152,10 @@ jobs:
           fi
         working-directory: ui/desktop
 
+      - name: Verify macOS updater resources
+        run: node scripts/verify-mac-update-resources.js "out/Goose-darwin-x64/Goose.app"
+        working-directory: ui/desktop
+
       - name: Clean up signing keychain
         if: always()
         run: |
