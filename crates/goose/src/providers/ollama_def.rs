@@ -12,8 +12,9 @@ use goose_providers::{
     base::ProviderDescriptor,
     declarative::EnvKeyResolver,
     ollama::{
-        self, OllamaOptions, OllamaProvider, OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS,
-        OLLAMA_DEFAULT_PORT, OLLAMA_HOST, OLLAMA_PROVIDER_NAME, OLLAMA_TIMEOUT,
+        self, OllamaOptions, OllamaProvider, OllamaProviderBuilder,
+        OLLAMA_DEFAULT_CHUNK_TIMEOUT_SECS, OLLAMA_DEFAULT_PORT, OLLAMA_HOST, OLLAMA_PROVIDER_NAME,
+        OLLAMA_TIMEOUT,
     },
 };
 
@@ -72,20 +73,25 @@ pub async fn from_env(
     )?
     .with_request_builder(crate::session_context::session_id_request_builder());
 
-    Ok(OllamaProvider::new(
-        api_client,
-        OLLAMA_PROVIDER_NAME.to_string(),
-        false,
-        options_from_config(),
-    ))
+    Ok(OllamaProviderBuilder::new(api_client)
+        .name(OLLAMA_PROVIDER_NAME)
+        .options(options_from_config())
+        .build())
 }
 
 pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<crate::providers::api_client::TlsConfig>,
 ) -> Result<OllamaProvider> {
-    ollama::from_custom_config(config, tls_config, EnvKeyResolver::new())
-        .map(|p| p.with_options(options_from_config()))
+    ollama::from_custom_config(config, tls_config, EnvKeyResolver::new()).map(|builder| {
+        builder
+            .map_api_client(|api_client| {
+                api_client
+                    .with_request_builder(crate::session_context::session_id_request_builder())
+            })
+            .options(options_from_config())
+            .build()
+    })
 }
 
 pub fn options_from_config() -> OllamaOptions {

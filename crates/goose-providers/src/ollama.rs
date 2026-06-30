@@ -86,6 +86,66 @@ pub struct OllamaProvider {
     options: OllamaOptions,
 }
 
+pub struct OllamaProviderBuilder {
+    api_client: ApiClient,
+    name: String,
+    skip_canonical_filtering: bool,
+    options: OllamaOptions,
+}
+
+impl OllamaProviderBuilder {
+    pub fn new(api_client: ApiClient) -> Self {
+        Self {
+            api_client,
+            name: OLLAMA_PROVIDER_NAME.to_string(),
+            skip_canonical_filtering: false,
+            options: OllamaOptions::default(),
+        }
+    }
+
+    pub fn api_client(mut self, api_client: ApiClient) -> Self {
+        self.api_client = api_client;
+        self
+    }
+
+    pub fn map_api_client(mut self, f: impl FnOnce(ApiClient) -> ApiClient) -> Self {
+        self.api_client = f(self.api_client);
+        self
+    }
+
+    pub fn try_map_api_client(
+        mut self,
+        f: impl FnOnce(ApiClient) -> Result<ApiClient>,
+    ) -> Result<Self> {
+        self.api_client = f(self.api_client)?;
+        Ok(self)
+    }
+
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    pub fn skip_canonical_filtering(mut self, skip_canonical_filtering: bool) -> Self {
+        self.skip_canonical_filtering = skip_canonical_filtering;
+        self
+    }
+
+    pub fn options(mut self, options: OllamaOptions) -> Self {
+        self.options = options;
+        self
+    }
+
+    pub fn build(self) -> OllamaProvider {
+        OllamaProvider {
+            api_client: self.api_client,
+            name: self.name,
+            skip_canonical_filtering: self.skip_canonical_filtering,
+            options: self.options,
+        }
+    }
+}
+
 impl OllamaProvider {
     pub fn new(
         api_client: ApiClient,
@@ -93,12 +153,11 @@ impl OllamaProvider {
         skip_canonical_filtering: bool,
         options: OllamaOptions,
     ) -> Self {
-        Self {
-            api_client,
-            name,
-            skip_canonical_filtering,
-            options,
-        }
+        OllamaProviderBuilder::new(api_client)
+            .name(name)
+            .skip_canonical_filtering(skip_canonical_filtering)
+            .options(options)
+            .build()
     }
 
     pub fn with_options(mut self, options: OllamaOptions) -> Self {
@@ -148,7 +207,7 @@ pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<TlsConfig>,
     _key_resolver: impl KeyResolver,
-) -> Result<OllamaProvider> {
+) -> Result<OllamaProviderBuilder> {
     let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
 
     let base = if config.base_url.starts_with("http://") || config.base_url.starts_with("https://")
@@ -197,12 +256,9 @@ pub fn from_custom_config(
         ));
     }
 
-    Ok(OllamaProvider::new(
-        api_client,
-        config.name.clone(),
-        config.skip_canonical_filtering,
-        OllamaOptions::default(),
-    ))
+    Ok(OllamaProviderBuilder::new(api_client)
+        .name(config.name.clone())
+        .skip_canonical_filtering(config.skip_canonical_filtering))
 }
 
 impl ProviderDescriptor for OllamaProvider {

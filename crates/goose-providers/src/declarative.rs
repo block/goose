@@ -147,7 +147,7 @@ pub fn from_json(
         ProviderEngine::OpenAI => openai::from_custom_config(config, tls_config, key_resolver)
             .map(|provider| Box::new(provider.build()) as Box<dyn Provider>),
         ProviderEngine::Ollama => ollama::from_custom_config(config, tls_config, key_resolver)
-            .map(|provider| Box::new(provider) as Box<dyn Provider>),
+            .map(|provider| Box::new(provider.build()) as Box<dyn Provider>),
         ProviderEngine::Anthropic => {
             anthropic::from_custom_config(config, tls_config, key_resolver)
                 .map(|provider| Box::new(provider.build()) as Box<dyn Provider>)
