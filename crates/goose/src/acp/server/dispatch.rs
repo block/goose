@@ -29,7 +29,16 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
             MatchDispatchFrom::new(message, &cx)
                 .if_request(
                     |req: InitializeRequest, responder: Responder<InitializeResponse>| async {
-                        responder.respond_with_result(agent.on_initialize(req).await)
+                        let response = agent.on_initialize(req).await;
+                        if response.is_ok() {
+                            if let Err(error) = agent.start_session_event_forwarder(&cx) {
+                                warn!(
+                                    error = %error,
+                                    "failed to start ACP session event forwarder"
+                                );
+                            }
+                        }
+                        responder.respond_with_result(response)
                     },
                 )
                 .await
@@ -145,7 +154,9 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                             }
                             // Respond immediately using the current provider inventory snapshot.
                             let (notification, config_options) = agent.build_config_update(&session_id).await?;
-                            cx.send_notification(notification)?;
+                            agent
+                                .send_and_publish_session_notification(&cx, notification)
+                                .await?;
                             responder.respond(SetSessionConfigOptionResponse::new(config_options))?;
 
                             let maybe_refresh = if config_id == "provider" {
@@ -239,8 +250,12 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                                             match agent_bg.build_config_update(&session_id_bg).await
                                             {
                                                 Ok((fresh_notification, _)) => {
-                                                    let _ = cx_bg
-                                                        .send_notification(fresh_notification);
+                                                    let _ = agent_bg
+                                                        .send_and_publish_session_notification(
+                                                            &cx_bg,
+                                                            fresh_notification,
+                                                        )
+                                                        .await;
                                                 }
                                                 Err(error) => warn!(
                                                     provider = %refresh_provider_id,
@@ -302,12 +317,17 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                             match agent.on_set_mode(&session_id.0, &mode_id.0).await {
                                 Ok(resp) => {
                                     // Notify before responding so clients see the mode update before block_task unblocks.
-                                    cx.send_notification(SessionNotification::new(
-                                        session_id,
-                                        SessionUpdate::CurrentModeUpdate(
-                                            CurrentModeUpdate::new(mode_id),
-                                        ),
-                                    ))?;
+                                    agent
+                                        .send_and_publish_session_notification(
+                                            &cx,
+                                            SessionNotification::new(
+                                                session_id,
+                                                SessionUpdate::CurrentModeUpdate(
+                                                    CurrentModeUpdate::new(mode_id),
+                                                ),
+                                            ),
+                                        )
+                                        .await?;
                                     responder.respond(resp)?;
                                 }
                                 Err(e) => {

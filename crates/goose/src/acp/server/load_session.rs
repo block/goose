@@ -185,46 +185,65 @@ impl GooseAcpAgent {
                     .data(format!("Session not found: {}", session_id_str))
             })?;
 
-        session = self
-            .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
-            .await?;
-
-        let replay_tool_requests = replay_conversation_to_client(cx, &session)?;
-        let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
-        self.apply_session_recipe(&agent, &session).await?;
-        self.register_acp_session(session_id_str.clone(), agent.clone(), replay_tool_requests)
-            .await;
-
-        session = self
-            .session_manager
-            .get_session(&session_id_str, true)
+        self.loading_session_ids
+            .lock()
             .await
-            .internal_err_ctx("Failed to reload session")?;
+            .insert(session_id_str.clone());
 
-        agent
-            .extension_manager
-            .update_working_dir(&session.working_dir)
-            .await;
+        let load_result: Result<LoadSessionResponse, agent_client_protocol::Error> = async {
+            session = self
+                .prepare_session_for_activation(session, args.cwd.clone(), args.mcp_servers, true)
+                .await?;
 
-        let (mode_state, config_options) =
-            build_session_setup_config(&self.provider_inventory, &session).await?;
+            let replay_tool_requests = replay_conversation_to_client(cx, &session)?;
+            let (agent, extension_results) = self.prepare_acp_session_agent(cx, &session).await?;
+            self.apply_session_recipe(&agent, &session).await?;
+            self.register_acp_session(session_id_str.clone(), agent.clone(), replay_tool_requests)
+                .await;
 
-        send_session_setup_notifications(cx, &session, self.supports_goose_custom_notifications())?;
+            session = self
+                .session_manager
+                .get_session(&session_id_str, true)
+                .await
+                .internal_err_ctx("Failed to reload session")?;
 
-        let mut response = LoadSessionResponse::new().modes(mode_state);
-        if let Some(co) = config_options {
-            response = response.config_options(co);
+            agent
+                .extension_manager
+                .update_working_dir(&session.working_dir)
+                .await;
+
+            let (mode_state, config_options) =
+                build_session_setup_config(&self.provider_inventory, &session).await?;
+
+            send_session_setup_notifications(
+                cx,
+                &session,
+                self.supports_goose_custom_notifications(),
+            )?;
+
+            let mut response = LoadSessionResponse::new().modes(mode_state);
+            if let Some(co) = config_options {
+                response = response.config_options(co);
+            }
+
+            response = response.meta(session_response_meta(&session, &extension_results));
+
+            debug!(
+                target: "perf",
+                sid = %sid,
+                ms = t_start.elapsed().as_millis() as u64,
+                "perf: load_session_refactor done"
+            );
+            self.closed_session_ids.lock().await.remove(&session_id_str);
+            Ok(response)
         }
+        .await;
 
-        response = response.meta(session_response_meta(&session, &extension_results));
+        self.loading_session_ids
+            .lock()
+            .await
+            .remove(&session_id_str);
 
-        debug!(
-            target: "perf",
-            sid = %sid,
-            ms = t_start.elapsed().as_millis() as u64,
-            "perf: load_session_refactor done"
-        );
-        self.closed_session_ids.lock().await.remove(&session_id_str);
-        Ok(response)
+        load_result
     }
 }

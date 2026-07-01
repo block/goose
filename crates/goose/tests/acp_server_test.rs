@@ -3,12 +3,14 @@
 mod common_tests;
 use agent_client_protocol::schema::v1::{
     ListSessionsRequest, ListSessionsResponse, NewSessionRequest, SessionConfigKind,
-    SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo,
+    SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo, SessionUpdate,
     SetSessionConfigOptionRequest,
 };
 use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::AcpServerConnection;
-use common_tests::fixtures::{run_test, Connection, OpenAiFixture, Session, TestConnectionConfig};
+use common_tests::fixtures::{
+    run_test, Connection, OpenAiFixture, Session, SessionData, TestConnectionConfig,
+};
 #[cfg(feature = "code-mode")]
 use common_tests::run_prompt_codemode;
 use common_tests::{
@@ -30,6 +32,7 @@ use goose::recipe::{Recipe, Settings};
 use goose::recipe_deeplink;
 use goose::session::{SessionManager, SessionType};
 use std::path::Path;
+use std::time::Duration;
 
 tests_config_option_set_error!(AcpServerConnection);
 tests_mode_set_error!(AcpServerConnection);
@@ -138,6 +141,33 @@ fn last_message_snippet(session: &SessionInfo) -> Option<&str> {
         .and_then(serde_json::Value::as_str)
 }
 
+fn text_chunk(update: &SessionUpdate) -> Option<&str> {
+    match update {
+        SessionUpdate::UserMessageChunk(chunk) | SessionUpdate::AgentMessageChunk(chunk) => {
+            match &chunk.content {
+                agent_client_protocol::schema::v1::ContentBlock::Text(text) => {
+                    Some(text.text.as_str())
+                }
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn is_active_run_idle_update(update: &SessionUpdate) -> bool {
+    let SessionUpdate::SessionInfoUpdate(info) = update else {
+        return false;
+    };
+
+    info.meta
+        .as_ref()
+        .and_then(|meta| meta.get("goose"))
+        .and_then(serde_json::Value::as_object)
+        .and_then(|goose| goose.get("activeRunId"))
+        .is_some_and(serde_json::Value::is_null)
+}
+
 #[test]
 fn test_config_mcp() {
     run_test(async { run_config_mcp::<AcpServerConnection>().await });
@@ -151,6 +181,138 @@ fn test_config_option_mode_set() {
 #[test]
 fn test_list_sessions() {
     run_test(async { run_list_sessions::<AcpServerConnection>().await });
+}
+
+#[test]
+fn test_session_updates_broadcast_between_connections() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let actor_openai = OpenAiFixture::new(
+            vec![(
+                "Cross-client broadcast prompt".to_string(),
+                include_str!("acp_test_data/openai_basic.txt"),
+            )],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let observer_openai = OpenAiFixture::new(
+            vec![],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let list_only_openai = OpenAiFixture::new(
+            vec![],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let data_root_path = data_root.path().to_path_buf();
+        let mut actor = <AcpServerConnection as Connection>::new(
+            TestConnectionConfig {
+                data_root: data_root_path.clone(),
+                ..Default::default()
+            },
+            actor_openai,
+        )
+        .await;
+        let mut observer = <AcpServerConnection as Connection>::new(
+            TestConnectionConfig {
+                data_root: data_root_path,
+                ..Default::default()
+            },
+            observer_openai,
+        )
+        .await;
+        let list_only = <AcpServerConnection as Connection>::new(
+            TestConnectionConfig {
+                data_root: data_root.path().to_path_buf(),
+                ..Default::default()
+            },
+            list_only_openai,
+        )
+        .await;
+
+        let SessionData {
+            session: mut actor_session,
+            ..
+        } = actor.new_session().await.unwrap();
+        let session_id = actor_session.session_id().0.to_string();
+        assert!(
+            observer
+                .wait_for_session_update(Duration::from_secs(2), |update| matches!(
+                    update,
+                    agent_client_protocol::schema::v1::SessionUpdate::SessionInfoUpdate(_)
+                ))
+                .await,
+            "observer did not receive session_info_update for session/new"
+        );
+        assert!(
+            list_only
+                .wait_for_session_update(Duration::from_secs(2), |update| matches!(
+                    update,
+                    agent_client_protocol::schema::v1::SessionUpdate::SessionInfoUpdate(_)
+                ))
+                .await,
+            "list-only connection did not receive session_info_update for session/new"
+        );
+
+        let _observer_session = observer.load_session(&session_id, vec![]).await.unwrap();
+        observer.clear_session_notifications();
+        list_only.clear_session_notifications();
+
+        let prompt_task = tokio::spawn(async move {
+            actor_session
+                .prompt(
+                    "Cross-client broadcast prompt",
+                    common_tests::fixtures::PermissionDecision::Cancel,
+                )
+                .await
+                .unwrap();
+        });
+
+        assert!(
+            observer
+                .wait_for_session_update(Duration::from_secs(2), |update| {
+                    matches!(
+                        update,
+                        agent_client_protocol::schema::v1::SessionUpdate::UserMessageChunk(_)
+                    ) && text_chunk(update) == Some("Cross-client broadcast prompt")
+                })
+                .await,
+            "observer did not receive live user_message_chunk"
+        );
+        prompt_task.await.unwrap();
+        let received_agent_chunk = observer
+            .wait_for_session_update(Duration::from_secs(2), |update| {
+                matches!(
+                    update,
+                    agent_client_protocol::schema::v1::SessionUpdate::AgentMessageChunk(_)
+                )
+            })
+            .await;
+        assert!(
+            received_agent_chunk,
+            "observer did not receive live agent_message_chunk; updates: {:#?}",
+            observer.session_updates()
+        );
+        assert!(
+            list_only
+                .wait_for_session_update(Duration::from_secs(2), is_active_run_idle_update)
+                .await,
+            "list-only connection did not receive active-run completion barrier"
+        );
+        let list_only_updates = list_only.session_updates();
+        assert!(
+            !list_only_updates.iter().any(|update| matches!(
+                update,
+                SessionUpdate::UserMessageChunk(_)
+                    | SessionUpdate::AgentMessageChunk(_)
+                    | SessionUpdate::AgentThoughtChunk(_)
+                    | SessionUpdate::ToolCall(_)
+                    | SessionUpdate::ToolCallUpdate(_)
+            )),
+            "list-only connection received content updates: {list_only_updates:#?}"
+        );
+    });
 }
 
 #[test]

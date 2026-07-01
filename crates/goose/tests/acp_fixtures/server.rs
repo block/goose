@@ -20,6 +20,7 @@ use goose_test_support::{ExpectedSessionId, IgnoreSessionId};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::sync::Notify;
+use tokio::time::Instant;
 
 pub struct AcpServerConnection {
     cx: ConnectionTo<Agent>,
@@ -100,6 +101,54 @@ impl AcpServerConnection {
     #[allow(dead_code)]
     pub fn cx(&self) -> &ConnectionTo<Agent> {
         &self.cx
+    }
+
+    #[allow(dead_code)]
+    pub fn clear_session_notifications(&self) {
+        self.updates.lock().unwrap().clear();
+    }
+
+    #[allow(dead_code)]
+    pub fn session_updates(&self) -> Vec<SessionUpdate> {
+        self.updates
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|notification| notification.update.clone())
+            .collect()
+    }
+
+    #[allow(dead_code)]
+    pub async fn wait_for_session_update<F>(&self, timeout: Duration, predicate: F) -> bool
+    where
+        F: Fn(&SessionUpdate) -> bool,
+    {
+        let deadline = Instant::now() + timeout;
+        loop {
+            if self
+                .updates
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|notification| predicate(&notification.update))
+            {
+                return true;
+            }
+            if Instant::now() >= deadline {
+                return false;
+            }
+            if tokio::time::timeout_at(deadline, self.notify.notified())
+                .await
+                .is_err()
+            {
+                return self
+                    .updates
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .any(|notification| predicate(&notification.update));
+            }
+        }
     }
 }
 

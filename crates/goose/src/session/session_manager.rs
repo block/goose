@@ -797,6 +797,32 @@ impl SessionStorage {
         Ok(&self.pool)
     }
 
+    async fn delete_acp_session_events_if_present(
+        tx: &mut sqlx::Transaction<'_, Sqlite>,
+        session_id: &str,
+    ) -> Result<()> {
+        let table_exists = sqlx::query_scalar::<_, bool>(
+            r#"
+            SELECT EXISTS (
+                SELECT 1
+                FROM sqlite_master
+                WHERE type = 'table' AND name = 'acp_session_events'
+            )
+            "#,
+        )
+        .fetch_one(&mut **tx)
+        .await?;
+
+        if table_exists {
+            sqlx::query("DELETE FROM acp_session_events WHERE session_id = ?")
+                .bind(session_id)
+                .execute(&mut **tx)
+                .await?;
+        }
+
+        Ok(())
+    }
+
     pub async fn create(session_dir: &Path) -> Result<Self> {
         let storage = Self::new(session_dir.to_path_buf());
         Self::create_schema(&storage.pool).await?;
@@ -1863,6 +1889,8 @@ impl SessionStorage {
             .bind(session_id)
             .execute(&mut *tx)
             .await?;
+
+        Self::delete_acp_session_events_if_present(&mut tx, session_id).await?;
 
         sqlx::query("DELETE FROM sessions WHERE id = ?")
             .bind(session_id)

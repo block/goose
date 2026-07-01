@@ -73,6 +73,14 @@ pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_j
     }
 }
 
+pub(super) fn build_session_broadcast_meta(
+    session: &Session,
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut meta = session_meta(session);
+    meta.remove("lastMessageSnippet");
+    meta
+}
+
 pub(super) fn session_response_meta(
     session: &Session,
     extension_results: &[ExtensionLoadResult],
@@ -403,27 +411,70 @@ pub(super) fn send_session_setup_notifications(
     session: &Session,
     supports_goose_custom_notifications: bool,
 ) -> Result<(), agent_client_protocol::Error> {
-    let session_id = SessionId::new(session.id.clone());
     if let Some(updates) = build_usage_updates(session) {
         if supports_goose_custom_notifications {
             cx.send_notification(updates.custom)?;
         }
-        cx.send_notification(SessionNotification::new(
+    }
+    for notification in session_setup_notifications(session) {
+        cx.send_notification(notification)?;
+    }
+    Ok(())
+}
+
+pub(super) fn session_setup_notifications(session: &Session) -> Vec<SessionNotification> {
+    let session_id = SessionId::new(session.id.clone());
+    let mut notifications = Vec::new();
+    if let Some(updates) = build_usage_updates(session) {
+        notifications.push(SessionNotification::new(
             session_id.clone(),
             SessionUpdate::UsageUpdate(updates.standard),
-        ))?;
+        ));
     }
-    cx.send_notification(SessionNotification::new(
+    notifications.push(SessionNotification::new(
         session_id,
         SessionUpdate::AvailableCommandsUpdate(available_commands_update(&session.working_dir)),
-    ))
+    ));
+    notifications
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use agent_client_protocol::schema::v1::SessionConfigKind;
+    use chrono::Utc;
+    use goose_providers::conversation::token_usage::Usage;
+    use std::path::PathBuf;
     use test_case::test_case;
+
+    fn session_with_snippet() -> Session {
+        let now = Utc::now();
+        Session {
+            id: "session-with-snippet".to_string(),
+            working_dir: PathBuf::from("/tmp/acp-session-broadcast-meta"),
+            name: "Snippet session".to_string(),
+            user_set_name: false,
+            session_type: crate::session::SessionType::Acp,
+            created_at: now,
+            updated_at: now,
+            extension_data: crate::session::ExtensionData::default(),
+            usage: Usage::default(),
+            accumulated_usage: Usage::default(),
+            accumulated_cost: None,
+            schedule_id: None,
+            recipe: None,
+            user_recipe_values: None,
+            conversation: None,
+            message_count: 1,
+            last_message_at: Some(now),
+            provider_name: None,
+            model_config: None,
+            goose_mode: GooseMode::default(),
+            archived_at: None,
+            project_id: None,
+            last_message_snippet: Some("sensitive snippet".to_string()),
+        }
+    }
 
     fn model_selection(current: &str, models: &[&str]) -> ModelSelection {
         ModelSelection {
@@ -436,6 +487,17 @@ mod tests {
                 })
                 .collect(),
         }
+    }
+
+    #[test]
+    fn test_build_session_broadcast_meta_removes_last_message_snippet() {
+        let session = session_with_snippet();
+
+        assert_eq!(
+            session_meta(&session).get("lastMessageSnippet"),
+            Some(&serde_json::Value::String("sensitive snippet".to_string()))
+        );
+        assert!(!build_session_broadcast_meta(&session).contains_key("lastMessageSnippet"));
     }
 
     #[test_case(
