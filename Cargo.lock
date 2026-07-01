@@ -4920,8 +4920,6 @@ dependencies = [
  "jsonwebtoken",
  "keyring",
  "libc",
- "llama-cpp-2",
- "llama-cpp-sys-2",
  "lru 0.18.0",
  "minijinja",
  "mlx-lm",
@@ -5070,6 +5068,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "goose-local-inference"
+version = "1.40.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "encoding_rs",
+ "etcetera 0.11.0",
+ "fs2",
+ "futures",
+ "goose-provider-types",
+ "goose-sdk-types",
+ "hf-hub 1.0.0-rc.1",
+ "include_dir",
+ "llama-cpp-2",
+ "llama-cpp-sys-2",
+ "minijinja",
+ "mlx-lm",
+ "mlx-lm-utils",
+ "mlx-rs",
+ "once_cell",
+ "reqwest 0.13.4",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "utoipa 4.2.3",
+ "uuid",
+]
+
+[[package]]
 name = "goose-mcp"
 version = "1.40.0"
 dependencies = [
@@ -5100,6 +5133,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "goose-provider-types"
+version = "1.40.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "futures",
+ "once_cell",
+ "rand 0.10.1",
+ "regex",
+ "reqwest 0.13.4",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "strum 0.28.0",
+ "test-case",
+ "thiserror 2.0.18",
+ "tokio",
+ "tokio-stream",
+ "tracing",
+ "unicode-normalization",
+ "utoipa 4.2.3",
+ "uuid",
+]
+
+[[package]]
 name = "goose-providers"
 version = "1.40.0"
 dependencies = [
@@ -5110,6 +5171,8 @@ dependencies = [
  "chrono",
  "env-lock",
  "futures",
+ "goose-local-inference",
+ "goose-provider-types",
  "once_cell",
  "pem",
  "pkcs1",

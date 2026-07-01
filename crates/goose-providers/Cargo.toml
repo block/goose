@@ -12,7 +12,11 @@ description.workspace = true
 workspace = true
 
 [features]
-default = []
+default = ["local-inference"]
+local-inference = ["dep:goose-local-inference"]
+cuda = ["local-inference", "goose-local-inference/cuda"]
+vulkan = ["local-inference", "goose-local-inference/vulkan"]
+mlx = ["local-inference", "goose-local-inference/mlx"]
 rustls-tls = [
     "reqwest/rustls",
     "rmcp/reqwest",
@@ -32,6 +36,8 @@ async-stream = { workspace = true }
 base64 = { workspace = true }
 chrono = { workspace = true }
 futures = { workspace = true }
+goose-provider-types = { path = "../goose-provider-types", default-features = false }
+goose-local-inference = { path = "../goose-local-inference", default-features = false, optional = true }
 once_cell = { workspace = true }
 regex = { workspace = true, features = ["unicode"] }
 reqwest = { workspace = true }

@@ -1,0 +1,51 @@
+use crate::paths::Paths;
+use anyhow::Result;
+use chrono::{DateTime, Utc};
+use serde::{Deserialize, Serialize};
+use std::path::{Path, PathBuf};
+
+pub const HUGGINGFACE_TOKEN_SECRET_KEY: &str = "HF_TOKEN";
+pub const HUGGINGFACE_OAUTH_CACHE_PATH: &str = "huggingface/oauth/tokens.json";
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HuggingFaceTokenData {
+    pub access_token: String,
+    #[serde(default)]
+    pub refresh_token: Option<String>,
+    #[serde(default)]
+    pub expires_at: Option<DateTime<Utc>>,
+}
+
+impl HuggingFaceTokenData {
+    pub fn is_expired(&self) -> bool {
+        self.expires_at
+            .is_some_and(|expires_at| expires_at <= Utc::now())
+    }
+}
+
+pub fn oauth_cache_path() -> PathBuf {
+    Paths::in_config_dir(HUGGINGFACE_OAUTH_CACHE_PATH)
+}
+
+fn load_oauth_token_from_path(path: &Path) -> Option<HuggingFaceTokenData> {
+    let contents = std::fs::read_to_string(path).ok()?;
+    serde_json::from_str(&contents).ok()
+}
+
+pub fn usable_oauth_token() -> Option<String> {
+    let token = load_oauth_token_from_path(&oauth_cache_path())?;
+    (!token.is_expired()).then_some(token.access_token)
+}
+
+pub fn hf_token_secret() -> Result<Option<String>> {
+    Ok(std::env::var(HUGGINGFACE_TOKEN_SECRET_KEY)
+        .ok()
+        .filter(|token| !token.trim().is_empty()))
+}
+
+pub async fn resolve_token_async() -> Result<Option<String>> {
+    if let Some(token) = usable_oauth_token() {
+        return Ok(Some(token));
+    }
+    hf_token_secret()
+}
