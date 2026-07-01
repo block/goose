@@ -30,6 +30,7 @@ pub enum InputResult {
     Edit(Option<String>),
     ListSkills,
     LoadSkills(Vec<String>),
+    ShellCommand(String),
 }
 
 #[derive(Debug)]
@@ -164,6 +165,16 @@ pub fn get_input(
         editor.add_history_entry(input.as_str())?;
     }
 
+    // A leading '!' runs the rest of the line as a shell command and feeds the
+    // output back into the conversation, mirroring the convention in other
+    // agent CLIs. Checked before the slash-command and message paths so it wins.
+    if input.starts_with('!') {
+        return Ok(match parse_bang_command(&input) {
+            Some(command) => InputResult::ShellCommand(command.to_string()),
+            None => InputResult::Retry,
+        });
+    }
+
     // Handle non-slash commands first
     if !input.starts_with('/') {
         let trimmed = input.trim();
@@ -185,6 +196,13 @@ pub fn get_input(
         Some(result) => Ok(result),
         None => Ok(InputResult::Message(input.trim().to_string())),
     }
+}
+
+/// The shell command from a leading-`!` line, or `None` when nothing follows
+/// the `!`. Input is expected to start with `!`.
+fn parse_bang_command(input: &str) -> Option<&str> {
+    let command = input.strip_prefix('!')?.trim();
+    (!command.is_empty()).then_some(command)
 }
 
 fn handle_slash_command(input: &str) -> Option<InputResult> {
@@ -431,6 +449,7 @@ fn print_help() {
 /skills - List available skills or enable skills by name (usage: /skills [<name>...])
 /? or /help - Display this help message
 /clear - Clears the current chat history
+!<command> - Run a shell command and add its output to the conversation context
 
 Navigation:
 Ctrl+C - Clear current line if text is entered, otherwise exit the session
@@ -533,6 +552,17 @@ mod tests {
 
         // Test unknown commands
         assert!(handle_slash_command("/unknown").is_none());
+    }
+
+    #[test]
+    fn test_parse_bang_command() {
+        assert_eq!(parse_bang_command("!ls -la"), Some("ls -la"));
+        assert_eq!(parse_bang_command("!  git status  "), Some("git status"));
+        // A bare '!' or whitespace-only remainder is not a command.
+        assert_eq!(parse_bang_command("!"), None);
+        assert_eq!(parse_bang_command("!   "), None);
+        // The '!' must lead; embedded bangs are left to the message path.
+        assert_eq!(parse_bang_command("echo !"), None);
     }
 
     #[test]

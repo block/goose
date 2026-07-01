@@ -679,7 +679,82 @@ impl CliSession {
                 history.save(editor);
                 self.handle_list_skills().await?;
             }
+            InputResult::ShellCommand(command) => {
+                history.save(editor);
+                self.handle_shell_command(&command).await?;
+            }
         }
+        Ok(())
+    }
+
+    /// Run `command` in the user's shell and add its output to the conversation
+    /// so the agent can act on the result. Output shown to the user is not
+    /// truncated; the copy folded into context is capped to protect the window.
+    async fn handle_shell_command(&mut self, command: &str) -> Result<()> {
+        const MAX_CONTEXT_CHARS: usize = 16_000;
+
+        output::render_shell_command(command);
+
+        let shell = env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string());
+        let result = tokio::process::Command::new(shell)
+            .arg("-c")
+            .arg(command)
+            .output()
+            .await;
+
+        let output = match result {
+            Ok(output) => output,
+            Err(e) => {
+                output::render_error(&format!("Failed to run shell command: {e}"));
+                return Ok(());
+            }
+        };
+
+        let mut combined = String::new();
+        combined.push_str(&String::from_utf8_lossy(&output.stdout));
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        if !stderr.is_empty() {
+            if !combined.is_empty() && !combined.ends_with('\n') {
+                combined.push('\n');
+            }
+            combined.push_str(&stderr);
+        }
+        let combined = combined.trim_end();
+
+        let exit_note = (!output.status.success()).then(|| match output.status.code() {
+            Some(code) => format!("[exited with status {code}]"),
+            None => "[terminated by signal]".to_string(),
+        });
+        output::render_shell_output(combined, exit_note.as_deref());
+
+        let truncated = combined.chars().count() > MAX_CONTEXT_CHARS;
+        let context_body: String = if truncated {
+            combined.chars().take(MAX_CONTEXT_CHARS).collect()
+        } else {
+            combined.to_string()
+        };
+        let mut context = format!("I ran the shell command `{command}`.");
+        if let Some(note) = &exit_note {
+            context.push_str(&format!(" It {}.", note.trim_matches(['[', ']'])));
+        }
+        if context_body.is_empty() {
+            context.push_str(" It produced no output.");
+        } else {
+            context.push_str("\n\nOutput:\n```\n");
+            context.push_str(&context_body);
+            if truncated {
+                context.push_str("\n... (output truncated)");
+            }
+            context.push_str("\n```");
+        }
+
+        let message = Message::user().with_text(&context);
+        self.push_message(message.clone());
+        self.agent
+            .config
+            .session_manager
+            .add_message(&self.session_id, &message)
+            .await?;
         Ok(())
     }
 

@@ -584,6 +584,24 @@ pub fn render_error(message: &str) {
     println!("\n  {} {}\n", style("error:").red().bold(), message);
 }
 
+pub fn render_shell_command(command: &str) {
+    println!(
+        "\n{} {}",
+        style("shell").magenta().bold(),
+        style(command).dim()
+    );
+}
+
+pub fn render_shell_output(output: &str, exit_note: Option<&str>) {
+    if !output.is_empty() {
+        println!("{}", style(output).dim());
+    }
+    if let Some(note) = exit_note {
+        println!("{}", style(note).yellow());
+    }
+    println!();
+}
+
 pub fn render_prompts(prompts: &HashMap<String, Vec<String>>) {
     println!();
     for (extension, prompts) in prompts {
