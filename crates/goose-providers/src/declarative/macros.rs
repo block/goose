@@ -30,14 +30,14 @@ macro_rules! expose_declarative_providers {
     ($($module:ident),+ $(,)?) => {
         $(expose_declarative_provider!($module, stringify!($module));)+
 
-        pub fn fixed_provider_configs() -> anyhow::Result<Vec<DeclarativeProviderConfig>> {
+        pub(crate) fn fixed_provider_configs() -> anyhow::Result<Vec<DeclarativeProviderConfig>> {
             fixed_provider_config_entries()
                 .into_iter()
                 .map(|(_, json)| deserialize_provider_config(json))
                 .collect()
         }
 
-        pub fn fixed_provider_config_entries() -> Vec<(&'static str, &'static str)> {
+        pub(crate) fn fixed_provider_config_entries() -> Vec<(&'static str, &'static str)> {
             vec![$((concat!(stringify!($module), ".json"), $module::JSON)),+]
         }
     };

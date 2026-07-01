@@ -10,40 +10,44 @@ use utoipa::ToSchema;
 
 pub static FIXED_PROVIDERS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/declarative/definitions");
 
-expose_declarative_providers!(
-    alibaba,
-    atomic_chat,
-    cerebras,
-    deepseek,
-    empiriolabs,
-    futurmix,
-    groq,
-    inception,
-    llama_swap,
-    lmstudio,
-    minimax,
-    mistral,
-    moonshot,
-    nearai,
-    novita,
-    nvidia,
-    ollama_cloud,
-    omlx,
-    opencode_go,
-    orcarouter,
-    ovhcloud,
-    perplexity,
-    routstr,
-    saladcloud,
-    scaleway,
-    tanzu,
-    tensorix,
-    together,
-    venice,
-    vercel_ai_gateway,
-    zai,
-    zhipu,
-);
+pub(crate) mod declarative_providers {
+    use super::*;
+
+    expose_declarative_providers!(
+        alibaba,
+        atomic_chat,
+        cerebras,
+        deepseek,
+        empiriolabs,
+        futurmix,
+        groq,
+        inception,
+        llama_swap,
+        lmstudio,
+        minimax,
+        mistral,
+        moonshot,
+        nearai,
+        novita,
+        nvidia,
+        ollama_cloud,
+        omlx,
+        opencode_go,
+        orcarouter,
+        ovhcloud,
+        perplexity,
+        routstr,
+        saladcloud,
+        scaleway,
+        tanzu,
+        tensorix,
+        together,
+        venice,
+        vercel_ai_gateway,
+        zai,
+        zhipu,
+    );
+}
 
 use crate::{
     anthropic,
@@ -51,6 +55,14 @@ use crate::{
     base::{ModelInfo, Provider},
     ollama, openai,
 };
+
+pub fn fixed_provider_configs() -> anyhow::Result<Vec<DeclarativeProviderConfig>> {
+    declarative_providers::fixed_provider_configs()
+}
+
+pub fn fixed_provider_config_entries() -> Vec<(&'static str, &'static str)> {
+    declarative_providers::fixed_provider_config_entries()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct EnvVarConfig {
@@ -344,7 +356,8 @@ mod tests {
 
     #[test]
     fn existing_json_files_still_deserialize_without_new_fields() {
-        let config = deserialize_provider_config(groq::JSON).expect("groq.json should parse");
+        let config =
+            deserialize_provider_config(crate::groq::JSON).expect("groq.json should parse");
         assert!(config.env_vars.is_none());
         assert!(config.dynamic_models.is_none());
         assert!(config.model_doc_link.is_none());
