@@ -19,8 +19,11 @@ pub(crate) mod declarative_providers {
         cerebras,
         deepseek,
         empiriolabs,
+        fireworks,
         futurmix,
         groq,
+        iflytek,
+        iflytek_astron,
         inception,
         llama_swap,
         lmstudio,
@@ -390,6 +393,28 @@ mod tests {
         } else {
             anyhow::bail!("Invalid provider id: {id}")
         }
+    }
+
+    #[test]
+    fn expose_declarative_providers_enumerates_all_bundled_json_files() {
+        let enumerated: HashSet<_> = fixed_provider_config_entries()
+            .into_iter()
+            .map(|(path, _)| path.to_string())
+            .collect();
+        let bundled: HashSet<_> = FIXED_PROVIDERS
+            .files()
+            .filter_map(|file| {
+                (file.path().extension().and_then(|s| s.to_str()) == Some("json")).then(|| {
+                    file.path()
+                        .file_name()
+                        .unwrap()
+                        .to_string_lossy()
+                        .into_owned()
+                })
+            })
+            .collect();
+
+        assert_eq!(enumerated, bundled);
     }
 
     #[test]
