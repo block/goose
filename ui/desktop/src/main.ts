@@ -63,6 +63,7 @@ import {
   isAuthorizedFileAccessRequest,
   readSelectedRecipe,
 } from './desktopFileAccess';
+import { discoverClientExtensions, getClientExtensionsInstallDir, readClientExtensionMain } from './main/clientExtensions';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -2046,6 +2047,14 @@ ipcMain.handle('get-acp-url', async (event) => {
   }
   return gooseServeLeases.getAcpUrl(windowId) ?? null;
 });
+
+ipcMain.handle('list-client-extensions', () => discoverClientExtensions());
+
+ipcMain.handle('read-client-extension-main', (_event, extensionId: string) =>
+  readClientExtensionMain(extensionId)
+);
+
+ipcMain.handle('get-client-extensions-install-dir', () => getClientExtensionsInstallDir());
 
 // Handle menu bar icon visibility
 ipcMain.handle('set-menu-bar-icon', async (_event, show: boolean) => {
