@@ -1,4 +1,4 @@
-import type { GooseApp } from '../api';
+import type { GooseApp } from '../types/apps';
 
 export function isRetiredGooseChatApp(app: GooseApp) {
   return (
