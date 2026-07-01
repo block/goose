@@ -1,6 +1,7 @@
-import { ProviderDetails, ThinkingEffort } from '../../../api';
+import type { ProviderDetails } from '../../../api';
 import { listLocalModels } from '../../../acp/local-inference';
 import { acpListProviderDetails, acpListProviderModels } from '../../../acp/providers';
+import type { ThinkingEffort } from '../../../types/providers';
 import { errorMessage as getErrorMessage } from '../../../utils/conversionUtils';
 
 export default interface Model {

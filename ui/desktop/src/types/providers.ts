@@ -1,3 +1,5 @@
+export type ThinkingEffort = 'off' | 'low' | 'medium' | 'high' | 'max';
+
 export type UpdateCustomProviderRequest = {
   api_key: string;
   api_url: string;

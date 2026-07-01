@@ -27,7 +27,8 @@ import Model, {
   getProviderMetadata,
 } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
-import type { ProviderType, ThinkingEffort } from '../../../../api';
+import type { ProviderType } from '../../../../api';
+import type { ThinkingEffort } from '../../../../types/providers';
 import { trackModelChanged } from '../../../../utils/analytics';
 
 const i18n = defineMessages({
