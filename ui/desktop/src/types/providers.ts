@@ -1,3 +1,5 @@
+export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
+
 export type ThinkingEffort = 'off' | 'low' | 'medium' | 'high' | 'max';
 
 export type UpdateCustomProviderRequest = {
