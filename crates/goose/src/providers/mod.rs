@@ -29,6 +29,7 @@ pub mod codex_acp;
 pub mod configured;
 pub mod copilot_acp;
 pub mod cursor_agent;
+pub mod custom_provider_config;
 pub mod databricks;
 pub mod databricks_auth;
 pub mod databricks_v2;
@@ -53,7 +54,10 @@ pub mod local_inference;
 pub mod nanogpt;
 pub mod oauth;
 pub mod oauth_device_flow;
-pub mod ollama;
+pub mod ollama {
+    pub use goose_providers::ollama::*;
+}
+pub mod ollama_def;
 pub mod openai {
     pub use goose_providers::openai::*;
 }

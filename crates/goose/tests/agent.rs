@@ -526,7 +526,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -630,6 +629,187 @@ mod tests {
     }
 
     #[cfg(test)]
+    mod unparseable_tool_call_tests {
+        use super::*;
+        use async_trait::async_trait;
+        use goose::agents::{AgentConfig, SessionConfig};
+        use goose::config::permission::PermissionManager;
+        use goose::config::GooseMode;
+        use goose::conversation::message::{Message, MessageContent};
+        use goose::providers::base::{
+            stream_from_single_message, MessageStream, Provider, ProviderDef, ProviderMetadata,
+        };
+        use goose::session::session_manager::SessionType;
+        use goose::session::SessionManager;
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
+        use rmcp::model::{ErrorCode, ErrorData, Tool};
+        use std::path::PathBuf;
+        use std::sync::atomic::{AtomicUsize, Ordering};
+        use tempfile::TempDir;
+
+        /// First turn returns a tool request that failed to parse (mirroring what
+        /// the decoders emit for non-object arguments), subsequent turns return
+        /// plain text so the loop can finish.
+        struct UnparseableToolProvider {
+            call_count: AtomicUsize,
+        }
+
+        impl UnparseableToolProvider {
+            fn new() -> Self {
+                Self {
+                    call_count: AtomicUsize::new(0),
+                }
+            }
+        }
+
+        impl goose::providers::base::ProviderDescriptor for UnparseableToolProvider {
+            fn metadata() -> ProviderMetadata {
+                ProviderMetadata {
+                    name: "mock-unparseable".to_string(),
+                    display_name: "Mock Unparseable Provider".to_string(),
+                    description: "Mock provider for unparseable tool call tests".to_string(),
+                    default_model: "mock-model".to_string(),
+                    known_models: vec![],
+                    model_doc_link: "".to_string(),
+                    config_keys: vec![],
+                    setup_steps: vec![],
+                    model_selection_hint: None,
+                    fast_model: None,
+                }
+            }
+        }
+
+        impl ProviderDef for UnparseableToolProvider {
+            type Provider = Self;
+
+            fn from_env(
+                _extensions: Vec<goose::config::ExtensionConfig>,
+                _tls_config: Option<goose::providers::api_client::TlsConfig>,
+            ) -> futures::future::BoxFuture<'static, anyhow::Result<Self>> {
+                Box::pin(async { Ok(Self::new()) })
+            }
+        }
+
+        #[async_trait]
+        impl Provider for UnparseableToolProvider {
+            async fn stream(
+                &self,
+                _model_config: &ModelConfig,
+                _system_prompt: &str,
+                _messages: &[Message],
+                _tools: &[Tool],
+            ) -> Result<MessageStream, ProviderError> {
+                let n = self.call_count.fetch_add(1, Ordering::SeqCst);
+                let message = if n == 0 {
+                    let error = ErrorData::new(
+                        ErrorCode::INVALID_PARAMS,
+                        "Tool arguments must be a JSON object".to_string(),
+                        None,
+                    );
+                    Message::assistant().with_tool_request("call_bad", Err(error))
+                } else {
+                    Message::assistant().with_text("Recovered after the bad tool call.")
+                };
+
+                let usage = ProviderUsage::new(
+                    "mock-model".to_string(),
+                    Usage::new(Some(10), Some(5), Some(15)),
+                );
+                Ok(stream_from_single_message(message, usage))
+            }
+
+            fn get_name(&self) -> &str {
+                "mock-unparseable"
+            }
+        }
+
+        /// An unparseable tool call should be fed back to the model as a tool
+        /// response error so it can retry, rather than terminating the run.
+        #[tokio::test]
+        async fn test_unparseable_tool_call_feeds_back_and_continues() -> Result<()> {
+            let temp_dir = TempDir::new().unwrap();
+            let data_dir = temp_dir.path().to_path_buf();
+            let session_manager = Arc::new(SessionManager::new(data_dir.clone()));
+            let agent = Agent::with_config(AgentConfig::new(
+                session_manager.clone(),
+                Arc::new(PermissionManager::new(data_dir)),
+                None,
+                GooseMode::default(),
+                true,
+                GoosePlatform::GooseCli,
+            ));
+            let provider = Arc::new(UnparseableToolProvider::new());
+
+            let session = session_manager
+                .create_session(
+                    PathBuf::default(),
+                    "unparseable-tool-test".to_string(),
+                    SessionType::Hidden,
+                    GooseMode::default(),
+                )
+                .await?;
+
+            agent
+                .update_provider(
+                    provider.clone(),
+                    ModelConfig::new("mock-model"),
+                    &session.id,
+                )
+                .await?;
+
+            let session_config = SessionConfig {
+                id: session.id,
+                schedule_id: None,
+                max_turns: Some(5),
+                retry_config: None,
+            };
+
+            let reply_stream = agent
+                .reply(Message::user().with_text("Hello"), session_config, None)
+                .await?;
+            tokio::pin!(reply_stream);
+
+            let mut saw_tool_response_error = false;
+            let mut saw_recovery_text = false;
+            while let Some(event) = reply_stream.next().await {
+                if let Ok(AgentEvent::Message(message)) = event {
+                    for content in &message.content {
+                        match content {
+                            MessageContent::ToolResponse(response)
+                                if response.id == "call_bad" && response.tool_result.is_err() =>
+                            {
+                                saw_tool_response_error = true;
+                            }
+                            MessageContent::Text(text)
+                                if text.text.contains("Recovered after the bad tool call") =>
+                            {
+                                saw_recovery_text = true;
+                            }
+                            _ => {}
+                        }
+                    }
+                }
+            }
+
+            assert!(
+                saw_tool_response_error,
+                "expected an error tool response fed back to the model for the unparseable call"
+            );
+            assert!(
+                saw_recovery_text,
+                "expected the loop to continue to a second provider turn instead of terminating"
+            );
+            assert!(
+                provider.call_count.load(Ordering::SeqCst) >= 2,
+                "provider should have been called again after the bad tool call"
+            );
+            Ok(())
+        }
+    }
+
+    #[cfg(test)]
     mod tool_pair_summarization_tests {
         use super::*;
         use async_trait::async_trait;
@@ -697,7 +877,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -1050,7 +1229,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -1322,7 +1500,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -1523,7 +1700,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -1675,7 +1851,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -1881,7 +2056,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -2233,7 +2407,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],

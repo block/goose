@@ -97,6 +97,7 @@ impl HuggingFaceProvider {
             std::time::Duration::from_secs(timeout_secs),
             tls_config,
         )?
+        .with_request_builder(crate::session_context::session_id_request_builder())
         .with_query(query_params);
 
         if let Some(headers) = &config.headers {
@@ -158,13 +159,12 @@ impl Provider for HuggingFaceProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         self.inner
-            .stream(model_config, session_id, system, messages, tools)
+            .stream(model_config, system, messages, tools)
             .await
     }
 }
@@ -206,7 +206,8 @@ impl ProviderDef for HuggingFaceProvider {
             let host: String = config
                 .get_param("HF_HOST")
                 .unwrap_or_else(|_| HUGGINGFACE_API_HOST.to_string());
-            let api_client = ApiClient::new_with_tls(host, auth_method, tls_config)?;
+            let api_client = ApiClient::new_with_tls(host, auth_method, tls_config)?
+                .with_request_builder(crate::session_context::session_id_request_builder());
 
             Ok(Self {
                 inner: OpenAiCompatibleProvider::new(

@@ -504,6 +504,56 @@
       "method": "_goose/unstable/dictation/models/select",
       "requestType": "DictationModelSelectRequest_unstable",
       "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/local-inference/models/list",
+      "requestType": "LocalInferenceModelsListRequest_unstable",
+      "responseType": "LocalInferenceModelsListResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/local-inference/models/download",
+      "requestType": "LocalInferenceModelDownloadRequest_unstable",
+      "responseType": "LocalInferenceModelDownloadResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/local-inference/models/download/progress",
+      "requestType": "LocalInferenceModelDownloadProgressRequest_unstable",
+      "responseType": "LocalInferenceModelDownloadProgressResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/local-inference/models/download/cancel",
+      "requestType": "LocalInferenceModelDownloadCancelRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/local-inference/models/delete",
+      "requestType": "LocalInferenceModelDeleteRequest_unstable",
+      "responseType": "EmptyResponse"
+    },
+    {
+      "method": "_goose/unstable/local-inference/models/settings/read",
+      "requestType": "LocalInferenceModelSettingsReadRequest_unstable",
+      "responseType": "LocalInferenceModelSettingsReadResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/local-inference/models/settings/update",
+      "requestType": "LocalInferenceModelSettingsUpdateRequest_unstable",
+      "responseType": "LocalInferenceModelSettingsUpdateResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/local-inference/huggingface/search",
+      "requestType": "LocalInferenceHuggingFaceSearchRequest_unstable",
+      "responseType": "LocalInferenceHuggingFaceSearchResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/local-inference/huggingface/repo/variants",
+      "requestType": "LocalInferenceHuggingFaceRepoVariantsRequest_unstable",
+      "responseType": "LocalInferenceHuggingFaceRepoVariantsResponse_unstable"
+    },
+    {
+      "method": "_goose/unstable/local-inference/chat-templates/builtin/list",
+      "requestType": "LocalInferenceBuiltinChatTemplatesListRequest_unstable",
+      "responseType": "LocalInferenceBuiltinChatTemplatesListResponse_unstable"
     }
   ],
   "notifications": [

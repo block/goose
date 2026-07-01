@@ -34,7 +34,7 @@ struct DatabricksMessage {
 fn format_text_content(text: &str, image_format: &ImageFormat) -> (Vec<Value>, bool) {
     let mut items = vec![json!({"type": "text", "text": text})];
     let has_image = if let Some(path) = detect_image_path(text) {
-        if let Ok(image) = load_image_file(path) {
+        if let Ok(image) = load_image_file(path.as_ref()) {
             items.push(convert_image(&image, image_format));
         }
         true
@@ -189,9 +189,21 @@ fn format_messages(messages: &[Message], image_format: &ImageFormat) -> Vec<Data
 
                             tool_calls.push(tool_call_json);
                         }
-                        Err(e) => {
-                            content_array
-                                .push(json!({"type": "text", "text": format!("Error: {}", e)}));
+                        Err(_e) => {
+                            // Mirror the OpenAI formatter: emitting the error as assistant
+                            // text leaves no `tool_calls` entry, so the paired tool response
+                            // orphans (a `role:"tool"` with no preceding assistant
+                            // `tool_calls`) and strict APIs reject it. Emit a placeholder
+                            // call with the same id; the error rides on the tool response.
+                            let tool_calls = converted.tool_calls.get_or_insert_default();
+                            tool_calls.push(json!({
+                                "id": request.id,
+                                "type": "function",
+                                "function": {
+                                    "name": "unparseable_tool_call",
+                                    "arguments": "{}",
+                                }
+                            }));
                         }
                     }
                 }
@@ -291,11 +303,9 @@ fn apply_claude_thinking_config(
     }
 }
 
-pub fn format_tools(tools: &[Tool], model_name: &str) -> anyhow::Result<Vec<Value>> {
+pub fn format_tools(tools: &[Tool], _model_name: &str) -> anyhow::Result<Vec<Value>> {
     let mut tool_names = std::collections::HashSet::new();
     let mut result = Vec::new();
-
-    let is_gemini = model_name.contains("gemini");
 
     for tool in tools {
         if !tool_names.insert(&tool.name) {
@@ -308,25 +318,17 @@ pub fn format_tools(tools: &[Tool], model_name: &str) -> anyhow::Result<Vec<Valu
             .and_then(|v| v.as_object())
             .is_some_and(|p| !p.is_empty());
 
-        let function_def = if is_gemini {
-            let mut def = json!({
-                "name": tool.name,
-                "description": tool.description,
-            });
-            if has_properties {
-                def["parametersJsonSchema"] = json!(tool.input_schema);
-            }
-            def
-        } else {
-            let mut def = json!({
-                "name": tool.name,
-                "description": tool.description,
-            });
-            if has_properties {
-                def["parameters"] = json!(tool.input_schema);
-            }
-            def
-        };
+        // Databricks serving endpoints (including Gemini-backed ones) use the
+        // OpenAI-compatible chat format, so tools always use "parameters" — not
+        // the Google-native "parametersJsonSchema" field.
+        let mut def = json!({
+            "name": tool.name,
+            "description": tool.description,
+        });
+        if has_properties {
+            def["parameters"] = json!(tool.input_schema);
+        }
+        let function_def = def;
 
         result.push(json!({
             "type": "function",
@@ -423,12 +425,26 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     content.push(MessageContent::tool_request(id, Err(error)));
                 } else {
                     match goose_providers::json::parse_tool_arguments(&arguments_str) {
-                        Some(params) => {
+                        Some(params) if params.is_object() => {
                             content.push(MessageContent::tool_request(
                                 id,
                                 Ok(CallToolRequestParams::new(function_name)
                                     .with_arguments(object(params))),
                             ));
+                        }
+                        // Valid JSON but NOT an object (a bare array/string/number).
+                        // Surface a tool error so the model retries instead of
+                        // crashing the run (rmcp's `object()` debug-asserts).
+                        Some(_) => {
+                            let error = ErrorData {
+                                code: ErrorCode::INVALID_PARAMS,
+                                message: Cow::from(format!(
+                                    "Tool arguments for {} (id {}) must be a JSON object. Raw arguments: '{}'",
+                                    function_name, id, arguments_str
+                                )),
+                                data: None,
+                            };
+                            content.push(MessageContent::tool_request(id, Err(error)));
                         }
                         None => {
                             let message_text =
@@ -775,19 +791,17 @@ mod tests {
             "http://json-schema.org/draft-07/schema#"
         );
 
+        // Databricks Gemini endpoints use OpenAI-compatible format, so tools use
+        // "parameters" (not "parametersJsonSchema") regardless of model family.
         let spec = format_tools(std::slice::from_ref(&tool), "gemini-2-5-flash")?;
-        assert!(spec[0]["function"].get("parametersJsonSchema").is_some());
-        assert_eq!(
-            spec[0]["function"]["parametersJsonSchema"]["type"],
-            "object"
-        );
+        assert!(spec[0]["function"].get("parametersJsonSchema").is_none());
+        assert!(spec[0]["function"].get("parameters").is_some());
+        assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
 
         let spec = format_tools(&[tool], "databricks-gemini-3-pro")?;
-        assert!(spec[0]["function"].get("parametersJsonSchema").is_some());
-        assert_eq!(
-            spec[0]["function"]["parametersJsonSchema"]["type"],
-            "object"
-        );
+        assert!(spec[0]["function"].get("parametersJsonSchema").is_none());
+        assert!(spec[0]["function"].get("parameters").is_some());
+        assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
 
         Ok(())
     }
@@ -1031,6 +1045,39 @@ mod tests {
                     assert!(msg.contains("tool arguments") || msg.contains("truncated"));
                 }
                 _ => panic!("Expected InvalidParameters error"),
+            }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_non_object_arguments() -> anyhow::Result<()> {
+        // Weaker models sometimes emit tool arguments that are valid JSON but
+        // not an object (here, a bare array). This must surface as a tool error,
+        // NOT panic via rmcp's `object()` debug-assert.
+        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
+            json!("[1, 2, 3]");
+
+        let message = response_to_message(&response)?;
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            match &request.tool_call {
+                Err(ErrorData {
+                    code: ErrorCode::INVALID_PARAMS,
+                    message: msg,
+                    data: None,
+                }) => {
+                    assert!(msg.contains("must be a JSON object"));
+                    assert!(
+                        msg.contains("example_fn"),
+                        "error must name the original tool so the model can retry it: {msg}"
+                    );
+                }
+                _ => panic!("Expected InvalidParameters error for non-object args"),
             }
         } else {
             panic!("Expected ToolRequest content");
@@ -1426,6 +1473,51 @@ mod tests {
         // This should be the string "{}", not null
         assert_eq!(tool_call["function"]["arguments"], "{}");
 
+        Ok(())
+    }
+
+    #[test]
+    fn format_messages_post_parse_error_history_is_wellformed() -> anyhow::Result<()> {
+        // An unparseable tool call (ToolRequest(Err)) paired with its error tool
+        // response must not serialize as an orphan role:"tool" message.
+        use rmcp::model::{ErrorCode, ErrorData};
+        let err = ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Tool arguments for id call_bad must be a JSON object".to_string(),
+            None,
+        );
+        let request_msg = Message::assistant().with_tool_request("call_bad", Err(err.clone()));
+        let mut final_resp = Message::user();
+        final_resp.add_tool_response_with_metadata("call_bad", Err(err), None);
+        let messages = vec![
+            Message::user().with_text("do the thing"),
+            request_msg,
+            final_resp,
+        ];
+
+        let spec = serde_json::to_value(format_messages(&messages, &ImageFormat::OpenAi))?;
+        let mut open = std::collections::HashSet::new();
+        for m in spec.as_array().unwrap() {
+            match m.get("role").and_then(|v| v.as_str()) {
+                Some("assistant") => {
+                    for tc in m
+                        .get("tool_calls")
+                        .and_then(|v| v.as_array())
+                        .into_iter()
+                        .flatten()
+                    {
+                        if let Some(id) = tc.get("id").and_then(|v| v.as_str()) {
+                            open.insert(id.to_string());
+                        }
+                    }
+                }
+                Some("tool") => {
+                    let id = m.get("tool_call_id").and_then(|v| v.as_str()).unwrap_or("");
+                    assert!(open.contains(id), "orphan role:tool message for id {id:?}");
+                }
+                _ => {}
+            }
+        }
         Ok(())
     }
 

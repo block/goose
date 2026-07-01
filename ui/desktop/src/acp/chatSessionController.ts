@@ -1,11 +1,15 @@
 import { v7 as uuidv7 } from 'uuid';
-import type { Message, Session } from '../api';
 import type { GooseExtension } from '@aaif/goose-sdk';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
+import type { Session } from '../types/session';
 import { errorMessage } from '../utils/conversionUtils';
 import { showExtensionLoadResults } from '../utils/extensionErrorUtils';
-import { createUserMessage, getPendingToolConfirmationIds } from '../types/message';
+import {
+  createUserMessage,
+  getPendingToolConfirmationIds,
+  type Message,
+} from '../types/message';
 import {
   acpChatSessionActions,
   acpChatSessionStore,
@@ -141,6 +145,7 @@ async function loadSession(sessionId: string, options: AcpLoadSessionOptions = {
     acpChatSessionActions.finishSessionLoad(sessionId, sessionInfoToSession(sessionInfo, meta));
     options.onSessionLoaded?.();
   } catch (error) {
+    console.error('Failed to load ACP session:', error);
     acpChatSessionActions.failSessionLoad(sessionId, errorMessage(error));
   }
 }

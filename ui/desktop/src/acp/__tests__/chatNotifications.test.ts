@@ -1,8 +1,8 @@
 import type { SessionNotification } from '@agentclientprotocol/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Session } from '../../api';
 import { AppEvents } from '../../constants/events';
 import { ChatState } from '../../types/chatState';
+import type { Session } from '../../types/session';
 import { maybeHandlePlatformEvent } from '../../utils/platform_events';
 import { handleAcpSessionNotification } from '../chatNotifications';
 import type { AcpChatSessionSnapshot } from '../chatSessionStore';

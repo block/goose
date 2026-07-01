@@ -51,7 +51,7 @@ impl NanoGptProvider {
             Err(_) => return false,
         };
 
-        match client.response_get(None, "usage").await {
+        match client.response_get("usage").await {
             Ok(resp) => resp
                 .json::<serde_json::Value>()
                 .await
@@ -77,7 +77,8 @@ impl NanoGptProvider {
             NANOGPT_API_HOST.to_string()
         };
 
-        let api_client = Self::build_client(&host, &api_key, tls_config)?;
+        let api_client = Self::build_client(&host, &api_key, tls_config)?
+            .with_request_builder(crate::session_context::session_id_request_builder());
 
         Ok(Self {
             api_client,
@@ -120,7 +121,7 @@ impl Provider for NanoGptProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
-            .request(None, "models?detailed=true")
+            .request("models?detailed=true")
             .response_get()
             .await
             .map_err(|e| {
@@ -176,7 +177,6 @@ impl Provider for NanoGptProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -196,7 +196,7 @@ impl Provider for NanoGptProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(Some(session_id), "chat/completions", &payload)
+                    .response_post("chat/completions", &payload)
                     .await?;
                 handle_status(resp).await
             })

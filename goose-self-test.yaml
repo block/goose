@@ -114,6 +114,12 @@ extensions:
     timeout: 600
     bundled: true
     description: Core tool for file operations, shell commands, and code analysis
+  - type: builtin
+    name: todo
+  - type: builtin
+    name: summon
+  - type: builtin
+    name: extensionmanager
 
 prompt: |
   Execute the Goose Self-Testing Integration Suite in {{ workspace_dir }}.
@@ -171,7 +177,7 @@ prompt: |
   {% endif %}
 
   {% if test_phases == "all" or "delegation" in test_phases %}
-  ## 🤖 PHASE 3: Delegate & Load Testing
+  ## 🤖 PHASE 3: Summon Testing
 
   ### Load Tool - Discovery Mode
   Call `load()` with no arguments to discover all available sources:
@@ -326,7 +332,7 @@ prompt: |
   ### Vision Smoke Test
   1. Create a small test image:
      ```
-     python3 -c "import struct, zlib; raw=b'\x00\xff\x00\x00'; d=zlib.compress(raw); ihdr=b'\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00'; print('Created test.png')" 
+     python3 -c "import struct, zlib; raw=b'\x00\xff\x00\x00'; d=zlib.compress(raw); ihdr=b'\x00\x00\x00\x01\x00\x00\x00\x01\x08\x02\x00\x00\x00'; print('Created test.png')"
      ```
      Or simply create a 1-pixel PNG test image using available tools.
   2. Verify the test image file exists and is valid.

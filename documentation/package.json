@@ -45,7 +45,7 @@
     "@docusaurus/types": "3.7.0",
     "gray-matter": "^4.0.3",
     "globby": "^13.2.2",
-    "js-yaml": "^4.1.1",
+    "js-yaml": "^4.2.0",
     "typescript": "~5.6.2",
     "yaml-loader": "^0.8.1"
   },

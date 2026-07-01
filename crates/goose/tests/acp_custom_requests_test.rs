@@ -2,7 +2,7 @@
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 
-use agent_client_protocol::schema::{
+use agent_client_protocol::schema::v1::{
     ContentBlock, PromptRequest, SessionUpdate, StopReason, TextContent,
 };
 use common_tests::fixtures::server::AcpServerConnection;
@@ -60,7 +60,6 @@ impl Provider for MockProvider {
     async fn stream(
         &self,
         _model_config: &ModelConfig,
-        _session_id: &str,
         _system: &str,
         _messages: &[goose::conversation::message::Message],
         _tools: &[rmcp::model::Tool],
@@ -1097,9 +1096,11 @@ fn test_developer_fs_requests_use_acp_session_id() {
             current_model: "gpt-4.1".to_string(),
             read_text_file: Some(Arc::new(move |req| {
                 *seen_session_id_clone.lock().unwrap() = Some(req.session_id.0.to_string());
-                Ok(agent_client_protocol::schema::ReadTextFileResponse::new(
-                    "test-read-content-12345",
-                ))
+                Ok(
+                    agent_client_protocol::schema::v1::ReadTextFileResponse::new(
+                        "test-read-content-12345",
+                    ),
+                )
             })),
             ..Default::default()
         };

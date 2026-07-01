@@ -197,10 +197,12 @@ async fn execute_summarize(
 
     let user_message = Message::user().with_text(&prompt);
 
-    let (response, _usage) = provider
-        .complete(&model_config, session_id, system, &[user_message], &[])
-        .await
-        .map_err(|e| format!("LLM call failed: {}", e))?;
+    let (response, _usage) = crate::session_context::with_session_id(
+        Some(session_id.to_string()),
+        provider.complete(&model_config, system, &[user_message], &[]),
+    )
+    .await
+    .map_err(|e| format!("LLM call failed: {}", e))?;
 
     let response_text = response
         .content

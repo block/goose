@@ -69,7 +69,8 @@ impl LiteLLMProvider {
             auth,
             std::time::Duration::from_secs(timeout_secs),
             tls_config,
-        )?;
+        )?
+        .with_request_builder(crate::session_context::session_id_request_builder());
 
         if let Some(headers) = custom_headers {
             let mut header_map = reqwest::header::HeaderMap::new();
@@ -97,11 +98,7 @@ impl LiteLLMProvider {
     }
 
     async fn fetch_models_from_api(&self) -> Result<Vec<ModelInfo>, ProviderError> {
-        let response = self
-            .api_client
-            .request(None, "model/info")
-            .response_get()
-            .await?;
+        let response = self.api_client.request("model/info").response_get().await?;
 
         if !response.status().is_success() {
             return Err(ProviderError::RequestFailed(format!(
@@ -139,14 +136,10 @@ impl LiteLLMProvider {
         Ok(models)
     }
 
-    async fn post(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<Value, ProviderError> {
+    async fn post(&self, payload: &Value) -> Result<Value, ProviderError> {
         let response = self
             .api_client
-            .response_post(session_id, &self.base_path, payload)
+            .response_post(&self.base_path, payload)
             .await?;
         handle_response_openai_compat(response).await
     }
@@ -235,16 +228,10 @@ impl Provider for LiteLLMProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = if session_id.is_empty() {
-            None
-        } else {
-            Some(session_id)
-        };
         let mut payload = goose_providers::formats::openai::create_request(
             model_config,
             system,
@@ -261,7 +248,7 @@ impl Provider for LiteLLMProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post(session_id, &payload_clone).await
+                self.post(&payload_clone).await
             })
             .await?;
 

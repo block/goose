@@ -324,7 +324,6 @@ impl Provider for CursorAgentProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        _session_id: &str, // CLI has no external session-id flag to propagate.
         system: &str,
         messages: &[Message],
         tools: &[Tool],

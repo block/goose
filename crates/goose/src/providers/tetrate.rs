@@ -57,6 +57,7 @@ impl TetrateProvider {
 
         let auth = AuthMethod::BearerToken(api_key);
         let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
+            .with_request_builder(crate::session_context::session_id_request_builder())
             .with_header("HTTP-Referer", "https://goose-docs.ai")?
             .with_header("X-Title", "goose")?;
 
@@ -132,7 +133,6 @@ impl Provider for TetrateProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -152,7 +152,7 @@ impl Provider for TetrateProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(Some(session_id), "v1/chat/completions", &payload)
+                    .response_post("v1/chat/completions", &payload)
                     .await?;
                 let resp = handle_status(resp)
                     .await
@@ -198,7 +198,7 @@ impl Provider for TetrateProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
-            .response_get(None, "v1/models")
+            .response_get("v1/models")
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         let json = handle_response_openai_compat(response).await?;

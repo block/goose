@@ -1,25 +1,23 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ProviderDetails, UpdateCustomProviderRequest } from '../../api';
-import {
-  acpCreateCustomProviderFromRequest,
-  acpListProviderDetails,
-} from '../../acp/providers';
+import { acpCreateCustomProviderFromRequest, acpListProviderDetails } from '../../acp/providers';
+import type { ProviderDetails, UpdateCustomProviderRequest } from '../../types/providers';
 import { Select } from '../ui/Select';
 import ProviderConfigForm from './ProviderConfigForm';
-import FreeOptionCards from './FreeOptionCards';
+import LocalModelPicker from './LocalModelPicker';
 import CustomProviderForm from '../settings/providers/modal/subcomponents/forms/CustomProviderForm';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../ui/dialog';
-import { Gift, Key, Plus } from 'lucide-react';
+import { HardDrive, Key, Plus } from 'lucide-react';
 import { defineMessages, useIntl } from '../../i18n';
+import { useFeatures } from '../../contexts/FeaturesContext';
 
 const i18n = defineMessages({
-  useFreeLocal: {
-    id: 'providerSelector.useFreeLocal',
-    defaultMessage: 'Use Free/Local Providers',
+  useLocalModel: {
+    id: 'providerSelector.useLocalModel',
+    defaultMessage: 'Use a Local Model',
   },
-  freeLocalDescription: {
-    id: 'providerSelector.freeLocalDescription',
-    defaultMessage: 'Use a local model or a provider with free credits',
+  localModelDescription: {
+    id: 'providerSelector.localModelDescription',
+    defaultMessage: 'Download a model and run it on this device. No API key or account needed.',
   },
   connectProvider: {
     id: 'providerSelector.connectProvider',
@@ -43,10 +41,10 @@ const i18n = defineMessages({
   },
 });
 
-const FREE_OPTIONS = 'free-options' as const;
+const LOCAL_MODEL = 'local-model' as const;
 const OWN_PROVIDER = 'own-provider' as const;
 
-type SelectedPath = typeof FREE_OPTIONS | typeof OWN_PROVIDER | null;
+type SelectedPath = typeof LOCAL_MODEL | typeof OWN_PROVIDER | null;
 
 interface ProviderOption {
   value: string;
@@ -64,6 +62,7 @@ export default function ProviderSelector({
   onFirstSelection,
 }: ProviderSelectorProps) {
   const intl = useIntl();
+  const { localInference } = useFeatures();
   const [providerList, setProviderList] = useState<ProviderDetails[]>([]);
   const [selectedOption, setSelectedOption] = useState<ProviderOption | null>(null);
   const [selectedPath, setSelectedPath] = useState<SelectedPath>(null);
@@ -104,8 +103,8 @@ export default function ProviderSelector({
     );
   };
 
-  const handleFreeCreditClick = () => {
-    setSelectedPath(FREE_OPTIONS);
+  const handleLocalModelClick = () => {
+    setSelectedPath(LOCAL_MODEL);
     setSelectedOption(null);
     onFirstSelection?.();
   };
@@ -132,23 +131,25 @@ export default function ProviderSelector({
 
   return (
     <div>
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        <div
-          onClick={handleFreeCreditClick}
-          className={`p-4 border rounded-xl transition-all duration-200 cursor-pointer group ${
-            selectedPath === FREE_OPTIONS
-              ? 'border-blue-400 bg-background-muted'
-              : 'border-border-default bg-background-muted hover:border-blue-400'
-          }`}
-        >
-          <Gift size={20} className="text-text-muted mb-2" />
-          <span className="font-medium text-text-default text-base block">
-            {intl.formatMessage(i18n.useFreeLocal)}
-          </span>
-          <p className="text-text-muted text-sm mt-1">
-            {intl.formatMessage(i18n.freeLocalDescription)}
-          </p>
-        </div>
+      <div className={`grid ${localInference ? 'grid-cols-2' : 'grid-cols-1'} gap-3 mb-6`}>
+        {localInference && (
+          <div
+            onClick={handleLocalModelClick}
+            className={`p-4 border rounded-xl transition-all duration-200 cursor-pointer group ${
+              selectedPath === LOCAL_MODEL
+                ? 'border-blue-400 bg-background-muted'
+                : 'border-border-default bg-background-muted hover:border-blue-400'
+            }`}
+          >
+            <HardDrive size={20} className="text-text-muted mb-2" />
+            <span className="font-medium text-text-default text-base block">
+              {intl.formatMessage(i18n.useLocalModel)}
+            </span>
+            <p className="text-text-muted text-sm mt-1">
+              {intl.formatMessage(i18n.localModelDescription)}
+            </p>
+          </div>
+        )}
 
         <div
           onClick={handleOwnProviderClick}
@@ -162,13 +163,15 @@ export default function ProviderSelector({
           <span className="font-medium text-text-default text-base block">
             {intl.formatMessage(i18n.connectProvider)}
           </span>
-          <p className="text-text-muted text-sm mt-1">{intl.formatMessage(i18n.connectProviderDescription)}</p>
+          <p className="text-text-muted text-sm mt-1">
+            {intl.formatMessage(i18n.connectProviderDescription)}
+          </p>
         </div>
       </div>
 
-      {selectedPath === FREE_OPTIONS && (
+      {localInference && selectedPath === LOCAL_MODEL && (
         <div className="animate-in fade-in slide-in-from-top-2 duration-300">
-          <FreeOptionCards onConfigured={onConfigured} />
+          <LocalModelPicker onConfigured={onConfigured} />
         </div>
       )}
 

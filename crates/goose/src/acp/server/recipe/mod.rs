@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use agent_client_protocol::schema::Meta;
+use agent_client_protocol::schema::v1::Meta;
 use agent_client_protocol::{
     Client, ConnectionTo, JsonRpcMessage, JsonRpcRequest, JsonRpcResponse, UntypedMessage,
 };

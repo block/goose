@@ -14,7 +14,6 @@ import { useModelAndProvider } from '../../ModelAndProviderContext';
 import { defineMessages, useIntl } from '../../../i18n';
 import {
   listLocalModels,
-  syncFeaturedModels,
   downloadHfModel,
   getLocalModelDownloadProgress,
   cancelLocalModelDownload,
@@ -22,7 +21,7 @@ import {
   type DownloadProgress,
   type DownloadModelRequest,
   type LocalModelResponse,
-} from '../../../api';
+} from '../../../acp/local-inference';
 import { HuggingFaceModelSearch } from './HuggingFaceModelSearch';
 import { ModelSettingsPanel } from './ModelSettingsPanel';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
@@ -133,9 +132,9 @@ const VisionBadge = ({
   model: LocalModelResponse;
   intl: ReturnType<typeof useIntl>;
 }) => {
-  if (!model.vision_capable) return null;
+  if (!model.visionCapable) return null;
 
-  const mmproj = model.mmproj_status;
+  const mmproj = model.mmprojStatus;
   const isDownloaded = mmproj?.state === 'Downloaded';
   const isDownloading = mmproj?.state === 'Downloading';
 
@@ -150,7 +149,7 @@ const VisionBadge = ({
 
   if (isDownloading) {
     const percent =
-      mmproj && 'progress_percent' in mmproj ? Math.round(mmproj.progress_percent) : null;
+      mmproj && mmproj.progressPercent != null ? Math.round(mmproj.progressPercent) : null;
     return (
       <span className="inline-flex items-center gap-1 text-xs text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded">
         <Eye className="w-3 h-3" />
@@ -191,12 +190,11 @@ export const LocalInferenceSettings = () => {
 
   const loadModels = useCallback(async (): Promise<LocalModelResponse[] | undefined> => {
     try {
-      await syncFeaturedModels();
-      const response = await listLocalModels();
-      if (response.data) {
-        setModels(response.data);
+      const models = await listLocalModels();
+      if (models) {
+        setModels(models);
         const downloadedIds = new Set(
-          response.data
+          models
             .filter((model) => model.status.state === 'Downloaded')
             .map((model) => model.id)
         );
@@ -212,13 +210,13 @@ export const LocalInferenceSettings = () => {
             return next;
           });
         }
-        response.data.forEach((model) => {
+        models.forEach((model) => {
           if (model.status.state === 'Downloading') {
             pollDownloadProgress(model.id);
           }
         });
 
-        return response.data;
+        return models;
       }
     } catch (error) {
       console.error('Failed to load models:', error);
@@ -235,7 +233,7 @@ export const LocalInferenceSettings = () => {
   // Poll model list while any vision encoder is downloading
   useEffect(() => {
     const hasDownloadingMmproj = models.some(
-      (m) => m.vision_capable && m.mmproj_status?.state === 'Downloading'
+      (m) => m.visionCapable && m.mmprojStatus?.state === 'Downloading'
     );
     if (!hasDownloadingMmproj) return;
 
@@ -259,7 +257,7 @@ export const LocalInferenceSettings = () => {
     if (!model) return;
     const request = { spec: model.id };
     try {
-      await downloadHfModel({ body: request });
+      await downloadHfModel(request);
       setDownloadRequests((prev) => new Map(prev).set(modelId, request));
       pollDownloadProgress(modelId);
       scrollToDownloads();
@@ -285,9 +283,8 @@ export const LocalInferenceSettings = () => {
 
     const interval = setInterval(async () => {
       try {
-        const response = await getLocalModelDownloadProgress({ path: { model_id: modelId } });
-        if (response.data) {
-          const progress = response.data;
+        const progress = await getLocalModelDownloadProgress(modelId);
+        if (progress) {
           setDownloads((prev) => new Map(prev).set(modelId, progress));
 
           if (progress.status === 'completed') {
@@ -314,7 +311,7 @@ export const LocalInferenceSettings = () => {
 
   const cancelDownload = async (modelId: string) => {
     try {
-      await cancelLocalModelDownload({ path: { model_id: modelId } });
+      await cancelLocalModelDownload(modelId);
       setDownloads((prev) => {
         const next = new Map(prev);
         const progress = next.get(modelId);
@@ -346,8 +343,7 @@ export const LocalInferenceSettings = () => {
     const request = downloadRequests.get(modelId) ?? { spec: modelId };
     dismissDownload(modelId);
     try {
-      const response = await downloadHfModel({ body: request });
-      const nextModelId = response.data ?? modelId;
+      const nextModelId = await downloadHfModel(request);
       setDownloadRequests((prev) => new Map(prev).set(nextModelId, request));
       pollDownloadProgress(nextModelId);
       scrollToDownloads();
@@ -359,7 +355,7 @@ export const LocalInferenceSettings = () => {
   const handleDeleteModel = async (modelId: string) => {
     if (!window.confirm(intl.formatMessage(i18n.deleteConfirm))) return;
     try {
-      await deleteLocalModel({ path: { model_id: modelId } });
+      await deleteLocalModel(modelId);
       const updatedModels = await loadModels();
 
       if (selectedModelId === modelId && updatedModels) {
@@ -442,30 +438,30 @@ export const LocalInferenceSettings = () => {
                       <div className="w-full bg-gray-700 rounded-full h-2">
                         <div
                           className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${progress.progress_percent}%` }}
+                          style={{ width: `${progress.progressPercent}%` }}
                         />
                       </div>
                       <div className="flex justify-between text-xs text-text-muted">
                         <span>
                           {intl.formatMessage(i18n.downloadProgress, {
-                            downloaded: formatBytes(progress.bytes_downloaded),
-                            total: formatBytes(progress.total_bytes),
-                            percent: progress.progress_percent.toFixed(0),
+                            downloaded: formatBytes(progress.bytesDownloaded),
+                            total: formatBytes(progress.totalBytes),
+                            percent: progress.progressPercent.toFixed(0),
                           })}
                         </span>
                         <span className="flex gap-2">
-                          {progress.eta_seconds != null && progress.eta_seconds > 0 && (
+                          {progress.etaSeconds != null && progress.etaSeconds > 0 && (
                             <span>
                               {intl.formatMessage(i18n.remaining, {
                                 time:
-                                  progress.eta_seconds < 60
-                                    ? `${Math.round(progress.eta_seconds)}s`
-                                    : `${Math.round(progress.eta_seconds / 60)}m`,
+                                  progress.etaSeconds < 60
+                                    ? `${Math.round(progress.etaSeconds)}s`
+                                    : `${Math.round(progress.etaSeconds / 60)}m`,
                               })}
                             </span>
                           )}
-                          {progress.speed_bps != null && progress.speed_bps > 0 && (
-                            <span>{formatBytes(progress.speed_bps)}/s</span>
+                          {progress.speedBps != null && progress.speedBps > 0 && (
+                            <span>{formatBytes(progress.speedBps)}/s</span>
                           )}
                         </span>
                       </div>
@@ -540,7 +536,7 @@ export const LocalInferenceSettings = () => {
                       />
                       <span className="text-sm font-medium text-text-default">{model.id}</span>
                       <span className="text-xs text-text-muted">
-                        {formatBytes(model.size_bytes)}
+                        {formatBytes(model.sizeBytes)}
                       </span>
                       {model.recommended && (
                         <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
@@ -592,7 +588,7 @@ export const LocalInferenceSettings = () => {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-sm font-medium text-text-default">{model.id}</h4>
                       <span className="text-xs text-text-muted">
-                        {formatBytes(model.size_bytes)}
+                        {formatBytes(model.sizeBytes)}
                       </span>
                       {model.recommended && (
                         <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">

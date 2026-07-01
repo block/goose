@@ -164,15 +164,16 @@ pub async fn detect_read_only_tools(
             return vec![];
         }
     };
-    let res = provider
-        .complete(
+    let res = crate::session_context::with_session_id(
+        Some(session_id.to_string()),
+        provider.complete(
             &model_config,
-            session_id,
             &system_prompt,
             check_messages.messages(),
             std::slice::from_ref(&tool),
-        )
-        .await;
+        ),
+    )
+    .await;
 
     // Process the response and return an empty vector if the response is invalid
     if let Ok((message, _usage)) = res {
