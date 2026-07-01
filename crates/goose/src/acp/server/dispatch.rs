@@ -56,11 +56,17 @@ impl HandleDispatchFrom<Client> for GooseAcpHandler {
                         let agent = agent.clone();
                         let cx_clone = cx.clone();
                         cx.spawn(async move {
+                            let session_id = req.session_id.0.to_string();
                             match agent.on_load_session(&cx_clone, req).await {
                                 Ok(response) => {
                                     responder.respond(response)?;
                                 }
                                 Err(e) => {
+                                    tracing::error!(
+                                        session_id = %session_id,
+                                        error = ?e,
+                                        "ACP load_session failed"
+                                    );
                                     responder.respond_with_error(e)?;
                                 }
                             }

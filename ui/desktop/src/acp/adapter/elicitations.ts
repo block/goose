@@ -1,4 +1,4 @@
-import type { Message } from '../../api';
+import type { Message } from '../../types/message';
 import type { AcpElicitationRequest } from '../elicitationRequests';
 import {
   type AcpChatStateChange,

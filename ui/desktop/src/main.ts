@@ -33,6 +33,7 @@ import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import { formatAppName, errorMessage, formatErrorForLogging } from './utils/conversionUtils';
+import { isRetiredGooseChatApp } from './utils/retiredApps';
 import type { Settings, SettingKey } from './utils/settings';
 import { defaultSettings, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
@@ -49,7 +50,7 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client } from './api/client';
-import { GooseApp } from './api';
+import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
@@ -495,7 +496,66 @@ if (process.platform !== 'darwin') {
   }
 }
 
-const pendingDeepLinks = new Map<number, string>(); // windowId -> deep link URL
+const pendingDeepLinks = new Map<number, string>();
+
+function queuePendingDeepLink(windowId: number, url: string): void {
+  if (pendingDeepLinks.get(windowId) === url) {
+    return;
+  }
+  pendingDeepLinks.set(windowId, url);
+}
+
+const reactReadyWindows = new Set<number>();
+
+const DEEPLINK_BURST_DEDUP_MS = 2000;
+const recentSessionDeepLinkSends = new Map<string, number>();
+
+function pruneExpiredSessionDeepLinkSends(now: number): void {
+  for (const [url, sentAt] of recentSessionDeepLinkSends) {
+    if (now - sentAt >= DEEPLINK_BURST_DEDUP_MS) {
+      recentSessionDeepLinkSends.delete(url);
+    }
+  }
+}
+
+function isBurstDuplicateSessionDeepLink(url: string): boolean {
+  const now = Date.now();
+  pruneExpiredSessionDeepLinkSends(now);
+  const sentAt = recentSessionDeepLinkSends.get(url);
+  return sentAt !== undefined && now - sentAt < DEEPLINK_BURST_DEDUP_MS;
+}
+
+function recordSessionDeepLinkSend(url: string): void {
+  const now = Date.now();
+  recentSessionDeepLinkSends.set(url, now);
+  pruneExpiredSessionDeepLinkSends(now);
+}
+
+function sendOpenSharedSession(window: BrowserWindow, url: string): void {
+  if (isBurstDuplicateSessionDeepLink(url)) {
+    log.info('[Main] Ignoring burst duplicate session deep link');
+    return;
+  }
+  recordSessionDeepLinkSend(url);
+  window.webContents.send('open-shared-session', url);
+}
+
+function deliverExtensionOrSessionDeepLink(
+  url: string,
+  parsedUrl: URL,
+  targetWindow: BrowserWindow
+): void {
+  if (!reactReadyWindows.has(targetWindow.id) || targetWindow.webContents.isLoadingMainFrame()) {
+    queuePendingDeepLink(targetWindow.id, url);
+    return;
+  }
+
+  if (parsedUrl.hostname === 'extension') {
+    targetWindow.webContents.send('add-extension', url);
+  } else if (parsedUrl.hostname === 'sessions') {
+    sendOpenSharedSession(targetWindow, url);
+  }
+}
 
 function getResumeSessionId(parsedUrl: URL): string | null {
   try {
@@ -540,10 +600,11 @@ async function handleProtocolUrl(url: string, parsedUrl: URL) {
       existingWindows.length > 0
         ? existingWindows[0]
         : await createChat(app, { dir: openDir || undefined });
+    if (!targetWindow) return;
     await processProtocolUrl(url, parsedUrl, targetWindow);
   } else {
     const existingWindows = BrowserWindow.getAllWindows();
-    let targetWindow: BrowserWindow;
+    let targetWindow: BrowserWindow | undefined;
     if (existingWindows.length > 0) {
       targetWindow = existingWindows[0];
       if (targetWindow.isMinimized()) {
@@ -554,8 +615,10 @@ async function handleProtocolUrl(url: string, parsedUrl: URL) {
       targetWindow = await createChat(app, { dir: openDir || undefined });
     }
 
+    if (!targetWindow) return;
+
     if (targetWindow.webContents.isLoadingMainFrame()) {
-      pendingDeepLinks.set(targetWindow.id, url);
+      queuePendingDeepLink(targetWindow.id, url);
     } else {
       await processProtocolUrl(url, parsedUrl, targetWindow);
     }
@@ -569,7 +632,7 @@ async function processProtocolUrl(url: string, parsedUrl: URL, window: BrowserWi
   if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', url);
   } else if (parsedUrl.hostname === 'sessions') {
-    window.webContents.send('open-shared-session', url);
+    sendOpenSharedSession(window, url);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     const deeplinkData = parseRecipeDeeplink(url);
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
@@ -644,15 +707,14 @@ app.on('open-url', async (_event, url) => {
       const targetWindow = existingWindows[0];
       if (targetWindow.isMinimized()) targetWindow.restore();
       targetWindow.focus();
-      if (parsedUrl.hostname === 'extension') {
-        targetWindow.webContents.send('add-extension', url);
-      } else if (parsedUrl.hostname === 'sessions') {
-        targetWindow.webContents.send('open-shared-session', url);
+      if (parsedUrl.hostname === 'extension' || parsedUrl.hostname === 'sessions') {
+        deliverExtensionOrSessionDeepLink(url, parsedUrl, targetWindow);
       }
     } else {
       openUrlHandledLaunch = true;
       const newWindow = await createChat(app, { dir: openDir || undefined });
-      pendingDeepLinks.set(newWindow.id, url);
+      if (!newWindow) return;
+      queuePendingDeepLink(newWindow.id, url);
     }
   }
 });
@@ -887,7 +949,10 @@ interface CreateChatOptions {
   recipeParameters?: Record<string, string>;
 }
 
-const createChat = async (app: App, options: CreateChatOptions = {}) => {
+const createChat = async (
+  app: App,
+  options: CreateChatOptions = {}
+): Promise<BrowserWindow | undefined> => {
   const {
     initialMessage,
     initialMessageNoAutoSubmit,
@@ -900,6 +965,42 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     recipeParameters,
   } = options;
   const settings = getSettings();
+
+  if (settings.externalGoosed?.enabled && settings.externalGoosed.certFingerprint) {
+    const url = settings.externalGoosed.url;
+    const usesHttps = (() => {
+      try {
+        return new URL(url).protocol === 'https:';
+      } catch {
+        return false;
+      }
+    })();
+
+    if (!usesHttps) {
+      const response = dialog.showMessageBoxSync({
+        type: 'error',
+        title: 'External Backend Misconfigured',
+        message: 'Certificate fingerprint requires an HTTPS external backend URL.',
+        detail: 'Use an https:// URL or remove the configured certificate fingerprint.',
+        buttons: ['Disable External Backend & Retry', 'Quit'],
+        defaultId: 0,
+        cancelId: 1,
+      });
+
+      if (response === 0) {
+        updateSettings((s) => {
+          if (s.externalGoosed) {
+            s.externalGoosed.enabled = false;
+          }
+        });
+        return createChat(app, options);
+      }
+
+      app.quit();
+      return;
+    }
+  }
+
   const serverSecret = getServerSecret(settings);
 
   // Update the cached trusted-external-hostname so the TLS handlers allow
@@ -1283,6 +1384,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
 
     pendingInitialMessages.delete(windowId);
     pendingDeepLinks.delete(windowId);
+    reactReadyWindows.delete(windowId);
 
     if (windowPowerSaveBlockers.has(windowId)) {
       const blockerId = windowPowerSaveBlockers.get(windowId)!;
@@ -1358,6 +1460,7 @@ const createLauncher = () => {
   activeLauncherWindow = launcherWindow;
 
   launcherWindow.on('closed', () => {
+    reactReadyWindows.delete(launcherWindow.id);
     activeLauncherWindow = null;
   });
 
@@ -1642,6 +1745,10 @@ ipcMain.on('react-ready', (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   const windowId = window?.id;
 
+  if (windowId !== undefined) {
+    reactReadyWindows.add(windowId);
+  }
+
   // Send any pending initial message for this window
   if (windowId && pendingInitialMessages.has(windowId)) {
     const initialMessage = pendingInitialMessages.get(windowId)!;
@@ -1661,7 +1768,7 @@ ipcMain.on('react-ready', (event) => {
       if (parsedUrl.hostname === 'extension') {
         window.webContents.send('add-extension', deepLinkUrl);
       } else if (parsedUrl.hostname === 'sessions') {
-        window.webContents.send('open-shared-session', deepLinkUrl);
+        sendOpenSharedSession(window, deepLinkUrl);
       }
     } catch (error) {
       log.error('Error processing pending deep link:', error);
@@ -2771,6 +2878,10 @@ async function appMain() {
 
   ipcMain.handle('launch-app', async (event, gooseApp: GooseApp) => {
     try {
+      if (isRetiredGooseChatApp(gooseApp)) {
+        throw new Error('This built-in Chat app is no longer supported.');
+      }
+
       const launchingWindow = BrowserWindow.fromWebContents(event.sender);
       if (!launchingWindow) {
         throw new Error('Could not find launching window');

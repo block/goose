@@ -32,7 +32,7 @@ jobs:
           node-version: 20
 
       - name: Cache Node.js modules (documentation)
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8  # v6.0.0
         with:
           path: ./documentation/node_modules
           key: ${{ runner.os }}-documentation-${{ hashFiles('./documentation/package-lock.json') }}

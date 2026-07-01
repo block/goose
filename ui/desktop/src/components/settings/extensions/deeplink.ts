@@ -1,4 +1,4 @@
-import type { ExtensionConfig } from '../../../api';
+import type { ExtensionConfig } from '../../../types/extensions';
 import { toastService } from '../../../toasts';
 import { DEFAULT_EXTENSION_TIMEOUT } from './utils';
 
