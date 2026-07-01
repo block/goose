@@ -3,7 +3,7 @@ import { useNavigate, useLocation, useSearchParams } from 'react-router-dom';
 import { useChatContext } from '../contexts/ChatContext';
 import { getSessionDisplayName } from '../sessions';
 import { AppEvents } from '../constants/events';
-import type { Session } from '../api';
+import type { Session } from '../types/session';
 import {
   acpGetSessionListItem,
   acpListRecentSessions,

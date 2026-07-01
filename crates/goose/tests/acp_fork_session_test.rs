@@ -2,7 +2,7 @@
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 
-use agent_client_protocol::schema::{ForkSessionRequest, ForkSessionResponse, SessionId};
+use agent_client_protocol::schema::v1::{ForkSessionRequest, ForkSessionResponse, SessionId};
 use common_tests::fixtures::server::AcpServerConnection;
 use common_tests::fixtures::{run_test, Connection, OpenAiFixture, TestConnectionConfig};
 use goose::config::GooseMode;

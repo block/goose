@@ -307,6 +307,8 @@ const ExtensionsRoute = () => {
 export function AppInner() {
   const [fatalError, setFatalError] = useState<string | null>(null);
 
+  const nostrImportInFlight = useRef<string | null>(null);
+
   const navigate = useNavigate();
   const setView = useNavigation();
 
@@ -411,14 +413,21 @@ export function AppInner() {
     const handleOpenSharedSession = async (_event: IpcRendererEvent, ...args: unknown[]) => {
       const link = args[0] as string;
       window.electron.logInfo('Opening session share link');
-      try {
-        if (link.startsWith('goose://sessions/nostr')) {
-          await importNostrSessionFromDeepLink(link);
-          navigate('/sessions');
-          return;
-        }
 
+      if (!link.startsWith('goose://sessions/nostr')) {
         toast.error('Unsupported session share link');
+        navigate('/sessions');
+        return;
+      }
+
+      if (nostrImportInFlight.current === link) {
+        window.electron.logInfo('Skipping duplicate Nostr deep link import');
+        return;
+      }
+      nostrImportInFlight.current = link;
+
+      try {
+        await importNostrSessionFromDeepLink(link);
         navigate('/sessions');
       } catch (error) {
         console.error('Unexpected error opening Nostr session share:', error);
@@ -429,6 +438,10 @@ export function AppInner() {
         });
         toast.error(`Failed to import Nostr session: ${errorMessage(error, 'Unknown error')}`);
         navigate('/sessions');
+      } finally {
+        if (nostrImportInFlight.current === link) {
+          nostrImportInFlight.current = null;
+        }
       }
     };
     window.electron.on('open-shared-session', handleOpenSharedSession);

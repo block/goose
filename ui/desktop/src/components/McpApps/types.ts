@@ -41,21 +41,3 @@ export type McpAppToolCancelled = McpUiToolCancelledNotification['params'];
  * host-side controls or app-initiated `ui/request-display-mode` changes.
  */
 export type OnDisplayModeChange = (mode: GooseDisplayMode) => void;
-
-export type SamplingMessage = {
-  role: 'user' | 'assistant';
-  content: { type: 'text'; text: string } | { type: 'image'; data: string; mimeType: string };
-};
-
-export type SamplingCreateMessageParams = {
-  messages: SamplingMessage[];
-  systemPrompt?: string;
-  maxTokens?: number;
-};
-
-export type SamplingCreateMessageResponse = {
-  model: string;
-  stopReason: string;
-  role: 'assistant';
-  content: { type: 'text'; text: string };
-};

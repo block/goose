@@ -1,6 +1,6 @@
 import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
-import type { Message } from '../api';
+import type { Message } from '../types/message';
 import {
   applyElicitationRequest as applyElicitationRequestToState,
   applyElicitationStatus as applyElicitationStatusToState,

@@ -1,10 +1,6 @@
-import {
-  ProviderDetails,
-  ThinkingEffort,
-  getProviderModelInfo,
-  getProviderModels,
-  listLocalModels,
-} from '../../../api';
+import { listLocalModels } from '../../../acp/local-inference';
+import { acpListProviderDetails, acpListProviderModels } from '../../../acp/providers';
+import type { ProviderDetails, ThinkingEffort } from '../../../types/providers';
 import { errorMessage as getErrorMessage } from '../../../utils/conversionUtils';
 
 export default interface Model {
@@ -38,11 +34,8 @@ export function createModelStruct(
   };
 }
 
-export async function getProviderMetadata(
-  providerName: string,
-  getProvidersFunc: (b: boolean) => Promise<ProviderDetails[]>
-) {
-  const providers = await getProvidersFunc(false);
+export async function getProviderMetadata(providerName: string) {
+  const providers = await acpListProviderDetails();
   const matches = providers.find((providerMatch) => providerMatch.name === providerName);
   if (!matches) {
     throw Error(`No match for provider: ${providerName}`);
@@ -64,24 +57,20 @@ export async function fetchModelsForProviders(
     try {
       // For local provider, use listLocalModels and filter to only downloaded models
       if (p.name === 'local') {
-        const response = await listLocalModels();
-        const allModels = response.data || [];
+        const allModels = await listLocalModels();
         const downloadedModels = allModels
           .filter((m) => m.status.state === 'Downloaded')
           .map((m) => ({ name: m.id, provider: p.name }) as Model);
         return { provider: p, models: downloadedModels, error: null, warning: null };
       }
 
-      const response = await getProviderModels({
-        path: { name: p.name },
-        throwOnError: true,
-      });
-      const models = (response.data || []).map(
+      const providerModels = await acpListProviderModels(p.name);
+      const models = providerModels.map(
         (m) =>
           ({
-            name: m.name,
+            name: m.id,
             provider: p.name,
-            context_limit: m.context_limit,
+            context_limit: m.contextLimit ?? undefined,
             reasoning: m.reasoning ?? undefined,
           }) as Model
       );
@@ -129,11 +118,9 @@ export async function fetchModelReasoning(
   fallback?: boolean
 ): Promise<boolean | null> {
   try {
-    const response = await getProviderModelInfo({
-      path: { name: provider },
-      body: { model },
-    });
-    return response.data?.reasoning ?? fallback ?? null;
+    const models = await acpListProviderModels(provider);
+    const match = models.find((m) => m.id === model);
+    return match?.reasoning ?? fallback ?? null;
   } catch {
     return fallback ?? null;
   }

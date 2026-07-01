@@ -88,10 +88,12 @@ async fn check_provider(
 
     let test_msg = Message::user().with_text("Say 'ok'");
     let start = std::time::Instant::now();
-    provider_client
-        .complete(&model_config, "check", "", &[test_msg], &[])
-        .await
-        .map_err(ProviderCheckError::ProviderRequest)?;
+    goose::session_context::with_session_id(
+        Some("check".to_string()),
+        provider_client.complete(&model_config, "", &[test_msg], &[]),
+    )
+    .await
+    .map_err(ProviderCheckError::ProviderRequest)?;
 
     Ok(ProviderCheckSuccess {
         provider,

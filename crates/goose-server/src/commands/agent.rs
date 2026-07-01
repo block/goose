@@ -8,8 +8,6 @@ use goose::acp::transport::create_acp_router;
 use goose::agents::GoosePlatform;
 use goose::config::paths::Paths;
 use goose_server::auth::{check_acp_token, check_token};
-#[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
-use goose_server::tls::setup_tls;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
@@ -90,7 +88,7 @@ pub async fn run() -> Result<()> {
         #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
         {
             boot_marker("tls setup start");
-            let tls_setup = setup_tls(
+            let tls_setup = goose::acp::transport::tls::setup_tls(
                 settings.tls_cert_path.as_deref(),
                 settings.tls_key_path.as_deref(),
             )

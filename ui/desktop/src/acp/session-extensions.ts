@@ -1,4 +1,4 @@
-import type { ExtensionConfig } from '../api';
+import type { ExtensionConfig } from '../types/extensions';
 import { getAcpClient } from './acpConnection';
 import { extensionConfigToGooseExtension, gooseExtensionToExtensionConfig } from './extensions';
 

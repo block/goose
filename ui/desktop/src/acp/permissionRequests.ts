@@ -1,7 +1,6 @@
 import type { RequestPermissionRequest, RequestPermissionResponse } from '@agentclientprotocol/sdk';
-import type { Permission } from '../api';
-import { USE_ACP_CHAT } from '../acpChatFeatureFlag';
-import { acpChatSessionActions } from './chatSessionStore';
+import type { Permission } from '../types/permissions';
+import { acpChatSessionActions, acpPermissionUserInputRequestId } from './chatSessionStore';
 
 interface PendingPermissionRequest {
   request: RequestPermissionRequest;
@@ -17,10 +16,6 @@ export async function requestAcpPermission(
   const previous = pendingRequests.get(key);
   if (previous) {
     previous.resolve(cancelledPermissionResponse());
-  }
-
-  if (!USE_ACP_CHAT) {
-    return cancelledPermissionResponse();
   }
 
   return new Promise<RequestPermissionResponse>((resolve) => {
@@ -41,6 +36,10 @@ export function resolveAcpPermissionRequest(
   }
 
   pendingRequests.delete(key);
+  acpChatSessionActions.resolveUserInputRequest(
+    sessionId,
+    acpPermissionUserInputRequestId(toolCallId)
+  );
   pending.resolve(permissionResponseForAction(pending.request, action));
   return true;
 }
