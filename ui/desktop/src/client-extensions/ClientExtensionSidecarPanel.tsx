@@ -11,7 +11,8 @@ import { motion } from 'framer-motion';
 import { PanelRight, X } from 'lucide-react';
 import { toastService } from '../toasts';
 import { useClientExtensions, useExtensionHostContext } from './ClientExtensionsContext';
-import type { ExtensionToHostMessage, HostToExtensionMessage, RegisteredSidecar } from './types';
+import { isExtensionToHostMessage } from './extensionHostBridge';
+import type { HostToExtensionMessage, RegisteredSidecar } from './types';
 import { NAV_DIMENSIONS } from '../components/Layout/constants';
 import { Button } from '../components/ui/button';
 import { cn } from '../utils';
@@ -143,18 +144,6 @@ export function ClientExtensionSidecarControls() {
         );
       })}
     </div>
-  );
-}
-
-function isExtensionToHostMessage(value: unknown): value is ExtensionToHostMessage {
-  if (typeof value !== 'object' || value === null || !('type' in value)) {
-    return false;
-  }
-  const type = (value as { type: unknown }).type;
-  return (
-    type === 'grc/ui/showMessage' ||
-    type === 'grc/chat/setInput' ||
-    type === 'grc/resize'
   );
 }
 

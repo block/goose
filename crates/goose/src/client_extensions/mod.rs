@@ -113,9 +113,7 @@ pub fn set_client_extension_enabled(id: &str, enabled: bool) -> Result<ClientExt
 
     match summary.source {
         ClientExtensionSource::Installed => {
-            if enabled {
-                // enabled by default once removed from disabled
-            } else {
+            if !enabled {
                 config.disabled.push(id.to_string());
             }
         }
@@ -151,9 +149,7 @@ pub fn uninstall_client_extension(id: &str) -> Result<()> {
         .ok_or_else(|| anyhow!("client extension '{id}' is not installed"))?;
 
     if summary.source != ClientExtensionSource::Installed {
-        bail!(
-            "cannot uninstall dev client extension '{id}' — disable it from Add-ons instead"
-        );
+        bail!("cannot uninstall dev client extension '{id}' — disable it from Add-ons instead");
     }
 
     if summary.directory.is_dir() {
@@ -218,11 +214,8 @@ pub fn list_client_extensions() -> Result<Vec<ClientExtensionSummary>> {
     Ok(by_id
         .into_values()
         .map(|mut summary| {
-            summary.enabled = is_client_extension_enabled(
-                &summary.id,
-                summary.source.clone(),
-                &config,
-            );
+            summary.enabled =
+                is_client_extension_enabled(&summary.id, summary.source.clone(), &config);
             summary
         })
         .collect())
@@ -232,7 +225,10 @@ fn dev_client_extensions_dir() -> Option<PathBuf> {
     let cwd = std::env::current_dir().ok()?;
     for candidate in [
         cwd.join("examples").join("client-extensions"),
-        cwd.join("..").join("..").join("examples").join("client-extensions"),
+        cwd.join("..")
+            .join("..")
+            .join("examples")
+            .join("client-extensions"),
     ] {
         if candidate.is_dir() {
             return Some(candidate);
@@ -296,10 +292,7 @@ fn validate_manifest_files(root: &Path, manifest: &ClientExtensionManifest) -> R
     }
     let main_path = root.join(&manifest.main);
     if !main_path.is_file() {
-        bail!(
-            "manifest main entry missing at {}",
-            main_path.display()
-        );
+        bail!("manifest main entry missing at {}", main_path.display());
     }
     Ok(())
 }
@@ -329,9 +322,7 @@ mod tests {
         fs::create_dir_all(root).unwrap();
         fs::write(
             root.join(MANIFEST_FILENAME),
-            format!(
-                r#"{{"id":"{id}","version":"0.1.0","main":"index.html"}}"#
-            ),
+            format!(r#"{{"id":"{id}","version":"0.1.0","main":"index.html"}}"#),
         )
         .unwrap();
         fs::write(root.join("index.html"), "<html></html>").unwrap();
@@ -350,6 +341,22 @@ mod tests {
         assert_eq!(install.id, "demo-ext");
         assert!(install.directory.join("index.html").is_file());
         assert!(client_extensions_dir().join("demo-ext").is_dir());
+
+        disable_client_extension("demo-ext").unwrap();
+        let disabled = list_client_extensions()
+            .unwrap()
+            .into_iter()
+            .find(|entry| entry.id == "demo-ext")
+            .expect("extension listed");
+        assert!(!disabled.enabled);
+
+        enable_client_extension("demo-ext").unwrap();
+        let enabled = list_client_extensions()
+            .unwrap()
+            .into_iter()
+            .find(|entry| entry.id == "demo-ext")
+            .expect("extension listed");
+        assert!(enabled.enabled);
 
         uninstall_client_extension("demo-ext").unwrap();
         assert!(!client_extensions_dir().join("demo-ext").exists());

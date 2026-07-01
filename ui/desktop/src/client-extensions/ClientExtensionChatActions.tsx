@@ -4,19 +4,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '../components/ui/Toolti
 import { cn } from '../utils';
 import { toastService } from '../toasts';
 import { useClientExtensions, useExtensionHostContext } from './ClientExtensionsContext';
-import type {
-  ExtensionToHostMessage,
-  HostToExtensionMessage,
-  RegisteredChatAction,
-} from './types';
-
-function isExtensionToHostMessage(value: unknown): value is ExtensionToHostMessage {
-  if (typeof value !== 'object' || value === null || !('type' in value)) {
-    return false;
-  }
-  const type = (value as { type: unknown }).type;
-  return type === 'grc/ui/showMessage' || type === 'grc/chat/setInput';
-}
+import { isExtensionToHostMessage } from './extensionHostBridge';
+import type { HostToExtensionMessage, RegisteredChatAction } from './types';
 
 interface ExtensionRuntime {
   iframe: HTMLIFrameElement;

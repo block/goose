@@ -24,15 +24,11 @@ const i18n = defineMessages({
   empty: {
     id: 'addonsView.empty',
     defaultMessage:
-      'Install UI add-ons with goose client-extension install <path>, or enable dev examples from your local checkout.',
+      'Use Install add-on to pick a folder with client-extension.json, or enable dev examples from your local checkout.',
   },
   installHint: {
     id: 'addonsView.installHint',
     defaultMessage: 'Install directory:',
-  },
-  cliHint: {
-    id: 'addonsView.cliHint',
-    defaultMessage: 'goose client-extension install <path>',
   },
   reload: {
     id: 'addonsView.reload',
@@ -117,10 +113,6 @@ const i18n = defineMessages({
   uninstallAddon: {
     id: 'addonsView.uninstallAddon',
     defaultMessage: 'Uninstall {name}',
-  },
-  uninstallHint: {
-    id: 'addonsView.uninstallHint',
-    defaultMessage: 'goose client-extension uninstall <id>',
   },
 });
 
@@ -382,12 +374,6 @@ export function AddonsPanel() {
               {intl.formatMessage(i18n.installHint)} {installDir}
             </p>
           )}
-          <p className="mt-2 font-mono text-xs text-text-secondary">
-            {intl.formatMessage(i18n.cliHint)}
-          </p>
-          <p className="mt-1 font-mono text-xs text-text-secondary">
-            {intl.formatMessage(i18n.uninstallHint)}
-          </p>
         </div>
       </div>
     );
@@ -423,8 +409,6 @@ export function AddonsInstallHint() {
   return (
     <p className="mb-6 font-mono text-xs text-text-secondary">
       {intl.formatMessage(i18n.installHint)} {installDir}
-      <span className="mx-2 text-border-primary">·</span>
-      {intl.formatMessage(i18n.cliHint)}
     </p>
   );
 }

@@ -2,25 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import type { Message } from '../types/message';
 import { useClientExtensions } from './ClientExtensionsContext';
+import { isExtensionToHostMessage } from './extensionHostBridge';
 import { buildMessageExtensionContext, extractCodeBlocks } from './messageContext';
 import type {
-  ExtensionToHostMessage,
   HostToExtensionMessage,
   MessageRenderPayload,
   RegisteredContentSuffix,
 } from './types';
-
-function isExtensionToHostMessage(value: unknown): value is ExtensionToHostMessage {
-  if (typeof value !== 'object' || value === null || !('type' in value)) {
-    return false;
-  }
-  const type = (value as { type: unknown }).type;
-  return (
-    type === 'grc/ui/showMessage' ||
-    type === 'grc/chat/setInput' ||
-    type === 'grc/resize'
-  );
-}
 
 function ClientExtensionRenderSlot({
   extensionId,
