@@ -47,6 +47,7 @@ export type Session = {
   message_count: number;
   model_config?: ModelConfig | null;
   name: string;
+  parent_session_id?: string | null;
   project_id?: string | null;
   provider_name?: string | null;
   recipe?: Recipe | null;

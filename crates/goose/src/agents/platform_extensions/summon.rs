@@ -1257,11 +1257,12 @@ impl SummonClient {
         let subagent_session = self
             .context
             .session_manager
-            .create_session(
+            .create_session_with_parent(
                 task_config.parent_working_dir.clone(),
                 "Delegated task".to_string(),
                 SessionType::SubAgent,
                 GooseMode::Auto,
+                &session.id,
             )
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;
@@ -1801,11 +1802,12 @@ impl SummonClient {
         let subagent_session = self
             .context
             .session_manager
-            .create_session(
+            .create_session_with_parent(
                 task_config.parent_working_dir.clone(),
                 description.clone(),
                 SessionType::SubAgent,
                 GooseMode::Auto,
+                &session.id,
             )
             .await
             .map_err(|e| format!("Failed to create subagent session: {}", e))?;

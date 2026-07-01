@@ -23,7 +23,7 @@ use std::sync::{Arc, LazyLock};
 use tracing::{info, warn};
 use utoipa::ToSchema;
 
-pub const CURRENT_SCHEMA_VERSION: i32 = 14;
+pub const CURRENT_SCHEMA_VERSION: i32 = 15;
 pub const SESSIONS_FOLDER: &str = "sessions";
 pub const DB_NAME: &str = "sessions.db";
 const MILLISECOND_TIMESTAMP_THRESHOLD: i64 = 10_000_000_000;
@@ -92,6 +92,8 @@ pub struct Session {
     #[serde(default)]
     pub project_id: Option<String>,
     #[serde(default)]
+    pub parent_session_id: Option<String>,
+    #[serde(default)]
     pub last_message_snippet: Option<String>,
 }
 
@@ -139,6 +141,7 @@ pub struct SessionUpdateBuilder<'a> {
     archived_at: Option<Option<DateTime<Utc>>>,
 
     project_id: Option<Option<String>>,
+    parent_session_id: Option<Option<String>>,
 }
 
 #[derive(Serialize, ToSchema, Debug)]
@@ -169,6 +172,7 @@ impl<'a> SessionUpdateBuilder<'a> {
             goose_mode: None,
             archived_at: None,
             project_id: None,
+            parent_session_id: None,
         }
     }
 
@@ -269,6 +273,11 @@ impl<'a> SessionUpdateBuilder<'a> {
 
     pub fn project_id(mut self, project_id: Option<String>) -> Self {
         self.project_id = Some(project_id);
+        self
+    }
+
+    pub fn parent_session_id(mut self, parent_session_id: Option<String>) -> Self {
+        self.parent_session_id = Some(parent_session_id);
         self
     }
 }
@@ -377,7 +386,26 @@ impl SessionManager {
         goose_mode: GooseMode,
     ) -> Result<Session> {
         self.storage
-            .create_session(working_dir, name, session_type, goose_mode)
+            .create_session(working_dir, name, session_type, goose_mode, None)
+            .await
+    }
+
+    pub async fn create_session_with_parent(
+        &self,
+        working_dir: PathBuf,
+        name: String,
+        session_type: SessionType,
+        goose_mode: GooseMode,
+        parent_session_id: &str,
+    ) -> Result<Session> {
+        self.storage
+            .create_session(
+                working_dir,
+                name,
+                session_type,
+                goose_mode,
+                Some(parent_session_id),
+            )
             .await
     }
 
@@ -648,6 +676,7 @@ impl Default for Session {
             goose_mode: GooseMode::default(),
             archived_at: None,
             project_id: None,
+            parent_session_id: None,
             last_message_snippet: None,
         }
     }
@@ -742,6 +771,7 @@ impl sqlx::FromRow<'_, sqlx::sqlite::SqliteRow> for Session {
                 .unwrap_or_default(),
             archived_at: row.try_get("archived_at").ok(),
             project_id: row.try_get("project_id").ok().flatten(),
+            parent_session_id: row.try_get("parent_session_id").ok().flatten(),
             last_message_snippet: None,
         })
     }
@@ -864,7 +894,8 @@ impl SessionStorage {
                 model_config_json TEXT,
                 goose_mode TEXT NOT NULL DEFAULT 'auto',
                 archived_at TIMESTAMP,
-                project_id TEXT
+                project_id TEXT,
+                parent_session_id TEXT REFERENCES sessions(id)
             )
         "#,
         )
@@ -904,6 +935,11 @@ impl SessionStorage {
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_sessions_type ON sessions(session_type)")
             .execute(&mut *tx)
             .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_sessions_parent_session ON sessions(parent_session_id)",
+        )
+        .execute(&mut *tx)
+        .await?;
 
         tx.commit().await?;
 
@@ -1326,6 +1362,26 @@ impl SessionStorage {
                     }
                 }
             }
+            15 => {
+                let has_parent_session_id = sqlx::query_scalar::<_, i32>(
+                    "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'parent_session_id'",
+                )
+                .fetch_one(&mut **tx)
+                .await?
+                    > 0;
+                if !has_parent_session_id {
+                    sqlx::query(
+                        "ALTER TABLE sessions ADD COLUMN parent_session_id TEXT REFERENCES sessions(id)",
+                    )
+                    .execute(&mut **tx)
+                    .await?;
+                }
+                sqlx::query(
+                    "CREATE INDEX IF NOT EXISTS idx_sessions_parent_session ON sessions(parent_session_id)",
+                )
+                .execute(&mut **tx)
+                .await?;
+            }
             _ => {
                 anyhow::bail!("Unknown migration version: {}", version);
             }
@@ -1340,6 +1396,7 @@ impl SessionStorage {
         name: String,
         session_type: SessionType,
         goose_mode: GooseMode,
+        parent_session_id: Option<&str>,
     ) -> Result<Session> {
         let pool = self.pool().await?;
         let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
@@ -1347,7 +1404,9 @@ impl SessionStorage {
         let today = chrono::Utc::now().format("%Y%m%d").to_string();
         let session = sqlx::query_as(
             r#"
-                INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data, goose_mode)
+                INSERT INTO sessions (
+                    id, name, user_set_name, session_type, working_dir, extension_data, goose_mode, parent_session_id
+                )
                 VALUES (
                     ? || '_' || CAST(COALESCE((
                         SELECT MAX(CAST(SUBSTR(id, 10) AS INTEGER))
@@ -1359,6 +1418,7 @@ impl SessionStorage {
                     ?,
                     ?,
                     '{}',
+                    ?,
                     ?
                 )
                 RETURNING *
@@ -1370,6 +1430,7 @@ impl SessionStorage {
             .bind(session_type.to_string())
             .bind(&*working_dir.to_string_lossy())
             .bind(goose_mode.to_string())
+            .bind(parent_session_id)
             .fetch_one(&mut *tx)
             .await?;
 
@@ -1391,7 +1452,7 @@ impl SessionStorage {
                accumulated_cost,
                schedule_id, recipe_json, user_recipe_values_json,
                provider_name, model_config_json, goose_mode,
-               archived_at, project_id
+               archived_at, project_id, parent_session_id
         FROM sessions
         WHERE id = ?
     "#,
@@ -1470,6 +1531,7 @@ impl SessionStorage {
         add_update!(builder.archived_at, "archived_at");
 
         add_update!(builder.project_id, "project_id");
+        add_update!(builder.parent_session_id, "parent_session_id");
 
         if updates.is_empty() {
             return Ok(());
@@ -1545,6 +1607,10 @@ impl SessionStorage {
 
         if let Some(ref project_id) = builder.project_id {
             q = q.bind(project_id.as_ref());
+        }
+
+        if let Some(ref parent_session_id) = builder.parent_session_id {
+            q = q.bind(parent_session_id.as_ref());
         }
 
         let pool = self.pool().await?;
@@ -1738,7 +1804,7 @@ impl SessionStorage {
                    s.accumulated_cost,
                    s.schedule_id, s.recipe_json, s.user_recipe_values_json,
                    s.provider_name, s.model_config_json, s.goose_mode,
-                   s.archived_at, s.project_id,
+                   s.archived_at, s.project_id, s.parent_session_id,
                    COUNT(m.id) as message_count,
                    MAX({}) as last_message_timestamp,
                    {} as sort_timestamp
@@ -1926,6 +1992,7 @@ impl SessionStorage {
                 import.name.clone(),
                 session_type_override.unwrap_or(import.session_type),
                 import.goose_mode,
+                import.parent_session_id.as_deref(),
             )
             .await?;
 
@@ -1938,6 +2005,8 @@ impl SessionStorage {
             .schedule_id(import.schedule_id)
             .recipe(import.recipe)
             .user_recipe_values(import.user_recipe_values);
+
+        builder = builder.parent_session_id(import.parent_session_id);
 
         if import.user_set_name {
             builder = builder.user_provided_name(import.name.clone());
@@ -1967,6 +2036,7 @@ impl SessionStorage {
                 new_name,
                 original_session.session_type,
                 original_session.goose_mode,
+                original_session.parent_session_id.as_deref(),
             )
             .await?;
 
@@ -3544,6 +3614,76 @@ mod tests {
 
         let acp_session = sm.storage().get_session("acp_id", false).await.unwrap();
         assert_eq!(acp_session.session_type, SessionType::Acp);
+    }
+
+    #[tokio::test]
+    async fn test_parent_session_id_migration_and_round_trip() {
+        let temp_dir = TempDir::new().unwrap();
+        let db_path = temp_dir.path().join(SESSIONS_FOLDER).join(DB_NAME);
+
+        if let Some(parent) = db_path.parent() {
+            std::fs::create_dir_all(parent).unwrap();
+        }
+
+        let pool = SqlitePoolOptions::new()
+            .connect_with(
+                SqliteConnectOptions::new()
+                    .filename(&db_path)
+                    .create_if_missing(true),
+            )
+            .await
+            .unwrap();
+
+        SessionStorage::create_schema(&pool).await.unwrap();
+
+        sqlx::query("DROP INDEX IF EXISTS idx_sessions_parent_session")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("ALTER TABLE sessions DROP COLUMN parent_session_id")
+            .execute(&pool)
+            .await
+            .unwrap();
+        sqlx::query("UPDATE schema_version SET version = 14")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        sqlx::query(
+            "INSERT INTO sessions (id, name, user_set_name, session_type, working_dir, extension_data, goose_mode)
+             VALUES (?, ?, ?, ?, ?, ?, ?)",
+        )
+        .bind("parent_id")
+        .bind("Parent Session")
+        .bind(false)
+        .bind("user")
+        .bind("/tmp")
+        .bind("{}")
+        .bind("auto")
+        .execute(&pool)
+        .await
+        .unwrap();
+
+        pool.close().await;
+
+        let sm = SessionManager::new(temp_dir.path().to_path_buf());
+        sm.storage().pool().await.unwrap();
+
+        let child = sm
+            .create_session_with_parent(
+                temp_dir.path().to_path_buf(),
+                "Delegated task".into(),
+                SessionType::SubAgent,
+                GooseMode::Auto,
+                "parent_id",
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(child.parent_session_id.as_deref(), Some("parent_id"));
+
+        let reloaded = sm.get_session(&child.id, false).await.unwrap();
+        assert_eq!(reloaded.parent_session_id.as_deref(), Some("parent_id"));
     }
 
     #[tokio::test]

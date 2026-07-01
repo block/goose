@@ -6488,6 +6488,10 @@
           "name": {
             "type": "string"
           },
+          "parent_session_id": {
+            "type": "string",
+            "nullable": true
+          },
           "project_id": {
             "type": "string",
             "nullable": true
