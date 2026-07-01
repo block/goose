@@ -599,10 +599,11 @@ async function handleProtocolUrl(url: string, parsedUrl: URL) {
       existingWindows.length > 0
         ? existingWindows[0]
         : await createChat(app, { dir: openDir || undefined });
+    if (!targetWindow) return;
     await processProtocolUrl(url, parsedUrl, targetWindow);
   } else {
     const existingWindows = BrowserWindow.getAllWindows();
-    let targetWindow: BrowserWindow;
+    let targetWindow: BrowserWindow | undefined;
     if (existingWindows.length > 0) {
       targetWindow = existingWindows[0];
       if (targetWindow.isMinimized()) {
@@ -612,6 +613,8 @@ async function handleProtocolUrl(url: string, parsedUrl: URL) {
     } else {
       targetWindow = await createChat(app, { dir: openDir || undefined });
     }
+
+    if (!targetWindow) return;
 
     if (targetWindow.webContents.isLoadingMainFrame()) {
       queuePendingDeepLink(targetWindow.id, url);
@@ -709,6 +712,7 @@ app.on('open-url', async (_event, url) => {
     } else {
       openUrlHandledLaunch = true;
       const newWindow = await createChat(app, { dir: openDir || undefined });
+      if (!newWindow) return;
       queuePendingDeepLink(newWindow.id, url);
     }
   }
@@ -944,7 +948,10 @@ interface CreateChatOptions {
   recipeParameters?: Record<string, string>;
 }
 
-const createChat = async (app: App, options: CreateChatOptions = {}) => {
+const createChat = async (
+  app: App,
+  options: CreateChatOptions = {}
+): Promise<BrowserWindow | undefined> => {
   const {
     initialMessage,
     initialMessageNoAutoSubmit,
