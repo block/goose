@@ -102,6 +102,11 @@ export default function ClientExtensionsSettingsSection() {
                         customRender:{render.id}
                       </span>
                     ))}
+                    {(extension.manifest.contributes?.sidecars ?? []).map((sidecar) => (
+                      <span key={sidecar.id} className="rounded bg-background-secondary px-2 py-0.5">
+                        sidecar:{sidecar.id}
+                      </span>
+                    ))}
                   </div>
                 </div>
               </li>

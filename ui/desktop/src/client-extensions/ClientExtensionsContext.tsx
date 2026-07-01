@@ -8,6 +8,7 @@ import {
   type RegisteredContentSuffix,
   type RegisteredCustomRender,
   type RegisteredRootLink,
+  type RegisteredSidecar,
 } from './types';
 import { evaluateWhenClause } from './when';
 import { clientExtensionViewPath } from './routes';
@@ -24,6 +25,7 @@ interface ClientExtensionsContextValue {
     context: MessageExtensionHostContext,
     displayText: string
   ) => RegisteredCustomRender | null;
+  getSidecars: (context: ExtensionHostContext) => RegisteredSidecar[];
   getExtensionMainHtml: (extensionId: string) => Promise<string | null>;
   reloadExtensions: () => Promise<void>;
 }
@@ -145,6 +147,28 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
     [extensions]
   );
 
+  const getSidecars = useCallback(
+    (context: ExtensionHostContext): RegisteredSidecar[] => {
+      const sidecars: RegisteredSidecar[] = [];
+
+      for (const extension of extensions) {
+        const contributions = extension.manifest.contributes?.sidecars ?? [];
+        for (const contribution of contributions) {
+          if (!evaluateWhenClause(contribution.when, context)) {
+            continue;
+          }
+          sidecars.push({
+            ...contribution,
+            extensionId: extension.id,
+          });
+        }
+      }
+
+      return sidecars;
+    },
+    [extensions]
+  );
+
   const value = useMemo(
     () => ({
       extensions,
@@ -153,6 +177,7 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
       getRootLinks,
       getContentSuffixes,
       getCustomRender,
+      getSidecars,
       getExtensionMainHtml,
       reloadExtensions,
     }),
@@ -163,6 +188,7 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
       getRootLinks,
       getContentSuffixes,
       getCustomRender,
+      getSidecars,
       getExtensionMainHtml,
       reloadExtensions,
     ]

@@ -12,6 +12,11 @@ import { Navigation } from './NavigationPanel';
 import { NAV_DIMENSIONS, Z_INDEX } from './constants';
 import { cn } from '../../utils';
 import { UserInput } from '../../types/message';
+import {
+  ClientExtensionSidecarControls,
+  ClientExtensionSidecarPanel,
+  ClientExtensionSidecarProvider,
+} from '../../client-extensions/ClientExtensionSidecarPanel';
 
 const i18n = defineMessages({
   openNavigation: {
@@ -60,7 +65,8 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
     throw new Error('AppLayoutContent must be used within ChatProvider');
   }
 
-  const { setChat } = chatContext;
+  const { setChat, chat } = chatContext;
+  const sessionId = chat.sessionId || null;
 
   const needsTrafficLightInset = safeIsMacOS && !isFullScreen;
   const headerPadding = needsTrafficLightInset ? 'pl-[96px]' : 'pl-4';
@@ -103,15 +109,18 @@ const AppLayoutContent: React.FC<AppLayoutContentProps> = ({ activeSessions }) =
           </div>
         </motion.div>
 
-        {/* Main content — no border / no card; just flows on the canvas. */}
-        <div className="flex-1 overflow-hidden min-h-0">
-          <Outlet />
-          {/* Always render ChatSessionsContainer to keep SSE connections alive.
-              When navigating away from /pair, hide it with CSS */}
-          <div className={isOnPairRoute ? 'contents' : 'hidden'}>
-            <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
+        <ClientExtensionSidecarProvider sessionId={sessionId}>
+          <div className="flex flex-1 overflow-hidden min-h-0 flex-row">
+            <div className="flex-1 overflow-hidden min-h-0 relative">
+              <ClientExtensionSidecarControls />
+              <Outlet />
+              <div className={isOnPairRoute ? 'contents' : 'hidden'}>
+                <ChatSessionsContainer setChat={setChat} activeSessions={activeSessions} />
+              </div>
+            </div>
+            <ClientExtensionSidecarPanel />
           </div>
-        </div>
+        </ClientExtensionSidecarProvider>
       </div>
     </div>
   );

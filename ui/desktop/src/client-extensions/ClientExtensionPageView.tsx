@@ -107,6 +107,7 @@ export default function ClientExtensionPageView() {
     const message: HostToExtensionMessage = {
       type: 'grc/activate',
       viewId: view.viewId,
+      viewKind: 'rootLink',
       context: hostContext,
     };
     iframeRef.current.contentWindow.postMessage(message, '*');

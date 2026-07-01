@@ -13,6 +13,7 @@ import {
   type CustomRenderMatch,
   type DiscoveredClientExtension,
   type RootLinkContribution,
+  type SidecarContribution,
 } from '../client-extensions/types';
 
 const MANIFEST_FILENAME = CLIENT_EXTENSION_MANIFEST;
@@ -180,6 +181,39 @@ function parseCustomRenders(raw: unknown): CustomRenderContribution[] | undefine
   return customRenders.length > 0 ? customRenders : undefined;
 }
 
+function parseSidecars(raw: unknown): SidecarContribution[] | undefined {
+  if (!Array.isArray(raw)) {
+    return undefined;
+  }
+
+  const sidecars = raw
+    .map((entry) => {
+      if (!isRecord(entry)) {
+        return null;
+      }
+      if (typeof entry.id !== 'string' || typeof entry.label !== 'string') {
+        return null;
+      }
+
+      const sidecar: SidecarContribution = {
+        id: entry.id,
+        label: entry.label,
+      };
+
+      if (typeof entry.when === 'string') {
+        sidecar.when = entry.when;
+      }
+      if (entry.defaultOpen === true) {
+        sidecar.defaultOpen = true;
+      }
+
+      return sidecar;
+    })
+    .filter((entry): entry is NonNullable<typeof entry> => entry !== null);
+
+  return sidecars.length > 0 ? sidecars : undefined;
+}
+
 function parseManifest(raw: unknown, rootPath: string): ClientExtensionManifest | null {
   if (!isRecord(raw)) {
     return null;
@@ -213,12 +247,14 @@ function parseManifest(raw: unknown, rootPath: string): ClientExtensionManifest 
     const rootLinks = parseRootLinks(raw.contributes.rootLinks);
     const contentSuffixes = parseContentSuffixes(raw.contributes.contentSuffixes);
     const customRenders = parseCustomRenders(raw.contributes.customRenders);
-    if (chatActions || rootLinks || contentSuffixes || customRenders) {
+    const sidecars = parseSidecars(raw.contributes.sidecars);
+    if (chatActions || rootLinks || contentSuffixes || customRenders || sidecars) {
       manifest.contributes = {
         ...(chatActions ? { chatActions } : {}),
         ...(rootLinks ? { rootLinks } : {}),
         ...(contentSuffixes ? { contentSuffixes } : {}),
         ...(customRenders ? { customRenders } : {}),
+        ...(sidecars ? { sidecars } : {}),
       };
     }
   }

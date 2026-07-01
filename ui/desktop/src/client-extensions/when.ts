@@ -22,6 +22,10 @@ export function evaluateWhenClause(clause: string | undefined, context: Extensio
     return context.sessionId === null || context.sessionId.length === 0;
   }
 
+  if (trimmed === 'route.pair') {
+    return context.route === '/pair';
+  }
+
   const messageContext = asMessageContext(context);
   if (!messageContext) {
     return false;
