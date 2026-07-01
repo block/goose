@@ -72,11 +72,8 @@ impl GooseAcpAgent {
         if let Some(co) = config_options {
             response = response.config_options(co);
         }
-        send_session_setup_notifications(
-            cx,
-            &goose_session,
-            self.supports_goose_custom_notifications(),
-        )?;
+        self.broadcast_session_notification(&Self::session_info_notification(&goose_session));
+        self.send_and_broadcast_session_setup_notifications(cx, &goose_session)?;
         Ok(response)
     }
 }

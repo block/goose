@@ -403,20 +403,31 @@ pub(super) fn send_session_setup_notifications(
     session: &Session,
     supports_goose_custom_notifications: bool,
 ) -> Result<(), agent_client_protocol::Error> {
-    let session_id = SessionId::new(session.id.clone());
     if let Some(updates) = build_usage_updates(session) {
         if supports_goose_custom_notifications {
             cx.send_notification(updates.custom)?;
         }
-        cx.send_notification(SessionNotification::new(
+    }
+    for notification in session_setup_notifications(session) {
+        cx.send_notification(notification)?;
+    }
+    Ok(())
+}
+
+pub(super) fn session_setup_notifications(session: &Session) -> Vec<SessionNotification> {
+    let session_id = SessionId::new(session.id.clone());
+    let mut notifications = Vec::new();
+    if let Some(updates) = build_usage_updates(session) {
+        notifications.push(SessionNotification::new(
             session_id.clone(),
             SessionUpdate::UsageUpdate(updates.standard),
-        ))?;
+        ));
     }
-    cx.send_notification(SessionNotification::new(
+    notifications.push(SessionNotification::new(
         session_id,
         SessionUpdate::AvailableCommandsUpdate(available_commands_update(&session.working_dir)),
-    ))
+    ));
+    notifications
 }
 
 #[cfg(test)]

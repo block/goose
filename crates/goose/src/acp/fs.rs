@@ -1,3 +1,4 @@
+use crate::acp::session_broadcast::SessionBroadcastHub;
 use crate::acp::tools::AcpAwareToolMeta;
 use crate::agents::mcp_client::{Error as McpError, McpClientTrait};
 use crate::agents::platform_extensions::developer::edit::{
@@ -64,6 +65,8 @@ pub(crate) struct AcpTools {
     pub(crate) inner: Arc<dyn McpClientTrait>,
     pub(crate) cx: ConnectionTo<Client>,
     pub(crate) session_id: SessionId,
+    pub(crate) session_broadcast: Option<Arc<SessionBroadcastHub>>,
+    pub(crate) session_broadcast_source_id: String,
     pub(crate) fs_read: bool,
     pub(crate) fs_write: bool,
     pub(crate) terminal: bool,
@@ -95,16 +98,20 @@ fn read_tool() -> Tool {
 impl AcpTools {
     fn update_tool_call(&self, ctx: &crate::agents::ToolCallContext, fields: ToolCallUpdateFields) {
         if let Some(ref req_id) = ctx.tool_call_request_id {
+            let notification = SessionNotification::new(
+                self.session_id.clone(),
+                SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
+                    ToolCallId::new(req_id.clone()),
+                    fields,
+                )),
+            );
             let _ = self
                 .cx
-                .send_notification(SessionNotification::new(
-                    self.session_id.clone(),
-                    SessionUpdate::ToolCallUpdate(ToolCallUpdate::new(
-                        ToolCallId::new(req_id.clone()),
-                        fields,
-                    )),
-                ))
+                .send_notification(notification.clone())
                 .inspect_err(|e| tracing::error!("error updating tool call with client: {}", e));
+            if let Some(hub) = &self.session_broadcast {
+                hub.publish(&self.session_broadcast_source_id, notification);
+            }
         }
     }
 

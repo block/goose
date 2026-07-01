@@ -1,4 +1,5 @@
 use crate::acp::server::{AcpProviderFactory, GooseAcpAgent, GooseAcpAgentOptions};
+use crate::acp::session_broadcast::SessionBroadcastHub;
 use crate::agents::GoosePlatform;
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::SessionManager;
@@ -23,6 +24,7 @@ pub struct AcpServerFactoryConfig {
 pub struct AcpServer {
     config: AcpServerFactoryConfig,
     scheduler: OnceCell<Arc<dyn SchedulerTrait>>,
+    session_broadcast: Arc<SessionBroadcastHub>,
 }
 
 impl AcpServer {
@@ -30,6 +32,7 @@ impl AcpServer {
         Self {
             config,
             scheduler: OnceCell::new(),
+            session_broadcast: Arc::new(SessionBroadcastHub::new()),
         }
     }
 
@@ -89,5 +92,9 @@ impl AcpServer {
         info!("Created new ACP agent");
 
         Ok(Arc::new(agent))
+    }
+
+    pub(crate) fn session_broadcast(&self) -> Arc<SessionBroadcastHub> {
+        Arc::clone(&self.session_broadcast)
     }
 }

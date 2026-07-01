@@ -2,11 +2,14 @@
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 use agent_client_protocol::schema::v1::{
-    ListSessionsRequest, ListSessionsResponse, NewSessionRequest, SessionConfigKind,
-    SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo,
-    SetSessionConfigOptionRequest,
+    ClientCapabilities, ContentBlock, FileSystemCapabilities, InitializeRequest,
+    ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, NewSessionRequest,
+    PromptRequest, SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue,
+    SessionInfo, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest, TextContent,
 };
+use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::ErrorCode;
+use agent_client_protocol::{Agent, Client, ConnectionTo};
 use common_tests::fixtures::server::AcpServerConnection;
 use common_tests::fixtures::{run_test, Connection, OpenAiFixture, Session, TestConnectionConfig};
 #[cfg(feature = "code-mode")]
@@ -23,13 +26,24 @@ use common_tests::{
     run_prompt_model_mismatch, run_prompt_skill, run_session_name_update_notification,
     run_shell_terminal_false, run_shell_terminal_true,
 };
+use goose::acp::server::GooseAgentConnection;
+use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
+use goose::agents::GoosePlatform;
+use goose::config::base::CONFIG_YAML_NAME;
+use goose::config::paths::Paths;
 use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageMetadata};
 use goose::custom_requests::{GetSessionInfoRequest, GetSessionInfoResponse};
 use goose::recipe::{Recipe, Settings};
 use goose::recipe_deeplink;
 use goose::session::{SessionManager, SessionType};
+use goose_test_support::TEST_MODEL;
+use std::future;
 use std::path::Path;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tokio::sync::Notify;
+use tokio::task::JoinHandle;
 
 tests_config_option_set_error!(AcpServerConnection);
 tests_mode_set_error!(AcpServerConnection);
@@ -92,6 +106,155 @@ async fn new_connection(data_root: &Path) -> AcpServerConnection {
     .await
 }
 
+struct SharedServerClient {
+    cx: ConnectionTo<Agent>,
+    updates: Arc<Mutex<Vec<SessionNotification>>>,
+    notify: Arc<Notify>,
+    task: JoinHandle<()>,
+}
+
+impl Drop for SharedServerClient {
+    fn drop(&mut self) {
+        self.task.abort();
+    }
+}
+
+impl SharedServerClient {
+    fn clear_session_notifications(&self) {
+        self.updates.lock().unwrap().clear();
+    }
+
+    fn session_updates(&self) -> Vec<SessionUpdate> {
+        self.updates
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|notification| notification.update.clone())
+            .collect()
+    }
+
+    async fn wait_for_session_update<F>(&self, timeout: Duration, predicate: F) -> bool
+    where
+        F: Fn(&SessionUpdate) -> bool,
+    {
+        let deadline = tokio::time::Instant::now() + timeout;
+        loop {
+            if self
+                .updates
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|notification| predicate(&notification.update))
+            {
+                return true;
+            }
+            if tokio::time::Instant::now() >= deadline {
+                return false;
+            }
+            if tokio::time::timeout_at(deadline, self.notify.notified())
+                .await
+                .is_err()
+            {
+                return self
+                    .updates
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .any(|notification| predicate(&notification.update));
+            }
+        }
+    }
+}
+
+fn text_chunk(update: &SessionUpdate) -> Option<&str> {
+    match update {
+        SessionUpdate::UserMessageChunk(chunk) | SessionUpdate::AgentMessageChunk(chunk) => {
+            match &chunk.content {
+                ContentBlock::Text(text) => Some(text.text.as_str()),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
+}
+
+fn write_shared_server_config(config_dir: &Path, openai_base_url: &str) {
+    let contents = format!(
+        "GOOSE_MODEL: {TEST_MODEL}\nGOOSE_PROVIDER: openai\nGOOSE_MODE: auto\nGOOSE_DISABLE_SESSION_NAMING: true\nOPENAI_HOST: {openai_base_url}\n"
+    );
+    std::fs::create_dir_all(config_dir).unwrap();
+    std::fs::write(config_dir.join(CONFIG_YAML_NAME), &contents).unwrap();
+
+    let global_config_dir = Paths::config_dir();
+    std::fs::create_dir_all(&global_config_dir).unwrap();
+    std::fs::write(global_config_dir.join(CONFIG_YAML_NAME), contents).unwrap();
+}
+
+async fn connect_shared_server_client(server: Arc<AcpServer>) -> SharedServerClient {
+    let updates = Arc::new(Mutex::new(Vec::new()));
+    let notify = Arc::new(Notify::new());
+    let (ready_tx, ready_rx) = tokio::sync::oneshot::channel();
+
+    let task = tokio::spawn({
+        let updates = updates.clone();
+        let notify = notify.clone();
+        async move {
+            let result = Client
+                .builder()
+                .on_receive_notification(
+                    {
+                        let updates = updates.clone();
+                        let notify = notify.clone();
+                        async move |notification: SessionNotification, _cx| {
+                            updates.lock().unwrap().push(notification);
+                            notify.notify_waiters();
+                            Ok(())
+                        }
+                    },
+                    agent_client_protocol::on_receive_notification!(),
+                )
+                .connect_with(GooseAgentConnection::new(server), async move |cx| {
+                    let response = cx
+                        .send_request(
+                            InitializeRequest::new(ProtocolVersion::LATEST).client_capabilities(
+                                ClientCapabilities::new()
+                                    .fs(FileSystemCapabilities::default())
+                                    .terminal(false),
+                            ),
+                        )
+                        .block_task()
+                        .await;
+                    match response {
+                        Ok(response) => {
+                            assert_eq!(
+                                response.agent_info.as_ref().map(|info| info.name.as_str()),
+                                Some("goose")
+                            );
+                            let _ = ready_tx.send(Ok(cx.clone()));
+                        }
+                        Err(error) => {
+                            let _ = ready_tx.send(Err(error.to_string()));
+                            return Err(error);
+                        }
+                    }
+                    future::pending::<Result<(), agent_client_protocol::Error>>().await
+                })
+                .await;
+            if let Err(error) = result {
+                tracing::error!(%error, "shared ACP client task ended");
+            }
+        }
+    });
+
+    let cx = ready_rx.await.unwrap().unwrap();
+    SharedServerClient {
+        cx,
+        updates,
+        notify,
+        task,
+    }
+}
+
 async fn list_sessions_request(
     conn: &AcpServerConnection,
     request: ListSessionsRequest,
@@ -136,6 +299,137 @@ fn last_message_snippet(session: &SessionInfo) -> Option<&str> {
         .as_ref()
         .and_then(|meta| meta.get("lastMessageSnippet"))
         .and_then(serde_json::Value::as_str)
+}
+
+#[test]
+fn test_session_updates_broadcast_between_shared_server_connections() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let openai = OpenAiFixture::new(
+            vec![
+                (
+                    "Cross-client broadcast prompt".to_string(),
+                    include_str!("acp_test_data/openai_basic.txt"),
+                ),
+                (
+                    "/unknown-broadcast-command prompt".to_string(),
+                    include_str!("acp_test_data/openai_basic.txt"),
+                ),
+            ],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        write_shared_server_config(data_root.path(), openai.uri());
+
+        let server = Arc::new(AcpServer::new(AcpServerFactoryConfig {
+            builtins: Vec::new(),
+            data_dir: data_root.path().to_path_buf(),
+            config_dir: data_root.path().to_path_buf(),
+            goose_platform: GoosePlatform::GooseCli,
+            additional_source_roots: Vec::new(),
+            scheduler: None,
+        }));
+        let actor = connect_shared_server_client(server.clone()).await;
+        let observer = connect_shared_server_client(server).await;
+
+        let work_dir = tempfile::tempdir().unwrap();
+        let response = actor
+            .cx
+            .send_request(NewSessionRequest::new(work_dir.path()))
+            .block_task()
+            .await
+            .unwrap();
+        let session_id = response.session_id.clone();
+        assert!(
+            observer
+                .wait_for_session_update(Duration::from_secs(2), |update| {
+                    matches!(update, SessionUpdate::SessionInfoUpdate(_))
+                })
+                .await,
+            "observer did not receive session_info_update for session/new"
+        );
+
+        let observer_work_dir = tempfile::tempdir().unwrap();
+        observer
+            .cx
+            .send_request(LoadSessionRequest::new(
+                session_id.clone(),
+                observer_work_dir.path(),
+            ))
+            .block_task()
+            .await
+            .unwrap();
+        actor.clear_session_notifications();
+        observer.clear_session_notifications();
+
+        let actor_cx = actor.cx.clone();
+        let prompt_session_id = session_id.clone();
+        let prompt_task = tokio::spawn(async move {
+            actor_cx
+                .send_request(PromptRequest::new(
+                    prompt_session_id,
+                    vec![ContentBlock::Text(TextContent::new(
+                        "Cross-client broadcast prompt",
+                    ))],
+                ))
+                .block_task()
+                .await
+                .unwrap();
+        });
+
+        assert!(
+            observer
+                .wait_for_session_update(Duration::from_secs(2), |update| {
+                    matches!(update, SessionUpdate::UserMessageChunk(_))
+                        && text_chunk(update) == Some("Cross-client broadcast prompt")
+                })
+                .await,
+            "observer did not receive live user_message_chunk"
+        );
+        assert!(
+            observer
+                .wait_for_session_update(Duration::from_secs(2), |update| {
+                    matches!(update, SessionUpdate::AgentMessageChunk(_))
+                })
+                .await,
+            "observer did not receive live agent_message_chunk"
+        );
+        prompt_task.await.unwrap();
+
+        let actor_updates = actor.session_updates();
+        assert!(
+            !actor_updates.iter().any(|update| {
+                matches!(update, SessionUpdate::UserMessageChunk(_))
+                    && text_chunk(update) == Some("Cross-client broadcast prompt")
+            }),
+            "actor received duplicate own-user prompt update: {actor_updates:#?}"
+        );
+
+        actor.clear_session_notifications();
+        observer.clear_session_notifications();
+
+        actor
+            .cx
+            .send_request(PromptRequest::new(
+                session_id,
+                vec![ContentBlock::Text(TextContent::new(
+                    "/unknown-broadcast-command prompt",
+                ))],
+            ))
+            .block_task()
+            .await
+            .unwrap();
+
+        assert!(
+            observer
+                .wait_for_session_update(Duration::from_secs(2), |update| {
+                    matches!(update, SessionUpdate::UserMessageChunk(_))
+                        && text_chunk(update) == Some("/unknown-broadcast-command prompt")
+                })
+                .await,
+            "observer did not receive unresolved slash prompt user_message_chunk"
+        );
+    });
 }
 
 #[test]
