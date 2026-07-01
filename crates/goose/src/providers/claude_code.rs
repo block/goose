@@ -714,11 +714,11 @@ impl Provider for ClaudeCodeProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         _tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         if super::cli_common::is_session_description_request(system) {
             let (message, usage) = super::cli_common::generate_simple_session_description(
                 &model_config.model_name,
@@ -735,7 +735,7 @@ impl Provider for ClaudeCodeProvider {
 
         // Prepare the payload outside the lock — these don't need the process.
         let blocks = self.last_user_content_blocks(messages);
-        let ndjson_line = build_stream_json_input(&blocks, session_id);
+        let ndjson_line = build_stream_json_input(&blocks, &session_id);
         let model_name = model_config.model_name.clone();
         let message_id = uuid::Uuid::new_v4().to_string();
         let pending_confirmations = Arc::clone(&self.pending_confirmations);
@@ -1316,10 +1316,7 @@ mod tests {
         let messages = vec![Message::user().with_text("test")];
         let model = ModelConfig::new(CLAUDE_CODE_DEFAULT_MODEL)
             .with_canonical_limits(CLAUDE_CODE_PROVIDER_NAME);
-        let stream = provider
-            .stream(&model, "test-session", "", &messages, &[])
-            .await
-            .unwrap();
+        let stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
         (provider, stream, stdin_reader)
     }
 
@@ -1526,10 +1523,7 @@ mod tests {
         let messages = vec![Message::user().with_text("test")];
         let model = ModelConfig::new(CLAUDE_CODE_DEFAULT_MODEL)
             .with_canonical_limits(CLAUDE_CODE_PROVIDER_NAME);
-        let mut stream = provider
-            .stream(&model, "test-session", "", &messages, &[])
-            .await
-            .unwrap();
+        let mut stream = provider.stream(&model, "", &messages, &[]).await.unwrap();
 
         while let Some(item) = stream.next().await {
             item.unwrap();

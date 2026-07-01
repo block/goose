@@ -581,7 +581,7 @@ impl LocalInterpreter {
 
         let request_messages = vec![Message::user().with_text(format_instruction)];
         let mut stream = provider
-            .stream(&model_config, "toolshim-local", "", &request_messages, &[])
+            .stream(&model_config, "", &request_messages, &[])
             .await?;
 
         let mut content = String::new();

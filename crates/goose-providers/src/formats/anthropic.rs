@@ -1,13 +1,13 @@
+use crate::canonical::maybe_get_canonical_model;
+use crate::canonical::ThinkingMode;
 use crate::conversation::message::{Message, MessageContent};
+use crate::conversation::token_usage::{ProviderUsage, Usage};
+use crate::errors::ProviderError;
+use crate::images::{convert_image, ImageFormat};
 use crate::mcp_utils::extract_text_from_resource;
-use crate::providers::canonical::maybe_get_canonical_model;
+use crate::model::ModelConfig;
+use crate::thinking::ThinkingEffort;
 use anyhow::{anyhow, Result};
-use goose_providers::canonical::ThinkingMode;
-use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
-use goose_providers::errors::ProviderError;
-use goose_providers::images::{convert_image, ImageFormat};
-use goose_providers::model::ModelConfig;
-use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::{object, CallToolRequestParams, ErrorCode, ErrorData, JsonObject, Role, Tool};
 use rmcp::object as json_object;
 use serde_json::{json, Value};
@@ -16,7 +16,7 @@ use std::fmt;
 use std::str::FromStr;
 use std::sync::Arc;
 
-pub(crate) const ANTHROPIC_PROVIDER_NAME: &str = "anthropic";
+pub const ANTHROPIC_PROVIDER_NAME: &str = "anthropic";
 
 macro_rules! string_enum {
     ($name:ident { $($variant:ident => $str:literal),+ $(,)? }) => {
@@ -54,19 +54,9 @@ impl AnthropicFormatOptions {
     fn for_model(self, model_config: &ModelConfig) -> Self {
         let preserve_thinking_context = model_config
             .request_param::<bool>("preserve_thinking_context")
-            .or_else(|| {
-                crate::config::Config::global()
-                    .get_param("ANTHROPIC_PRESERVE_THINKING_CONTEXT")
-                    .ok()
-            })
             .unwrap_or(self.preserve_thinking_context);
         let preserve_unsigned_thinking = model_config
             .request_param::<bool>("preserve_unsigned_thinking")
-            .or_else(|| {
-                crate::config::Config::global()
-                    .get_param("ANTHROPIC_PRESERVE_UNSIGNED_THINKING")
-                    .ok()
-            })
             .unwrap_or(self.preserve_unsigned_thinking)
             || preserve_thinking_context;
         let thinking_disabled = model_config.reasoning == Some(false)
@@ -115,7 +105,7 @@ pub fn thinking_type_for_provider(provider_name: &str, model_config: &ModelConfi
 
     let effort = model_config.thinking_effort();
 
-    if effort.is_none() && legacy_thinking_budget_tokens().is_some() {
+    if effort.is_none() && model_config.request_param::<i32>("budget_tokens").is_some() {
         return match mode {
             Some(ThinkingMode::Adaptive) => ThinkingType::Adaptive,
             _ => ThinkingType::Enabled,
@@ -211,8 +201,16 @@ fn format_messages_with_options(
                             }));
                         }
                         Err(_tool_error) => {
-                            // Skip malformed tool requests - they shouldn't be sent to Anthropic
-                            // This maintains the existing behavior for ToolRequest errors
+                            // The paired tool response carries the parse error and
+                            // serializes to a tool_result below; Anthropic rejects a
+                            // tool_result without a preceding tool_use, so emit a
+                            // placeholder tool_use with the same id to keep history valid.
+                            content.push(json!({
+                                TYPE_FIELD: TOOL_USE_TYPE,
+                                ID_FIELD: tool_request.id,
+                                NAME_FIELD: "unparseable_tool_call",
+                                INPUT_FIELD: json!({})
+                            }));
                         }
                     }
                 }
@@ -312,7 +310,6 @@ fn format_messages_with_options(
         }
     }
 
-    // If no messages, add a default one
     if anthropic_messages.is_empty() {
         anthropic_messages.push(json!({
             ROLE_FIELD: USER_ROLE,
@@ -323,23 +320,33 @@ fn format_messages_with_options(
         }));
     }
 
-    // Add "cache_control" to the last and second-to-last "user" messages.
-    // During each turn, we mark the final message with cache_control so the conversation can be
-    // incrementally cached. The second-to-last user message is also marked for caching with the
-    // cache_control parameter, so that this checkpoint can read from the previous cache.
+    // The volatile turn-context must sit after every cache breakpoint, or it invalidates the
+    // message-level cached prefix (Anthropic hashes tools -> system -> messages). Move it to the
+    // tail and place cache_control on the last non-turn-context block.
+    relocate_turn_context_to_tail(&mut anthropic_messages);
+
     let mut user_count = 0;
     for message in anthropic_messages.iter_mut().rev() {
-        if message.get(ROLE_FIELD) == Some(&json!(USER_ROLE)) {
-            if let Some(content) = message.get_mut(CONTENT_FIELD) {
-                if let Some(content_array) = content.as_array_mut() {
-                    if let Some(last_content) = content_array.last_mut() {
-                        last_content.as_object_mut().unwrap().insert(
-                            CACHE_CONTROL_FIELD.to_string(),
-                            json!({ TYPE_FIELD: "ephemeral" }),
-                        );
-                    }
-                }
-            }
+        if message.get(ROLE_FIELD) != Some(&json!(USER_ROLE)) {
+            continue;
+        }
+        let Some(content_array) = message
+            .get_mut(CONTENT_FIELD)
+            .and_then(|content| content.as_array_mut())
+        else {
+            continue;
+        };
+        let Some(target) = cache_control_target_index(content_array) else {
+            continue;
+        };
+        if let Some(block) = content_array
+            .get_mut(target)
+            .and_then(|b| b.as_object_mut())
+        {
+            block.insert(
+                CACHE_CONTROL_FIELD.to_string(),
+                json!({ TYPE_FIELD: "ephemeral" }),
+            );
             user_count += 1;
             if user_count >= 2 {
                 break;
@@ -348,6 +355,52 @@ fn format_messages_with_options(
     }
 
     anthropic_messages
+}
+
+fn relocate_turn_context_to_tail(messages: &mut [Value]) {
+    let Some(last) = messages.len().checked_sub(1) else {
+        return;
+    };
+    let source = messages.iter().enumerate().rev().find_map(|(mi, m)| {
+        m.get(CONTENT_FIELD)
+            .and_then(|c| c.as_array())
+            .and_then(|a| a.iter().position(is_turn_context_block))
+            .map(|bi| (mi, bi))
+    });
+    let Some((mi, bi)) = source else {
+        return;
+    };
+    if mi != last
+        && messages[mi]
+            .get(CONTENT_FIELD)
+            .and_then(|c| c.as_array())
+            .map_or(0, |a| a.len())
+            <= 1
+    {
+        return;
+    }
+    let block = messages[mi][CONTENT_FIELD]
+        .as_array_mut()
+        .unwrap()
+        .remove(bi);
+    messages[last][CONTENT_FIELD]
+        .as_array_mut()
+        .unwrap()
+        .push(block);
+}
+
+fn cache_control_target_index(content_array: &[Value]) -> Option<usize> {
+    content_array
+        .iter()
+        .rposition(|block| !is_turn_context_block(block))
+}
+
+fn is_turn_context_block(block: &Value) -> bool {
+    block.get(TYPE_FIELD).and_then(Value::as_str) == Some(TEXT_TYPE)
+        && block
+            .get(TEXT_TYPE)
+            .and_then(Value::as_str)
+            .is_some_and(crate::conversation::is_turn_context_text)
 }
 
 fn anthropic_flavored_input_schema(input_schema: Arc<JsonObject>) -> Arc<JsonObject> {
@@ -550,10 +603,6 @@ pub fn thinking_budget_tokens(model_config: &ModelConfig) -> i32 {
         return request_param.max(1024);
     }
 
-    if let Some(budget) = legacy_thinking_budget_tokens() {
-        return budget;
-    }
-
     let effort = model_config
         .thinking_effort()
         .unwrap_or(ThinkingEffort::High);
@@ -564,16 +613,6 @@ pub fn thinking_budget_tokens(model_config: &ModelConfig) -> i32 {
         ThinkingEffort::High => 16000,
         ThinkingEffort::Max => 32000,
     }
-}
-
-fn legacy_thinking_budget_tokens() -> Option<i32> {
-    let config = crate::config::Config::global();
-    for key in ["ANTHROPIC_THINKING_BUDGET", "CLAUDE_THINKING_BUDGET"] {
-        if let Ok(budget) = config.get_param::<i32>(key) {
-            return Some(budget.max(1024));
-        }
-    }
-    None
 }
 
 // Anthropic counts thinking tokens against max_tokens, so the budget must leave
@@ -632,40 +671,7 @@ fn apply_thinking_config(
     }
 }
 
-/// Create a complete request payload for Anthropic's API
 pub fn create_request(
-    model_config: &ModelConfig,
-    system: &str,
-    messages: &[Message],
-    tools: &[Tool],
-) -> Result<Value> {
-    create_request_with_options(
-        model_config,
-        system,
-        messages,
-        tools,
-        AnthropicFormatOptions::default(),
-    )
-}
-
-pub fn create_request_with_options(
-    model_config: &ModelConfig,
-    system: &str,
-    messages: &[Message],
-    tools: &[Tool],
-    options: AnthropicFormatOptions,
-) -> Result<Value> {
-    create_request_with_options_for_provider(
-        ANTHROPIC_PROVIDER_NAME,
-        model_config,
-        system,
-        messages,
-        tools,
-        options,
-    )
-}
-
-pub fn create_request_with_options_for_provider(
     provider_name: &str,
     model_config: &ModelConfig,
     system: &str,
@@ -894,10 +900,10 @@ where
                             let parsed_args = if args.is_empty() {
                                 json!({})
                             } else {
-                                match goose_providers::json::parse_tool_arguments(&args) {
+                                match crate::json::parse_tool_arguments(&args) {
                                     Some(parsed) => parsed,
                                     None => {
-                                        let message_text = goose_providers::json::truncation_error_message(&args)
+                                        let message_text = crate::json::truncation_error_message(&args)
                                             .unwrap_or_else(|| {
                                                 format!("Could not parse tool arguments: {args}")
                                             });
@@ -1041,9 +1047,42 @@ where
 mod tests {
     use super::*;
     use crate::conversation::message::Message;
-    use goose_providers::model::ModelConfig;
+    use crate::model::ModelConfig;
     use rmcp::object;
     use serde_json::json;
+
+    /// Create a complete request payload for Anthropic's API
+    fn create_request_with_default_options(
+        model_config: &ModelConfig,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+    ) -> Result<Value> {
+        create_request_with_options_provider(
+            model_config,
+            system,
+            messages,
+            tools,
+            AnthropicFormatOptions::default(),
+        )
+    }
+
+    fn create_request_with_options_provider(
+        model_config: &ModelConfig,
+        system: &str,
+        messages: &[Message],
+        tools: &[Tool],
+        options: AnthropicFormatOptions,
+    ) -> Result<Value> {
+        create_request(
+            ANTHROPIC_PROVIDER_NAME,
+            model_config,
+            system,
+            messages,
+            tools,
+            options,
+        )
+    }
 
     #[test]
     fn test_parse_text_response() -> Result<()> {
@@ -1320,7 +1359,7 @@ mod tests {
         config.max_tokens = Some(4096);
         config.request_params = Some(params);
         let messages = vec![Message::user().with_text("Hello")];
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
 
         assert_eq!(payload["thinking"]["type"], "adaptive");
         assert_eq!(payload["output_config"]["effort"], "high");
@@ -1340,7 +1379,7 @@ mod tests {
         config.max_tokens = Some(64000);
 
         let messages = vec![Message::user().with_text("Hello")];
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
 
         assert_eq!(payload["thinking"]["type"], "enabled");
         let budget = payload["thinking"]["budget_tokens"].as_i64().unwrap();
@@ -1363,7 +1402,7 @@ mod tests {
 
         // Budget larger than max_tokens is clamped to leave room for a response.
         config.max_tokens = Some(4096);
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
         let budget = payload["thinking"]["budget_tokens"].as_i64().unwrap();
         assert!(budget >= 1024);
         assert!(budget <= 4096 - 1024);
@@ -1371,7 +1410,7 @@ mod tests {
 
         // Too small to fit any thinking alongside a response — drop it.
         config.max_tokens = Some(1500);
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
         assert!(payload.get("thinking").is_none());
         assert_eq!(payload["max_tokens"], 1500);
 
@@ -1387,7 +1426,7 @@ mod tests {
 
         let config = cfg_with_effort("claude-sonnet-4-20250514", "off");
         let messages = vec![Message::user().with_text("Hello")];
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
 
         assert!(payload.get("thinking").is_none());
         assert!(payload.get("output_config").is_none());
@@ -1398,10 +1437,7 @@ mod tests {
     #[test]
     fn test_create_request_preserves_thinking_context_for_compatible_models() -> Result<()> {
         let _guard = env_lock::lock_env([
-            ("CLAUDE_THINKING_TYPE", None::<&str>),
             ("CLAUDE_THINKING_ENABLED", None::<&str>),
-            ("ANTHROPIC_THINKING_BUDGET", None::<&str>),
-            ("CLAUDE_THINKING_BUDGET", None::<&str>),
             ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
             ("ANTHROPIC_PRESERVE_UNSIGNED_THINKING", None::<&str>),
         ]);
@@ -1413,7 +1449,7 @@ mod tests {
             Message::user().with_text("Continue"),
         ];
 
-        let payload = create_request_with_options(
+        let payload = create_request_with_options_provider(
             &config,
             "system",
             &messages,
@@ -1441,10 +1477,7 @@ mod tests {
     #[test]
     fn test_create_request_model_params_enable_preserved_thinking_context() -> Result<()> {
         let _guard = env_lock::lock_env([
-            ("CLAUDE_THINKING_TYPE", None::<&str>),
             ("CLAUDE_THINKING_ENABLED", None::<&str>),
-            ("ANTHROPIC_THINKING_BUDGET", None::<&str>),
-            ("CLAUDE_THINKING_BUDGET", None::<&str>),
             ("ANTHROPIC_PRESERVE_THINKING_CONTEXT", None::<&str>),
             ("ANTHROPIC_PRESERVE_UNSIGNED_THINKING", None::<&str>),
         ]);
@@ -1460,7 +1493,7 @@ mod tests {
             Message::user().with_text("Continue"),
         ];
 
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
 
         assert_eq!(payload["thinking"]["clear_thinking"], false);
         assert_eq!(payload["messages"][0]["content"][0]["type"], "thinking");
@@ -1603,6 +1636,42 @@ mod tests {
     }
 
     #[test]
+    fn test_unparseable_tool_request_emits_placeholder_tool_use() {
+        use rmcp::model::{ErrorCode, ErrorData};
+
+        let err = ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Tool arguments for id call_bad must be a JSON object".to_string(),
+            None,
+        );
+        let mut response = Message::user();
+        response.add_tool_response_with_metadata("call_bad", Err(err.clone()), None);
+        let messages = vec![
+            Message::assistant().with_tool_request("call_bad", Err(err)),
+            response,
+        ];
+
+        let spec = format_messages(&messages);
+
+        let mut open = std::collections::HashSet::new();
+        for m in &spec {
+            for block in m["content"].as_array().into_iter().flatten() {
+                match block["type"].as_str() {
+                    Some("tool_use") => {
+                        open.insert(block["id"].as_str().unwrap().to_string());
+                    }
+                    Some("tool_result") => {
+                        let id = block["tool_use_id"].as_str().unwrap();
+                        assert!(open.contains(id), "orphan tool_result for id {id:?}");
+                    }
+                    _ => {}
+                }
+            }
+        }
+        assert!(open.contains("call_bad"));
+    }
+
+    #[test]
     fn test_args_to_input_value_preserves_existing_args() {
         let args = object!({"query": "rust"});
         let value = args_to_input_value(Some(args));
@@ -1716,24 +1785,13 @@ mod tests {
         config.temperature = Some(0.7);
         let messages = vec![Message::user().with_text("Hello")];
 
-        let payload = create_request(&config, "system", &messages, &[])?;
+        let payload = create_request_with_default_options(&config, "system", &messages, &[])?;
 
         assert_eq!(payload["thinking"]["type"], "adaptive");
         assert!(payload.get("temperature").is_none());
         assert_eq!(payload["output_config"]["effort"], "high");
 
         Ok(())
-    }
-
-    #[test]
-    fn test_thinking_budget_uses_legacy_env() {
-        let _guard = env_lock::lock_env([
-            ("GOOSE_THINKING_EFFORT", None::<&str>),
-            ("ANTHROPIC_THINKING_BUDGET", Some("8192")),
-            ("CLAUDE_THINKING_BUDGET", None::<&str>),
-        ]);
-        let config = cfg_with_effort("claude-3-7-sonnet-20250219", "high");
-        assert_eq!(thinking_budget_tokens(&config), 8192);
     }
 
     #[test]
@@ -2175,5 +2233,264 @@ mod tests {
         let parts = collect_stream(events).await;
         assert_eq!(parts.tool_calls, vec!["write"]);
         assert!(parts.tool_errors.is_empty());
+    }
+
+    /// Anthropic prefix caching only pays off when the bytes up to a cache
+    /// breakpoint are identical turn over turn. The per-turn turn-context block
+    /// (timestamp, turn budget, compaction state) changes on every call, so if
+    /// it ever lands inside a cached prefix every request becomes a cache write
+    /// instead of a read. These tests pin the property that keeps caching alive
+    /// so a future refactor of the formatter or the turn-context format can't
+    /// silently regress it.
+    mod cache_prefix_stability {
+        use super::*;
+        use rmcp::model::CallToolResult;
+
+        /// A turn-context block whose shape matches what `is_turn_context_text`
+        /// recognizes, varying only the volatile fields.
+        fn turn_context(time: &str, turn_budget: &str) -> String {
+            format!(
+                "<turn-context>\n\
+                 <current-time>{time}</current-time>\n\
+                 <working-directory>/Users/me/code/goose</working-directory>\n\
+                 <turn-budget>{turn_budget}</turn-budget>\n\
+                 </turn-context>"
+            )
+        }
+
+        fn sample_tools() -> Vec<Tool> {
+            vec![
+                Tool::new(
+                    "read_file",
+                    "Read a file from disk",
+                    object!({
+                        "type": "object",
+                        "properties": { "path": { "type": "string" } }
+                    }),
+                ),
+                Tool::new(
+                    "write_file",
+                    "Write a file to disk",
+                    object!({
+                        "type": "object",
+                        "properties": { "path": { "type": "string" }, "content": { "type": "string" } }
+                    }),
+                ),
+            ]
+        }
+
+        /// A realistic multi-turn conversation. `inject_moim` prepends the
+        /// turn-context block to the latest genuine user message, so it sits as
+        /// the first text block of the final user message here.
+        fn conversation(turn_context_block: &str) -> Vec<Message> {
+            vec![
+                Message::user().with_text("What does the main entrypoint do?"),
+                Message::assistant().with_tool_request(
+                    "tool_1",
+                    Ok(CallToolRequestParams::new("read_file")
+                        .with_arguments(object!({"path": "src/main.rs"}))),
+                ),
+                Message::user().with_tool_response(
+                    "tool_1",
+                    Ok(CallToolResult::success(vec![rmcp::model::Content::text(
+                        "fn main() { run(); }",
+                    )])),
+                ),
+                Message::assistant().with_text("It calls `run()`."),
+                Message::user()
+                    .with_text(turn_context_block)
+                    .with_text("Now add error handling to it."),
+            ]
+        }
+
+        /// The (message index, block index) of the last block carrying a
+        /// `cache_control` marker, scanning in canonical order. This is the far
+        /// edge of the furthest cached prefix.
+        fn last_breakpoint(messages: &[Value]) -> Option<(usize, usize)> {
+            let mut found = None;
+            for (mi, message) in messages.iter().enumerate() {
+                for (bi, block) in message["content"].as_array().unwrap().iter().enumerate() {
+                    if block.get(CACHE_CONTROL_FIELD).is_some() {
+                        found = Some((mi, bi));
+                    }
+                }
+            }
+            found
+        }
+
+        fn find_turn_context(messages: &[Value]) -> Option<(usize, usize)> {
+            messages.iter().enumerate().find_map(|(mi, message)| {
+                message["content"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .position(is_turn_context_block)
+                    .map(|bi| (mi, bi))
+            })
+        }
+
+        /// The exact bytes Anthropic hashes for its furthest cache breakpoint:
+        /// tools, then system, then messages truncated at the last
+        /// `cache_control` marker. Everything after that point is outside every
+        /// cached prefix and may change freely turn to turn.
+        fn cached_prefix(payload: &Value) -> String {
+            let messages = payload["messages"].as_array().unwrap();
+            let (last_mi, last_bi) = last_breakpoint(messages)
+                .expect("request must carry at least one cache_control breakpoint");
+
+            let prefix_messages: Vec<Value> = messages
+                .iter()
+                .take(last_mi + 1)
+                .enumerate()
+                .map(|(mi, message)| {
+                    let mut message = message.clone();
+                    if mi == last_mi {
+                        message["content"]
+                            .as_array_mut()
+                            .unwrap()
+                            .truncate(last_bi + 1);
+                    }
+                    message
+                })
+                .collect();
+
+            json!({
+                "tools": payload.get("tools"),
+                "system": payload.get("system"),
+                "messages": prefix_messages,
+            })
+            .to_string()
+        }
+
+        /// The production tool-loop case: `inject_moim` prepends turn-context to
+        /// the latest *genuine* user message, but the request then ends with a
+        /// later `tool_result` message. The block must be relocated *across*
+        /// messages to land after the trailing breakpoint, not merely reordered
+        /// within its own message.
+        fn tool_loop_conversation(turn_context_block: &str) -> Vec<Message> {
+            vec![
+                Message::user().with_text("What does the main entrypoint do?"),
+                Message::assistant().with_text("Let me read it."),
+                Message::user()
+                    .with_text(turn_context_block)
+                    .with_text("Now add error handling to it."),
+                Message::assistant().with_tool_request(
+                    "tool_1",
+                    Ok(CallToolRequestParams::new("read_file")
+                        .with_arguments(object!({"path": "src/main.rs"}))),
+                ),
+                Message::user().with_tool_response(
+                    "tool_1",
+                    Ok(CallToolResult::success(vec![rmcp::model::Content::text(
+                        "fn main() { run(); }",
+                    )])),
+                ),
+            ]
+        }
+
+        fn request_with(messages: &[Message]) -> Value {
+            create_request_with_default_options(
+                &cfg("claude-sonnet-4-5"),
+                "You are a careful coding assistant.",
+                messages,
+                &sample_tools(),
+            )
+            .unwrap()
+        }
+
+        fn request(turn_context_block: &str) -> Value {
+            request_with(&conversation(turn_context_block))
+        }
+
+        #[test]
+        fn cached_prefix_is_invariant_to_turn_context_changes() {
+            let req_a = request(&turn_context("2026-06-25 12:00:00", "14/40 used"));
+            let req_b = request(&turn_context("2026-06-25 13:47:00", "31/40 used"));
+
+            assert_ne!(
+                req_a.to_string(),
+                req_b.to_string(),
+                "test setup is vacuous: the two requests are byte-identical, so the \
+                 turn-context never reached the request body"
+            );
+
+            assert_eq!(
+                cached_prefix(&req_a),
+                cached_prefix(&req_b),
+                "the cached prefix changed when only the volatile turn-context changed; \
+                 prefix caching will collapse into a per-turn cache write"
+            );
+
+            assert!(
+                !cached_prefix(&req_a).contains("12:00:00"),
+                "the volatile turn-context timestamp leaked into the cached prefix"
+            );
+        }
+
+        #[test]
+        fn turn_context_sits_after_every_cache_breakpoint() {
+            let req = request(&turn_context("2026-06-25 12:00:00", "14/40 used"));
+            let messages = req["messages"].as_array().unwrap();
+
+            for message in messages {
+                for block in message["content"].as_array().unwrap() {
+                    if block.get(CACHE_CONTROL_FIELD).is_some() {
+                        assert!(
+                            !is_turn_context_block(block),
+                            "a cache_control breakpoint landed on the volatile turn-context block"
+                        );
+                    }
+                }
+            }
+
+            let breakpoint = last_breakpoint(messages).expect("a breakpoint should exist");
+            let turn_context = find_turn_context(messages)
+                .expect("the turn-context block should survive into the formatted request");
+            assert!(
+                turn_context > breakpoint,
+                "turn-context at {turn_context:?} is not after the last cache breakpoint at \
+                 {breakpoint:?}, so it sits inside a cached prefix"
+            );
+        }
+
+        /// Guards the tool-loop path: turn-context is injected onto an earlier
+        /// genuine user message while the request ends with a `tool_result`, so
+        /// keeping it out of the cached prefix requires relocating it across
+        /// messages. A regression that only reorders within a message would
+        /// pass the tests above but fail here.
+        #[test]
+        fn cached_prefix_is_invariant_in_tool_loop() {
+            let req_a = request_with(&tool_loop_conversation(&turn_context(
+                "2026-06-25 12:00:00",
+                "14/40",
+            )));
+            let req_b = request_with(&tool_loop_conversation(&turn_context(
+                "2026-06-25 13:47:00",
+                "31/40",
+            )));
+
+            assert_ne!(
+                req_a.to_string(),
+                req_b.to_string(),
+                "test setup is vacuous: turn-context never reached the request body"
+            );
+
+            assert_eq!(
+                cached_prefix(&req_a),
+                cached_prefix(&req_b),
+                "the cached prefix changed when only the volatile turn-context changed during a \
+                 tool loop; the block was not relocated past the trailing tool_result breakpoint"
+            );
+
+            let messages = req_a["messages"].as_array().unwrap();
+            let breakpoint = last_breakpoint(messages).expect("a breakpoint should exist");
+            let turn_context = find_turn_context(messages)
+                .expect("the turn-context block should survive into the formatted request");
+            assert!(
+                turn_context > breakpoint,
+                "turn-context at {turn_context:?} was not relocated across messages to after the \
+                 last breakpoint at {breakpoint:?}"
+            );
+        }
     }
 }

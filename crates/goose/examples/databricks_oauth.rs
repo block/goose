@@ -19,7 +19,6 @@ async fn main() -> Result<()> {
     let (response, usage) = provider
         .complete(
             &model_config,
-            "",
             "You are a helpful assistant.",
             &[message],
             &[],

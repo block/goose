@@ -137,7 +137,8 @@ impl DatabricksProvider {
             auth_method,
             Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
             tls_config.clone(),
-        )?;
+        )?
+        .with_request_builder(crate::session_context::session_id_request_builder());
 
         Ok(Self {
             api_client,
@@ -335,13 +336,10 @@ impl DatabricksProvider {
     ) -> Result<DatabricksEndpointInfo, ProviderError> {
         let response = self
             .api_client
-            .request(
-                None,
-                &format!(
-                    "api/2.0/serving-endpoints/{}",
-                    urlencoding::encode(endpoint_name)
-                ),
-            )
+            .request(&format!(
+                "api/2.0/serving-endpoints/{}",
+                urlencoding::encode(endpoint_name)
+            ))
             .response_get()
             .await
             .map_err(|e| {
@@ -565,11 +563,11 @@ impl Provider for DatabricksProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         let (endpoint_name, _) = extract_reasoning_effort(&model_config.model_name);
         let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await.ok();
         let effective_model_name = endpoint_info
@@ -585,7 +583,7 @@ impl Provider for DatabricksProvider {
         } else {
             self.get_endpoint_path(&model_config.model_name, is_responses_model)
         };
-        let client_request_id = self.build_client_request_id(session_id);
+        let client_request_id = self.build_client_request_id(&session_id);
 
         if is_responses_model {
             let responses_model_config;
@@ -625,10 +623,7 @@ impl Provider for DatabricksProvider {
             let response = self
                 .with_retry(|| async {
                     let payload_clone = payload.clone();
-                    let resp = self
-                        .api_client
-                        .response_post(Some(session_id), &path, &payload_clone)
-                        .await?;
+                    let resp = self.api_client.response_post(&path, &payload_clone).await?;
                     handle_status(resp).await
                 })
                 .await
@@ -688,10 +683,7 @@ impl Provider for DatabricksProvider {
             let mut log = start_log(model_config, &payload)?;
             let response = self
                 .with_retry(|| async {
-                    let resp = self
-                        .api_client
-                        .response_post(Some(session_id), &path, &payload)
-                        .await?;
+                    let resp = self.api_client.response_post(&path, &payload).await?;
                     if !resp.status().is_success() {
                         let status = resp.status();
                         let url = sanitize_url(resp.url().as_str());
@@ -708,10 +700,7 @@ impl Provider for DatabricksProvider {
                 Err(e) if e.to_string().contains("stream_options") => {
                     payload.as_object_mut().unwrap().remove("stream_options");
                     self.with_retry(|| async {
-                        let resp = self
-                            .api_client
-                            .response_post(Some(session_id), &path, &payload)
-                            .await?;
+                        let resp = self.api_client.response_post(&path, &payload).await?;
                         if !resp.status().is_success() {
                             let status = resp.status();
                             let url = sanitize_url(resp.url().as_str());
@@ -753,7 +742,7 @@ impl Provider for DatabricksProvider {
     async fn fetch_supported_model_info(&self) -> Result<Vec<ModelInfo>, ProviderError> {
         let response = self
             .api_client
-            .request(None, "api/2.0/serving-endpoints")
+            .request("api/2.0/serving-endpoints")
             .response_get()
             .await
             .map_err(|e| {

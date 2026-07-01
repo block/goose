@@ -17,6 +17,10 @@ function headersToRecord(headers: { name: string; value: string }[] = []) {
   return Object.fromEntries(headers.map(({ name, value }) => [name, value]));
 }
 
+function availableToolsOrUndefined(availableTools?: string[] | null): string[] | undefined {
+  return availableTools?.length ? availableTools : undefined;
+}
+
 export function gooseExtensionToExtensionConfig(extension: GooseExtension): ExtensionConfig | null {
   switch (extension.type) {
     case 'builtin':
@@ -24,6 +28,7 @@ export function gooseExtensionToExtensionConfig(extension: GooseExtension): Exte
       return {
         ...extension,
         description: extension.description ?? '',
+        available_tools: availableToolsOrUndefined(extension.available_tools),
       };
     case 'mcp': {
       const server = extension.server;
@@ -37,6 +42,7 @@ export function gooseExtensionToExtensionConfig(extension: GooseExtension): Exte
           env_keys: extension.envKeys ?? [],
           timeout: extension.timeout,
           bundled: extension.bundled,
+          available_tools: availableToolsOrUndefined(extension.available_tools),
         };
       }
       if ('url' in server) {
@@ -50,6 +56,7 @@ export function gooseExtensionToExtensionConfig(extension: GooseExtension): Exte
           timeout: extension.timeout,
           socket: extension.socket,
           bundled: extension.bundled,
+          available_tools: availableToolsOrUndefined(extension.available_tools),
         };
       }
       return null;
@@ -94,6 +101,7 @@ export function extensionConfigToGooseExtension(config: ExtensionConfig): GooseE
         display_name: config.display_name,
         timeout: config.timeout,
         bundled: config.bundled,
+        available_tools: availableToolsOrUndefined(config.available_tools),
       };
     case 'platform':
       return {
@@ -102,6 +110,7 @@ export function extensionConfigToGooseExtension(config: ExtensionConfig): GooseE
         description: config.description,
         display_name: config.display_name,
         bundled: config.bundled,
+        available_tools: availableToolsOrUndefined(config.available_tools),
       };
     case 'stdio':
       return {
@@ -111,6 +120,7 @@ export function extensionConfigToGooseExtension(config: ExtensionConfig): GooseE
         description: config.description,
         timeout: config.timeout,
         bundled: config.bundled,
+        available_tools: availableToolsOrUndefined(config.available_tools),
       };
     case 'streamable_http':
       return {
@@ -126,6 +136,7 @@ export function extensionConfigToGooseExtension(config: ExtensionConfig): GooseE
         timeout: config.timeout,
         socket: config.socket,
         bundled: config.bundled,
+        available_tools: availableToolsOrUndefined(config.available_tools),
       };
     case 'sse':
     case 'frontend':

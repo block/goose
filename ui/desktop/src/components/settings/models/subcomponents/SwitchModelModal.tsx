@@ -14,7 +14,11 @@ import { Button } from '../../../ui/button';
 import { QUICKSTART_GUIDE_URL } from '../../providers/modal/constants';
 import { Input } from '../../../ui/input';
 import { Select } from '../../../ui/Select';
-import { useConfig } from '../../../ConfigContext';
+import {
+  acpListProviderDetails,
+  acpReadThinkingEffort,
+  acpSaveThinkingEffort,
+} from '../../../../acp/providers';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import type { View } from '../../../../utils/navigationUtils';
 import Model, {
@@ -109,7 +113,8 @@ const i18n = defineMessages({
   },
   localModelsDescription: {
     id: 'switchModelModal.localModelsDescription',
-    defaultMessage: 'To use local inference, you need to download a model to your computer first. Go to Settings → Models to manage local models.',
+    defaultMessage:
+      'To use local inference, you need to download a model to your computer first. Go to Settings → Models to manage local models.',
   },
   goToSettings: {
     id: 'switchModelModal.goToSettings',
@@ -267,7 +272,6 @@ export const SwitchModelModal = ({
     { value: 'max', label: intl.formatMessage(i18n.claudeEffortMax) },
   ];
 
-  const { getProviders, read, upsert } = useConfig();
   const {
     changeModel,
     currentModel: configModel,
@@ -332,13 +336,13 @@ export const SwitchModelModal = ({
   useEffect(() => {
     (async () => {
       try {
-        const effort = (await read('GOOSE_THINKING_EFFORT', false)) as ThinkingEffort;
+        const effort = await acpReadThinkingEffort();
         if (effort) setThinkingEffort(effort);
       } catch (e) {
-        console.warn('Could not read GOOSE_THINKING_EFFORT, using default:', e);
+        console.warn('Could not read thinking effort, using default:', e);
       }
     })();
-  }, [read]);
+  }, []);
 
   useEffect(() => {
     if (!provider || !model) return;
@@ -407,12 +411,11 @@ export const SwitchModelModal = ({
     if (usePredefinedModels && selectedPredefinedModel) {
       modelObj = selectedPredefinedModel;
     } else {
-      const providerMetaData = await getProviderMetadata(provider || '', getProviders);
-      const providerDisplayName = providerMetaData.display_name;
+      const providerMetaData = await getProviderMetadata(provider || '');
       modelObj = {
         name: model,
         provider: provider,
-        subtext: providerDisplayName,
+        subtext: providerMetaData.display_name,
       } as Model;
     }
     modelObj = {
@@ -426,7 +429,7 @@ export const SwitchModelModal = ({
         ...modelObj,
         request_params: { ...modelObj.request_params, thinking_effort: effort },
       };
-      upsert('GOOSE_THINKING_EFFORT', effort, false).catch(console.warn);
+      acpSaveThinkingEffort(effort).catch(console.warn);
     }
 
     setIsSubmitting(true);
@@ -488,10 +491,7 @@ export const SwitchModelModal = ({
 
     (async () => {
       try {
-        // Force a refresh so the list reflects providers (un)configured since the
-        // cache was populated; otherwise a provider deleted in Settings still
-        // shows up here (#9364).
-        const providersResponse = await getProviders(true);
+        const providersResponse = await acpListProviderDetails();
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
         setActiveProvidersList(activeProviders);
         setProviderOptions([
@@ -508,7 +508,7 @@ export const SwitchModelModal = ({
         console.error('Failed to query providers:', error);
       }
     })();
-  }, [getProviders, usePredefinedModels, read, intl]);
+  }, [usePredefinedModels, intl]);
 
   useEffect(() => {
     if (!provider || usePredefinedModels) return;
@@ -628,7 +628,15 @@ export const SwitchModelModal = ({
         setModel(preferredModel);
       }
     }
-  }, [provider, modelOptions, loadingModels, model, isCustomModel, userClearedModel, activeProvidersList]);
+  }, [
+    provider,
+    modelOptions,
+    loadingModels,
+    model,
+    isCustomModel,
+    userClearedModel,
+    activeProvidersList,
+  ]);
 
   const handlePredefinedModelChange = (model: Model) => {
     setSelectedPredefinedModel(model);
@@ -743,16 +751,16 @@ export const SwitchModelModal = ({
             <Bot size={24} className="text-text-primary" />
             {titleOverride || intl.formatMessage(i18n.title)}
           </DialogTitle>
-          <DialogDescription>
-            {intl.formatMessage(i18n.description)}
-          </DialogDescription>
+          <DialogDescription>{intl.formatMessage(i18n.description)}</DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-4 py-4">
           {usePredefinedModels ? (
             <div className="w-full flex flex-col gap-4">
               <div className="flex justify-between items-center">
-                <label className="text-sm font-medium text-text-primary">{intl.formatMessage(i18n.chooseModel)}</label>
+                <label className="text-sm font-medium text-text-primary">
+                  {intl.formatMessage(i18n.chooseModel)}
+                </label>
               </div>
 
               <div className="space-y-2 max-h-64 overflow-y-auto">
@@ -887,7 +895,9 @@ export const SwitchModelModal = ({
                           </div>
                         </div>
                       </div>
-                      <label className="text-sm text-text-secondary">{intl.formatMessage(i18n.customModelName)}</label>
+                      <label className="text-sm text-text-secondary">
+                        {intl.formatMessage(i18n.customModelName)}
+                      </label>
                       <Input
                         className="border-2 px-4 py-5"
                         placeholder={intl.formatMessage(i18n.typeModelName)}
@@ -912,7 +922,11 @@ export const SwitchModelModal = ({
                         onInputChange={handleInputChange}
                         value={
                           loadingModels
-                            ? { value: '', label: intl.formatMessage(i18n.loadingModels), isDisabled: true }
+                            ? {
+                                value: '',
+                                label: intl.formatMessage(i18n.loadingModels),
+                                isDisabled: true,
+                              }
                             : model
                               ? { value: model, label: model }
                               : null
@@ -936,7 +950,9 @@ export const SwitchModelModal = ({
                   ) : (
                     <div className="flex flex-col gap-2">
                       <div className="flex justify-between">
-                        <label className="text-sm text-text-secondary">{intl.formatMessage(i18n.customModelName)}</label>
+                        <label className="text-sm text-text-secondary">
+                          {intl.formatMessage(i18n.customModelName)}
+                        </label>
                         <button
                           onClick={() => setIsCustomModel(false)}
                           className="text-sm text-text-secondary"

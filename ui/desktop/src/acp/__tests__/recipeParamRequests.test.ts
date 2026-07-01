@@ -7,10 +7,6 @@ import {
   resolveAcpRecipeParamRequest,
 } from '../recipeParamRequests';
 
-vi.mock('../../acpChatFeatureFlag', () => ({
-  USE_ACP_CHAT: true,
-}));
-
 function recipeParamRequest(): RequestRecipeParams_unstable {
   return {
     sessionId: 'session-1',

@@ -1,10 +1,12 @@
 import {
   ProviderDetails,
   ThinkingEffort,
+  checkProvider,
   getProviderModelInfo,
   getProviderModels,
   listLocalModels,
 } from '../../../api';
+import { acpListProviderDetails } from '../../../acp/providers';
 import { errorMessage as getErrorMessage } from '../../../utils/conversionUtils';
 
 export default interface Model {
@@ -38,16 +40,20 @@ export function createModelStruct(
   };
 }
 
-export async function getProviderMetadata(
-  providerName: string,
-  getProvidersFunc: (b: boolean) => Promise<ProviderDetails[]>
-) {
-  const providers = await getProvidersFunc(false);
+export async function getProviderMetadata(providerName: string) {
+  const providers = await acpListProviderDetails();
   const matches = providers.find((providerMatch) => providerMatch.name === providerName);
   if (!matches) {
     throw Error(`No match for provider: ${providerName}`);
   }
   return matches.metadata;
+}
+
+export async function validateProviderModel(provider: string, model: string): Promise<void> {
+  await checkProvider({
+    body: { provider, model },
+    throwOnError: true,
+  });
 }
 
 export interface ProviderModelsResult {

@@ -12,7 +12,6 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 
 use crate::session_event_bus::SessionEventBus;
-use crate::tunnel::TunnelManager;
 use goose::agents::ExtensionLoadResult;
 #[cfg(feature = "local-inference")]
 use goose::providers::local_inference::InferenceRuntime;
@@ -25,7 +24,6 @@ pub struct AppState {
     pub(crate) agent_manager: Arc<AgentManager>,
     pub recipe_file_hash_map: Arc<Mutex<HashMap<String, PathBuf>>>,
     recipe_session_tracker: Arc<Mutex<HashSet<String>>>,
-    pub tunnel_manager: Arc<TunnelManager>,
     pub extension_loading_tasks: ExtensionLoadingTasks,
     #[cfg(feature = "local-inference")]
     inference_runtime: Arc<OnceLock<Arc<InferenceRuntime>>>,
@@ -33,17 +31,14 @@ pub struct AppState {
 }
 
 impl AppState {
-    pub async fn new(tls: bool) -> anyhow::Result<Arc<AppState>> {
+    pub async fn new(_tls: bool) -> anyhow::Result<Arc<AppState>> {
         register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
 
         let agent_manager = AgentManager::instance().await?;
-        let tunnel_manager = Arc::new(TunnelManager::new(tls));
-
         Ok(Arc::new(Self {
             agent_manager,
             recipe_file_hash_map: Arc::new(Mutex::new(HashMap::new())),
             recipe_session_tracker: Arc::new(Mutex::new(HashSet::new())),
-            tunnel_manager,
             extension_loading_tasks: Arc::new(Mutex::new(HashMap::new())),
             #[cfg(feature = "local-inference")]
             inference_runtime: Arc::new(OnceLock::new()),

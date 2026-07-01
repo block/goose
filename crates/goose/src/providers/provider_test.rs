@@ -8,6 +8,13 @@ use tokio::time::timeout;
 
 const PROVIDER_TEST_TIMEOUT: Duration = Duration::from_secs(60);
 
+pub fn provider_model_validation_enabled() -> bool {
+    !matches!(
+        std::env::var("GOOSE_SKIP_PROVIDER_MODEL_VALIDATION"),
+        Ok(value) if value == "1" || value.eq_ignore_ascii_case("true")
+    )
+}
+
 pub fn toolshim_settings_from_env() -> (Option<bool>, Option<String>) {
     let toolshim_enabled = std::env::var("GOOSE_TOOLSHIM")
         .map(|val| val == "1" || val.to_lowercase() == "true")
@@ -17,6 +24,9 @@ pub fn toolshim_settings_from_env() -> (Option<bool>, Option<String>) {
 }
 
 pub async fn test_provider_model(provider_name: &str, model: &str) -> Result<()> {
+    if !provider_model_validation_enabled() {
+        return Ok(());
+    }
     test_provider_configuration(provider_name, model, None, None).await
 }
 
@@ -49,15 +59,16 @@ pub async fn test_provider_configuration(
     };
 
     timeout(PROVIDER_TEST_TIMEOUT, async {
-        let mut stream = provider
-            .stream(
+        let mut stream = crate::session_context::with_session_id(
+            Some("test-session-id".to_string()),
+            provider.stream(
                 &model_config,
-                "test-session-id",
                 "You are an AI agent called goose. You use tools of connected extensions to solve problems.",
                 &messages,
                 &tools.into_iter().collect::<Vec<_>>(),
-            )
-            .await?;
+            ),
+        )
+        .await?;
 
         let first_chunk = stream
             .next()
@@ -67,13 +78,13 @@ pub async fn test_provider_configuration(
 
         Ok::<(), anyhow::Error>(())
     })
-        .await
-        .map_err(|_| {
-            anyhow::anyhow!(
-                "Provider configuration test timed out after {}s",
-                PROVIDER_TEST_TIMEOUT.as_secs()
-            )
-        })??;
+    .await
+    .map_err(|_| {
+        anyhow::anyhow!(
+            "Provider configuration test timed out after {}s",
+            PROVIDER_TEST_TIMEOUT.as_secs()
+        )
+    })??;
 
     Ok(())
 }

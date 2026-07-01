@@ -563,7 +563,6 @@ impl Provider for LocalInferenceProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        _session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],

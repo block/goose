@@ -114,9 +114,11 @@ pub async fn complete_fast(
         .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
         .with_thinking_effort(ThinkingEffort::Off);
 
-    match provider
-        .complete(&fast_model_config, session_id, system, messages, tools)
-        .await
+    match crate::session_context::with_session_id(
+        Some(session_id.to_string()),
+        provider.complete(&fast_model_config, system, messages, tools),
+    )
+    .await
     {
         Ok(response) => Ok(response),
         Err(e) if fast_model_config.model_name != model_config.model_name => {
@@ -129,9 +131,11 @@ pub async fn complete_fast(
             let fallback_config = model_config
                 .clone()
                 .with_thinking_effort(ThinkingEffort::Off);
-            provider
-                .complete(&fallback_config, session_id, system, messages, tools)
-                .await
+            crate::session_context::with_session_id(
+                Some(session_id.to_string()),
+                provider.complete(&fallback_config, system, messages, tools),
+            )
+            .await
         }
         Err(e) => Err(e),
     }

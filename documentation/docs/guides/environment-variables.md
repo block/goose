@@ -67,7 +67,6 @@ These variables control Claude's reasoning behavior. Supported on Anthropic and 
 | Variable | Purpose | Values | Default |
 |----------|---------|---------|---------|
 | `CLAUDE_THINKING_TYPE` | Controls Claude reasoning mode | `adaptive`, `enabled`, `disabled` | `adaptive` for Claude 4.6+ models, otherwise `disabled` |
-| `CLAUDE_THINKING_BUDGET` | Maximum tokens allocated for Claude's internal reasoning process when `CLAUDE_THINKING_TYPE=enabled` | Positive integer (minimum 1024) | 16000 |
 
 **Examples**
 
@@ -82,7 +81,6 @@ export CLAUDE_THINKING_TYPE=enabled
 
 # Explicit extended thinking with a larger budget for complex tasks
 export CLAUDE_THINKING_TYPE=enabled
-export CLAUDE_THINKING_BUDGET=32000
 
 # Disable Claude thinking entirely
 export CLAUDE_THINKING_TYPE=disabled

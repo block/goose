@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../ui/button';
 import { ChevronDownIcon, SlidersHorizontal, AlertCircle } from 'lucide-react';
-import { getTools, PermissionLevel, ToolInfo, upsertPermissions } from '../../../api';
+import { PermissionLevel } from '../../../api';
+import { listTools, setToolPermissions } from '../../../acp/permissions';
+import type { ToolListItem, ToolPermissionLevel } from '../../../acp/permissions';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
 import {
   DropdownMenu,
@@ -83,7 +85,7 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
   const chatContext = useChatContext();
   const sessionId = chatContext?.chat.sessionId || '';
 
-  const [tools, setTools] = useState<ToolInfo[]>([]);
+  const [tools, setTools] = useState<ToolListItem[]>([]);
   const [updatedPermissions, setUpdatedPermissions] = useState<Record<string, string>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -107,19 +109,12 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
       setLoadError(null);
 
       try {
-        const response = await getTools({
-          query: { extension_name: extensionName, session_id: sessionId },
-        });
-        if (response.error) {
-          console.error('Failed to get tools:', response.error);
-          setLoadError('fetch_failed');
-        } else {
-          const filteredTools = (response.data || []).filter(
-            (tool: ToolInfo) =>
-              tool.name !== 'platform__read_resource' && tool.name !== 'platform__list_resources'
-          );
-          setTools(filteredTools);
-        }
+        const fetched = await listTools(sessionId, extensionName);
+        const filteredTools = fetched.filter(
+          (tool) =>
+            tool.name !== 'platform__read_resource' && tool.name !== 'platform__list_resources'
+        );
+        setTools(filteredTools);
       } catch (err) {
         console.error('Error fetching tools:', err);
         setLoadError('fetch_failed');
@@ -144,26 +139,18 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
 
   const handleSave = async () => {
     try {
-      const payload = {
-        tool_permissions: Object.entries(updatedPermissions).map(([toolName, permission]) => ({
-          tool_name: toolName,
-          permission: permission as PermissionLevel,
-        })),
-      };
+      const toolPermissions = Object.entries(updatedPermissions).map(([toolName, permission]) => ({
+        toolName,
+        permission: permission as ToolPermissionLevel,
+      }));
 
-      if (payload.tool_permissions.length === 0) {
+      if (toolPermissions.length === 0) {
         onClose();
         return;
       }
 
-      const response = await upsertPermissions({
-        body: payload,
-      });
-      if (response.error) {
-        console.error('Failed to save permissions:', response.error);
-      } else {
-        onClose();
-      }
+      await setToolPermissions(toolPermissions);
+      onClose();
     } catch (err) {
       console.error('Error saving permissions:', err);
     }

@@ -164,7 +164,8 @@ impl OllamaProvider {
             AuthMethod::NoAuth,
             timeout,
             tls_config,
-        )?;
+        )?
+        .with_request_builder(crate::session_context::session_id_request_builder());
 
         Ok(Self {
             api_client,
@@ -205,7 +206,8 @@ impl OllamaProvider {
             AuthMethod::NoAuth,
             timeout,
             tls_config,
-        )?;
+        )?
+        .with_request_builder(crate::session_context::session_id_request_builder());
 
         if let Some(headers) = &config.headers {
             let mut header_map = reqwest::header::HeaderMap::new();
@@ -292,7 +294,6 @@ impl Provider for OllamaProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -312,7 +313,7 @@ impl Provider for OllamaProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(Some(session_id), "v1/chat/completions", &payload)
+                    .response_post("v1/chat/completions", &payload)
                     .await?;
                 handle_status(resp).await
             })
@@ -326,7 +327,7 @@ impl Provider for OllamaProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
-            .request(None, "api/tags")
+            .request("api/tags")
             .response_get()
             .await
             .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
