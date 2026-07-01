@@ -3929,7 +3929,7 @@
           },
           "primary": {
             "type": "boolean",
-            "description": "When true, the field is shown prominently in the UI (not collapsed).\nDefaults to the value of `required` if not specified.",
+            "description": "Defaults to the value of `required` if not specified.\nUIs may use this to feature this config value more prominently.",
             "nullable": true
           },
           "required": {

@@ -363,8 +363,8 @@ export type EnvVarConfig = {
     description?: string | null;
     name: string;
     /**
-     * When true, the field is shown prominently in the UI (not collapsed).
      * Defaults to the value of `required` if not specified.
+     * UIs may use this to feature this config value more prominently.
      */
     primary?: boolean | null;
     required?: boolean;
