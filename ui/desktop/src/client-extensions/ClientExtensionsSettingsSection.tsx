@@ -92,6 +92,16 @@ export default function ClientExtensionsSettingsSection() {
                         chatAction:{action.id}
                       </span>
                     ))}
+                    {(extension.manifest.contributes?.contentSuffixes ?? []).map((suffix) => (
+                      <span key={suffix.id} className="rounded bg-background-secondary px-2 py-0.5">
+                        contentSuffix:{suffix.id}
+                      </span>
+                    ))}
+                    {(extension.manifest.contributes?.customRenders ?? []).map((render) => (
+                      <span key={render.id} className="rounded bg-background-secondary px-2 py-0.5">
+                        customRender:{render.id}
+                      </span>
+                    ))}
                   </div>
                 </div>
               </li>
