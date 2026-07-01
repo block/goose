@@ -32,12 +32,21 @@ pub fn model_config_from_user_config_with_session_settings(
         .with_inherited_session_settings_from(previous, request_params)
         .with_default_thinking_effort(config.get_goose_thinking_effort());
 
-    Ok(model.with_canonical_limits(provider_name))
+    // Canonical (model-specific) limits win; GOOSE_CONTEXT_LIMIT is only a
+    // last-resort default for models with no known limit, never a cap over them.
+    Ok(model
+        .with_canonical_limits(provider_name)
+        .with_default_context_limit(config.get_goose_context_limit()?))
 }
 
 pub fn materialize_model_config(provider_name: &str, model: ModelConfig) -> Result<ModelConfig> {
+    let config = Config::global();
     let model = materialize_model_config_inner(model, provider_name, true)?;
-    Ok(model.with_canonical_limits(provider_name))
+    // Canonical (model-specific) limits win; GOOSE_CONTEXT_LIMIT is only a
+    // last-resort default for models with no known limit, never a cap over them.
+    Ok(model
+        .with_canonical_limits(provider_name)
+        .with_default_context_limit(config.get_goose_context_limit()?))
 }
 
 fn materialize_model_config_inner(
@@ -55,9 +64,9 @@ fn materialize_model_config_inner(
         model = model.with_toolshim_model(get_goose_toolshim_model(config)?);
     }
 
-    model = model
-        .with_default_context_limit(config.get_goose_context_limit()?)
-        .with_default_max_tokens(config.get_goose_max_tokens()?);
+    // GOOSE_CONTEXT_LIMIT is applied later, after canonical limits, so a model's
+    // known context window is never overridden by the global default.
+    model = model.with_default_max_tokens(config.get_goose_max_tokens()?);
 
     if include_default_thinking_effort {
         model = model.with_default_thinking_effort(config.get_goose_thinking_effort());
@@ -243,5 +252,42 @@ fn parse_yaml_bool_config(key: &str, value: serde_yaml::Value) -> Result<bool> {
             serde_yaml::to_string(&other).unwrap_or_else(|_| "<unprintable>".to_string()).trim()
         ))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn canonical_limit_wins_over_global_context_limit() {
+        let _guard = env_lock::lock_env([("GOOSE_CONTEXT_LIMIT", Some("1000"))]);
+
+        // A model with a known canonical context window keeps it instead of
+        // being capped to the much smaller global default.
+        let canonical = ModelConfig::new("claude-3-5-sonnet-20241022")
+            .with_canonical_limits("anthropic")
+            .context_limit();
+        assert!(
+            canonical > 1000,
+            "expected a canonical context limit for the test model, got {canonical}"
+        );
+
+        let materialized =
+            materialize_model_config("anthropic", ModelConfig::new("claude-3-5-sonnet-20241022"))
+                .expect("materialize");
+        assert_eq!(materialized.context_limit(), canonical);
+    }
+
+    #[test]
+    fn global_context_limit_is_last_resort_for_unknown_models() {
+        let _guard = env_lock::lock_env([("GOOSE_CONTEXT_LIMIT", Some("1000"))]);
+
+        let materialized = materialize_model_config(
+            "anthropic",
+            ModelConfig::new("a-model-not-in-the-canonical-registry-xyz"),
+        )
+        .expect("materialize");
+        assert_eq!(materialized.context_limit(), 1000);
     }
 }
