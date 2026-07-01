@@ -1,4 +1,8 @@
+import type { HostCapability } from './hostCapabilities/types';
+
 export const CLIENT_EXTENSION_MANIFEST = 'client-extension.json';
+
+export type { HostCapability };
 
 export interface ChatActionContribution {
   id: string;
@@ -52,6 +56,7 @@ export interface ClientExtensionManifest {
     grc?: string;
   };
   main: string;
+  hostCapabilities?: HostCapability[];
   contributes?: ClientExtensionContributes;
 }
 
@@ -134,4 +139,5 @@ export type HostToExtensionMessage =
 export type ExtensionToHostMessage =
   | { type: 'grc/ui/showMessage'; text: string }
   | { type: 'grc/chat/setInput'; text: string }
-  | { type: 'grc/resize'; height: number };
+  | { type: 'grc/resize'; height: number }
+  | import('./hostCapabilities/types').HostCapabilityInvokeMessage;

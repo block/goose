@@ -1,20 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { ArrowLeft } from 'lucide-react';
-import { toastService } from '../toasts';
+import {
+  isExtensionToHostMessage,
+  notifyExtensionActivate,
+  routeExtensionToHostMessage,
+} from './extensionHostBridge';
 import { useClientExtensions, useExtensionHostContext } from './ClientExtensionsContext';
 import { parseClientExtensionViewPath } from './routes';
-import type { ExtensionToHostMessage, HostToExtensionMessage } from './types';
+import type { HostToExtensionMessage } from './types';
 import { useNavigationSessions } from '../hooks/useNavigationSessions';
 import { Button } from '../components/ui/button';
-
-function isExtensionToHostMessage(value: unknown): value is ExtensionToHostMessage {
-  if (typeof value !== 'object' || value === null || !('type' in value)) {
-    return false;
-  }
-  const type = (value as { type: unknown }).type;
-  return type === 'grc/ui/showMessage' || type === 'grc/chat/setInput';
-}
 
 export default function ClientExtensionPageView() {
   const location = useLocation();
@@ -41,6 +37,10 @@ export default function ClientExtensionPageView() {
     }
     return extension.manifest.contributes?.rootLinks?.find((link) => link.id === view.viewId);
   }, [extension, view]);
+
+  const postToExtension = useCallback((payload: unknown) => {
+    iframeRef.current?.contentWindow?.postMessage(payload, '*');
+  }, []);
 
   useEffect(() => {
     if (!view) {
@@ -76,26 +76,23 @@ export default function ClientExtensionPageView() {
   }, [extension, getExtensionMainHtml, registryVersion, rootLink, view]);
 
   const handleExtensionMessage = useCallback(
-    (event: MessageEvent) => {
-      if (event.source !== iframeRef.current?.contentWindow) {
+    async (event: MessageEvent) => {
+      if (event.source !== iframeRef.current?.contentWindow || !view || !extension) {
         return;
       }
       if (!isExtensionToHostMessage(event.data)) {
         return;
       }
 
-      switch (event.data.type) {
-        case 'grc/ui/showMessage':
-          toastService.success({
-            title: rootLink?.label ?? 'Extension',
-            msg: event.data.text,
-          });
-          break;
-        default:
-          break;
-      }
+      await routeExtensionToHostMessage(
+        view.extensionId,
+        extension.manifest.hostCapabilities,
+        event.data,
+        postToExtension,
+        rootLink?.label ?? 'Extension'
+      );
     },
-    [rootLink?.label]
+    [extension, postToExtension, rootLink?.label, view]
   );
 
   useEffect(() => {
@@ -104,7 +101,7 @@ export default function ClientExtensionPageView() {
   }, [handleExtensionMessage]);
 
   const notifyActivate = useCallback(() => {
-    if (!view || !iframeRef.current?.contentWindow) {
+    if (!view) {
       return;
     }
 
@@ -114,8 +111,12 @@ export default function ClientExtensionPageView() {
       viewKind: 'rootLink',
       context: hostContext,
     };
-    iframeRef.current.contentWindow.postMessage(message, '*');
-  }, [hostContext, view]);
+    notifyExtensionActivate(
+      iframeRef.current,
+      message,
+      extension?.manifest.hostCapabilities
+    );
+  }, [extension?.manifest.hostCapabilities, hostContext, view]);
 
   if (loadError) {
     return (

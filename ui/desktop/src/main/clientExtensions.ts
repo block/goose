@@ -3,6 +3,7 @@ import path from 'node:path';
 import { app } from 'electron';
 import { compareVersions, satisfies } from 'compare-versions';
 import packageJson from '../../package.json';
+import { KNOWN_HOST_CAPABILITIES } from '../client-extensions/hostCapabilities/registry';
 import {
   CLIENT_EXTENSION_MANIFEST,
   type ChatActionContribution,
@@ -245,6 +246,16 @@ function parseManifest(raw: unknown, rootPath: string): ClientExtensionManifest 
 
   if (isRecord(raw.engines) && typeof raw.engines.grc === 'string') {
     manifest.engines = { grc: raw.engines.grc };
+  }
+
+  if (Array.isArray(raw.hostCapabilities)) {
+    const allowed = new Set<string>(KNOWN_HOST_CAPABILITIES);
+    const hostCapabilities = raw.hostCapabilities.filter(
+      (entry): entry is string => typeof entry === 'string' && allowed.has(entry)
+    );
+    if (hostCapabilities.length > 0) {
+      manifest.hostCapabilities = hostCapabilities;
+    }
   }
 
   if (isRecord(raw.contributes)) {
