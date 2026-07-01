@@ -25,7 +25,6 @@ local-inference = [
     "dep:candle-nn",
     "dep:candle-transformers",
     "goose-providers/local-inference",
-    "dep:hf-hub",
     "dep:tokenizers",
     "dep:symphonia",
     "dep:rubato",
@@ -55,7 +54,6 @@ rustls-tls = [
     "jsonwebtoken/aws_lc_rs",
     "oauth2/reqwest",
     "oauth2/rustls-tls",
-    "hf-hub/rustls-tls",
     "goose-providers/rustls-tls",
 ]
 native-tls = [
@@ -200,7 +198,6 @@ tree-sitter-swift = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 which = { workspace = true }
 pulldown-cmark = { version = "0.13", default-features = false }
-encoding_rs = { version = "0.8.35", default-features = false }
 pastey = { version = "0.2", default-features = false }
 shell-words = { workspace = true }
 goose-acp-macros = { path = "../goose-acp-macros", default-features = false }
@@ -215,10 +212,6 @@ axum-server = { version = "0.8", default-features = false, optional = true }
 aws-lc-rs = { version = "1.17", default-features = false, optional = true }
 openssl = { version = "0.10.66", default-features = false, optional = true }
 pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
-hf-hub = { version = "1.0.0-rc.1", default-features = false, optional = true }
-mlx-rs = { version = "0.25.3", default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true }
-mlx-lm = { git = "https://github.com/jh-block/mlx-lm", optional = true }
-mlx-lm-utils = { git = "https://github.com/jh-block/mlx-lm", optional = true }
 
 pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 
