@@ -390,6 +390,7 @@
     "installation_notes": "Install using the npx package manager. On first use the server opens an OAuth sign-in in your browser. Alternatively, set HOSTINGER_API_TOKEN (generate one in hPanel under API) to skip OAuth.",
     "is_builtin": false,
     "endorsed": false,
+    "show_documentation": false,
     "environmentVariables": [
       {
         "name": "HOSTINGER_API_TOKEN",
