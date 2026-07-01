@@ -4539,7 +4539,7 @@
     "defaultMessage": "편집"
   },
   "userMessage.editImagesHeading": {
-    "defaultMessage": "Attached images:"
+    "defaultMessage": "첨부된 이미지:"
   },
   "userMessage.editInPlace": {
     "defaultMessage": "바로 편집"
@@ -4575,6 +4575,6 @@
     "defaultMessage": "편집한 메시지로 새 세션 만들기"
   },
   "userMessage.removeImageFromEdit": {
-    "defaultMessage": "Remove image from message"
+    "defaultMessage": "메시지에서 이미지 제거"
   }
 }

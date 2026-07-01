@@ -4539,7 +4539,7 @@
     "defaultMessage": "Editar"
   },
   "userMessage.editImagesHeading": {
-    "defaultMessage": "Attached images:"
+    "defaultMessage": "Imágenes adjuntas:"
   },
   "userMessage.editInPlace": {
     "defaultMessage": "Editar en el sitio"
@@ -4575,6 +4575,6 @@
     "defaultMessage": "Crear una nueva sesión con el mensaje editado"
   },
   "userMessage.removeImageFromEdit": {
-    "defaultMessage": "Remove image from message"
+    "defaultMessage": "Eliminar imagen del mensaje"
   }
 }

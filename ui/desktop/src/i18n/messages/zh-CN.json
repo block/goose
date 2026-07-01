@@ -4539,7 +4539,7 @@
     "defaultMessage": "编辑"
   },
   "userMessage.editImagesHeading": {
-    "defaultMessage": "Attached images:"
+    "defaultMessage": "已附加的图片："
   },
   "userMessage.editInPlace": {
     "defaultMessage": "原地编辑"
@@ -4575,6 +4575,6 @@
     "defaultMessage": "用编辑过的消息创建新会话"
   },
   "userMessage.removeImageFromEdit": {
-    "defaultMessage": "Remove image from message"
+    "defaultMessage": "从消息中移除图片"
   }
 }

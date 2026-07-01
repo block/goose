@@ -4539,7 +4539,7 @@
     "defaultMessage": "संपादित करें"
   },
   "userMessage.editImagesHeading": {
-    "defaultMessage": "Attached images:"
+    "defaultMessage": "संलग्न छवियाँ:"
   },
   "userMessage.editInPlace": {
     "defaultMessage": "यथास्थान संपादित करें"
@@ -4575,6 +4575,6 @@
     "defaultMessage": "संपादित संदेश के साथ एक नया सत्र बनाएं"
   },
   "userMessage.removeImageFromEdit": {
-    "defaultMessage": "Remove image from message"
+    "defaultMessage": "संदेश से छवि हटाएँ"
   }
 }

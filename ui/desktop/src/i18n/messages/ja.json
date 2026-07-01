@@ -4539,7 +4539,7 @@
     "defaultMessage": "編集"
   },
   "userMessage.editImagesHeading": {
-    "defaultMessage": "Attached images:"
+    "defaultMessage": "添付画像:"
   },
   "userMessage.editInPlace": {
     "defaultMessage": "その場で編集"
@@ -4575,6 +4575,6 @@
     "defaultMessage": "編集したメッセージで新しいセッションを作成"
   },
   "userMessage.removeImageFromEdit": {
-    "defaultMessage": "Remove image from message"
+    "defaultMessage": "メッセージから画像を削除"
   }
 }

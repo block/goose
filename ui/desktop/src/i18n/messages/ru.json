@@ -4539,7 +4539,7 @@
     "defaultMessage": "Изменить"
   },
   "userMessage.editImagesHeading": {
-    "defaultMessage": "Attached images:"
+    "defaultMessage": "Прикрепленные изображения:"
   },
   "userMessage.editInPlace": {
     "defaultMessage": "Изменить на месте"
@@ -4575,6 +4575,6 @@
     "defaultMessage": "Создать новый сеанс с измененным сообщением"
   },
   "userMessage.removeImageFromEdit": {
-    "defaultMessage": "Remove image from message"
+    "defaultMessage": "Удалить изображение из сообщения"
   }
 }
