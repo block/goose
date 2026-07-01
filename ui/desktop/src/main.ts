@@ -33,6 +33,7 @@ import log from './utils/logger';
 import { ensureWinShims } from './utils/winShims';
 import { addRecentDir, loadRecentDirs } from './utils/recentDirs';
 import { formatAppName, errorMessage, formatErrorForLogging } from './utils/conversionUtils';
+import { isRetiredGooseChatApp } from './utils/retiredApps';
 import type { Settings, SettingKey } from './utils/settings';
 import { defaultSettings, getKeyboardShortcuts } from './utils/settings';
 import * as crypto from 'crypto';
@@ -2877,6 +2878,10 @@ async function appMain() {
 
   ipcMain.handle('launch-app', async (event, gooseApp: GooseApp) => {
     try {
+      if (isRetiredGooseChatApp(gooseApp)) {
+        throw new Error('This built-in Chat app is no longer supported.');
+      }
+
       const launchingWindow = BrowserWindow.fromWebContents(event.sender);
       if (!launchingWindow) {
         throw new Error('Could not find launching window');
