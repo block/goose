@@ -2,6 +2,16 @@ export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
 
 export type ThinkingEffort = 'off' | 'low' | 'medium' | 'high' | 'max';
 
+export type ConfigKey = {
+  default?: string | null;
+  device_code_flow?: boolean;
+  name: string;
+  oauth_flow: boolean;
+  primary?: boolean;
+  required: boolean;
+  secret: boolean;
+};
+
 export type UpdateCustomProviderRequest = {
   api_key: string;
   api_url: string;

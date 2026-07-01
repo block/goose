@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { Input } from '../../../../../ui/input';
 import { acpReadProviderConfig } from '../../../../../../acp/providers';
-import { ProviderDetails, ConfigKey } from '../../../../../../api';
+import type { ProviderDetails } from '../../../../../../api';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '../../../../../ui/collapsible';
+import type { ConfigKey } from '../../../../../../types/providers';
 import { configLabels, configPlaceholders } from '../../../../../../utils/configUtils';
 import { defineMessages, useIntl } from '../../../../../../i18n';
 
