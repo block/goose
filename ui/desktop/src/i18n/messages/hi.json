@@ -4223,9 +4223,6 @@
   "switchModelModal.loadingModels": {
     "defaultMessage": "मॉडल लोड हो रहे हैं…"
   },
-  "switchModelModal.checkingModel": {
-    "defaultMessage": "मॉडल की जाँच की जा रही है…"
-  },
   "switchModelModal.localModelsDescription": {
     "defaultMessage": "स्थानीय अनुमान का उपयोग करने के लिए, आपको पहले अपने कंप्यूटर पर एक मॉडल डाउनलोड करना होगा। स्थानीय मॉडल प्रबंधित करने के लिए Settings → मॉडल पर जाएं।"
   },

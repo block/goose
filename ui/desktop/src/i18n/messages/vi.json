@@ -4175,9 +4175,6 @@
   "switchModelModal.checkProviderConfig": {
     "defaultMessage": "Kiểm tra cấu hình nhà cung cấp của bạn trong Cài đặt → Nhà cung cấp"
   },
-  "switchModelModal.checkingModel": {
-    "defaultMessage": "Đang kiểm tra mô hình…"
-  },
   "switchModelModal.chooseModel": {
     "defaultMessage": "Chọn một mô hình:"
   },

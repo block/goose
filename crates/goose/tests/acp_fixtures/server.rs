@@ -62,17 +62,6 @@ impl AcpServerSession {
             .collect()
     }
 
-    pub async fn wait_for_session_updates(&self) -> Vec<SessionUpdate> {
-        loop {
-            let notified = self.notify.notified();
-            let updates = self.session_updates();
-            if !updates.is_empty() {
-                return updates;
-            }
-            notified.await;
-        }
-    }
-
     async fn send_prompt(
         &mut self,
         content: Vec<ContentBlock>,

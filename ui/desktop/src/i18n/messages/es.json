@@ -4223,9 +4223,6 @@
   "switchModelModal.loadingModels": {
     "defaultMessage": "Cargando modelos…"
   },
-  "switchModelModal.checkingModel": {
-    "defaultMessage": "Comprobando modelo…"
-  },
   "switchModelModal.localModelsDescription": {
     "defaultMessage": "Para usar inferencia local, primero debes descargar un modelo a tu computadora. Ve a Ajustes → Modelos para gestionar los modelos locales."
   },

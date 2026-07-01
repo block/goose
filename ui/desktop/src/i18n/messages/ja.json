@@ -4223,9 +4223,6 @@
   "switchModelModal.loadingModels": {
     "defaultMessage": "モデルを読み込み中…"
   },
-  "switchModelModal.checkingModel": {
-    "defaultMessage": "モデルを確認中…"
-  },
   "switchModelModal.localModelsDescription": {
     "defaultMessage": "ローカル推論を使用するには、先にモデルをコンピューターにダウンロードする必要があります。設定 → モデルでローカルモデルを管理できます。"
   },

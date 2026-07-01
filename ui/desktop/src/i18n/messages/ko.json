@@ -4223,9 +4223,6 @@
   "switchModelModal.loadingModels": {
     "defaultMessage": "모델 로드 중…"
   },
-  "switchModelModal.checkingModel": {
-    "defaultMessage": "모델 확인 중…"
-  },
   "switchModelModal.localModelsDescription": {
     "defaultMessage": "로컬 추론을 사용하려면 먼저 모델을 컴퓨터에 다운로드해야 합니다. 로컬 모델을 관리하려면 설정 → 모델로 이동하세요."
   },

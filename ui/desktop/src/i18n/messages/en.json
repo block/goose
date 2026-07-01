@@ -4175,9 +4175,6 @@
   "switchModelModal.checkProviderConfig": {
     "defaultMessage": "Check your provider configuration in Settings → Providers"
   },
-  "switchModelModal.checkingModel": {
-    "defaultMessage": "Checking model…"
-  },
   "switchModelModal.chooseModel": {
     "defaultMessage": "Choose a model:"
   },

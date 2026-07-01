@@ -3033,10 +3033,6 @@
           "provider"
         ],
         "properties": {
-          "model": {
-            "type": "string",
-            "nullable": true
-          },
           "provider": {
             "type": "string"
           }

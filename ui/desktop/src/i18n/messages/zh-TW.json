@@ -4175,9 +4175,6 @@
   "switchModelModal.checkProviderConfig": {
     "defaultMessage": "請在「設定」→「提供者」中檢查您的提供者設定"
   },
-  "switchModelModal.checkingModel": {
-    "defaultMessage": "正在檢查模型…"
-  },
   "switchModelModal.chooseModel": {
     "defaultMessage": "選擇模型："
   },

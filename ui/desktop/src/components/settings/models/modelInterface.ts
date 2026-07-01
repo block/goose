@@ -1,10 +1,5 @@
-import {
-  checkProvider,
-  getProviderModelInfo,
-  getProviderModels,
-} from '../../../api';
 import { listLocalModels } from '../../../acp/local-inference';
-import { acpListProviderDetails } from '../../../acp/providers';
+import { acpListProviderDetails, acpListProviderModels } from '../../../acp/providers';
 import type { ProviderDetails, ThinkingEffort } from '../../../types/providers';
 import { errorMessage as getErrorMessage } from '../../../utils/conversionUtils';
 
@@ -48,13 +43,6 @@ export async function getProviderMetadata(providerName: string) {
   return matches.metadata;
 }
 
-export async function validateProviderModel(provider: string, model: string): Promise<void> {
-  await checkProvider({
-    body: { provider, model },
-    throwOnError: true,
-  });
-}
-
 export interface ProviderModelsResult {
   provider: ProviderDetails;
   models: Model[] | null;
@@ -76,16 +64,13 @@ export async function fetchModelsForProviders(
         return { provider: p, models: downloadedModels, error: null, warning: null };
       }
 
-      const response = await getProviderModels({
-        path: { name: p.name },
-        throwOnError: true,
-      });
-      const models = (response.data || []).map(
+      const providerModels = await acpListProviderModels(p.name);
+      const models = providerModels.map(
         (m) =>
           ({
-            name: m.name,
+            name: m.id,
             provider: p.name,
-            context_limit: m.context_limit,
+            context_limit: m.contextLimit ?? undefined,
             reasoning: m.reasoning ?? undefined,
           }) as Model
       );
@@ -133,11 +118,9 @@ export async function fetchModelReasoning(
   fallback?: boolean
 ): Promise<boolean | null> {
   try {
-    const response = await getProviderModelInfo({
-      path: { name: provider },
-      body: { model },
-    });
-    return response.data?.reasoning ?? fallback ?? null;
+    const models = await acpListProviderModels(provider);
+    const match = models.find((m) => m.id === model);
+    return match?.reasoning ?? fallback ?? null;
   } catch {
     return fallback ?? null;
   }

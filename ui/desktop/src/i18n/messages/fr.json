@@ -4175,9 +4175,6 @@
   "switchModelModal.checkProviderConfig": {
     "defaultMessage": "Vérifiez la configuration de votre fournisseur dans Paramètres → Fournisseurs"
   },
-  "switchModelModal.checkingModel": {
-    "defaultMessage": "Vérification du modèle…"
-  },
   "switchModelModal.chooseModel": {
     "defaultMessage": "Choisissez un modèle :"
   },

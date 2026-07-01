@@ -1,4 +1,4 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use super::openai_compatible::{handle_status, stream_responses_compat};
@@ -8,16 +8,11 @@ use crate::session_context::SESSION_ID_HEADER;
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
-use aws_sdk_bedrock::types::{
-    FoundationModelLifecycleStatus, FoundationModelSummary, InferenceProfileStatus,
-    InferenceProfileType, InferenceType, ModelModality,
-};
-use aws_sdk_bedrock::Client as BedrockControlClient;
 use aws_sdk_bedrockruntime::config::ProvideCredentials;
 use aws_sdk_bedrockruntime::operation::converse::ConverseError;
 use aws_sdk_bedrockruntime::operation::converse_stream::ConverseStreamError;
 use aws_sdk_bedrockruntime::types::error::ConverseStreamOutputError;
-use aws_sdk_bedrockruntime::{types as bedrock, Client as BedrockRuntimeClient};
+use aws_sdk_bedrockruntime::{types as bedrock, Client};
 use base64::Engine;
 use futures::future::BoxFuture;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
@@ -41,8 +36,15 @@ pub const BEDROCK_DOC_LINK: &str =
     "https://docs.aws.amazon.com/bedrock/latest/userguide/models-supported.html";
 
 pub const BEDROCK_DEFAULT_MODEL: &str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0";
-pub const BEDROCK_MANTLE_MODELS: &[&str] = &["openai.gpt-5.5", "openai.gpt-5.4"];
-pub const BEDROCK_BOOTSTRAP_MODELS: &[&str] = &[BEDROCK_DEFAULT_MODEL];
+pub const BEDROCK_KNOWN_MODELS: &[&str] = &[
+    "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "us.anthropic.claude-sonnet-4-20250514-v1:0",
+    "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "us.anthropic.claude-opus-4-20250514-v1:0",
+    "us.anthropic.claude-opus-4-1-20250805-v1:0",
+    "openai.gpt-5.5",
+    "openai.gpt-5.4",
+];
 
 pub const BEDROCK_DEFAULT_MAX_RETRIES: usize = 6;
 pub const BEDROCK_DEFAULT_INITIAL_RETRY_INTERVAL_MS: u64 = 2000;
@@ -52,9 +54,7 @@ pub const BEDROCK_DEFAULT_MAX_RETRY_INTERVAL_MS: u64 = 120_000;
 #[derive(Debug, serde::Serialize)]
 pub struct BedrockProvider {
     #[serde(skip)]
-    client: BedrockRuntimeClient,
-    #[serde(skip)]
-    control_plane_client: BedrockControlClient,
+    client: Client,
     #[serde(skip)]
     retry_config: RetryConfig,
     #[serde(skip)]
@@ -163,26 +163,15 @@ impl BedrockProvider {
                 ))
                 .build();
 
-            BedrockRuntimeClient::from_conf(bedrock_config)
+            Client::from_conf(bedrock_config)
         } else {
-            Self::create_runtime_client_with_credentials(&sdk_config).await?
-        };
-
-        let control_plane_client = if let Some(ref token) = bearer_token {
-            let bedrock_config = aws_sdk_bedrock::Config::new(&sdk_config)
-                .to_builder()
-                .bearer_token(aws_sdk_bedrock::config::Token::new(token.clone(), None))
-                .build();
-            BedrockControlClient::from_conf(bedrock_config)
-        } else {
-            BedrockControlClient::new(&sdk_config)
+            Self::create_client_with_credentials(&sdk_config).await?
         };
 
         let retry_config = Self::load_retry_config(config);
 
         Ok(Self {
             client,
-            control_plane_client,
             retry_config,
             name: BEDROCK_PROVIDER_NAME.to_string(),
             region: resolved_region,
@@ -192,9 +181,7 @@ impl BedrockProvider {
         })
     }
 
-    async fn create_runtime_client_with_credentials(
-        sdk_config: &aws_config::SdkConfig,
-    ) -> Result<BedrockRuntimeClient> {
+    async fn create_client_with_credentials(sdk_config: &aws_config::SdkConfig) -> Result<Client> {
         sdk_config
             .credentials_provider()
             .ok_or_else(|| anyhow::anyhow!("No AWS credentials provider configured"))?
@@ -207,152 +194,7 @@ impl BedrockProvider {
                 )
             })?;
 
-        Ok(BedrockRuntimeClient::new(sdk_config))
-    }
-
-    fn bootstrap_models(include_mantle: bool) -> Vec<String> {
-        let mut models: Vec<String> = BEDROCK_BOOTSTRAP_MODELS
-            .iter()
-            .map(|model| model.to_string())
-            .collect();
-        if include_mantle {
-            models.extend(BEDROCK_MANTLE_MODELS.iter().map(|model| model.to_string()));
-        }
-        models
-    }
-
-    fn merge_discovered_model_ids(
-        inference_profiles: impl IntoIterator<Item = String>,
-        foundation_models: impl IntoIterator<Item = String>,
-        extra_models: impl IntoIterator<Item = String>,
-    ) -> Vec<String> {
-        let mut models = BTreeSet::new();
-        models.extend(inference_profiles);
-        models.extend(foundation_models);
-        models.extend(extra_models);
-        models.into_iter().collect()
-    }
-
-    fn is_excluded_non_chat_model_id(model_id: &str) -> bool {
-        let id = model_id.to_lowercase();
-        id.contains(".embed")
-            || id.contains("-embed-")
-            || id.ends_with("-embed")
-            || id.contains(".rerank")
-            || id.contains("-rerank-")
-            || id.ends_with("-rerank")
-    }
-
-    fn is_chat_capable_model_id(model_id: &str) -> bool {
-        !Self::is_excluded_non_chat_model_id(model_id)
-    }
-
-    fn is_chat_capable_foundation_model(summary: &FoundationModelSummary) -> bool {
-        if !Self::is_chat_capable_model_id(summary.model_id()) {
-            return false;
-        }
-
-        let has_text_input = summary.input_modalities().contains(&ModelModality::Text);
-        let has_text_output = summary.output_modalities().contains(&ModelModality::Text);
-        let has_embedding_output = summary
-            .output_modalities()
-            .contains(&ModelModality::Embedding);
-        let streaming = summary.response_streaming_supported().unwrap_or(false);
-        let not_legacy = summary
-            .model_lifecycle()
-            .map(|lifecycle| lifecycle.status() != &FoundationModelLifecycleStatus::Legacy)
-            .unwrap_or(true);
-
-        has_text_input && has_text_output && !has_embedding_output && streaming && not_legacy
-    }
-
-    fn is_mantle_model_id(model_id: &str) -> bool {
-        BEDROCK_MANTLE_MODELS.contains(&model_id)
-    }
-
-    async fn fetch_inference_profile_ids(&self) -> Result<Vec<String>, ProviderError> {
-        let mut ids = BTreeSet::new();
-
-        for profile_type in [
-            InferenceProfileType::SystemDefined,
-            InferenceProfileType::Application,
-        ] {
-            let mut next_token = None;
-            loop {
-                let mut request = self
-                    .control_plane_client
-                    .list_inference_profiles()
-                    .type_equals(profile_type.clone());
-                if let Some(token) = &next_token {
-                    request = request.next_token(token);
-                }
-
-                let response = request.send().await.map_err(|err| {
-                    ProviderError::ExecutionError(format!(
-                        "Failed to list Bedrock inference profiles: {}",
-                        err
-                    ))
-                })?;
-
-                for summary in response.inference_profile_summaries() {
-                    if summary.status() == &InferenceProfileStatus::Active {
-                        let id = summary.inference_profile_id();
-                        if Self::is_chat_capable_model_id(id) {
-                            ids.insert(id.to_string());
-                        }
-                    }
-                }
-
-                next_token = response.next_token().map(|token| token.to_string());
-                if next_token.is_none() {
-                    break;
-                }
-            }
-        }
-
-        Ok(ids.into_iter().collect())
-    }
-
-    async fn fetch_foundation_model_ids(&self) -> Result<Vec<String>, ProviderError> {
-        let response = self
-            .control_plane_client
-            .list_foundation_models()
-            .by_inference_type(InferenceType::OnDemand)
-            .by_output_modality(ModelModality::Text)
-            .send()
-            .await
-            .map_err(|err| {
-                ProviderError::ExecutionError(format!(
-                    "Failed to list Bedrock foundation models: {}",
-                    err
-                ))
-            })?;
-
-        Ok(response
-            .model_summaries()
-            .iter()
-            .filter(|summary| Self::is_chat_capable_foundation_model(summary))
-            .map(|summary| summary.model_id().to_string())
-            .collect())
-    }
-
-    async fn fetch_models_from_aws(&self) -> Result<Vec<String>, ProviderError> {
-        let inference_profiles = self.fetch_inference_profile_ids().await?;
-        let foundation_models = self.fetch_foundation_model_ids().await?;
-        let extra_models = if self.bearer_token.is_some() {
-            BEDROCK_MANTLE_MODELS
-                .iter()
-                .map(|model| model.to_string())
-                .collect()
-        } else {
-            Vec::new()
-        };
-
-        Ok(Self::merge_discovered_model_ids(
-            inference_profiles,
-            foundation_models,
-            extra_models,
-        ))
+        Ok(Client::new(sdk_config))
     }
 
     fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
@@ -560,12 +402,6 @@ impl BedrockProvider {
                     "Bedrock validation error: {}",
                     err.message().unwrap_or("unknown validation error")
                 )),
-                ConverseError::ResourceNotFoundException(err) => {
-                    ProviderError::ExecutionError(format!(
-                        "Bedrock model not found or not accessible: {}",
-                        err.message().unwrap_or("unknown resource error")
-                    ))
-                }
                 ConverseError::ModelErrorException(err) => {
                     ProviderError::ExecutionError(format!("Failed to call Bedrock: {:?}", err))
                 }
@@ -656,18 +492,6 @@ impl BedrockProvider {
                     ProviderError::ContextLengthExceeded(format!(
                         "Failed to call Bedrock: {:?}",
                         err
-                    ))
-                }
-                ConverseStreamError::ValidationException(err) => {
-                    ProviderError::ExecutionError(format!(
-                        "Bedrock validation error: {}",
-                        err.message().unwrap_or("unknown validation error")
-                    ))
-                }
-                ConverseStreamError::ResourceNotFoundException(err) => {
-                    ProviderError::ExecutionError(format!(
-                        "Bedrock model not found or not accessible: {}",
-                        err.message().unwrap_or("unknown resource error")
                     ))
                 }
                 ConverseStreamError::ModelErrorException(err) => {
@@ -865,9 +689,9 @@ impl goose_providers::base::ProviderDescriptor for BedrockProvider {
         ProviderMetadata::new(
             BEDROCK_PROVIDER_NAME,
             "Amazon Bedrock",
-            "Run models through Amazon Bedrock. Supports AWS SSO profiles - run 'aws sso login --profile <profile-name>' before using. Configure with AWS_PROFILE and AWS_REGION, use environment variables/credentials, or use AWS_BEARER_TOKEN_BEDROCK for bearer token authentication. Region is required for bearer token auth (can be set via AWS_REGION, AWS_DEFAULT_REGION, or AWS profile). Model discovery requires bedrock:ListFoundationModels and bedrock:ListInferenceProfiles permissions. Prompt caching can be enabled for Anthropic Claude models by setting BEDROCK_ENABLE_CACHING=true. Responses stream via the ConverseStream API; set BEDROCK_DISABLE_STREAMING=true to fall back to blocking Converse calls.",
+            "Run models through Amazon Bedrock. Supports AWS SSO profiles - run 'aws sso login --profile <profile-name>' before using. Configure with AWS_PROFILE and AWS_REGION, use environment variables/credentials, or use AWS_BEARER_TOKEN_BEDROCK for bearer token authentication. Region is required for bearer token auth (can be set via AWS_REGION, AWS_DEFAULT_REGION, or AWS profile). Prompt caching can be enabled for Anthropic Claude models by setting BEDROCK_ENABLE_CACHING=true. Responses stream via the ConverseStream API; set BEDROCK_DISABLE_STREAMING=true to fall back to blocking Converse calls.",
             BEDROCK_DEFAULT_MODEL,
-            BEDROCK_BOOTSTRAP_MODELS.to_vec(),
+            BEDROCK_KNOWN_MODELS.to_vec(),
             BEDROCK_DOC_LINK,
             vec![
                 ConfigKey::new("AWS_PROFILE", false, false, Some("default"), true),
@@ -907,25 +731,8 @@ impl Provider for BedrockProvider {
         self.retry_config.clone()
     }
 
-    fn skip_canonical_filtering(&self) -> bool {
-        true
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        match self.fetch_models_from_aws().await {
-            Ok(models) if !models.is_empty() => Ok(models),
-            Ok(_) => {
-                tracing::debug!("Bedrock model discovery returned no models, using bootstrap list");
-                Ok(Self::bootstrap_models(self.bearer_token.is_some()))
-            }
-            Err(err) => {
-                tracing::warn!(
-                    "Bedrock model discovery failed ({}), using bootstrap list",
-                    err
-                );
-                Ok(Self::bootstrap_models(self.bearer_token.is_some()))
-            }
-        }
+        Ok(BEDROCK_KNOWN_MODELS.iter().map(|s| s.to_string()).collect())
     }
 
     async fn stream(
@@ -949,7 +756,7 @@ impl Provider for BedrockProvider {
         let (base_name, effort) = extract_reasoning_effort(without_prefix);
         let bedrock_model_id = format!("openai.{}", base_name);
 
-        let is_mantle_model = Self::is_mantle_model_id(&bedrock_model_id);
+        let is_mantle_model = BEDROCK_KNOWN_MODELS.contains(&bedrock_model_id.as_str());
 
         if is_mantle_model {
             let mut normalized_config = ModelConfig {
@@ -1112,23 +919,11 @@ mod tests {
             .behavior_version(aws_config::BehaviorVersion::latest())
             .region(aws_config::Region::new("us-east-1"))
             .build();
-        let client = BedrockRuntimeClient::new(&sdk_config);
-        let control_plane_client = BedrockControlClient::new(&sdk_config);
-        let model = ModelConfig {
-            model_name: model_name.to_string(),
-            context_limit: None,
-            temperature: None,
-            max_tokens: None,
-            toolshim: false,
-            toolshim_model: None,
-            request_params: None,
-            reasoning: None,
-        };
+        let client = Client::new(&sdk_config);
 
         (
             BedrockProvider {
                 client,
-                control_plane_client,
                 retry_config: RetryConfig::default(),
                 name: "aws_bedrock".to_string(),
                 region: None,
@@ -1136,7 +931,16 @@ mod tests {
                 http_client: reqwest::Client::new(),
                 mantle_base_url: None,
             },
-            model,
+            ModelConfig {
+                model_name: model_name.to_string(),
+                context_limit: None,
+                temperature: None,
+                max_tokens: None,
+                toolshim: false,
+                toolshim_model: None,
+                request_params: None,
+                reasoning: None,
+            },
         )
     }
 
@@ -1200,21 +1004,6 @@ mod tests {
             !caching.secret,
             "BEDROCK_ENABLE_CACHING should not be marked as secret"
         );
-    }
-
-    #[test]
-    #[serial]
-    fn test_caching_disabled_by_default() {
-        std::env::set_var("BEDROCK_ENABLE_CACHING", "false");
-
-        let (provider, model) =
-            create_mock_provider_and_model("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
-        assert!(
-            !provider.should_enable_caching(&model),
-            "Caching should be disabled by default"
-        );
-
-        std::env::remove_var("BEDROCK_ENABLE_CACHING");
     }
 
     #[test]
@@ -1304,19 +1093,9 @@ mod tests {
             .region(aws_config::Region::new("us-east-1"))
             .build();
 
-        let model = ModelConfig {
-            model_name: "openai.gpt-5.5".to_string(),
-            context_limit: None,
-            temperature: None,
-            max_tokens: None,
-            toolshim: false,
-            toolshim_model: None,
-            request_params: None,
-            reasoning: None,
-        };
+        let model = ModelConfig::new("openai.gpt-5.5");
         let provider = BedrockProvider {
-            client: BedrockRuntimeClient::new(&sdk_config),
-            control_plane_client: BedrockControlClient::new(&sdk_config),
+            client: Client::new(&sdk_config),
             retry_config: RetryConfig::default(),
             name: "aws_bedrock".to_string(),
             region: Some("us-east-1".to_string()),
@@ -1717,117 +1496,5 @@ mod tests {
             }
             other => panic!("expected RedactedThinking, got {:?}", other),
         }
-    }
-
-    #[test]
-    fn test_merge_discovered_model_ids_dedupes_and_sorts() {
-        let models = BedrockProvider::merge_discovered_model_ids(
-            [
-                "eu.anthropic.claude-sonnet-4-5-20250929-v1:0".to_string(),
-                "us.anthropic.claude-sonnet-4-5-20250929-v1:0".to_string(),
-            ],
-            [
-                "anthropic.claude-3-5-sonnet-20240620-v1:0".to_string(),
-                "eu.anthropic.claude-sonnet-4-5-20250929-v1:0".to_string(),
-            ],
-            ["openai.gpt-5.5".to_string()],
-        );
-
-        assert_eq!(
-            models,
-            vec![
-                "anthropic.claude-3-5-sonnet-20240620-v1:0".to_string(),
-                "eu.anthropic.claude-sonnet-4-5-20250929-v1:0".to_string(),
-                "openai.gpt-5.5".to_string(),
-                "us.anthropic.claude-sonnet-4-5-20250929-v1:0".to_string(),
-            ]
-        );
-    }
-
-    #[test]
-    fn test_bootstrap_models_includes_mantle_with_bearer_token() {
-        let without_mantle = BedrockProvider::bootstrap_models(false);
-        assert_eq!(without_mantle, vec![BEDROCK_DEFAULT_MODEL.to_string()]);
-
-        let with_mantle = BedrockProvider::bootstrap_models(true);
-        assert!(with_mantle.contains(&"openai.gpt-5.5".to_string()));
-        assert!(with_mantle.contains(&BEDROCK_DEFAULT_MODEL.to_string()));
-    }
-
-    #[test]
-    fn test_is_mantle_model_id() {
-        assert!(BedrockProvider::is_mantle_model_id("openai.gpt-5.5"));
-        assert!(BedrockProvider::is_mantle_model_id("openai.gpt-5.4"));
-        assert!(!BedrockProvider::is_mantle_model_id(
-            "openai.gpt-oss-120b-1:0"
-        ));
-        assert!(!BedrockProvider::is_mantle_model_id(
-            "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-        ));
-    }
-
-    #[test]
-    fn test_skip_canonical_filtering_enabled() {
-        let (provider, _) = create_mock_provider_and_model("test");
-        assert!(provider.skip_canonical_filtering());
-    }
-
-    #[test]
-    fn test_is_chat_capable_foundation_model_filters_embeddings() {
-        let chat_model = FoundationModelSummary::builder()
-            .model_arn("arn:aws:bedrock:us-east-1::foundation-model/anthropic.claude-3-5-sonnet-20240620-v1:0")
-            .model_id("anthropic.claude-3-5-sonnet-20240620-v1:0")
-            .input_modalities(ModelModality::Text)
-            .output_modalities(ModelModality::Text)
-            .response_streaming_supported(true)
-            .build()
-            .unwrap();
-        assert!(BedrockProvider::is_chat_capable_foundation_model(
-            &chat_model
-        ));
-
-        let embedding_model = FoundationModelSummary::builder()
-            .model_arn("arn:aws:bedrock:us-east-1::foundation-model/amazon.titan-embed-text-v2:0")
-            .model_id("amazon.titan-embed-text-v2:0")
-            .input_modalities(ModelModality::Text)
-            .output_modalities(ModelModality::Embedding)
-            .response_streaming_supported(false)
-            .build()
-            .unwrap();
-        assert!(!BedrockProvider::is_chat_capable_foundation_model(
-            &embedding_model
-        ));
-
-        let cohere_embed_v4 = FoundationModelSummary::builder()
-            .model_arn("arn:aws:bedrock:us-east-1::foundation-model/cohere.embed-v4:0")
-            .model_id("cohere.embed-v4:0")
-            .input_modalities(ModelModality::Text)
-            .output_modalities(ModelModality::Text)
-            .output_modalities(ModelModality::Embedding)
-            .response_streaming_supported(true)
-            .build()
-            .unwrap();
-        assert!(!BedrockProvider::is_chat_capable_foundation_model(
-            &cohere_embed_v4
-        ));
-    }
-
-    #[test]
-    fn test_is_chat_capable_model_id_excludes_embed_and_rerank_profiles() {
-        assert!(!BedrockProvider::is_chat_capable_model_id(
-            "cohere.embed-v4:0"
-        ));
-        assert!(!BedrockProvider::is_chat_capable_model_id(
-            "us.cohere.embed-v4:0"
-        ));
-        assert!(!BedrockProvider::is_chat_capable_model_id(
-            "amazon.titan-embed-text-v2:0"
-        ));
-        assert!(!BedrockProvider::is_chat_capable_model_id(
-            "cohere.rerank-v3-5:0"
-        ));
-        assert!(BedrockProvider::is_chat_capable_model_id(
-            "us.anthropic.claude-sonnet-4-5-20250929-v1:0"
-        ));
     }
 }

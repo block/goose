@@ -4175,9 +4175,6 @@
   "switchModelModal.checkProviderConfig": {
     "defaultMessage": "Überprüfen Sie Ihre Anbieterkonfiguration unter Einstellungen → Anbieter"
   },
-  "switchModelModal.checkingModel": {
-    "defaultMessage": "Modell wird überprüft…"
-  },
   "switchModelModal.chooseModel": {
     "defaultMessage": "Wählen Sie ein Modell:"
   },

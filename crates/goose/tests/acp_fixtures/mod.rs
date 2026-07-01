@@ -770,7 +770,6 @@ where
     if std::env::var_os("GOOSE_PATH_ROOT").is_none() {
         std::env::set_var("GOOSE_PATH_ROOT", ACP_CONFIG_ROOT.path());
     }
-    std::env::set_var("GOOSE_SKIP_PROVIDER_MODEL_VALIDATION", "1");
     register_builtin_extensions(goose_mcp::BUILTIN_EXTENSIONS.clone());
 
     let handle = std::thread::Builder::new()

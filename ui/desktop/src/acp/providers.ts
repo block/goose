@@ -11,36 +11,6 @@ import { getAcpClient } from './acpConnection';
 
 export type { CanonicalModelInfoDto, ProviderSecretDto };
 
-function acpErrorMessage(error: unknown): string | null {
-  if (typeof error !== 'object' || error === null) {
-    return null;
-  }
-
-  const candidate = 'error' in error && isRecord(error.error) ? error.error : error;
-  if (!isRecord(candidate)) {
-    return null;
-  }
-  if (typeof candidate.data === 'string') {
-    return candidate.data;
-  }
-  return typeof candidate.message === 'string' ? candidate.message : null;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null;
-}
-
-function normalizeAcpError(error: unknown, fallback: string): Error {
-  const message = acpErrorMessage(error);
-  if (message) {
-    return new Error(message);
-  }
-  if (error instanceof Error) {
-    return error;
-  }
-  return new Error(fallback);
-}
-
 function updateRequestToCreate(
   request: UpdateCustomProviderRequest
 ): CustomProviderCreateRequest_unstable {
@@ -205,12 +175,8 @@ export async function acpReadDefaults(): Promise<{
 }
 
 export async function acpSaveDefaults(providerId: string, modelId?: string | null): Promise<void> {
-  try {
-    const client = await getAcpClient();
-    await client.goose.defaultsSave_unstable({ providerId, modelId: modelId ?? null });
-  } catch (error) {
-    throw normalizeAcpError(error, 'Failed to save default provider/model');
-  }
+  const client = await getAcpClient();
+  await client.goose.defaultsSave_unstable({ providerId, modelId: modelId ?? null });
 }
 
 export async function acpClearDefaults(): Promise<void> {
@@ -293,30 +259,26 @@ export async function acpSetSessionProviderModel(
   modelId?: string | null,
   thinkingEffort?: ThinkingEffort | null
 ): Promise<AppliedSessionProviderModel> {
-  try {
-    const client = await getAcpClient();
-    let response = await client.setSessionConfigOption({
+  const client = await getAcpClient();
+  let response = await client.setSessionConfigOption({
+    sessionId,
+    configId: 'provider',
+    value: providerId,
+  });
+  if (modelId) {
+    response = await client.setSessionConfigOption({
       sessionId,
-      configId: 'provider',
-      value: providerId,
+      configId: 'model',
+      value: modelId,
     });
-    if (modelId) {
-      response = await client.setSessionConfigOption({
-        sessionId,
-        configId: 'model',
-        value: modelId,
-      });
-    }
-    if (thinkingEffort != null) {
-      response = await client.setSessionConfigOption({
-        sessionId,
-        configId: 'thinking_effort',
-        value: thinkingEffort,
-      });
-    }
-
-    return extractAppliedSessionProviderModel(response.configOptions);
-  } catch (error) {
-    throw normalizeAcpError(error, 'Failed to update session provider/model');
   }
+  if (thinkingEffort != null) {
+    response = await client.setSessionConfigOption({
+      sessionId,
+      configId: 'thinking_effort',
+      value: thinkingEffort,
+    });
+  }
+
+  return extractAppliedSessionProviderModel(response.configOptions);
 }

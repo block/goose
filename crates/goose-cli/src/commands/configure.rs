@@ -811,8 +811,10 @@ pub async fn configure_provider_dialog() -> anyhow::Result<bool> {
     let spin = spinner();
     spin.start("Checking your configuration...");
 
-    let (toolshim_enabled, toolshim_model) =
-        goose::providers::provider_test::toolshim_settings_from_env();
+    let toolshim_enabled = std::env::var("GOOSE_TOOLSHIM")
+        .map(|val| val == "1" || val.to_lowercase() == "true")
+        .unwrap_or(false);
+    let toolshim_model = std::env::var("GOOSE_TOOLSHIM_OLLAMA_MODEL").ok();
 
     match test_provider_configuration(provider_name, &model, toolshim_enabled, toolshim_model).await
     {

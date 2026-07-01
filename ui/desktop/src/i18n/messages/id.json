@@ -4175,9 +4175,6 @@
   "switchModelModal.checkProviderConfig": {
     "defaultMessage": "Periksa konfigurasi penyedia Anda di Pengaturan → Penyedia"
   },
-  "switchModelModal.checkingModel": {
-    "defaultMessage": "Memeriksa model…"
-  },
   "switchModelModal.chooseModel": {
     "defaultMessage": "Pilih model:"
   },

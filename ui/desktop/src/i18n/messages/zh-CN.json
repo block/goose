@@ -4223,9 +4223,6 @@
   "switchModelModal.loadingModels": {
     "defaultMessage": "正在加载模型…"
   },
-  "switchModelModal.checkingModel": {
-    "defaultMessage": "正在检查模型…"
-  },
   "switchModelModal.localModelsDescription": {
     "defaultMessage": "要使用本地推理，你需要先下载一个模型到电脑上。前往 设置 → 模型 管理本地模型。"
   },

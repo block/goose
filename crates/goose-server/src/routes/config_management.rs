@@ -19,7 +19,6 @@ use goose::providers::catalog::{
     ProviderTemplate,
 };
 use goose::providers::create_with_default_model;
-use goose::providers::provider_test::test_provider_model;
 use goose::providers::providers as get_providers;
 use goose::{
     agents::execute_commands, agents::ExtensionConfig, slash_commands::recipe_slash_command,
@@ -109,8 +108,6 @@ fn normalize_custom_provider_api_key(api_key: String) -> Option<String> {
 #[derive(Deserialize, ToSchema)]
 pub struct CheckProviderRequest {
     pub provider: String,
-    #[serde(default)]
-    pub model: Option<String>,
 }
 
 #[derive(Deserialize, ToSchema)]
@@ -830,20 +827,8 @@ pub async fn update_custom_provider(
     request_body = CheckProviderRequest,
 )]
 pub async fn check_provider(
-    Json(CheckProviderRequest { provider, model }): Json<CheckProviderRequest>,
+    Json(CheckProviderRequest { provider }): Json<CheckProviderRequest>,
 ) -> Result<(), ErrorResponse> {
-    if let Some(model) = model.filter(|model| !model.trim().is_empty()) {
-        test_provider_model(&provider, &model)
-            .await
-            .map_err(|err| {
-                ErrorResponse::bad_request(format!(
-                    "Provider '{}' with model '{}' check failed: {}",
-                    provider, model, err
-                ))
-            })?;
-        return Ok(());
-    }
-
     create_with_default_model(&provider, Vec::new())
         .await
         .map_err(|err| {
@@ -860,22 +845,19 @@ pub async fn check_provider(
 pub async fn set_config_provider(
     Json(SetProviderRequest { provider, model }): Json<SetProviderRequest>,
 ) -> Result<(), ErrorResponse> {
-    test_provider_model(&provider, &model)
+    create_with_default_model(&provider, Vec::new())
         .await
+        .and_then(|_| {
+            let config = Config::global();
+            goose::config::set_active_provider(config, &provider, &model)
+                .map_err(|e| anyhow::anyhow!(e))
+        })
         .map_err(|err| {
             ErrorResponse::bad_request(format!(
                 "Failed to set provider to '{}' with model '{}': {}",
                 provider, model, err
             ))
         })?;
-
-    let config = Config::global();
-    goose::config::set_active_provider(config, &provider, &model).map_err(|err| {
-        ErrorResponse::bad_request(format!(
-            "Failed to set provider to '{}' with model '{}': {}",
-            provider, model, err
-        ))
-    })?;
     Ok(())
 }
 

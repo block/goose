@@ -70,10 +70,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<AvianProvider>(false);
         registry.register::<AzureProvider>(false);
         #[cfg(feature = "aws-providers")]
-        registry.register_with_inventory::<BedrockProvider>(
-            false,
-            Some(registrations::bedrock_inventory()),
-        );
+        registry.register::<BedrockProvider>(false);
         #[cfg(feature = "local-inference")]
         registry.register::<LocalInferenceProvider>(false);
         registry.register_with_inventory::<ChatGptCodexProvider>(

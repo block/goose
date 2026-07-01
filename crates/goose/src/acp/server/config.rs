@@ -215,8 +215,7 @@ impl GooseAcpAgent {
         }
 
         if let Some(model_id) = model_id.as_deref() {
-            let model_exists = entry.supports_refresh
-                || entry.default_model == model_id
+            let model_exists = entry.default_model == model_id
                 || entry.models.iter().any(|model| model.id == model_id);
             if !model_exists {
                 return Err(agent_client_protocol::Error::invalid_params().data(format!(

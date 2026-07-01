@@ -4223,9 +4223,6 @@
   "switchModelModal.loadingModels": {
     "defaultMessage": "Modeller yükleniyor…"
   },
-  "switchModelModal.checkingModel": {
-    "defaultMessage": "Model kontrol ediliyor…"
-  },
   "switchModelModal.localModelsDescription": {
     "defaultMessage": "Yerel çıkarımı kullanmak için öncelikle bilgisayarınıza bir model indirmeniz gerekir. Yerel modelleri yönetmek için Ayarlar → Modeller'e gidin."
   },
