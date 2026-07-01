@@ -1,5 +1,8 @@
 use anyhow::{bail, Context, Result};
-use reqwest::StatusCode;
+use reqwest::{
+    header::{HeaderValue, AUTHORIZATION},
+    StatusCode,
+};
 use sha2::{Digest, Sha256};
 use sigstore_verify::trust_root::{TrustedRoot, SIGSTORE_PRODUCTION_TRUSTED_ROOT};
 use sigstore_verify::types::{Bundle, Sha256Hash};
@@ -80,23 +83,29 @@ struct AttestationEntry {
 
 const GITHUB_ACTIONS_ISSUER: &str = "https://token.actions.githubusercontent.com";
 
-fn non_empty_token(token: Option<&str>) -> Option<&str> {
-    token.filter(|tok| !tok.trim().is_empty())
+fn sanitized_token(token: Option<&str>) -> Option<&str> {
+    token.map(str::trim).filter(|tok| !tok.is_empty())
+}
+
+fn authorization_header_value(token: &str) -> Option<HeaderValue> {
+    HeaderValue::from_str(&format!("Bearer {token}")).ok()
 }
 
 fn github_token() -> Option<String> {
     env::var("GITHUB_TOKEN")
         .ok()
-        .filter(|tok| non_empty_token(Some(tok.as_str())).is_some())
+        .and_then(|tok| sanitized_token(Some(&tok)).map(str::to_owned))
         .or_else(|| {
             env::var("GH_TOKEN")
                 .ok()
-                .filter(|tok| non_empty_token(Some(tok.as_str())).is_some())
+                .and_then(|tok| sanitized_token(Some(&tok)).map(str::to_owned))
         })
 }
 
 fn should_retry_attestations_without_token(status: StatusCode, token: Option<&str>) -> bool {
-    non_empty_token(token).is_some()
+    sanitized_token(token)
+        .and_then(authorization_header_value)
+        .is_some()
         && matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN)
 }
 
@@ -107,7 +116,7 @@ async fn fetch_attestations(digest: &str, token: Option<&str>) -> Result<Vec<ser
     );
 
     let client = reqwest::Client::new();
-    let token = non_empty_token(token);
+    let token = sanitized_token(token);
     let resp = fetch_attestations_response(&client, &url, token).await?;
 
     let resp = if should_retry_attestations_without_token(resp.status(), token) {
@@ -139,8 +148,8 @@ async fn fetch_attestations_response(
         .header("X-GitHub-Api-Version", "2022-11-28")
         .header("User-Agent", "goose-cli");
 
-    if let Some(tok) = token {
-        req = req.header("Authorization", format!("Bearer {tok}"));
+    if let Some(value) = token.and_then(authorization_header_value) {
+        req = req.header(AUTHORIZATION, value);
     }
 
     req.send().await.context("Failed to fetch attestations")
@@ -759,11 +768,17 @@ mod tests {
     }
 
     #[test]
-    fn test_non_empty_token_ignores_blank_values() {
-        assert_eq!(non_empty_token(None), None);
-        assert_eq!(non_empty_token(Some("")), None);
-        assert_eq!(non_empty_token(Some("   ")), None);
-        assert_eq!(non_empty_token(Some("token")), Some("token"));
+    fn test_sanitized_token_trims_blank_values() {
+        assert_eq!(sanitized_token(None), None);
+        assert_eq!(sanitized_token(Some("")), None);
+        assert_eq!(sanitized_token(Some("   ")), None);
+        assert_eq!(sanitized_token(Some(" token\n")), Some("token"));
+    }
+
+    #[test]
+    fn test_authorization_header_value_rejects_malformed_tokens() {
+        assert!(authorization_header_value("token").is_some());
+        assert!(authorization_header_value("bad\ntoken").is_none());
     }
 
     #[test]
@@ -783,6 +798,10 @@ mod tests {
         assert!(!should_retry_attestations_without_token(
             StatusCode::UNAUTHORIZED,
             Some("")
+        ));
+        assert!(!should_retry_attestations_without_token(
+            StatusCode::UNAUTHORIZED,
+            Some("bad\ntoken")
         ));
         assert!(!should_retry_attestations_without_token(
             StatusCode::UNAUTHORIZED,
