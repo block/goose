@@ -277,6 +277,7 @@ pub fn from_json(
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::collections::HashSet;
 
     fn model_json() -> serde_json::Value {
         json!({
@@ -321,6 +322,110 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(ollama.engine, ProviderEngine::Ollama);
+    }
+
+    #[test]
+    fn existing_json_files_still_deserialize_without_new_fields() {
+        let config = config_from_json_unresolved(groq::JSON).expect("groq.json should parse");
+        assert!(config.env_vars.is_none());
+        assert!(config.dynamic_models.is_none());
+        assert!(config.model_doc_link.is_none());
+        assert!(config.setup_steps.is_empty());
+        assert!(config.preserves_thinking);
+    }
+
+    fn placeholder_var_names(template: &str) -> Vec<String> {
+        template
+            .split("${")
+            .skip(1)
+            .filter_map(|chunk| chunk.split_once('}'))
+            .map(|(name, _)| name.to_string())
+            .collect()
+    }
+
+    fn validate_provider_id(id: &str) -> Result<()> {
+        let mut chars = id.chars();
+        let Some(first) = chars.next() else {
+            anyhow::bail!("Invalid provider id: provider id cannot be empty");
+        };
+
+        if !(first.is_ascii_lowercase() || first.is_ascii_digit() || first == '_') {
+            anyhow::bail!("Invalid provider id: {id}");
+        }
+
+        if chars.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_' || ch == '-')
+        {
+            Ok(())
+        } else {
+            anyhow::bail!("Invalid provider id: {id}")
+        }
+    }
+
+    #[test]
+    fn all_bundled_providers_are_valid() {
+        let mut seen_ids = HashSet::new();
+
+        for (path, json) in fixed_provider_config_entries() {
+            let config = config_from_json_unresolved(json)
+                .unwrap_or_else(|e| panic!("{path} failed to parse: {e}"));
+
+            validate_provider_id(config.id())
+                .unwrap_or_else(|e| panic!("{path} has an invalid provider id: {e}"));
+            assert!(
+                seen_ids.insert(config.id().to_string()),
+                "{path} has a duplicate provider id: {}",
+                config.id()
+            );
+            assert!(!config.base_url.is_empty(), "{path} has an empty base_url");
+
+            if config.dynamic_models == Some(false) {
+                assert!(
+                    !config.models.is_empty(),
+                    "{path} disables dynamic_models but lists no static models"
+                );
+            }
+
+            let declared: HashSet<&str> = config
+                .env_vars
+                .iter()
+                .flatten()
+                .map(|v| v.name.as_str())
+                .collect();
+            let templates = std::iter::once(config.base_url.as_str())
+                .chain(config.base_path.as_deref())
+                .chain(
+                    config
+                        .headers
+                        .iter()
+                        .flat_map(|h| h.values())
+                        .map(String::as_str),
+                );
+            for template in templates {
+                for var in placeholder_var_names(template) {
+                    assert!(
+                        declared.contains(var.as_str()),
+                        "{path} references ${{{var}}} but declares no matching env_var"
+                    );
+                }
+            }
+        }
+
+        assert!(!seen_ids.is_empty(), "no bundled providers were found");
+    }
+
+    #[test]
+    fn fixed_provider_configs_are_unresolved() {
+        let configs = fixed_provider_configs().expect("bundled providers should load");
+        let config = configs
+            .iter()
+            .find(|config| config.env_vars.is_some())
+            .expect("at least one bundled provider should declare env_vars");
+
+        assert!(
+            config.base_url.contains("${"),
+            "{} should keep base_url placeholders unresolved",
+            config.id()
+        );
     }
 
     #[test]

@@ -31,10 +31,14 @@ macro_rules! expose_declarative_providers {
         $(expose_declarative_provider!($module, stringify!($module));)+
 
         pub fn fixed_provider_configs() -> anyhow::Result<Vec<DeclarativeProviderConfig>> {
-            [$($module::JSON),+]
+            fixed_provider_config_entries()
                 .into_iter()
-                .map(config_from_json_unresolved)
+                .map(|(_, json)| config_from_json_unresolved(json))
                 .collect()
+        }
+
+        pub fn fixed_provider_config_entries() -> Vec<(&'static str, &'static str)> {
+            vec![$((concat!(stringify!($module), ".json"), $module::JSON)),+]
         }
     };
 }

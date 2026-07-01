@@ -638,88 +638,8 @@ mod tests {
     }
 
     #[test]
-    fn test_existing_json_files_still_deserialize_without_new_fields() {
-        let json = include_str!("../providers/declarative/groq.json");
-        let config =
-            deserialize_provider_config(json).expect("groq.json should parse without env_vars");
-        assert!(config.env_vars.is_none());
-        assert!(config.dynamic_models.is_none());
-        assert!(config.model_doc_link.is_none());
-        assert!(config.setup_steps.is_empty());
-        assert!(config.preserves_thinking);
-    }
-
-    fn placeholder_var_names(template: &str) -> Vec<String> {
-        template
-            .split("${")
-            .skip(1)
-            .filter_map(|chunk| chunk.split_once('}'))
-            .map(|(name, _)| name.to_string())
-            .collect()
-    }
-
-    #[test]
-    fn test_all_bundled_providers_are_valid() {
-        let mut seen_ids = std::collections::HashSet::new();
-
-        for file in FIXED_PROVIDERS.files() {
-            if file.path().extension().and_then(|s| s.to_str()) != Some("json") {
-                continue;
-            }
-            let path = file.path().display().to_string();
-            let content = file
-                .contents_utf8()
-                .unwrap_or_else(|| panic!("{path} is not valid UTF-8"));
-            let config = deserialize_provider_config(content)
-                .unwrap_or_else(|e| panic!("{path} failed to parse: {e}"));
-
-            validate_provider_id(config.id())
-                .unwrap_or_else(|e| panic!("{path} has an invalid provider id: {e}"));
-            assert!(
-                seen_ids.insert(config.id().to_string()),
-                "{path} has a duplicate provider id: {}",
-                config.id()
-            );
-            assert!(!config.base_url.is_empty(), "{path} has an empty base_url");
-
-            if config.dynamic_models == Some(false) {
-                assert!(
-                    !config.models.is_empty(),
-                    "{path} disables dynamic_models but lists no static models"
-                );
-            }
-
-            let declared: std::collections::HashSet<&str> = config
-                .env_vars
-                .iter()
-                .flatten()
-                .map(|v| v.name.as_str())
-                .collect();
-            let templates = std::iter::once(config.base_url.as_str())
-                .chain(config.base_path.as_deref())
-                .chain(
-                    config
-                        .headers
-                        .iter()
-                        .flat_map(|h| h.values())
-                        .map(String::as_str),
-                );
-            for template in templates {
-                for var in placeholder_var_names(template) {
-                    assert!(
-                        declared.contains(var.as_str()),
-                        "{path} references ${{{var}}} but declares no matching env_var"
-                    );
-                }
-            }
-        }
-
-        assert!(!seen_ids.is_empty(), "no bundled providers were found");
-    }
-
-    #[test]
     fn test_bundled_providers_wire_into_registry_metadata() {
-        let configs = load_fixed_providers().expect("bundled providers should load");
+        let configs = fixed_provider_configs().expect("bundled providers should load");
         assert!(!configs.is_empty(), "no bundled providers were found");
 
         for config in configs {
