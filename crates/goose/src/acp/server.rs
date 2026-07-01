@@ -67,7 +67,8 @@ use fs_err as fs;
 use futures::future::{BoxFuture, FutureExt};
 use futures::stream::{self, StreamExt};
 use rmcp::model::{
-    AnnotateAble, CallToolResult, RawContent, RawTextContent, ResourceContents, Role,
+    AnnotateAble, CallToolResult, RawContent, RawImageContent, RawTextContent, ResourceContents,
+    Role,
 };
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
@@ -118,6 +119,24 @@ pub type AcpProviderFactory = Arc<
         + Send
         + Sync,
 >;
+
+fn acp_audience_annotations(audience: &[Role]) -> Annotations {
+    Annotations::new().audience(
+        audience
+            .iter()
+            .map(|role| match role {
+                Role::Assistant => agent_client_protocol::schema::v1::Role::Assistant,
+                Role::User => agent_client_protocol::schema::v1::Role::User,
+            })
+            .collect::<Vec<_>>(),
+    )
+}
+
+fn audience_allows_user(audience: Option<&[Role]>) -> bool {
+    audience
+        .map(|roles| roles.contains(&Role::User))
+        .unwrap_or(true)
+}
 
 /// Convenience conversions from any `Display` error into an `agent_client_protocol::Error`.
 ///
@@ -1468,7 +1487,44 @@ impl GooseAcpAgent {
                     message = message.with_content(MessageContent::Text(annotated));
                 }
                 ContentBlock::Image(image) => {
-                    message = message.with_image(&image.data, &image.mime_type);
+                    let annotated = if let Some(ref ann) = image.annotations {
+                        let audience: Vec<Role> = ann
+                            .audience
+                            .as_ref()
+                            .map(|roles| {
+                                roles
+                                    .iter()
+                                    .filter_map(|r| match r {
+                                        agent_client_protocol::schema::v1::Role::Assistant => {
+                                            Some(Role::Assistant)
+                                        }
+                                        agent_client_protocol::schema::v1::Role::User => {
+                                            Some(Role::User)
+                                        }
+                                        _ => None,
+                                    })
+                                    .collect()
+                            })
+                            .unwrap_or_default();
+                        let raw = RawImageContent {
+                            data: image.data.clone(),
+                            mime_type: image.mime_type.clone(),
+                            meta: None,
+                        };
+                        if audience.is_empty() {
+                            raw.no_annotation()
+                        } else {
+                            raw.no_annotation().with_audience(audience)
+                        }
+                    } else {
+                        RawImageContent {
+                            data: image.data.clone(),
+                            mime_type: image.mime_type.clone(),
+                            meta: None,
+                        }
+                        .no_annotation()
+                    };
+                    message = message.with_content(MessageContent::Image(annotated));
                 }
                 ContentBlock::Resource(resource) => {
                     if let EmbeddedResourceResource::TextResourceContents(text_resource) =
@@ -1618,10 +1674,25 @@ impl GooseAcpAgent {
             }
             let block = match content_item {
                 MessageContent::Text(text) => {
-                    ContentBlock::Text(TextContent::new(text.text.clone()))
+                    if !audience_allows_user(text.audience().map(Vec::as_slice)) {
+                        continue;
+                    }
+                    let mut text_content = TextContent::new(text.text.clone());
+                    if let Some(audience) = text.audience() {
+                        text_content = text_content.annotations(acp_audience_annotations(audience));
+                    }
+                    ContentBlock::Text(text_content)
                 }
                 MessageContent::Image(image) => {
-                    ContentBlock::Image(ImageContent::new(&image.data, &image.mime_type))
+                    if !audience_allows_user(image.audience().map(Vec::as_slice)) {
+                        continue;
+                    }
+                    let mut image_content = ImageContent::new(&image.data, &image.mime_type);
+                    if let Some(audience) = image.audience() {
+                        image_content =
+                            image_content.annotations(acp_audience_annotations(audience));
+                    }
+                    ContentBlock::Image(image_content)
                 }
                 _ => continue,
             };

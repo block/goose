@@ -95,6 +95,15 @@ impl AcpServerSession {
 
         Ok(TestOutput { text, tool_status })
     }
+
+    #[allow(dead_code)]
+    pub async fn prompt_blocks(
+        &mut self,
+        content: Vec<ContentBlock>,
+        decision: PermissionDecision,
+    ) -> anyhow::Result<TestOutput> {
+        self.send_prompt(content, decision).await
+    }
 }
 
 impl AcpServerConnection {

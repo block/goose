@@ -2,9 +2,9 @@
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 use agent_client_protocol::schema::v1::{
-    ListSessionsRequest, ListSessionsResponse, NewSessionRequest, SessionConfigKind,
-    SessionConfigOptionCategory, SessionConfigOptionValue, SessionInfo, SessionUpdate,
-    SetSessionConfigOptionRequest,
+    Annotations, ContentBlock, ListSessionsRequest, ListSessionsResponse, NewSessionRequest,
+    Role as AcpRole, SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue,
+    SessionInfo, SessionUpdate, SetSessionConfigOptionRequest, TextContent,
 };
 use agent_client_protocol::ErrorCode;
 use common_tests::fixtures::server::AcpServerConnection;
@@ -311,6 +311,86 @@ fn test_session_updates_broadcast_between_connections() {
                     | SessionUpdate::ToolCallUpdate(_)
             )),
             "list-only connection received content updates: {list_only_updates:#?}"
+        );
+    });
+}
+
+#[test]
+fn test_prompt_broadcast_filters_assistant_only_content() {
+    run_test(async {
+        let data_root = tempfile::tempdir().unwrap();
+        let actor_openai = OpenAiFixture::new(
+            vec![(
+                "Visible user prompt".to_string(),
+                include_str!("acp_test_data/openai_basic.txt"),
+            )],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let observer_openai = OpenAiFixture::new(
+            vec![],
+            <AcpServerConnection as Connection>::expected_session_id(),
+        )
+        .await;
+        let data_root_path = data_root.path().to_path_buf();
+        let mut observer = <AcpServerConnection as Connection>::new(
+            TestConnectionConfig {
+                data_root: data_root_path.clone(),
+                ..Default::default()
+            },
+            observer_openai,
+        )
+        .await;
+        let mut actor = <AcpServerConnection as Connection>::new(
+            TestConnectionConfig {
+                data_root: data_root_path,
+                ..Default::default()
+            },
+            actor_openai,
+        )
+        .await;
+
+        let SessionData {
+            session: mut actor_session,
+            ..
+        } = actor.new_session().await.unwrap();
+        let session_id = actor_session.session_id().0.to_string();
+        let _observer_session = observer.load_session(&session_id, vec![]).await.unwrap();
+        observer.clear_session_notifications();
+
+        let output = actor_session
+            .prompt_blocks(
+                vec![
+                    ContentBlock::Text(
+                        TextContent::new("hidden assistant context")
+                            .annotations(Annotations::new().audience(vec![AcpRole::Assistant])),
+                    ),
+                    ContentBlock::Text(TextContent::new("Visible user prompt")),
+                ],
+                common_tests::fixtures::PermissionDecision::Cancel,
+            )
+            .await
+            .unwrap();
+        assert_eq!(output.text, "2");
+
+        assert!(
+            observer
+                .wait_for_session_update(Duration::from_secs(2), |update| {
+                    matches!(
+                        update,
+                        agent_client_protocol::schema::v1::SessionUpdate::UserMessageChunk(_)
+                    ) && text_chunk(update) == Some("Visible user prompt")
+                })
+                .await,
+            "observer did not receive visible user prompt"
+        );
+
+        let updates = observer.session_updates();
+        assert!(
+            !updates
+                .iter()
+                .any(|update| text_chunk(update) == Some("hidden assistant context")),
+            "observer received assistant-only prompt content: {updates:#?}"
         );
     });
 }

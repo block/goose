@@ -1,17 +1,5 @@
 use super::*;
 
-fn replay_audience_annotations(audience: &[Role]) -> Annotations {
-    Annotations::new().audience(
-        audience
-            .iter()
-            .map(|role| match role {
-                Role::Assistant => agent_client_protocol::schema::v1::Role::Assistant,
-                Role::User => agent_client_protocol::schema::v1::Role::User,
-            })
-            .collect::<Vec<_>>(),
-    )
-}
-
 fn send_replay_content_chunk(
     cx: &ConnectionTo<Client>,
     session_id: &SessionId,
@@ -59,7 +47,7 @@ fn replay_conversation_to_client(
                 MessageContent::Text(text) => {
                     let mut tc = TextContent::new(text.text.clone());
                     if let Some(audience) = text.audience() {
-                        tc = tc.annotations(replay_audience_annotations(audience));
+                        tc = tc.annotations(acp_audience_annotations(audience));
                     }
                     send_replay_content_chunk(cx, &session_id, message, ContentBlock::Text(tc))?;
                 }
@@ -68,7 +56,7 @@ fn replay_conversation_to_client(
                         ImageContent::new(image.data.clone(), image.mime_type.clone());
                     if let Some(audience) = image.audience() {
                         image_content =
-                            image_content.annotations(replay_audience_annotations(audience));
+                            image_content.annotations(acp_audience_annotations(audience));
                     }
                     send_replay_content_chunk(
                         cx,
@@ -176,19 +164,28 @@ impl GooseAcpAgent {
         let sid = sid_short(&session_id_str);
         let t_start = std::time::Instant::now();
 
-        let mut session = self
-            .session_manager
-            .get_session(&session_id_str, true)
-            .await
-            .map_err(|_| {
-                agent_client_protocol::Error::resource_not_found(Some(session_id_str.clone()))
-                    .data(format!("Session not found: {}", session_id_str))
-            })?;
-
         self.loading_session_ids
             .lock()
             .await
             .insert(session_id_str.clone());
+
+        let mut session = match self
+            .session_manager
+            .get_session(&session_id_str, true)
+            .await
+        {
+            Ok(session) => session,
+            Err(_) => {
+                self.loading_session_ids
+                    .lock()
+                    .await
+                    .remove(&session_id_str);
+                return Err(agent_client_protocol::Error::resource_not_found(Some(
+                    session_id_str.clone(),
+                ))
+                .data(format!("Session not found: {}", session_id_str)));
+            }
+        };
 
         let load_result: Result<LoadSessionResponse, agent_client_protocol::Error> = async {
             session = self
