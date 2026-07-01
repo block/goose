@@ -403,14 +403,13 @@ mod tests {
             .collect();
         let bundled: HashSet<_> = FIXED_PROVIDERS
             .files()
-            .filter_map(|file| {
-                (file.path().extension().and_then(|s| s.to_str()) == Some("json")).then(|| {
-                    file.path()
-                        .file_name()
-                        .unwrap()
-                        .to_string_lossy()
-                        .into_owned()
-                })
+            .filter(|file| file.path().extension().and_then(|s| s.to_str()) == Some("json"))
+            .map(|file| {
+                file.path()
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
             })
             .collect();
 
