@@ -93,7 +93,7 @@ export async function importMcpApp(html: string): Promise<void> {
   }
 }
 
-export async function acpDeleteMcpApp(name: string): Promise<void> {
+export async function deleteMcpApp(name: string): Promise<void> {
   try {
     const client = await getAcpClient();
     await client.goose.appsDelete_unstable({ name });

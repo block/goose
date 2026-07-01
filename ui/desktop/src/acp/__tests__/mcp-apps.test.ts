@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAcpClient } from '../acpConnection';
 import {
-  acpDeleteMcpApp,
+  deleteMcpApp,
   callMcpAppTool,
   exportMcpApp,
   importMcpApp,
@@ -215,7 +215,7 @@ describe('ACP MCP app helpers', () => {
       message: 'App deleted',
     });
 
-    await acpDeleteMcpApp('weather');
+    await deleteMcpApp('weather');
 
     expect(client.goose.appsDelete_unstable).toHaveBeenCalledWith({ name: 'weather' });
   });
@@ -225,7 +225,7 @@ describe('ACP MCP app helpers', () => {
       error: { data: 'Cannot delete default app' },
     });
 
-    await expect(acpDeleteMcpApp('clock')).rejects.toThrow('Cannot delete default app');
+    await expect(deleteMcpApp('clock')).rejects.toThrow('Cannot delete default app');
   });
 
   it('normalizes ACP export errors', async () => {

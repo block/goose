@@ -91,12 +91,7 @@ impl GooseAcpAgent {
 
         let original_name = app.resource.name.clone();
         let mut counter = 1;
-        let existing_names = cache
-            .list_apps()
-            .unwrap_or_default()
-            .into_iter()
-            .map(|app| app.resource.name)
-            .collect::<std::collections::HashSet<_>>();
+        let existing_names = existing_app_names(&cache)?;
 
         while existing_names.contains(&app.resource.name) {
             app.resource.name = format!("{}_{}", original_name, counter);
@@ -134,18 +129,21 @@ impl GooseAcpAgent {
                     .data(format!("App '{}' not found", req.name))
             })?;
 
-        let default_names = McpAppCache::default_app_names();
-        if default_names.contains(&app.resource.name) {
-            return Err(agent_client_protocol::Error::invalid_params()
-                .data(format!("Cannot delete default app '{}'", app.resource.name)));
+        if McpAppCache::is_bundled_default_uri(&app.resource.uri) {
+            return Err(agent_client_protocol::Error::invalid_params().data(format!(
+                "Cannot delete bundled default app '{}'",
+                app.resource.name
+            )));
         }
-
-        delete_app_html_file(&app.resource.name)?;
 
         for extension_name in &app.mcp_servers {
             cache
                 .delete_app(extension_name, &app.resource.uri)
                 .internal_err()?;
+        }
+
+        if app_html_file_exists(&app.resource.name) {
+            delete_app_html_file(&app.resource.name)?;
         }
 
         Ok(AppsDeleteResponse {
@@ -155,17 +153,67 @@ impl GooseAcpAgent {
     }
 }
 
-fn delete_app_html_file(app_name: &str) -> Result<(), agent_client_protocol::Error> {
+fn existing_app_names(
+    cache: &McpAppCache,
+) -> Result<std::collections::HashSet<String>, agent_client_protocol::Error> {
+    let mut names = cache
+        .list_apps()
+        .internal_err_ctx("Failed to list apps")?
+        .into_iter()
+        .map(|app| app.resource.name)
+        .collect::<std::collections::HashSet<_>>();
+
+    for name in list_filesystem_app_names()? {
+        names.insert(name);
+    }
+
+    Ok(names)
+}
+
+fn list_filesystem_app_names() -> Result<Vec<String>, agent_client_protocol::Error> {
+    let apps_dir = Paths::in_data_dir(APPS_EXTENSION_NAME);
+    if !apps_dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    let mut names = Vec::new();
+    for entry in std::fs::read_dir(&apps_dir).internal_err()? {
+        let entry = entry.internal_err()?;
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) == Some("html") {
+            if let Some(stem) = path.file_stem().and_then(|s| s.to_str()) {
+                names.push(stem.to_string());
+            }
+        }
+    }
+
+    Ok(names)
+}
+
+fn app_html_file_path(app_name: &str) -> Option<std::path::PathBuf> {
     if app_name.contains('/')
         || app_name.contains('\\')
         || app_name.contains('\0')
         || app_name == "."
         || app_name == ".."
     {
-        return Ok(());
+        return None;
     }
 
-    let html_path = Paths::in_data_dir(APPS_EXTENSION_NAME).join(format!("{app_name}.html"));
+    Some(Paths::in_data_dir(APPS_EXTENSION_NAME).join(format!("{app_name}.html")))
+}
+
+fn app_html_file_exists(app_name: &str) -> bool {
+    app_html_file_path(app_name)
+        .map(|path| path.exists())
+        .unwrap_or(false)
+}
+
+fn delete_app_html_file(app_name: &str) -> Result<(), agent_client_protocol::Error> {
+    let Some(html_path) = app_html_file_path(app_name) else {
+        return Ok(());
+    };
+
     if html_path.exists() {
         std::fs::remove_file(html_path).internal_err()?;
     }

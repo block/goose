@@ -10,13 +10,19 @@ use super::app::GooseApp;
 static CLOCK_HTML: &str = include_str!("../goose_apps/clock.html");
 const APPS_EXTENSION_NAME: &str = "apps";
 
+pub const BUNDLED_DEFAULT_APP_URIS: &[&str] = &["ui://apps/clock"];
+
 /// Bundled default apps: (cache URI, HTML source).
-const DEFAULT_APPS: &[(&str, &str)] = &[("apps://clock", CLOCK_HTML)];
+const DEFAULT_APPS: &[(&str, &str)] = &[("ui://apps/clock", CLOCK_HTML)];
 
 pub fn mark_deletable_apps(apps: &mut [GooseApp]) {
-    let default_names = McpAppCache::default_app_names();
     for app in apps.iter_mut() {
-        app.deletable = !default_names.contains(&app.resource.name);
+        let is_apps_extension = app
+            .mcp_servers
+            .iter()
+            .any(|server| server == APPS_EXTENSION_NAME);
+        app.deletable =
+            is_apps_extension && !McpAppCache::is_bundled_default_uri(&app.resource.uri);
     }
 }
 
@@ -44,13 +50,8 @@ impl McpAppCache {
         }
     }
 
-    /// Returns the names of bundled default apps by parsing their HTML sources.
-    pub fn default_app_names() -> Vec<String> {
-        DEFAULT_APPS
-            .iter()
-            .filter_map(|(_, html)| GooseApp::from_html(html).ok())
-            .map(|app| app.resource.name)
-            .collect()
+    pub fn is_bundled_default_uri(uri: &str) -> bool {
+        BUNDLED_DEFAULT_APP_URIS.contains(&uri)
     }
 
     fn cache_key(extension_name: &str, resource_uri: &str) -> String {
@@ -195,22 +196,34 @@ mod tests {
     }
 
     #[test]
-    fn default_app_names_includes_bundled_apps() {
-        let names = McpAppCache::default_app_names();
-        assert!(names.contains(&"clock".to_string()));
+    fn is_bundled_default_uri_matches_clock() {
+        assert!(McpAppCache::is_bundled_default_uri("ui://apps/clock"));
+        assert!(!McpAppCache::is_bundled_default_uri("ui://apps/chat"));
     }
 
     #[test]
-    fn mark_deletable_apps_protects_defaults() {
-        let mut apps = vec![
-            GooseApp::from_html(CLOCK_HTML).unwrap(),
-            GooseApp::from_html(CUSTOM_APP_HTML).unwrap(),
-        ];
+    fn mark_deletable_apps_protects_bundled_uri_not_name() {
+        let mut bundled_clock = GooseApp::from_html(CLOCK_HTML).unwrap();
+        bundled_clock.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
 
+        let mut user_clock = GooseApp::from_html(CUSTOM_APP_HTML).unwrap();
+        user_clock.resource.name = "clock".to_string();
+        user_clock.resource.uri = "ui://apps/user-clock".to_string();
+        user_clock.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
+
+        let mut custom = GooseApp::from_html(CUSTOM_APP_HTML).unwrap();
+        custom.mcp_servers = vec![APPS_EXTENSION_NAME.to_string()];
+
+        let mut external = GooseApp::from_html(CUSTOM_APP_HTML).unwrap();
+        external.mcp_servers = vec!["other-extension".to_string()];
+
+        let mut apps = vec![bundled_clock, user_clock, custom, external];
         mark_deletable_apps(&mut apps);
 
         assert!(!apps[0].deletable);
         assert!(apps[1].deletable);
+        assert!(apps[2].deletable);
+        assert!(!apps[3].deletable);
     }
 
     #[test]
