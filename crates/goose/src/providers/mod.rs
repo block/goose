@@ -29,7 +29,6 @@ pub mod codex_acp;
 pub mod copilot_acp;
 pub mod cursor_agent;
 pub mod custom_provider_config;
-pub mod databricks_auth;
 pub mod databricks_def;
 pub mod databricks_v2_def;
 pub mod formats;
