@@ -501,10 +501,16 @@ pub async fn resolve_provider_model_info(
         )));
     }
 
-    let model_config = goose::model_config::model_config_from_user_config(name, model)?;
+    let entry = goose::providers::get_from_registry(name).await?;
+    let model_config = entry.normalize_model_config(ModelConfig::new(model))?;
     let provider = goose::providers::create(name, Vec::new()).await?;
     match provider.fetch_model_info(model).await {
-        Ok(info) => Ok(info),
+        Ok(mut info) => {
+            if let Some(limit) = model_config.context_limit {
+                info.context_limit = limit;
+            }
+            Ok(info)
+        }
         Err(error) => {
             let mut info = ModelInfo::new(model, model_config.context_limit());
             info.reasoning = model_config.is_reasoning_model();
