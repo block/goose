@@ -915,19 +915,29 @@ impl CliSession {
             // Bound construction and listing under a single timeout. An ACP
             // provider's create() blocks on the adapter's initialize/newSession
             // handshake, so a hung adapter would otherwise stall the picker here,
-            // before a timeout wrapped around fetch_supported_models() alone could
-            // fire. A provider that errors, times out, or lists nothing is skipped.
+            // before a timeout wrapped around the listing call alone could fire.
+            // A provider that errors, times out, or lists nothing is skipped.
             let provider_name = meta.name.clone();
+            // Some providers publish their models only in metadata and don't
+            // override fetch_supported_models(), whose default lists nothing.
+            let metadata_models: Vec<String> =
+                meta.known_models.iter().map(|m| m.name.clone()).collect();
+            let toolshim = goose::model_config::global_toolshim();
             // Suppress ACP model pinning while listing: an option-backed ACP
             // provider (Copilot) would otherwise try to apply the active
             // session's model, reject it as foreign, and drop out of the picker.
-            let listed = goose::acp::while_listing_models(tokio::time::timeout(
+            let listed = goose::acp::without_model_pinning(tokio::time::timeout(
                 Duration::from_secs(15),
                 async move {
                     let temp_provider =
                         goose::providers::create(&provider_name, Vec::new()).await?;
                     let applies_selected_model = temp_provider.applies_selected_model();
-                    let models = temp_provider.fetch_supported_models().await?;
+                    // The same tool-usability filter the configure flow and the
+                    // desktop picker apply, rather than the raw catalog.
+                    let mut models = temp_provider.fetch_recommended_models(toolshim).await?;
+                    if models.is_empty() {
+                        models = metadata_models;
+                    }
                     Ok::<(bool, Vec<String>), anyhow::Error>((applies_selected_model, models))
                 },
             ))
@@ -1038,9 +1048,16 @@ impl CliSession {
         let new_model_config =
             build_switched_model_config(&chosen_provider, &chosen_model, current_model_config)?;
         let extensions = self.agent.get_extension_configs().await;
-        let new_provider = goose::providers::create(&chosen_provider, extensions)
-            .await
-            .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
+        // Construction must not pin the global model here either: it still
+        // belongs to the previous provider, and an option-backed ACP target
+        // (Copilot) would reject it and fail the switch. The chosen model rides
+        // in new_model_config and is applied on first use.
+        let new_provider = goose::acp::without_model_pinning(goose::providers::create(
+            &chosen_provider,
+            extensions,
+        ))
+        .await
+        .map_err(|e| anyhow::anyhow!("Failed to create provider: {e}"))?;
 
         // Switching INTO a provider that manages its own context (Claude Code,
         // Gemini CLI) would silently drop the conversation so far: it keeps no

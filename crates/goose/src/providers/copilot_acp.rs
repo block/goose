@@ -100,11 +100,12 @@ impl ProviderDef for CopilotAcpProvider {
 }
 
 /// The model to pin as Copilot's session config option, or `None` to start on
-/// Copilot's current model. Returns `None` while the `/model` picker is only
-/// listing models, so a session model that belongs to another provider is never
-/// forced onto Copilot (which would reject it and vanish from the picker).
+/// Copilot's current model. Returns `None` while the `/model` picker suppresses
+/// pinning (listing candidates or installing a selection), so a global model
+/// that belongs to another provider is never forced onto Copilot (which would
+/// reject it and fail construction).
 fn model_to_pin(configured_model: Option<String>) -> Option<String> {
-    if crate::acp::is_listing_models() {
+    if crate::acp::is_model_pinning_suppressed() {
         return None;
     }
     match configured_model {
@@ -128,8 +129,8 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn model_to_pin_is_neutral_while_listing() {
-        crate::acp::while_listing_models(async {
+    async fn model_to_pin_is_neutral_while_pinning_suppressed() {
+        crate::acp::without_model_pinning(async {
             assert_eq!(model_to_pin(Some("gpt-4o".to_string())), None);
             assert_eq!(model_to_pin(None), None);
         })
