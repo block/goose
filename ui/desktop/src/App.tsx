@@ -41,6 +41,7 @@ import { useConfig } from './components/ConfigContext';
 import { ModelAndProviderProvider } from './components/ModelAndProviderContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { FeaturesProvider } from './contexts/FeaturesContext';
+import { ClientExtensionsProvider } from './client-extensions/ClientExtensionsContext';
 import PermissionSettingsView from './components/settings/permission/PermissionSetting';
 
 import ExtensionsView, { ExtensionsViewOptions } from './components/extensions/ExtensionsView';
@@ -48,6 +49,7 @@ import RecipesView from './components/recipes/RecipesView';
 import SkillsView from './components/skills/SkillsView';
 import AppsView from './components/apps/AppsView';
 import StandaloneAppView from './components/apps/StandaloneAppView';
+import ClientExtensionPageView from './client-extensions/ClientExtensionPageView';
 import { View, ViewOptions } from './utils/navigationUtils';
 
 import { useNavigation } from './hooks/useNavigation';
@@ -647,6 +649,7 @@ export function AppInner() {
               <Route path="recipes" element={<RecipesRoute />} />
               <Route path="skills" element={<SkillsRoute />} />
               <Route path="permission" element={<PermissionRoute />} />
+              <Route path="ext/:extensionId/:viewId" element={<ClientExtensionPageView />} />
             </Route>
           </Routes>
         </div>
@@ -659,13 +662,15 @@ export default function App() {
   return (
     <ThemeProvider>
       <FeaturesProvider>
-        <ModelAndProviderProvider>
-          <HashRouter>
-            <AppInner />
-          </HashRouter>
-          <AnnouncementModal />
-          <TelemetryConsentPrompt />
-        </ModelAndProviderProvider>
+        <ClientExtensionsProvider>
+          <ModelAndProviderProvider>
+            <HashRouter>
+              <AppInner />
+            </HashRouter>
+            <AnnouncementModal />
+            <TelemetryConsentPrompt />
+          </ModelAndProviderProvider>
+        </ClientExtensionsProvider>
       </FeaturesProvider>
     </ThemeProvider>
   );

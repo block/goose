@@ -38,6 +38,7 @@ import { fetchCanonicalModelInfo } from '../utils/canonical';
 import { defineMessages, useIntl } from '../i18n';
 import TurndownService from 'turndown';
 import type { NextChatExtensionDraft } from '../utils/nextChatExtensions';
+import { ClientExtensionChatActions } from '../client-extensions/ClientExtensionChatActions';
 
 const turndown = new TurndownService({
   headingStyle: 'atx',
@@ -689,6 +690,11 @@ export default function ChatInput({
   // Immediate function to update actual value - no debounce for better responsiveness
   const updateValue = React.useCallback((value: string) => {
     setValue(value);
+  }, []);
+
+  const handleExtensionSetInput = useCallback((text: string) => {
+    setDisplayValue(text);
+    setValue(text);
   }, []);
 
   const minTextareaHeight = 38;
@@ -1733,6 +1739,12 @@ export default function ChatInput({
                 <TooltipContent>Generate diagnostics bundle</TooltipContent>
               </Tooltip>
             )}
+
+            {/* Right: client extension chat actions */}
+            <ClientExtensionChatActions
+              sessionId={sessionId}
+              onSetInput={handleExtensionSetInput}
+            />
 
             {/* Right: attach */}
             <Tooltip>
