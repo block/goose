@@ -8,7 +8,6 @@ use crate::providers::inventory::declarative_inventory_identity;
 use crate::providers::ollama_def::OllamaProviderDef;
 use crate::providers::openai_def::OpenAiProviderDef;
 use anyhow::Result;
-use include_dir::{include_dir, Dir};
 use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -19,8 +18,6 @@ use std::sync::Mutex;
 use utoipa::ToSchema;
 
 pub use goose_providers::declarative::*;
-
-static FIXED_PROVIDERS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/providers/declarative");
 
 pub fn custom_providers_dir() -> std::path::PathBuf {
     Paths::config_dir().join("custom_providers")
@@ -341,25 +338,14 @@ pub fn load_provider(id: &str) -> Result<LoadedProvider> {
         });
     }
 
-    for file in FIXED_PROVIDERS.files() {
-        if file.path().extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-
-        let content = file
-            .contents_utf8()
-            .ok_or_else(|| anyhow::anyhow!("Failed to read file as UTF-8: {:?}", file.path()))?;
-
-        let config: DeclarativeProviderConfig = match serde_json::from_str(content) {
-            Ok(config) => config,
-            Err(_) => continue,
-        };
-        if config.name == id {
-            return Ok(LoadedProvider {
-                config,
-                is_editable: false,
-            });
-        }
+    if let Some(config) = fixed_provider_configs()?
+        .into_iter()
+        .find(|config| config.name == id)
+    {
+        return Ok(LoadedProvider {
+            config,
+            is_editable: false,
+        });
     }
 
     Err(anyhow::anyhow!("Provider not found: {}", id))
@@ -395,38 +381,12 @@ fn deserialize_provider_config(content: &str) -> Result<DeclarativeProviderConfi
     Ok(config)
 }
 
-fn load_fixed_providers() -> Result<Vec<DeclarativeProviderConfig>> {
-    let mut res = Vec::new();
-    for file in FIXED_PROVIDERS.files() {
-        if file.path().extension().and_then(|s| s.to_str()) != Some("json") {
-            continue;
-        }
-
-        let content = file
-            .contents_utf8()
-            .ok_or_else(|| anyhow::anyhow!("Failed to read file as UTF-8: {:?}", file.path()))?;
-
-        match deserialize_provider_config(content) {
-            Ok(config) => res.push(config),
-            Err(e) => {
-                tracing::warn!(
-                    "Skipping invalid declarative provider {:?}: {}",
-                    file.path(),
-                    e
-                );
-            }
-        }
-    }
-
-    Ok(res)
-}
-
 pub fn register_declarative_providers(
     registry: &mut crate::providers::provider_registry::ProviderRegistry,
 ) -> Result<()> {
     let dir = custom_providers_dir();
     let custom_providers = load_custom_providers(&dir)?;
-    let fixed_providers = load_fixed_providers()?;
+    let fixed_providers = fixed_provider_configs()?;
     for config in fixed_providers {
         register_declarative_provider(registry, config, ProviderType::Declarative);
     }

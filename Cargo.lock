@@ -5110,6 +5110,7 @@ dependencies = [
  "chrono",
  "env-lock",
  "futures",
+ "include_dir",
  "once_cell",
  "pem",
  "pkcs1",

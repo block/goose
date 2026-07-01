@@ -1,8 +1,49 @@
+#[macro_use]
+mod macros;
+
 use std::{collections::HashMap, str::FromStr};
 
 use anyhow::Result;
+use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Deserializer, Serialize};
 use utoipa::ToSchema;
+
+pub static FIXED_PROVIDERS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/declarative/definitions");
+
+expose_declarative_providers!(
+    alibaba,
+    atomic_chat,
+    cerebras,
+    deepseek,
+    empiriolabs,
+    futurmix,
+    groq,
+    inception,
+    llama_swap,
+    lmstudio,
+    minimax,
+    mistral,
+    moonshot,
+    nearai,
+    novita,
+    nvidia,
+    ollama_cloud,
+    omlx,
+    opencode_go,
+    orcarouter,
+    ovhcloud,
+    perplexity,
+    routstr,
+    saladcloud,
+    scaleway,
+    tanzu,
+    tensorix,
+    together,
+    venice,
+    vercel_ai_gateway,
+    zai,
+    zhipu,
+);
 
 use crate::{
     anthropic,
