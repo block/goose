@@ -13,9 +13,7 @@ impl GooseAcpAgent {
         let session_id = &req.session_id;
         let agent = self.get_session_agent(&req.session_id).await?;
         let goose_mode = agent.goose_mode().await;
-        // Read from the global static manager so REST-based confirmToolAction approvals
-        // (which update PermissionManager::instance()) are reflected here immediately.
-        let permission_manager = crate::config::PermissionManager::instance();
+        let permission_manager = self.permission_manager();
 
         let mut tools: Vec<ToolListItem> = agent
             .list_tools(session_id, req.extension_name)
@@ -124,17 +122,14 @@ impl GooseAcpAgent {
         &self,
         req: SetToolPermissionsRequest,
     ) -> Result<SetToolPermissionsResponse, agent_client_protocol::Error> {
-        let acp_permission_manager = self.permission_manager();
-        // Also update the global static manager used by HTTP agents when USE_ACP_CHAT is false.
-        let global_permission_manager = crate::config::PermissionManager::instance();
+        let permission_manager = self.permission_manager();
         for entry in &req.tool_permissions {
             let level = match entry.permission {
                 ToolPermissionLevel::AlwaysAllow => PermissionLevel::AlwaysAllow,
                 ToolPermissionLevel::AskBefore => PermissionLevel::AskBefore,
                 ToolPermissionLevel::NeverAllow => PermissionLevel::NeverAllow,
             };
-            acp_permission_manager.update_user_permission(&entry.tool_name, level.clone());
-            global_permission_manager.update_user_permission(&entry.tool_name, level);
+            permission_manager.update_user_permission(&entry.tool_name, level);
         }
         Ok(SetToolPermissionsResponse {})
     }

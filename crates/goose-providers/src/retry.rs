@@ -81,11 +81,27 @@ impl RetryConfig {
     }
 }
 
+/// Substrings marking a `RequestFailed` (4xx) as deterministically permanent:
+/// Anthropic rejects signed `thinking`/`redacted_thinking` blocks as immutable
+/// once a thinking model's config changes mid-conversation, and the identical
+/// payload is rebuilt on every retry — so retrying can never succeed.
+const PERMANENT_REQUEST_FAILURE_MARKERS: &[&str] = &[
+    "blocks in the latest assistant message cannot be modified",
+    "must remain as they were in the original response",
+];
+
+fn is_permanent_request_failure(message: &str) -> bool {
+    PERMANENT_REQUEST_FAILURE_MARKERS
+        .iter()
+        .any(|marker| message.contains(marker))
+}
+
 pub fn should_retry(error: &ProviderError, config: &RetryConfig) -> bool {
     match error {
         ProviderError::RateLimitExceeded { .. }
         | ProviderError::ServerError(_)
         | ProviderError::NetworkError(_) => true,
+        ProviderError::RequestFailed(message) if is_permanent_request_failure(message) => false,
         ProviderError::RequestFailed(_) => !config.transient_only,
         _ => false,
     }
@@ -252,6 +268,33 @@ mod tests {
         let config = RetryConfig::default();
         let error = ProviderError::RequestFailed("Bad request (400): model not found".into());
         assert!(should_retry(&error, &config));
+    }
+
+    #[test]
+    fn never_retries_permanent_thinking_block_400() {
+        let config = RetryConfig::default();
+        let error = ProviderError::RequestFailed(
+            "Bad request (400): {\"message\":\"messages.3.content.1: `thinking` or \
+             `redacted_thinking` blocks in the latest assistant message cannot be \
+             modified. These blocks must remain as they were in the original \
+             response.\"}"
+                .into(),
+        );
+        assert!(!should_retry(&error, &config));
+    }
+
+    #[test]
+    fn permanent_request_failure_marker_detection() {
+        assert!(is_permanent_request_failure(
+            "messages.3.content.1: `thinking` blocks in the latest assistant message \
+             cannot be modified"
+        ));
+        assert!(is_permanent_request_failure(
+            "These blocks must remain as they were in the original response."
+        ));
+        assert!(!is_permanent_request_failure(
+            "Bad request (400): model not found"
+        ));
     }
 
     #[test]

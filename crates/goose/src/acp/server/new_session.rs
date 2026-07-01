@@ -6,7 +6,7 @@ use crate::recipe::{Recipe, Settings};
 use crate::session::{ExtensionData, Session, SessionType};
 
 use super::GooseAcpAgent;
-use agent_client_protocol::schema::{Meta, NewSessionRequest, NewSessionResponse, SessionId};
+use agent_client_protocol::schema::v1::{Meta, NewSessionRequest, NewSessionResponse, SessionId};
 use agent_client_protocol::{Client, ConnectionTo};
 use goose_providers::model::ModelConfig;
 use std::collections::HashMap;
@@ -219,14 +219,11 @@ impl GooseAcpAgent {
         session: &Session,
         extension_results: &[ExtensionLoadResult],
     ) -> Result<NewSessionResponse, agent_client_protocol::Error> {
-        let (mode_state, model_state, config_options) =
+        let (mode_state, config_options) =
             super::build_session_setup_config(&self.provider_inventory, session).await?;
 
         let mut response =
             NewSessionResponse::new(SessionId::new(session.id.clone())).modes(mode_state);
-        if let Some(ms) = model_state {
-            response = response.models(ms);
-        }
         if let Some(co) = config_options {
             response = response.config_options(co);
         }

@@ -122,6 +122,38 @@ impl GooseAcpAgent {
         self.on_get_diagnostics(req).await
     }
 
+    #[custom_method(ListPromptsRequest)]
+    async fn dispatch_list_prompts(
+        &self,
+        req: ListPromptsRequest,
+    ) -> Result<ListPromptsResponse, agent_client_protocol::Error> {
+        self.on_list_prompts(req).await
+    }
+
+    #[custom_method(GetPromptRequest)]
+    async fn dispatch_get_prompt(
+        &self,
+        req: GetPromptRequest,
+    ) -> Result<GetPromptResponse, agent_client_protocol::Error> {
+        self.on_get_prompt(req).await
+    }
+
+    #[custom_method(SavePromptRequest)]
+    async fn dispatch_save_prompt(
+        &self,
+        req: SavePromptRequest,
+    ) -> Result<PromptOperationResponse, agent_client_protocol::Error> {
+        self.on_save_prompt(req).await
+    }
+
+    #[custom_method(ResetPromptRequest)]
+    async fn dispatch_reset_prompt(
+        &self,
+        req: ResetPromptRequest,
+    ) -> Result<PromptOperationResponse, agent_client_protocol::Error> {
+        self.on_reset_prompt(req).await
+    }
+
     #[custom_method(DeleteSessionRequest)]
     async fn dispatch_delete_session(
         &self,
@@ -296,6 +328,30 @@ impl GooseAcpAgent {
         self.on_authenticate_provider_config(req).await
     }
 
+    #[custom_method(ProviderSecretsListRequest)]
+    async fn dispatch_list_provider_secrets(
+        &self,
+        req: ProviderSecretsListRequest,
+    ) -> Result<ProviderSecretsListResponse, agent_client_protocol::Error> {
+        self.on_list_provider_secrets(req).await
+    }
+
+    #[custom_method(ProviderSecretDeleteRequest)]
+    async fn dispatch_delete_provider_secret(
+        &self,
+        req: ProviderSecretDeleteRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_delete_provider_secret(req).await
+    }
+
+    #[custom_method(CanonicalModelInfoRequest)]
+    async fn dispatch_canonical_model_info(
+        &self,
+        req: CanonicalModelInfoRequest,
+    ) -> Result<CanonicalModelInfoResponse, agent_client_protocol::Error> {
+        self.on_canonical_model_info(req).await
+    }
+
     #[custom_method(PreferencesReadRequest)]
     async fn dispatch_preferences_read(
         &self,
@@ -320,6 +376,38 @@ impl GooseAcpAgent {
         self.on_preferences_remove(req).await
     }
 
+    #[custom_method(ConfigReadRequest)]
+    async fn dispatch_config_read(
+        &self,
+        req: ConfigReadRequest,
+    ) -> Result<ConfigReadResponse, agent_client_protocol::Error> {
+        self.on_config_read(req).await
+    }
+
+    #[custom_method(ConfigUpsertRequest)]
+    async fn dispatch_config_upsert(
+        &self,
+        req: ConfigUpsertRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_config_upsert(req).await
+    }
+
+    #[custom_method(ConfigRemoveRequest)]
+    async fn dispatch_config_remove(
+        &self,
+        req: ConfigRemoveRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_config_remove(req).await
+    }
+
+    #[custom_method(ConfigReadAllRequest)]
+    async fn dispatch_config_read_all(
+        &self,
+        req: ConfigReadAllRequest,
+    ) -> Result<ConfigReadAllResponse, agent_client_protocol::Error> {
+        self.on_config_read_all(req).await
+    }
+
     #[custom_method(DefaultsReadRequest)]
     async fn dispatch_defaults_read(
         &self,
@@ -334,6 +422,14 @@ impl GooseAcpAgent {
         req: DefaultsSaveRequest,
     ) -> Result<DefaultsReadResponse, agent_client_protocol::Error> {
         self.on_defaults_save(req).await
+    }
+
+    #[custom_method(DefaultsClearRequest)]
+    async fn dispatch_defaults_clear(
+        &self,
+        req: DefaultsClearRequest,
+    ) -> Result<DefaultsReadResponse, agent_client_protocol::Error> {
+        self.on_defaults_clear(req).await
     }
 
     #[custom_method(OnboardingImportScanRequest)]
@@ -726,5 +822,86 @@ impl GooseAcpAgent {
         req: DictationModelSelectRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
         self.on_dictation_model_select(req).await
+    }
+
+    #[custom_method(LocalInferenceModelsListRequest)]
+    async fn dispatch_local_inference_models_list(
+        &self,
+        req: LocalInferenceModelsListRequest,
+    ) -> Result<LocalInferenceModelsListResponse, agent_client_protocol::Error> {
+        self.on_local_inference_models_list(req).await
+    }
+
+    #[custom_method(LocalInferenceModelDownloadRequest)]
+    async fn dispatch_local_inference_model_download(
+        &self,
+        req: LocalInferenceModelDownloadRequest,
+    ) -> Result<LocalInferenceModelDownloadResponse, agent_client_protocol::Error> {
+        self.on_local_inference_model_download(req).await
+    }
+
+    #[custom_method(LocalInferenceModelDownloadProgressRequest)]
+    async fn dispatch_local_inference_model_download_progress(
+        &self,
+        req: LocalInferenceModelDownloadProgressRequest,
+    ) -> Result<LocalInferenceModelDownloadProgressResponse, agent_client_protocol::Error> {
+        self.on_local_inference_model_download_progress(req).await
+    }
+
+    #[custom_method(LocalInferenceModelDownloadCancelRequest)]
+    async fn dispatch_local_inference_model_download_cancel(
+        &self,
+        req: LocalInferenceModelDownloadCancelRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_local_inference_model_download_cancel(req).await
+    }
+
+    #[custom_method(LocalInferenceModelDeleteRequest)]
+    async fn dispatch_local_inference_model_delete(
+        &self,
+        req: LocalInferenceModelDeleteRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        self.on_local_inference_model_delete(req).await
+    }
+
+    #[custom_method(LocalInferenceModelSettingsReadRequest)]
+    async fn dispatch_local_inference_model_settings_read(
+        &self,
+        req: LocalInferenceModelSettingsReadRequest,
+    ) -> Result<LocalInferenceModelSettingsReadResponse, agent_client_protocol::Error> {
+        self.on_local_inference_model_settings_read(req).await
+    }
+
+    #[custom_method(LocalInferenceModelSettingsUpdateRequest)]
+    async fn dispatch_local_inference_model_settings_update(
+        &self,
+        req: LocalInferenceModelSettingsUpdateRequest,
+    ) -> Result<LocalInferenceModelSettingsUpdateResponse, agent_client_protocol::Error> {
+        self.on_local_inference_model_settings_update(req).await
+    }
+
+    #[custom_method(LocalInferenceHuggingFaceSearchRequest)]
+    async fn dispatch_local_inference_huggingface_search(
+        &self,
+        req: LocalInferenceHuggingFaceSearchRequest,
+    ) -> Result<LocalInferenceHuggingFaceSearchResponse, agent_client_protocol::Error> {
+        self.on_local_inference_huggingface_search(req).await
+    }
+
+    #[custom_method(LocalInferenceHuggingFaceRepoVariantsRequest)]
+    async fn dispatch_local_inference_huggingface_repo_variants(
+        &self,
+        req: LocalInferenceHuggingFaceRepoVariantsRequest,
+    ) -> Result<LocalInferenceHuggingFaceRepoVariantsResponse, agent_client_protocol::Error> {
+        self.on_local_inference_huggingface_repo_variants(req).await
+    }
+
+    #[custom_method(LocalInferenceBuiltinChatTemplatesListRequest)]
+    async fn dispatch_local_inference_builtin_chat_templates_list(
+        &self,
+        req: LocalInferenceBuiltinChatTemplatesListRequest,
+    ) -> Result<LocalInferenceBuiltinChatTemplatesListResponse, agent_client_protocol::Error> {
+        self.on_local_inference_builtin_chat_templates_list(req)
+            .await
     }
 }

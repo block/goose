@@ -30,7 +30,7 @@ uniffi = { version = "0.31", features = ["cli"], optional = true }
 thiserror = { version = "2", optional = true }
 
 [dev-dependencies]
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "process", "io-std", "io-util"] }
 tokio-util = { workspace = true, features = ["compat", "rt"] }
 
 [package.metadata.cargo-machete]

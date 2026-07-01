@@ -388,11 +388,7 @@ impl OpenAiProvider {
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
         let models_path =
             Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
-        let response = self
-            .api_client
-            .request(None, &models_path)
-            .response_get()
-            .await?;
+        let response = self.api_client.request(&models_path).response_get().await?;
 
         if response.status() == StatusCode::NOT_FOUND {
             let body = response.text().await.unwrap_or_default();
@@ -427,7 +423,7 @@ impl OpenAiProvider {
             Self::map_base_path(&self.base_path, "models", OPEN_AI_DEFAULT_MODELS_PATH);
         let response = self
             .api_client
-            .request(None, &models_path)
+            .request(&models_path)
             .response_get()
             .await
             .ok()?;
@@ -581,7 +577,6 @@ impl Provider for OpenAiProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -598,7 +593,6 @@ impl Provider for OpenAiProvider {
                     let resp = self
                         .api_client
                         .response_post(
-                            Some(session_id),
                             &Self::map_base_path(
                                 &self.base_path,
                                 "responses",
@@ -659,7 +653,7 @@ impl Provider for OpenAiProvider {
                 .with_retry(|| async {
                     let resp = self
                         .api_client
-                        .response_post(Some(session_id), &self.base_path, &payload)
+                        .response_post(&self.base_path, &payload)
                         .await?;
                     handle_status(resp).await
                 })

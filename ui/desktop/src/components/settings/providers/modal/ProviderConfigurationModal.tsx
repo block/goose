@@ -14,15 +14,15 @@ import ProviderSetupActions from './subcomponents/ProviderSetupActions';
 import ProviderLogo from './subcomponents/ProviderLogo';
 import { SecureStorageNotice } from './subcomponents/SecureStorageNotice';
 import { providerConfigSubmitHandler } from './subcomponents/handlers/DefaultSubmitHandler';
-import { useConfig } from '../../../ConfigContext';
+import {
+  acpAuthenticateProvider,
+  acpDeleteCustomProvider,
+  acpDeleteProviderConfig,
+  acpSaveProviderConfig,
+} from '../../../../acp/providers';
 import { useModelAndProvider } from '../../../ModelAndProviderContext';
 import { AlertTriangle, LogIn } from 'lucide-react';
-import {
-  ProviderDetails,
-  removeCustomProvider,
-  configureProviderOauth,
-  cleanupProviderCache,
-} from '../../../../api';
+import { ProviderDetails } from '../../../../api';
 import { Button } from '../../../../components/ui/button';
 import { errorMessage } from '../../../../utils/conversionUtils';
 import { defineMessages, useIntl } from '../../../../i18n';
@@ -165,7 +165,6 @@ export default function ProviderConfigurationModal({
 }: ProviderConfigurationModalProps) {
   const intl = useIntl();
   const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
-  const { upsert, remove } = useConfig();
   const { getCurrentModelAndProvider } = useModelAndProvider();
   const [configValues, setConfigValues] = useState<Record<string, ConfigInput>>({});
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
@@ -211,25 +210,20 @@ export default function ProviderConfigurationModal({
     setError(null);
     try {
       if (hasConfig) {
+        const fields: { key: string; value: string }[] = [];
         for (const key of configKeys) {
           const entry = configValues[key.name];
           const value =
             entry?.value ?? (typeof entry?.serverValue === 'string' ? entry.serverValue : null);
           if (value) {
-            await upsert(key.name, value, key.secret);
+            fields.push({ key: key.name, value });
           }
         }
+        if (fields.length > 0) {
+          await acpSaveProviderConfig(provider.name, fields);
+        }
       }
-      const oauthResult = await configureProviderOauth({
-        path: { name: provider.name },
-      });
-      if (oauthResult.error) {
-        const err = oauthResult.error as Record<string, unknown>;
-        const errDetail = typeof oauthResult.error === 'string'
-          ? oauthResult.error
-          : (err?.message as string) ?? (err?.detail as string) ?? JSON.stringify(oauthResult.error);
-        throw new Error(errDetail);
-      }
+      await acpAuthenticateProvider(provider.name);
       if (onConfigured) {
         onConfigured(provider);
       } else {
@@ -280,7 +274,7 @@ export default function ProviderConfigurationModal({
     );
 
     try {
-      await providerConfigSubmitHandler(upsert, provider, toSubmit);
+      await providerConfigSubmitHandler(provider, toSubmit);
       if (onConfigured) {
         onConfigured(provider);
       } else {
@@ -316,30 +310,14 @@ export default function ProviderConfigurationModal({
       return;
     }
 
-    // Clean up provider-specific cache files (e.g., OAuth tokens) before removing config
-    try {
-      await cleanupProviderCache({ path: { name: provider.name } });
-    } catch {
-      // Cleanup is best-effort — proceed with deletion even if it fails
-    }
-
     const isCustomProvider = provider.provider_type === 'Custom';
 
     if (isCustomProvider) {
-      await removeCustomProvider({
-        path: { id: provider.name },
-      });
+      await acpDeleteCustomProvider(provider.name);
     } else {
-      const params = provider.metadata.config_keys;
-      for (const param of params) {
-        await remove(param.name, param.secret);
-      }
-
-      const hasOAuthKey = params.some((key) => key.oauth_flow);
-      if (hasOAuthKey) {
-        const configuredMarker = `${provider.name}_configured`;
-        await remove(configuredMarker, false);
-      }
+      // Deletes all config/secret fields and cleans up provider-specific cache
+      // (e.g. OAuth tokens) server-side.
+      await acpDeleteProviderConfig(provider.name);
     }
 
     onClose();

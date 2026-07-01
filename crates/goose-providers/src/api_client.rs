@@ -11,10 +11,13 @@ use std::fmt;
 #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
 use std::fs::read_to_string;
 use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
 
 const DEFAULT_PROVIDER_TIMEOUT_SECS: u64 = 600;
-const SESSION_ID_HEADER: &str = "agent-session-id";
+
+pub type RequestBuilderDecorator =
+    Arc<dyn Fn(reqwest::RequestBuilder) -> Result<reqwest::RequestBuilder> + Send + Sync>;
 
 pub struct ApiClient {
     client: Client,
@@ -24,6 +27,7 @@ pub struct ApiClient {
     default_query: Vec<(String, String)>,
     timeout: Duration,
     tls_config: Option<TlsConfig>,
+    request_builder: Option<RequestBuilderDecorator>,
 }
 
 pub enum AuthMethod {
@@ -225,7 +229,6 @@ pub struct ApiRequestBuilder<'a> {
     client: &'a ApiClient,
     path: &'a str,
     headers: HeaderMap,
-    session_id: Option<&'a str>,
 }
 
 impl ApiClient {
@@ -264,6 +267,7 @@ impl ApiClient {
             default_query: Vec::new(),
             timeout,
             tls_config,
+            request_builder: None,
         })
     }
 
@@ -339,44 +343,33 @@ impl ApiClient {
         Ok(self)
     }
 
-    /// - `session_id`: Use `None` only for configuration or pre-session tasks.
-    pub fn request<'a>(
-        &'a self,
-        session_id: Option<&'a str>,
-        path: &'a str,
-    ) -> ApiRequestBuilder<'a> {
+    pub fn with_request_builder(mut self, request_builder: RequestBuilderDecorator) -> Self {
+        self.request_builder = Some(request_builder);
+        self
+    }
+
+    pub fn request<'a>(&'a self, path: &'a str) -> ApiRequestBuilder<'a> {
         ApiRequestBuilder {
             client: self,
-            session_id: session_id.filter(|id| !id.is_empty()),
             path,
             headers: HeaderMap::new(),
         }
     }
 
-    pub async fn api_post(
-        &self,
-        session_id: Option<&str>,
-        path: &str,
-        payload: &Value,
-    ) -> Result<ApiResponse> {
-        self.request(session_id, path).api_post(payload).await
+    pub async fn api_post(&self, path: &str, payload: &Value) -> Result<ApiResponse> {
+        self.request(path).api_post(payload).await
     }
 
-    pub async fn response_post(
-        &self,
-        session_id: Option<&str>,
-        path: &str,
-        payload: &Value,
-    ) -> Result<Response> {
-        self.request(session_id, path).response_post(payload).await
+    pub async fn response_post(&self, path: &str, payload: &Value) -> Result<Response> {
+        self.request(path).response_post(payload).await
     }
 
-    pub async fn api_get(&self, session_id: Option<&str>, path: &str) -> Result<ApiResponse> {
-        self.request(session_id, path).api_get().await
+    pub async fn api_get(&self, path: &str) -> Result<ApiResponse> {
+        self.request(path).api_get().await
     }
 
-    pub async fn response_get(&self, session_id: Option<&str>, path: &str) -> Result<Response> {
-        self.request(session_id, path).response_get().await
+    pub async fn response_get(&self, path: &str) -> Result<Response> {
+        self.request(path).response_get().await
     }
 
     fn build_url(&self, path: &str) -> Result<url::Url> {
@@ -445,16 +438,13 @@ impl<'a> ApiRequestBuilder<'a> {
         F: FnOnce(url::Url, &Client) -> reqwest::RequestBuilder,
     {
         let url = self.client.build_url(self.path)?;
-        let mut headers = self.headers.clone();
-        headers.remove(SESSION_ID_HEADER);
-        if let Some(session_id) = self.session_id {
-            let header_name = HeaderName::from_static(SESSION_ID_HEADER);
-            let header_value = HeaderValue::from_str(session_id)?;
-            headers.insert(header_name, header_value);
-        }
-
+        let headers = self.headers.clone();
         let mut request = request_builder(url, &self.client.client);
         request = request.headers(headers);
+
+        if let Some(decorator) = &self.client.request_builder {
+            request = decorator(request)?;
+        }
 
         request = match &self.client.auth {
             AuthMethod::NoAuth => request,
@@ -607,17 +597,9 @@ ShGoCNbfNS+COlPMRAujyDlATZcLs9p4tA==
 #[cfg(test)]
 mod tests {
     use super::*;
-    use test_case::test_case;
 
-    #[test_case(Some("test-session_id-456"), None, Some("test-session_id-456"); "header set")]
-    #[test_case(Some("new-session"), Some(("Agent-Session-Id", "old-session")), Some("new-session"); "replaces existing")]
-    #[test_case(None, Some(("Agent-Session-Id", "old-session")), None; "removes existing on none")]
-    #[test_case(Some(""), Some(("agent-session-id", "old-session")), None; "removes existing on empty")]
-    fn test_session_id_header(
-        session_id: Option<&str>,
-        existing_header: Option<(&str, &str)>,
-        expected: Option<&str>,
-    ) {
+    #[test]
+    fn test_request_builder_decorator() {
         let runtime = tokio::runtime::Runtime::new().unwrap();
         runtime.block_on(async {
             let client = ApiClient::new_with_tls(
@@ -625,23 +607,22 @@ mod tests {
                 AuthMethod::BearerToken("test-token".to_string()),
                 None,
             )
-            .unwrap();
+            .unwrap()
+            .with_request_builder(Arc::new(|request| {
+                Ok(request.header("test-my-session-id", "test-session_id-456"))
+            }));
 
-            let mut builder = client.request(session_id, "/test");
-            if let Some((key, value)) = existing_header {
-                builder = builder.header(key, value).unwrap();
-            }
-            let request = builder
+            let request = client
+                .request("/test")
                 .send_request(|url, client| client.get(url))
                 .await
                 .unwrap();
 
             let headers = request.build().unwrap().headers().clone();
-
             let actual = headers
-                .get(SESSION_ID_HEADER)
+                .get("test-my-session-id")
                 .and_then(|value| value.to_str().ok());
-            assert_eq!(actual, expected);
+            assert_eq!(actual, Some("test-session_id-456"));
         });
     }
 }

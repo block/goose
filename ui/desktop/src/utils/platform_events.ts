@@ -1,4 +1,4 @@
-import type { GooseApp } from '../api';
+import type { GooseApp } from '../types/apps';
 import { listMcpApps } from '../acp/mcp-apps';
 
 interface PlatformEventData {

@@ -65,14 +65,14 @@
   "authSettings.deleteCredential": {
     "defaultMessage": "Удалить учетные данные"
   },
+  "authSettings.deleted": {
+    "defaultMessage": "Учетные данные удалены"
+  },
   "authSettings.deleteMessage": {
     "defaultMessage": "Удалить учетные данные {name} для {provider}?"
   },
   "authSettings.deleteTitle": {
     "defaultMessage": "Удалить учетные данные"
-  },
-  "authSettings.deleted": {
-    "defaultMessage": "Учетные данные удалены"
   },
   "authSettings.description": {
     "defaultMessage": "Управляйте учетными данными провайдеров, сохраненными локально в goose."
@@ -98,11 +98,11 @@
   "authSettings.reauthorize": {
     "defaultMessage": "Авторизоваться снова"
   },
-  "authSettings.signIn": {
-    "defaultMessage": "Войти"
-  },
   "authSettings.signedIn": {
     "defaultMessage": "Учетные данные настроены"
+  },
+  "authSettings.signIn": {
+    "defaultMessage": "Войти"
   },
   "authSettings.storageProviderCache": {
     "defaultMessage": "Кэш провайдера"
@@ -122,6 +122,12 @@
   "baseChat.goHome": {
     "defaultMessage": "На главную"
   },
+  "bottomMenuExtensionSelection.extensionsForNewChats": {
+    "defaultMessage": "Расширения для новых чатов"
+  },
+  "bottomMenuExtensionSelection.extensionsForThisSession": {
+    "defaultMessage": "Расширения для этого чата"
+  },
   "bottomMenuExtensionSelection.extensionUpdated": {
     "defaultMessage": "Расширение обновлено"
   },
@@ -130,12 +136,6 @@
   },
   "bottomMenuExtensionSelection.extensionWillBeEnabled": {
     "defaultMessage": "{name} будет включено в новых чатах"
-  },
-  "bottomMenuExtensionSelection.extensionsForNewChats": {
-    "defaultMessage": "Расширения для новых чатов"
-  },
-  "bottomMenuExtensionSelection.extensionsForThisSession": {
-    "defaultMessage": "Расширения для этого чата"
   },
   "bottomMenuExtensionSelection.manageExtensions": {
     "defaultMessage": "управлять расширениями"
@@ -638,11 +638,11 @@
   "customProviderForm.attachments": {
     "defaultMessage": "Вложения"
   },
-  "customProviderForm.authHint": {
-    "defaultMessage": "Локальные LLM, такие как Ollama, обычно не требуют API-ключа."
-  },
   "customProviderForm.authentication": {
     "defaultMessage": "Аутентификация"
+  },
+  "customProviderForm.authHint": {
+    "defaultMessage": "Локальные LLM, такие как Ollama, обычно не требуют API-ключа."
   },
   "customProviderForm.availableModels": {
     "defaultMessage": "Доступные модели (через запятую)"
@@ -941,17 +941,20 @@
   "elicitationRequest.waitingForResponse": {
     "defaultMessage": "Ожидание вашего ответа (осталось {timeRemaining})"
   },
+  "environmentBadge.dev": {
+    "defaultMessage": "Разработка"
+  },
   "envVarsSection.add": {
     "defaultMessage": "Добавить"
   },
   "envVarsSection.bothRequired": {
     "defaultMessage": "Необходимо ввести имя переменной и значение"
   },
-  "envVarsSection.envVarsDescription": {
-    "defaultMessage": "Добавьте пары ключ-значение для переменных окружения. После заполнения обоих полей нажмите «+», чтобы добавить. Для существующих секретных значений нажмите кнопку редактирования."
-  },
   "envVarsSection.environmentVariables": {
     "defaultMessage": "Переменные окружения"
+  },
+  "envVarsSection.envVarsDescription": {
+    "defaultMessage": "Добавьте пары ключ-значение для переменных окружения. После заполнения обоих полей нажмите «+», чтобы добавить. Для существующих секретных значений нажмите кнопку редактирования."
   },
   "envVarsSection.noSpaces": {
     "defaultMessage": "Имя переменной не может содержать пробелы"
@@ -961,9 +964,6 @@
   },
   "envVarsSection.variableName": {
     "defaultMessage": "Имя переменной"
-  },
-  "environmentBadge.dev": {
-    "defaultMessage": "Разработка"
   },
   "errorBoundary.errorGeneric": {
     "defaultMessage": "Произошла ошибка."
@@ -1124,9 +1124,6 @@
   "extensionModal.unsavedChangesTitle": {
     "defaultMessage": "Несохраненные изменения"
   },
-  "extensionTimeoutField.timeoutLabel": {
-    "defaultMessage": "Тайм-аут"
-  },
   "extensionsSection.addCustomExtension": {
     "defaultMessage": "Добавить пользовательское расширение"
   },
@@ -1162,6 +1159,9 @@
   },
   "extensionsView.searchPlaceholder": {
     "defaultMessage": "Поиск расширений..."
+  },
+  "extensionTimeoutField.timeoutLabel": {
+    "defaultMessage": "Тайм-аут"
   },
   "externalBackendSection.certFingerprint": {
     "defaultMessage": "Отпечаток сертификата (необязательно)"
@@ -1204,36 +1204,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Подключиться к серверу goose, запущенному в другом месте (требуется перезапуск приложения)"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Выберите вариант, чтобы начать."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Бесплатно и приватно"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Скачайте модель и запускайте её полностью на своем компьютере. Без API-ключей и учетных записей."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Использовать локальную модель"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Зарегистрируйтесь, чтобы получить 60 млн бесплатных токенов на 7 дней."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Повторить"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Получите доступ к нескольким ИИ-моделям с автоматической настройкой. Зарегистрируйтесь, чтобы получить кредит $10."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router by Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Во время настройки произошла непредвиденная ошибка."
   },
   "goosehintsModal.close": {
     "defaultMessage": "Закрыть"
@@ -1403,11 +1373,11 @@
   "huggingFaceSignInPrompt.failedToConfigure": {
     "defaultMessage": "Не удалось войти в Hugging Face: {error}"
   },
-  "huggingFaceSignInPrompt.signIn": {
-    "defaultMessage": "Войти"
-  },
   "huggingFaceSignInPrompt.signedIn": {
     "defaultMessage": "Вход в Hugging Face выполнен"
+  },
+  "huggingFaceSignInPrompt.signIn": {
+    "defaultMessage": "Войти"
   },
   "huggingFaceSignInPrompt.signingIn": {
     "defaultMessage": "Выполняется вход..."
@@ -1442,14 +1412,14 @@
   "importRecipeForm.expectedRecipeStructure": {
     "defaultMessage": "Ожидаемая структура рецепта"
   },
+  "importRecipeForm.importing": {
+    "defaultMessage": "Импорт..."
+  },
   "importRecipeForm.importRecipeButton": {
     "defaultMessage": "Импортировать рецепт"
   },
   "importRecipeForm.importRecipeTitle": {
     "defaultMessage": "Импортировать рецепт"
-  },
-  "importRecipeForm.importing": {
-    "defaultMessage": "Импорт..."
   },
   "importRecipeForm.or": {
     "defaultMessage": "ИЛИ"
@@ -1549,18 +1519,6 @@
   },
   "jsonSchemaForm.submit": {
     "defaultMessage": "Отправить"
-  },
-  "keyValueEditor.addValue": {
-    "defaultMessage": "Добавить предварительно настроенное значение"
-  },
-  "keyValueEditor.defaultKeyPlaceholder": {
-    "defaultMessage": "Имя параметра..."
-  },
-  "keyValueEditor.defaultValuePlaceholder": {
-    "defaultMessage": "Значение параметра..."
-  },
-  "keyValueEditor.removeValue": {
-    "defaultMessage": "Удалить предварительно настроенное значение {key}"
   },
   "keyboardShortcuts.alwaysOnTopDescription": {
     "defaultMessage": "Переключить окно поверх всех"
@@ -1706,6 +1664,18 @@
   "keyboardShortcuts.toggleNavigationLabel": {
     "defaultMessage": "Переключить навигацию"
   },
+  "keyValueEditor.addValue": {
+    "defaultMessage": "Добавить предварительно настроенное значение"
+  },
+  "keyValueEditor.defaultKeyPlaceholder": {
+    "defaultMessage": "Имя параметра..."
+  },
+  "keyValueEditor.defaultValuePlaceholder": {
+    "defaultMessage": "Значение параметра..."
+  },
+  "keyValueEditor.removeValue": {
+    "defaultMessage": "Удалить предварительно настроенное значение {key}"
+  },
   "launcher.placeholder": {
     "defaultMessage": "Спросите goose о чем угодно..."
   },
@@ -1745,17 +1715,17 @@
   "localInferenceSettings.downloadCancelled": {
     "defaultMessage": "Скачивание отменено"
   },
-  "localInferenceSettings.downloadFailed": {
-    "defaultMessage": "Скачивание не удалось"
-  },
-  "localInferenceSettings.downloadProgress": {
-    "defaultMessage": "{downloaded} / {total} ({percent}%)"
-  },
   "localInferenceSettings.downloadedModels": {
     "defaultMessage": "Скачанные модели"
   },
+  "localInferenceSettings.downloadFailed": {
+    "defaultMessage": "Скачивание не удалось"
+  },
   "localInferenceSettings.downloading": {
     "defaultMessage": "Скачивание"
+  },
+  "localInferenceSettings.downloadProgress": {
+    "defaultMessage": "{downloaded} / {total} ({percent}%)"
   },
   "localInferenceSettings.featuredModels": {
     "defaultMessage": "Рекомендуемые модели"
@@ -1829,9 +1799,6 @@
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Показывать только рекомендуемые"
   },
-  "localModelPicker.back": {
-    "defaultMessage": "Назад"
-  },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Лучше всего для вашего компьютера"
   },
@@ -1841,11 +1808,11 @@
   "localModelPicker.checkingModels": {
     "defaultMessage": "Проверка доступных моделей..."
   },
-  "localModelPicker.downloadModel": {
-    "defaultMessage": "Скачать {modelId} ({size})"
-  },
   "localModelPicker.downloading": {
     "defaultMessage": "Скачивание {modelId}"
+  },
+  "localModelPicker.downloadModel": {
+    "defaultMessage": "Скачать {modelId} ({size})"
   },
   "localModelPicker.failedToLoad": {
     "defaultMessage": "Не удалось загрузить доступные модели. Повторите попытку."
@@ -1955,30 +1922,6 @@
   "mcpAppRenderer.playingInPip": {
     "defaultMessage": "Воспроизведение в режиме «картинка в картинке»"
   },
-  "mcpUIResourceRenderer.cancelButton": {
-    "defaultMessage": "Отмена"
-  },
-  "mcpUIResourceRenderer.openButton": {
-    "defaultMessage": "Открыть"
-  },
-  "mcpUIResourceRenderer.openExternalLinkTitle": {
-    "defaultMessage": "Открыть внешнюю ссылку"
-  },
-  "mcpUIResourceRenderer.openLinkDetail": {
-    "defaultMessage": "Будет открыто: {url}"
-  },
-  "mcpUIResourceRenderer.openProtocolLink": {
-    "defaultMessage": "Открыть ссылку {protocol}?"
-  },
-  "mcpUIResourceRenderer.toastMessageReceived": {
-    "defaultMessage": "Получено сообщение для {message}."
-  },
-  "mcpUIResourceRenderer.toastTitle": {
-    "defaultMessage": "Сообщение MCP-UI {messageType}"
-  },
-  "mcpUIResourceRenderer.toastUnsupported": {
-    "defaultMessage": "Получено сообщение для {message}. Сообщения {messageType} пока не поддерживаются; подробности смотрите в консоли."
-  },
   "mentionPopover.itemsFound": {
     "defaultMessage": "{count, plural, one {Найден # элемент} few {Найдено # элемента} many {Найдено # элементов} other {Найдено # элемента}}"
   },
@@ -2033,6 +1976,9 @@
   "messageQueue.paused": {
     "defaultMessage": "На паузе"
   },
+  "messageQueue.queued": {
+    "defaultMessage": "в очереди"
+  },
   "messageQueue.queuePaused": {
     "defaultMessage": "Очередь приостановлена"
   },
@@ -2041,9 +1987,6 @@
   },
   "messageQueue.queuePausedExpanded": {
     "defaultMessage": "Очередь приостановлена из-за прерывания. Используйте «Отправить сейчас» или добавьте новое сообщение, чтобы продолжить."
-  },
-  "messageQueue.queued": {
-    "defaultMessage": "в очереди"
   },
   "messageQueue.removeFromQueue": {
     "defaultMessage": "Удалить это сообщение из очереди"
@@ -2090,35 +2033,11 @@
   "microphoneSelector.test": {
     "defaultMessage": "Проверить"
   },
-  "modeSelectionItem.autonomousDescription": {
-    "defaultMessage": "Полные возможности изменения файлов: свободное редактирование, создание и удаление файлов."
-  },
-  "modeSelectionItem.autonomousLabel": {
-    "defaultMessage": "Автономный"
-  },
-  "modeSelectionItem.chatOnlyDescription": {
-    "defaultMessage": "Работать с выбранным провайдером без использования инструментов или расширений."
-  },
-  "modeSelectionItem.chatOnlyLabel": {
-    "defaultMessage": "Только чат"
-  },
-  "modeSelectionItem.manualDescription": {
-    "defaultMessage": "Все инструменты, расширения и изменения файлов будут требовать подтверждения человеком"
-  },
-  "modeSelectionItem.manualLabel": {
-    "defaultMessage": "Вручную"
-  },
-  "modeSelectionItem.smartDescription": {
-    "defaultMessage": "Интеллектуально определять, какие действия требуют подтверждения, исходя из уровня риска"
-  },
-  "modeSelectionItem.smartLabel": {
-    "defaultMessage": "Умный"
+  "modelAndProviderContext.modelChangedTitle": {
+    "defaultMessage": "Модель изменена"
   },
   "modelAndProviderContext.modelChangeFailed": {
     "defaultMessage": "{provider}/{model} не удалось"
-  },
-  "modelAndProviderContext.modelChangedTitle": {
-    "defaultMessage": "Модель изменена"
   },
   "modelAndProviderContext.selectModel": {
     "defaultMessage": "Выбрать модель"
@@ -2131,6 +2050,27 @@
   },
   "modelAndProviderContext.unknownProviderTitle": {
     "defaultMessage": "Поиск имени провайдера"
+  },
+  "modelsBottomBar.changeModel": {
+    "defaultMessage": "Изменить модель"
+  },
+  "modelsBottomBar.currentModel": {
+    "defaultMessage": "Текущая модель"
+  },
+  "modelsBottomBar.loadingModel": {
+    "defaultMessage": "Загрузка модели..."
+  },
+  "modelsBottomBar.localModelSettings": {
+    "defaultMessage": "Настройки локальной модели"
+  },
+  "modelsBottomBar.localModelSettingsTitle": {
+    "defaultMessage": "Настройки локальной модели — {modelName}"
+  },
+  "modelsBottomBar.resolvedModel": {
+    "defaultMessage": "Разрешенная модель"
+  },
+  "modelsBottomBar.selectModel": {
+    "defaultMessage": "Выбрать модель"
   },
   "modelSettingsButtons.configureProviders": {
     "defaultMessage": "Настроить провайдеров"
@@ -2291,32 +2231,35 @@
   "modelSettingsPanel.topP": {
     "defaultMessage": "Top P"
   },
-  "modelsBottomBar.changeModel": {
-    "defaultMessage": "Изменить модель"
-  },
-  "modelsBottomBar.currentModel": {
-    "defaultMessage": "Текущая модель"
-  },
-  "modelsBottomBar.loadingModel": {
-    "defaultMessage": "Загрузка модели..."
-  },
-  "modelsBottomBar.localModelSettings": {
-    "defaultMessage": "Настройки локальной модели"
-  },
-  "modelsBottomBar.localModelSettingsTitle": {
-    "defaultMessage": "Настройки локальной модели — {modelName}"
-  },
-  "modelsBottomBar.resolvedModel": {
-    "defaultMessage": "Разрешенная модель"
-  },
-  "modelsBottomBar.selectModel": {
-    "defaultMessage": "Выбрать модель"
-  },
   "modelsSection.resetDescription": {
     "defaultMessage": "Очистить выбранную модель и настройки провайдера, чтобы начать заново"
   },
   "modelsSection.resetTitle": {
     "defaultMessage": "Сбросить провайдера и модель"
+  },
+  "modeSelectionItem.autonomousDescription": {
+    "defaultMessage": "Полные возможности изменения файлов: свободное редактирование, создание и удаление файлов."
+  },
+  "modeSelectionItem.autonomousLabel": {
+    "defaultMessage": "Автономный"
+  },
+  "modeSelectionItem.chatOnlyDescription": {
+    "defaultMessage": "Работать с выбранным провайдером без использования инструментов или расширений."
+  },
+  "modeSelectionItem.chatOnlyLabel": {
+    "defaultMessage": "Только чат"
+  },
+  "modeSelectionItem.manualDescription": {
+    "defaultMessage": "Все инструменты, расширения и изменения файлов будут требовать подтверждения человеком"
+  },
+  "modeSelectionItem.manualLabel": {
+    "defaultMessage": "Вручную"
+  },
+  "modeSelectionItem.smartDescription": {
+    "defaultMessage": "Интеллектуально определять, какие действия требуют подтверждения, исходя из уровня риска"
+  },
+  "modeSelectionItem.smartLabel": {
+    "defaultMessage": "Умный"
   },
   "navigation.itemApps": {
     "defaultMessage": "Приложения"
@@ -2597,11 +2540,11 @@
   "promptsSettings.edit": {
     "defaultMessage": "Изменить"
   },
-  "promptsSettings.editPromptTitle": {
-    "defaultMessage": "Изменить: {name}"
-  },
   "promptsSettings.editingLabel": {
     "defaultMessage": "Редактирование: {name}"
+  },
+  "promptsSettings.editPromptTitle": {
+    "defaultMessage": "Изменить: {name}"
   },
   "promptsSettings.enterPromptContent": {
     "defaultMessage": "Введите содержимое промпта..."
@@ -2711,11 +2654,11 @@
   "providerConfigForm.noApiKey": {
     "defaultMessage": "Нет API-ключа?"
   },
-  "providerConfigForm.signInWith": {
-    "defaultMessage": "Войти через {providerName}"
-  },
   "providerConfigForm.signingIn": {
     "defaultMessage": "Вход..."
+  },
+  "providerConfigForm.signInWith": {
+    "defaultMessage": "Войти через {providerName}"
   },
   "providerConfigurationModal.addApiKeyDescription": {
     "defaultMessage": "Добавьте API-ключи для этого провайдера, чтобы интегрировать его в goose"
@@ -2777,11 +2720,11 @@
   "providerConfigurationModal.seeDocumentation": {
     "defaultMessage": "Подробнее см. в <link>документации</link>."
   },
-  "providerConfigurationModal.signInWith": {
-    "defaultMessage": "Войти через {providerName}"
-  },
   "providerConfigurationModal.signingIn": {
     "defaultMessage": "Вход..."
+  },
+  "providerConfigurationModal.signInWith": {
+    "defaultMessage": "Войти через {providerName}"
   },
   "providerGrid.addProvider": {
     "defaultMessage": "Добавить провайдера"
@@ -2816,14 +2759,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Подключите OpenAI, Anthropic, Google и т. д."
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Используйте локальную модель или провайдера с бесплатными кредитами"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Скачайте модель и запускайте её полностью на своем компьютере. Без API-ключей и учетных записей."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Выберите провайдера"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Использовать бесплатных/локальных провайдеров"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Использовать локальную модель"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Настройки конфигурации провайдера"
@@ -3011,39 +2954,6 @@
   "recipeNameField.formatHint": {
     "defaultMessage": "Будет автоматически отформатировано (нижний регистр, дефисы вместо пробелов)"
   },
-  "recipeWarningModal.cancel": {
-    "defaultMessage": "Отмена"
-  },
-  "recipeWarningModal.descriptionLabel": {
-    "defaultMessage": "Описание:"
-  },
-  "recipeWarningModal.firstTimeDescription": {
-    "defaultMessage": "Вы собираетесь выполнить рецепт, который еще не запускали."
-  },
-  "recipeWarningModal.hiddenCharsWarning": {
-    "defaultMessage": "Этот рецепт содержит скрытые символы, которые будут проигнорированы для вашей безопасности, так как их могут использовать во вредоносных целях."
-  },
-  "recipeWarningModal.instructionsLabel": {
-    "defaultMessage": "Инструкции:"
-  },
-  "recipeWarningModal.newRecipeWarningTitle": {
-    "defaultMessage": "⚠️ Предупреждение о новом рецепте"
-  },
-  "recipeWarningModal.recipePreview": {
-    "defaultMessage": "Предпросмотр рецепта:"
-  },
-  "recipeWarningModal.securityWarningTitle": {
-    "defaultMessage": "⚠️ Предупреждение безопасности"
-  },
-  "recipeWarningModal.titleLabel": {
-    "defaultMessage": "Название:"
-  },
-  "recipeWarningModal.trustAndExecute": {
-    "defaultMessage": "Доверять и выполнить"
-  },
-  "recipeWarningModal.trustSource": {
-    "defaultMessage": "Продолжайте только если доверяете источнику этого рецепта."
-  },
   "recipesView.addSchedule": {
     "defaultMessage": "Добавить расписание"
   },
@@ -3218,6 +3128,39 @@
   "recipesView.yamlFiles": {
     "defaultMessage": "Файлы YAML"
   },
+  "recipeWarningModal.cancel": {
+    "defaultMessage": "Отмена"
+  },
+  "recipeWarningModal.descriptionLabel": {
+    "defaultMessage": "Описание:"
+  },
+  "recipeWarningModal.firstTimeDescription": {
+    "defaultMessage": "Вы собираетесь выполнить рецепт, который еще не запускали."
+  },
+  "recipeWarningModal.hiddenCharsWarning": {
+    "defaultMessage": "Этот рецепт содержит скрытые символы, которые будут проигнорированы для вашей безопасности, так как их могут использовать во вредоносных целях."
+  },
+  "recipeWarningModal.instructionsLabel": {
+    "defaultMessage": "Инструкции:"
+  },
+  "recipeWarningModal.newRecipeWarningTitle": {
+    "defaultMessage": "⚠️ Предупреждение о новом рецепте"
+  },
+  "recipeWarningModal.recipePreview": {
+    "defaultMessage": "Предпросмотр рецепта:"
+  },
+  "recipeWarningModal.securityWarningTitle": {
+    "defaultMessage": "⚠️ Предупреждение безопасности"
+  },
+  "recipeWarningModal.titleLabel": {
+    "defaultMessage": "Название:"
+  },
+  "recipeWarningModal.trustAndExecute": {
+    "defaultMessage": "Доверять и выполнить"
+  },
+  "recipeWarningModal.trustSource": {
+    "defaultMessage": "Продолжайте только если доверяете источнику этого рецепта."
+  },
   "resetProviderSection.resetButton": {
     "defaultMessage": "Сбросить провайдера и модель"
   },
@@ -3251,11 +3194,11 @@
   "scheduleDetailView.cronExpression": {
     "defaultMessage": "Cron-выражение:"
   },
-  "scheduleDetailView.currentSession": {
-    "defaultMessage": "Текущий сеанс:"
-  },
   "scheduleDetailView.currentlyRunning": {
     "defaultMessage": "Сейчас выполняется"
+  },
+  "scheduleDetailView.currentSession": {
+    "defaultMessage": "Текущий сеанс:"
   },
   "scheduleDetailView.dir": {
     "defaultMessage": "Каталог: {path}"
@@ -3314,12 +3257,6 @@
   "scheduleDetailView.noSessions": {
     "defaultMessage": "Сеансы для этого расписания не найдены."
   },
-  "scheduleDetailView.pauseSchedule": {
-    "defaultMessage": "Приостановить расписание"
-  },
-  "scheduleDetailView.pauseUnpauseError": {
-    "defaultMessage": "Ошибка паузы/возобновления"
-  },
   "scheduleDetailView.paused": {
     "defaultMessage": "На паузе"
   },
@@ -3328,6 +3265,12 @@
   },
   "scheduleDetailView.pausedWarning": {
     "defaultMessage": "Это расписание приостановлено и не будет запускаться автоматически. Используйте «Запустить расписание сейчас», чтобы запустить вручную, или снимите паузу для возобновления автоматического выполнения."
+  },
+  "scheduleDetailView.pauseSchedule": {
+    "defaultMessage": "Приостановить расписание"
+  },
+  "scheduleDetailView.pauseUnpauseError": {
+    "defaultMessage": "Ошибка паузы/возобновления"
   },
   "scheduleDetailView.processStarted": {
     "defaultMessage": "Процесс запущен:"
@@ -3374,17 +3317,17 @@
   "scheduleDetailView.sessionId": {
     "defaultMessage": "ID сеанса: {id}"
   },
-  "scheduleDetailView.unpauseSchedule": {
-    "defaultMessage": "Возобновить расписание"
-  },
   "scheduleDetailView.unpausedMsg": {
     "defaultMessage": "«{id}» возобновлено"
   },
-  "scheduleDetailView.updateScheduleError": {
-    "defaultMessage": "Ошибка обновления расписания"
+  "scheduleDetailView.unpauseSchedule": {
+    "defaultMessage": "Возобновить расписание"
   },
   "scheduleDetailView.updatedMsg": {
     "defaultMessage": "«{id}» обновлено"
+  },
+  "scheduleDetailView.updateScheduleError": {
+    "defaultMessage": "Ошибка обновления расписания"
   },
   "scheduleDetailView.viewingScheduleId": {
     "defaultMessage": "Просмотр ID расписания: {id}"
@@ -3509,11 +3452,11 @@
   "schedulesView.pause": {
     "defaultMessage": "Пауза"
   },
-  "schedulesView.pauseError": {
-    "defaultMessage": "Ошибка приостановки расписания"
-  },
   "schedulesView.paused": {
     "defaultMessage": "На паузе"
+  },
+  "schedulesView.pauseError": {
+    "defaultMessage": "Ошибка приостановки расписания"
   },
   "schedulesView.refresh": {
     "defaultMessage": "Обновить"
@@ -3533,6 +3476,9 @@
   "schedulesView.schedulePausedMsg": {
     "defaultMessage": "Расписание «{id}» успешно приостановлено"
   },
+  "schedulesView.scheduler": {
+    "defaultMessage": "Планировщик"
+  },
   "schedulesView.scheduleUnpaused": {
     "defaultMessage": "Расписание возобновлено"
   },
@@ -3544,9 +3490,6 @@
   },
   "schedulesView.scheduleUpdatedMsg": {
     "defaultMessage": "Расписание «{id}» успешно обновлено"
-  },
-  "schedulesView.scheduler": {
-    "defaultMessage": "Планировщик"
   },
   "schedulesView.unpauseError": {
     "defaultMessage": "Ошибка возобновления расписания"
@@ -3650,14 +3593,14 @@
   "sessionActionsHeader.copyText": {
     "defaultMessage": "Copy text"
   },
+  "sessionActionsHeader.duplicated": {
+    "defaultMessage": "Session duplicated"
+  },
   "sessionActionsHeader.duplicateFailed": {
     "defaultMessage": "Failed to duplicate session: {error}"
   },
   "sessionActionsHeader.duplicateSession": {
     "defaultMessage": "Duplicate session"
-  },
-  "sessionActionsHeader.duplicated": {
-    "defaultMessage": "Session duplicated"
   },
   "sessionActionsHeader.fullTextTitle": {
     "defaultMessage": "Text value"
@@ -3671,6 +3614,9 @@
   "sessionActionsHeader.loadingJson": {
     "defaultMessage": "Loading JSON..."
   },
+  "sessionActionsHeader.renamed": {
+    "defaultMessage": "Session renamed"
+  },
   "sessionActionsHeader.renameFailed": {
     "defaultMessage": "Failed to rename session: {error}"
   },
@@ -3682,9 +3628,6 @@
   },
   "sessionActionsHeader.renameTitle": {
     "defaultMessage": "Rename Session"
-  },
-  "sessionActionsHeader.renamed": {
-    "defaultMessage": "Session renamed"
   },
   "sessionActionsHeader.save": {
     "defaultMessage": "Save"
@@ -3703,24 +3646,6 @@
   },
   "sessionIndicators.streaming": {
     "defaultMessage": "Потоковая передача"
-  },
-  "sessionViewComponents.empty.description": {
-    "defaultMessage": "Этот сеанс не содержит сообщений"
-  },
-  "sessionViewComponents.empty.title": {
-    "defaultMessage": "Сообщения не найдены"
-  },
-  "sessionViewComponents.error.loading": {
-    "defaultMessage": "Ошибка загрузки сведений о сеансе"
-  },
-  "sessionViewComponents.error.tryAgain": {
-    "defaultMessage": "Повторить попытку"
-  },
-  "sessionViewComponents.role.assistant": {
-    "defaultMessage": "Goose"
-  },
-  "sessionViewComponents.role.user": {
-    "defaultMessage": "Вы"
   },
   "sessions.action.delete": {
     "defaultMessage": "Удалить сеанс"
@@ -3779,6 +3704,9 @@
   "sessions.import": {
     "defaultMessage": "Импортировать сеанс"
   },
+  "sessions.importing": {
+    "defaultMessage": "Импорт..."
+  },
   "sessions.importNostr": {
     "defaultMessage": "Импортировать ссылку"
   },
@@ -3790,9 +3718,6 @@
   },
   "sessions.importNostr.title": {
     "defaultMessage": "Импортировать сеанс Nostr"
-  },
-  "sessions.importing": {
-    "defaultMessage": "Импорт..."
   },
   "sessions.loadingMore": {
     "defaultMessage": "Загрузка дополнительных сеансов..."
@@ -3821,26 +3746,26 @@
   "sessions.toast.copied": {
     "defaultMessage": "Скопировано в буфер обмена"
   },
-  "sessions.toast.deleteFailed": {
-    "defaultMessage": "Не удалось удалить сеанс «{name}»: {error}"
-  },
   "sessions.toast.deleted": {
     "defaultMessage": "Сеанс успешно удален"
   },
-  "sessions.toast.duplicateFailed": {
-    "defaultMessage": "Не удалось дублировать сеанс: {error}"
+  "sessions.toast.deleteFailed": {
+    "defaultMessage": "Не удалось удалить сеанс «{name}»: {error}"
   },
   "sessions.toast.duplicated": {
     "defaultMessage": "Сеанс «{name}» успешно дублирован"
   },
+  "sessions.toast.duplicateFailed": {
+    "defaultMessage": "Не удалось дублировать сеанс: {error}"
+  },
   "sessions.toast.exported": {
     "defaultMessage": "Сеанс успешно экспортирован"
   },
-  "sessions.toast.importFailed": {
-    "defaultMessage": "Не удалось импортировать сеанс: {error}"
-  },
   "sessions.toast.imported": {
     "defaultMessage": "Сеанс успешно импортирован"
+  },
+  "sessions.toast.importFailed": {
+    "defaultMessage": "Не удалось импортировать сеанс: {error}"
   },
   "sessions.toast.shareNostr": {
     "defaultMessage": "Зашифрованная ссылка Nostr создана"
@@ -3848,11 +3773,29 @@
   "sessions.toast.shareNostrFailed": {
     "defaultMessage": "Не удалось создать ссылку Nostr: {error}"
   },
+  "sessions.toast.updated": {
+    "defaultMessage": "Описание сеанса успешно обновлено"
+  },
   "sessions.toast.updateFailed": {
     "defaultMessage": "Не удалось обновить описание сеанса: {error}"
   },
-  "sessions.toast.updated": {
-    "defaultMessage": "Описание сеанса успешно обновлено"
+  "sessionViewComponents.empty.description": {
+    "defaultMessage": "Этот сеанс не содержит сообщений"
+  },
+  "sessionViewComponents.empty.title": {
+    "defaultMessage": "Сообщения не найдены"
+  },
+  "sessionViewComponents.error.loading": {
+    "defaultMessage": "Ошибка загрузки сведений о сеансе"
+  },
+  "sessionViewComponents.error.tryAgain": {
+    "defaultMessage": "Повторить попытку"
+  },
+  "sessionViewComponents.role.assistant": {
+    "defaultMessage": "Goose"
+  },
+  "sessionViewComponents.role.user": {
+    "defaultMessage": "Вы"
   },
   "settings.appearance.description": {
     "defaultMessage": "Настройте, как goose отображается в вашей системе"
@@ -3893,14 +3836,32 @@
   "settings.language.english": {
     "defaultMessage": "Английский"
   },
+  "settings.language.french": {
+    "defaultMessage": "Французский"
+  },
+  "settings.language.german": {
+    "defaultMessage": "Немецкий"
+  },
   "settings.language.hindi": {
     "defaultMessage": "Хинди"
+  },
+  "settings.language.indonesian": {
+    "defaultMessage": "Индонезийский"
+  },
+  "settings.language.italian": {
+    "defaultMessage": "Итальянский"
   },
   "settings.language.japanese": {
     "defaultMessage": "Японский"
   },
   "settings.language.korean": {
     "defaultMessage": "Корейский"
+  },
+  "settings.language.malay": {
+    "defaultMessage": "Малайский"
+  },
+  "settings.language.portuguese": {
+    "defaultMessage": "Португальский"
   },
   "settings.language.russian": {
     "defaultMessage": "Русский"
@@ -3917,8 +3878,14 @@
   "settings.language.turkish": {
     "defaultMessage": "Турецкий"
   },
+  "settings.language.vietnamese": {
+    "defaultMessage": "Вьетнамский"
+  },
   "settings.language.zhCN": {
     "defaultMessage": "Китайский (упрощенный)"
+  },
+  "settings.language.zhTW": {
+    "defaultMessage": "Китайский (традиционный)"
   },
   "settings.menuBarIcon.description": {
     "defaultMessage": "Показывать goose в строке меню"
@@ -4370,11 +4337,11 @@
   "themeSelector.theme": {
     "defaultMessage": "Тема"
   },
-  "toolApprovalButtons.allowOnce": {
-    "defaultMessage": "Разрешить один раз"
-  },
   "toolApprovalButtons.allowedOnce": {
     "defaultMessage": "Разрешено один раз"
+  },
+  "toolApprovalButtons.allowOnce": {
+    "defaultMessage": "Разрешить один раз"
   },
   "toolApprovalButtons.alwaysAllow": {
     "defaultMessage": "Всегда разрешать"
@@ -4411,9 +4378,6 @@
   },
   "toolCallWithResponse.logs": {
     "defaultMessage": "Журналы"
-  },
-  "toolCallWithResponse.mcpUiExperimental": {
-    "defaultMessage": "MCP UI является экспериментальным и может измениться в любой момент."
   },
   "toolCallWithResponse.output": {
     "defaultMessage": "Вывод"
@@ -4460,17 +4424,17 @@
   "updateSection.disableAutoDownloadDesc": {
     "defaultMessage": "Когда включено, Goose будет уведомлять о новых версиях, но не будет загружать их автоматически."
   },
-  "updateSection.downloadNow": {
-    "defaultMessage": "Скачать сейчас"
-  },
-  "updateSection.downloadReady": {
-    "defaultMessage": "Обновление скачано и готово к установке!"
-  },
   "updateSection.downloadingProgress": {
     "defaultMessage": "Скачивание обновления... {percent}%"
   },
   "updateSection.downloadingUpdate": {
     "defaultMessage": "Скачивание обновления..."
+  },
+  "updateSection.downloadNow": {
+    "defaultMessage": "Скачать сейчас"
+  },
+  "updateSection.downloadReady": {
+    "defaultMessage": "Обновление скачано и готово к установке!"
   },
   "updateSection.installAndRestart": {
     "defaultMessage": "Установить и перезапустить"
@@ -4496,11 +4460,11 @@
   "updateSection.readyInstallManual": {
     "defaultMessage": "✓ Обновление готово! Нажмите «Установить и перезапустить», чтобы получить инструкции по установке."
   },
-  "updateSection.upToDate": {
-    "defaultMessage": "(актуально)"
-  },
   "updateSection.updateAvailable": {
     "defaultMessage": "Доступно обновление!"
+  },
+  "updateSection.upToDate": {
+    "defaultMessage": "(актуально)"
   },
   "updateSection.versionAvailable": {
     "defaultMessage": "→ доступна {version}"

@@ -30,7 +30,6 @@ use super::{
     kimicode::KimiCodeProvider,
     litellm::LiteLLMProvider,
     nanogpt::NanoGptProvider,
-    ollama::OllamaProvider,
     openrouter::OpenRouterProvider,
     pi_acp::PiAcpProvider,
     provider_registry::ProviderRegistry,
@@ -42,6 +41,7 @@ use super::{
 use crate::config::ExtensionConfig;
 use crate::providers::anthropic_def::AnthropicProviderDef;
 use crate::providers::base::ProviderType;
+use crate::providers::ollama_def::OllamaProviderDef;
 use crate::providers::openai_def::OpenAiProviderDef;
 use crate::{
     config::declarative_providers::register_declarative_providers,
@@ -115,7 +115,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<KimiCodeProvider>(true);
         registry.register::<LiteLLMProvider>(false);
         registry.register::<NanoGptProvider>(true);
-        registry.register_with_inventory::<OllamaProvider>(
+        registry.register_with_inventory::<OllamaProviderDef>(
             true,
             Some(registrations::ollama_inventory()),
         );
@@ -407,6 +407,30 @@ mod tests {
         assert!(api_key.required, "DASHSCOPE_API_KEY should be required");
         assert!(api_key.secret, "DASHSCOPE_API_KEY should be secret");
         assert!(api_key.primary, "DASHSCOPE_API_KEY should be primary");
+    }
+
+    #[tokio::test]
+    async fn test_fireworks_declarative_provider_registry_wiring() {
+        let fireworks = get_from_registry("fireworks-ai")
+            .await
+            .expect("fireworks-ai provider should be registered");
+        let meta = fireworks.metadata();
+
+        assert_eq!(fireworks.provider_type(), ProviderType::Declarative);
+        assert_eq!(meta.display_name, "Fireworks AI");
+        assert_eq!(
+            meta.default_model,
+            "accounts/fireworks/models/kimi-k2p7-code"
+        );
+        assert_eq!(meta.model_doc_link, "https://fireworks.ai/models");
+
+        let api_key = meta
+            .config_keys
+            .iter()
+            .find(|k| k.name == "FIREWORKS_API_KEY")
+            .expect("FIREWORKS_API_KEY config key should exist");
+        assert!(api_key.required, "FIREWORKS_API_KEY should be required");
+        assert!(api_key.secret, "FIREWORKS_API_KEY should be secret");
     }
 
     #[tokio::test]

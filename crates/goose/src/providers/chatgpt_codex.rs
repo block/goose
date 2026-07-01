@@ -1,10 +1,9 @@
 use crate::config::paths::Paths;
 use crate::conversation::message::{Message, MessageContent};
-use crate::providers::api_client::AuthProvider;
+use crate::providers::api_client::{AuthProvider, RequestBuilderDecorator};
 use crate::providers::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::openai_compatible::handle_status;
 use crate::providers::retry::ProviderRetry;
-use crate::session_context::SESSION_ID_HEADER;
 use anyhow::{anyhow, Result};
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -18,7 +17,6 @@ use goose_providers::formats::openai_responses::responses_api_to_streaming_messa
 use goose_providers::model::ModelConfig;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{decode, decode_header, DecodingKey, Validation};
-use reqwest::header::{HeaderName, HeaderValue};
 use rmcp::model::{RawContent, Role, Tool};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -875,12 +873,14 @@ impl AuthProvider for ChatGptCodexAuthProvider {
     }
 }
 
-#[derive(Debug, serde::Serialize)]
+#[derive(serde::Serialize)]
 pub struct ChatGptCodexProvider {
     #[serde(skip)]
     auth_provider: Arc<ChatGptCodexAuthProvider>,
     #[serde(skip)]
     name: String,
+    #[serde(skip)]
+    request_builder: RequestBuilderDecorator,
 }
 
 impl ChatGptCodexProvider {
@@ -899,14 +899,11 @@ impl ChatGptCodexProvider {
         Ok(Self {
             auth_provider,
             name: CHATGPT_CODEX_PROVIDER_NAME.to_string(),
+            request_builder: crate::session_context::session_id_request_builder(),
         })
     }
 
-    async fn post_streaming(
-        &self,
-        session_id: Option<&str>,
-        payload: &Value,
-    ) -> Result<reqwest::Response, ProviderError> {
+    async fn post_streaming(&self, payload: &Value) -> Result<reqwest::Response, ProviderError> {
         let token_data = self
             .auth_provider
             .get_valid_token()
@@ -922,16 +919,8 @@ impl ChatGptCodexProvider {
             );
         }
 
-        if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
-            headers.insert(
-                HeaderName::from_static(SESSION_ID_HEADER),
-                HeaderValue::from_str(session_id)
-                    .map_err(|e| ProviderError::ExecutionError(e.to_string()))?,
-            );
-        }
-
         let client = reqwest::Client::new();
-        let response = client
+        let request = client
             .post(format!("{}/responses", CODEX_API_ENDPOINT))
             .header(
                 "Authorization",
@@ -939,7 +928,10 @@ impl ChatGptCodexProvider {
             )
             .header("Content-Type", "application/json")
             .headers(headers)
-            .json(payload)
+            .json(payload);
+
+        let response = (self.request_builder)(request)
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
             .send()
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
@@ -988,7 +980,6 @@ impl Provider for ChatGptCodexProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -1000,7 +991,7 @@ impl Provider for ChatGptCodexProvider {
         let response = self
             .with_retry(|| async {
                 let payload_clone = payload.clone();
-                self.post_streaming(Some(session_id), &payload_clone).await
+                self.post_streaming(&payload_clone).await
             })
             .await?;
 

@@ -290,25 +290,27 @@ impl TryFrom<RecipeExtensionDto> for ExtensionConfig {
                 display_name,
                 timeout,
                 bundled,
+                available_tools,
             } => Self::Builtin {
                 name,
                 description: description.unwrap_or_default(),
                 display_name,
                 timeout,
                 bundled,
-                available_tools: Vec::new(),
+                available_tools: available_tools.unwrap_or_default(),
             },
             RecipeExtensionDto::Platform {
                 name,
                 description,
                 display_name,
                 bundled,
+                available_tools,
             } => Self::Platform {
                 name,
                 description: description.unwrap_or_default(),
                 display_name,
                 bundled,
-                available_tools: Vec::new(),
+                available_tools: available_tools.unwrap_or_default(),
             },
             RecipeExtensionDto::Stdio {
                 name,
@@ -320,6 +322,7 @@ impl TryFrom<RecipeExtensionDto> for ExtensionConfig {
                 timeout,
                 cwd,
                 bundled,
+                available_tools,
             } => Self::Stdio {
                 name,
                 description: description.unwrap_or_default(),
@@ -330,7 +333,7 @@ impl TryFrom<RecipeExtensionDto> for ExtensionConfig {
                 timeout,
                 cwd,
                 bundled,
-                available_tools: Vec::new(),
+                available_tools: available_tools.unwrap_or_default(),
             },
             RecipeExtensionDto::StreamableHttp {
                 name,
@@ -342,6 +345,7 @@ impl TryFrom<RecipeExtensionDto> for ExtensionConfig {
                 timeout,
                 socket,
                 bundled,
+                available_tools,
             } => Self::StreamableHttp {
                 name,
                 description: description.unwrap_or_default(),
@@ -352,7 +356,7 @@ impl TryFrom<RecipeExtensionDto> for ExtensionConfig {
                 timeout,
                 socket,
                 bundled,
-                available_tools: Vec::new(),
+                available_tools: available_tools.unwrap_or_default(),
             },
         })
     }
@@ -369,25 +373,27 @@ impl TryFrom<ExtensionConfig> for RecipeExtensionDto {
                 display_name,
                 timeout,
                 bundled,
-                ..
+                available_tools,
             } => Self::Builtin {
                 name,
                 description: Some(description),
                 display_name,
                 timeout,
                 bundled,
+                available_tools: available_tools_to_wire(available_tools),
             },
             ExtensionConfig::Platform {
                 name,
                 description,
                 display_name,
                 bundled,
-                ..
+                available_tools,
             } => Self::Platform {
                 name,
                 description: Some(description),
                 display_name,
                 bundled,
+                available_tools: available_tools_to_wire(available_tools),
             },
             ExtensionConfig::Stdio {
                 name,
@@ -399,7 +405,7 @@ impl TryFrom<ExtensionConfig> for RecipeExtensionDto {
                 timeout,
                 cwd,
                 bundled,
-                ..
+                available_tools,
             } => Self::Stdio {
                 name,
                 description: Some(description),
@@ -410,6 +416,7 @@ impl TryFrom<ExtensionConfig> for RecipeExtensionDto {
                 timeout,
                 cwd,
                 bundled,
+                available_tools: available_tools_to_wire(available_tools),
             },
             ExtensionConfig::StreamableHttp {
                 name,
@@ -421,7 +428,7 @@ impl TryFrom<ExtensionConfig> for RecipeExtensionDto {
                 timeout,
                 socket,
                 bundled,
-                ..
+                available_tools,
             } => Self::StreamableHttp {
                 name,
                 description: Some(description),
@@ -432,6 +439,7 @@ impl TryFrom<ExtensionConfig> for RecipeExtensionDto {
                 timeout,
                 socket,
                 bundled,
+                available_tools: available_tools_to_wire(available_tools),
             },
             ExtensionConfig::Sse { .. } => bail_unsupported_extension("sse")?,
             ExtensionConfig::Frontend { .. } => bail_unsupported_extension("frontend")?,
@@ -442,6 +450,14 @@ impl TryFrom<ExtensionConfig> for RecipeExtensionDto {
 
 fn bail_unsupported_extension(extension_type: &str) -> Result<RecipeExtensionDto> {
     bail!("recipe extension type `{extension_type}` is not supported by RecipeDto")
+}
+
+fn available_tools_to_wire(available_tools: Vec<String>) -> Option<Vec<String>> {
+    if available_tools.is_empty() {
+        None
+    } else {
+        Some(available_tools)
+    }
 }
 
 pub fn recipe_manifest_to_list_entry_dto(
@@ -484,6 +500,7 @@ mod tests {
                     display_name: Some("Developer".to_string()),
                     timeout: Some(300),
                     bundled: Some(true),
+                    available_tools: Some(vec!["shell".to_string()]),
                 },
                 RecipeExtensionDto::Stdio {
                     name: "local".to_string(),
@@ -495,6 +512,7 @@ mod tests {
                     timeout: Some(60),
                     cwd: Some("/tmp".to_string()),
                     bundled: None,
+                    available_tools: Some(vec!["run".to_string()]),
                 },
                 RecipeExtensionDto::StreamableHttp {
                     name: "remote".to_string(),
@@ -506,6 +524,7 @@ mod tests {
                     timeout: Some(30),
                     socket: None,
                     bundled: Some(false),
+                    available_tools: Some(vec!["fetch".to_string()]),
                 },
             ]),
             settings: Some(RecipeSettingsDto {
@@ -558,15 +577,33 @@ mod tests {
         assert_eq!(recipe.version, "1.0.0");
         assert_eq!(recipe.title, "Test Recipe");
         assert_eq!(recipe.extensions.as_ref().unwrap().len(), 3);
+        match &recipe.extensions.as_ref().unwrap()[0] {
+            ExtensionConfig::Builtin {
+                available_tools, ..
+            } => {
+                assert_eq!(available_tools, &vec!["shell".to_string()]);
+            }
+            extension => panic!("expected builtin extension, got {extension:?}"),
+        }
         match &recipe.extensions.as_ref().unwrap()[1] {
-            ExtensionConfig::Stdio { envs, .. } => {
+            ExtensionConfig::Stdio {
+                envs,
+                available_tools,
+                ..
+            } => {
                 assert_eq!(envs.get_env()["LOCAL_MODE"], "true");
+                assert_eq!(available_tools, &vec!["run".to_string()]);
             }
             extension => panic!("expected stdio extension, got {extension:?}"),
         }
         match &recipe.extensions.as_ref().unwrap()[2] {
-            ExtensionConfig::StreamableHttp { envs, .. } => {
+            ExtensionConfig::StreamableHttp {
+                envs,
+                available_tools,
+                ..
+            } => {
                 assert_eq!(envs.get_env()["REMOTE_MODE"], "true");
+                assert_eq!(available_tools, &vec!["fetch".to_string()]);
             }
             extension => panic!("expected streamable_http extension, got {extension:?}"),
         }
@@ -582,8 +619,11 @@ mod tests {
         assert!(serialized.get("subRecipes").is_none());
         assert_eq!(serialized["parameters"][0]["input_type"], json!("select"));
         assert_eq!(serialized["retry"]["checks"][0]["type"], json!("shell"));
+        assert_eq!(serialized["extensions"][0]["available_tools"][0], "shell");
         assert_eq!(serialized["extensions"][1]["envs"]["LOCAL_MODE"], "true");
+        assert_eq!(serialized["extensions"][1]["available_tools"][0], "run");
         assert_eq!(serialized["extensions"][2]["envs"]["REMOTE_MODE"], "true");
+        assert_eq!(serialized["extensions"][2]["available_tools"][0], "fetch");
     }
 
     #[test]

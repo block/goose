@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Button } from '../../ui/button';
 import { ChevronDownIcon, SlidersHorizontal, AlertCircle } from 'lucide-react';
-import { PermissionLevel } from '../../../api';
 import { listTools, setToolPermissions } from '../../../acp/permissions';
 import type { ToolListItem, ToolPermissionLevel } from '../../../acp/permissions';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '../../ui/dialog';
@@ -80,7 +79,7 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
     { value: 'always_allow', label: intl.formatMessage(i18n.alwaysAllow) },
     { value: 'ask_before', label: intl.formatMessage(i18n.askBefore) },
     { value: 'never_allow', label: intl.formatMessage(i18n.neverAllow) },
-  ] as { value: PermissionLevel; label: string }[];
+  ] as { value: ToolPermissionLevel; label: string }[];
 
   const chatContext = useChatContext();
   const sessionId = chatContext?.chat.sessionId || '';
@@ -126,7 +125,7 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
     fetchTools();
   }, [extensionName, sessionId]);
 
-  const handleSettingChange = (toolName: string, newPermission: PermissionLevel) => {
+  const handleSettingChange = (toolName: string, newPermission: ToolPermissionLevel) => {
     setUpdatedPermissions((prev) => ({
       ...prev,
       [toolName]: newPermission,
@@ -243,7 +242,7 @@ export default function PermissionModal({ extensionName, onClose }: PermissionMo
                         <DropdownMenuItem
                           key={option.value}
                           onSelect={() =>
-                            handleSettingChange(tool.name, option.value as PermissionLevel)
+                            handleSettingChange(tool.name, option.value)
                           }
                         >
                           {option.label}

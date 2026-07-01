@@ -5,7 +5,7 @@ use crate::providers::base::{ModelInfo, ProviderType};
 use crate::providers::huggingface::HuggingFaceProvider;
 use crate::providers::huggingface_auth;
 use crate::providers::inventory::declarative_inventory_identity;
-use crate::providers::ollama::OllamaProvider;
+use crate::providers::ollama_def::OllamaProviderDef;
 use crate::providers::openai_def::OpenAiProviderDef;
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
@@ -624,14 +624,14 @@ pub fn register_declarative_provider(
         ProviderEngine::Ollama => {
             let captured = config.clone();
             let identity_config = config.clone();
-            registry.register_with_name::<OllamaProvider, _, _>(
+            registry.register_with_name::<OllamaProviderDef, _, _>(
                 &config,
                 provider_type,
                 config.dynamic_models.unwrap_or(false),
                 move |tls_config| {
                     let mut cfg = captured.clone();
                     resolve_config(&mut cfg)?;
-                    OllamaProvider::from_custom_config(cfg, tls_config)
+                    crate::providers::ollama_def::from_custom_config(cfg, tls_config)
                 },
                 move || {
                     let mut cfg = identity_config.clone();
@@ -830,6 +830,31 @@ mod tests {
         assert_eq!(
             env_vars[0].default,
             Some("http://localhost:8080".to_string())
+        );
+    }
+
+    #[test]
+    fn test_all_bundled_providers_deserialize() {
+        // `load_fixed_providers` silently skips any bundled JSON that fails to
+        // deserialize (it only emits a `warn!`), so a malformed provider file would
+        // ship as a missing provider rather than a build/test failure. Assert every
+        // bundled file parses through the same path the loader uses.
+        let mut failures = Vec::new();
+        for file in FIXED_PROVIDERS.files() {
+            if file.path().extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+            let content = file
+                .contents_utf8()
+                .unwrap_or_else(|| panic!("bundled provider {:?} is not valid UTF-8", file.path()));
+            if let Err(e) = deserialize_provider_config(content) {
+                failures.push(format!("{:?}: {e}", file.path()));
+            }
+        }
+        assert!(
+            failures.is_empty(),
+            "bundled declarative providers failed to deserialize:\n{}",
+            failures.join("\n")
         );
     }
 

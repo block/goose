@@ -75,7 +75,7 @@ pub struct Identifier {
         alias = "id",
         value_name = "SESSION_ID",
         help = "Session ID (e.g., '20250921_143022')",
-        long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
+        long_help = "Specify a session ID to resume. Requires --resume."
     )]
     pub session_id: Option<String>,
 
@@ -872,6 +872,15 @@ enum Command {
         )]
         fork: bool,
 
+        /// Open the session's conversation in $EDITOR before starting
+        #[arg(
+            long,
+            requires = "resume",
+            help = "Edit the session conversation in $EDITOR before starting",
+            long_help = "Open the session's conversation in your editor ($VISUAL / $EDITOR / vi) for modification before resuming. When combined with --fork, creates a new session from the edited result."
+        )]
+        edit: bool,
+
         /// Show message history when resuming
         #[arg(
             long,
@@ -1464,6 +1473,7 @@ async fn handle_interactive_session(
     identifier: Option<Identifier>,
     resume: bool,
     fork: bool,
+    edit: bool,
     history: bool,
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
@@ -1503,12 +1513,31 @@ async fn handle_interactive_session(
     let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
     let mut session_id = get_or_create_session_id(identifier, resume, false, goose_mode).await?;
 
-    if fork {
-        if let Some(id) = session_id {
+    if edit || fork {
+        if let Some(ref id) = session_id {
             let session_manager = SessionManager::instance();
-            let original = session_manager.get_session(&id, false).await?;
-            let copied = session_manager.copy_session(&id, original.name).await?;
-            session_id = Some(copied.id);
+            let original = session_manager.get_session(id, true).await?;
+
+            let target_id = if fork {
+                let copied = session_manager
+                    .copy_session(id, original.name.clone())
+                    .await?;
+                let copied_id = copied.id.clone();
+                session_id = Some(copied.id);
+                copied_id
+            } else {
+                id.clone()
+            };
+
+            if edit {
+                let conversation = original
+                    .conversation
+                    .ok_or_else(|| anyhow::anyhow!("session has no messages to edit"))?;
+                let edited = crate::session::editor::edit_conversation(&conversation)?;
+                session_manager
+                    .replace_conversation(&target_id, &edited)
+                    .await?;
+            }
         }
     }
 
@@ -2080,6 +2109,7 @@ pub async fn cli() -> anyhow::Result<()> {
             identifier,
             resume,
             fork,
+            edit,
             history,
             session_opts,
             extension_opts,
@@ -2088,6 +2118,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 identifier,
                 resume,
                 fork,
+                edit,
                 history,
                 session_opts,
                 extension_opts,

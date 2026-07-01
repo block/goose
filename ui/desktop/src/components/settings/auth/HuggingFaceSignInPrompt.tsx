@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Loader2, LogIn } from 'lucide-react';
 import { toast } from 'react-toastify';
-import { configureProviderOauth, listProviderSecrets } from '../../../api';
+import { acpAuthenticateProvider, acpListProviderSecrets } from '../../../acp/providers';
 import { errorMessage } from '../../../utils/conversionUtils';
 import { defineMessages, useIntl } from '../../../i18n';
 import { Button } from '../../ui/button';
@@ -51,11 +51,11 @@ export default function HuggingFaceSignInPrompt({
   const loadStatus = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await listProviderSecrets({ throwOnError: true });
-      const huggingFaceSecret = response.data?.secrets.find(
+      const secrets = await acpListProviderSecrets();
+      const huggingFaceSecret = secrets.find(
         (secret) => secret.id === HUGGINGFACE_OAUTH_SECRET_ID
       );
-      setLoggedIn(Boolean(huggingFaceSecret?.has_secret && huggingFaceSecret.status !== 'expired'));
+      setLoggedIn(Boolean(huggingFaceSecret?.hasSecret && huggingFaceSecret.status !== 'expired'));
     } catch {
       setLoggedIn(false);
     } finally {
@@ -70,10 +70,7 @@ export default function HuggingFaceSignInPrompt({
   const signIn = async () => {
     setSigningIn(true);
     try {
-      await configureProviderOauth({
-        path: { name: HUGGINGFACE_PROVIDER },
-        throwOnError: true,
-      });
+      await acpAuthenticateProvider(HUGGINGFACE_PROVIDER);
       toast.success(intl.formatMessage(i18n.signedIn));
       setLoggedIn(true);
       onSignedIn?.();
