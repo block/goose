@@ -286,14 +286,18 @@ export default function AppsView() {
                   <div
                     key={`${app.uri}-${app.mcpServers?.join(',')}`}
                     className="flex flex-col p-4 border rounded-lg hover:border-border-primary transition-colors"
-                    title={
-                      retiredChatApp ? intl.formatMessage(i18n.retiredChatAppDetail) : undefined
-                    }
                   >
                     {retiredChatApp && (
-                      <div className="mb-3 flex items-center gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
-                        <AlertTriangle className="h-4 w-4 shrink-0" />
-                        <span>{intl.formatMessage(i18n.retiredChatApp)}</span>
+                      <div className="mb-3 flex items-start gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <div>
+                          <div className="font-medium">
+                            {intl.formatMessage(i18n.retiredChatApp)}
+                          </div>
+                          <p className="mt-1 text-xs leading-5">
+                            {intl.formatMessage(i18n.retiredChatAppDetail)}
+                          </p>
+                        </div>
                       </div>
                     )}
                     <div className="flex-1 mb-4">
@@ -317,9 +321,6 @@ export default function AppsView() {
                         size="sm"
                         onClick={() => handleLaunchApp(app)}
                         disabled={retiredChatApp}
-                        title={
-                          retiredChatApp ? intl.formatMessage(i18n.retiredChatAppDetail) : undefined
-                        }
                         className="flex items-center gap-2 flex-1"
                       >
                         <Play className="h-4 w-4" />
