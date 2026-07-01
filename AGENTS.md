@@ -49,7 +49,6 @@ crates/
 ├── goose-test         # test utilities
 └── goose-test-support # test helpers
 
-evals/open-model-gym/  # benchmarking / evals
 ui/desktop/            # Electron app
 ```
 
