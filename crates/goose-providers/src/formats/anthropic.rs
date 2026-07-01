@@ -310,7 +310,6 @@ fn format_messages_with_options(
         }
     }
 
-    // If no messages, add a default one
     if anthropic_messages.is_empty() {
         anthropic_messages.push(json!({
             ROLE_FIELD: USER_ROLE,
@@ -321,23 +320,33 @@ fn format_messages_with_options(
         }));
     }
 
-    // Add "cache_control" to the last and second-to-last "user" messages.
-    // During each turn, we mark the final message with cache_control so the conversation can be
-    // incrementally cached. The second-to-last user message is also marked for caching with the
-    // cache_control parameter, so that this checkpoint can read from the previous cache.
+    // The volatile turn-context must sit after every cache breakpoint, or it invalidates the
+    // message-level cached prefix (Anthropic hashes tools -> system -> messages). Move it to the
+    // tail and place cache_control on the last non-turn-context block.
+    relocate_turn_context_to_tail(&mut anthropic_messages);
+
     let mut user_count = 0;
     for message in anthropic_messages.iter_mut().rev() {
-        if message.get(ROLE_FIELD) == Some(&json!(USER_ROLE)) {
-            if let Some(content) = message.get_mut(CONTENT_FIELD) {
-                if let Some(content_array) = content.as_array_mut() {
-                    if let Some(last_content) = content_array.last_mut() {
-                        last_content.as_object_mut().unwrap().insert(
-                            CACHE_CONTROL_FIELD.to_string(),
-                            json!({ TYPE_FIELD: "ephemeral" }),
-                        );
-                    }
-                }
-            }
+        if message.get(ROLE_FIELD) != Some(&json!(USER_ROLE)) {
+            continue;
+        }
+        let Some(content_array) = message
+            .get_mut(CONTENT_FIELD)
+            .and_then(|content| content.as_array_mut())
+        else {
+            continue;
+        };
+        let Some(target) = cache_control_target_index(content_array) else {
+            continue;
+        };
+        if let Some(block) = content_array
+            .get_mut(target)
+            .and_then(|b| b.as_object_mut())
+        {
+            block.insert(
+                CACHE_CONTROL_FIELD.to_string(),
+                json!({ TYPE_FIELD: "ephemeral" }),
+            );
             user_count += 1;
             if user_count >= 2 {
                 break;
@@ -346,6 +355,52 @@ fn format_messages_with_options(
     }
 
     anthropic_messages
+}
+
+fn relocate_turn_context_to_tail(messages: &mut [Value]) {
+    let Some(last) = messages.len().checked_sub(1) else {
+        return;
+    };
+    let source = messages.iter().enumerate().rev().find_map(|(mi, m)| {
+        m.get(CONTENT_FIELD)
+            .and_then(|c| c.as_array())
+            .and_then(|a| a.iter().position(is_turn_context_block))
+            .map(|bi| (mi, bi))
+    });
+    let Some((mi, bi)) = source else {
+        return;
+    };
+    if mi != last
+        && messages[mi]
+            .get(CONTENT_FIELD)
+            .and_then(|c| c.as_array())
+            .map_or(0, |a| a.len())
+            <= 1
+    {
+        return;
+    }
+    let block = messages[mi][CONTENT_FIELD]
+        .as_array_mut()
+        .unwrap()
+        .remove(bi);
+    messages[last][CONTENT_FIELD]
+        .as_array_mut()
+        .unwrap()
+        .push(block);
+}
+
+fn cache_control_target_index(content_array: &[Value]) -> Option<usize> {
+    content_array
+        .iter()
+        .rposition(|block| !is_turn_context_block(block))
+}
+
+fn is_turn_context_block(block: &Value) -> bool {
+    block.get(TYPE_FIELD).and_then(Value::as_str) == Some(TEXT_TYPE)
+        && block
+            .get(TEXT_TYPE)
+            .and_then(Value::as_str)
+            .is_some_and(crate::conversation::is_turn_context_text)
 }
 
 fn anthropic_flavored_input_schema(input_schema: Arc<JsonObject>) -> Arc<JsonObject> {
@@ -563,7 +618,8 @@ pub fn thinking_budget_tokens(model_config: &ModelConfig) -> i32 {
 // Anthropic counts thinking tokens against max_tokens, so the budget must leave
 // room for a response. Clamp it to preserve at least this many answer tokens, and
 // drop thinking only when even a minimal budget wouldn't fit under the cap.
-const MIN_ANSWER_TOKENS: i32 = 1024;
+// Shared with the Bedrock formatter, which applies the same clamp.
+pub const MIN_ANSWER_TOKENS: i32 = 1024;
 
 fn apply_thinking_config(
     payload: &mut Value,
@@ -2178,5 +2234,264 @@ mod tests {
         let parts = collect_stream(events).await;
         assert_eq!(parts.tool_calls, vec!["write"]);
         assert!(parts.tool_errors.is_empty());
+    }
+
+    /// Anthropic prefix caching only pays off when the bytes up to a cache
+    /// breakpoint are identical turn over turn. The per-turn turn-context block
+    /// (timestamp, turn budget, compaction state) changes on every call, so if
+    /// it ever lands inside a cached prefix every request becomes a cache write
+    /// instead of a read. These tests pin the property that keeps caching alive
+    /// so a future refactor of the formatter or the turn-context format can't
+    /// silently regress it.
+    mod cache_prefix_stability {
+        use super::*;
+        use rmcp::model::CallToolResult;
+
+        /// A turn-context block whose shape matches what `is_turn_context_text`
+        /// recognizes, varying only the volatile fields.
+        fn turn_context(time: &str, turn_budget: &str) -> String {
+            format!(
+                "<turn-context>\n\
+                 <current-time>{time}</current-time>\n\
+                 <working-directory>/Users/me/code/goose</working-directory>\n\
+                 <turn-budget>{turn_budget}</turn-budget>\n\
+                 </turn-context>"
+            )
+        }
+
+        fn sample_tools() -> Vec<Tool> {
+            vec![
+                Tool::new(
+                    "read_file",
+                    "Read a file from disk",
+                    object!({
+                        "type": "object",
+                        "properties": { "path": { "type": "string" } }
+                    }),
+                ),
+                Tool::new(
+                    "write_file",
+                    "Write a file to disk",
+                    object!({
+                        "type": "object",
+                        "properties": { "path": { "type": "string" }, "content": { "type": "string" } }
+                    }),
+                ),
+            ]
+        }
+
+        /// A realistic multi-turn conversation. `inject_moim` prepends the
+        /// turn-context block to the latest genuine user message, so it sits as
+        /// the first text block of the final user message here.
+        fn conversation(turn_context_block: &str) -> Vec<Message> {
+            vec![
+                Message::user().with_text("What does the main entrypoint do?"),
+                Message::assistant().with_tool_request(
+                    "tool_1",
+                    Ok(CallToolRequestParams::new("read_file")
+                        .with_arguments(object!({"path": "src/main.rs"}))),
+                ),
+                Message::user().with_tool_response(
+                    "tool_1",
+                    Ok(CallToolResult::success(vec![rmcp::model::Content::text(
+                        "fn main() { run(); }",
+                    )])),
+                ),
+                Message::assistant().with_text("It calls `run()`."),
+                Message::user()
+                    .with_text(turn_context_block)
+                    .with_text("Now add error handling to it."),
+            ]
+        }
+
+        /// The (message index, block index) of the last block carrying a
+        /// `cache_control` marker, scanning in canonical order. This is the far
+        /// edge of the furthest cached prefix.
+        fn last_breakpoint(messages: &[Value]) -> Option<(usize, usize)> {
+            let mut found = None;
+            for (mi, message) in messages.iter().enumerate() {
+                for (bi, block) in message["content"].as_array().unwrap().iter().enumerate() {
+                    if block.get(CACHE_CONTROL_FIELD).is_some() {
+                        found = Some((mi, bi));
+                    }
+                }
+            }
+            found
+        }
+
+        fn find_turn_context(messages: &[Value]) -> Option<(usize, usize)> {
+            messages.iter().enumerate().find_map(|(mi, message)| {
+                message["content"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .position(is_turn_context_block)
+                    .map(|bi| (mi, bi))
+            })
+        }
+
+        /// The exact bytes Anthropic hashes for its furthest cache breakpoint:
+        /// tools, then system, then messages truncated at the last
+        /// `cache_control` marker. Everything after that point is outside every
+        /// cached prefix and may change freely turn to turn.
+        fn cached_prefix(payload: &Value) -> String {
+            let messages = payload["messages"].as_array().unwrap();
+            let (last_mi, last_bi) = last_breakpoint(messages)
+                .expect("request must carry at least one cache_control breakpoint");
+
+            let prefix_messages: Vec<Value> = messages
+                .iter()
+                .take(last_mi + 1)
+                .enumerate()
+                .map(|(mi, message)| {
+                    let mut message = message.clone();
+                    if mi == last_mi {
+                        message["content"]
+                            .as_array_mut()
+                            .unwrap()
+                            .truncate(last_bi + 1);
+                    }
+                    message
+                })
+                .collect();
+
+            json!({
+                "tools": payload.get("tools"),
+                "system": payload.get("system"),
+                "messages": prefix_messages,
+            })
+            .to_string()
+        }
+
+        /// The production tool-loop case: `inject_moim` prepends turn-context to
+        /// the latest *genuine* user message, but the request then ends with a
+        /// later `tool_result` message. The block must be relocated *across*
+        /// messages to land after the trailing breakpoint, not merely reordered
+        /// within its own message.
+        fn tool_loop_conversation(turn_context_block: &str) -> Vec<Message> {
+            vec![
+                Message::user().with_text("What does the main entrypoint do?"),
+                Message::assistant().with_text("Let me read it."),
+                Message::user()
+                    .with_text(turn_context_block)
+                    .with_text("Now add error handling to it."),
+                Message::assistant().with_tool_request(
+                    "tool_1",
+                    Ok(CallToolRequestParams::new("read_file")
+                        .with_arguments(object!({"path": "src/main.rs"}))),
+                ),
+                Message::user().with_tool_response(
+                    "tool_1",
+                    Ok(CallToolResult::success(vec![rmcp::model::Content::text(
+                        "fn main() { run(); }",
+                    )])),
+                ),
+            ]
+        }
+
+        fn request_with(messages: &[Message]) -> Value {
+            create_request_with_default_options(
+                &cfg("claude-sonnet-4-5"),
+                "You are a careful coding assistant.",
+                messages,
+                &sample_tools(),
+            )
+            .unwrap()
+        }
+
+        fn request(turn_context_block: &str) -> Value {
+            request_with(&conversation(turn_context_block))
+        }
+
+        #[test]
+        fn cached_prefix_is_invariant_to_turn_context_changes() {
+            let req_a = request(&turn_context("2026-06-25 12:00:00", "14/40 used"));
+            let req_b = request(&turn_context("2026-06-25 13:47:00", "31/40 used"));
+
+            assert_ne!(
+                req_a.to_string(),
+                req_b.to_string(),
+                "test setup is vacuous: the two requests are byte-identical, so the \
+                 turn-context never reached the request body"
+            );
+
+            assert_eq!(
+                cached_prefix(&req_a),
+                cached_prefix(&req_b),
+                "the cached prefix changed when only the volatile turn-context changed; \
+                 prefix caching will collapse into a per-turn cache write"
+            );
+
+            assert!(
+                !cached_prefix(&req_a).contains("12:00:00"),
+                "the volatile turn-context timestamp leaked into the cached prefix"
+            );
+        }
+
+        #[test]
+        fn turn_context_sits_after_every_cache_breakpoint() {
+            let req = request(&turn_context("2026-06-25 12:00:00", "14/40 used"));
+            let messages = req["messages"].as_array().unwrap();
+
+            for message in messages {
+                for block in message["content"].as_array().unwrap() {
+                    if block.get(CACHE_CONTROL_FIELD).is_some() {
+                        assert!(
+                            !is_turn_context_block(block),
+                            "a cache_control breakpoint landed on the volatile turn-context block"
+                        );
+                    }
+                }
+            }
+
+            let breakpoint = last_breakpoint(messages).expect("a breakpoint should exist");
+            let turn_context = find_turn_context(messages)
+                .expect("the turn-context block should survive into the formatted request");
+            assert!(
+                turn_context > breakpoint,
+                "turn-context at {turn_context:?} is not after the last cache breakpoint at \
+                 {breakpoint:?}, so it sits inside a cached prefix"
+            );
+        }
+
+        /// Guards the tool-loop path: turn-context is injected onto an earlier
+        /// genuine user message while the request ends with a `tool_result`, so
+        /// keeping it out of the cached prefix requires relocating it across
+        /// messages. A regression that only reorders within a message would
+        /// pass the tests above but fail here.
+        #[test]
+        fn cached_prefix_is_invariant_in_tool_loop() {
+            let req_a = request_with(&tool_loop_conversation(&turn_context(
+                "2026-06-25 12:00:00",
+                "14/40",
+            )));
+            let req_b = request_with(&tool_loop_conversation(&turn_context(
+                "2026-06-25 13:47:00",
+                "31/40",
+            )));
+
+            assert_ne!(
+                req_a.to_string(),
+                req_b.to_string(),
+                "test setup is vacuous: turn-context never reached the request body"
+            );
+
+            assert_eq!(
+                cached_prefix(&req_a),
+                cached_prefix(&req_b),
+                "the cached prefix changed when only the volatile turn-context changed during a \
+                 tool loop; the block was not relocated past the trailing tool_result breakpoint"
+            );
+
+            let messages = req_a["messages"].as_array().unwrap();
+            let breakpoint = last_breakpoint(messages).expect("a breakpoint should exist");
+            let turn_context = find_turn_context(messages)
+                .expect("the turn-context block should survive into the formatted request");
+            assert!(
+                turn_context > breakpoint,
+                "turn-context at {turn_context:?} was not relocated across messages to after the \
+                 last breakpoint at {breakpoint:?}"
+            );
+        }
     }
 }

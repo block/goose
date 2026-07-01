@@ -1172,6 +1172,10 @@ impl Config {
         self.set_param("GOOSE_THINKING_EFFORT", v)
     }
 
+    pub fn get_openai_store(&self) -> Option<bool> {
+        self.get_param::<bool>("OPENAI_STORE").ok()
+    }
+
     fn legacy_thinking_effort(&self) -> Option<ThinkingEffort> {
         if let Ok(value) = self.get_param::<String>("CLAUDE_THINKING_TYPE") {
             if let Some(effort) = match value.to_lowercase().as_str() {

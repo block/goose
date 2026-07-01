@@ -3,7 +3,8 @@ import type {
   ToolCall,
   ToolCallUpdate,
 } from '@agentclientprotocol/sdk';
-import type { ContentBlock as ApiContentBlock, Message } from '../../api';
+import type { Message } from '../../types/message';
+import type { ContentBlock as GooseContentBlock } from '../../types/message';
 import { findMessageForChunk } from './messages';
 import { toolNotificationChange } from './toolNotifications';
 import {
@@ -190,8 +191,8 @@ function toolResultValue(
   };
 }
 
-function toolResultContent(update: ToolCallUpdate): ApiContentBlock[] {
-  const content: ApiContentBlock[] = [];
+function toolResultContent(update: ToolCallUpdate): GooseContentBlock[] {
+  const content: GooseContentBlock[] = [];
 
   for (const item of update.content ?? []) {
     if (item.type !== 'content') {
@@ -215,7 +216,9 @@ function toolResultContent(update: ToolCallUpdate): ApiContentBlock[] {
   return [];
 }
 
-function apiContentBlockFromAcpContentBlock(content: AcpContentBlock): ApiContentBlock | undefined {
+function apiContentBlockFromAcpContentBlock(
+  content: AcpContentBlock
+): GooseContentBlock | undefined {
   switch (content.type) {
     case 'text':
       return {
@@ -260,7 +263,7 @@ function apiContentBlockFromAcpContentBlock(content: AcpContentBlock): ApiConten
 
 function apiResourceContentsFromAcpResource(
   resource: Extract<AcpContentBlock, { type: 'resource' }>['resource']
-): Extract<ApiContentBlock, { type: 'resource' }>['resource'] {
+): Extract<GooseContentBlock, { type: 'resource' }>['resource'] {
   if ('text' in resource) {
     return {
       uri: resource.uri,
@@ -303,7 +306,7 @@ interface DesktopMcpAppMeta extends Record<string, unknown> {
 }
 
 type ToolResultValue = {
-  content: ApiContentBlock[];
+  content: GooseContentBlock[];
   structuredContent?: unknown;
   isError: boolean;
   _meta?: DesktopMcpAppMeta;

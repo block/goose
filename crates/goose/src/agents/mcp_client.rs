@@ -421,22 +421,18 @@ impl ClientHandler for GooseClient {
                 Some(Value::from(e.to_string())),
             )
         })?;
-        let (response, usage) = provider
-            .complete(
-                &model_config,
-                session_id.as_deref().unwrap_or(""),
-                system_prompt,
-                &provider_ready_messages,
-                &[],
+        let (response, usage) = crate::session_context::with_session_id(
+            session_id.clone(),
+            provider.complete(&model_config, system_prompt, &provider_ready_messages, &[]),
+        )
+        .await
+        .map_err(|e| {
+            ErrorData::new(
+                ErrorCode::INTERNAL_ERROR,
+                "Unexpected error while completing the prompt",
+                Some(Value::from(e.to_string())),
             )
-            .await
-            .map_err(|e| {
-                ErrorData::new(
-                    ErrorCode::INTERNAL_ERROR,
-                    "Unexpected error while completing the prompt",
-                    Some(Value::from(e.to_string())),
-                )
-            })?;
+        })?;
 
         Ok(CreateMessageResult::new(
             SamplingMessage::new(

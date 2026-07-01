@@ -2,7 +2,7 @@ use super::{
     config_secret_value, default_inventory_identity, default_inventory_identity_resolver,
     serialize_string_map, InventoryIdentityInput, InventoryRegistration,
 };
-use crate::config::Config;
+use crate::config::{self, Config};
 use crate::providers::acp_tooling::{acp_adapter_installed, resolved_acp_command};
 use crate::providers::amp_acp::{AMP_ACP_BINARY, AMP_ACP_PROVIDER_NAME};
 use crate::providers::base::ProviderDescriptor;
@@ -14,7 +14,7 @@ use crate::providers::formats::anthropic::ANTHROPIC_PROVIDER_NAME;
 use crate::providers::google::{GOOGLE_API_HOST, GOOGLE_PROVIDER_NAME};
 use crate::providers::huggingface::HuggingFaceProvider;
 use crate::providers::huggingface_auth;
-use crate::providers::ollama::{ollama_host_configured, OLLAMA_PROVIDER_NAME};
+use crate::providers::ollama::OLLAMA_PROVIDER_NAME;
 use crate::providers::openai::{OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_PROVIDER_NAME};
 use crate::providers::pi_acp::{PI_ACP_BINARY, PI_ACP_PROVIDER_NAME};
 use crate::providers::xai_oauth::TokenCache as XaiOAuthTokenCache;
@@ -118,7 +118,11 @@ pub fn ollama_inventory() -> InventoryRegistration {
             ),
         )
     })
-    .with_configured(|| ollama_host_configured(Config::global()))
+    .with_configured(|| {
+        config::Config::global()
+            .get_param::<String>("OLLAMA_HOST")
+            .is_ok()
+    })
 }
 
 pub fn huggingface_inventory() -> InventoryRegistration {

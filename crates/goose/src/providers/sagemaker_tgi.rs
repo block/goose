@@ -318,15 +318,15 @@ impl Provider for SageMakerTgiProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
+        let session_id = crate::session_context::current_session_id().unwrap_or_default();
         let session_id = if session_id.is_empty() {
             None
         } else {
-            Some(session_id)
+            Some(session_id.as_str())
         };
         let model_name = &model_config.model_name;
 

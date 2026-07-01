@@ -526,7 +526,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -698,7 +697,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -739,7 +737,7 @@ mod tests {
                 Arc::new(PermissionManager::new(data_dir)),
                 None,
                 GooseMode::default(),
-                false,
+                true,
                 GoosePlatform::GooseCli,
             ));
             let provider = Arc::new(UnparseableToolProvider::new());
@@ -879,7 +877,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -1232,7 +1229,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -1504,7 +1500,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -1705,7 +1700,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -1857,7 +1851,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -2063,7 +2056,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],
@@ -2415,7 +2407,6 @@ mod tests {
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system_prompt: &str,
                 _messages: &[Message],
                 _tools: &[Tool],

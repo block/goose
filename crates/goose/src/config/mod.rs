@@ -7,7 +7,6 @@ pub mod paths;
 pub mod permission;
 pub mod providers;
 pub mod search_path;
-pub mod signup_nanogpt;
 pub mod signup_openrouter;
 pub mod signup_tetrate;
 pub mod tls;
@@ -23,7 +22,6 @@ pub use extensions::{
 };
 pub use goose_providers::goose_mode::GooseMode;
 pub use permission::PermissionManager;
-pub use signup_nanogpt::configure_nanogpt;
 pub use signup_openrouter::configure_openrouter;
 pub use signup_tetrate::configure_tetrate;
 

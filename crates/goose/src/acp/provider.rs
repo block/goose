@@ -465,7 +465,6 @@ impl Provider for AcpProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        _session_id: &str,
         _system: &str,
         messages: &[Message],
         _tools: &[Tool],
@@ -1736,9 +1735,7 @@ mod tests {
             Message::user().with_text("current request"),
         ];
 
-        let result = provider
-            .stream(&model, "goose-session", "", &messages, &[])
-            .await;
+        let result = provider.stream(&model, "", &messages, &[]).await;
 
         assert!(matches!(result, Err(ProviderError::RequestFailed(_))));
         let next_claim = provider.claim_handoff_context(&messages);

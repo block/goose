@@ -49,7 +49,7 @@ import {
 import { UPDATES_ENABLED } from './updates';
 import './utils/recipeHash';
 import { Client } from './api/client';
-import { GooseApp } from './api';
+import type { GooseApp } from './types/apps';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
@@ -495,7 +495,66 @@ if (process.platform !== 'darwin') {
   }
 }
 
-const pendingDeepLinks = new Map<number, string>(); // windowId -> deep link URL
+const pendingDeepLinks = new Map<number, string>();
+
+function queuePendingDeepLink(windowId: number, url: string): void {
+  if (pendingDeepLinks.get(windowId) === url) {
+    return;
+  }
+  pendingDeepLinks.set(windowId, url);
+}
+
+const reactReadyWindows = new Set<number>();
+
+const DEEPLINK_BURST_DEDUP_MS = 2000;
+const recentSessionDeepLinkSends = new Map<string, number>();
+
+function pruneExpiredSessionDeepLinkSends(now: number): void {
+  for (const [url, sentAt] of recentSessionDeepLinkSends) {
+    if (now - sentAt >= DEEPLINK_BURST_DEDUP_MS) {
+      recentSessionDeepLinkSends.delete(url);
+    }
+  }
+}
+
+function isBurstDuplicateSessionDeepLink(url: string): boolean {
+  const now = Date.now();
+  pruneExpiredSessionDeepLinkSends(now);
+  const sentAt = recentSessionDeepLinkSends.get(url);
+  return sentAt !== undefined && now - sentAt < DEEPLINK_BURST_DEDUP_MS;
+}
+
+function recordSessionDeepLinkSend(url: string): void {
+  const now = Date.now();
+  recentSessionDeepLinkSends.set(url, now);
+  pruneExpiredSessionDeepLinkSends(now);
+}
+
+function sendOpenSharedSession(window: BrowserWindow, url: string): void {
+  if (isBurstDuplicateSessionDeepLink(url)) {
+    log.info('[Main] Ignoring burst duplicate session deep link');
+    return;
+  }
+  recordSessionDeepLinkSend(url);
+  window.webContents.send('open-shared-session', url);
+}
+
+function deliverExtensionOrSessionDeepLink(
+  url: string,
+  parsedUrl: URL,
+  targetWindow: BrowserWindow
+): void {
+  if (!reactReadyWindows.has(targetWindow.id) || targetWindow.webContents.isLoadingMainFrame()) {
+    queuePendingDeepLink(targetWindow.id, url);
+    return;
+  }
+
+  if (parsedUrl.hostname === 'extension') {
+    targetWindow.webContents.send('add-extension', url);
+  } else if (parsedUrl.hostname === 'sessions') {
+    sendOpenSharedSession(targetWindow, url);
+  }
+}
 
 function getResumeSessionId(parsedUrl: URL): string | null {
   try {
@@ -555,7 +614,7 @@ async function handleProtocolUrl(url: string, parsedUrl: URL) {
     }
 
     if (targetWindow.webContents.isLoadingMainFrame()) {
-      pendingDeepLinks.set(targetWindow.id, url);
+      queuePendingDeepLink(targetWindow.id, url);
     } else {
       await processProtocolUrl(url, parsedUrl, targetWindow);
     }
@@ -569,7 +628,7 @@ async function processProtocolUrl(url: string, parsedUrl: URL, window: BrowserWi
   if (parsedUrl.hostname === 'extension') {
     window.webContents.send('add-extension', url);
   } else if (parsedUrl.hostname === 'sessions') {
-    window.webContents.send('open-shared-session', url);
+    sendOpenSharedSession(window, url);
   } else if (parsedUrl.hostname === 'bot' || parsedUrl.hostname === 'recipe') {
     const deeplinkData = parseRecipeDeeplink(url);
     const scheduledJobId = parsedUrl.searchParams.get('scheduledJob');
@@ -644,15 +703,13 @@ app.on('open-url', async (_event, url) => {
       const targetWindow = existingWindows[0];
       if (targetWindow.isMinimized()) targetWindow.restore();
       targetWindow.focus();
-      if (parsedUrl.hostname === 'extension') {
-        targetWindow.webContents.send('add-extension', url);
-      } else if (parsedUrl.hostname === 'sessions') {
-        targetWindow.webContents.send('open-shared-session', url);
+      if (parsedUrl.hostname === 'extension' || parsedUrl.hostname === 'sessions') {
+        deliverExtensionOrSessionDeepLink(url, parsedUrl, targetWindow);
       }
     } else {
       openUrlHandledLaunch = true;
       const newWindow = await createChat(app, { dir: openDir || undefined });
-      pendingDeepLinks.set(newWindow.id, url);
+      queuePendingDeepLink(newWindow.id, url);
     }
   }
 });
@@ -1319,6 +1376,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
 
     pendingInitialMessages.delete(windowId);
     pendingDeepLinks.delete(windowId);
+    reactReadyWindows.delete(windowId);
 
     if (windowPowerSaveBlockers.has(windowId)) {
       const blockerId = windowPowerSaveBlockers.get(windowId)!;
@@ -1394,6 +1452,7 @@ const createLauncher = () => {
   activeLauncherWindow = launcherWindow;
 
   launcherWindow.on('closed', () => {
+    reactReadyWindows.delete(launcherWindow.id);
     activeLauncherWindow = null;
   });
 
@@ -1678,6 +1737,10 @@ ipcMain.on('react-ready', (event) => {
   const window = BrowserWindow.fromWebContents(event.sender);
   const windowId = window?.id;
 
+  if (windowId !== undefined) {
+    reactReadyWindows.add(windowId);
+  }
+
   // Send any pending initial message for this window
   if (windowId && pendingInitialMessages.has(windowId)) {
     const initialMessage = pendingInitialMessages.get(windowId)!;
@@ -1697,7 +1760,7 @@ ipcMain.on('react-ready', (event) => {
       if (parsedUrl.hostname === 'extension') {
         window.webContents.send('add-extension', deepLinkUrl);
       } else if (parsedUrl.hostname === 'sessions') {
-        window.webContents.send('open-shared-session', deepLinkUrl);
+        sendOpenSharedSession(window, deepLinkUrl);
       }
     } catch (error) {
       log.error('Error processing pending deep link:', error);

@@ -259,13 +259,12 @@ export default function CreateEditRecipeModal({
         : undefined;
 
     const cleanedExtensions = extensions?.map(
-      (
-        extension: RecipeExtension & {
-          enabled?: boolean;
-          available_tools?: unknown;
+      (extension: RecipeExtension & { enabled?: boolean }) => {
+        const { enabled: _enabled, ...rest } = extension;
+        if (rest.available_tools == null || rest.available_tools.length === 0) {
+          const { available_tools: _availableTools, ...withoutAvailableTools } = rest;
+          return withoutAvailableTools;
         }
-      ) => {
-        const { enabled: _enabled, available_tools: _availableTools, ...rest } = extension;
         return rest;
       }
     ) as RecipeExtension[] | undefined;

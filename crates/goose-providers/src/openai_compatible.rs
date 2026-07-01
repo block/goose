@@ -78,7 +78,7 @@ impl Provider for OpenAiCompatibleProvider {
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
-            .response_get(None, "models")
+            .response_get("models")
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
         let json = handle_response_openai_compat(response).await?;
@@ -105,7 +105,6 @@ impl Provider for OpenAiCompatibleProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -124,7 +123,7 @@ impl Provider for OpenAiCompatibleProvider {
             .with_retry(|| async {
                 let resp = self
                     .api_client
-                    .response_post(Some(session_id), &completions_path, &payload)
+                    .response_post(&completions_path, &payload)
                     .await?;
                 handle_status(resp).await
             })

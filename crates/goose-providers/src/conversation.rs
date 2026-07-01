@@ -505,6 +505,16 @@ fn has_tool_response(message: &Message) -> bool {
         .any(|content| matches!(content, MessageContent::ToolResponse(_)))
 }
 
+pub const TURN_CONTEXT_TAG: &str = "turn-context";
+pub const CURRENT_TIME_TAG: &str = "current-time";
+pub const WORKING_DIRECTORY_TAG: &str = "working-directory";
+
+pub fn is_turn_context_text(text: &str) -> bool {
+    text.starts_with(&format!("<{TURN_CONTEXT_TAG}>\n<{CURRENT_TIME_TAG}>"))
+        && text.contains(&format!("</{CURRENT_TIME_TAG}>\n<{WORKING_DIRECTORY_TAG}>"))
+        && text.trim_end().ends_with(&format!("</{TURN_CONTEXT_TAG}>"))
+}
+
 pub fn effective_role(message: &Message) -> String {
     if message.role == Role::User && has_tool_response(message) {
         "tool".to_string()
