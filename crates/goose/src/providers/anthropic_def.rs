@@ -55,16 +55,15 @@ pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<TlsConfig>,
 ) -> Result<AnthropicProvider> {
-    anthropic::from_custom_config(config, tls_config, ConfigKeyResolver::new(Config::global())).map(
-        |builder| {
+    anthropic::from_declarative_config(config, tls_config, ConfigKeyResolver::new(Config::global()))
+        .map(|builder| {
             builder
                 .map_api_client(|api_client| {
                     api_client
                         .with_request_builder(crate::session_context::session_id_request_builder())
                 })
                 .build()
-        },
-    )
+        })
 }
 
 #[cfg(test)]

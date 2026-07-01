@@ -316,7 +316,7 @@ fn format_options_for_provider(preserves_thinking: bool) -> AnthropicFormatOptio
     }
 }
 
-pub fn from_custom_config(
+pub fn from_declarative_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<TlsConfig>,
     key_resolver: impl KeyResolver,

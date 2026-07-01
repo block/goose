@@ -703,7 +703,7 @@ impl Provider for OpenAiProvider {
     }
 }
 
-pub fn from_custom_config(
+pub fn from_declarative_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<TlsConfig>,
     key_resolver: impl KeyResolver,
@@ -1104,7 +1104,7 @@ mod tests {
 
     #[test]
     fn from_custom_config_preserves_ipv6_authority() {
-        let provider = from_custom_config(
+        let provider = from_declarative_config(
             custom_config("http://[::1]:1234/v1"),
             None,
             crate::declarative::EnvKeyResolver,
@@ -1117,7 +1117,7 @@ mod tests {
 
     #[test]
     fn from_custom_config_preserves_userinfo_authority() {
-        let provider = from_custom_config(
+        let provider = from_declarative_config(
             custom_config("https://user:pass@gateway.example/v1"),
             None,
             crate::declarative::EnvKeyResolver,

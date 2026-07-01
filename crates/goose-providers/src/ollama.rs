@@ -263,7 +263,7 @@ fn apply_ollama_options(payload: &mut Value, options: &OllamaOptions, model_conf
     }
 }
 
-pub fn from_custom_config(
+pub fn from_declarative_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<TlsConfig>,
     key_resolver: impl KeyResolver,
@@ -571,7 +571,7 @@ mod tests {
 
     #[tokio::test]
     async fn fetch_supported_models_uses_static_models_when_dynamic_models_false() {
-        let provider = from_custom_config(
+        let provider = from_declarative_config(
             ollama_config(Some(false), vec![ModelInfo::new("static-model", 4096)]),
             None,
             crate::declarative::EnvKeyResolver,
@@ -587,7 +587,7 @@ mod tests {
 
     #[test]
     fn from_custom_config_requires_static_models_when_dynamic_models_false() {
-        let err = from_custom_config(
+        let err = from_declarative_config(
             ollama_config(Some(false), vec![]),
             None,
             crate::declarative::EnvKeyResolver,
@@ -613,7 +613,7 @@ mod tests {
             .mount(&server)
             .await;
 
-        let provider = from_custom_config(
+        let provider = from_declarative_config(
             ollama_config_with_base_url(
                 None,
                 vec![ModelInfo::new("static-model", 4096)],

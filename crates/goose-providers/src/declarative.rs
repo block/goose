@@ -18,8 +18,8 @@ pub struct EnvVarConfig {
     pub required: bool,
     #[serde(default)]
     pub secret: bool,
-    /// When true, the field is shown prominently in the UI (not collapsed).
     /// Defaults to the value of `required` if not specified.
+    /// UIs may use this to feature this config value more prominently.
     pub primary: Option<bool>,
     pub description: Option<String>,
     pub default: Option<String>,
@@ -216,12 +216,12 @@ pub fn from_json(
     let config = config_from_json(json)?;
 
     match config.engine {
-        ProviderEngine::OpenAI => openai::from_custom_config(config, tls_config, key_resolver)
+        ProviderEngine::OpenAI => openai::from_declarative_config(config, tls_config, key_resolver)
             .map(|provider| Box::new(provider.build()) as Box<dyn Provider>),
-        ProviderEngine::Ollama => ollama::from_custom_config(config, tls_config, key_resolver)
+        ProviderEngine::Ollama => ollama::from_declarative_config(config, tls_config, key_resolver)
             .map(|provider| Box::new(provider.build()) as Box<dyn Provider>),
         ProviderEngine::Anthropic => {
-            anthropic::from_custom_config(config, tls_config, key_resolver)
+            anthropic::from_declarative_config(config, tls_config, key_resolver)
                 .map(|provider| Box::new(provider.build()) as Box<dyn Provider>)
         }
     }

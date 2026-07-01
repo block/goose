@@ -204,7 +204,7 @@ pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<goose_providers::api_client::TlsConfig>,
 ) -> Result<OpenAiProvider> {
-    goose_providers::openai::from_custom_config(
+    goose_providers::openai::from_declarative_config(
         config,
         tls_config,
         ConfigKeyResolver::new(Config::global()),

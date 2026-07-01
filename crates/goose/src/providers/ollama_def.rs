@@ -83,8 +83,8 @@ pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<crate::providers::api_client::TlsConfig>,
 ) -> Result<OllamaProvider> {
-    ollama::from_custom_config(config, tls_config, ConfigKeyResolver::new(Config::global())).map(
-        |builder| {
+    ollama::from_declarative_config(config, tls_config, ConfigKeyResolver::new(Config::global()))
+        .map(|builder| {
             builder
                 .map_api_client(|api_client| {
                     api_client
@@ -92,8 +92,7 @@ pub fn from_custom_config(
                 })
                 .options(options_from_config())
                 .build()
-        },
-    )
+        })
 }
 
 pub fn options_from_config() -> OllamaOptions {
