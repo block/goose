@@ -1074,7 +1074,7 @@ impl CliSession {
             let probe_msg = [Message::user().with_text("ok")];
             match tokio::time::timeout(
                 Duration::from_secs(30),
-                new_provider.complete(&new_model_config, "model-check", "", &probe_msg, &[]),
+                new_provider.complete(&new_model_config, "", &probe_msg, &[]),
             )
             .await
             {
