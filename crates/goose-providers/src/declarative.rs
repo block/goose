@@ -1,7 +1,7 @@
 #[macro_use]
 mod macros;
 
-use std::{collections::HashMap, str::FromStr};
+use std::{collections::HashMap, path::Path, str::FromStr};
 
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
@@ -135,7 +135,7 @@ fn default_requires_auth() -> bool {
     true
 }
 
-fn should_preserve_thinking_by_default(engine: &ProviderEngine) -> bool {
+pub fn should_preserve_thinking_by_default(engine: &ProviderEngine) -> bool {
     matches!(engine, ProviderEngine::OpenAI)
 }
 
@@ -236,7 +236,7 @@ fn resolve_config(config: &mut DeclarativeProviderConfig) -> Result<()> {
     Ok(())
 }
 
-fn config_from_json_unresolved(json: &str) -> Result<DeclarativeProviderConfig> {
+pub fn deserialize_provider_config(json: &str) -> Result<DeclarativeProviderConfig> {
     let raw: serde_json::Value = serde_json::from_str(json)?;
     let preserves_thinking_was_set = raw.get("preserves_thinking").is_some();
     let mut config: DeclarativeProviderConfig = serde_json::from_value(raw)?;
@@ -249,9 +249,27 @@ fn config_from_json_unresolved(json: &str) -> Result<DeclarativeProviderConfig> 
 }
 
 fn config_from_json(json: &str) -> Result<DeclarativeProviderConfig> {
-    let mut config = config_from_json_unresolved(json)?;
+    let mut config = deserialize_provider_config(json)?;
     resolve_config(&mut config)?;
     Ok(config)
+}
+
+pub fn load_custom_providers(dir: &Path) -> Result<Vec<DeclarativeProviderConfig>> {
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    std::fs::read_dir(dir)?
+        .filter_map(|entry| {
+            let path = entry.ok()?.path();
+            (path.extension()? == "json").then_some(path)
+        })
+        .map(|path| {
+            let content = std::fs::read_to_string(&path)?;
+            deserialize_provider_config(&content)
+                .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", path.display(), e))
+        })
+        .collect()
 }
 
 pub fn from_json(
@@ -326,7 +344,7 @@ mod tests {
 
     #[test]
     fn existing_json_files_still_deserialize_without_new_fields() {
-        let config = config_from_json_unresolved(groq::JSON).expect("groq.json should parse");
+        let config = deserialize_provider_config(groq::JSON).expect("groq.json should parse");
         assert!(config.env_vars.is_none());
         assert!(config.dynamic_models.is_none());
         assert!(config.model_doc_link.is_none());
@@ -366,7 +384,7 @@ mod tests {
         let mut seen_ids = HashSet::new();
 
         for (path, json) in fixed_provider_config_entries() {
-            let config = config_from_json_unresolved(json)
+            let config = deserialize_provider_config(json)
                 .unwrap_or_else(|e| panic!("{path} failed to parse: {e}"));
 
             validate_provider_id(config.id())

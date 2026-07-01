@@ -13,7 +13,7 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 use std::collections::HashMap;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::Mutex;
 use utoipa::ToSchema;
 
@@ -21,10 +21,6 @@ pub use goose_providers::declarative::*;
 
 pub fn custom_providers_dir() -> std::path::PathBuf {
     Paths::config_dir().join("custom_providers")
-}
-
-fn should_preserve_thinking_by_default(engine: &ProviderEngine) -> bool {
-    matches!(engine, ProviderEngine::OpenAI)
 }
 
 /// Expand `${VAR_NAME}` placeholders in a template string using the given env var configs.
@@ -349,36 +345,6 @@ pub fn load_provider(id: &str) -> Result<LoadedProvider> {
     }
 
     Err(anyhow::anyhow!("Provider not found: {}", id))
-}
-
-pub fn load_custom_providers(dir: &Path) -> Result<Vec<DeclarativeProviderConfig>> {
-    if !dir.exists() {
-        return Ok(Vec::new());
-    }
-
-    std::fs::read_dir(dir)?
-        .filter_map(|entry| {
-            let path = entry.ok()?.path();
-            (path.extension()? == "json").then_some(path)
-        })
-        .map(|path| {
-            let content = std::fs::read_to_string(&path)?;
-            deserialize_provider_config(&content)
-                .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", path.display(), e))
-        })
-        .collect()
-}
-
-fn deserialize_provider_config(content: &str) -> Result<DeclarativeProviderConfig> {
-    let raw: serde_json::Value = serde_json::from_str(content)?;
-    let preserves_thinking_was_set = raw.get("preserves_thinking").is_some();
-    let mut config: DeclarativeProviderConfig = serde_json::from_value(raw)?;
-
-    if !preserves_thinking_was_set {
-        config.preserves_thinking = should_preserve_thinking_by_default(&config.engine);
-    }
-
-    Ok(config)
 }
 
 pub fn register_declarative_providers(
