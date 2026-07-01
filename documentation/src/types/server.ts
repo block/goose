@@ -11,6 +11,7 @@ export interface MCPServer {
   endorsed: boolean;
   show_install_link?: boolean;
   show_install_command?: boolean;
+  show_documentation?: boolean;
   environmentVariables: {
     name: string;
     description: string;
