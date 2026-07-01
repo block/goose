@@ -2564,10 +2564,13 @@ impl GooseAcpAgent {
         message: &Message,
     ) -> Result<(), agent_client_protocol::Error> {
         for content_item in &message.content {
-            if let Some(error) = prompt_error_from_message_content(content_item) {
+            let Some(content_item) = content_item.filter_for_audience(Role::User) else {
+                continue;
+            };
+            if let Some(error) = prompt_error_from_message_content(&content_item) {
                 return Err(error);
             }
-            let block = match content_item {
+            let block = match &content_item {
                 MessageContent::Text(text) => {
                     ContentBlock::Text(TextContent::new(text.text.clone()))
                 }

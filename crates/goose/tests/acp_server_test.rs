@@ -1,8 +1,9 @@
 #[allow(dead_code)]
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
+use agent_client_protocol::schema::v1::Role as AcpRole;
 use agent_client_protocol::schema::v1::{
-    ClientCapabilities, ContentBlock, FileSystemCapabilities, InitializeRequest,
+    Annotations, ClientCapabilities, ContentBlock, FileSystemCapabilities, InitializeRequest,
     ListSessionsRequest, ListSessionsResponse, LoadSessionRequest, NewSessionRequest,
     PromptRequest, SessionConfigKind, SessionConfigOptionCategory, SessionConfigOptionValue,
     SessionInfo, SessionNotification, SessionUpdate, SetSessionConfigOptionRequest, TextContent,
@@ -332,6 +333,10 @@ fn test_session_updates_broadcast_between_shared_server_connections() {
                     "/review please".to_string(),
                     include_str!("acp_test_data/openai_basic.txt"),
                 ),
+                (
+                    "Visible prompt after hidden context".to_string(),
+                    include_str!("acp_test_data/openai_basic.txt"),
+                ),
             ],
             <AcpServerConnection as Connection>::expected_session_id(),
         )
@@ -452,7 +457,7 @@ fn test_session_updates_broadcast_between_shared_server_connections() {
         actor
             .cx
             .send_request(PromptRequest::new(
-                session_id,
+                session_id.clone(),
                 vec![ContentBlock::Text(TextContent::new("/review please"))],
             ))
             .block_task()
@@ -467,6 +472,43 @@ fn test_session_updates_broadcast_between_shared_server_connections() {
                 })
                 .await,
             "observer did not receive registered skill slash prompt user_message_chunk"
+        );
+
+        actor.clear_session_notifications();
+        observer.clear_session_notifications();
+
+        actor
+            .cx
+            .send_request(PromptRequest::new(
+                session_id,
+                vec![
+                    ContentBlock::Text(
+                        TextContent::new(
+                            "<artifact-folder>\nThis hidden context should not render.\n</artifact-folder>",
+                        )
+                        .annotations(Annotations::new().audience(vec![AcpRole::Assistant])),
+                    ),
+                    ContentBlock::Text(TextContent::new("Visible prompt after hidden context")),
+                ],
+            ))
+            .block_task()
+            .await
+            .unwrap();
+
+        let observer_updates = observer.session_updates();
+        assert!(
+            !observer_updates.iter().any(|update| {
+                matches!(update, SessionUpdate::UserMessageChunk(_))
+                    && text_chunk(update).is_some_and(|text| text.contains("<artifact-folder>"))
+            }),
+            "observer received hidden artifact-folder prompt context: {observer_updates:#?}"
+        );
+        assert!(
+            observer_updates.iter().any(|update| {
+                matches!(update, SessionUpdate::UserMessageChunk(_))
+                    && text_chunk(update) == Some("Visible prompt after hidden context")
+            }),
+            "observer did not receive visible user prompt after hidden context: {observer_updates:#?}"
         );
     });
 }
