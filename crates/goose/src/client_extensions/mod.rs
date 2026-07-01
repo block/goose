@@ -143,6 +143,31 @@ pub fn disable_client_extension(id: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn uninstall_client_extension(id: &str) -> Result<()> {
+    let summaries = list_client_extensions()?;
+    let summary = summaries
+        .iter()
+        .find(|entry| entry.id == id)
+        .ok_or_else(|| anyhow!("client extension '{id}' is not installed"))?;
+
+    if summary.source != ClientExtensionSource::Installed {
+        bail!(
+            "cannot uninstall dev client extension '{id}' — disable it from Add-ons instead"
+        );
+    }
+
+    if summary.directory.is_dir() {
+        fs::remove_dir_all(&summary.directory)?;
+    }
+
+    let mut config = load_client_extensions_config();
+    config.disabled.retain(|entry| entry != id);
+    config.enabled_dev.retain(|entry| entry != id);
+    save_client_extensions_config(&config)?;
+
+    Ok(())
+}
+
 pub fn install_client_extension(source: &Path) -> Result<ClientExtensionInstall> {
     let source = source
         .canonicalize()
@@ -313,7 +338,7 @@ mod tests {
     }
 
     #[test]
-    fn installs_extension_from_directory() {
+    fn installs_and_uninstalls_extension_from_directory() {
         let source = TempDir::new().unwrap();
         write_extension(source.path(), "demo-ext");
 
@@ -324,6 +349,10 @@ mod tests {
         let install = install_client_extension(source.path()).unwrap();
         assert_eq!(install.id, "demo-ext");
         assert!(install.directory.join("index.html").is_file());
+        assert!(client_extensions_dir().join("demo-ext").is_dir());
+
+        uninstall_client_extension("demo-ext").unwrap();
+        assert!(!client_extensions_dir().join("demo-ext").exists());
 
         if let Some(home) = original_home {
             std::env::set_var("HOME", home);

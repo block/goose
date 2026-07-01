@@ -169,7 +169,7 @@ export function ClientExtensionChatActions({
   onSetInput?: (text: string) => void;
 }) {
   const hostContext = useExtensionHostContext(sessionId);
-  const { getChatActions, loading } = useClientExtensions();
+  const { getChatActions, loading, registryVersion } = useClientExtensions();
   const actions = getChatActions(hostContext);
 
   if (loading || actions.length === 0) {
@@ -180,7 +180,7 @@ export function ClientExtensionChatActions({
     <>
       {actions.map((action) => (
         <ClientExtensionActionButton
-          key={`${action.extensionId}:${action.id}`}
+          key={`${registryVersion}:${action.extensionId}:${action.id}`}
           action={action}
           hostContext={hostContext}
           onSetInput={onSetInput}

@@ -127,7 +127,7 @@ export function ClientExtensionMessageDecorations({
   imageCount: number;
 }) {
   const location = useLocation();
-  const { getContentSuffixes, getCustomRender, loading } = useClientExtensions();
+  const { getContentSuffixes, getCustomRender, loading, registryVersion } = useClientExtensions();
 
   const messageContext = useMemo(
     () =>
@@ -161,7 +161,7 @@ export function ClientExtensionMessageDecorations({
     <div className="mt-2 flex flex-col gap-2 w-full min-w-0">
       {suffixes.map((suffix: RegisteredContentSuffix) => (
         <ClientExtensionRenderSlot
-          key={`${suffix.extensionId}:${suffix.id}`}
+          key={`${registryVersion}:${suffix.extensionId}:${suffix.id}`}
           extensionId={suffix.extensionId}
           slotId={suffix.id}
           slotKind="contentSuffix"
@@ -171,7 +171,7 @@ export function ClientExtensionMessageDecorations({
       ))}
       {customRender && (
         <ClientExtensionRenderSlot
-          key={`${customRender.extensionId}:${customRender.id}`}
+          key={`${registryVersion}:${customRender.extensionId}:${customRender.id}`}
           extensionId={customRender.extensionId}
           slotId={customRender.id}
           slotKind="customRender"

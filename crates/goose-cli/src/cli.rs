@@ -19,6 +19,7 @@ use crate::commands::info::handle_info;
 use crate::commands::client_extension::{
     handle_client_extension_disable, handle_client_extension_enable,
     handle_client_extension_install, handle_client_extension_list,
+    handle_client_extension_uninstall,
 };
 use crate::commands::plugin::{handle_plugin_install, handle_plugin_update};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
@@ -728,6 +729,13 @@ enum ClientExtensionCommand {
     /// Disable a client extension
     #[command(about = "Disable a client extension")]
     Disable {
+        #[arg(help = "Client extension id")]
+        id: String,
+    },
+
+    /// Uninstall a client extension from the install directory
+    #[command(about = "Uninstall a client extension from the install directory")]
+    Uninstall {
         #[arg(help = "Client extension id")]
         id: String,
     },
@@ -2052,6 +2060,7 @@ fn handle_client_extension_subcommand(command: ClientExtensionCommand) -> Result
         ClientExtensionCommand::List => handle_client_extension_list(),
         ClientExtensionCommand::Enable { id } => handle_client_extension_enable(&id),
         ClientExtensionCommand::Disable { id } => handle_client_extension_disable(&id),
+        ClientExtensionCommand::Uninstall { id } => handle_client_extension_uninstall(&id),
     }
 }
 

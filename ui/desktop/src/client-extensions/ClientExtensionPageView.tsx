@@ -18,7 +18,7 @@ function isExtensionToHostMessage(value: unknown): value is ExtensionToHostMessa
 
 export default function ClientExtensionPageView() {
   const location = useLocation();
-  const { extensions, getExtensionMainHtml } = useClientExtensions();
+  const { extensions, getExtensionMainHtml, registryVersion } = useClientExtensions();
   const hostContext = useExtensionHostContext(null);
   const { handleNavClick } = useNavigationSessions();
   const iframeRef = useRef<HTMLIFrameElement>(null);
@@ -49,7 +49,7 @@ export default function ClientExtensionPageView() {
       return;
     }
 
-    if (!extension || !rootLink) {
+    if (!extension || !extension.enabled || !rootLink) {
       setLoadError(`Extension view not found: ${view.extensionId}/${view.viewId}`);
       setHtml(null);
       return;
@@ -73,7 +73,7 @@ export default function ClientExtensionPageView() {
     return () => {
       cancelled = true;
     };
-  }, [extension, getExtensionMainHtml, rootLink, view]);
+  }, [extension, getExtensionMainHtml, registryVersion, rootLink, view]);
 
   const handleExtensionMessage = useCallback(
     (event: MessageEvent) => {
@@ -125,7 +125,7 @@ export default function ClientExtensionPageView() {
     );
   }
 
-  if (!html || !rootLink) {
+  if (!html || !rootLink || !view) {
     return (
       <div className="flex h-full items-center justify-center p-6 text-sm text-text-secondary">
         Loading extension…
@@ -149,6 +149,7 @@ export default function ClientExtensionPageView() {
         <h1 className="text-sm font-medium text-text-primary">{rootLink.label}</h1>
       </div>
       <iframe
+        key={`${registryVersion}:${view.extensionId}:${view.viewId}`}
         ref={iframeRef}
         title={rootLink.label}
         sandbox="allow-scripts"

@@ -45,6 +45,7 @@ import AddonsView from './components/addons/AddonsView';
 import AppsView from './components/apps/AppsView';
 import StandaloneAppView from './components/apps/StandaloneAppView';
 import ClientExtensionPageView from './client-extensions/ClientExtensionPageView';
+import { ClientExtensionRegistrySync } from './client-extensions/ClientExtensionRegistrySync';
 import { View, ViewOptions } from './utils/navigationUtils';
 
 import { useNavigation } from './hooks/useNavigation';
@@ -634,6 +635,7 @@ export function AppInner() {
       <div className="relative w-screen h-screen overflow-hidden bg-background-secondary flex flex-col">
         <div className="titlebar-drag-region" />
         <div style={{ position: 'relative', width: '100%', height: '100%' }}>
+          <ClientExtensionRegistrySync />
           <Routes>
             <Route path="launcher" element={<LauncherView />} />
             <Route path="configure-providers" element={<ConfigureProvidersRoute />} />

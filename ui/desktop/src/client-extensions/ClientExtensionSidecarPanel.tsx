@@ -47,7 +47,7 @@ export function ClientExtensionSidecarProvider({
   children: React.ReactNode;
 }) {
   const hostContext = useExtensionHostContext(sessionId);
-  const { getSidecars, loading } = useClientExtensions();
+  const { getSidecars, loading, registryVersion } = useClientExtensions();
   const sidecars = useMemo(
     () => (loading ? [] : getSidecars(hostContext)),
     [getSidecars, hostContext, loading]
@@ -84,6 +84,10 @@ export function ClientExtensionSidecarProvider({
       defaultAppliedRef.current = false;
     }
   }, [sidecars.length]);
+
+  useEffect(() => {
+    defaultAppliedRef.current = false;
+  }, [registryVersion]);
 
   const toggleSidecar = useCallback((sidecar: RegisteredSidecar) => {
     const key = sidecarKey(sidecar);
@@ -163,7 +167,7 @@ function ClientExtensionSidecarContent({
   hostContext: ReturnType<typeof useExtensionHostContext>;
   onClose: () => void;
 }) {
-  const { getExtensionMainHtml } = useClientExtensions();
+  const { getExtensionMainHtml, registryVersion } = useClientExtensions();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [html, setHtml] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -187,7 +191,7 @@ function ClientExtensionSidecarContent({
     return () => {
       cancelled = true;
     };
-  }, [getExtensionMainHtml, sidecar.extensionId]);
+  }, [getExtensionMainHtml, registryVersion, sidecar.extensionId]);
 
   const handleExtensionMessage = useCallback(
     (event: MessageEvent) => {
@@ -246,6 +250,7 @@ function ClientExtensionSidecarContent({
           <div className="p-4 text-xs text-text-secondary">Loading…</div>
         ) : (
           <iframe
+            key={`${registryVersion}:${sidecar.extensionId}:${sidecar.id}`}
             ref={iframeRef}
             title={sidecar.label}
             sandbox="allow-scripts"

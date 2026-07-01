@@ -96,3 +96,13 @@ export function setClientExtensionEnabled(
   saveClientExtensionsConfig(next);
   return next;
 }
+
+export function removeClientExtensionFromConfig(id: string): ClientExtensionsConfig {
+  const config = loadClientExtensionsConfig();
+  const next = {
+    disabled: config.disabled.filter((entry) => entry !== id),
+    enabledDev: config.enabledDev.filter((entry) => entry !== id),
+  };
+  saveClientExtensionsConfig(next);
+  return next;
+}

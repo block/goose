@@ -19,6 +19,7 @@ import {
   getClientExtensionsInstallDir,
   isClientExtensionEnabled,
   loadClientExtensionsConfig,
+  removeClientExtensionFromConfig,
   setClientExtensionEnabled,
 } from './clientExtensionsConfig';
 
@@ -378,6 +379,58 @@ export function discoverClientExtensions(): DiscoveredClientExtension[] {
     .sort((a, b) => a.id.localeCompare(b.id));
 }
 
+function copyDirRecursive(source: string, destination: string): void {
+  fs.mkdirSync(destination, { recursive: true });
+  for (const entry of fs.readdirSync(source, { withFileTypes: true })) {
+    const sourcePath = path.join(source, entry.name);
+    const destinationPath = path.join(destination, entry.name);
+    if (entry.isDirectory()) {
+      copyDirRecursive(sourcePath, destinationPath);
+    } else if (entry.isFile()) {
+      fs.copyFileSync(sourcePath, destinationPath);
+    }
+  }
+}
+
+export function installClientExtension(sourcePath: string): DiscoveredClientExtension[] {
+  const resolved = path.resolve(sourcePath);
+  if (!fs.existsSync(resolved) || !fs.statSync(resolved).isDirectory()) {
+    throw new Error(`Client extension source must be a directory: ${resolved}`);
+  }
+
+  const manifestPath = path.join(resolved, MANIFEST_FILENAME);
+  if (!fs.existsSync(manifestPath)) {
+    throw new Error(`Missing ${MANIFEST_FILENAME} in ${resolved}`);
+  }
+
+  const raw = JSON.parse(fs.readFileSync(manifestPath, 'utf8')) as unknown;
+  const manifest = parseManifest(raw, resolved);
+  if (!manifest) {
+    throw new Error(`Invalid manifest at ${manifestPath}`);
+  }
+
+  if (!satisfiesGrcEngine(manifest)) {
+    throw new Error(
+      `Extension "${manifest.id}" requires GRC ${manifest.engines?.grc}, running ${packageJson.version}`
+    );
+  }
+
+  const mainPath = path.join(resolved, manifest.main);
+  if (!fs.existsSync(mainPath)) {
+    throw new Error(`Main entry missing at ${mainPath}`);
+  }
+
+  const destination = path.join(userClientExtensionsDir(), manifest.id);
+  if (fs.existsSync(destination)) {
+    throw new Error(`Client extension "${manifest.id}" is already installed`);
+  }
+
+  fs.mkdirSync(userClientExtensionsDir(), { recursive: true });
+  copyDirRecursive(resolved, destination);
+
+  return discoverClientExtensions();
+}
+
 export function setClientExtensionEnabledState(
   extensionId: string,
   enabled: boolean
@@ -387,6 +440,22 @@ export function setClientExtensionEnabledState(
     throw new Error(`Client extension not found: ${extensionId}`);
   }
   setClientExtensionEnabled(extensionId, extension.source, enabled);
+  return discoverClientExtensions();
+}
+
+export function uninstallClientExtension(extensionId: string): DiscoveredClientExtension[] {
+  const extension = discoverClientExtensions().find((entry) => entry.id === extensionId);
+  if (!extension) {
+    throw new Error(`Client extension not found: ${extensionId}`);
+  }
+  if (extension.source !== 'installed') {
+    throw new Error(
+      `Cannot uninstall dev extension "${extensionId}" — disable it from Add-ons instead`
+    );
+  }
+
+  fs.rmSync(extension.rootPath, { recursive: true, force: true });
+  removeClientExtensionFromConfig(extensionId);
   return discoverClientExtensions();
 }
 

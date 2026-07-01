@@ -19,6 +19,7 @@ interface ClientExtensionsContextValue {
   extensions: DiscoveredClientExtension[];
   enabledExtensions: DiscoveredClientExtension[];
   loading: boolean;
+  registryVersion: number;
   getChatActions: (context: ExtensionHostContext) => RegisteredChatAction[];
   getRootLinks: (context: ExtensionHostContext) => RegisteredRootLink[];
   getContentSuffixes: (context: MessageExtensionHostContext) => RegisteredContentSuffix[];
@@ -30,6 +31,8 @@ interface ClientExtensionsContextValue {
   getExtensionMainHtml: (extensionId: string) => Promise<string | null>;
   reloadExtensions: () => Promise<void>;
   setExtensionEnabled: (extensionId: string, enabled: boolean) => Promise<void>;
+  uninstallExtension: (extensionId: string) => Promise<void>;
+  installExtension: (sourcePath: string) => Promise<void>;
 }
 
 const ClientExtensionsContext = createContext<ClientExtensionsContextValue | null>(null);
@@ -37,32 +40,67 @@ const ClientExtensionsContext = createContext<ClientExtensionsContextValue | nul
 export function ClientExtensionsProvider({ children }: { children: React.ReactNode }) {
   const [extensions, setExtensions] = useState<DiscoveredClientExtension[]>([]);
   const [loading, setLoading] = useState(true);
+  const [registryVersion, setRegistryVersion] = useState(0);
+
+  const applyDiscovered = useCallback((discovered: DiscoveredClientExtension[]) => {
+    setExtensions(discovered);
+    setRegistryVersion((version) => version + 1);
+  }, []);
 
   const reloadExtensions = useCallback(async () => {
     try {
       const discovered = await window.electron.listClientExtensions();
-      setExtensions(discovered);
+      applyDiscovered(discovered);
     } catch (error) {
       console.warn('[client-extensions] Failed to discover extensions:', error);
-      setExtensions([]);
+      applyDiscovered([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [applyDiscovered]);
 
   const enabledExtensions = useMemo(
     () => extensions.filter((extension) => extension.enabled),
     [extensions]
   );
 
-  const setExtensionEnabled = useCallback(async (extensionId: string, enabled: boolean) => {
-    try {
-      const discovered = await window.electron.setClientExtensionEnabled(extensionId, enabled);
-      setExtensions(discovered);
-    } catch (error) {
-      console.warn('[client-extensions] Failed to update extension state:', error);
-    }
-  }, []);
+  const setExtensionEnabled = useCallback(
+    async (extensionId: string, enabled: boolean) => {
+      try {
+        const discovered = await window.electron.setClientExtensionEnabled(extensionId, enabled);
+        applyDiscovered(discovered);
+      } catch (error) {
+        console.warn('[client-extensions] Failed to update extension state:', error);
+      }
+    },
+    [applyDiscovered]
+  );
+
+  const uninstallExtension = useCallback(
+    async (extensionId: string) => {
+      try {
+        const discovered = await window.electron.uninstallClientExtension(extensionId);
+        applyDiscovered(discovered);
+      } catch (error) {
+        console.warn('[client-extensions] Failed to uninstall extension:', error);
+        throw error;
+      }
+    },
+    [applyDiscovered]
+  );
+
+  const installExtension = useCallback(
+    async (sourcePath: string) => {
+      try {
+        const discovered = await window.electron.installClientExtension(sourcePath);
+        applyDiscovered(discovered);
+      } catch (error) {
+        console.warn('[client-extensions] Failed to install extension:', error);
+        throw error;
+      }
+    },
+    [applyDiscovered]
+  );
 
   useEffect(() => {
     void reloadExtensions();
@@ -190,6 +228,7 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
       extensions,
       enabledExtensions,
       loading,
+      registryVersion,
       getChatActions,
       getRootLinks,
       getContentSuffixes,
@@ -198,11 +237,14 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
       getExtensionMainHtml,
       reloadExtensions,
       setExtensionEnabled,
+      uninstallExtension,
+      installExtension,
     }),
     [
       extensions,
       enabledExtensions,
       loading,
+      registryVersion,
       getChatActions,
       getRootLinks,
       getContentSuffixes,
@@ -211,6 +253,8 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
       getExtensionMainHtml,
       reloadExtensions,
       setExtensionEnabled,
+      uninstallExtension,
+      installExtension,
     ]
   );
 
