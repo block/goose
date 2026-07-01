@@ -34,6 +34,8 @@ utoipa = { workspace = true, features = ["chrono"] }
 uuid = { workspace = true, features = ["v4", "std"] }
 
 [dev-dependencies]
+env-lock = { workspace = true }
+tempfile = { workspace = true }
 test-case = { workspace = true }
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true }
