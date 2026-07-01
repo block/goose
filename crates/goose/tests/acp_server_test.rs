@@ -305,6 +305,19 @@ fn last_message_snippet(session: &SessionInfo) -> Option<&str> {
 fn test_session_updates_broadcast_between_shared_server_connections() {
     run_test(async {
         let data_root = tempfile::tempdir().unwrap();
+        let work_dir = tempfile::tempdir().unwrap();
+        let skill_dir = work_dir
+            .path()
+            .join(".agents")
+            .join("skills")
+            .join("review");
+        std::fs::create_dir_all(&skill_dir).unwrap();
+        std::fs::write(
+            skill_dir.join("SKILL.md"),
+            "---\nname: review\ndescription: Review the current task\n---\nReview carefully.",
+        )
+        .unwrap();
+
         let openai = OpenAiFixture::new(
             vec![
                 (
@@ -313,6 +326,10 @@ fn test_session_updates_broadcast_between_shared_server_connections() {
                 ),
                 (
                     "/unknown-broadcast-command prompt".to_string(),
+                    include_str!("acp_test_data/openai_basic.txt"),
+                ),
+                (
+                    "/review please".to_string(),
                     include_str!("acp_test_data/openai_basic.txt"),
                 ),
             ],
@@ -332,7 +349,6 @@ fn test_session_updates_broadcast_between_shared_server_connections() {
         let actor = connect_shared_server_client(server.clone()).await;
         let observer = connect_shared_server_client(server).await;
 
-        let work_dir = tempfile::tempdir().unwrap();
         let response = actor
             .cx
             .send_request(NewSessionRequest::new(work_dir.path()))
@@ -411,7 +427,7 @@ fn test_session_updates_broadcast_between_shared_server_connections() {
         actor
             .cx
             .send_request(PromptRequest::new(
-                session_id,
+                session_id.clone(),
                 vec![ContentBlock::Text(TextContent::new(
                     "/unknown-broadcast-command prompt",
                 ))],
@@ -428,6 +444,29 @@ fn test_session_updates_broadcast_between_shared_server_connections() {
                 })
                 .await,
             "observer did not receive unresolved slash prompt user_message_chunk"
+        );
+
+        actor.clear_session_notifications();
+        observer.clear_session_notifications();
+
+        actor
+            .cx
+            .send_request(PromptRequest::new(
+                session_id,
+                vec![ContentBlock::Text(TextContent::new("/review please"))],
+            ))
+            .block_task()
+            .await
+            .unwrap();
+
+        assert!(
+            observer
+                .wait_for_session_update(Duration::from_secs(2), |update| {
+                    matches!(update, SessionUpdate::UserMessageChunk(_))
+                        && text_chunk(update) == Some("/review please")
+                })
+                .await,
+            "observer did not receive registered skill slash prompt user_message_chunk"
         );
     });
 }

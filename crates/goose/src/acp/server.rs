@@ -987,34 +987,6 @@ impl GooseAcpAgent {
         )
     }
 
-    async fn slash_command_has_registered_handler(
-        &self,
-        command: &str,
-        session_id: &str,
-    ) -> Result<bool, agent_client_protocol::Error> {
-        if Self::is_builtin_agent_command(command) {
-            return Ok(true);
-        }
-
-        let full_command = format!("/{command}");
-        if crate::slash_commands::recipe_slash_command::get_recipe_for_command(&full_command)
-            .is_some_and(|path| path.exists())
-        {
-            return Ok(true);
-        }
-
-        let session = self
-            .session_manager
-            .get_session(session_id, false)
-            .await
-            .internal_err_ctx("Failed to load session")?;
-        Ok(
-            crate::skills::list_installed_skills(Some(&session.working_dir))
-                .into_iter()
-                .any(|skill| skill.name.eq_ignore_ascii_case(command)),
-        )
-    }
-
     pub(super) fn send_and_broadcast_session_setup_notifications(
         &self,
         cx: &ConnectionTo<Client>,
@@ -2702,11 +2674,7 @@ impl GooseAcpAgent {
             }
         }
         let should_broadcast_prompt_message = match &parsed_slash_command {
-            Some(parsed) => {
-                !self
-                    .slash_command_has_registered_handler(parsed.command, &session_id)
-                    .await?
-            }
+            Some(parsed) => !Self::is_builtin_agent_command(parsed.command),
             None => true,
         };
         let live_user_message = user_message.clone();
