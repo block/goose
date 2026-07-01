@@ -382,6 +382,23 @@
     "environmentVariables": []
   },
   {
+    "id": "hostinger-api-mcp",
+    "name": "Hostinger",
+    "description": "Manage Hostinger domains, DNS, hosting, VPS, and billing through the Hostinger API",
+    "command": "npx -y hostinger-api-mcp",
+    "link": "https://github.com/hostinger/api-mcp-server",
+    "installation_notes": "Install using the npx package manager. On first use the server opens an OAuth sign-in in your browser. Alternatively, set HOSTINGER_API_TOKEN (generate one in hPanel under API) to skip OAuth.",
+    "is_builtin": false,
+    "endorsed": false,
+    "environmentVariables": [
+      {
+        "name": "HOSTINGER_API_TOKEN",
+        "description": "Optional Hostinger API token (generated in hPanel > API). If unset, the server uses interactive OAuth.",
+        "required": false
+      }
+    ]
+  },
+  {
     "id": "i-ching",
     "name": "I Ching",
     "description": "I Ching divination readings with Wilhelm-Baynes translation - provides traditional three coins method divination with complete hexagram meanings, judgments, and line interpretations",
