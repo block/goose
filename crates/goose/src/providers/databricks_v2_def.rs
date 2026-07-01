@@ -3,7 +3,7 @@ use futures::future::BoxFuture;
 use goose_providers::api_client::TlsConfig;
 use goose_providers::base::ProviderDescriptor;
 use goose_providers::databricks_auth::{
-    DatabricksAuth, DatabricksOauthTokenProvider, DatabricksTokenResolver,
+    DatabricksAuth, DatabricksOauthTokenProvider, DatabricksRefreshHook, DatabricksTokenResolver,
 };
 use goose_providers::databricks_v2::DatabricksV2Provider;
 use std::sync::Arc;
@@ -48,6 +48,7 @@ pub async fn from_env(tls_config: Option<TlsConfig>) -> Result<DatabricksV2Provi
         Some(oauth_token_provider()),
         Some(token_resolver()),
         Some(crate::session_context::session_id_request_builder()),
+        Some(refresh_hook()),
     )
 }
 
@@ -75,6 +76,10 @@ fn token_resolver() -> DatabricksTokenResolver {
             .get_secret::<String>("DATABRICKS_TOKEN")
             .ok()
     })
+}
+
+fn refresh_hook() -> DatabricksRefreshHook {
+    Arc::new(|| Config::global().invalidate_secrets_cache())
 }
 
 fn oauth_token_provider() -> DatabricksOauthTokenProvider {

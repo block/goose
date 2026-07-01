@@ -18,7 +18,8 @@ use crate::base::{ConfigKey, MessageStream, Provider, ProviderMetadata};
 const DEFAULT_PROVIDER_TIMEOUT_SECS: u64 = 600;
 use crate::conversation::message::Message;
 use crate::databricks_auth::{
-    DatabricksAuth, DatabricksAuthProvider, DatabricksOauthTokenProvider, DatabricksTokenResolver,
+    DatabricksAuth, DatabricksAuthProvider, DatabricksOauthTokenProvider, DatabricksRefreshHook,
+    DatabricksTokenResolver,
 };
 use crate::errors::ProviderError;
 use crate::formats::anthropic;
@@ -49,7 +50,7 @@ enum DatabricksV2Route {
     MlflowChatCompletions,
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Serialize)]
 pub struct DatabricksV2Provider {
     #[serde(skip)]
     api_client: ApiClient,
@@ -59,6 +60,8 @@ pub struct DatabricksV2Provider {
     name: String,
     #[serde(skip)]
     token_cache: Arc<Mutex<Option<String>>>,
+    #[serde(skip)]
+    refresh_hook: Option<DatabricksRefreshHook>,
 }
 
 impl DatabricksV2Provider {
@@ -74,6 +77,7 @@ impl DatabricksV2Provider {
         oauth_token_provider: Option<DatabricksOauthTokenProvider>,
         token_resolver: Option<DatabricksTokenResolver>,
         request_builder: Option<crate::api_client::RequestBuilderDecorator>,
+        refresh_hook: Option<DatabricksRefreshHook>,
     ) -> Result<Self> {
         let token_cache = Arc::new(Mutex::new(match &auth {
             DatabricksAuth::Token(t) => Some(t.clone()),
@@ -102,6 +106,7 @@ impl DatabricksV2Provider {
             retry_config,
             name: DATABRICKS_V2_PROVIDER_NAME.to_string(),
             token_cache,
+            refresh_hook,
         })
     }
 
@@ -324,6 +329,9 @@ impl Provider for DatabricksV2Provider {
     }
 
     async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        if let Some(refresh_hook) = &self.refresh_hook {
+            refresh_hook();
+        }
         *self.token_cache.lock().unwrap() = None;
         Ok(())
     }

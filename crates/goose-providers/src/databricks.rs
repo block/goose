@@ -15,7 +15,8 @@ use crate::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderMetadat
 const DEFAULT_PROVIDER_TIMEOUT_SECS: u64 = 600;
 use crate::conversation::message::Message;
 use crate::databricks_auth::{
-    DatabricksAuth, DatabricksAuthProvider, DatabricksOauthTokenProvider, DatabricksTokenResolver,
+    DatabricksAuth, DatabricksAuthProvider, DatabricksOauthTokenProvider, DatabricksRefreshHook,
+    DatabricksSessionIdProvider, DatabricksTokenResolver,
 };
 use crate::errors::ProviderError;
 use crate::formats::databricks::create_request_for_provider;
@@ -71,7 +72,7 @@ pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
 pub const DATABRICKS_DOC_URL: &str =
     "https://docs.databricks.com/en/generative-ai/external-models/index.html";
 
-#[derive(Debug, serde::Serialize)]
+#[derive(serde::Serialize)]
 pub struct DatabricksProvider {
     #[serde(skip)]
     api_client: ApiClient,
@@ -87,6 +88,10 @@ pub struct DatabricksProvider {
     token_cache: Arc<Mutex<Option<String>>>,
     #[serde(skip)]
     instance_id: Option<String>,
+    #[serde(skip)]
+    refresh_hook: Option<DatabricksRefreshHook>,
+    #[serde(skip)]
+    session_id_provider: Option<DatabricksSessionIdProvider>,
 }
 
 impl DatabricksProvider {
@@ -103,6 +108,8 @@ impl DatabricksProvider {
         token_resolver: Option<DatabricksTokenResolver>,
         request_builder: Option<crate::api_client::RequestBuilderDecorator>,
         instance_id: Option<String>,
+        refresh_hook: Option<DatabricksRefreshHook>,
+        session_id_provider: Option<DatabricksSessionIdProvider>,
     ) -> Result<Self> {
         let token_cache = Arc::new(Mutex::new(match &auth {
             DatabricksAuth::Token(t) => Some(t.clone()),
@@ -135,6 +142,8 @@ impl DatabricksProvider {
             name: DATABRICKS_PROVIDER_NAME.to_string(),
             token_cache,
             instance_id,
+            refresh_hook,
+            session_id_provider,
         })
     }
 
@@ -510,6 +519,9 @@ impl Provider for DatabricksProvider {
     }
 
     async fn refresh_credentials(&self) -> Result<(), ProviderError> {
+        if let Some(refresh_hook) = &self.refresh_hook {
+            refresh_hook();
+        }
         *self.token_cache.lock().unwrap() = None;
         tracing::info!("Invalidated secrets cache and token cache for credential refresh");
         Ok(())
@@ -522,7 +534,11 @@ impl Provider for DatabricksProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = String::new();
+        let session_id = self
+            .session_id_provider
+            .as_ref()
+            .and_then(|provider| provider())
+            .unwrap_or_default();
         let (endpoint_name, _) = extract_reasoning_effort(&model_config.model_name);
         let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await.ok();
         let effective_model_name = endpoint_info

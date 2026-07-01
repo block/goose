@@ -15,6 +15,8 @@ pub type DatabricksOauthTokenFuture = Pin<Box<dyn Future<Output = Result<String>
 pub type DatabricksOauthTokenProvider =
     Arc<dyn Fn(String, String, String, Vec<String>) -> DatabricksOauthTokenFuture + Send + Sync>;
 pub type DatabricksTokenResolver = Arc<dyn Fn() -> Option<String> + Send + Sync>;
+pub type DatabricksRefreshHook = Arc<dyn Fn() + Send + Sync>;
+pub type DatabricksSessionIdProvider = Arc<dyn Fn() -> Option<String> + Send + Sync>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DatabricksAuth {
