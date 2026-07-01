@@ -15,9 +15,11 @@ use rmcp::model::{
 use serde_json::Value;
 
 use crate::conversation::message::{Message, MessageContent};
+use crate::providers::bedrock::BEDROCK_PROVIDER_NAME;
+use crate::providers::canonical::maybe_get_canonical_model;
 use crate::providers::formats::anthropic::{
-    adaptive_output_effort, thinking_budget_tokens, thinking_type_for_provider, ThinkingType,
-    ANTHROPIC_PROVIDER_NAME,
+    adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
+    thinking_type_for_provider, ThinkingType, ANTHROPIC_PROVIDER_NAME, MIN_ANSWER_TOKENS,
 };
 use goose_providers::conversation::token_usage::Usage;
 use goose_providers::model::ModelConfig;
@@ -33,13 +35,27 @@ pub fn bedrock_anthropic_thinking_fields(model_config: &ModelConfig) -> Option<D
             "type".to_string(),
             Document::String("adaptive".to_string()),
         )])),
-        ThinkingType::Enabled => Document::Object(HashMap::from([
-            ("type".to_string(), Document::String("enabled".to_string())),
-            (
-                "budget_tokens".to_string(),
-                Document::Number(Number::PosInt(thinking_budget_tokens(model_config) as u64)),
-            ),
-        ])),
+        ThinkingType::Enabled => {
+            // Thinking tokens count against `maxTokens`, which `bedrock_inference_config`
+            // now sends when explicitly configured. Mirror the Anthropic formatter: clamp
+            // the budget to leave room for an answer, and drop thinking entirely when even
+            // a minimal budget wouldn't fit under the cap. When max_tokens is unset, Bedrock
+            // applies its per-model default so there is nothing to clamp against.
+            let mut budget_tokens = thinking_budget_tokens(model_config);
+            if let Some(max_tokens) = model_config.max_tokens {
+                budget_tokens = budget_tokens.min(max_tokens.saturating_sub(MIN_ANSWER_TOKENS));
+                if budget_tokens < MIN_ANSWER_TOKENS {
+                    return None;
+                }
+            }
+            Document::Object(HashMap::from([
+                ("type".to_string(), Document::String("enabled".to_string())),
+                (
+                    "budget_tokens".to_string(),
+                    Document::Number(Number::PosInt(budget_tokens as u64)),
+                ),
+            ]))
+        }
         ThinkingType::Disabled => return None,
     };
 
@@ -79,6 +95,59 @@ fn strip_bedrock_version_suffix(model_name: &str) -> String {
     BEDROCK_VERSION_SUFFIX_RE
         .replace(model_name, "")
         .into_owned()
+}
+
+/// Build the Bedrock `InferenceConfiguration` (`maxTokens`, `temperature`) for
+/// a request from the active [`ModelConfig`].
+///
+/// Without this the `Converse`/`ConverseStream` APIs fall back to per-model
+/// server defaults, so a configured `max_tokens`/`temperature` is silently
+/// dropped. Each field is sent only when the user has configured it, so that
+/// unset values continue to use Bedrock's per-model server defaults rather than
+/// being pinned to a generic fallback:
+/// - `max_tokens` is sent only when explicitly set (`model_config.max_tokens`).
+///   Using [`ModelConfig::max_output_tokens`] here would forward its `4096`
+///   fallback for every model whose id is not in the canonical catalog (e.g.
+///   cross-region ids like `us.anthropic.claude-...`), capping models whose
+///   real output limit is far higher.
+/// - `temperature` is sent only when set and the model supports it. Support is
+///   resolved against the Anthropic canonical registry for `anthropic.*` model
+///   ids (the same mapping used for thinking) and the Bedrock canonical registry
+///   for other known Bedrock ids, so models that reject a custom temperature keep
+///   the server default.
+pub fn bedrock_inference_config(model_config: &ModelConfig) -> bedrock::InferenceConfiguration {
+    let mut builder = bedrock::InferenceConfiguration::builder();
+
+    if let Some(max_tokens) = model_config.max_tokens {
+        builder = builder.max_tokens(max_tokens);
+    }
+
+    if let Some(temperature) = model_config.temperature {
+        if bedrock_model_supports_temperature(model_config) {
+            builder = builder.temperature(temperature);
+        }
+    }
+
+    builder.build()
+}
+
+/// Whether `temperature` may be sent for this Bedrock model. For `anthropic.*`
+/// ids we resolve against the Anthropic canonical registry (mapping the model
+/// name the same way [`bedrock_anthropic_thinking_type`] does); for other known
+/// Bedrock ids we consult the Bedrock canonical registry and otherwise keep the
+/// permissive fallback used by [`model_supports_temperature`].
+fn bedrock_model_supports_temperature(model_config: &ModelConfig) -> bool {
+    if let Some((_, anthropic_model)) = model_config.model_name.rsplit_once("anthropic.") {
+        let anthropic_config = ModelConfig {
+            model_name: strip_bedrock_version_suffix(anthropic_model),
+            ..model_config.clone()
+        };
+        model_supports_temperature(ANTHROPIC_PROVIDER_NAME, &anthropic_config)
+    } else {
+        maybe_get_canonical_model(BEDROCK_PROVIDER_NAME, &model_config.model_name)
+            .and_then(|model| model.temperature)
+            .unwrap_or(true)
+    }
 }
 
 pub fn to_bedrock_message_with_caching(
@@ -150,8 +219,14 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     .input(to_bedrock_json(&args_to_value(call.arguments.clone())))
                     .build()
             } else {
+                // Unparseable tool call: emit a placeholder tool_use so the paired
+                // tool_result isn't orphaned — Bedrock rejects a tool_use with no name
+                // and a tool_result with no matching tool_use. Mirrors the
+                // OpenAI/Databricks/Anthropic formatters.
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
+                    .name("unparseable_tool_call")
+                    .input(to_bedrock_json(&args_to_value(None)))
                     .build()
             }?;
             bedrock::ContentBlock::ToolUse(tool_use)
@@ -165,8 +240,14 @@ pub fn to_bedrock_message_content(content: &MessageContent) -> Result<bedrock::C
                     .input(to_bedrock_json(&args_to_value(call.arguments.clone())))
                     .build()
             } else {
+                // Unparseable tool call: emit a placeholder tool_use so the paired
+                // tool_result isn't orphaned — Bedrock rejects a tool_use with no name
+                // and a tool_result with no matching tool_use. Mirrors the
+                // OpenAI/Databricks/Anthropic formatters.
                 bedrock::ToolUseBlock::builder()
                     .tool_use_id(tool_use_id)
+                    .name("unparseable_tool_call")
+                    .input(to_bedrock_json(&args_to_value(None)))
                     .build()
             }?;
             bedrock::ContentBlock::ToolUse(tool_use)
@@ -549,6 +630,44 @@ mod tests {
                 }
             })
         );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_clamped_to_max_tokens() {
+        // budget (4000) exceeds the room left under an explicit max_tokens, so it
+        // is clamped to max_tokens - MIN_ANSWER_TOKENS, matching the Anthropic
+        // formatter. Without max_tokens set there is nothing to clamp against.
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("low"));
+        let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        config.request_params = Some(params);
+        config.reasoning = Some(true);
+        config.max_tokens = Some(3000);
+
+        let fields = bedrock_anthropic_thinking_fields(&config).expect("thinking fields");
+        assert_eq!(
+            from_bedrock_json(&fields).unwrap(),
+            json!({
+                "thinking": {
+                    "type": "enabled",
+                    "budget_tokens": 3000 - 1024
+                }
+            })
+        );
+    }
+
+    #[test]
+    fn test_bedrock_anthropic_thinking_fields_dropped_when_no_room() {
+        // When even a minimal budget wouldn't leave MIN_ANSWER_TOKENS under the
+        // cap, thinking is dropped rather than emitting an unsatisfiable request.
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("low"));
+        let mut config = ModelConfig::new("us.anthropic.claude-3-7-sonnet-20250219-v1:0");
+        config.request_params = Some(params);
+        config.reasoning = Some(true);
+        config.max_tokens = Some(1500);
+
+        assert!(bedrock_anthropic_thinking_fields(&config).is_none());
     }
 
     #[test]
@@ -1116,6 +1235,28 @@ mod tests {
     }
 
     #[test]
+    fn tool_request_parse_error_gets_placeholder_name() -> Result<()> {
+        use rmcp::model::{ErrorCode, ErrorData};
+        // An unparseable tool call (ToolRequest(Err)) must still produce a tool_use
+        // with a non-empty name; otherwise Bedrock rejects the tool_use / orphans the
+        // paired tool_result. Mirrors the OpenAI/Databricks/Anthropic formatters.
+        let err = ErrorData::new(
+            ErrorCode::INVALID_PARAMS,
+            "Tool arguments must be a JSON object".to_string(),
+            None,
+        );
+        let content = MessageContent::tool_request("call_bad".to_string(), Err(err));
+        match to_bedrock_message_content(&content)? {
+            bedrock::ContentBlock::ToolUse(tu) => {
+                assert_eq!(tu.tool_use_id, "call_bad");
+                assert_eq!(tu.name, "unparseable_tool_call");
+            }
+            other => panic!("expected ToolUse, got {other:?}"),
+        }
+        Ok(())
+    }
+
+    #[test]
     fn test_cache_points_with_tool_response_messages() -> Result<()> {
         use chrono::Utc;
         use rmcp::model::{CallToolResult, Role};
@@ -1193,5 +1334,74 @@ mod tests {
         ));
 
         Ok(())
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_sets_max_tokens_and_temperature() {
+        let mut config = ModelConfig::new("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        config.max_tokens = Some(8192);
+        config.temperature = Some(0.5);
+
+        let inference_config = bedrock_inference_config(&config);
+
+        assert_eq!(inference_config.max_tokens(), Some(8192));
+        assert_eq!(inference_config.temperature(), Some(0.5));
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_omits_max_tokens_without_config() {
+        let mut config = ModelConfig::new("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        config.max_tokens = None;
+        config.temperature = None;
+
+        let inference_config = bedrock_inference_config(&config);
+
+        // When max_tokens is not explicitly configured we leave it unset so
+        // Bedrock applies its per-model server default. Forwarding
+        // ModelConfig::max_output_tokens() here would pin every model without a
+        // canonical-catalog entry (e.g. cross-region ids) to the generic 4096
+        // fallback, capping models whose real output limit is much higher.
+        assert_eq!(inference_config.max_tokens(), None);
+        assert_eq!(inference_config.temperature(), None);
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_sends_explicit_max_tokens() {
+        let mut config = ModelConfig::new("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        config.max_tokens = Some(4096);
+
+        let inference_config = bedrock_inference_config(&config);
+
+        // An explicitly configured value is always forwarded.
+        assert_eq!(inference_config.max_tokens(), Some(4096));
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_omits_temperature_for_unsupported_model() {
+        // The Anthropic canonical registry maps this id and reports whether a
+        // custom temperature may be sent; when it cannot, temperature is left
+        // unset so the server default is used.
+        let mut config = ModelConfig::new("us.anthropic.claude-sonnet-4-5-20250929-v1:0");
+        config.temperature = Some(0.5);
+
+        let supported = bedrock_model_supports_temperature(&config);
+        let inference_config = bedrock_inference_config(&config);
+
+        if supported {
+            assert_eq!(inference_config.temperature(), Some(0.5));
+        } else {
+            assert_eq!(inference_config.temperature(), None);
+        }
+    }
+
+    #[test]
+    fn test_bedrock_inference_config_omits_temperature_for_bedrock_registry_unsupported_model() {
+        let mut config = ModelConfig::new("openai.gpt-5.4");
+        config.temperature = Some(0.5);
+
+        let inference_config = bedrock_inference_config(&config);
+
+        assert!(!bedrock_model_supports_temperature(&config));
+        assert_eq!(inference_config.temperature(), None);
     }
 }

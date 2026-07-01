@@ -44,7 +44,7 @@ export type AnalyticsEvent =
   | {
       name: 'onboarding_setup_failed';
       properties: {
-        provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'local';
+        provider: 'local';
         error_message?: string;
       };
     }
@@ -272,7 +272,7 @@ export function trackOnboardingCompleted(provider: string, model?: string): void
 }
 
 export function trackOnboardingSetupFailed(
-  provider: 'openrouter' | 'tetrate' | 'chatgpt_codex' | 'local',
+  provider: 'local',
   errorMessage?: string
 ): void {
   trackEvent({

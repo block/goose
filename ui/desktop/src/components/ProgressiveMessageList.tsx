@@ -16,7 +16,6 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
-import { Message, SystemNotificationContent } from '../api';
 import GooseMessage from './GooseMessage';
 import UserMessage from './UserMessage';
 import {
@@ -27,7 +26,7 @@ import {
   CreditsExhaustedNotification,
   getCreditsExhaustedNotification,
 } from './context_management/CreditsExhaustedNotification';
-import { NotificationEvent } from '../types/message';
+import type { Message, NotificationEvent, SystemNotificationContent } from '../types/message';
 import LoadingGoose from './LoadingGoose';
 import { ChatType } from '../types/chat';
 import { identifyConsecutiveToolCalls, isInChain } from '../utils/toolCallChaining';

@@ -17,7 +17,8 @@ import {
   type DownloadModelRequest,
   type HfModelInfo,
   type HfModelVariant,
-} from '../../../api';
+  type RepoVariantsResponse,
+} from '../../../acp/local-inference';
 import { defineMessages, useIntl } from '../../../i18n';
 
 const i18n = defineMessages({
@@ -127,61 +128,43 @@ export const HuggingFaceModelSearch = ({
       setSearching(true);
       setError(null);
       try {
-        const response = await searchHfModels({
-          query: { q, limit: 20 },
-        });
-        if (response.data) {
-          // Pre-fetch variants for all results and filter out repos with no compatible local variants
-          const modelsWithVariants = await Promise.all(
-            response.data.map(async (model) => {
-              try {
-                const [author, repo] = model.repo_id.split('/');
-                const filesResponse = await getRepoFiles({ path: { author, repo } });
-                if (filesResponse.data && filesResponse.data.variants.length > 0) {
-                  return { model, data: filesResponse.data };
-                }
-              } catch {
-                // Skip repos we can't fetch
+        const models = await searchHfModels(q, 20);
+        const modelsWithVariants = await Promise.all(
+          models.map(async (model) => {
+            try {
+              const repoData = await getRepoFiles(model.repoId);
+              if (repoData.variants.length > 0) {
+                return { model, data: repoData };
               }
-              return null;
-            })
-          );
-
-          const validResults = modelsWithVariants.filter(Boolean) as {
-            model: HfModelInfo;
-            data: {
-              variants: HfModelVariant[];
-              recommended_index?: number | null;
-              available_memory_bytes: number;
-              downloaded_quants: string[];
-              downloaded_variants: string[];
-            };
-          }[];
-
-          setResults(validResults.map((r) => r.model));
-          setRepoData((prev) => {
-            const next = { ...prev };
-            for (const r of validResults) {
-              next[r.model.repo_id] = {
-                variants: r.data.variants,
-                recommendedIndex: r.data.recommended_index ?? null,
-                availableMemoryBytes: r.data.available_memory_bytes,
-                downloadedQuants: new Set(r.data.downloaded_quants),
-                downloadedVariants: new Set(r.data.downloaded_variants),
-              };
+            } catch {
+              // Skip repos we can't fetch
             }
-            return next;
-          });
+            return null;
+          })
+        );
 
-          if (validResults.length === 0) {
-            setError(intl.formatMessage(i18n.noGgufModels));
+        const validResults = modelsWithVariants.filter(Boolean) as {
+          model: HfModelInfo;
+          data: RepoVariantsResponse;
+        }[];
+
+        setResults(validResults.map((r) => r.model));
+        setRepoData((prev) => {
+          const next = { ...prev };
+          for (const r of validResults) {
+            next[r.model.repoId] = {
+              variants: r.data.variants,
+              recommendedIndex: r.data.recommendedIndex ?? null,
+              availableMemoryBytes: r.data.availableMemoryBytes,
+              downloadedQuants: new Set(r.data.downloadedQuants),
+              downloadedVariants: new Set(r.data.downloadedVariants),
+            };
           }
-        } else {
-          console.error('Search response:', response);
-          const errMsg = response.error
-            ? intl.formatMessage(i18n.searchError, { details: JSON.stringify(response.error) })
-            : intl.formatMessage(i18n.searchNoData);
-          setError(errMsg);
+          return next;
+        });
+
+        if (validResults.length === 0) {
+          setError(intl.formatMessage(i18n.noGgufModels));
         }
       } catch (e) {
         console.error('Search failed:', e);
@@ -209,22 +192,17 @@ export const HuggingFaceModelSearch = ({
     if (!repoData[repoId]?.variants.length) {
       setLoadingFiles((prev) => new Set(prev).add(repoId));
       try {
-        const [author, repo] = repoId.split('/');
-        const response = await getRepoFiles({
-          path: { author, repo },
-        });
-        if (response.data) {
-          setRepoData((prev) => ({
-            ...prev,
-            [repoId]: {
-              variants: response.data!.variants,
-              recommendedIndex: response.data!.recommended_index ?? null,
-              availableMemoryBytes: response.data!.available_memory_bytes,
-              downloadedQuants: new Set(response.data!.downloaded_quants),
-              downloadedVariants: new Set(response.data!.downloaded_variants),
-            },
-          }));
-        }
+        const response = await getRepoFiles(repoId);
+        setRepoData((prev) => ({
+          ...prev,
+          [repoId]: {
+            variants: response.variants,
+            recommendedIndex: response.recommendedIndex ?? null,
+            availableMemoryBytes: response.availableMemoryBytes,
+            downloadedQuants: new Set(response.downloadedQuants),
+            downloadedVariants: new Set(response.downloadedVariants),
+          },
+        }));
       } catch (e) {
         console.error('Failed to fetch repo files:', e);
       } finally {
@@ -238,20 +216,16 @@ export const HuggingFaceModelSearch = ({
   };
 
   const startDownload = async (repoId: string, variant: HfModelVariant) => {
-    const downloadKey = variant.download_id;
+    const downloadKey = variant.downloadId;
     const request: DownloadModelRequest = {
       spec: repoId,
-      backend_id: variant.backend_id,
-      variant_id: variant.variant_id,
+      backendId: variant.backendId,
+      variantId: variant.variantId,
     };
     setDownloading((prev) => new Set(prev).add(downloadKey));
     try {
-      const response = await downloadHfModel({
-        body: request,
-      });
-      if (response.data) {
-        onDownloadStarted(response.data, request);
-      }
+      const modelId = await downloadHfModel(request);
+      onDownloadStarted(modelId, request);
     } catch (e) {
       console.error('Download failed:', e);
     } finally {
@@ -289,8 +263,8 @@ export const HuggingFaceModelSearch = ({
       {results.length > 0 && (
         <div className="space-y-1">
           {results.map((model) => {
-            const isExpanded = expandedRepo === model.repo_id;
-            const data = repoData[model.repo_id];
+            const isExpanded = expandedRepo === model.repoId;
+            const data = repoData[model.repoId];
             const variants = data?.variants || [];
             const recommendedIndex = data?.recommendedIndex ?? null;
             const availableMemory = data?.availableMemoryBytes ?? 0;
@@ -298,15 +272,15 @@ export const HuggingFaceModelSearch = ({
             const downloadedVariants = data?.downloadedVariants ?? new Set<string>();
 
             return (
-              <div key={model.repo_id} className="border border-border-subtle rounded-lg">
+              <div key={model.repoId} className="border border-border-subtle rounded-lg">
                 <button
-                  onClick={() => toggleRepo(model.repo_id)}
+                  onClick={() => toggleRepo(model.repoId)}
                   className="w-full flex items-center justify-between p-3 text-left hover:bg-background-subtle rounded-lg"
                 >
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium text-text-default truncate">
-                        {model.repo_id}
+                        {model.repoId}
                       </span>
                     </div>
                     <div className="flex items-center gap-3 mt-0.5">
@@ -324,28 +298,28 @@ export const HuggingFaceModelSearch = ({
 
                 {isExpanded && (
                   <div className="border-t border-border-subtle px-3 pb-3 space-y-1">
-                    {loadingFiles.has(model.repo_id) && (
+                    {loadingFiles.has(model.repoId) && (
                       <div className="flex items-center gap-2 py-2 text-xs text-text-muted">
                         <Loader2 className="w-3 h-3 animate-spin" />
                         {intl.formatMessage(i18n.loadingVariants)}
                       </div>
                     )}
                     {variants.map((variant, idx) => {
-                      const isStarting = downloading.has(variant.download_id);
+                      const isStarting = downloading.has(variant.downloadId);
                       const isRecommended = idx === recommendedIndex;
-                      const modelId = variant.model_id;
+                      const modelId = variant.modelId;
                       const isActiveDownload = activeDownloadIds?.has(modelId) ?? false;
                       const isDownloaded = downloadedModelIds
                         ? downloadedModelIds.has(modelId)
                         : downloadedVariants.has(modelId) ||
-                          downloadedQuants.has(variant.variant_id);
+                          downloadedQuants.has(variant.variantId);
                       const tooLarge =
-                        availableMemory > 0 && variant.size_bytes > availableMemory * 0.85;
+                        availableMemory > 0 && variant.sizeBytes > availableMemory * 0.85;
                       const isSupported = variant.supported ?? true;
 
                       return (
                         <div
-                          key={variant.download_id}
+                          key={variant.downloadId}
                           className={`flex items-center justify-between py-2 px-2 rounded ${
                             isDownloaded
                               ? 'bg-green-500/5 border border-green-500/20'
@@ -363,7 +337,7 @@ export const HuggingFaceModelSearch = ({
                                 {variant.label}
                               </span>
                               <span className="text-xs text-text-muted">
-                                {formatBytes(variant.size_bytes)}
+                                {formatBytes(variant.sizeBytes)}
                               </span>
                               {isRecommended && !isDownloaded && (
                                 <span className="inline-flex items-center gap-1 text-xs bg-blue-500 text-white px-1.5 py-0.5 rounded">
@@ -375,17 +349,17 @@ export const HuggingFaceModelSearch = ({
                             {variant.description && (
                               <span className="text-xs text-text-muted">{variant.description}</span>
                             )}
-                            {!isSupported && variant.unsupported_reason && (
+                            {!isSupported && variant.unsupportedReason && (
                               <span className="inline-flex items-center gap-1 text-xs text-amber-500">
                                 <AlertTriangle className="w-3 h-3" />
-                                {variant.unsupported_reason}
+                                {variant.unsupportedReason}
                               </span>
                             )}
                             {tooLarge && !isDownloaded && (
                               <span className="inline-flex items-center gap-1 text-xs text-amber-500">
                                 <AlertTriangle className="w-3 h-3" />
                                 {intl.formatMessage(i18n.tooLarge, {
-                                  size: formatBytes(variant.size_bytes),
+                                  size: formatBytes(variant.sizeBytes),
                                   available: formatBytes(availableMemory),
                                 })}
                               </span>
@@ -406,7 +380,7 @@ export const HuggingFaceModelSearch = ({
                               variant="outline"
                               size="sm"
                               disabled={isStarting || !isSupported}
-                              onClick={() => startDownload(model.repo_id, variant)}
+                              onClick={() => startDownload(model.repoId, variant)}
                             >
                               {isStarting ? (
                                 <Loader2 className="w-3 h-3 animate-spin" />

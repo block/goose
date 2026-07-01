@@ -1,6 +1,6 @@
 import { View, ViewOptions } from '../../utils/navigationUtils';
 import ExtensionsSection from '../settings/extensions/ExtensionsSection';
-import { ExtensionConfig } from '../../api';
+import type { ExtensionConfig } from '../../types/extensions';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/button';
 import { Plus } from 'lucide-react';

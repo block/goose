@@ -1,7 +1,7 @@
 import type { SessionInfo } from '@agentclientprotocol/sdk';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAcpClient } from '../acpConnection';
-import { acpLoadSession, sessionInfoToSession } from '../sessions';
+import { acpGetSessionListItem, acpLoadSession, sessionInfoToSession } from '../sessions';
 
 vi.mock('../acpConnection', () => ({
   getAcpClient: vi.fn(),
@@ -68,5 +68,41 @@ describe('ACP sessions', () => {
     expect(sessionInfoToSession(result.sessionInfo).model_config?.model_name).toBe(
       'claude-sonnet-4-5'
     );
+  });
+
+  it('returns a list item from ACP session info', async () => {
+    const client = {
+      goose: {
+        sessionInfo_unstable: vi.fn().mockResolvedValue({
+          session: sessionInfo({
+            title: 'Subagent session',
+            _meta: {
+              createdAt: '2026-01-01T00:00:00Z',
+              lastMessageAt: '2026-01-01T00:01:00Z',
+              messageCount: 3,
+              sessionType: 'sub_agent',
+              providerId: 'anthropic',
+              modelId: 'claude-sonnet-4-5',
+            },
+          }),
+        }),
+      },
+    };
+    vi.mocked(getAcpClient).mockResolvedValue(
+      client as unknown as Awaited<ReturnType<typeof getAcpClient>>
+    );
+
+    const item = await acpGetSessionListItem('session-1');
+
+    expect(client.goose.sessionInfo_unstable).toHaveBeenCalledWith({ sessionId: 'session-1' });
+    expect(item).toMatchObject({
+      id: 'session-1',
+      name: 'Subagent session',
+      workingDir: '/tmp',
+      messageCount: 3,
+      lastMessageAt: '2026-01-01T00:01:00Z',
+      providerId: 'anthropic',
+      modelId: 'claude-sonnet-4-5',
+    });
   });
 });

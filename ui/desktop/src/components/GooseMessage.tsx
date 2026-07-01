@@ -15,8 +15,8 @@ import {
   getAnyToolConfirmationData,
   ToolConfirmationData,
   NotificationEvent,
+  type Message,
 } from '../types/message';
-import { Message } from '../api';
 import ToolCallConfirmation from './ToolCallConfirmation';
 import ElicitationRequest from './ElicitationRequest';
 import MessageCopyLink from './MessageCopyLink';

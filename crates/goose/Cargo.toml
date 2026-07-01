@@ -44,6 +44,11 @@ vulkan = ["local-inference", "llama-cpp-2/vulkan"]
 mlx = ["local-inference", "dep:mlx-rs", "dep:mlx-lm", "dep:mlx-lm-utils"]
 rustls-tls = [
     "dep:rustls",
+    "dep:rcgen",
+    "dep:pem",
+    "dep:axum-server",
+    "dep:aws-lc-rs",
+    "axum-server/tls-rustls",
     "reqwest/rustls",
     "rmcp/reqwest",
     "smithy-transport-reqwest?/rustls",
@@ -55,6 +60,11 @@ rustls-tls = [
     "goose-providers/rustls-tls",
 ]
 native-tls = [
+    "dep:rcgen",
+    "dep:pem",
+    "dep:axum-server",
+    "dep:openssl",
+    "axum-server/tls-openssl",
     "reqwest/native-tls",
     "rmcp/reqwest-native-tls",
     "smithy-transport-reqwest?/native-tls",
@@ -87,7 +97,7 @@ thiserror = { workspace = true }
 futures = { workspace = true }
 dirs = { workspace = true }
 reqwest = { workspace = true, features = ["json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "multipart", "system-proxy"] }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "fs", "process", "net", "signal", "io-std", "io-util"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_path_to_error = { version = "0.1.8", default-features = false }
@@ -132,6 +142,7 @@ tokio-cron-scheduler = { version = "0.15", default-features = false }
 urlencoding = { workspace = true }
 v_htmlescape = { version = "0.17", default-features = false, features = ["std"] }
 sqlx = { version = "0.8.5", default-features = false, features = [
+    "runtime-tokio",
     "sqlite",
     "chrono",
     "json",
@@ -158,6 +169,7 @@ tempfile = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
 agent-client-protocol-schema = { workspace = true }
 agent-client-protocol = { workspace = true, features = ["unstable"] }
+agent-client-protocol-http = { workspace = true }
 unicode-normalization = { version = "0.1.22", default-features = false, features = ["std"] }
 
 # For local Whisper transcription (optional, behind "local-inference" feature)
@@ -196,12 +208,16 @@ pastey = { version = "0.2", default-features = false }
 shell-words = { workspace = true }
 goose-acp-macros = { path = "../goose-acp-macros", default-features = false }
 tower-http = { workspace = true, features = ["cors"] }
-http-body-util = { version = "0.1.2", default-features = false }
 tracing-appender = { workspace = true }
 process-wrap = { version = "9", default-features = false, features = ["std"] }
 nostr = { version = "0.44", default-features = false, features = ["nip44", "std"], optional = true }
 nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"], optional = true }
 rustls = { workspace = true, optional = true }
+rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "crypto", "pem"], optional = true }
+axum-server = { version = "0.8", default-features = false, optional = true }
+aws-lc-rs = { version = "1.17", default-features = false, optional = true }
+openssl = { version = "0.10.66", default-features = false, optional = true }
+pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
 hf-hub = { version = "1.0.0-rc.1", default-features = false, optional = true }
 mlx-rs = { version = "0.25.3", default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true }
 mlx-lm = { git = "https://github.com/jh-block/mlx-lm", optional = true }
@@ -220,7 +236,7 @@ subtle = { version = "2.5", default-features = false, features = ["std"] }
 gethostname = "1.1.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
-winapi = { version = "0.3.9", default-features = false, features = ["wincred", "std", "jobapi2", "winbase", "winnt", "processthreadsapi", "handleapi", "minwindef"] }
+winapi = { workspace = true }
 keyring = { workspace = true, features = ["windows-native"], optional = true }
 
 # Platform-specific GPU acceleration for Whisper and local inference

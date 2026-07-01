@@ -4,8 +4,8 @@ import { MemoryRouter } from 'react-router-dom';
 import type { PropsWithChildren } from 'react';
 import { useAutoSubmit } from './useAutoSubmit';
 import { ChatState } from '../types/chatState';
-import type { Session } from '../api';
 import type { UserInput } from '../types/message';
+import type { Session } from '../types/session';
 
 function makeSession(overrides: Partial<Session> = {}): Session {
   return {

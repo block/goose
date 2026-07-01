@@ -64,7 +64,8 @@ impl ProviderDef for XaiProvider {
                 .unwrap_or_else(|_| XAI_API_HOST.to_string());
 
             let api_client =
-                ApiClient::new_with_tls(host, AuthMethod::BearerToken(api_key), tls_config)?;
+                ApiClient::new_with_tls(host, AuthMethod::BearerToken(api_key), tls_config)?
+                    .with_request_builder(crate::session_context::session_id_request_builder());
 
             Ok(OpenAiCompatibleProvider::new(
                 XAI_PROVIDER_NAME.to_string(),

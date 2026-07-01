@@ -77,7 +77,6 @@ async fn main() -> Result<()> {
         let (response, usage) = provider
             .complete(
                 &model_config,
-                "",
                 "You are a helpful assistant. Please describe any text you see in the image.",
                 &messages,
                 &[Tool::new("view_image", "View an image", input_schema)],

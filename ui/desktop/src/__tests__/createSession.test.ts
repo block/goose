@@ -1,11 +1,24 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { startAgent } from '../api';
 import { createSession } from '../sessions';
-import type { ExtensionConfig, Session } from '../api';
+import type { ExtensionConfig } from '../types/extensions';
+import type { Session } from '../types/session';
 import type { FixedExtensionEntry } from '../components/ConfigContext';
+import type { GooseExtension, GooseExtensionEntry } from '@aaif/goose-sdk';
+import { getConfiguredGooseExtensions } from '../acp/extensions';
+import { acpChatSessionController } from '../acp/chatSessionController';
 
-vi.mock('../api', () => ({
-  startAgent: vi.fn(),
+vi.mock('../acp/extensions', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../acp/extensions')>();
+  return {
+    ...actual,
+    getConfiguredGooseExtensions: vi.fn(),
+  };
+});
+
+vi.mock('../acp/chatSessionController', () => ({
+  acpChatSessionController: {
+    createSession: vi.fn(),
+  },
 }));
 
 const testSession: Session = {
@@ -29,30 +42,40 @@ const configuredExtension = (name: string, enabled: boolean): FixedExtensionEntr
   enabled,
 });
 
-const mockedStartAgent = vi.mocked(startAgent);
+const gooseExtension = (name: string): GooseExtension => ({
+  type: 'builtin',
+  name,
+  description: `${name} extension`,
+});
 
-describe('createSession extension overrides', () => {
+const gooseExtensionEntry = (name: string): GooseExtensionEntry => ({
+  extension: gooseExtension(name),
+  enabled: true,
+});
+
+const mockedGetConfiguredGooseExtensions = vi.mocked(getConfiguredGooseExtensions);
+const mockedCreateAcpSession = vi.mocked(acpChatSessionController.createSession);
+
+describe('createSession ACP session extensions', () => {
   beforeEach(() => {
-    mockedStartAgent.mockReset();
-    mockedStartAgent.mockResolvedValue({
-      data: testSession,
-      error: undefined,
-      request: new globalThis.Request('http://localhost/sessions'),
-      response: new globalThis.Response(),
-    });
+    mockedGetConfiguredGooseExtensions.mockReset();
+    mockedGetConfiguredGooseExtensions.mockResolvedValue([
+      gooseExtensionEntry('developer'),
+      gooseExtensionEntry('memory'),
+    ]);
+    mockedCreateAcpSession.mockReset();
+    mockedCreateAcpSession.mockResolvedValue(testSession);
   });
 
-  it('sends non-empty extension configs as overrides', async () => {
+  it('sends non-empty extension configs as ACP session extensions', async () => {
     await createSession('/tmp', {
       extensionConfigs: [extensionConfig('developer')],
     });
 
-    expect(mockedStartAgent).toHaveBeenCalledWith({
-      body: {
-        working_dir: '/tmp',
-        extension_overrides: [extensionConfig('developer')],
-      },
-      throwOnError: true,
+    expect(mockedGetConfiguredGooseExtensions).toHaveBeenCalledOnce();
+    expect(mockedCreateAcpSession).toHaveBeenCalledWith('/tmp', [gooseExtension('developer')], {
+      recipeDeeplink: undefined,
+      recipeId: undefined,
     });
   });
 
@@ -62,25 +85,22 @@ describe('createSession extension overrides', () => {
       allExtensions: [configuredExtension('developer', true), configuredExtension('memory', false)],
     });
 
-    expect(mockedStartAgent).toHaveBeenCalledWith({
-      body: {
-        working_dir: '/tmp',
-        extension_overrides: [extensionConfig('developer')],
-      },
-      throwOnError: true,
+    expect(mockedGetConfiguredGooseExtensions).toHaveBeenCalledOnce();
+    expect(mockedCreateAcpSession).toHaveBeenCalledWith('/tmp', [gooseExtension('developer')], {
+      recipeDeeplink: undefined,
+      recipeId: undefined,
     });
   });
 
-  it('omits extension overrides when no configured extensions are enabled', async () => {
+  it('omits ACP session extensions when no configured extensions are enabled', async () => {
     await createSession('/tmp', {
       allExtensions: [configuredExtension('developer', false)],
     });
 
-    expect(mockedStartAgent).toHaveBeenCalledWith({
-      body: {
-        working_dir: '/tmp',
-      },
-      throwOnError: true,
+    expect(mockedGetConfiguredGooseExtensions).not.toHaveBeenCalled();
+    expect(mockedCreateAcpSession).toHaveBeenCalledWith('/tmp', [], {
+      recipeDeeplink: undefined,
+      recipeId: undefined,
     });
   });
 });

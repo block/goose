@@ -1,3 +1,4 @@
+pub mod anthropic;
 pub mod api_client;
 pub mod base;
 pub mod canonical;
@@ -10,6 +11,7 @@ pub mod images;
 pub mod json;
 pub(crate) mod mcp_utils;
 pub mod model;
+pub mod ollama;
 pub mod openai;
 pub mod openai_compatible;
 pub mod permission;
