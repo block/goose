@@ -231,7 +231,19 @@ impl Provider for AnthropicProvider {
                     );
                     return Ok(custom_models.clone());
                 }
-                Err(e) => return Err(e),
+                Err(e) => {
+                    // Fall back to the predefined list on any other error (invalid
+                    // JSON, auth failure, server error, wrong base URL, ...) so that
+                    // a misconfigured /models endpoint does not prevent the provider
+                    // from being used. The predefined list is already known-good.
+                    tracing::warn!(
+                        "Failed to fetch models from API for provider '{}': {}. \
+                         Falling back to predefined model list.",
+                        self.name,
+                        e
+                    );
+                    return Ok(custom_models.clone());
+                }
             }
         }
 
@@ -285,5 +297,63 @@ impl Provider for AnthropicProvider {
                 yield (message, usage);
             }
         }))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_provider_with_custom_models(
+        name: &str,
+        host: &str,
+        custom_models: Vec<String>,
+        dynamic_models: Option<bool>,
+    ) -> AnthropicProvider {
+        AnthropicProvider {
+            api_client: ApiClient::new_with_tls(
+                host.to_string(),
+                crate::api_client::AuthMethod::NoAuth,
+                None,
+            )
+            .unwrap(),
+            supports_streaming: true,
+            name: name.to_string(),
+            custom_models: Some(custom_models),
+            dynamic_models,
+            skip_canonical_filtering: false,
+            format_options: AnthropicFormatOptions::default(),
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_falls_back_on_non_404_error() {
+        let predefined = vec!["glm-5.2".to_string(), "glm-4.5".to_string()];
+        let provider = make_provider_with_custom_models(
+            "zai",
+            "http://127.0.0.1:1",
+            predefined.clone(),
+            Some(true),
+        );
+
+        let models = provider
+            .fetch_supported_models()
+            .await
+            .expect("should fall back to predefined list on API error");
+        assert_eq!(models, predefined);
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_returns_static_when_dynamic_false() {
+        let predefined = vec!["MiniMax-M2.5".to_string()];
+        let provider = make_provider_with_custom_models(
+            "minimax",
+            "http://127.0.0.1:1",
+            predefined.clone(),
+            Some(false),
+        );
+
+        let models = provider.fetch_supported_models().await.unwrap();
+        assert_eq!(models, predefined);
     }
 }

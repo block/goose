@@ -567,7 +567,19 @@ impl Provider for OpenAiProvider {
                     );
                     return Ok(custom_models.clone());
                 }
-                Err(e) => return Err(e),
+                Err(e) => {
+                    // Fall back to the predefined list on any other error (invalid
+                    // JSON, auth failure, server error, wrong base URL, ...) so that
+                    // a misconfigured /models endpoint does not prevent the provider
+                    // from being used. The predefined list is already known-good.
+                    tracing::warn!(
+                        "Failed to fetch models from API for provider '{}': {}. \
+                         Falling back to predefined model list.",
+                        self.name,
+                        e
+                    );
+                    return Ok(custom_models.clone());
+                }
             }
         }
 
@@ -969,5 +981,62 @@ mod tests {
             ]
         });
         assert_eq!(parse_n_ctx_from_models(&body, "model-c"), None);
+    }
+
+    fn make_provider_with_custom_models(
+        name: &str,
+        host: &str,
+        custom_models: Vec<String>,
+        dynamic_models: Option<bool>,
+    ) -> OpenAiProvider {
+        OpenAiProvider {
+            api_client: ApiClient::new_with_tls(host.to_string(), AuthMethod::NoAuth, None)
+                .unwrap(),
+            base_path: "v1/chat/completions".to_string(),
+            organization: None,
+            project: None,
+            custom_headers: None,
+            supports_streaming: true,
+            name: name.to_string(),
+            custom_models: Some(custom_models),
+            dynamic_models,
+            skip_canonical_filtering: false,
+            preserve_thinking_context: false,
+            n_ctx_cache: Arc::new(Mutex::new(HashMap::new())),
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_falls_back_on_non_404_error() {
+        // Point at a port that is almost certainly not listening so the API
+        // call fails with a network/JSON error (NOT a 404). The provider
+        // should still succeed by falling back to the predefined list.
+        let predefined = vec!["glm-4.5".to_string(), "glm-5".to_string()];
+        let provider = make_provider_with_custom_models(
+            "zhipu",
+            "http://127.0.0.1:1",
+            predefined.clone(),
+            Some(true),
+        );
+
+        let models = provider
+            .fetch_supported_models()
+            .await
+            .expect("should fall back to predefined list on API error");
+        assert_eq!(models, predefined);
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_returns_static_when_dynamic_false() {
+        let predefined = vec!["model-a".to_string()];
+        let provider = make_provider_with_custom_models(
+            "test-provider",
+            "http://127.0.0.1:1",
+            predefined.clone(),
+            Some(false),
+        );
+
+        let models = provider.fetch_supported_models().await.unwrap();
+        assert_eq!(models, predefined);
     }
 }
