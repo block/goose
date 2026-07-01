@@ -1,4 +1,5 @@
 use anyhow::{bail, Context, Result};
+use reqwest::StatusCode;
 use sha2::{Digest, Sha256};
 use sigstore_verify::trust_root::{TrustedRoot, SIGSTORE_PRODUCTION_TRUSTED_ROOT};
 use sigstore_verify::types::{Bundle, Sha256Hash};
@@ -79,6 +80,26 @@ struct AttestationEntry {
 
 const GITHUB_ACTIONS_ISSUER: &str = "https://token.actions.githubusercontent.com";
 
+fn non_empty_token(token: Option<&str>) -> Option<&str> {
+    token.filter(|tok| !tok.trim().is_empty())
+}
+
+fn github_token() -> Option<String> {
+    env::var("GITHUB_TOKEN")
+        .ok()
+        .filter(|tok| non_empty_token(Some(tok.as_str())).is_some())
+        .or_else(|| {
+            env::var("GH_TOKEN")
+                .ok()
+                .filter(|tok| non_empty_token(Some(tok.as_str())).is_some())
+        })
+}
+
+fn should_retry_attestations_without_token(status: StatusCode, token: Option<&str>) -> bool {
+    non_empty_token(token).is_some()
+        && matches!(status, StatusCode::UNAUTHORIZED | StatusCode::FORBIDDEN)
+}
+
 async fn fetch_attestations(digest: &str, token: Option<&str>) -> Result<Vec<serde_json::Value>> {
     let url = format!(
         "https://api.github.com/repos/aaif-goose/goose/attestations/sha256:{digest}\
@@ -86,17 +107,14 @@ async fn fetch_attestations(digest: &str, token: Option<&str>) -> Result<Vec<ser
     );
 
     let client = reqwest::Client::new();
-    let mut req = client
-        .get(&url)
-        .header("Accept", "application/vnd.github+json")
-        .header("X-GitHub-Api-Version", "2022-11-28")
-        .header("User-Agent", "goose-cli");
+    let token = non_empty_token(token);
+    let resp = fetch_attestations_response(&client, &url, token).await?;
 
-    if let Some(tok) = token {
-        req = req.header("Authorization", format!("Bearer {tok}"));
-    }
-
-    let resp = req.send().await.context("Failed to fetch attestations")?;
+    let resp = if should_retry_attestations_without_token(resp.status(), token) {
+        fetch_attestations_response(&client, &url, None).await?
+    } else {
+        resp
+    };
 
     if !resp.status().is_success() {
         bail!("GitHub attestation API returned HTTP {}", resp.status());
@@ -108,6 +126,24 @@ async fn fetch_attestations(digest: &str, token: Option<&str>) -> Result<Vec<ser
         .context("Failed to parse attestation response")?;
 
     Ok(body.attestations.into_iter().map(|a| a.bundle).collect())
+}
+
+async fn fetch_attestations_response(
+    client: &reqwest::Client,
+    url: &str,
+    token: Option<&str>,
+) -> Result<reqwest::Response> {
+    let mut req = client
+        .get(url)
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .header("User-Agent", "goose-cli");
+
+    if let Some(tok) = token {
+        req = req.header("Authorization", format!("Bearer {tok}"));
+    }
+
+    req.send().await.context("Failed to fetch attestations")
 }
 
 // Verify a single attestation bundle against the artifact digest and workflow.
@@ -152,9 +188,7 @@ async fn verify_provenance(archive_data: &[u8], tag: &str) -> Result<()> {
         _ => "release.yml",
     };
 
-    let token = env::var("GITHUB_TOKEN")
-        .ok()
-        .or_else(|| env::var("GH_TOKEN").ok());
+    let token = github_token();
 
     println!("Verifying SLSA provenance via Sigstore...");
 
@@ -722,6 +756,38 @@ mod tests {
             digest,
             "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
         );
+    }
+
+    #[test]
+    fn test_non_empty_token_ignores_blank_values() {
+        assert_eq!(non_empty_token(None), None);
+        assert_eq!(non_empty_token(Some("")), None);
+        assert_eq!(non_empty_token(Some("   ")), None);
+        assert_eq!(non_empty_token(Some("token")), Some("token"));
+    }
+
+    #[test]
+    fn test_attestation_lookup_retries_auth_failures_without_token() {
+        assert!(should_retry_attestations_without_token(
+            StatusCode::UNAUTHORIZED,
+            Some("token")
+        ));
+        assert!(should_retry_attestations_without_token(
+            StatusCode::FORBIDDEN,
+            Some("token")
+        ));
+        assert!(!should_retry_attestations_without_token(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Some("token")
+        ));
+        assert!(!should_retry_attestations_without_token(
+            StatusCode::UNAUTHORIZED,
+            Some("")
+        ));
+        assert!(!should_retry_attestations_without_token(
+            StatusCode::UNAUTHORIZED,
+            None
+        ));
     }
 
     // -----------------------------------------------------------------------
