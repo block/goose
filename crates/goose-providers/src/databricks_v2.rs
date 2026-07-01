@@ -69,6 +69,7 @@ impl DatabricksV2Provider {
         Ok(())
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         host: String,
         auth: DatabricksAuth,
