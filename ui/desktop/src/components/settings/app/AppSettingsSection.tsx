@@ -19,7 +19,6 @@ import ThemeSelector from '../../GooseSidebar/ThemeSelector';
 import BlockLogoBlack from './icons/block-lockup_black.png';
 import BlockLogoWhite from './icons/block-lockup_white.png';
 import TelemetrySettings from './TelemetrySettings';
-import ClientExtensionsSettingsSection from '../../../client-extensions/ClientExtensionsSettingsSection';
 import { trackSettingToggled } from '../../../utils/analytics';
 import type { LanguageSetting } from '../../../utils/settings';
 
@@ -501,7 +500,6 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
         </CardContent>
       </Card>
       <TelemetrySettings />
-      <ClientExtensionsSettingsSection />
 
       <Card className="rounded-lg">
         <CardHeader className="pb-0">

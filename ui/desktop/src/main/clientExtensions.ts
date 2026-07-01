@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import os from 'node:os';
 import path from 'node:path';
 import { app } from 'electron';
 import { compareVersions, satisfies } from 'compare-versions';
@@ -8,6 +7,7 @@ import {
   CLIENT_EXTENSION_MANIFEST,
   type ChatActionContribution,
   type ClientExtensionManifest,
+  type ClientExtensionSource,
   type ContentSuffixContribution,
   type CustomRenderContribution,
   type CustomRenderMatch,
@@ -15,15 +15,19 @@ import {
   type RootLinkContribution,
   type SidecarContribution,
 } from '../client-extensions/types';
+import {
+  getClientExtensionsInstallDir,
+  isClientExtensionEnabled,
+  loadClientExtensionsConfig,
+  setClientExtensionEnabled,
+} from './clientExtensionsConfig';
+
+export { getClientExtensionsInstallDir } from './clientExtensionsConfig';
 
 const MANIFEST_FILENAME = CLIENT_EXTENSION_MANIFEST;
 
 function userClientExtensionsDir(): string {
-  return path.join(os.homedir(), '.agents', 'client-extensions');
-}
-
-export function getClientExtensionsInstallDir(): string {
-  return userClientExtensionsDir();
+  return getClientExtensionsInstallDir();
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -287,15 +291,22 @@ function satisfiesGrcEngine(manifest: ClientExtensionManifest): boolean {
   }
 }
 
-function discoverInDirectory(extensionsRoot: string): DiscoveredClientExtension[] {
+function discoverInDirectory(
+  extensionsRoot: string,
+  source: ClientExtensionSource
+): DiscoveredClientExtension[] {
   if (!fs.existsSync(extensionsRoot)) {
     return [];
   }
 
+  const config = loadClientExtensionsConfig();
   const discovered: DiscoveredClientExtension[] = [];
 
   for (const entry of fs.readdirSync(extensionsRoot, { withFileTypes: true })) {
     if (!entry.isDirectory()) {
+      continue;
+    }
+    if (entry.name === 'config.json') {
       continue;
     }
 
@@ -327,7 +338,13 @@ function discoverInDirectory(extensionsRoot: string): DiscoveredClientExtension[
         continue;
       }
 
-      discovered.push({ id: manifest.id, rootPath, manifest });
+      discovered.push({
+        id: manifest.id,
+        rootPath,
+        manifest,
+        source,
+        enabled: isClientExtensionEnabled(manifest.id, source, config),
+      });
     } catch (error) {
       console.warn(`[client-extensions] Failed to load ${manifestPath}:`, error);
     }
@@ -337,24 +354,46 @@ function discoverInDirectory(extensionsRoot: string): DiscoveredClientExtension[
 }
 
 export function discoverClientExtensions(): DiscoveredClientExtension[] {
-  const roots = new Set<string>([userClientExtensionsDir()]);
-  const devRoot = devClientExtensionsDir();
-  if (devRoot) {
-    roots.add(devRoot);
+  const config = loadClientExtensionsConfig();
+  const byId = new Map<string, DiscoveredClientExtension>();
+
+  for (const extension of discoverInDirectory(userClientExtensionsDir(), 'installed')) {
+    byId.set(extension.id, extension);
   }
 
-  const byId = new Map<string, DiscoveredClientExtension>();
-  for (const root of roots) {
-    for (const extension of discoverInDirectory(root)) {
-      byId.set(extension.id, extension);
+  const devRoot = devClientExtensionsDir();
+  if (devRoot) {
+    for (const extension of discoverInDirectory(devRoot, 'dev')) {
+      if (!byId.has(extension.id)) {
+        byId.set(extension.id, extension);
+      }
     }
   }
 
-  return [...byId.values()].sort((a, b) => a.id.localeCompare(b.id));
+  return [...byId.values()]
+    .map((extension) => ({
+      ...extension,
+      enabled: isClientExtensionEnabled(extension.id, extension.source, config),
+    }))
+    .sort((a, b) => a.id.localeCompare(b.id));
+}
+
+export function setClientExtensionEnabledState(
+  extensionId: string,
+  enabled: boolean
+): DiscoveredClientExtension[] {
+  const extension = discoverClientExtensions().find((entry) => entry.id === extensionId);
+  if (!extension) {
+    throw new Error(`Client extension not found: ${extensionId}`);
+  }
+  setClientExtensionEnabled(extensionId, extension.source, enabled);
+  return discoverClientExtensions();
 }
 
 export function readClientExtensionMain(extensionId: string): string | null {
-  const extension = discoverClientExtensions().find((entry) => entry.id === extensionId);
+  const extension = discoverClientExtensions().find(
+    (entry) => entry.id === extensionId && entry.enabled
+  );
   if (!extension) {
     return null;
   }

@@ -17,6 +17,7 @@ import { extractCodeBlocks } from './messageContext';
 
 interface ClientExtensionsContextValue {
   extensions: DiscoveredClientExtension[];
+  enabledExtensions: DiscoveredClientExtension[];
   loading: boolean;
   getChatActions: (context: ExtensionHostContext) => RegisteredChatAction[];
   getRootLinks: (context: ExtensionHostContext) => RegisteredRootLink[];
@@ -28,6 +29,7 @@ interface ClientExtensionsContextValue {
   getSidecars: (context: ExtensionHostContext) => RegisteredSidecar[];
   getExtensionMainHtml: (extensionId: string) => Promise<string | null>;
   reloadExtensions: () => Promise<void>;
+  setExtensionEnabled: (extensionId: string, enabled: boolean) => Promise<void>;
 }
 
 const ClientExtensionsContext = createContext<ClientExtensionsContextValue | null>(null);
@@ -48,6 +50,20 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
     }
   }, []);
 
+  const enabledExtensions = useMemo(
+    () => extensions.filter((extension) => extension.enabled),
+    [extensions]
+  );
+
+  const setExtensionEnabled = useCallback(async (extensionId: string, enabled: boolean) => {
+    try {
+      const discovered = await window.electron.setClientExtensionEnabled(extensionId, enabled);
+      setExtensions(discovered);
+    } catch (error) {
+      console.warn('[client-extensions] Failed to update extension state:', error);
+    }
+  }, []);
+
   useEffect(() => {
     void reloadExtensions();
   }, [reloadExtensions]);
@@ -65,7 +81,7 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
     (context: ExtensionHostContext): RegisteredChatAction[] => {
       const actions: RegisteredChatAction[] = [];
 
-      for (const extension of extensions) {
+      for (const extension of enabledExtensions) {
         const contributions = extension.manifest.contributes?.chatActions ?? [];
         for (const contribution of contributions) {
           if (!evaluateWhenClause(contribution.when, context)) {
@@ -80,14 +96,14 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
 
       return actions;
     },
-    [extensions]
+    [enabledExtensions]
   );
 
   const getRootLinks = useCallback(
     (context: ExtensionHostContext): RegisteredRootLink[] => {
       const links: RegisteredRootLink[] = [];
 
-      for (const extension of extensions) {
+      for (const extension of enabledExtensions) {
         const contributions = extension.manifest.contributes?.rootLinks ?? [];
         for (const contribution of contributions) {
           if (!evaluateWhenClause(contribution.when, context)) {
@@ -103,14 +119,14 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
 
       return links;
     },
-    [extensions]
+    [enabledExtensions]
   );
 
   const getContentSuffixes = useCallback(
     (context: MessageExtensionHostContext): RegisteredContentSuffix[] => {
       const suffixes: RegisteredContentSuffix[] = [];
 
-      for (const extension of extensions) {
+      for (const extension of enabledExtensions) {
         const contributions = extension.manifest.contributes?.contentSuffixes ?? [];
         for (const contribution of contributions) {
           if (!evaluateWhenClause(contribution.when, context)) {
@@ -125,14 +141,14 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
 
       return suffixes;
     },
-    [extensions]
+    [enabledExtensions]
   );
 
   const getCustomRender = useCallback(
     (context: MessageExtensionHostContext, displayText: string): RegisteredCustomRender | null => {
       const renders: RegisteredCustomRender[] = [];
 
-      for (const extension of extensions) {
+      for (const extension of enabledExtensions) {
         const contributions = extension.manifest.contributes?.customRenders ?? [];
         for (const contribution of contributions) {
           renders.push({
@@ -144,14 +160,14 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
 
       return selectCustomRender(renders, context, extractCodeBlocks(displayText));
     },
-    [extensions]
+    [enabledExtensions]
   );
 
   const getSidecars = useCallback(
     (context: ExtensionHostContext): RegisteredSidecar[] => {
       const sidecars: RegisteredSidecar[] = [];
 
-      for (const extension of extensions) {
+      for (const extension of enabledExtensions) {
         const contributions = extension.manifest.contributes?.sidecars ?? [];
         for (const contribution of contributions) {
           if (!evaluateWhenClause(contribution.when, context)) {
@@ -166,12 +182,13 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
 
       return sidecars;
     },
-    [extensions]
+    [enabledExtensions]
   );
 
   const value = useMemo(
     () => ({
       extensions,
+      enabledExtensions,
       loading,
       getChatActions,
       getRootLinks,
@@ -180,9 +197,11 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
       getSidecars,
       getExtensionMainHtml,
       reloadExtensions,
+      setExtensionEnabled,
     }),
     [
       extensions,
+      enabledExtensions,
       loading,
       getChatActions,
       getRootLinks,
@@ -191,6 +210,7 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
       getSidecars,
       getExtensionMainHtml,
       reloadExtensions,
+      setExtensionEnabled,
     ]
   );
 

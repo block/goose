@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { toastService } from '../toasts';
 import { useClientExtensions, useExtensionHostContext } from './ClientExtensionsContext';
 import { parseClientExtensionViewPath } from './routes';
 import type { ExtensionToHostMessage, HostToExtensionMessage } from './types';
+import { useNavigationSessions } from '../hooks/useNavigationSessions';
+import { Button } from '../components/ui/button';
 
 function isExtensionToHostMessage(value: unknown): value is ExtensionToHostMessage {
   if (typeof value !== 'object' || value === null || !('type' in value)) {
@@ -17,6 +20,7 @@ export default function ClientExtensionPageView() {
   const location = useLocation();
   const { extensions, getExtensionMainHtml } = useClientExtensions();
   const hostContext = useExtensionHostContext(null);
+  const { handleNavClick } = useNavigationSessions();
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const [html, setHtml] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -131,7 +135,17 @@ export default function ClientExtensionPageView() {
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-background-primary">
-      <div className="border-b border-border-primary px-4 py-3">
+      <div className="flex items-center gap-2 border-b border-border-primary px-4 py-3">
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          onClick={() => handleNavClick('/pair')}
+          className="no-drag"
+        >
+          <ArrowLeft className="h-4 w-4" />
+          Back to chat
+        </Button>
         <h1 className="text-sm font-medium text-text-primary">{rootLink.label}</h1>
       </div>
       <iframe

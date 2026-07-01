@@ -16,6 +16,10 @@ use goose_mcp::{AutoVisualiserRouter, ComputerControllerServer, MemoryServer, Tu
 use crate::commands::configure::configure_telemetry_consent_dialog;
 use crate::commands::configure::handle_configure;
 use crate::commands::info::handle_info;
+use crate::commands::client_extension::{
+    handle_client_extension_disable, handle_client_extension_enable,
+    handle_client_extension_install, handle_client_extension_list,
+};
 use crate::commands::plugin::{handle_plugin_install, handle_plugin_update};
 use crate::commands::project::{handle_project_default, handle_projects_interactive};
 use crate::commands::recipe::{handle_deeplink, handle_list, handle_open, handle_validate};
@@ -687,6 +691,34 @@ enum GatewayCommand {
 }
 
 #[derive(Subcommand)]
+enum ClientExtensionCommand {
+    /// Install a client extension from a local directory
+    #[command(about = "Install a client extension from a local directory")]
+    Install {
+        #[arg(help = "Path to a directory containing client-extension.json")]
+        path: PathBuf,
+    },
+
+    /// List installed client extensions
+    #[command(about = "List installed client extensions")]
+    List,
+
+    /// Enable a client extension
+    #[command(about = "Enable a client extension")]
+    Enable {
+        #[arg(help = "Client extension id")]
+        id: String,
+    },
+
+    /// Disable a client extension
+    #[command(about = "Disable a client extension")]
+    Disable {
+        #[arg(help = "Client extension id")]
+        id: String,
+    },
+}
+
+#[derive(Subcommand)]
 enum PluginCommand {
     /// Install a plugin from a git repository URL
     #[command(about = "Install a plugin from a git repository URL")]
@@ -957,6 +989,17 @@ enum Command {
     Plugin {
         #[command(subcommand)]
         command: PluginCommand,
+    },
+
+    /// Manage GRC client extensions for goose Desktop
+    #[command(
+        name = "client-extension",
+        about = "Manage GRC client extensions for goose Desktop",
+        visible_alias = "client-ext"
+    )]
+    ClientExtension {
+        #[command(subcommand)]
+        command: ClientExtensionCommand,
     },
 
     /// Manage scheduled jobs
@@ -1318,6 +1361,7 @@ fn get_command_name(command: &Option<Command>) -> &'static str {
         Some(Command::Recipe { .. }) => "recipe",
         Some(Command::Skills { .. }) => "skills",
         Some(Command::Plugin { .. }) => "plugin",
+        Some(Command::ClientExtension { .. }) => "client-extension",
         Some(Command::Term { .. }) => "term",
         #[cfg(feature = "tui")]
         Some(Command::Tui { .. }) => "tui",
@@ -1902,6 +1946,15 @@ fn handle_plugin_subcommand(command: PluginCommand) -> Result<()> {
     }
 }
 
+fn handle_client_extension_subcommand(command: ClientExtensionCommand) -> Result<()> {
+    match command {
+        ClientExtensionCommand::Install { path } => handle_client_extension_install(path),
+        ClientExtensionCommand::List => handle_client_extension_list(),
+        ClientExtensionCommand::Enable { id } => handle_client_extension_enable(&id),
+        ClientExtensionCommand::Disable { id } => handle_client_extension_disable(&id),
+    }
+}
+
 fn handle_recipe_subcommand(command: RecipeCommand) -> Result<()> {
     match command {
         RecipeCommand::Validate { recipe_name } => handle_validate(&recipe_name),
@@ -2225,6 +2278,7 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Recipe { command }) => handle_recipe_subcommand(command),
         Some(Command::Skills { command }) => handle_skills_subcommand(command).await,
         Some(Command::Plugin { command }) => handle_plugin_subcommand(command),
+        Some(Command::ClientExtension { command }) => handle_client_extension_subcommand(command),
         Some(Command::Term { command }) => handle_term_subcommand(command).await,
         #[cfg(feature = "tui")]
         Some(Command::Tui { args }) => crate::commands::tui::handle_tui(args),
