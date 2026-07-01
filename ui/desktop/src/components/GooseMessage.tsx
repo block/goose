@@ -24,6 +24,7 @@ import MessageCopyLink from './MessageCopyLink';
 import MessageUsageStats from './MessageUsageStats';
 import { cn } from '../utils';
 import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '../utils/toolCallChaining';
+import { ClientExtensionMessageDecorations } from '../client-extensions/ClientExtensionMessageDecorations';
 
 interface GooseMessageProps {
   sessionId: string;
@@ -158,6 +159,13 @@ function GooseMessage({
                 ))}
               </div>
             )}
+
+            <ClientExtensionMessageDecorations
+              sessionId={sessionId}
+              message={message}
+              displayText={displayText}
+              imageCount={imagePaths.length}
+            />
 
             {toolRequests.length === 0 && (
               <div className="relative flex items-center justify-between">

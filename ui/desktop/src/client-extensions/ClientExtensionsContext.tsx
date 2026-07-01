@@ -3,17 +3,27 @@ import { useLocation } from 'react-router-dom';
 import {
   type DiscoveredClientExtension,
   type ExtensionHostContext,
+  type MessageExtensionHostContext,
   type RegisteredChatAction,
+  type RegisteredContentSuffix,
+  type RegisteredCustomRender,
   type RegisteredRootLink,
 } from './types';
 import { evaluateWhenClause } from './when';
 import { clientExtensionViewPath } from './routes';
+import { selectCustomRender } from './customRender';
+import { extractCodeBlocks } from './messageContext';
 
 interface ClientExtensionsContextValue {
   extensions: DiscoveredClientExtension[];
   loading: boolean;
   getChatActions: (context: ExtensionHostContext) => RegisteredChatAction[];
   getRootLinks: (context: ExtensionHostContext) => RegisteredRootLink[];
+  getContentSuffixes: (context: MessageExtensionHostContext) => RegisteredContentSuffix[];
+  getCustomRender: (
+    context: MessageExtensionHostContext,
+    displayText: string
+  ) => RegisteredCustomRender | null;
   getExtensionMainHtml: (extensionId: string) => Promise<string | null>;
   reloadExtensions: () => Promise<void>;
 }
@@ -94,16 +104,68 @@ export function ClientExtensionsProvider({ children }: { children: React.ReactNo
     [extensions]
   );
 
+  const getContentSuffixes = useCallback(
+    (context: MessageExtensionHostContext): RegisteredContentSuffix[] => {
+      const suffixes: RegisteredContentSuffix[] = [];
+
+      for (const extension of extensions) {
+        const contributions = extension.manifest.contributes?.contentSuffixes ?? [];
+        for (const contribution of contributions) {
+          if (!evaluateWhenClause(contribution.when, context)) {
+            continue;
+          }
+          suffixes.push({
+            ...contribution,
+            extensionId: extension.id,
+          });
+        }
+      }
+
+      return suffixes;
+    },
+    [extensions]
+  );
+
+  const getCustomRender = useCallback(
+    (context: MessageExtensionHostContext, displayText: string): RegisteredCustomRender | null => {
+      const renders: RegisteredCustomRender[] = [];
+
+      for (const extension of extensions) {
+        const contributions = extension.manifest.contributes?.customRenders ?? [];
+        for (const contribution of contributions) {
+          renders.push({
+            ...contribution,
+            extensionId: extension.id,
+          });
+        }
+      }
+
+      return selectCustomRender(renders, context, extractCodeBlocks(displayText));
+    },
+    [extensions]
+  );
+
   const value = useMemo(
     () => ({
       extensions,
       loading,
       getChatActions,
       getRootLinks,
+      getContentSuffixes,
+      getCustomRender,
       getExtensionMainHtml,
       reloadExtensions,
     }),
-    [extensions, loading, getChatActions, getRootLinks, getExtensionMainHtml, reloadExtensions]
+    [
+      extensions,
+      loading,
+      getChatActions,
+      getRootLinks,
+      getContentSuffixes,
+      getCustomRender,
+      getExtensionMainHtml,
+      reloadExtensions,
+    ]
   );
 
   return (

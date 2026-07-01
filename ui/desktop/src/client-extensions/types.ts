@@ -12,9 +12,29 @@ export interface RootLinkContribution {
   when?: string;
 }
 
+export interface ContentSuffixContribution {
+  id: string;
+  when?: string;
+}
+
+export interface CustomRenderMatch {
+  contentType?: 'code' | 'text';
+  language?: string;
+}
+
+export interface CustomRenderContribution {
+  id: string;
+  match: CustomRenderMatch;
+  display?: 'inline';
+  priority?: number;
+  when?: string;
+}
+
 export interface ClientExtensionContributes {
   chatActions?: ChatActionContribution[];
   rootLinks?: RootLinkContribution[];
+  contentSuffixes?: ContentSuffixContribution[];
+  customRenders?: CustomRenderContribution[];
 }
 
 export interface ClientExtensionManifest {
@@ -42,9 +62,37 @@ export interface RegisteredRootLink extends RootLinkContribution {
   path: string;
 }
 
+export interface RegisteredContentSuffix extends ContentSuffixContribution {
+  extensionId: string;
+}
+
+export interface RegisteredCustomRender extends CustomRenderContribution {
+  extensionId: string;
+}
+
+export interface CodeBlock {
+  language: string;
+  content: string;
+}
+
 export interface ExtensionHostContext {
   sessionId: string | null;
   route: string;
+}
+
+export interface MessageExtensionHostContext extends ExtensionHostContext {
+  messageId: string | null;
+  role: string;
+  hasText: boolean;
+  hasImage: boolean;
+  hasToolRequests: boolean;
+  codeLanguages: string[];
+}
+
+export interface MessageRenderPayload {
+  textPreview: string;
+  codeBlocks: CodeBlock[];
+  matchedLanguage?: string;
 }
 
 export type HostToExtensionMessage =
@@ -57,8 +105,16 @@ export type HostToExtensionMessage =
       type: 'grc/activate';
       viewId: string;
       context: ExtensionHostContext;
+    }
+  | {
+      type: 'grc/render';
+      slotId: string;
+      slotKind: 'contentSuffix' | 'customRender';
+      context: MessageExtensionHostContext;
+      payload: MessageRenderPayload;
     };
 
 export type ExtensionToHostMessage =
   | { type: 'grc/ui/showMessage'; text: string }
-  | { type: 'grc/chat/setInput'; text: string };
+  | { type: 'grc/chat/setInput'; text: string }
+  | { type: 'grc/resize'; height: number };
