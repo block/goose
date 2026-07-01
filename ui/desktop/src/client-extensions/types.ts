@@ -59,7 +59,11 @@ export interface DiscoveredClientExtension {
   id: string;
   rootPath: string;
   manifest: ClientExtensionManifest;
+  source: ClientExtensionSource;
+  enabled: boolean;
 }
+
+export type ClientExtensionSource = 'installed' | 'dev';
 
 export interface RegisteredChatAction extends ChatActionContribution {
   extensionId: string;

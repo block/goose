@@ -78,6 +78,10 @@ const i18n = defineMessages({
     id: 'navigationPanel.statusIdle',
     defaultMessage: 'Idle',
   },
+  addonPages: {
+    id: 'navigationPanel.addonPages',
+    defaultMessage: 'Add-on pages',
+  },
 });
 
 const navItemClass = (active: boolean) =>
@@ -340,14 +344,21 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
             onClick={() => handleNavClick(item.path)}
           />
         ))}
-        {extensionNavItems.map((item) => (
-          <NavRow
-            key={item.id}
-            item={item}
-            active={isActive(item.path)}
-            onClick={() => handleNavClick(item.path)}
-          />
-        ))}
+        {extensionNavItems.length > 0 && (
+          <>
+            <div className="px-3 pt-2 pb-1 text-xs font-semibold uppercase tracking-wider text-text-secondary">
+              {intl.formatMessage(i18n.addonPages)}
+            </div>
+            {extensionNavItems.map((item) => (
+              <NavRow
+                key={item.id}
+                item={item}
+                active={isActive(item.path)}
+                onClick={() => handleNavClick(item.path)}
+              />
+            ))}
+          </>
+        )}
       </div>
 
       <div className="flex-1 min-h-0 flex flex-col mt-3">

@@ -25,6 +25,7 @@ import MessageUsageStats from './MessageUsageStats';
 import { cn } from '../utils';
 import { identifyConsecutiveToolCalls, shouldHideTimestamp } from '../utils/toolCallChaining';
 import { ClientExtensionMessageDecorations } from '../client-extensions/ClientExtensionMessageDecorations';
+import { useMessageDisplayText } from '../client-extensions/useMessageDisplayText';
 
 interface GooseMessageProps {
   sessionId: string;
@@ -58,6 +59,12 @@ function GooseMessage({
   const displayText = isOutputTokenLimitFallback ? '' : textContent;
   const imagePaths = isOutputTokenLimitFallback ? [] : allImagePaths;
   const thinkingContent = isOutputTokenLimitFallback ? null : getThinkingContent(message);
+  const renderedText = useMessageDisplayText(
+    sessionId,
+    message,
+    displayText,
+    imagePaths.length
+  );
 
   const timestamp = useMemo(() => formatMessageTimestamp(message.created), [message.created]);
   const toolRequests = getToolRequests(message);
@@ -144,11 +151,11 @@ function GooseMessage({
           />
         )}
 
-        {(displayText.trim() || imagePaths.length > 0) && (
+        {(renderedText.trim() || imagePaths.length > 0) && (
           <div className="flex flex-col group">
-            {displayText.trim() && (
+            {renderedText.trim() && (
               <div ref={contentRef} className="agent-message-bubble w-full">
-                <MarkdownContent content={displayText} />
+                <MarkdownContent content={renderedText} />
               </div>
             )}
 
