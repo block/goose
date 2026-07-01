@@ -9,8 +9,9 @@ import {
 } from '../acp/extensions';
 import { pruneDeprecatedBundledExtensions, syncBundledExtensions } from './settings/extensions';
 import { nameToKey } from './settings/extensions/utils';
-import type { ConfigResponse, ProviderDetails } from '../api';
+import type { ConfigResponse } from '../api';
 import type { ExtensionConfig } from '../types/extensions';
+import type { ProviderDetails } from '../types/providers';
 
 export type { ExtensionConfig } from '../types/extensions';
 

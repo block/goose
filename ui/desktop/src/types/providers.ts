@@ -36,6 +36,14 @@ export type ProviderMetadata = {
   setup_steps?: string[];
 };
 
+export type ProviderDetails = {
+  is_configured: boolean;
+  metadata: ProviderMetadata;
+  name: string;
+  provider_type: ProviderType;
+  saved_model?: string | null;
+};
+
 export type UpdateCustomProviderRequest = {
   api_key: string;
   api_url: string;

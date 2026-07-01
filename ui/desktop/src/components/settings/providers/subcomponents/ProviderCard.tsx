@@ -3,8 +3,7 @@ import CardContainer from './CardContainer';
 import CardHeader from './CardHeader';
 import CardBody from './CardBody';
 import DefaultCardButtons from './buttons/DefaultCardButtons';
-import type { ProviderDetails } from '../../../../api';
-import type { ProviderMetadata } from '../../../../types/providers';
+import type { ProviderDetails, ProviderMetadata } from '../../../../types/providers';
 import { defineMessages, useIntl } from '../../../../i18n';
 
 const i18n = defineMessages({

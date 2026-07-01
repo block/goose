@@ -1,6 +1,6 @@
 import { useState } from 'react';
-import { ProviderDetails } from '../../api';
 import { acpAuthenticateProvider } from '../../acp/providers';
+import type { ProviderDetails } from '../../types/providers';
 import DefaultProviderSetupForm, {
   ConfigInput,
 } from '../settings/providers/modal/subcomponents/forms/DefaultProviderSetupForm';
