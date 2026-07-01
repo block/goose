@@ -25,7 +25,7 @@ async fn main() -> Result<()> {
     let zai_model = ModelConfig::new("glm-4.5-flash");
 
     for (json, model) in [(deepseek, deepseek_model), (zai, zai_model)] {
-        let provider = goose_providers::declarative::from_json(json, None, EnvKeyResolver {})?;
+        let provider = goose_providers::declarative::deepseek::create(None, EnvKeyResolver {})?;
         println!("{}:", provider.get_name());
         complete(provider.as_ref(), model).await?;
     }

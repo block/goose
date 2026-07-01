@@ -33,7 +33,7 @@ macro_rules! expose_declarative_providers {
         pub fn fixed_provider_configs() -> anyhow::Result<Vec<DeclarativeProviderConfig>> {
             [$($module::JSON),+]
                 .into_iter()
-                .map(config_from_json)
+                .map(config_from_json_unresolved)
                 .collect()
         }
     };

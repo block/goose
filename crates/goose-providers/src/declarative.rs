@@ -236,7 +236,7 @@ fn resolve_config(config: &mut DeclarativeProviderConfig) -> Result<()> {
     Ok(())
 }
 
-fn config_from_json(json: &str) -> Result<DeclarativeProviderConfig> {
+fn config_from_json_unresolved(json: &str) -> Result<DeclarativeProviderConfig> {
     let raw: serde_json::Value = serde_json::from_str(json)?;
     let preserves_thinking_was_set = raw.get("preserves_thinking").is_some();
     let mut config: DeclarativeProviderConfig = serde_json::from_value(raw)?;
@@ -245,6 +245,11 @@ fn config_from_json(json: &str) -> Result<DeclarativeProviderConfig> {
         config.preserves_thinking = should_preserve_thinking_by_default(&config.engine);
     }
 
+    Ok(config)
+}
+
+fn config_from_json(json: &str) -> Result<DeclarativeProviderConfig> {
+    let mut config = config_from_json_unresolved(json)?;
     resolve_config(&mut config)?;
     Ok(config)
 }
