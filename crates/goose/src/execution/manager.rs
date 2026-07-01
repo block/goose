@@ -329,21 +329,18 @@ impl AgentManager {
     }
 
     /// Drops an in-memory agent when one is loaded for `session_id`.
-    /// Returns `Ok(false)` when no agent was loaded, `Ok(true)` when removed.
-    /// Concurrent callers for the same session_id are safe: only the first removal
-    /// returns `Ok(true)`; the rest get `Ok(false)`.
-    pub async fn remove_session_if_loaded(&self, session_id: &str) -> Result<bool> {
+    pub async fn remove_session_if_loaded(&self, session_id: &str) -> Result<()> {
         if let Some(token) = self.cancel_tokens.write().await.remove(session_id) {
             token.cancel();
         }
         let mut sessions = self.sessions.write().await;
         if sessions.pop(session_id).is_none() {
-            return Ok(false);
+            return Ok(());
         }
         drop(sessions);
         self.prune_creation_lock(session_id).await;
         info!("Removed session {}", session_id);
-        Ok(true)
+        Ok(())
     }
 
     pub async fn has_session(&self, session_id: &str) -> bool {
@@ -508,34 +505,12 @@ mod tests {
         let manager = create_test_manager(&temp_dir).await;
         let session = String::from("remove-if-loaded-test");
 
-        assert!(!manager.remove_session_if_loaded(&session).await.unwrap());
+        manager.remove_session_if_loaded(&session).await.unwrap();
 
         manager.get_or_create_agent(session.clone()).await.unwrap();
-        assert!(manager.remove_session_if_loaded(&session).await.unwrap());
+        manager.remove_session_if_loaded(&session).await.unwrap();
         assert!(!manager.has_session(&session).await);
-        assert!(!manager.remove_session_if_loaded(&session).await.unwrap());
-    }
-
-    #[tokio::test]
-    async fn test_concurrent_remove_session_if_loaded() {
-        let temp_dir = TempDir::new().unwrap();
-        let manager = Arc::new(create_test_manager(&temp_dir).await);
-        let session = String::from("concurrent-remove-if-loaded");
-
-        manager.get_or_create_agent(session.clone()).await.unwrap();
-
-        let mgr_a = Arc::clone(&manager);
-        let mgr_b = Arc::clone(&manager);
-        let sid_a = session.clone();
-        let sid_b = session.clone();
-        let (a, b) = tokio::join!(
-            tokio::spawn(async move { mgr_a.remove_session_if_loaded(&sid_a).await }),
-            tokio::spawn(async move { mgr_b.remove_session_if_loaded(&sid_b).await }),
-        );
-
-        let results = [a.unwrap().unwrap(), b.unwrap().unwrap()];
-        assert!(results.iter().filter(|removed| **removed).count() == 1);
-        assert!(!manager.has_session(&session).await);
+        manager.remove_session_if_loaded(&session).await.unwrap();
     }
 
     #[tokio::test]
