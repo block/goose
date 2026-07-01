@@ -919,12 +919,19 @@ impl CliSession {
             // before a timeout wrapped around fetch_supported_models() alone could
             // fire. A provider that errors, times out, or lists nothing is skipped.
             let provider_name = meta.name.clone();
-            let listed = tokio::time::timeout(Duration::from_secs(15), async move {
-                let temp_provider = goose::providers::create(&provider_name, Vec::new()).await?;
-                let applies_selected_model = temp_provider.applies_selected_model();
-                let models = temp_provider.fetch_supported_models().await?;
-                Ok::<(bool, Vec<String>), anyhow::Error>((applies_selected_model, models))
-            })
+            // Suppress ACP model pinning while listing: an option-backed ACP
+            // provider (Copilot) would otherwise try to apply the active
+            // session's model, reject it as foreign, and drop out of the picker.
+            let listed = goose::acp::while_listing_models(tokio::time::timeout(
+                Duration::from_secs(15),
+                async move {
+                    let temp_provider =
+                        goose::providers::create(&provider_name, Vec::new()).await?;
+                    let applies_selected_model = temp_provider.applies_selected_model();
+                    let models = temp_provider.fetch_supported_models().await?;
+                    Ok::<(bool, Vec<String>), anyhow::Error>((applies_selected_model, models))
+                },
+            ))
             .await;
 
             match listed {

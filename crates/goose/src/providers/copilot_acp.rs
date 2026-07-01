@@ -63,15 +63,11 @@ impl ProviderDef for CopilotAcpProvider {
                 .with_npm()
                 .resolve(COPILOT_ACP_BINARY)?;
             let goose_mode = config.get_goose_mode().unwrap_or(GooseMode::Auto);
-            let model = config
-                .get_goose_model()
-                .unwrap_or_else(|_| ACP_CURRENT_MODEL.to_string());
 
             let args = vec!["--acp".to_string()];
-            let session_config_options = if model == ACP_CURRENT_MODEL {
-                vec![]
-            } else {
-                vec![("model".to_string(), model)]
+            let session_config_options = match model_to_pin(config.get_goose_model().ok()) {
+                Some(model) => vec![("model".to_string(), model)],
+                None => vec![],
             };
 
             // Copilot modes are full protocol URIs.
@@ -100,5 +96,43 @@ impl ProviderDef for CopilotAcpProvider {
             let metadata = Self::metadata();
             AcpProvider::connect(metadata.name, goose_mode, provider_config).await
         })
+    }
+}
+
+/// The model to pin as Copilot's session config option, or `None` to start on
+/// Copilot's current model. Returns `None` while the `/model` picker is only
+/// listing models, so a session model that belongs to another provider is never
+/// forced onto Copilot (which would reject it and vanish from the picker).
+fn model_to_pin(configured_model: Option<String>) -> Option<String> {
+    if crate::acp::is_listing_models() {
+        return None;
+    }
+    match configured_model {
+        Some(model) if model != ACP_CURRENT_MODEL => Some(model),
+        _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn model_to_pin_uses_configured_model_normally() {
+        assert_eq!(
+            model_to_pin(Some("gpt-4o".to_string())),
+            Some("gpt-4o".to_string())
+        );
+        assert_eq!(model_to_pin(None), None);
+        assert_eq!(model_to_pin(Some(ACP_CURRENT_MODEL.to_string())), None);
+    }
+
+    #[tokio::test]
+    async fn model_to_pin_is_neutral_while_listing() {
+        crate::acp::while_listing_models(async {
+            assert_eq!(model_to_pin(Some("gpt-4o".to_string())), None);
+            assert_eq!(model_to_pin(None), None);
+        })
+        .await;
     }
 }
