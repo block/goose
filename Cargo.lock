@@ -5091,6 +5091,7 @@ dependencies = [
  "mlx-lm-utils",
  "mlx-rs",
  "once_cell",
+ "regex",
  "reqwest 0.13.4",
  "rmcp",
  "serde",

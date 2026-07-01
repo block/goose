@@ -36,6 +36,7 @@ llama-cpp-sys-2 = { workspace = true }
 minijinja = { version = "2.18", default-features = false, features = ["loader", "multi_template", "serde"] }
 once_cell = { workspace = true }
 reqwest = { workspace = true, features = ["json", "stream"] }
+regex = { workspace = true }
 rmcp = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }

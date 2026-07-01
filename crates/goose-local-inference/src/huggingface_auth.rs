@@ -1,11 +1,17 @@
 use crate::paths::Paths;
 use anyhow::Result;
 use chrono::{DateTime, Utc};
+use futures::future::BoxFuture;
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
+use std::sync::OnceLock;
 
 pub const HUGGINGFACE_TOKEN_SECRET_KEY: &str = "HF_TOKEN";
 pub const HUGGINGFACE_OAUTH_CACHE_PATH: &str = "huggingface/oauth/tokens.json";
+
+pub type TokenResolver = fn() -> BoxFuture<'static, Result<Option<String>>>;
+
+static TOKEN_RESOLVER: OnceLock<TokenResolver> = OnceLock::new();
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct HuggingFaceTokenData {
@@ -43,7 +49,15 @@ pub fn hf_token_secret() -> Result<Option<String>> {
         .filter(|token| !token.trim().is_empty()))
 }
 
+pub fn set_token_resolver(resolve_token: TokenResolver) {
+    let _ = TOKEN_RESOLVER.set(resolve_token);
+}
+
 pub async fn resolve_token_async() -> Result<Option<String>> {
+    if let Some(resolve_token) = TOKEN_RESOLVER.get() {
+        return resolve_token().await;
+    }
+
     if let Some(token) = usable_oauth_token() {
         return Ok(Some(token));
     }

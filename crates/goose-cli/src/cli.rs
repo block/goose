@@ -2038,6 +2038,8 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
     use goose::providers::local_inference::hf_models;
     use goose::providers::local_inference::local_model_registry::get_registry;
 
+    goose::providers::local_inference::configure_huggingface_auth();
+
     match command {
         LocalModelsCommand::Search { query, limit } => {
             println!("Searching HuggingFace for '{}'...", query);

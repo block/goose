@@ -19,11 +19,14 @@ mod imp {
         StreamingEmulatorParser, CODE_EXECUTION_TOOL,
     };
     use crate::{extract_text_content, ResolvedModelPaths};
-    use goose_provider_types::base::{DraftStats, ProviderStats, ProviderUsage, Usage};
     use goose_provider_types::conversation::message::Message;
+    use goose_provider_types::conversation::token_usage::{
+        DraftStats, ProviderStats, ProviderUsage, Usage,
+    };
     use goose_provider_types::errors::ProviderError;
     use goose_provider_types::formats::openai;
     use goose_provider_types::images::ImageFormat;
+    use goose_provider_types::request_log::LoggerHandleExt;
 
     pub(crate) const MLX_BACKEND_ID: &str = "mlx";
 
