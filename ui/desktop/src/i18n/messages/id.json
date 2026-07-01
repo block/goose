@@ -1169,6 +1169,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "Secara bawaan goose menjalankan server untuk Anda, gunakan ini untuk terhubung ke server goose eksternal"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Perubahan memerlukan mulai ulang Goose agar berlaku. Jendela obrolan baru akan terhubung ke server eksternal."
   },

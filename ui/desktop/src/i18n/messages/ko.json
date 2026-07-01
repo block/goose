@@ -1169,6 +1169,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "기본적으로 goose가 서버를 자동으로 실행합니다. 외부 goose 서버에 연결하려면 이 옵션을 사용하세요."
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "변경 사항을 적용하려면 goose를 다시 시작해야 합니다. 새 채팅 창은 외부 서버에 연결됩니다."
   },

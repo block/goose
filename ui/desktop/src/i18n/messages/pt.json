@@ -1169,6 +1169,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "Por padrão, o goose inicia um servidor para você; use isto para conectar-se a um servidor goose externo"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "As alterações exigem reiniciar o Goose para entrar em vigor. As novas janelas de chat se conectarão ao servidor externo."
   },

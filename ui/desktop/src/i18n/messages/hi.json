@@ -1169,6 +1169,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "डिफ़ॉल्ट रूप से goose आपके लिए एक सर्वर लॉन्च करता है, बाहरी goose सर्वर से कनेक्ट करने के लिए इसका उपयोग करें"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "परिवर्तनों को प्रभावी होने के लिए Goose को पुनः आरंभ करने की आवश्यकता है। नई चैट विंडो बाहरी सर्वर से कनेक्ट होंगी."
   },
