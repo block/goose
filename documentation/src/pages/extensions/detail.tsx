@@ -60,13 +60,15 @@ const getDocumentationPath = (serverId: string): string => {
 
             <div className="server-card flex-1">
               <div className="card p-8 relative">
-                <Link
-                  to={`/docs/mcp/${getDocumentationPath(server.id)}`}
-                  className="absolute top-4 right-4 flex items-center gap-2 text-textSubtle hover:text-textProminent transition-colors no-underline"
-                  title="View tutorial"
-                >
-                  <BookOpen className="h-5 w-5" />
-                </Link>
+                {server.show_documentation !== false && (
+                  <Link
+                    to={`/docs/mcp/${getDocumentationPath(server.id)}`}
+                    className="absolute top-4 right-4 flex items-center gap-2 text-textSubtle hover:text-textProminent transition-colors no-underline"
+                    title="View tutorial"
+                  >
+                    <BookOpen className="h-5 w-5" />
+                  </Link>
+                )}
                 <div className="card-header mb-6">
                   <div className="flex items-center gap-4">
                     <h1 className="font-medium text-5xl text-textProminent m-0">
