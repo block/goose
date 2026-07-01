@@ -46,4 +46,9 @@ describe('evaluateWhenClause', () => {
   it('returns false for message clauses without message context', () => {
     expect(evaluateWhenClause('message.hasImage', { sessionId: 'abc', route: '/' })).toBe(false);
   });
+
+  it('matches route.pair', () => {
+    expect(evaluateWhenClause('route.pair', { sessionId: null, route: '/pair' })).toBe(true);
+    expect(evaluateWhenClause('route.pair', { sessionId: null, route: '/settings' })).toBe(false);
+  });
 });

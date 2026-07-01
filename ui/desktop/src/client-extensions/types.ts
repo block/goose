@@ -30,11 +30,19 @@ export interface CustomRenderContribution {
   when?: string;
 }
 
+export interface SidecarContribution {
+  id: string;
+  label: string;
+  when?: string;
+  defaultOpen?: boolean;
+}
+
 export interface ClientExtensionContributes {
   chatActions?: ChatActionContribution[];
   rootLinks?: RootLinkContribution[];
   contentSuffixes?: ContentSuffixContribution[];
   customRenders?: CustomRenderContribution[];
+  sidecars?: SidecarContribution[];
 }
 
 export interface ClientExtensionManifest {
@@ -67,6 +75,10 @@ export interface RegisteredContentSuffix extends ContentSuffixContribution {
 }
 
 export interface RegisteredCustomRender extends CustomRenderContribution {
+  extensionId: string;
+}
+
+export interface RegisteredSidecar extends SidecarContribution {
   extensionId: string;
 }
 
@@ -104,6 +116,7 @@ export type HostToExtensionMessage =
   | {
       type: 'grc/activate';
       viewId: string;
+      viewKind?: 'rootLink' | 'sidecar';
       context: ExtensionHostContext;
     }
   | {
