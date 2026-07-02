@@ -72,7 +72,11 @@ export function CostTracker({
         return;
       }
 
-      if (!providerUsage?.length && accumulatedCost != null) {
+      if (
+        accumulatedCost != null &&
+        (!providerUsage?.length ||
+          !providerUsageCoversTokenTotals(providerUsage, inputTokens, outputTokens))
+      ) {
         setCostEstimate(null);
         setPricingFailed(false);
         setIsLoading(false);
@@ -139,18 +143,6 @@ export function CostTracker({
   }
 
   if (accumulatedCost == null && !costEstimate) {
-    const freeProviders = ['ollama', 'local', 'localhost'];
-    if (freeProviders.includes(currentProvider.toLowerCase())) {
-      return (
-        <div className="flex items-center justify-center h-full text-text-primary/70 transition-colors cursor-default translate-y-[1px]">
-          <span className="text-xs font-mono">
-            {inputTokens.toLocaleString()}↑ {outputTokens.toLocaleString()}↓
-          </span>
-        </div>
-      );
-    }
-
-    // Otherwise show as unavailable
     return renderCost(
       '0.0000',
       pricingFailed
@@ -218,9 +210,9 @@ async function calculateUsageCost(entries: ProviderUsageEntry[]): Promise<CostEs
     if (!cost) {
       return null;
     }
-    const currency = modelInfo?.currency || '$';
     estimate.inputTokens += entry.inputTokens;
     estimate.outputTokens += entry.outputTokens;
+    const currency = modelInfo?.currency || '$';
     addCost(estimate.input, currency, cost.input);
     addCost(estimate.output, currency, cost.output);
     addCost(estimate.total, currency, cost.input + cost.output);
@@ -256,6 +248,22 @@ function calculateEntryCost(
   const output = (entry.outputTokens * outputTokenCost) / 1_000_000;
 
   return { input, output };
+}
+
+function providerUsageCoversTokenTotals(
+  entries: ProviderUsageEntry[],
+  inputTokens: number,
+  outputTokens: number
+): boolean {
+  const totals = entries.reduce(
+    (totals, entry) => ({
+      input: totals.input + entry.inputTokens,
+      output: totals.output + entry.outputTokens,
+    }),
+    { input: 0, output: 0 }
+  );
+
+  return totals.input >= inputTokens && totals.output >= outputTokens;
 }
 
 function addCost(totals: Record<string, number>, currency: string, amount: number): void {

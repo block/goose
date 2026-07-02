@@ -72,6 +72,10 @@ fn inventory_entry_to_dto(entry: ProviderInventoryEntry) -> ProviderInventoryEnt
     }
 }
 
+fn provider_price_per_million(price: Option<f64>) -> Option<f64> {
+    price.map(|price| price * 1_000_000.0)
+}
+
 fn provider_config_key_to_dto(key: crate::providers::base::ConfigKey) -> ProviderConfigKey {
     ProviderConfigKey {
         name: key.name,
@@ -1065,10 +1069,10 @@ impl GooseAcpAgent {
                         .and_then(|model| model.reasoning)
                         .unwrap_or_else(|| ModelConfig::new(&req.model).is_reasoning_model()),
                 input_token_cost: provider
-                    .and_then(|model| model.input_token_cost)
+                    .and_then(|model| provider_price_per_million(model.input_token_cost))
                     .or_else(|| canonical.and_then(|model| model.cost.input)),
                 output_token_cost: provider
-                    .and_then(|model| model.output_token_cost)
+                    .and_then(|model| provider_price_per_million(model.output_token_cost))
                     .or_else(|| canonical.and_then(|model| model.cost.output)),
                 cache_read_token_cost: canonical.and_then(|model| model.cost.cache_read),
                 cache_write_token_cost: canonical.and_then(|model| model.cost.cache_write),
@@ -1080,5 +1084,16 @@ impl GooseAcpAgent {
                     .unwrap_or_else(|| "$".to_string()),
             }),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::provider_price_per_million;
+
+    #[test]
+    fn provider_price_per_million_normalizes_per_token_price() {
+        assert_eq!(provider_price_per_million(Some(0.000003)), Some(3.0));
+        assert_eq!(provider_price_per_million(None), None);
     }
 }

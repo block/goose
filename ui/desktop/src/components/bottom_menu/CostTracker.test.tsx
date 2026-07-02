@@ -98,6 +98,31 @@ describe('CostTracker', () => {
     expect(fetchCanonicalModelInfoMock).not.toHaveBeenCalled();
   });
 
+  it('prefers accumulated cost when provider usage snapshots are partial', async () => {
+    renderWithIntl(
+      <CostTracker
+        model="gpt-5.5"
+        provider="test-provider"
+        inputTokens={100000}
+        outputTokens={10000}
+        accumulatedCost={12.34}
+        providerUsage={[
+          {
+            providerId: 'test-provider',
+            modelId: 'gpt-5.5-2026-04-23',
+            lastUsedAt: '2026-07-02T18:10:38Z',
+            inputTokens: 10000,
+            outputTokens: 1000,
+          },
+        ]}
+      />
+    );
+
+    expect(await screen.findByText('12.34')).toBeInTheDocument();
+    expect(screen.getByText(/Total session cost: 12.34/)).toBeInTheDocument();
+    expect(fetchCanonicalModelInfoMock).not.toHaveBeenCalled();
+  });
+
   it('prices cached input tokens with cache rates when available', async () => {
     fetchCanonicalModelInfoMock.mockResolvedValue({
       provider: 'test-provider',
@@ -224,5 +249,92 @@ describe('CostTracker', () => {
         /Input: 1,010,000 tokens \(₽5.00 \+ \$1.00\) \| Output: 1,001,000 tokens \(₽3.00 \+ \$2.00\)/
       )
     ).toBeInTheDocument();
+  });
+
+  it('treats free provider usage as zero cost when mixed with paid usage', async () => {
+    fetchCanonicalModelInfoMock.mockImplementation(async (provider) => {
+      if (provider === 'free-provider') {
+        return {
+          provider,
+          model: 'llama3',
+          contextLimit: 128000,
+          maxOutputTokens: null,
+          reasoning: false,
+          inputTokenCost: 0,
+          outputTokenCost: 0,
+          cacheReadTokenCost: null,
+          cacheWriteTokenCost: null,
+          currency: '$',
+        };
+      }
+
+      return {
+        provider,
+        model: 'gpt-5.5',
+        contextLimit: 128000,
+        maxOutputTokens: null,
+        reasoning: true,
+        inputTokenCost: 500,
+        outputTokenCost: 3000,
+        cacheReadTokenCost: null,
+        cacheWriteTokenCost: null,
+        currency: 'RUB',
+      };
+    });
+
+    renderWithIntl(
+      <CostTracker
+        model="gpt-5.5"
+        provider="test-provider"
+        providerUsage={[
+          {
+            providerId: 'free-provider',
+            modelId: 'llama3',
+            lastUsedAt: '2026-07-02T18:10:38Z',
+            inputTokens: 10000,
+            outputTokens: 1000,
+          },
+          {
+            providerId: 'test-provider',
+            modelId: 'gpt-5.5',
+            lastUsedAt: '2026-07-02T18:12:38Z',
+            inputTokens: 10000,
+            outputTokens: 1000,
+          },
+        ]}
+      />
+    );
+
+    expect(await screen.findByText('₽8.00')).toBeInTheDocument();
+    expect(
+      screen.getByText(/Input: 20,000 tokens \(₽5.00\) \| Output: 2,000 tokens \(₽3.00\)/)
+    ).toBeInTheDocument();
+  });
+
+  it('does not infer free pricing from provider names', async () => {
+    fetchCanonicalModelInfoMock.mockResolvedValue({
+      provider: 'ollama',
+      model: 'llama3',
+      contextLimit: 128000,
+      maxOutputTokens: null,
+      reasoning: false,
+      inputTokenCost: null,
+      outputTokenCost: null,
+      cacheReadTokenCost: null,
+      cacheWriteTokenCost: null,
+      currency: '$',
+    });
+
+    renderWithIntl(
+      <CostTracker
+        model="llama3"
+        provider="ollama"
+        inputTokens={10000}
+        outputTokens={1000}
+      />
+    );
+
+    expect(await screen.findByText('0.0000')).toBeInTheDocument();
+    expect(screen.getByText(/Pricing data unavailable for llama3/)).toBeInTheDocument();
   });
 });
