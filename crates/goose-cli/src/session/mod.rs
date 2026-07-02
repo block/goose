@@ -713,6 +713,7 @@ impl CliSession {
                 self.process_agent_response(true, CancellationToken::default())
                     .await?;
                 output::hide_thinking();
+                output::emit_attention_bell();
 
                 let elapsed = start_time.elapsed();
                 let elapsed_str = format_elapsed_time(elapsed);
@@ -1851,6 +1852,7 @@ fn emit_stream_event(event: &StreamEvent) {
 /// Prompt user for tool call confirmation, returns the Permission selected
 fn prompt_tool_confirmation(security_prompt: &Option<String>) -> Result<Permission> {
     output::hide_thinking();
+    output::emit_attention_bell();
 
     let prompt = if let Some(security_message) = security_prompt {
         println!("\n{}", security_message);
