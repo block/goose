@@ -157,8 +157,10 @@ impl Agent {
             .ok_or_else(|| anyhow!("Session has no conversation"))?;
 
         let model_config = self.model_config_for_session(session_id).await?;
+        let provider = self.provider().await?;
+        let provider_name = provider.get_name().to_string();
         let (compacted_conversation, usage) = compact_messages(
-            self.provider().await?.as_ref(),
+            provider.as_ref(),
             &model_config,
             session_id,
             &conversation,
@@ -170,6 +172,9 @@ impl Agent {
             .replace_conversation(session_id, &compacted_conversation)
             .await?;
 
+        let usage = usage
+            .with_provider(provider_name)
+            .with_model(model_config.model_name);
         self.update_session_metrics(session_id, session.schedule_id, &usage, true)
             .await?;
 
@@ -510,6 +515,7 @@ fn user_only_assistant_text(text: impl Into<String>) -> Message {
 mod tests {
     use super::*;
     use crate::conversation::message::MessageContent;
+    use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 
     #[test]
     fn parse_slash_command_splits_on_literal_space() {
@@ -559,6 +565,21 @@ mod tests {
             message.content.as_slice(),
             [MessageContent::Text(text)] if text.text == "Conversation cleared"
         ));
+    }
+
+    #[test]
+    fn compact_usage_is_attributed_to_request_identity() {
+        let usage = ProviderUsage::new(
+            "resolved-model-from-provider".to_string(),
+            Usage::new(Some(10), Some(2), Some(12)),
+        );
+
+        let usage = usage
+            .with_provider("custom-provider")
+            .with_model("configured-model");
+
+        assert_eq!(usage.provider.as_deref(), Some("custom-provider"));
+        assert_eq!(usage.model, "configured-model");
     }
 
     #[test]
