@@ -184,41 +184,27 @@ cd ui && pnpm install
 
 See #8757.
 
-### Regenerating the OpenAPI schema
-
-The file `ui/desktop/openapi.json` is automatically generated during the build.
-It is written by the `generate_schema` binary in `crates/goose-server`.
-To update the spec without starting the UI, run:
-
-```
-just generate-openapi
-```
-
-This command regenerates `ui/desktop/openapi.json` and then runs the UI's
-`generate-api` script to rebuild the TypeScript client from that spec.
-
-API changes should be made in the Rust source under `crates/goose-server/src/`.
-
 ### Debugging
 
-To debug the Goose server, run it from an IDE. The configuration will depend on the IDE. The command to run is:
+To debug the external ACP backend, run it from an IDE. The configuration will depend on the IDE. The command to run is:
 
 ```
 export GOOSE_SERVER__SECRET_KEY=test
-cargo run --package goose-server --bin goosed -- agent   # or: `just run-server`
+cargo run --package goose-cli --bin goose -- serve --platform desktop --host 127.0.0.1 --port 3000
 ```
 
-The server listens on port `3000` by default; this can be changed by setting the
-`GOOSE_PORT` environment variable.
+The `debug-ui` recipe connects to `http://127.0.0.1:3000` by default. If the
+backend uses another port, set `GOOSE_PORT` when starting the UI, or set
+`GOOSE_EXTERNAL_BACKEND_URL` to the backend's HTTP base URL.
 
-Once the server is running, start a UI and connect it to the server by running:
+Once the backend is running, start a UI and connect it to the backend by running:
 
 ```
 just debug-ui
 ```
 
-The UI connects to the server started in the IDE, allowing breakpoints
-and stepping through the server code while interacting with the UI.
+The UI connects to the backend started in the IDE, allowing breakpoints
+and stepping through the backend code while interacting with the UI.
 
 ## Creating a fork
 

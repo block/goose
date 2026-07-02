@@ -4,10 +4,10 @@ use anyhow::Result;
 use axum::middleware;
 use axum_server::Handle;
 use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
-use goose::acp::transport::create_acp_router;
+use goose::acp::transport::create_authenticated_acp_router;
 use goose::agents::GoosePlatform;
 use goose::config::paths::Paths;
-use goose_server::auth::{check_acp_token, check_token};
+use goose_server::auth::check_token;
 use std::sync::Arc;
 use tower_http::cors::{Any, CorsLayer};
 use tracing::info;
@@ -72,15 +72,15 @@ pub async fn run() -> Result<()> {
         scheduler: Some(app_state.scheduler()),
     }));
 
-    let rest_router = crate::routes::configure(app_state.clone(), secret_key.clone()).layer(
-        middleware::from_fn_with_state(secret_key.clone(), check_token),
-    );
-    let acp_router = create_acp_router(acp_server).layer(middleware::from_fn_with_state(
-        secret_key.clone(),
-        check_acp_token,
-    ));
+    let rest_router = crate::routes::configure(app_state.clone(), secret_key.clone())
+        .layer(middleware::from_fn_with_state(
+            secret_key.clone(),
+            check_token,
+        ))
+        .layer(cors);
+    let acp_router = create_authenticated_acp_router(acp_server, secret_key.clone());
 
-    let app = rest_router.merge(acp_router).layer(cors);
+    let app = rest_router.merge(acp_router);
 
     let addr = settings.socket_addr();
 

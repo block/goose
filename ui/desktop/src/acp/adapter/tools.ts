@@ -184,11 +184,17 @@ function toolResultValue(
   update: ToolCallUpdate,
   mcpAppMeta: DesktopMcpAppMeta | undefined
 ): ToolResultValue {
-  return {
+  const toolResult: ToolResultValue = {
     content: toolResultContent(update),
     isError: false,
     ...(mcpAppMeta ? { _meta: mcpAppMeta } : {}),
   };
+
+  if (update.rawOutput !== undefined) {
+    toolResult.structuredContent = update.rawOutput;
+  }
+
+  return toolResult;
 }
 
 function toolResultContent(update: ToolCallUpdate): GooseContentBlock[] {

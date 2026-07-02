@@ -15,6 +15,8 @@ on:
       - Release
     types:
       - completed
+    branches-ignore:
+      - "release/**"
 
   # Allow manual trigger for testing
   workflow_dispatch:
@@ -76,7 +78,7 @@ jobs:
   generate-release-notes:
     name: Generate Release Notes
     runs-on: ubuntu-latest
-    # For workflow_run: only run if Release succeeded and tag is not 'stable'
+    # For workflow_run: release branch preflight builds are ignored by the trigger.
     # For workflow_dispatch: only run if tag is not 'stable'
     if: |
       (github.event_name == 'workflow_dispatch' && inputs.tag != 'stable') ||
