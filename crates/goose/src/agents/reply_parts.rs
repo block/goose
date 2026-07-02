@@ -551,7 +551,11 @@ impl Agent {
             .accumulated_usage(accumulated_usage)
             .accumulated_cost(accumulated_cost);
 
-        if let Some(provider_name) = session.provider_name.as_deref() {
+        if let Some(provider_name) = usage
+            .provider
+            .as_deref()
+            .or(session.provider_name.as_deref())
+        {
             update = update.extension_data(ProviderUsageSnapshotState::extension_data_with_usage(
                 &session.extension_data,
                 provider_name,
@@ -630,6 +634,7 @@ mod tests {
     use crate::conversation::message::Message;
     use crate::providers::base::Provider;
     use crate::session::session_manager::SessionType;
+    use crate::session::ExtensionState;
     use async_trait::async_trait;
     use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
     use goose_providers::model::ModelConfig;
@@ -719,6 +724,55 @@ mod tests {
         let mut sorted = names.clone();
         sorted.sort();
         assert_eq!(names, sorted);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn update_session_metrics_prefers_usage_provider_for_snapshot() -> anyhow::Result<()> {
+        let agent = crate::agents::Agent::new();
+
+        let session = agent
+            .config
+            .session_manager
+            .create_session(
+                std::env::current_dir().unwrap(),
+                "test-provider-usage-attribution".to_string(),
+                SessionType::Hidden,
+                GooseMode::default(),
+            )
+            .await?;
+
+        agent
+            .config
+            .session_manager
+            .update(&session.id)
+            .provider_name("session-provider")
+            .apply()
+            .await?;
+
+        let usage = ProviderUsage::new(
+            "actual-model".to_string(),
+            Usage::new(Some(10), Some(2), Some(12)),
+        )
+        .with_provider("actual-provider");
+        agent
+            .update_session_metrics(&session.id, None, &usage, false)
+            .await?;
+
+        let session = agent
+            .config
+            .session_manager
+            .get_session(&session.id, false)
+            .await?;
+        let snapshot = crate::session::ProviderUsageSnapshotState::from_extension_data(
+            &session.extension_data,
+        )
+        .expect("provider usage snapshot");
+
+        assert_eq!(snapshot.entries.len(), 1);
+        assert_eq!(snapshot.entries[0].provider_id, "actual-provider");
+        assert_eq!(snapshot.entries[0].model_id, "actual-model");
 
         Ok(())
     }

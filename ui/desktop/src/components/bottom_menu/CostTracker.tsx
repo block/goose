@@ -72,6 +72,13 @@ export function CostTracker({
         return;
       }
 
+      if (!providerUsage?.length && accumulatedCost != null) {
+        setCostEstimate(null);
+        setPricingFailed(false);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       try {
         const estimate = await calculateUsageCost(
@@ -98,7 +105,7 @@ export function CostTracker({
     };
 
     loadCostInfo();
-  }, [currentModel, currentProvider, inputTokens, outputTokens, providerUsage]);
+  }, [currentModel, currentProvider, inputTokens, outputTokens, accumulatedCost, providerUsage]);
 
   // Return null early if pricing is disabled
   if (!showPricing) {

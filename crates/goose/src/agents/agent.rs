@@ -1743,8 +1743,10 @@ impl Agent {
                 );
 
                 let compact_model_config = self.model_config_for_session(&session_config.id).await?;
+                let compact_provider = self.provider().await?;
+                let compact_provider_name = compact_provider.get_name().to_string();
                 match compact_messages(
-                    self.provider().await?.as_ref(),
+                    compact_provider.as_ref(),
                     &compact_model_config,
                     &session_config.id,
                     &conversation_to_compact,
@@ -1753,6 +1755,8 @@ impl Agent {
                 .await
                 {
                     Ok((compacted_conversation, summarization_usage)) => {
+                        let summarization_usage =
+                            summarization_usage.with_provider(compact_provider_name);
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
                         self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
 
@@ -1821,7 +1825,7 @@ impl Agent {
             .ok()
             .and_then(|model_info| model_info.resolved_model)
             .map(|resolved_model| InferenceMetadata {
-                provider: provider_name,
+                provider: provider_name.clone(),
                 requested_model,
                 resolved_model: Some(resolved_model),
             });
@@ -2020,9 +2024,10 @@ impl Agent {
                         Ok((response, usage)) => {
                             compaction_attempts = 0;
 
-                            if let Some(ref usage) = usage {
-                                self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), usage, false).await?;
-                                yield AgentEvent::Usage(usage.clone());
+                            if let Some(usage) = usage {
+                                let usage = usage.with_provider(provider_name.clone());
+                                self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, false).await?;
+                                yield AgentEvent::Usage(usage);
                             }
 
                             if let Some(response) = response {
@@ -2408,6 +2413,7 @@ impl Agent {
                             .await
                             {
                                 Ok((compacted_conversation, usage)) => {
+                                    let usage = usage.with_provider(provider_name.clone());
                                     session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
                                     self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
                                     conversation = compacted_conversation;

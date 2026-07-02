@@ -5,6 +5,8 @@ use utoipa::ToSchema;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProviderUsage {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub provider: Option<String>,
     pub model: String,
     pub usage: Usage,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -32,10 +34,16 @@ pub struct DraftStats {
 impl ProviderUsage {
     pub fn new(model: String, usage: Usage) -> Self {
         Self {
+            provider: None,
             model,
             usage,
             stats: None,
         }
+    }
+
+    pub fn with_provider(mut self, provider: impl Into<String>) -> Self {
+        self.provider = Some(provider.into());
+        self
     }
 
     pub fn with_stats(mut self, stats: ProviderStats) -> Self {
@@ -47,6 +55,7 @@ impl ProviderUsage {
     /// Uses the model from this ProviderUsage
     pub fn combine_with(&self, other: &ProviderUsage) -> ProviderUsage {
         ProviderUsage {
+            provider: self.provider.clone().or_else(|| other.provider.clone()),
             model: self.model.clone(),
             usage: self.usage + other.usage,
             stats: self.stats.clone().or_else(|| other.stats.clone()),
