@@ -53,6 +53,11 @@ describe('isLoopbackAcpWebSocketUrl', () => {
     expect(isLoopbackAcpWebSocketUrl('ws://192.168.1.10:3284/acp?token=secret')).toBe(false);
   });
 
+  it('rejects DNS hostnames that start with 127', () => {
+    expect(isLoopbackAcpWebSocketUrl('wss://127.evil.com/acp?token=secret')).toBe(false);
+    expect(isLoopbackAcpWebSocketUrl('wss://127.0.0.1.example.com/acp?token=secret')).toBe(false);
+  });
+
   it('rejects non-WebSocket URLs', () => {
     expect(() => isLoopbackAcpWebSocketUrl('http://127.0.0.1:64027/acp')).toThrow(
       'ACP URL must use ws: or wss:'
