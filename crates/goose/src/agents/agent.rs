@@ -1768,8 +1768,9 @@ impl Agent {
                 .await
                 {
                     Ok((compacted_conversation, summarization_usage)) => {
-                        let summarization_usage =
-                            summarization_usage.with_provider(compact_provider_name);
+                        let summarization_usage = summarization_usage
+                            .with_provider(compact_provider_name)
+                            .with_model(compact_model_config.model_name.clone());
                         session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
                         self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &summarization_usage, true).await?;
 
@@ -2038,7 +2039,9 @@ impl Agent {
                             compaction_attempts = 0;
 
                             if let Some(usage) = usage {
-                                let usage = usage.with_provider(provider_name.clone());
+                                let usage = usage
+                                    .with_provider(provider_name.clone())
+                                    .with_model(model_config.model_name.clone());
                                 self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, false).await?;
                                 yield AgentEvent::Usage(usage);
                             }
@@ -2426,7 +2429,9 @@ impl Agent {
                             .await
                             {
                                 Ok((compacted_conversation, usage)) => {
-                                    let usage = usage.with_provider(provider_name.clone());
+                                    let usage = usage
+                                        .with_provider(provider_name.clone())
+                                        .with_model(model_config.model_name.clone());
                                     session_manager.replace_conversation(&session_config.id, &compacted_conversation).await?;
                                     self.update_session_metrics(&session_config.id, session_config.schedule_id.clone(), &usage, true).await?;
                                     conversation = compacted_conversation;

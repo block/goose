@@ -46,6 +46,11 @@ impl ProviderUsage {
         self
     }
 
+    pub fn with_model(mut self, model: impl Into<String>) -> Self {
+        self.model = model.into();
+        self
+    }
+
     pub fn with_stats(mut self, stats: ProviderStats) -> Self {
         self.stats = Some(stats);
         self

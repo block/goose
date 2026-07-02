@@ -752,10 +752,11 @@ mod tests {
             .await?;
 
         let usage = ProviderUsage::new(
-            "actual-model".to_string(),
+            "resolved-model-from-provider".to_string(),
             Usage::new(Some(10), Some(2), Some(12)),
         )
-        .with_provider("actual-provider");
+        .with_provider("actual-provider")
+        .with_model("actual-model");
         agent
             .update_session_metrics(&session.id, None, &usage, false)
             .await?;
