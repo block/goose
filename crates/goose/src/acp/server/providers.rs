@@ -76,6 +76,43 @@ fn provider_price_per_million(price: Option<f64>) -> Option<f64> {
     price.map(|price| price * 1_000_000.0)
 }
 
+struct ModelPricing {
+    input: Option<f64>,
+    output: Option<f64>,
+    cache_read: Option<f64>,
+    cache_write: Option<f64>,
+    currency: String,
+    using_canonical: bool,
+}
+
+fn resolve_model_pricing(
+    provider: Option<&crate::providers::base::ModelInfo>,
+    canonical: Option<&crate::providers::canonical::CanonicalModel>,
+) -> ModelPricing {
+    if let Some(provider) = provider
+        .filter(|model| model.input_token_cost.is_some() || model.output_token_cost.is_some())
+    {
+        return ModelPricing {
+            input: provider_price_per_million(provider.input_token_cost),
+            output: provider_price_per_million(provider.output_token_cost),
+            cache_read: None,
+            cache_write: None,
+            currency: provider.currency.clone().unwrap_or_else(|| "$".to_string()),
+            using_canonical: false,
+        };
+    }
+
+    ModelPricing {
+        input: canonical.and_then(|model| model.cost.input),
+        output: canonical.and_then(|model| model.cost.output),
+        cache_read: canonical.and_then(|model| model.cost.cache_read),
+        cache_write: canonical.and_then(|model| model.cost.cache_write),
+        currency: "$".to_string(),
+        using_canonical: canonical
+            .is_some_and(|model| model.cost.input.is_some() || model.cost.output.is_some()),
+    }
+}
+
 fn provider_config_key_to_dto(key: crate::providers::base::ConfigKey) -> ProviderConfigKey {
     ProviderConfigKey {
         name: key.name,
@@ -1042,12 +1079,8 @@ impl GooseAcpAgent {
 
         let provider = provider_model.as_ref();
         let canonical = canonical_model.as_ref();
-        let using_canonical_price = canonical
-            .is_some_and(|model| model.cost.input.is_some() || model.cost.output.is_some())
-            && provider.is_none_or(|model| {
-                model.input_token_cost.is_none() && model.output_token_cost.is_none()
-            });
-        if using_canonical_price {
+        let pricing = resolve_model_pricing(provider, canonical);
+        if pricing.using_canonical {
             warn!(
                 provider = %req.provider,
                 model = %req.model,
@@ -1068,20 +1101,11 @@ impl GooseAcpAgent {
                     || canonical
                         .and_then(|model| model.reasoning)
                         .unwrap_or_else(|| ModelConfig::new(&req.model).is_reasoning_model()),
-                input_token_cost: provider
-                    .and_then(|model| provider_price_per_million(model.input_token_cost))
-                    .or_else(|| canonical.and_then(|model| model.cost.input)),
-                output_token_cost: provider
-                    .and_then(|model| provider_price_per_million(model.output_token_cost))
-                    .or_else(|| canonical.and_then(|model| model.cost.output)),
-                cache_read_token_cost: canonical.and_then(|model| model.cost.cache_read),
-                cache_write_token_cost: canonical.and_then(|model| model.cost.cache_write),
-                currency: provider
-                    .filter(|model| {
-                        model.input_token_cost.is_some() || model.output_token_cost.is_some()
-                    })
-                    .and_then(|model| model.currency.clone())
-                    .unwrap_or_else(|| "$".to_string()),
+                input_token_cost: pricing.input,
+                output_token_cost: pricing.output,
+                cache_read_token_cost: pricing.cache_read,
+                cache_write_token_cost: pricing.cache_write,
+                currency: pricing.currency,
             }),
         })
     }
@@ -1089,11 +1113,78 @@ impl GooseAcpAgent {
 
 #[cfg(test)]
 mod tests {
-    use super::provider_price_per_million;
+    use super::{provider_price_per_million, resolve_model_pricing};
+    use crate::providers::base::ModelInfo;
+    use crate::providers::canonical::{CanonicalModel, Limit, Modalities, Pricing};
 
     #[test]
     fn provider_price_per_million_normalizes_per_token_price() {
         assert_eq!(provider_price_per_million(Some(0.000003)), Some(3.0));
         assert_eq!(provider_price_per_million(None), None);
+    }
+
+    fn provider_model(input: Option<f64>, output: Option<f64>) -> ModelInfo {
+        ModelInfo {
+            name: "provider-model".to_string(),
+            input_token_cost: input,
+            output_token_cost: output,
+            currency: Some("RUB".to_string()),
+            ..ModelInfo::new("provider-model", 128_000)
+        }
+    }
+
+    fn canonical_model() -> CanonicalModel {
+        CanonicalModel {
+            id: "provider/model".to_string(),
+            name: "Canonical Model".to_string(),
+            family: None,
+            attachment: None,
+            reasoning: None,
+            thinking_mode: None,
+            tool_call: false,
+            temperature: None,
+            knowledge: None,
+            release_date: None,
+            last_updated: None,
+            modalities: Modalities::default(),
+            open_weights: None,
+            cost: Pricing {
+                input: Some(5.0),
+                output: Some(15.0),
+                cache_read: Some(1.0),
+                cache_write: Some(2.0),
+            },
+            limit: Limit::default(),
+        }
+    }
+
+    #[test]
+    fn provider_pricing_does_not_mix_canonical_fallback_fields() {
+        let provider = provider_model(Some(0.0005), None);
+        let canonical = canonical_model();
+
+        let pricing = resolve_model_pricing(Some(&provider), Some(&canonical));
+
+        assert_eq!(pricing.input, Some(500.0));
+        assert_eq!(pricing.output, None);
+        assert_eq!(pricing.cache_read, None);
+        assert_eq!(pricing.cache_write, None);
+        assert_eq!(pricing.currency, "RUB");
+        assert!(!pricing.using_canonical);
+    }
+
+    #[test]
+    fn canonical_pricing_is_used_only_when_provider_pricing_is_absent() {
+        let provider = provider_model(None, None);
+        let canonical = canonical_model();
+
+        let pricing = resolve_model_pricing(Some(&provider), Some(&canonical));
+
+        assert_eq!(pricing.input, Some(5.0));
+        assert_eq!(pricing.output, Some(15.0));
+        assert_eq!(pricing.cache_read, Some(1.0));
+        assert_eq!(pricing.cache_write, Some(2.0));
+        assert_eq!(pricing.currency, "$");
+        assert!(pricing.using_canonical);
     }
 }
