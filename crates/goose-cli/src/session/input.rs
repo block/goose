@@ -30,6 +30,7 @@ pub enum InputResult {
     Edit(Option<String>),
     ListSkills,
     LoadSkills(Vec<String>),
+    Copy,
 }
 
 #[derive(Debug)]
@@ -208,6 +209,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
     const CMD_EDIT: &str = "/edit";
     const CMD_EDIT_WITH_SPACE: &str = "/edit ";
     const CMD_SKILLS: &str = "/skills";
+    const CMD_COPY: &str = "/copy";
 
     match input {
         "/exit" | "/quit" => Some(InputResult::Exit),
@@ -299,6 +301,7 @@ fn handle_slash_command(input: &str) -> Option<InputResult> {
             Some(InputResult::Compact)
         }
         "/r" => Some(InputResult::ToggleFullToolOutput),
+        s if s == CMD_COPY => Some(InputResult::Copy),
         s if s == CMD_EDIT => Some(InputResult::Edit(None)),
         s if s.starts_with(CMD_EDIT_WITH_SPACE) => {
             let prefill = s
@@ -426,6 +429,7 @@ fn print_help() {
                        If no filepath is provided, it will be saved to ./recipe.yaml.
 /compact - Compact the current conversation to reduce context length while preserving key information.
 /status - Show session status: model, provider, mode, and token usage.
+/copy - Copy the last assistant response to the clipboard.
 /edit [text] - Open your prompt editor to compose a message. Optionally pre-fill with text.
                Uses $GOOSE_PROMPT_EDITOR, $VISUAL, or $EDITOR (in that order).
 /skills - List available skills or enable skills by name (usage: /skills [<name>...])
@@ -747,6 +751,15 @@ mod tests {
     #[test]
     fn test_editor_always_explicit_false_without_editor() {
         assert!(!should_use_editor_always(None, Some(false)));
+    }
+
+    #[test]
+    fn test_copy_command() {
+        assert!(matches!(
+            handle_slash_command("/copy"),
+            Some(InputResult::Copy)
+        ));
+        assert!(handle_slash_command("/copyextra").is_none());
     }
 
     #[test]

@@ -629,6 +629,16 @@ fn render_arguments(info: &PromptInfo) {
     }
 }
 
+pub fn render_copied(chars: usize, method: &str) {
+    println!(
+        "{}",
+        style(format!(
+            "Copied last response to the clipboard ({chars} chars via {method})"
+        ))
+        .dim()
+    );
+}
+
 pub fn render_extension_success(name: &str) {
     println!();
     println!(

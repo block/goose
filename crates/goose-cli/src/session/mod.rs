@@ -1,4 +1,5 @@
 mod builder;
+mod clipboard;
 mod completion;
 pub mod editor;
 mod elicitation;
@@ -596,6 +597,10 @@ impl CliSession {
             InputResult::ToggleFullToolOutput => {
                 history.save(editor);
                 self.handle_toggle_full_tool_output();
+            }
+            InputResult::Copy => {
+                history.save(editor);
+                self.handle_copy();
             }
             InputResult::SelectTheme(theme_name) => {
                 history.save(editor);
@@ -1754,12 +1759,43 @@ impl CliSession {
     fn push_message(&mut self, message: Message) {
         self.messages.push(message);
     }
+
+    fn handle_copy(&self) {
+        let Some(text) = last_assistant_text(self.messages.messages()) else {
+            output::render_error("No assistant response to copy yet.");
+            return;
+        };
+        match clipboard::copy(&text) {
+            Ok(method) => output::render_copied(text.chars().count(), method),
+            Err(e) => output::render_error(&format!("Could not copy the response: {e}")),
+        }
+    }
 }
 
 fn message_has_text(message: &Message) -> bool {
     message.content.iter().any(
         |content| matches!(content, MessageContent::Text(text) if !text.text.trim().is_empty()),
     )
+}
+
+fn last_assistant_text(messages: &[Message]) -> Option<String> {
+    messages
+        .iter()
+        .rev()
+        .filter(|message| message.role == rmcp::model::Role::Assistant)
+        .find_map(|message| {
+            let text = message
+                .content
+                .iter()
+                .filter_map(|content| match content {
+                    MessageContent::Text(text) => Some(text.text.as_str()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>()
+                .join("\n");
+            let text = text.trim();
+            (!text.is_empty()).then(|| text.to_string())
+        })
 }
 
 fn print_run_stats(
@@ -2298,6 +2334,38 @@ mod tests {
     use std::collections::HashMap;
     use std::time::Duration;
     use test_case::test_case;
+
+    #[test]
+    fn last_assistant_text_returns_most_recent_text() {
+        let messages = vec![
+            Message::assistant().with_text("first answer"),
+            Message::user().with_text("next question"),
+            Message::assistant().with_text("second answer"),
+        ];
+        assert_eq!(
+            last_assistant_text(&messages).as_deref(),
+            Some("second answer")
+        );
+    }
+
+    #[test]
+    fn last_assistant_text_skips_messages_without_text() {
+        let messages = vec![
+            Message::assistant().with_text("real answer"),
+            Message::user().with_text("run the tool"),
+            Message::assistant().with_text("   "),
+        ];
+        assert_eq!(
+            last_assistant_text(&messages).as_deref(),
+            Some("real answer")
+        );
+    }
+
+    #[test]
+    fn last_assistant_text_empty_when_no_assistant_messages() {
+        let messages = vec![Message::user().with_text("hello")];
+        assert_eq!(last_assistant_text(&messages), None);
+    }
 
     #[test]
     fn test_format_elapsed_time_under_60_seconds() {
