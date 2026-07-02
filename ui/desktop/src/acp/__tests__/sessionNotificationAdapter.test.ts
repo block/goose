@@ -521,6 +521,50 @@ describe('createAcpSessionNotificationAdapter', () => {
         });
       });
     });
+
+    it('maps provider usage snapshot metadata from usage updates', () => {
+      const adapter = createAcpSessionNotificationAdapter();
+
+      expect(
+        adapter.apply(
+          acpUpdate({
+            sessionUpdate: 'usage_update',
+            used: 42,
+            size: 200,
+            _meta: {
+              goose: {
+                providerUsage: {
+                  entries: [
+                    {
+                      providerId: 'test-provider',
+                      modelId: 'test-model',
+                      lastUsedAt: '2026-07-02T10:00:00Z',
+                      inputTokens: 10,
+                      outputTokens: 5,
+                    },
+                  ],
+                },
+              },
+            },
+          })
+        )
+      ).toEqual([
+        {
+          type: 'tokenState',
+          tokenState: {
+            providerUsage: [
+              {
+                providerId: 'test-provider',
+                modelId: 'test-model',
+                lastUsedAt: '2026-07-02T10:00:00Z',
+                inputTokens: 10,
+                outputTokens: 5,
+              },
+            ],
+          },
+        },
+      ]);
+    });
   });
 
   describe('applyGoose', () => {

@@ -35,7 +35,8 @@ use crate::providers::inventory::{
 };
 use crate::scheduler_trait::SchedulerTrait;
 use crate::session::{
-    EnabledExtensionsState, ExtensionData, ExtensionState, Session, SessionManager, SessionType,
+    EnabledExtensionsState, ExtensionData, ExtensionState, ProviderUsageSnapshotState, Session,
+    SessionManager, SessionType,
 };
 use crate::source_roots::SourceRoot;
 use crate::utils::sanitize_unicode_tags;
@@ -835,6 +836,13 @@ pub(super) struct UsageUpdates {
     pub(super) standard: UsageUpdate,
 }
 
+fn provider_usage_meta(session: &Session) -> Option<Meta> {
+    let provider_usage = ProviderUsageSnapshotState::from_extension_data(&session.extension_data)?;
+    serde_json::json!({ "goose": { "providerUsage": provider_usage } })
+        .as_object()
+        .cloned()
+}
+
 pub(super) fn build_usage_updates(session: &Session) -> Option<UsageUpdates> {
     let used = session.usage.total_tokens.unwrap_or(0).max(0) as u64;
     let ctx_limit = session.model_config.as_ref()?.context_limit() as u64;
@@ -857,6 +865,9 @@ pub(super) fn build_usage_updates(session: &Session) -> Option<UsageUpdates> {
             let mut standard = UsageUpdate::new(used, ctx_limit);
             if let Some(amount) = session.accumulated_cost {
                 standard = standard.cost(Cost::new(amount, "USD"));
+            }
+            if let Some(meta) = provider_usage_meta(session) {
+                standard = standard.meta(meta);
             }
             standard
         },
@@ -3869,6 +3880,37 @@ print(\"hello, world\")
         assert_eq!(usage.context_limit, 258_000);
         assert_eq!(updates.standard.used, 0);
         assert_eq!(updates.standard.size, 258_000);
+    }
+
+    #[test]
+    fn test_build_usage_update_includes_provider_usage_snapshot_meta() {
+        let mut session = make_session_with_usage(
+            TokenUsage::new(Some(80), Some(40), Some(120)),
+            TokenUsage::default(),
+        );
+        session.model_config = Some(
+            goose_providers::model::ModelConfig::new("test-model")
+                .with_context_limit(Some(258_000)),
+        );
+        let mut provider_usage = ProviderUsageSnapshotState::default();
+        provider_usage.add_usage(
+            "test-provider",
+            "test-model",
+            "2026-07-02T10:00:00Z".to_string(),
+            TokenUsage::new(Some(10), Some(5), Some(15)),
+        );
+        provider_usage
+            .to_extension_data(&mut session.extension_data)
+            .unwrap();
+
+        let updates = build_usage_updates(&session).expect("usage updates should be present");
+        let standard = serde_json::to_value(updates.standard).unwrap();
+        let entry = &standard["_meta"]["goose"]["providerUsage"]["entries"][0];
+
+        assert_eq!(entry["providerId"], "test-provider");
+        assert_eq!(entry["modelId"], "test-model");
+        assert_eq!(entry["inputTokens"], 10);
+        assert_eq!(entry["outputTokens"], 5);
     }
 
     #[test]

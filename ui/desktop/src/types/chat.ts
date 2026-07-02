@@ -13,6 +13,17 @@ export type TokenState = {
   inputTokens: number;
   outputTokens: number;
   totalTokens: number;
+  providerUsage?: ProviderUsageEntry[];
+};
+
+export type ProviderUsageEntry = {
+  providerId: string;
+  modelId: string;
+  lastUsedAt: string;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens?: number;
+  cacheWriteInputTokens?: number;
 };
 
 export interface ChatType {

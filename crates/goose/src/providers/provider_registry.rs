@@ -46,6 +46,14 @@ impl ProviderEntry {
         self.supports_inventory_refresh
     }
 
+    pub fn model_info(&self, model_name: &str) -> Option<ModelInfo> {
+        self.metadata
+            .known_models
+            .iter()
+            .find(|model| model.name.eq_ignore_ascii_case(model_name))
+            .cloned()
+    }
+
     pub fn inventory_identity(&self) -> Result<InventoryIdentityInput> {
         (self.inventory_identity)()
     }
@@ -413,5 +421,43 @@ mod tests {
         let entry = registry.entries.get("custom_hf").unwrap();
 
         assert!(!entry.inventory_configured());
+    }
+
+    #[test]
+    fn provider_entry_model_info_returns_declared_pricing() {
+        let mut config = test_config();
+        config.models = vec![ModelInfo {
+            name: "gpt-5.5".to_string(),
+            input_token_cost: Some(500.0),
+            output_token_cost: Some(3000.0),
+            currency: Some("RUB".to_string()),
+            reasoning: true,
+            ..ModelInfo::new("gpt-5.5", 128_000)
+        }];
+
+        let mut registry = ProviderRegistry::new(None);
+        registry.register_with_name::<OpenAiProviderDef, _, _>(
+            &config,
+            ProviderType::Declarative,
+            false,
+            |_| unreachable!("constructor is not used by this test"),
+            || Ok(InventoryIdentityInput::new("custom_hf", "openai")),
+        );
+
+        let model_info = registry
+            .entries
+            .get("custom_hf")
+            .and_then(|entry| entry.model_info("GPT-5.5"))
+            .expect("declared model info should be present");
+
+        assert_eq!(
+            (
+                model_info.input_token_cost,
+                model_info.output_token_cost,
+                model_info.currency.as_deref()
+            ),
+            (Some(500.0), Some(3000.0), Some("RUB"))
+        );
+        assert!(model_info.reasoning);
     }
 }

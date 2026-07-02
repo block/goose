@@ -1022,24 +1022,63 @@ impl GooseAcpAgent {
     ) -> Result<CanonicalModelInfoResponse, agent_client_protocol::Error> {
         use goose_providers::model::ModelConfig;
 
-        let model_info =
-            crate::providers::canonical::maybe_get_canonical_model(&req.provider, &req.model).map(
-                |canonical_model| CanonicalModelInfoDto {
-                    provider: req.provider.clone(),
-                    model: req.model.clone(),
-                    context_limit: canonical_model.limit.context,
-                    max_output_tokens: canonical_model.limit.output,
-                    reasoning: canonical_model
-                        .reasoning
-                        .unwrap_or_else(|| ModelConfig::new(&req.model).is_reasoning_model()),
-                    input_token_cost: canonical_model.cost.input,
-                    output_token_cost: canonical_model.cost.output,
-                    cache_read_token_cost: canonical_model.cost.cache_read,
-                    cache_write_token_cost: canonical_model.cost.cache_write,
-                    currency: "$".to_string(),
-                },
-            );
+        // TODO: Rename this legacy method to provider model info. It now returns
+        // provider-declared metadata first and falls back to canonical metadata.
+        let provider_model = crate::providers::get_from_registry(&req.provider)
+            .await
+            .ok()
+            .and_then(|entry| entry.model_info(&req.model));
 
-        Ok(CanonicalModelInfoResponse { model_info })
+        let canonical_model =
+            crate::providers::canonical::maybe_get_canonical_model(&req.provider, &req.model);
+
+        if provider_model.is_none() && canonical_model.is_none() {
+            return Ok(CanonicalModelInfoResponse { model_info: None });
+        }
+
+        let provider = provider_model.as_ref();
+        let canonical = canonical_model.as_ref();
+        let using_canonical_price = canonical
+            .is_some_and(|model| model.cost.input.is_some() || model.cost.output.is_some())
+            && provider.is_none_or(|model| {
+                model.input_token_cost.is_none() && model.output_token_cost.is_none()
+            });
+        if using_canonical_price {
+            warn!(
+                provider = %req.provider,
+                model = %req.model,
+                "Using canonical pricing because provider model pricing is not configured"
+            );
+        }
+
+        Ok(CanonicalModelInfoResponse {
+            model_info: Some(CanonicalModelInfoDto {
+                provider: req.provider.clone(),
+                model: req.model.clone(),
+                context_limit: provider
+                    .and_then(|model| (model.context_limit > 0).then_some(model.context_limit))
+                    .or_else(|| canonical.map(|model| model.limit.context))
+                    .unwrap_or_default(),
+                max_output_tokens: canonical.and_then(|model| model.limit.output),
+                reasoning: provider.map(|model| model.reasoning).unwrap_or(false)
+                    || canonical
+                        .and_then(|model| model.reasoning)
+                        .unwrap_or_else(|| ModelConfig::new(&req.model).is_reasoning_model()),
+                input_token_cost: provider
+                    .and_then(|model| model.input_token_cost)
+                    .or_else(|| canonical.and_then(|model| model.cost.input)),
+                output_token_cost: provider
+                    .and_then(|model| model.output_token_cost)
+                    .or_else(|| canonical.and_then(|model| model.cost.output)),
+                cache_read_token_cost: canonical.and_then(|model| model.cost.cache_read),
+                cache_write_token_cost: canonical.and_then(|model| model.cost.cache_write),
+                currency: provider
+                    .filter(|model| {
+                        model.input_token_cost.is_some() || model.output_token_cost.is_some()
+                    })
+                    .and_then(|model| model.currency.clone())
+                    .unwrap_or_else(|| "$".to_string()),
+            }),
+        })
     }
 }

@@ -28,6 +28,7 @@ import { MessageQueue, QueuedMessage } from './MessageQueue';
 import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/Diagnostics';
 import type { Message } from '../types/message';
+import type { ProviderUsageEntry } from '../types/chat';
 import { getInitialWorkingDir } from '../utils/workingDir';
 import { getPredefinedModelsFromEnv } from './settings/models/predefinedModelsUtils';
 import { trackFileAttached, trackVoiceDictation, trackDiagnosticsOpened } from '../utils/analytics';
@@ -173,6 +174,7 @@ interface ChatInputProps {
   accumulatedInputTokens?: number;
   accumulatedOutputTokens?: number;
   accumulatedCost?: number | null;
+  providerUsage?: ProviderUsageEntry[];
   messages?: Message[];
   disableAnimation?: boolean;
   recipe?: Recipe | null;
@@ -208,6 +210,7 @@ export default function ChatInput({
   accumulatedInputTokens,
   accumulatedOutputTokens,
   accumulatedCost,
+  providerUsage,
   messages = [],
   disableAnimation = false,
   recipe: _recipe,
@@ -1693,6 +1696,7 @@ export default function ChatInput({
                 inputTokens={accumulatedInputTokens}
                 outputTokens={accumulatedOutputTokens}
                 accumulatedCost={accumulatedCost}
+                providerUsage={providerUsage}
                 model={effectiveModel}
                 provider={effectiveProvider}
               />

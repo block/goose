@@ -6,6 +6,7 @@ use crate::config::extensions::is_extension_available;
 use crate::config::ExtensionConfig;
 use crate::session::SessionManager;
 use anyhow::Result;
+use goose_providers::conversation::token_usage::Usage;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -143,6 +144,81 @@ impl EnabledExtensionsState {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderUsageSnapshotState {
+    pub entries: Vec<ProviderUsageSnapshotEntry>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct ProviderUsageSnapshotEntry {
+    pub provider_id: String,
+    pub model_id: String,
+    pub last_used_at: String,
+    pub input_tokens: i32,
+    pub output_tokens: i32,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_read_input_tokens: Option<i32>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cache_write_input_tokens: Option<i32>,
+}
+
+impl ExtensionState for ProviderUsageSnapshotState {
+    const EXTENSION_NAME: &'static str = "provider_usage";
+    const VERSION: &'static str = "v0";
+}
+
+impl ProviderUsageSnapshotState {
+    pub fn add_usage(&mut self, provider_id: &str, model_id: &str, used_at: String, usage: Usage) {
+        let entry = self
+            .entries
+            .iter_mut()
+            .find(|entry| entry.provider_id == provider_id && entry.model_id == model_id);
+        let entry = match entry {
+            Some(entry) => entry,
+            None => {
+                self.entries.push(ProviderUsageSnapshotEntry {
+                    provider_id: provider_id.to_string(),
+                    model_id: model_id.to_string(),
+                    last_used_at: used_at.clone(),
+                    input_tokens: 0,
+                    output_tokens: 0,
+                    cache_read_input_tokens: None,
+                    cache_write_input_tokens: None,
+                });
+                self.entries.last_mut().expect("entry was just pushed")
+            }
+        };
+
+        entry.last_used_at = used_at;
+        let usage = Usage::new(Some(entry.input_tokens), Some(entry.output_tokens), None)
+            .with_cache_tokens(
+                entry.cache_read_input_tokens,
+                entry.cache_write_input_tokens,
+            )
+            + usage;
+        entry.input_tokens = usage.input_tokens.unwrap_or(0);
+        entry.output_tokens = usage.output_tokens.unwrap_or(0);
+        entry.cache_read_input_tokens = usage.cache_read_input_tokens;
+        entry.cache_write_input_tokens = usage.cache_write_input_tokens;
+    }
+
+    pub fn extension_data_with_usage(
+        extension_data: &ExtensionData,
+        provider_id: &str,
+        model_id: &str,
+        used_at: String,
+        usage: Usage,
+    ) -> Result<ExtensionData> {
+        let mut extension_data = extension_data.clone();
+        let mut state = Self::from_extension_data(&extension_data).unwrap_or_default();
+        state.add_usage(provider_id, model_id, used_at, usage);
+        state.to_extension_data(&mut extension_data)?;
+        Ok(extension_data)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,6 +249,37 @@ mod tests {
             .to_extension_data(&mut data)
             .unwrap();
         data
+    }
+
+    #[test]
+    fn provider_usage_snapshot_accumulates_by_provider_and_model() {
+        let mut state = ProviderUsageSnapshotState::default();
+
+        state.add_usage(
+            "test-provider",
+            "test-model",
+            "2026-07-02T10:00:00Z".to_string(),
+            Usage::new(Some(10), Some(2), Some(12)).with_cache_tokens(Some(3), None),
+        );
+        state.add_usage(
+            "test-provider",
+            "test-model",
+            "2026-07-02T10:01:00Z".to_string(),
+            Usage::new(Some(5), Some(4), Some(9)).with_cache_tokens(None, Some(1)),
+        );
+
+        assert_eq!(
+            state.entries,
+            vec![ProviderUsageSnapshotEntry {
+                provider_id: "test-provider".to_string(),
+                model_id: "test-model".to_string(),
+                last_used_at: "2026-07-02T10:01:00Z".to_string(),
+                input_tokens: 15,
+                output_tokens: 6,
+                cache_read_input_tokens: Some(3),
+                cache_write_input_tokens: Some(1),
+            }]
+        );
     }
 
     #[test_case(

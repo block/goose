@@ -156,6 +156,8 @@ export async function acpGetCanonicalModelInfo(
   model: string
 ): Promise<CanonicalModelInfoDto | null> {
   const client = await getAcpClient();
+  // TODO: Rename this legacy API to acpGetModelInfo once the ACP method name changes.
+  // The server now resolves provider model metadata first and falls back to canonical data.
   const { modelInfo } = await client.goose.providersCanonicalModelInfo_unstable({
     provider,
     model,

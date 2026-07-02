@@ -1,5 +1,5 @@
 import type { ToolCall, ToolCallUpdate } from '@agentclientprotocol/sdk';
-import type { TokenState } from '../../types/chat';
+import type { ProviderUsageEntry, TokenState } from '../../types/chat';
 import type { Message, NotificationEvent } from '../../types/message';
 
 export type AcpChatStateChange =
@@ -76,6 +76,26 @@ export function getGooseActiveRunId(update: { _meta?: unknown }): string | null 
   return typeof goose.activeRunId === 'string' || goose.activeRunId === null
     ? goose.activeRunId
     : undefined;
+}
+
+export function getGooseProviderUsage(update: {
+  _meta?: unknown;
+}): ProviderUsageEntry[] | undefined {
+  if (!isRecord(update._meta)) {
+    return undefined;
+  }
+
+  const goose = update._meta.goose;
+  if (!isRecord(goose)) {
+    return undefined;
+  }
+
+  const providerUsage = goose.providerUsage;
+  if (!isRecord(providerUsage) || !Array.isArray(providerUsage.entries)) {
+    return undefined;
+  }
+
+  return providerUsage.entries as ProviderUsageEntry[];
 }
 
 export function rawInputToArguments(rawInput: unknown): Record<string, unknown> {

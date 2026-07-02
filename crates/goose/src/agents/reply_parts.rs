@@ -21,6 +21,7 @@ use crate::providers::toolshim::{
     augment_message_with_selected_tool_interpreter, convert_tool_messages_to_text,
     modify_system_prompt_for_tool_json, sanitize_residual_markers,
 };
+use crate::session::ProviderUsageSnapshotState;
 use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
 use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
@@ -543,14 +544,24 @@ impl Agent {
             usage.usage
         };
 
-        manager
+        let mut update = manager
             .update(session_id)
             .schedule_id(schedule_id)
             .usage(current_usage)
             .accumulated_usage(accumulated_usage)
-            .accumulated_cost(accumulated_cost)
-            .apply()
-            .await?;
+            .accumulated_cost(accumulated_cost);
+
+        if let Some(provider_name) = session.provider_name.as_deref() {
+            update = update.extension_data(ProviderUsageSnapshotState::extension_data_with_usage(
+                &session.extension_data,
+                provider_name,
+                &usage.model,
+                chrono::Utc::now().to_rfc3339(),
+                usage.usage,
+            )?);
+        }
+
+        update.apply().await?;
 
         Ok(())
     }

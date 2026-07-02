@@ -14,6 +14,7 @@ import {
   type AdapterState,
   cloneMessage,
   getGooseActiveRunId,
+  getGooseProviderUsage,
 } from './adapter/shared';
 import { applyToolCall, applyToolCallUpdate } from './adapter/tools';
 import type { AcpElicitationRequest } from './elicitationRequests';
@@ -91,8 +92,10 @@ function applyAcpSessionNotification(
         },
       ];
     }
-    case 'usage_update':
-      return [];
+    case 'usage_update': {
+      const providerUsage = getGooseProviderUsage(update);
+      return providerUsage ? [{ type: 'tokenState', tokenState: { providerUsage } }] : [];
+    }
     default:
       return [];
   }
