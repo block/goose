@@ -123,6 +123,30 @@ describe('CostTracker', () => {
     expect(fetchCanonicalModelInfoMock).not.toHaveBeenCalled();
   });
 
+  it('does not price partial provider usage snapshots without accumulated cost', async () => {
+    renderWithIntl(
+      <CostTracker
+        model="gpt-5.5"
+        provider="test-provider"
+        inputTokens={100000}
+        outputTokens={10000}
+        providerUsage={[
+          {
+            providerId: 'test-provider',
+            modelId: 'gpt-5.5',
+            lastUsedAt: '2026-07-02T18:10:38Z',
+            inputTokens: 10000,
+            outputTokens: 1000,
+          },
+        ]}
+      />
+    );
+
+    expect(await screen.findByText('0.0000')).toBeInTheDocument();
+    expect(screen.getByText(/Pricing data unavailable for gpt-5.5/)).toBeInTheDocument();
+    expect(fetchCanonicalModelInfoMock).not.toHaveBeenCalled();
+  });
+
   it('prices cached input tokens with cache rates when available', async () => {
     fetchCanonicalModelInfoMock.mockResolvedValue({
       provider: 'test-provider',

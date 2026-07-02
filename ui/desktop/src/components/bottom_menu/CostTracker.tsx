@@ -72,13 +72,20 @@ export function CostTracker({
         return;
       }
 
-      if (
-        accumulatedCost != null &&
-        (!providerUsage?.length ||
-          !providerUsageCoversTokenTotals(providerUsage, inputTokens, outputTokens))
-      ) {
+      const hasPartialProviderUsage =
+        providerUsage?.length &&
+        !providerUsageCoversTokenTotals(providerUsage, inputTokens, outputTokens);
+
+      if (accumulatedCost != null && (!providerUsage?.length || hasPartialProviderUsage)) {
         setCostEstimate(null);
         setPricingFailed(false);
+        setIsLoading(false);
+        return;
+      }
+
+      if (hasPartialProviderUsage) {
+        setCostEstimate(null);
+        setPricingFailed(true);
         setIsLoading(false);
         return;
       }

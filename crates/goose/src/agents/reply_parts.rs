@@ -530,9 +530,10 @@ impl Agent {
 
         let accumulated_usage = session.accumulated_usage + usage.usage;
 
-        let accumulated_cost = session
-            .provider_name
+        let accumulated_cost = usage
+            .provider
             .as_deref()
+            .or(session.provider_name.as_deref())
             .and_then(|pn| self.accumulate_cost(session.accumulated_cost, usage, pn))
             .or(session.accumulated_cost);
 
@@ -755,8 +756,8 @@ mod tests {
             "resolved-model-from-provider".to_string(),
             Usage::new(Some(10), Some(2), Some(12)),
         )
-        .with_provider("actual-provider")
-        .with_model("actual-model");
+        .with_provider("openai")
+        .with_model("gpt-4o");
         agent
             .update_session_metrics(&session.id, None, &usage, false)
             .await?;
@@ -772,8 +773,9 @@ mod tests {
         .expect("provider usage snapshot");
 
         assert_eq!(snapshot.entries.len(), 1);
-        assert_eq!(snapshot.entries[0].provider_id, "actual-provider");
-        assert_eq!(snapshot.entries[0].model_id, "actual-model");
+        assert_eq!(snapshot.entries[0].provider_id, "openai");
+        assert_eq!(snapshot.entries[0].model_id, "gpt-4o");
+        assert!(session.accumulated_cost.is_some());
 
         Ok(())
     }
