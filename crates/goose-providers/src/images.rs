@@ -62,7 +62,7 @@ pub fn detect_image_path(text: &str) -> Option<Cow<'_, str>> {
                     let preceded_by_boundary = text
                         .get(..start)
                         .and_then(|prefix| prefix.chars().next_back())
-                        .is_none_or(|c| c.is_whitespace() || c == '"' || c == '\'');
+                        .is_none_or(is_path_leading_boundary);
                     if !preceded_by_boundary {
                         continue;
                     }
@@ -137,6 +137,15 @@ fn image_path_candidate(candidate: &str) -> Option<Cow<'_, str>> {
 fn is_existing_image_path(candidate: &str) -> bool {
     let path = Path::new(candidate);
     path.is_absolute() && path.is_file() && is_image_file(path)
+}
+
+fn is_path_leading_boundary(c: char) -> bool {
+    c.is_whitespace()
+        || matches!(
+            c,
+            '"' | '\'' | '\u{00AB}' | '\u{00BB}' | '\u{2018}'
+                ..='\u{201F}' | '\u{2039}' | '\u{203A}'
+        )
 }
 
 fn is_path_terminator(c: char) -> bool {
@@ -299,6 +308,10 @@ mod tests {
         let text = format!("describe \"{}\" please", png_path_str);
         assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
         let text = format!("describe '{}'", png_path_str);
+        assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
+        let text = format!("describe “{}” please", png_path_str);
+        assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
+        let text = format!("describe «{}» please", png_path_str);
         assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
 
         // A stray closing quote in prose must not act as a terminator for an
