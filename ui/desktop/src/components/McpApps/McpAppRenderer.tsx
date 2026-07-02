@@ -34,6 +34,7 @@ import type { CallToolResult, JSONRPCRequest, Tool } from '@modelcontextprotocol
 import { GripHorizontal, Maximize2, PictureInPicture2, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { callMcpAppTool, readMcpAppResource } from '../../acp/mcp-apps';
+import { httpBaseFromAcpWebSocketUrl, isLoopbackAcpWebSocketUrl } from '../../acp/url';
 import { getCachedTools } from './toolsCache';
 import { AppEvents } from '../../constants/events';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -181,31 +182,37 @@ function getContainerDimensions(
 
 async function fetchMcpAppProxyUrl(csp: McpUiResourceCsp | null): Promise<string | null> {
   try {
-    const baseUrl = await window.electron.getGoosedHostPort();
+    const acpUrl = await window.electron.getAcpUrl();
     const secretKey = await window.electron.getSecretKey();
 
-    if (!baseUrl || !secretKey) {
-      console.error('[McpAppRenderer] Failed to get goosed host/port or secret key');
+    if (!acpUrl || !secretKey) {
+      console.error('[McpAppRenderer] Failed to get ACP URL or secret key');
       return null;
     }
 
-    const params = new URLSearchParams();
-    params.set('secret', secretKey);
+    if (!isLoopbackAcpWebSocketUrl(acpUrl)) {
+      console.error('[McpAppRenderer] MCP app proxy is only supported for loopback ACP backends');
+      return null;
+    }
+
+    const httpBase = httpBaseFromAcpWebSocketUrl(acpUrl).replace(/\/+$/, '');
+    const proxyUrl = new URL(`${httpBase}/mcp-app-proxy`);
+    proxyUrl.searchParams.set('secret', secretKey);
 
     if (csp?.connectDomains?.length) {
-      params.set('connect_domains', csp.connectDomains.join(','));
+      proxyUrl.searchParams.set('connect_domains', csp.connectDomains.join(','));
     }
     if (csp?.resourceDomains?.length) {
-      params.set('resource_domains', csp.resourceDomains.join(','));
+      proxyUrl.searchParams.set('resource_domains', csp.resourceDomains.join(','));
     }
     if (csp?.frameDomains?.length) {
-      params.set('frame_domains', csp.frameDomains.join(','));
+      proxyUrl.searchParams.set('frame_domains', csp.frameDomains.join(','));
     }
     if (csp?.baseUriDomains?.length) {
-      params.set('base_uri_domains', csp.baseUriDomains.join(','));
+      proxyUrl.searchParams.set('base_uri_domains', csp.baseUriDomains.join(','));
     }
 
-    return `${baseUrl}/mcp-app-proxy?${params.toString()}`;
+    return proxyUrl.toString();
   } catch (error) {
     console.error('[McpAppRenderer] Error fetching MCP App Proxy URL:', error);
     return null;
@@ -253,7 +260,9 @@ interface GooseAppFrameProps {
   onMessage: (params: {
     content: Array<{ type: string; text?: string }>;
   }) => Promise<Record<string, unknown>>;
-  onOpenLink: (params: { url: string }) => Promise<{ status: 'success' | 'error'; message?: string }>;
+  onOpenLink: (params: {
+    url: string;
+  }) => Promise<{ status: 'success' | 'error'; message?: string }>;
   onCallTool: (params: {
     name: string;
     arguments?: Record<string, unknown>;
@@ -334,12 +343,9 @@ function GooseAppFrame({
       logging: {},
       message: { text: {} },
     };
-    const bridge = new AppBridge(
-      null,
-      { name: 'MCP-UI Host', version: '1.0.0' },
-      capabilities,
-      { hostContext: hostContextRef.current }
-    );
+    const bridge = new AppBridge(null, { name: 'MCP-UI Host', version: '1.0.0' }, capabilities, {
+      hostContext: hostContextRef.current,
+    });
     bridge.onmessage = (params) => onMessageRef.current(params);
     bridge.onopenlink = (params) => onOpenLinkRef.current(params);
     bridge.onloggingmessage = (params) => onLoggingMessageRef.current(params);
