@@ -247,14 +247,21 @@ impl GooseAcpAgent {
         &self,
         req: ArchiveSessionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let session_id = req.session_id;
         self.session_manager
-            .update(&req.session_id)
+            .update(&session_id)
             .archived_at(Some(chrono::Utc::now()))
             .apply()
             .await
             .internal_err()?;
-        self.sessions.lock().await.remove(&req.session_id);
-        let _ = self.agent_manager.remove_session(&req.session_id).await;
+        let session = self
+            .session_manager
+            .get_session(&session_id, false)
+            .await
+            .internal_err()?;
+        self.broadcast_session_notification(&Self::session_info_notification(&session));
+        self.sessions.lock().await.remove(&session_id);
+        let _ = self.agent_manager.remove_session(&session_id).await;
         Ok(EmptyResponse {})
     }
 
@@ -262,12 +269,19 @@ impl GooseAcpAgent {
         &self,
         req: UnarchiveSessionRequest,
     ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let session_id = req.session_id;
         self.session_manager
-            .update(&req.session_id)
+            .update(&session_id)
             .archived_at(None)
             .apply()
             .await
             .internal_err()?;
+        let session = self
+            .session_manager
+            .get_session(&session_id, false)
+            .await
+            .internal_err()?;
+        self.broadcast_session_notification(&Self::session_info_notification(&session));
         Ok(EmptyResponse {})
     }
 }

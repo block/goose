@@ -34,7 +34,9 @@ use goose::config::base::CONFIG_YAML_NAME;
 use goose::config::paths::Paths;
 use goose::config::GooseMode;
 use goose::conversation::message::{Message, MessageMetadata};
-use goose::custom_requests::{GetSessionInfoRequest, GetSessionInfoResponse};
+use goose::custom_requests::{
+    ArchiveSessionRequest, GetSessionInfoRequest, GetSessionInfoResponse,
+};
 use goose::recipe::{Recipe, Settings};
 use goose::recipe_deeplink;
 use goose::session::{SessionManager, SessionType};
@@ -480,7 +482,7 @@ fn test_session_updates_broadcast_between_shared_server_connections() {
         actor
             .cx
             .send_request(PromptRequest::new(
-                session_id,
+                session_id.clone(),
                 vec![
                     ContentBlock::Text(
                         TextContent::new(
@@ -509,6 +511,34 @@ fn test_session_updates_broadcast_between_shared_server_connections() {
                     && text_chunk(update) == Some("Visible prompt after hidden context")
             }),
             "observer did not receive visible user prompt after hidden context: {observer_updates:#?}"
+        );
+
+        actor.clear_session_notifications();
+        observer.clear_session_notifications();
+
+        actor
+            .cx
+            .send_request(ArchiveSessionRequest {
+                session_id: session_id.to_string(),
+            })
+            .block_task()
+            .await
+            .unwrap();
+
+        assert!(
+            observer
+                .wait_for_session_update(Duration::from_secs(2), |update| {
+                    let SessionUpdate::SessionInfoUpdate(info) = update else {
+                        return false;
+                    };
+                    info.meta
+                        .as_ref()
+                        .and_then(|meta| meta.get("archivedAt"))
+                        .and_then(serde_json::Value::as_str)
+                        .is_some()
+                })
+                .await,
+            "observer did not receive archive session_info_update"
         );
     });
 }
