@@ -4901,6 +4901,7 @@ dependencies = [
  "futures",
  "gethostname",
  "goose-acp-macros",
+ "goose-download-manager",
  "goose-mcp",
  "goose-providers",
  "goose-sdk-types",
@@ -5063,6 +5064,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "goose-download-manager"
+version = "1.40.0"
+dependencies = [
+ "anyhow",
+ "once_cell",
+ "reqwest 0.13.4",
+ "serde",
+ "tokio",
+ "tracing",
+ "utoipa 4.2.3",
+]
+
+[[package]]
 name = "goose-local-inference"
 version = "1.40.0"
 dependencies = [
@@ -5075,6 +5089,7 @@ dependencies = [
  "etcetera 0.11.0",
  "fs2",
  "futures",
+ "goose-download-manager",
  "goose-provider-types",
  "goose-sdk-types",
  "hf-hub 1.0.0-rc.1",
@@ -5085,7 +5100,6 @@ dependencies = [
  "mlx-lm",
  "mlx-lm-utils",
  "mlx-rs",
- "once_cell",
  "regex",
  "reqwest 0.13.4",
  "rmcp",

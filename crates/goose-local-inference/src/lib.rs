@@ -1,5 +1,5 @@
 pub mod config_resolver;
-pub mod download_manager;
+pub use goose_download_manager as download_manager;
 pub mod huggingface_auth;
 pub mod paths;
 pub mod prompt_template;
