@@ -10,9 +10,9 @@ use goose_providers::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, openai_reasoning_effort_for_thinking,
 };
 use goose_providers::model::ModelConfig;
-use rmcp::model::{object, CallToolRequestParams, RawContent, Role, Tool};
+use rmcp::model::{CallToolRequestParams, RawContent, Role, Tool, object};
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 use std::ops::Deref;
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -359,6 +359,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                 MessageContent::ToolRequest(request) if message.role == Role::Assistant => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -405,6 +406,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                 MessageContent::ToolResponse(response) => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -419,49 +421,53 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                                 .any(|c| matches!(c.deref(), RawContent::Image(_)));
 
                             let output = if has_images {
-                                json!(contents
-                                    .content
-                                    .iter()
-                                    .map(|c| match c.deref() {
-                                        RawContent::Text(t) => json!({
-                                            "type": "input_text", "text": t.text
-                                        }),
-                                        RawContent::Resource(r) => json!({
-                                            "type": "input_text",
-                                            "text": extract_text_from_resource(&r.resource)
-                                        }),
-                                        RawContent::Image(image) => json!({
-                                            "type": "input_image",
-                                            "image_url": format!(
-                                                "data:{};base64,{}",
-                                                image.mime_type, image.data
-                                            )
-                                        }),
-                                        RawContent::Audio(_) => json!({
-                                            "type": "input_text", "text": "[Audio content]"
-                                        }),
-                                        RawContent::ResourceLink(_) => json!({
-                                            "type": "input_text", "text": "[Resource link]"
-                                        }),
-                                    })
-                                    .collect::<Vec<Value>>())
+                                json!(
+                                    contents
+                                        .content
+                                        .iter()
+                                        .map(|c| match c.deref() {
+                                            RawContent::Text(t) => json!({
+                                                "type": "input_text", "text": t.text
+                                            }),
+                                            RawContent::Resource(r) => json!({
+                                                "type": "input_text",
+                                                "text": extract_text_from_resource(&r.resource)
+                                            }),
+                                            RawContent::Image(image) => json!({
+                                                "type": "input_image",
+                                                "image_url": format!(
+                                                    "data:{};base64,{}",
+                                                    image.mime_type, image.data
+                                                )
+                                            }),
+                                            RawContent::Audio(_) => json!({
+                                                "type": "input_text", "text": "[Audio content]"
+                                            }),
+                                            RawContent::ResourceLink(_) => json!({
+                                                "type": "input_text", "text": "[Resource link]"
+                                            }),
+                                        })
+                                        .collect::<Vec<Value>>()
+                                )
                             } else {
-                                json!(contents
-                                    .content
-                                    .iter()
-                                    .filter_map(|c| match c.deref() {
-                                        RawContent::Text(t) => Some(t.text.clone()),
-                                        RawContent::Resource(r) => {
-                                            Some(extract_text_from_resource(&r.resource))
-                                        }
-                                        RawContent::Audio(_) => Some("[Audio content]".into()),
-                                        RawContent::ResourceLink(_) => {
-                                            Some("[Resource link]".into())
-                                        }
-                                        RawContent::Image(_) => None,
-                                    })
-                                    .collect::<Vec<String>>()
-                                    .join("\n"))
+                                json!(
+                                    contents
+                                        .content
+                                        .iter()
+                                        .filter_map(|c| match c.deref() {
+                                            RawContent::Text(t) => Some(t.text.clone()),
+                                            RawContent::Resource(r) => {
+                                                Some(extract_text_from_resource(&r.resource))
+                                            }
+                                            RawContent::Audio(_) => Some("[Audio content]".into()),
+                                            RawContent::ResourceLink(_) => {
+                                                Some("[Resource link]".into())
+                                            }
+                                            RawContent::Image(_) => None,
+                                        })
+                                        .collect::<Vec<String>>()
+                                        .join("\n")
+                                )
                             };
 
                             input_items.push(json!({
@@ -486,6 +492,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
                 MessageContent::FrontendToolRequest(request) => {
                     if !text_items.is_empty() {
                         input_items.push(json!({
+                            "type": "message",
                             "role": role,
                             "content": text_items
                         }));
@@ -524,6 +531,7 @@ fn add_message_items(input_items: &mut Vec<Value>, messages: &[Message]) {
 
         if !text_items.is_empty() {
             input_items.push(json!({
+                "type": "message",
                 "role": role,
                 "content": text_items
             }));
@@ -541,6 +549,7 @@ pub fn create_responses_request(
 
     if !system.is_empty() {
         input_items.push(json!({
+            "type": "message",
             "role": "system",
             "content": [{
                 "type": "input_text",
@@ -1164,10 +1173,12 @@ mod tests {
             .expect("stream should emit an error item");
 
         assert!(first.is_err());
-        assert!(first
-            .expect_err("expected error")
-            .to_string()
-            .contains("Responses API error"));
+        assert!(
+            first
+                .expect_err("expected error")
+                .to_string()
+                .contains("Responses API error")
+        );
 
         Ok(())
     }
@@ -1208,16 +1219,14 @@ mod tests {
 
         let types: Vec<&str> = input
             .iter()
-            .map(|item| {
-                item.get("type")
-                    .and_then(|v| v.as_str())
-                    .unwrap_or_else(|| item["role"].as_str().unwrap())
-            })
+            .map(|item| item["type"].as_str().unwrap())
             .collect();
 
+        // message items now carry "type": "message" (required by Azure Foundry Responses API);
+        // function_call items carry "type": "function_call".
         assert_eq!(
             types,
-            vec!["assistant", "function_call", "assistant", "function_call"]
+            vec!["message", "function_call", "message", "function_call"]
         );
     }
 
@@ -1299,8 +1308,11 @@ mod tests {
             .as_array()
             .expect("tools should be an array");
         assert_eq!(tools.len(), 1);
-        assert_eq!(tools[0]["strict"], json!(false),
-            "Responses API defaults strict to true, but MCP tool schemas are not strict-compatible; must explicitly set strict: false");
+        assert_eq!(
+            tools[0]["strict"],
+            json!(false),
+            "Responses API defaults strict to true, but MCP tool schemas are not strict-compatible; must explicitly set strict: false"
+        );
     }
 
     #[test]
@@ -1402,9 +1414,11 @@ mod tests {
     fn test_user_image_serialized_in_responses_request() {
         use crate::conversation::message::Message;
 
-        let messages = vec![Message::user()
-            .with_text("describe this image")
-            .with_image("aW1hZ2VkYXRh", "image/png")];
+        let messages = vec![
+            Message::user()
+                .with_text("describe this image")
+                .with_image("aW1hZ2VkYXRh", "image/png"),
+        ];
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
@@ -1484,11 +1498,13 @@ mod tests {
     fn test_tool_request_serializes_function_call_with_arguments() {
         use crate::conversation::message::Message;
 
-        let messages = vec![Message::assistant().with_tool_request(
-            "call_1",
-            Ok(CallToolRequestParams::new("search")
-                .with_arguments(object!({"q": "rust", "limit": 2}))),
-        )];
+        let messages = vec![
+            Message::assistant().with_tool_request(
+                "call_1",
+                Ok(CallToolRequestParams::new("search")
+                    .with_arguments(object!({"q": "rust", "limit": 2}))),
+            ),
+        ];
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
@@ -1519,8 +1535,10 @@ mod tests {
     fn test_tool_request_none_arguments_serializes_empty_object() {
         use crate::conversation::message::Message;
 
-        let messages = vec![Message::assistant()
-            .with_tool_request("call_1", Ok(CallToolRequestParams::new("noop")))];
+        let messages = vec![
+            Message::assistant()
+                .with_tool_request("call_1", Ok(CallToolRequestParams::new("noop"))),
+        ];
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
@@ -1546,12 +1564,15 @@ mod tests {
     fn test_text_flushed_before_tool_request() {
         use crate::conversation::message::Message;
 
-        let messages = vec![Message::assistant()
-            .with_text("planning")
-            .with_tool_request(
-                "call_1",
-                Ok(CallToolRequestParams::new("shell").with_arguments(object!({"command": "ls"}))),
-            )];
+        let messages = vec![
+            Message::assistant()
+                .with_text("planning")
+                .with_tool_request(
+                    "call_1",
+                    Ok(CallToolRequestParams::new("shell")
+                        .with_arguments(object!({"command": "ls"}))),
+                ),
+        ];
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
@@ -1581,12 +1602,14 @@ mod tests {
         use rmcp::model::{CallToolResult, Content};
 
         let messages =
-            vec![Message::user()
-                .with_text("context")
-                .with_content(MessageContent::tool_response(
-                    "call_1",
-                    Ok(CallToolResult::success(vec![Content::text("done")])),
-                ))];
+            vec![
+                Message::user()
+                    .with_text("context")
+                    .with_content(MessageContent::tool_response(
+                        "call_1",
+                        Ok(CallToolResult::success(vec![Content::text("done")])),
+                    )),
+            ];
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
@@ -1678,10 +1701,12 @@ mod tests {
     fn test_multiple_images_preserved_in_order() {
         use crate::conversation::message::Message;
 
-        let messages = vec![Message::user()
-            .with_text("compare")
-            .with_image("img1", "image/png")
-            .with_image("img2", "image/jpeg")];
+        let messages = vec![
+            Message::user()
+                .with_text("compare")
+                .with_image("img1", "image/png")
+                .with_image("img2", "image/jpeg"),
+        ];
 
         let model_config = ModelConfig {
             model_name: "gpt-5.5".to_string(),
@@ -1893,10 +1918,12 @@ mod tests {
         assert_eq!(input.len(), 1);
         assert_eq!(input[0]["type"], "function_call_output");
         assert_eq!(input[0]["call_id"], "call_err1");
-        assert!(input[0]["output"]
-            .as_str()
-            .unwrap()
-            .contains("invalid arguments"));
+        assert!(
+            input[0]["output"]
+                .as_str()
+                .unwrap()
+                .contains("invalid arguments")
+        );
     }
 
     #[test]
@@ -1931,9 +1958,11 @@ mod tests {
         assert_eq!(input.len(), 1);
         assert_eq!(input[0]["type"], "function_call_output");
         assert_eq!(input[0]["call_id"], "call_ft_err");
-        assert!(input[0]["output"]
-            .as_str()
-            .unwrap()
-            .contains("malformed arguments"));
+        assert!(
+            input[0]["output"]
+                .as_str()
+                .unwrap()
+                .contains("malformed arguments")
+        );
     }
 }
