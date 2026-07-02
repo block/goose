@@ -37,6 +37,7 @@ pub const BEDROCK_DOC_LINK: &str =
 
 pub const BEDROCK_DEFAULT_MODEL: &str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0";
 pub const BEDROCK_KNOWN_MODELS: &[&str] = &[
+    "global.anthropic.claude-sonnet-5",
     "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
     "us.anthropic.claude-sonnet-4-20250514-v1:0",
     "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
