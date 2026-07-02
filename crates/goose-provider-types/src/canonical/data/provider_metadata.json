@@ -384,7 +384,7 @@
     "env": [
       "GITHUB_TOKEN"
     ],
-    "model_count": 22
+    "model_count": 23
   },
   {
     "id": "github-models",
@@ -406,7 +406,7 @@
     "env": [
       "GMICLOUD_API_KEY"
     ],
-    "model_count": 11
+    "model_count": 13
   },
   {
     "id": "helicone",
@@ -560,7 +560,7 @@
     "env": [
       "LLMGATEWAY_API_KEY"
     ],
-    "model_count": 180
+    "model_count": 182
   },
   {
     "id": "llmtr",
@@ -836,7 +836,7 @@
     "env": [
       "OPENCODE_API_KEY"
     ],
-    "model_count": 71
+    "model_count": 74
   },
   {
     "id": "opencode-go",
@@ -972,6 +972,17 @@
     "model_count": 26
   },
   {
+    "id": "sakana",
+    "display_name": "Sakana AI",
+    "npm": "@ai-sdk/openai-compatible",
+    "api": "https://api.sakana.ai/v1",
+    "doc": "https://console.sakana.ai/models",
+    "env": [
+      "SAKANA_API_KEY"
+    ],
+    "model_count": 3
+  },
+  {
     "id": "sarvam",
     "display_name": "Sarvam AI",
     "npm": "@ai-sdk/openai-compatible",
@@ -1091,7 +1102,7 @@
     "env": [
       "SYNTHETIC_API_KEY"
     ],
-    "model_count": 10
+    "model_count": 7
   },
   {
     "id": "tencent-coding-plan",

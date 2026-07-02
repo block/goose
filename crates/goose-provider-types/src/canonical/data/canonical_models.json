@@ -12205,6 +12205,39 @@
     }
   },
   {
+    "id": "amazon-bedrock/anthropic.claude-fable-5",
+    "name": "Claude Fable 5",
+    "family": "claude-fable",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-09",
+    "last_updated": "2026-06-09",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 10.0,
+      "output": 50.0,
+      "cache_read": 1.0,
+      "cache_write": 12.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "amazon-bedrock/anthropic.claude-haiku-4.5-20251001-v1:0",
     "name": "Claude Haiku 4.5",
     "family": "claude-haiku",
@@ -12468,6 +12501,39 @@
     }
   },
   {
+    "id": "amazon-bedrock/anthropic.claude-sonnet-5",
+    "name": "Claude Sonnet 5",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "amazon-bedrock/au.anthropic.claude-haiku-4.5-20251001-v1:0",
     "name": "Claude Haiku 4.5 (AU)",
     "family": "claude-haiku",
@@ -12632,6 +12698,39 @@
     }
   },
   {
+    "id": "amazon-bedrock/au.anthropic.claude-sonnet-5",
+    "name": "Claude Sonnet 5 (AU)",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "amazon-bedrock/deepseek.r1-v1:0",
     "name": "DeepSeek-R1",
     "family": "deepseek-thinking",
@@ -12732,7 +12831,8 @@
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -12981,6 +13081,39 @@
     }
   },
   {
+    "id": "amazon-bedrock/eu.anthropic.claude-sonnet-5",
+    "name": "Claude Sonnet 5 (EU)",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.2,
+      "output": 11.0,
+      "cache_read": 0.22,
+      "cache_write": 2.75
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "amazon-bedrock/global.anthropic.claude-fable-5",
     "name": "Claude Fable 5 (Global)",
     "family": "claude-fable",
@@ -12994,7 +13127,8 @@
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -13249,10 +13383,10 @@
     "attachment": true,
     "reasoning": true,
     "tool_call": true,
-    "temperature": true,
-    "knowledge": "2025-08-31",
-    "release_date": "2026-06-01",
-    "last_updated": "2026-07-01",
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
     "modalities": {
       "input": [
         "text",
@@ -13265,14 +13399,14 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 3.0,
-      "output": 15.0,
-      "cache_read": 0.3,
-      "cache_write": 3.75
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
     },
     "limit": {
       "context": 1000000,
-      "output": 64000
+      "output": 128000
     }
   },
   {
@@ -13493,6 +13627,39 @@
     "limit": {
       "context": 1000000,
       "output": 64000
+    }
+  },
+  {
+    "id": "amazon-bedrock/jp.anthropic.claude-sonnet-5",
+    "name": "Claude Sonnet 5 (JP)",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
     }
   },
   {
@@ -14601,7 +14768,8 @@
     "modalities": {
       "input": [
         "text",
-        "image"
+        "image",
+        "pdf"
       ],
       "output": [
         "text"
@@ -14880,6 +15048,39 @@
     "limit": {
       "context": 1000000,
       "output": 64000
+    }
+  },
+  {
+    "id": "amazon-bedrock/us.anthropic.claude-sonnet-5",
+    "name": "Claude Sonnet 5 (US)",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
     }
   },
   {
@@ -15843,10 +16044,10 @@
     "reasoning": true,
     "thinking_mode": "adaptive",
     "tool_call": true,
-    "temperature": true,
-    "knowledge": "2025-08-31",
-    "release_date": "2026-06-01",
-    "last_updated": "2026-07-01",
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
     "modalities": {
       "input": [
         "text",
@@ -15859,14 +16060,14 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 3.0,
-      "output": 15.0,
-      "cache_read": 0.3,
-      "cache_write": 3.75
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
     },
     "limit": {
       "context": 1000000,
-      "output": 64000
+      "output": 128000
     }
   },
   {
@@ -20314,6 +20515,39 @@
     }
   },
   {
+    "id": "azure/claude-sonnet-5",
+    "name": "Claude Sonnet 5",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "azure/codestral",
     "name": "Codestral 25.01",
     "family": "codestral",
@@ -23864,6 +24098,35 @@
     }
   },
   {
+    "id": "cerebras/gemma-4-31b",
+    "name": "Gemma 4 31B IT",
+    "family": "gemma",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-04-02",
+    "last_updated": "2026-07-01",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.99,
+      "output": 1.49
+    },
+    "limit": {
+      "context": 131072,
+      "output": 40960
+    }
+  },
+  {
     "id": "cerebras/gpt-oss-120b",
     "name": "GPT OSS 120B",
     "family": "gpt-oss",
@@ -25384,6 +25647,39 @@
     "limit": {
       "context": 1000000,
       "output": 64000
+    }
+  },
+  {
+    "id": "cloudflare-ai-gateway/anthropic/claude-sonnet-5",
+    "name": "Claude Sonnet 5",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
     }
   },
   {
@@ -31838,6 +32134,38 @@
     "limit": {
       "context": 262144,
       "output": 16384
+    }
+  },
+  {
+    "id": "deepinfra/moonshotai/Kimi-K2.7-Code",
+    "name": "Kimi K2.7 Code",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-01",
+    "release_date": "2026-06-12",
+    "last_updated": "2026-06-12",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.74,
+      "output": 3.5,
+      "cache_read": 0.15
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
     }
   },
   {
@@ -38684,6 +39012,39 @@
     }
   },
   {
+    "id": "github-copilot/claude-sonnet-5",
+    "name": "Claude Sonnet 5",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "github-copilot/gemini-2.5-pro",
     "name": "Gemini 2.5 Pro",
     "family": "gemini-pro",
@@ -41316,6 +41677,37 @@
     }
   },
   {
+    "id": "gmicloud/anthropic/claude-opus-4.8",
+    "name": "Claude Opus 4.8",
+    "family": "claude-opus",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "release_date": "2026-05-28",
+    "last_updated": "2026-05-28",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 25.0,
+      "cache_read": 0.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "gmicloud/anthropic/claude-sonnet-4.6",
     "name": "Claude Sonnet 4.6",
     "family": "claude-sonnet",
@@ -41463,6 +41855,38 @@
     "limit": {
       "context": 262144,
       "output": 262144
+    }
+  },
+  {
+    "id": "gmicloud/openai/gpt-5.5",
+    "name": "GPT-5.5",
+    "family": "gpt",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-12-01",
+    "release_date": "2026-04-23",
+    "last_updated": "2026-04-23",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 30.0,
+      "cache_read": 0.5
+    },
+    "limit": {
+      "context": 1050000,
+      "output": 128000
     }
   },
   {
@@ -41915,6 +42339,39 @@
     }
   },
   {
+    "id": "google-vertex-anthropic/claude-sonnet-5@default",
+    "name": "Claude Sonnet 5",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "google-vertex/claude-3.5-haiku",
     "name": "Claude Haiku 3.5",
     "family": "claude-haiku",
@@ -42270,6 +42727,39 @@
       "output": 15.0,
       "cache_read": 0.3,
       "cache_write": 3.75
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "google-vertex/claude-sonnet-5@default",
+    "name": "Claude Sonnet 5",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
     },
     "limit": {
       "context": 1000000,
@@ -61291,6 +61781,39 @@
     }
   },
   {
+    "id": "llmgateway/claude-fable-5",
+    "name": "Claude Fable 5",
+    "family": "claude-fable",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-09",
+    "last_updated": "2026-06-09",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 10.0,
+      "output": 50.0,
+      "cache_read": 1.0,
+      "cache_write": 12.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "llmgateway/claude-haiku-4.5",
     "name": "Claude Haiku 4.5 (latest)",
     "family": "claude-haiku",
@@ -61581,6 +62104,38 @@
     "limit": {
       "context": 1000000,
       "output": 64000
+    }
+  },
+  {
+    "id": "llmgateway/claude-sonnet-5",
+    "name": "Claude Sonnet 5",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": false,
+    "temperature": true,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read": 0.3,
+      "cache_write": 3.75
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 1000000
     }
   },
   {
@@ -63758,8 +64313,8 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 2.0,
-      "output": 6.0,
+      "input": 1.25,
+      "output": 2.5,
       "cache_read": 0.2
     },
     "limit": {
@@ -63789,8 +64344,8 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 2.0,
-      "output": 6.0,
+      "input": 1.25,
+      "output": 2.5,
       "cache_read": 0.2
     },
     "limit": {
@@ -65436,7 +65991,7 @@
       "output": 0.58
     },
     "limit": {
-      "context": 262000,
+      "context": 262144,
       "output": 8192
     }
   },
@@ -65755,7 +66310,7 @@
     "open_weights": true,
     "cost": {
       "input": 0.15,
-      "output": 1.5
+      "output": 1.2
     },
     "limit": {
       "context": 131072,
@@ -101010,7 +101565,7 @@
   },
   {
     "id": "opencode-go/minimax-m2.5",
-    "name": "MiniMax M2.5",
+    "name": "MiniMax-M2.5",
     "family": "minimax-m2.5",
     "attachment": false,
     "reasoning": true,
@@ -101040,7 +101595,7 @@
   },
   {
     "id": "opencode-go/minimax-m2.7",
-    "name": "MiniMax M2.7",
+    "name": "MiniMax-M2.7",
     "family": "minimax-m2.7",
     "attachment": false,
     "reasoning": true,
@@ -101070,7 +101625,7 @@
   },
   {
     "id": "opencode-go/minimax-m3",
-    "name": "MiniMax M3 (3x usage)",
+    "name": "MiniMax-M3",
     "family": "minimax-m3",
     "attachment": false,
     "reasoning": true,
@@ -101091,9 +101646,9 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.1,
-      "output": 0.4,
-      "cache_read": 0.02
+      "input": 0.3,
+      "output": 1.2,
+      "cache_read": 0.06
     },
     "limit": {
       "context": 1000000,
@@ -101619,6 +102174,39 @@
     "limit": {
       "context": 1000000,
       "output": 64000
+    }
+  },
+  {
+    "id": "opencode/claude-sonnet-5",
+    "name": "Claude Sonnet 5",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
     }
   },
   {
@@ -102837,6 +103425,38 @@
     }
   },
   {
+    "id": "opencode/kimi-k2.7-code",
+    "name": "Kimi K2.7 Code",
+    "family": "kimi-k2",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2025-01",
+    "release_date": "2026-06-12",
+    "last_updated": "2026-06-12",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.95,
+      "output": 4.0,
+      "cache_read": 0.19
+    },
+    "limit": {
+      "context": 262144,
+      "output": 262144
+    }
+  },
+  {
     "id": "opencode/ling-2.6-flash-free",
     "name": "Ling 2.6 Flash Free",
     "family": "ling-flash-free",
@@ -102993,7 +103613,7 @@
   },
   {
     "id": "opencode/minimax-m2.1",
-    "name": "MiniMax M2.1",
+    "name": "MiniMax-M2.1",
     "family": "minimax",
     "attachment": false,
     "reasoning": true,
@@ -103023,7 +103643,7 @@
   },
   {
     "id": "opencode/minimax-m2.1-free",
-    "name": "MiniMax M2.1 Free",
+    "name": "MiniMax-M2.1 Free",
     "family": "minimax-free",
     "attachment": false,
     "reasoning": true,
@@ -103053,7 +103673,7 @@
   },
   {
     "id": "opencode/minimax-m2.5",
-    "name": "MiniMax M2.5",
+    "name": "MiniMax-M2.5",
     "family": "minimax",
     "attachment": false,
     "reasoning": true,
@@ -103083,7 +103703,7 @@
   },
   {
     "id": "opencode/minimax-m2.5-free",
-    "name": "MiniMax M2.5 Free",
+    "name": "MiniMax-M2.5 Free",
     "family": "minimax-free",
     "attachment": false,
     "reasoning": true,
@@ -103113,7 +103733,7 @@
   },
   {
     "id": "opencode/minimax-m2.7",
-    "name": "MiniMax M2.7",
+    "name": "MiniMax-M2.7",
     "family": "minimax",
     "attachment": false,
     "reasoning": true,
@@ -103142,8 +103762,39 @@
     }
   },
   {
+    "id": "opencode/minimax-m3",
+    "name": "MiniMax-M3",
+    "family": "minimax",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "release_date": "2026-06-01",
+    "last_updated": "2026-06-01",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "video"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": true,
+    "cost": {
+      "input": 0.3,
+      "output": 1.2,
+      "cache_read": 0.06
+    },
+    "limit": {
+      "context": 512000,
+      "output": 128000
+    }
+  },
+  {
     "id": "opencode/minimax-m3-free",
-    "name": "MiniMax M3 Free",
+    "name": "MiniMax-M3 Free",
     "family": "minimax-m3-free",
     "attachment": false,
     "reasoning": true,
@@ -103826,6 +104477,39 @@
     }
   },
   {
+    "id": "openrouter/anthropic/claude-fable-5",
+    "name": "Claude Fable 5",
+    "family": "claude-fable",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-09",
+    "last_updated": "2026-06-09",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 10.0,
+      "output": 50.0,
+      "cache_read": 1.0,
+      "cache_write": 12.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "openrouter/anthropic/claude-haiku-4.5",
     "name": "Claude Haiku 4.5 (latest)",
     "family": "claude-haiku",
@@ -104212,6 +104896,39 @@
       "output": 15.0,
       "cache_read": 0.3,
       "cache_write": 3.75
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "openrouter/anthropic/claude-sonnet-5",
+    "name": "Claude Sonnet 5",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
     },
     "limit": {
       "context": 1000000,
@@ -104762,8 +105479,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.2,
-      "output": 0.77,
+      "input": 0.24,
+      "output": 0.9,
       "cache_read": 0.135
     },
     "limit": {
@@ -104971,11 +105688,11 @@
     "cost": {
       "input": 0.09,
       "output": 0.18,
-      "cache_read": 0.02
+      "cache_read": 0.018
     },
     "limit": {
-      "context": 1000000,
-      "output": 65536
+      "context": 1048576,
+      "output": 16384
     }
   },
   {
@@ -105444,6 +106161,37 @@
     "limit": {
       "context": 1048576,
       "output": 65536
+    }
+  },
+  {
+    "id": "openrouter/google/gemini-3.1-flash-lite-image",
+    "name": "Nano Banana 2 Lite (Gemini 3.1 Flash Lite Image)",
+    "family": "gemini",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": false,
+    "temperature": true,
+    "knowledge": "2025-01-01",
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "image",
+        "text"
+      ],
+      "output": [
+        "image",
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.25,
+      "output": 1.5
+    },
+    "limit": {
+      "context": 65536,
+      "output": 66000
     }
   },
   {
@@ -106698,35 +107446,6 @@
     }
   },
   {
-    "id": "openrouter/microsoft/phi-4-mini-instruct",
-    "name": "Phi 4 Mini Instruct",
-    "family": "phi",
-    "attachment": false,
-    "reasoning": false,
-    "tool_call": false,
-    "temperature": true,
-    "release_date": "2025-10-17",
-    "last_updated": "2025-10-17",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.08,
-      "output": 0.35,
-      "cache_read": 0.08
-    },
-    "limit": {
-      "context": 128000,
-      "output": 128000
-    }
-  },
-  {
     "id": "openrouter/microsoft/wizardlm-2-8x22b",
     "name": "WizardLM-2 8x22B",
     "attachment": false,
@@ -106834,12 +107553,11 @@
     "open_weights": true,
     "cost": {
       "input": 0.255,
-      "output": 1.0,
-      "cache_read": 0.03
+      "output": 1.02
     },
     "limit": {
-      "context": 196608,
-      "output": 196608
+      "context": 204800,
+      "output": 131072
     }
   },
   {
@@ -106891,13 +107609,13 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.29,
-      "output": 0.95,
+      "input": 0.3,
+      "output": 1.2,
       "cache_read": 0.03
     },
     "limit": {
-      "context": 196608,
-      "output": 196608
+      "context": 204800,
+      "output": 131072
     }
   },
   {
@@ -107558,11 +108276,11 @@
     "cost": {
       "input": 0.6,
       "output": 2.5,
-      "cache_read": 0.6
+      "cache_read": 0.15
     },
     "limit": {
       "context": 262144,
-      "output": 262144
+      "output": 100352
     }
   },
   {
@@ -110075,34 +110793,6 @@
     }
   },
   {
-    "id": "openrouter/openrouter/owl-alpha",
-    "name": "Owl Alpha",
-    "family": "alpha",
-    "attachment": false,
-    "reasoning": false,
-    "tool_call": true,
-    "temperature": true,
-    "release_date": "2026-04-28",
-    "last_updated": "2026-04-28",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": false,
-    "cost": {
-      "input": 0.0,
-      "output": 0.0
-    },
-    "limit": {
-      "context": 1048756,
-      "output": 262144
-    }
-  },
-  {
     "id": "openrouter/openrouter/pareto-code",
     "name": "Pareto Code Router",
     "attachment": false,
@@ -110667,12 +111357,11 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.1,
-      "output": 0.1,
-      "cache_read": 0.1
+      "input": 0.1495,
+      "output": 1.495
     },
     "limit": {
-      "context": 262144,
+      "context": 131072,
       "output": 262144
     }
   },
@@ -110755,13 +111444,12 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.08,
-      "output": 0.4,
-      "cache_read": 0.08
+      "input": 0.13,
+      "output": 1.56
     },
     "limit": {
-      "context": 131072,
-      "output": 131072
+      "context": 81920,
+      "output": 32768
     }
   },
   {
@@ -110814,12 +111502,11 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.05,
-      "output": 0.4,
-      "cache_read": 0.05
+      "input": 0.117,
+      "output": 0.455
     },
     "limit": {
-      "context": 40960,
+      "context": 131072,
       "output": 8192
     }
   },
@@ -111620,8 +112307,8 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.2596,
-      "output": 2.385
+      "input": 0.285,
+      "output": 2.4
     },
     "limit": {
       "context": 262140,
@@ -111929,6 +112616,7 @@
   {
     "id": "openrouter/sakana/fugu-ultra",
     "name": "Fugu Ultra",
+    "family": "fugu",
     "attachment": true,
     "reasoning": true,
     "tool_call": true,
@@ -112892,12 +113580,11 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.98,
-      "output": 3.08,
-      "cache_read": 0.182
+      "input": 0.975,
+      "output": 4.3
     },
     "limit": {
-      "context": 202752,
+      "context": 65536,
       "output": 128000
     }
   },
@@ -112921,7 +113608,7 @@
     },
     "open_weights": true,
     "cost": {
-      "input": 0.94,
+      "input": 0.93,
       "output": 3.0,
       "cache_read": 0.18
     },
@@ -113064,7 +113751,7 @@
     "attachment": true,
     "reasoning": true,
     "tool_call": true,
-    "temperature": true,
+    "temperature": false,
     "release_date": "2026-04-27",
     "last_updated": "2026-04-27",
     "modalities": {
@@ -113079,10 +113766,10 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 3.0,
-      "output": 15.0,
-      "cache_read": 0.3,
-      "cache_write": 3.75
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
     },
     "limit": {
       "context": 1000000,
@@ -125677,6 +126364,62 @@
     }
   },
   {
+    "id": "sakana/fugu",
+    "name": "Fugu",
+    "family": "fugu",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "release_date": "2026-06-15",
+    "last_updated": "2026-06-15",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {},
+    "limit": {
+      "context": 1000000,
+      "output": 1000000
+    }
+  },
+  {
+    "id": "sakana/fugu-ultra",
+    "name": "Fugu Ultra",
+    "family": "fugu",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "release_date": "2026-06-15",
+    "last_updated": "2026-06-15",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 5.0,
+      "output": 30.0,
+      "cache_read": 0.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 1000000
+    }
+  },
+  {
     "id": "sap-ai-core/anthropic--claude-3-haiku",
     "name": "anthropic--claude-3-haiku",
     "family": "claude-haiku",
@@ -130983,36 +131726,6 @@
     }
   },
   {
-    "id": "synthetic/hf:Qwen/Qwen3.5-397B-A17B",
-    "name": "Qwen3.5 397B-A17B",
-    "family": "qwen",
-    "attachment": true,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "release_date": "2026-02-15",
-    "last_updated": "2026-02-15",
-    "modalities": {
-      "input": [
-        "text",
-        "image"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.6,
-      "output": 3.6,
-      "cache_read": 0.6
-    },
-    "limit": {
-      "context": 262144,
-      "output": 65536
-    }
-  },
-  {
     "id": "synthetic/hf:Qwen/Qwen3.6-27B",
     "name": "Qwen3.6 27B",
     "family": "qwen",
@@ -131043,16 +131756,16 @@
     }
   },
   {
-    "id": "synthetic/hf:moonshotai/Kimi-K2.6",
-    "name": "Kimi K2.6",
+    "id": "synthetic/hf:moonshotai/Kimi-K2.7-Code",
+    "name": "Kimi K2.7 Code",
     "family": "kimi-k2",
     "attachment": true,
     "reasoning": true,
     "tool_call": true,
-    "temperature": true,
+    "temperature": false,
     "knowledge": "2025-01",
-    "release_date": "2026-04-21",
-    "last_updated": "2026-04-21",
+    "release_date": "2026-06-12",
+    "last_updated": "2026-06-12",
     "modalities": {
       "input": [
         "text",
@@ -131132,36 +131845,6 @@
     }
   },
   {
-    "id": "synthetic/hf:zai-org/GLM-4.7",
-    "name": "GLM-4.7",
-    "family": "glm",
-    "attachment": false,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "knowledge": "2025-04",
-    "release_date": "2025-12-22",
-    "last_updated": "2025-12-22",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.45,
-      "output": 2.19,
-      "cache_read": 0.45
-    },
-    "limit": {
-      "context": 202752,
-      "output": 65536
-    }
-  },
-  {
     "id": "synthetic/hf:zai-org/GLM-4.7-Flash",
     "name": "GLM-4.7-Flash",
     "family": "glm-flash",
@@ -131185,35 +131868,6 @@
       "input": 0.1,
       "output": 0.5,
       "cache_read": 0.1
-    },
-    "limit": {
-      "context": 196608,
-      "output": 65536
-    }
-  },
-  {
-    "id": "synthetic/hf:zai-org/GLM-5.1",
-    "name": "GLM-5.1",
-    "family": "glm",
-    "attachment": false,
-    "reasoning": true,
-    "tool_call": true,
-    "temperature": true,
-    "release_date": "2026-04-07",
-    "last_updated": "2026-04-07",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 1.0,
-      "output": 3.0,
-      "cache_read": 1.0
     },
     "limit": {
       "context": 196608,
@@ -133411,34 +134065,6 @@
     }
   },
   {
-    "id": "venice/arcee-trinity-large-thinking",
-    "name": "Trinity Large Thinking",
-    "family": "trinity",
-    "attachment": false,
-    "reasoning": true,
-    "tool_call": true,
-    "release_date": "2026-04-02",
-    "last_updated": "2026-06-11",
-    "modalities": {
-      "input": [
-        "text"
-      ],
-      "output": [
-        "text"
-      ]
-    },
-    "open_weights": true,
-    "cost": {
-      "input": 0.3125,
-      "output": 1.125,
-      "cache_read": 0.075
-    },
-    "limit": {
-      "context": 256000,
-      "output": 65536
-    }
-  },
-  {
     "id": "venice/claude-fable-5",
     "name": "Claude Fable 5",
     "family": "claude-fable",
@@ -133718,6 +134344,38 @@
       "output": 18.0,
       "cache_read": 0.36,
       "cache_write": 4.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 64000
+    }
+  },
+  {
+    "id": "venice/claude-sonnet-5",
+    "name": "Claude Sonnet 5",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": false,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-29",
+    "last_updated": "2026-07-01",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read": 0.3,
+      "cache_write": 3.75
     },
     "limit": {
       "context": 1000000,
@@ -136784,6 +137442,39 @@
     }
   },
   {
+    "id": "vercel/anthropic/claude-fable-5",
+    "name": "Claude Fable 5",
+    "family": "claude-fable",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-07-01",
+    "last_updated": "2026-06-09",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 10.0,
+      "output": 50.0,
+      "cache_read": 1.0,
+      "cache_write": 12.5
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
     "id": "vercel/anthropic/claude-haiku-4.5",
     "name": "Claude Haiku 4.5",
     "family": "claude-haiku",
@@ -137106,6 +137797,39 @@
       "output": 15.0,
       "cache_read": 0.3,
       "cache_write": 3.75
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 128000
+    }
+  },
+  {
+    "id": "vercel/anthropic/claude-sonnet-5",
+    "name": "Claude Sonnet 5",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2026-01-31",
+    "release_date": "2026-06-29",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 2.0,
+      "output": 10.0,
+      "cache_read": 0.2,
+      "cache_write": 2.5
     },
     "limit": {
       "context": 1000000,
@@ -138397,6 +139121,37 @@
     "limit": {
       "context": 1000000,
       "output": 65000
+    }
+  },
+  {
+    "id": "vercel/google/gemini-3.1-flash-lite-image",
+    "name": "Gemini 3.1 Flash Lite Image (Nano Banana 2 Lite)",
+    "family": "gemini",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": false,
+    "temperature": true,
+    "release_date": "2026-06-30",
+    "last_updated": "2026-06-30",
+    "modalities": {
+      "input": [
+        "text",
+        "image"
+      ],
+      "output": [
+        "text",
+        "image"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 0.25,
+      "output": 1.5,
+      "cache_read": 0.03
+    },
+    "limit": {
+      "context": 65536,
+      "output": 4096
     }
   },
   {
@@ -147310,7 +148065,7 @@
   {
     "id": "zeldoc/z-code",
     "name": "Z-Code",
-    "attachment": true,
+    "attachment": false,
     "reasoning": true,
     "tool_call": true,
     "temperature": true,
@@ -147319,9 +148074,7 @@
     "last_updated": "2026-04-15",
     "modalities": {
       "input": [
-        "text",
-        "image",
-        "video"
+        "text"
       ],
       "output": [
         "text"
@@ -147333,8 +148086,8 @@
       "output": 0.0
     },
     "limit": {
-      "context": 262144,
-      "output": 262144
+      "context": 1000000,
+      "output": 131072
     }
   },
   {
@@ -151269,9 +152022,9 @@
     },
     "open_weights": false,
     "cost": {
-      "input": 6.0,
-      "output": 24.0,
-      "cache_read": 1.3,
+      "input": 1.4,
+      "output": 4.4,
+      "cache_read": 0.26,
       "cache_write": 0.0
     },
     "limit": {
