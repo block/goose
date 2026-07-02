@@ -1,12 +1,12 @@
 use agent_client_protocol::schema::v1::{
-    ClientCapabilities, CloseSessionRequest, ContentBlock, ContentChunk, EnvVariable, HttpHeader,
-    ImageContent, InitializeRequest, InitializeResponse, McpCapabilities, McpServer, McpServerHttp,
-    McpServerStdio, NewSessionRequest, NewSessionResponse, PromptRequest, PromptResponse,
-    RequestPermissionOutcome, RequestPermissionRequest, RequestPermissionResponse,
-    SessionConfigKind, SessionConfigOption, SessionConfigOptionCategory,
-    SessionConfigSelectOptions, SessionId, SessionNotification, SessionUpdate,
-    SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse, StopReason,
-    TextContent, ToolCallContent, ToolCallStatus, ToolKind,
+    AgentNotification, ClientCapabilities, CloseSessionRequest, ContentBlock, ContentChunk,
+    EnvVariable, ExtNotification, HttpHeader, ImageContent, InitializeRequest, InitializeResponse,
+    McpCapabilities, McpServer, McpServerHttp, McpServerStdio, NewSessionRequest,
+    NewSessionResponse, PromptRequest, PromptResponse, RequestPermissionOutcome,
+    RequestPermissionRequest, RequestPermissionResponse, SessionConfigKind, SessionConfigOption,
+    SessionConfigOptionCategory, SessionConfigSelectOptions, SessionId, SessionNotification,
+    SessionUpdate, SetSessionConfigOptionRequest, SetSessionModeRequest, SetSessionModeResponse,
+    StopReason, TextContent, ToolCallContent, ToolCallStatus, ToolKind,
 };
 use agent_client_protocol::schema::ProtocolVersion;
 use agent_client_protocol::{Agent, Client, ConnectionTo};
@@ -34,7 +34,9 @@ use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt 
 use crate::acp::{map_permission_response, PermissionDecision};
 use crate::config::{ExtensionConfig, GooseMode};
 use crate::context_mgmt::format_message_for_compacting;
-use crate::conversation::message::{Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY};
+use crate::conversation::message::{
+    InferenceMetadata, Message, MessageContent, TOOL_META_EXTERNAL_DISPATCH_KEY,
+};
 use crate::permission::permission_confirmation::PrincipalType;
 use crate::permission::{Permission, PermissionConfirmation};
 use crate::providers::base::{MessageStream, PermissionRouting, Provider};
@@ -115,6 +117,7 @@ enum AcpUpdate {
         request: Box<RequestPermissionRequest>,
         response_tx: oneshot::Sender<RequestPermissionResponse>,
     },
+    Model(String),
     Complete(StopReason, Option<AcpUsage>),
     Error(String),
 }
@@ -504,13 +507,25 @@ impl Provider for AcpProvider {
 
         let reject_all_tools = goose_mode == GooseMode::Chat;
         let model_name = model_config.model_name.clone();
+        let provider_name = self.name.clone();
 
         Ok(Box::pin(try_stream! {
             let mut suppress_text = false;
             let mut rejected_tool_calls: HashSet<String> = HashSet::new();
+            let mut actual_model: Option<String> = None;
             // Stable id+timestamp per contiguous run so Desktop coalesces chunks into one bubble.
             let mut text_run: Option<(String, i64)> = None;
             let mut thought_run: Option<(String, i64)> = None;
+
+            let inference_for_actual_model = |actual_model: &str| {
+                (model_name != ACP_CURRENT_MODEL && actual_model != model_name).then(|| {
+                    InferenceMetadata {
+                        provider: provider_name.clone(),
+                        requested_model: model_name.clone(),
+                        resolved_model: Some(actual_model.to_string()),
+                    }
+                })
+            };
 
             while let Some(update) = rx.recv().await {
                 match update {
@@ -519,9 +534,15 @@ impl Provider for AcpProvider {
                             let (id, ts) = text_run
                                 .get_or_insert_with(fresh_text_run)
                                 .clone();
-                            let message = Message::new(Role::Assistant, ts, vec![])
+                            let mut message = Message::new(Role::Assistant, ts, vec![])
                                 .with_text(text)
                                 .with_id(id);
+                            if let Some(inference) = actual_model
+                                .as_deref()
+                                .and_then(&inference_for_actual_model)
+                            {
+                                message = message.with_inference(inference);
+                            }
                             yield (Some(message), None);
                         }
                     }
@@ -634,6 +655,15 @@ impl Provider for AcpProvider {
                             rejected_tool_calls.insert(request.tool_call.tool_call_id.0.to_string());
                         }
                         let _ = response_tx.send(map_permission_response(&request, decision));
+                    }
+                    AcpUpdate::Model(model) => {
+                        let changed = actual_model.as_deref() != Some(model.as_str());
+                        actual_model = Some(model.clone());
+                        if changed && text_run.is_some() {
+                            if let Some(inference) = inference_for_actual_model(&model) {
+                                yield (Some(Message::assistant().with_inference(inference)), None);
+                            }
+                        }
                     }
                     AcpUpdate::Complete(_reason, usage) => {
                         if let Some(usage) = usage {
@@ -762,7 +792,26 @@ impl AcpClientLoop {
                     let goose_mode = goose_mode.clone();
                     let pending_tool_updates = pending_tool_updates.clone();
                     let context_size = context_size.clone();
-                    async move |notification: SessionNotification, _cx| {
+                    async move |agent_notification: AgentNotification, _cx| {
+                        let notification = match agent_notification {
+                            AgentNotification::SessionNotification(notification) => notification,
+                            AgentNotification::ExtNotification(notification) => {
+                                if let Some(model) = extract_claude_sdk_message_model(&notification)
+                                {
+                                    if let Some(tx) = prompt_response_tx
+                                        .lock()
+                                        .ok()
+                                        .as_ref()
+                                        .and_then(|g| g.as_ref().cloned())
+                                    {
+                                        let _ = tx.try_send(AcpUpdate::Model(model));
+                                    }
+                                }
+                                return Ok(());
+                            }
+                            _ => return Ok(()),
+                        };
+
                         if let Some(ref cb) = notification_callback {
                             cb(notification.clone());
                         }
@@ -1536,6 +1585,27 @@ fn resolve_model_info(
     )))
 }
 
+fn extract_claude_sdk_message_model(notification: &ExtNotification) -> Option<String> {
+    match notification.method.as_ref() {
+        "claude/sdkMessage" | "_claude/sdkMessage" => {}
+        _ => return None,
+    }
+
+    let params: serde_json::Value = serde_json::from_str(notification.params.get()).ok()?;
+    let message = params.get("message")?;
+
+    let extracted = [
+        message.pointer("/event/message/model"),
+        message.pointer("/message/model"),
+    ]
+    .into_iter()
+    .flatten()
+    .filter_map(serde_json::Value::as_str)
+    .find(|model| !model.trim().is_empty() && *model != "<synthetic>")
+    .map(str::to_string);
+    extracted
+}
+
 fn reverse_mode_mapping(
     mode_mapping: &HashMap<GooseMode, String>,
 ) -> HashMap<String, Vec<GooseMode>> {
@@ -1811,6 +1881,50 @@ mod tests {
         assert!(rx.try_recv().is_err());
     }
 
+    #[tokio::test]
+    async fn stream_attaches_runtime_model_mismatch_to_assistant_text() {
+        use futures::StreamExt;
+
+        let (tx, mut rx) = mpsc::channel(1);
+        let (provider, _model) = test_provider_with_tx(Some(tx));
+        let mut stream = provider
+            .stream(
+                &ModelConfig::new("claude-fable-5"),
+                "",
+                &[Message::user().with_text("hello")],
+                &[],
+            )
+            .await
+            .unwrap();
+
+        match rx.recv().await.expect("expected prompt request") {
+            ClientRequest::Prompt { response_tx, .. } => {
+                response_tx
+                    .send(AcpUpdate::Model("claude-opus-4-8".to_string()))
+                    .await
+                    .unwrap();
+                response_tx
+                    .send(AcpUpdate::Text("hi".to_string()))
+                    .await
+                    .unwrap();
+            }
+            _ => panic!("expected prompt request"),
+        }
+
+        let (message, usage) = stream.next().await.unwrap().unwrap();
+        assert!(usage.is_none());
+        let message = message.expect("expected assistant message");
+        assert_eq!(message.as_concat_text(), "hi");
+        assert_eq!(
+            message.metadata.inference,
+            Some(InferenceMetadata {
+                provider: "acp-test".to_string(),
+                requested_model: "claude-fable-5".to_string(),
+                resolved_model: Some("claude-opus-4-8".to_string()),
+            })
+        );
+    }
+
     #[test]
     fn messages_to_prompt_includes_all_prior_handoff_context() {
         let messages = vec![
@@ -2033,6 +2147,87 @@ mod tests {
         response: NewSessionResponse,
     ) -> Result<(String, Vec<String>), ProviderError> {
         resolve_model_info("test", &response)
+    }
+
+    fn ext_notification(method: &str, params: serde_json::Value) -> ExtNotification {
+        let raw = serde_json::value::RawValue::from_string(params.to_string()).unwrap();
+        ExtNotification::new(method, std::sync::Arc::from(raw))
+    }
+
+    #[test]
+    fn extracts_model_from_claude_sdk_message_start() {
+        let notification = ext_notification(
+            "claude/sdkMessage",
+            serde_json::json!({
+                "sessionId": "session-1",
+                "message": {
+                    "type": "assistant",
+                    "event": {
+                        "type": "message_start",
+                        "message": {
+                            "model": "claude-opus-4-8"
+                        }
+                    }
+                }
+            }),
+        );
+
+        assert_eq!(
+            extract_claude_sdk_message_model(&notification),
+            Some("claude-opus-4-8".to_string())
+        );
+    }
+
+    #[test]
+    fn extracts_model_from_final_claude_sdk_assistant_message() {
+        let notification = ext_notification(
+            "_claude/sdkMessage",
+            serde_json::json!({
+                "sessionId": "session-1",
+                "message": {
+                    "type": "assistant",
+                    "message": {
+                        "model": "claude-sonnet-4-6"
+                    }
+                }
+            }),
+        );
+
+        assert_eq!(
+            extract_claude_sdk_message_model(&notification),
+            Some("claude-sonnet-4-6".to_string())
+        );
+    }
+
+    #[test]
+    fn ignores_synthetic_or_unrelated_ext_model_notifications() {
+        let synthetic = ext_notification(
+            "claude/sdkMessage",
+            serde_json::json!({
+                "message": {
+                    "event": {
+                        "message": {
+                            "model": "<synthetic>"
+                        }
+                    }
+                }
+            }),
+        );
+        let unrelated = ext_notification(
+            "other/sdkMessage",
+            serde_json::json!({
+                "message": {
+                    "event": {
+                        "message": {
+                            "model": "claude-opus-4-8"
+                        }
+                    }
+                }
+            }),
+        );
+
+        assert_eq!(extract_claude_sdk_message_model(&synthetic), None);
+        assert_eq!(extract_claude_sdk_message_model(&unrelated), None);
     }
 
     fn codex_reverse_modes() -> HashMap<String, Vec<GooseMode>> {

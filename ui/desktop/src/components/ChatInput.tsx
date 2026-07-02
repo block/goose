@@ -1,8 +1,16 @@
 import { AppEvents } from '../constants/events';
 import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
-import { ArrowUp, Bug, ScrollText } from 'lucide-react';
+import { AlertTriangle, ArrowUp, Bug, ScrollText } from 'lucide-react';
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/Tooltip';
 import { Button } from './ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from './ui/dialog';
 import type { View } from '../utils/navigationUtils';
 import Stop from './ui/Stop';
 import { Attach, Close, Microphone } from './icons';
@@ -29,12 +37,16 @@ import { detectInterruption } from '../utils/interruptionDetector';
 import { DiagnosticsModal } from './ui/Diagnostics';
 import type { Message } from '../types/message';
 import { getInitialWorkingDir } from '../utils/workingDir';
-import { getPredefinedModelsFromEnv } from './settings/models/predefinedModelsUtils';
+import {
+  getModelDisplayName,
+  getPredefinedModelsFromEnv,
+} from './settings/models/predefinedModelsUtils';
 import { trackFileAttached, trackVoiceDictation, trackDiagnosticsOpened } from '../utils/analytics';
 import { getNavigationShortcutText } from '../utils/keyboardShortcuts';
 import { UserInput, ImageData } from '../types/message';
 import { compressImageDataUrl } from '../utils/conversionUtils';
 import { fetchCanonicalModelInfo } from '../utils/canonical';
+import { getModelResolutionMismatch } from '../utils/modelResolutionMismatch';
 import { defineMessages, useIntl } from '../i18n';
 import TurndownService from 'turndown';
 import type { NextChatExtensionDraft } from '../utils/nextChatExtensions';
@@ -154,6 +166,27 @@ const i18n = defineMessages({
     id: 'chatInput.viewEditRecipe',
     defaultMessage: 'View/Edit Recipe',
   },
+  modelResolutionMismatchTitle: {
+    id: 'chatInput.modelResolutionMismatchTitle',
+    defaultMessage: 'Provider resolved a different model',
+  },
+  modelResolutionMismatchNotice: {
+    id: 'chatInput.modelResolutionMismatchNotice',
+    defaultMessage: '{requestedModel} was requested, but the last response ran on {resolvedModel}.',
+  },
+  modelResolutionMismatchDetail: {
+    id: 'chatInput.modelResolutionMismatchDetail',
+    defaultMessage:
+      'Choose how to proceed before sending another prompt. Goose will keep requesting {requestedModel} unless you change models.',
+  },
+  retryRequestedModel: {
+    id: 'chatInput.retryRequestedModel',
+    defaultMessage: 'Edit prompt and retry {requestedModel}',
+  },
+  continueWithResolvedModel: {
+    id: 'chatInput.continueWithResolvedModel',
+    defaultMessage: 'Continue with {resolvedModel}',
+  },
 });
 
 interface ChatInputProps {
@@ -187,6 +220,7 @@ interface ChatInputProps {
   sessionLoaded?: boolean;
   workingDir?: string | null;
   latestInference?: Message['metadata']['inference'] | null;
+  latestInferenceMessageId?: string | null;
   nextChatExtensionDraft?: NextChatExtensionDraft;
   onNextChatExtensionDraftChange?: (draft: NextChatExtensionDraft) => void;
 }
@@ -222,6 +256,7 @@ export default function ChatInput({
   sessionLoaded,
   workingDir,
   latestInference,
+  latestInferenceMessageId,
   nextChatExtensionDraft,
   onNextChatExtensionDraftChange,
 }: ChatInputProps) {
@@ -296,6 +331,37 @@ export default function ChatInput({
   );
   const effectiveModel = modelOverride?.model ?? sessionModel ?? configModel;
   const effectiveProvider = modelOverride?.provider ?? sessionProvider ?? configProvider;
+  const isModelLoading = Boolean(sessionId && !sessionLoaded);
+  const modelResolutionMismatch = useMemo(
+    () =>
+      getModelResolutionMismatch({
+        latestInference,
+        currentProvider: effectiveProvider,
+        currentModel: effectiveModel,
+        isModelLoading,
+        sessionId,
+        latestInferenceMessageId,
+        getDisplayName: getModelDisplayName,
+      }),
+    [
+      latestInference,
+      effectiveProvider,
+      effectiveModel,
+      isModelLoading,
+      sessionId,
+      latestInferenceMessageId,
+    ]
+  );
+  const [acknowledgedModelMismatchKey, setAcknowledgedModelMismatchKey] = useState<string | null>(
+    null
+  );
+  const [isModelMismatchPromptOpen, setIsModelMismatchPromptOpen] = useState(false);
+  const [pendingModelMismatchAction, setPendingModelMismatchAction] = useState<
+    { type: 'submit'; text?: string } | { type: 'queued'; messageId: string } | null
+  >(null);
+  const isModelMismatchBlocked = Boolean(
+    modelResolutionMismatch && modelResolutionMismatch.key !== acknowledgedModelMismatchKey
+  );
 
   // Clear override when the underlying data catches up (session props for
   // active chats, config defaults for Hub / no-session contexts).
@@ -400,6 +466,15 @@ export default function ChatInput({
       const shouldProcessQueue = !queuePausedRef.current || lastInterruption || shouldSendAfterStop;
 
       if (shouldProcessQueue) {
+        if (isModelMismatchBlocked) {
+          pauseRemainingQueue();
+          setPendingModelMismatchAction({ type: 'queued', messageId: messageToSend.id });
+          setIsModelMismatchPromptOpen(true);
+          wasLoadingRef.current = isLoading;
+          wasQueueProcessingBlockedRef.current = queueProcessingBlocked;
+          return;
+        }
+
         LocalMessageStorage.addMessage(messageToSend.content);
         handleSubmit({ msg: messageToSend.content, images: messageToSend.images });
         if (shouldSendAfterStop) {
@@ -438,7 +513,43 @@ export default function ChatInput({
     clearPendingSendAfterStop,
     clearQueueState,
     pauseRemainingQueue,
+    isModelMismatchBlocked,
   ]);
+
+  useEffect(() => {
+    if (
+      !isModelMismatchBlocked ||
+      isLoading ||
+      queueProcessingBlocked ||
+      queuedMessages.length === 0
+    ) {
+      return;
+    }
+
+    const pendingSendAfterStopId = sendAfterStopMessageIdRef.current;
+    const messageToSend = pendingSendAfterStopId
+      ? queuedMessages.find((message) => message.id === pendingSendAfterStopId)
+      : queuedMessages[0];
+
+    if (!messageToSend) return;
+
+    const shouldSendAfterStop = pendingSendAfterStopId === messageToSend.id;
+    const shouldProcessQueue = !queuePausedRef.current || lastInterruption || shouldSendAfterStop;
+
+    if (!shouldProcessQueue) return;
+
+    pauseRemainingQueue();
+    setPendingModelMismatchAction({ type: 'queued', messageId: messageToSend.id });
+    setIsModelMismatchPromptOpen(true);
+  }, [
+    isModelMismatchBlocked,
+    isLoading,
+    queueProcessingBlocked,
+    queuedMessages,
+    lastInterruption,
+    pauseRemainingQueue,
+  ]);
+
   const [mentionPopover, setMentionPopover] = useState<{
     isOpen: boolean;
     position: { x: number; y: number };
@@ -1089,7 +1200,13 @@ export default function ChatInput({
       allDroppedFiles.some((file) => !file.error && !file.isLoading));
 
   const performSubmit = useCallback(
-    (text?: string) => {
+    (text?: string, options?: { allowModelMismatch?: boolean }) => {
+      if (!options?.allowModelMismatch && isModelMismatchBlocked) {
+        setPendingModelMismatchAction({ type: 'submit', text });
+        setIsModelMismatchPromptOpen(true);
+        return;
+      }
+
       const imageData = convertImagesToImageData();
       const textToSend = appendDroppedFilePaths(text ?? displayValue.trim());
 
@@ -1134,6 +1251,7 @@ export default function ChatInput({
       handleSubmit,
       lastInterruption,
       clearInputState,
+      isModelMismatchBlocked,
     ]
   );
 
@@ -1375,6 +1493,13 @@ export default function ChatInput({
     if (queueProcessingBlocked) return;
 
     if (!isLoading) {
+      if (isModelMismatchBlocked) {
+        pauseRemainingQueue();
+        setPendingModelMismatchAction({ type: 'queued', messageId });
+        setIsModelMismatchPromptOpen(true);
+        return;
+      }
+
       setQueuedMessages((prev) => removeQueuedMessage(prev, messageId));
       LocalMessageStorage.addMessage(messageToSend.content);
       handleSubmit({ msg: messageToSend.content, images: messageToSend.images });
@@ -1446,6 +1571,13 @@ export default function ChatInput({
     setLastInterruption(null);
     if (!isLoading && !queueProcessingBlocked && queuedMessages.length > 0) {
       const nextMessage = queuedMessages[0];
+      if (isModelMismatchBlocked) {
+        pauseRemainingQueue();
+        setPendingModelMismatchAction({ type: 'queued', messageId: nextMessage.id });
+        setIsModelMismatchPromptOpen(true);
+        return;
+      }
+
       LocalMessageStorage.addMessage(nextMessage.content);
       handleSubmit({ msg: nextMessage.content, images: nextMessage.images });
       setQueuedMessages((prev) => {
@@ -1457,6 +1589,61 @@ export default function ChatInput({
         }
         return newQueue;
       });
+    }
+  };
+
+  const acknowledgeModelMismatch = () => {
+    if (modelResolutionMismatch) {
+      setAcknowledgedModelMismatchKey(modelResolutionMismatch.key);
+    }
+  };
+
+  const handleEditPromptAndRetryModel = () => {
+    acknowledgeModelMismatch();
+    setPendingModelMismatchAction(null);
+    setIsModelMismatchPromptOpen(false);
+    textAreaRef.current?.focus();
+  };
+
+  const handleContinueWithResolvedModel = () => {
+    const pendingAction = pendingModelMismatchAction;
+    acknowledgeModelMismatch();
+    setPendingModelMismatchAction(null);
+    setIsModelMismatchPromptOpen(false);
+
+    if (pendingAction?.type === 'submit') {
+      performSubmit(pendingAction.text, { allowModelMismatch: true });
+      return;
+    }
+
+    if (pendingAction?.type === 'queued') {
+      const messageToSend = queuedMessages.find(
+        (message) => message.id === pendingAction.messageId
+      );
+      if (!messageToSend) return;
+
+      clearPendingSendAfterStop(messageToSend.id);
+      LocalMessageStorage.addMessage(messageToSend.content);
+      handleSubmit({ msg: messageToSend.content, images: messageToSend.images });
+      setQueuedMessages((prev) => {
+        const newQueue = removeQueuedMessage(prev, messageToSend.id);
+        if (newQueue.length === 0) {
+          clearQueueState();
+        } else {
+          pauseRemainingQueue();
+        }
+        return newQueue;
+      });
+      return;
+    }
+
+    textAreaRef.current?.focus();
+  };
+
+  const handleModelMismatchPromptOpenChange = (open: boolean) => {
+    setIsModelMismatchPromptOpen(open);
+    if (!open) {
+      setPendingModelMismatchAction(null);
     }
   };
 
@@ -1495,6 +1682,49 @@ export default function ChatInput({
           isPaused={queuePausedRef.current}
           className="border-b border-border-primary"
         />
+      )}
+      {isModelMismatchBlocked && modelResolutionMismatch && (
+        <div
+          className="mx-3 mb-2 rounded-md border border-yellow-600/30 bg-yellow-500/10 p-3 text-sm"
+          role="status"
+        >
+          <div className="flex items-start gap-2">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-yellow-600 dark:text-yellow-400" />
+            <div className="min-w-0 flex-1">
+              <p className="font-medium text-text-primary">
+                {intl.formatMessage(i18n.modelResolutionMismatchTitle)}
+              </p>
+              <p className="mt-1 text-xs leading-5 text-text-secondary">
+                {intl.formatMessage(i18n.modelResolutionMismatchNotice, {
+                  requestedModel: modelResolutionMismatch.requestedDisplayName,
+                  resolvedModel: modelResolutionMismatch.resolvedDisplayName,
+                })}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={handleEditPromptAndRetryModel}
+                >
+                  {intl.formatMessage(i18n.retryRequestedModel, {
+                    requestedModel: modelResolutionMismatch.requestedDisplayName,
+                  })}
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="secondary"
+                  onClick={handleContinueWithResolvedModel}
+                >
+                  {intl.formatMessage(i18n.continueWithResolvedModel, {
+                    resolvedModel: modelResolutionMismatch.resolvedDisplayName,
+                  })}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
       {/* Input row with inline action buttons wrapped in form */}
       <form onSubmit={onFormSubmit} className="relative">
@@ -1851,6 +2081,52 @@ export default function ChatInput({
             sessionId={sessionId}
           />
         )}
+        <Dialog
+          open={Boolean(
+            isModelMismatchPromptOpen && isModelMismatchBlocked && modelResolutionMismatch
+          )}
+          onOpenChange={handleModelMismatchPromptOpenChange}
+        >
+          <DialogContent className="sm:max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <AlertTriangle className="h-5 w-5 text-yellow-600 dark:text-yellow-400" />
+                {intl.formatMessage(i18n.modelResolutionMismatchTitle)}
+              </DialogTitle>
+              {modelResolutionMismatch && (
+                <DialogDescription asChild>
+                  <div className="space-y-2 text-sm">
+                    <p>
+                      {intl.formatMessage(i18n.modelResolutionMismatchNotice, {
+                        requestedModel: modelResolutionMismatch.requestedDisplayName,
+                        resolvedModel: modelResolutionMismatch.resolvedDisplayName,
+                      })}
+                    </p>
+                    <p>
+                      {intl.formatMessage(i18n.modelResolutionMismatchDetail, {
+                        requestedModel: modelResolutionMismatch.requestedDisplayName,
+                      })}
+                    </p>
+                  </div>
+                </DialogDescription>
+              )}
+            </DialogHeader>
+            {modelResolutionMismatch && (
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={handleEditPromptAndRetryModel}>
+                  {intl.formatMessage(i18n.retryRequestedModel, {
+                    requestedModel: modelResolutionMismatch.requestedDisplayName,
+                  })}
+                </Button>
+                <Button type="button" onClick={handleContinueWithResolvedModel}>
+                  {intl.formatMessage(i18n.continueWithResolvedModel, {
+                    resolvedModel: modelResolutionMismatch.resolvedDisplayName,
+                  })}
+                </Button>
+              </DialogFooter>
+            )}
+          </DialogContent>
+        </Dialog>
         <MentionPopover
           ref={mentionPopoverRef}
           isOpen={mentionPopover.isOpen}

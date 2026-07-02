@@ -164,11 +164,23 @@
   "chatInput.contextWindow": {
     "defaultMessage": "Context window"
   },
+  "chatInput.continueWithResolvedModel": {
+    "defaultMessage": "Continue with {resolvedModel}"
+  },
   "chatInput.dictationError": {
     "defaultMessage": "Dictation Error"
   },
   "chatInput.failedToReadImage": {
     "defaultMessage": "Failed to read image file"
+  },
+  "chatInput.modelResolutionMismatchDetail": {
+    "defaultMessage": "Choose how to proceed before sending another prompt. Goose will keep requesting {requestedModel} unless you change models."
+  },
+  "chatInput.modelResolutionMismatchNotice": {
+    "defaultMessage": "{requestedModel} was requested, but the last response ran on {resolvedModel}."
+  },
+  "chatInput.modelResolutionMismatchTitle": {
+    "defaultMessage": "Provider resolved a different model"
   },
   "chatInput.navigationShortcut": {
     "defaultMessage": "{prefix}↑/{prefix}↓ to navigate messages"
@@ -187,6 +199,9 @@
   },
   "chatInput.restartingSession": {
     "defaultMessage": "Restarting session..."
+  },
+  "chatInput.retryRequestedModel": {
+    "defaultMessage": "Edit prompt and retry {requestedModel}"
   },
   "chatInput.send": {
     "defaultMessage": "Send"

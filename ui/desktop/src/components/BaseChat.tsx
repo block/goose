@@ -200,7 +200,7 @@ export default function BaseChat({
   const sessionModel = session?.model_config?.model_name ?? null;
   const sessionProvider = session?.provider_name ?? null;
   const sessionLoaded = session !== undefined;
-  const latestInference = useMemo(() => {
+  const latestInferenceState = useMemo(() => {
     for (let i = messages.length - 1; i >= 0; i--) {
       const message = messages[i];
       if (
@@ -208,11 +208,16 @@ export default function BaseChat({
         message.metadata.userVisible &&
         message.metadata.inference
       ) {
-        return message.metadata.inference;
+        return {
+          inference: message.metadata.inference,
+          messageId: message.id ?? `${message.created}:${i}`,
+        };
       }
     }
     return null;
   }, [messages]);
+  const latestInference = latestInferenceState?.inference ?? null;
+  const latestInferenceMessageId = latestInferenceState?.messageId ?? null;
 
   useEffect(() => {
     if (!recipe || !isActiveSession || session?.session_type === 'scheduled') return;
@@ -524,6 +529,7 @@ export default function BaseChat({
             workingDir={session?.working_dir}
             onWorkingDirChange={handleWorkingDirChange}
             latestInference={latestInference}
+            latestInferenceMessageId={latestInferenceMessageId}
             {...customChatInputProps}
           />
         </ChatInputCard>
