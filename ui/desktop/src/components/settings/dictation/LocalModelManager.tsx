@@ -3,14 +3,14 @@ import { Download, Trash2, X, Check, ChevronDown, ChevronUp } from 'lucide-react
 import { Button } from '../../ui/button';
 import { useConfig } from '../../ConfigContext';
 import {
-  listModels,
-  downloadModel,
-  getDownloadProgress,
-  cancelDownload as cancelDownloadApi,
-  deleteModel as deleteModelApi,
-  type WhisperModelResponse,
-  type DownloadProgress,
-} from '../../../api';
+  cancelLocalDictationModelDownload,
+  deleteLocalDictationModel,
+  downloadLocalDictationModel,
+  getLocalDictationModelDownloadProgress,
+  listLocalDictationModels,
+  type LocalDictationDownloadProgress,
+  type LocalDictationModel,
+} from '../../../acp/dictation';
 import { defineMessages, useIntl } from '../../../i18n';
 
 const i18n = defineMessages({
@@ -72,8 +72,10 @@ const capitalize = (str: string): string => {
 
 export const LocalModelManager = () => {
   const intl = useIntl();
-  const [models, setModels] = useState<WhisperModelResponse[]>([]);
-  const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
+  const [models, setModels] = useState<LocalDictationModel[]>([]);
+  const [downloads, setDownloads] = useState<Map<string, LocalDictationDownloadProgress>>(
+    new Map()
+  );
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
   const [showAllModels, setShowAllModels] = useState(false);
   const { read, upsert } = useConfig();
@@ -105,10 +107,8 @@ export const LocalModelManager = () => {
 
   const loadModels = async () => {
     try {
-      const response = await listModels();
-      if (response.data) {
-        setModels(response.data);
-      }
+      const models = await listLocalDictationModels();
+      setModels(models);
     } catch (error) {
       console.error('Failed to load models:', error);
     }
@@ -116,7 +116,7 @@ export const LocalModelManager = () => {
 
   const startDownload = async (modelId: string) => {
     try {
-      await downloadModel({ path: { model_id: modelId } });
+      await downloadLocalDictationModel(modelId);
       pollDownloadProgress(modelId);
     } catch (error) {
       console.error('Failed to start download:', error);
@@ -126,9 +126,8 @@ export const LocalModelManager = () => {
   const pollDownloadProgress = (modelId: string) => {
     const interval = setInterval(async () => {
       try {
-        const response = await getDownloadProgress({ path: { model_id: modelId } });
-        if (response.data) {
-          const progress = response.data;
+        const progress = await getLocalDictationModelDownloadProgress(modelId);
+        if (progress) {
           setDownloads((prev) => new Map(prev).set(modelId, progress));
 
           if (progress.status === 'completed') {
@@ -151,7 +150,7 @@ export const LocalModelManager = () => {
 
   const cancelDownload = async (modelId: string) => {
     try {
-      await cancelDownloadApi({ path: { model_id: modelId } });
+      await cancelLocalDictationModelDownload(modelId);
       setDownloads((prev) => {
         const next = new Map(prev);
         next.delete(modelId);
@@ -167,7 +166,7 @@ export const LocalModelManager = () => {
     if (!window.confirm(intl.formatMessage(i18n.deleteConfirm))) return;
 
     try {
-      await deleteModelApi({ path: { model_id: modelId } });
+      await deleteLocalDictationModel(modelId);
       if (selectedModelId === modelId) {
         await upsert(LOCAL_WHISPER_MODEL_CONFIG_KEY, '', false);
         setSelectedModelId(null);
@@ -224,7 +223,7 @@ export const LocalModelManager = () => {
                     <h4 className="text-sm font-medium text-text-primary">
                       {capitalize(model.id)}
                     </h4>
-                    <span className="text-xs text-text-secondary">{model.size_mb}MB</span>
+                    <span className="text-xs text-text-secondary">{model.sizeMb}MB</span>
                     {model.recommended && (
                       <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
                         {intl.formatMessage(i18n.recommended)}
@@ -264,7 +263,7 @@ export const LocalModelManager = () => {
                   ) : isDownloading ? (
                     <>
                       <div className="text-xs text-text-secondary min-w-[60px]">
-                        {progress.progress_percent.toFixed(0)}%
+                        {progress.progressPercent.toFixed(0)}%
                       </div>
                       <Button variant="ghost" size="sm" onClick={() => cancelDownload(model.id)}>
                         <X className="w-4 h-4" />
@@ -284,14 +283,13 @@ export const LocalModelManager = () => {
                   <div className="w-full bg-background-secondary rounded-full h-1.5">
                     <div
                       className="bg-background-inverse h-1.5 rounded-full transition-all"
-                      style={{ width: `${progress.progress_percent}%` }}
+                      style={{ width: `${progress.progressPercent}%` }}
                     />
                   </div>
                   <div className="flex justify-between text-xs text-text-secondary">
                     <span>
-                      {formatBytes(progress.bytes_downloaded)} / {formatBytes(progress.total_bytes)}
+                      {formatBytes(progress.bytesDownloaded)} / {formatBytes(progress.totalBytes)}
                     </span>
-                    {progress.speed_bps && <span>{formatBytes(progress.speed_bps)}/s</span>}
                   </div>
                 </div>
               )}

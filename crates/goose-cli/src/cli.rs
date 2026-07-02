@@ -831,6 +831,15 @@ enum Command {
         #[arg(long, default_value = "3284")]
         port: u16,
 
+        #[arg(long, help = "Serve ACP over TLS")]
+        tls: bool,
+
+        #[arg(long = "tls-cert-path", value_name = "PATH")]
+        tls_cert_path: Option<String>,
+
+        #[arg(long = "tls-key-path", value_name = "PATH")]
+        tls_key_path: Option<String>,
+
         #[arg(
             long = "with-builtin",
             value_name = "NAME",
@@ -871,6 +880,15 @@ enum Command {
             long_help = "Create a new session by copying all messages from a previous session. Must be used with --resume. If --name or --session-id is provided, forks that specific session. Otherwise, forks the most recently used session."
         )]
         fork: bool,
+
+        /// Open the session's conversation in $EDITOR before starting
+        #[arg(
+            long,
+            requires = "resume",
+            help = "Edit the session conversation in $EDITOR before starting",
+            long_help = "Open the session's conversation in your editor ($VISUAL / $EDITOR / vi) for modification before resuming. When combined with --fork, creates a new session from the edited result."
+        )]
+        edit: bool,
 
         /// Show message history when resuming
         #[arg(
@@ -1324,7 +1342,14 @@ async fn handle_mcp_command(server: McpCommand) -> Result<()> {
     Ok(())
 }
 
-async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) -> Result<()> {
+async fn handle_serve_command(
+    host: String,
+    port: u16,
+    tls: bool,
+    tls_cert_path: Option<String>,
+    tls_key_path: Option<String>,
+    builtins: Vec<String>,
+) -> Result<()> {
     use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
     use goose::acp::transport::create_router;
     use goose::config::paths::Paths;
@@ -1371,15 +1396,55 @@ async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) ->
     let secret_key = env_secret.unwrap_or_else(generate_serve_secret_key);
     let router = create_router(server, secret_key, require_token);
 
-    let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
-    info!("Starting ACP server on {}", addr);
+    let config = Config::global();
+    let tls_cert_path =
+        tls_cert_path.or_else(|| config.get_param::<String>("GOOSE_TLS_CERT_PATH").ok());
+    let tls_key_path =
+        tls_key_path.or_else(|| config.get_param::<String>("GOOSE_TLS_KEY_PATH").ok());
+    let tls = tls
+        || config.get_param::<bool>("GOOSE_TLS").unwrap_or(false)
+        || tls_cert_path.is_some()
+        || tls_key_path.is_some();
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(
-        listener,
-        router.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await?;
+    let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
+    if tls {
+        #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
+        {
+            let tls_setup = goose::acp::transport::tls::setup_tls(
+                tls_cert_path.as_deref(),
+                tls_key_path.as_deref(),
+            )
+            .await?;
+            info!("Starting ACP server on https://{}", addr);
+
+            #[cfg(feature = "rustls-tls")]
+            axum_server::bind_rustls(addr, tls_setup.config)
+                .serve(router.into_make_service_with_connect_info::<SocketAddr>())
+                .await?;
+
+            #[cfg(feature = "native-tls")]
+            axum_server::bind_openssl(addr, tls_setup.config)
+                .serve(router.into_make_service_with_connect_info::<SocketAddr>())
+                .await?;
+        }
+
+        #[cfg(not(any(feature = "rustls-tls", feature = "native-tls")))]
+        {
+            let _ = (tls_cert_path, tls_key_path);
+            anyhow::bail!(
+                "TLS was requested but no TLS backend is enabled. \
+                 Enable the `rustls-tls` or `native-tls` feature."
+            );
+        }
+    } else {
+        info!("Starting ACP server on http://{}", addr);
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await?;
+    }
 
     Ok(())
 }
@@ -1464,6 +1529,7 @@ async fn handle_interactive_session(
     identifier: Option<Identifier>,
     resume: bool,
     fork: bool,
+    edit: bool,
     history: bool,
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
@@ -1503,12 +1569,31 @@ async fn handle_interactive_session(
     let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
     let mut session_id = get_or_create_session_id(identifier, resume, false, goose_mode).await?;
 
-    if fork {
-        if let Some(id) = session_id {
+    if edit || fork {
+        if let Some(ref id) = session_id {
             let session_manager = SessionManager::instance();
-            let original = session_manager.get_session(&id, false).await?;
-            let copied = session_manager.copy_session(&id, original.name).await?;
-            session_id = Some(copied.id);
+            let original = session_manager.get_session(id, true).await?;
+
+            let target_id = if fork {
+                let copied = session_manager
+                    .copy_session(id, original.name.clone())
+                    .await?;
+                let copied_id = copied.id.clone();
+                session_id = Some(copied.id);
+                copied_id
+            } else {
+                id.clone()
+            };
+
+            if edit {
+                let conversation = original
+                    .conversation
+                    .ok_or_else(|| anyhow::anyhow!("session has no messages to edit"))?;
+                let edited = crate::session::editor::edit_conversation(&conversation)?;
+                session_manager
+                    .replace_conversation(&target_id, &edited)
+                    .await?;
+            }
         }
     }
 
@@ -2070,8 +2155,11 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Serve {
             host,
             port,
+            tls,
+            tls_cert_path,
+            tls_key_path,
             builtins,
-        }) => handle_serve_command(host, port, builtins).await,
+        }) => handle_serve_command(host, port, tls, tls_cert_path, tls_key_path, builtins).await,
         Some(Command::Session {
             command: Some(cmd), ..
         }) => handle_session_subcommand(cmd).await,
@@ -2080,6 +2168,7 @@ pub async fn cli() -> anyhow::Result<()> {
             identifier,
             resume,
             fork,
+            edit,
             history,
             session_opts,
             extension_opts,
@@ -2088,6 +2177,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 identifier,
                 resume,
                 fork,
+                edit,
                 history,
                 session_opts,
                 extension_opts,

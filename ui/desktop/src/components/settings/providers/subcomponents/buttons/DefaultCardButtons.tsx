@@ -1,5 +1,5 @@
 import { ConfigureSettingsButton, RocketButton } from './CardButtons';
-import { ProviderDetails } from '../../../../../api';
+import type { ProviderDetails } from '../../../../../types/providers';
 import { defineMessages, useIntl } from '../../../../../i18n';
 
 const i18n = defineMessages({

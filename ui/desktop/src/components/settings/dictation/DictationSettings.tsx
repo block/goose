@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { ChevronDown } from 'lucide-react';
-import { DictationProvider } from '../../../api';
 import { getDictationConfig, DictationProviderStatusEntry } from '../../../acp/dictation';
 import { useConfig } from '../../ConfigContext';
 import { Input } from '../../ui/input';
@@ -10,6 +9,7 @@ import { LocalModelManager } from './LocalModelManager';
 import { MicrophoneSelector } from './MicrophoneSelector';
 import { DICTATION_ALLOWED_PROVIDERS } from '../../../updates';
 import { useFeatures } from '../../../contexts/FeaturesContext';
+import type { DictationProvider } from '../../../types/dictation';
 import {
   DropdownMenu,
   DropdownMenuContent,

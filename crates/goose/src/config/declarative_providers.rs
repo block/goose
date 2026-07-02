@@ -5,7 +5,7 @@ use crate::providers::base::{ModelInfo, ProviderType};
 use crate::providers::huggingface::HuggingFaceProvider;
 use crate::providers::huggingface_auth;
 use crate::providers::inventory::declarative_inventory_identity;
-use crate::providers::ollama::OllamaProvider;
+use crate::providers::ollama_def::OllamaProviderDef;
 use crate::providers::openai_def::OpenAiProviderDef;
 use anyhow::Result;
 use include_dir::{include_dir, Dir};
@@ -624,14 +624,14 @@ pub fn register_declarative_provider(
         ProviderEngine::Ollama => {
             let captured = config.clone();
             let identity_config = config.clone();
-            registry.register_with_name::<OllamaProvider, _, _>(
+            registry.register_with_name::<OllamaProviderDef, _, _>(
                 &config,
                 provider_type,
                 config.dynamic_models.unwrap_or(false),
                 move |tls_config| {
                     let mut cfg = captured.clone();
                     resolve_config(&mut cfg)?;
-                    OllamaProvider::from_custom_config(cfg, tls_config)
+                    crate::providers::ollama_def::from_custom_config(cfg, tls_config)
                 },
                 move || {
                     let mut cfg = identity_config.clone();
@@ -777,63 +777,6 @@ mod tests {
     }
 
     #[test]
-    fn test_tanzu_json_deserializes() {
-        let json = include_str!("../providers/declarative/tanzu.json");
-        let config: DeclarativeProviderConfig =
-            serde_json::from_str(json).expect("tanzu.json should parse");
-        assert_eq!(config.name, "tanzu_ai");
-        assert_eq!(config.display_name, "VMware Tanzu Platform");
-        assert!(matches!(config.engine, ProviderEngine::OpenAI));
-        assert_eq!(config.api_key_env, "TANZU_AI_API_KEY");
-        assert_eq!(
-            config.base_url,
-            "${TANZU_AI_ENDPOINT}/openai/v1/chat/completions"
-        );
-        assert_eq!(config.dynamic_models, Some(true));
-        assert_eq!(config.supports_streaming, Some(true));
-
-        let env_vars = config.env_vars.as_ref().expect("env_vars should be set");
-        assert_eq!(env_vars.len(), 2);
-        assert_eq!(env_vars[0].name, "TANZU_AI_ENDPOINT");
-        assert!(env_vars[0].required);
-        assert!(!env_vars[0].secret);
-        assert_eq!(env_vars[1].name, "TANZU_AI_STREAMING");
-        assert!(!env_vars[1].required);
-        assert_eq!(env_vars[1].default, Some("true".to_string()));
-
-        assert_eq!(config.models.len(), 1);
-        assert_eq!(config.models[0].name, "openai/gpt-oss-120b");
-    }
-
-    #[test]
-    fn test_llama_swap_json_deserializes() {
-        let json = include_str!("../providers/declarative/llama_swap.json");
-        let config: DeclarativeProviderConfig =
-            serde_json::from_str(json).expect("llama_swap.json should parse");
-        assert_eq!(config.name, "llama_swap");
-        assert_eq!(config.display_name, "Llama Swap");
-        assert!(matches!(config.engine, ProviderEngine::OpenAI));
-        assert_eq!(config.api_key_env, "LLAMA_SWAP_API_KEY");
-        assert!(!config.requires_auth);
-        assert!(config.skip_canonical_filtering);
-        assert_eq!(config.dynamic_models, Some(true));
-        assert_eq!(config.supports_streaming, Some(true));
-        assert_eq!(config.base_url, "${LLAMA_SWAP_HOST}/v1/chat/completions");
-        assert!(config.models.is_empty());
-
-        let env_vars = config.env_vars.as_ref().expect("env_vars should be set");
-        assert_eq!(env_vars.len(), 1);
-        assert_eq!(env_vars[0].name, "LLAMA_SWAP_HOST");
-        assert!(!env_vars[0].required);
-        assert!(!env_vars[0].secret);
-        assert_eq!(env_vars[0].primary, Some(true));
-        assert_eq!(
-            env_vars[0].default,
-            Some("http://localhost:8080".to_string())
-        );
-    }
-
-    #[test]
     fn test_existing_json_files_still_deserialize_without_new_fields() {
         let json = include_str!("../providers/declarative/groq.json");
         let config =
@@ -843,6 +786,127 @@ mod tests {
         assert!(config.model_doc_link.is_none());
         assert!(config.setup_steps.is_empty());
         assert!(config.preserves_thinking);
+    }
+
+    fn placeholder_var_names(template: &str) -> Vec<String> {
+        template
+            .split("${")
+            .skip(1)
+            .filter_map(|chunk| chunk.split_once('}'))
+            .map(|(name, _)| name.to_string())
+            .collect()
+    }
+
+    #[test]
+    fn test_all_bundled_providers_are_valid() {
+        let mut seen_ids = std::collections::HashSet::new();
+
+        for file in FIXED_PROVIDERS.files() {
+            if file.path().extension().and_then(|s| s.to_str()) != Some("json") {
+                continue;
+            }
+            let path = file.path().display().to_string();
+            let content = file
+                .contents_utf8()
+                .unwrap_or_else(|| panic!("{path} is not valid UTF-8"));
+            let config = deserialize_provider_config(content)
+                .unwrap_or_else(|e| panic!("{path} failed to parse: {e}"));
+
+            validate_provider_id(config.id())
+                .unwrap_or_else(|e| panic!("{path} has an invalid provider id: {e}"));
+            assert!(
+                seen_ids.insert(config.id().to_string()),
+                "{path} has a duplicate provider id: {}",
+                config.id()
+            );
+            assert!(!config.base_url.is_empty(), "{path} has an empty base_url");
+
+            if config.dynamic_models == Some(false) {
+                assert!(
+                    !config.models.is_empty(),
+                    "{path} disables dynamic_models but lists no static models"
+                );
+            }
+
+            let declared: std::collections::HashSet<&str> = config
+                .env_vars
+                .iter()
+                .flatten()
+                .map(|v| v.name.as_str())
+                .collect();
+            let templates = std::iter::once(config.base_url.as_str())
+                .chain(config.base_path.as_deref())
+                .chain(
+                    config
+                        .headers
+                        .iter()
+                        .flat_map(|h| h.values())
+                        .map(String::as_str),
+                );
+            for template in templates {
+                for var in placeholder_var_names(template) {
+                    assert!(
+                        declared.contains(var.as_str()),
+                        "{path} references ${{{var}}} but declares no matching env_var"
+                    );
+                }
+            }
+        }
+
+        assert!(!seen_ids.is_empty(), "no bundled providers were found");
+    }
+
+    #[test]
+    fn test_bundled_providers_wire_into_registry_metadata() {
+        let configs = load_fixed_providers().expect("bundled providers should load");
+        assert!(!configs.is_empty(), "no bundled providers were found");
+
+        for config in configs {
+            let id = config.id().to_string();
+            let api_key_env = config.api_key_env.clone();
+            let requires_auth = config.requires_auth;
+            let env_vars = config.env_vars.clone().unwrap_or_default();
+
+            let mut registry = crate::providers::provider_registry::ProviderRegistry::new(None);
+            register_declarative_provider(&mut registry, config, ProviderType::Declarative);
+
+            let (meta, provider_type) = registry
+                .all_metadata_with_types()
+                .into_iter()
+                .find(|(m, _)| m.name == id)
+                .unwrap_or_else(|| panic!("{id} should register"));
+
+            assert_eq!(provider_type, ProviderType::Declarative, "{id}");
+            assert!(!meta.display_name.is_empty(), "{id} has empty display_name");
+
+            assert!(
+                !meta
+                    .config_keys
+                    .iter()
+                    .any(|k| k.name == "OPENAI_HOST" || k.name == "OPENAI_BASE_PATH"),
+                "{id} leaks OpenAI engine config keys"
+            );
+
+            if !api_key_env.is_empty() {
+                let key = meta
+                    .config_keys
+                    .iter()
+                    .find(|k| k.name == api_key_env)
+                    .unwrap_or_else(|| panic!("{id} should expose {api_key_env} config key"));
+                assert!(key.secret, "{id}: {api_key_env} should be secret");
+                assert_eq!(key.required, requires_auth, "{id}: {api_key_env} required");
+            }
+
+            for ev in &env_vars {
+                let key = meta
+                    .config_keys
+                    .iter()
+                    .find(|k| k.name == ev.name)
+                    .unwrap_or_else(|| panic!("{id} should expose {} config key", ev.name));
+                assert_eq!(key.required, ev.required, "{id}: {} required", ev.name);
+                assert_eq!(key.secret, ev.secret, "{id}: {} secret", ev.name);
+            }
+        }
     }
 
     #[test]
@@ -888,91 +952,6 @@ mod tests {
 
         assert!(matches!(config.engine, ProviderEngine::OpenAI));
         assert!(!config.preserves_thinking);
-    }
-
-    #[test]
-    fn test_openai_reasoning_provider_json_preserves_thinking() {
-        for (name, json) in [
-            (
-                "custom_deepseek",
-                include_str!("../providers/declarative/deepseek.json"),
-            ),
-            (
-                "moonshot",
-                include_str!("../providers/declarative/moonshot.json"),
-            ),
-            (
-                "novita",
-                include_str!("../providers/declarative/novita.json"),
-            ),
-            (
-                "nvidia",
-                include_str!("../providers/declarative/nvidia.json"),
-            ),
-            (
-                "custom_tensorix",
-                include_str!("../providers/declarative/tensorix.json"),
-            ),
-            ("zhipu", include_str!("../providers/declarative/zhipu.json")),
-        ] {
-            let config: DeclarativeProviderConfig =
-                serde_json::from_str(json).expect("provider json should parse");
-            assert_eq!(config.name, name);
-            assert!(matches!(config.engine, ProviderEngine::OpenAI));
-            assert!(config.preserves_thinking);
-        }
-    }
-
-    #[test]
-    fn test_nvidia_json_deserializes() {
-        let json = include_str!("../providers/declarative/nvidia.json");
-        let config: DeclarativeProviderConfig =
-            serde_json::from_str(json).expect("nvidia.json should parse");
-        assert_eq!(config.name, "nvidia");
-        assert_eq!(config.display_name, "NVIDIA");
-        assert!(matches!(config.engine, ProviderEngine::OpenAI));
-        assert_eq!(config.api_key_env, "NVIDIA_API_KEY");
-        assert_eq!(config.base_url, "https://integrate.api.nvidia.com/v1");
-        assert_eq!(config.catalog_provider_id, Some("nvidia".to_string()));
-        assert_eq!(config.dynamic_models, Some(true));
-        assert_eq!(config.supports_streaming, Some(true));
-        assert!(!config.skip_canonical_filtering);
-        assert_eq!(
-            config.model_doc_link,
-            Some("https://build.nvidia.com/models".to_string())
-        );
-        assert_eq!(config.setup_steps.len(), 4);
-
-        assert_eq!(config.models.len(), 1);
-        assert_eq!(config.models[0].name, "z-ai/glm-4.7");
-        assert_eq!(config.models[0].context_limit, 131072);
-    }
-
-    #[test]
-    fn test_vercel_ai_gateway_json_deserializes() {
-        let json = include_str!("../providers/declarative/vercel_ai_gateway.json");
-        let config: DeclarativeProviderConfig =
-            serde_json::from_str(json).expect("vercel_ai_gateway.json should parse");
-        assert_eq!(config.name, "vercel_ai_gateway");
-        assert_eq!(config.display_name, "Vercel AI Gateway");
-        assert!(matches!(config.engine, ProviderEngine::OpenAI));
-        assert_eq!(config.api_key_env, "AI_GATEWAY_API_KEY");
-        assert_eq!(
-            config.base_url,
-            "https://ai-gateway.vercel.sh/v1/chat/completions"
-        );
-        assert_eq!(config.supports_streaming, Some(true));
-        assert!(!config.models.is_empty());
-
-        let headers = config
-            .headers
-            .as_ref()
-            .expect("vercel_ai_gateway should set attribution headers");
-        assert_eq!(
-            headers.get("http-referer").map(String::as_str),
-            Some("https://goose-docs.ai")
-        );
-        assert_eq!(headers.get("x-title").map(String::as_str), Some("goose"));
     }
 
     #[test]
@@ -1047,22 +1026,6 @@ mod tests {
     fn test_load_provider_rejects_path_segments() {
         assert!(load_provider("custom_../secret").is_err());
         assert!(load_provider("custom_..\\secret").is_err());
-    }
-
-    #[test]
-    fn test_opencode_go_json_deserializes() {
-        let json = include_str!("../providers/declarative/opencode_go.json");
-        let config: DeclarativeProviderConfig =
-            serde_json::from_str(json).expect("opencode_go.json should parse");
-        assert_eq!(config.name, "opencode_go");
-        assert_eq!(config.display_name, "OpenCode Go");
-        assert!(matches!(config.engine, ProviderEngine::OpenAI));
-        assert_eq!(config.api_key_env, "OPENCODE_API_KEY");
-        assert_eq!(config.base_url, "https://opencode.ai/zen/go/v1");
-        assert_eq!(config.catalog_provider_id, Some("opencode-go".to_string()));
-        assert_eq!(config.dynamic_models, Some(true));
-        assert!(config.preserves_thinking);
-        assert_eq!(config.models[0].name, "kimi-k2.6");
     }
 
     #[test]
@@ -1158,70 +1121,5 @@ mod tests {
 
         let result = expand_env_vars("${TEST_EXPAND_OVERRIDE}/path", &env_vars).unwrap();
         assert_eq!(result, "https://from-env.com/path");
-    }
-
-    #[test]
-    fn test_atomic_chat_json_deserializes() {
-        let json = include_str!("../providers/declarative/atomic_chat.json");
-        let config: DeclarativeProviderConfig =
-            serde_json::from_str(json).expect("atomic_chat.json should parse");
-        assert_eq!(config.name, "atomic_chat");
-        assert_eq!(config.display_name, "Atomic Chat");
-        assert_eq!(
-            config.description.as_deref(),
-            Some("Local models through Atomic Chat\u{2019}s OpenAI-compatible server")
-        );
-        assert!(matches!(config.engine, ProviderEngine::OpenAI));
-        assert_eq!(config.api_key_env, "");
-        assert!(!config.requires_auth);
-        assert!(config.skip_canonical_filtering);
-        assert_eq!(config.dynamic_models, Some(true));
-        assert_eq!(config.supports_streaming, Some(true));
-        assert_eq!(config.base_url, "${ATOMIC_CHAT_HOST}/v1/chat/completions");
-        assert!(config.models.is_empty());
-        assert!(config.model_doc_link.is_none());
-        assert!(config.setup_steps.is_empty());
-
-        let env_vars = config.env_vars.as_ref().expect("env_vars should be set");
-        assert_eq!(env_vars.len(), 1);
-        assert_eq!(env_vars[0].name, "ATOMIC_CHAT_HOST");
-        assert!(!env_vars[0].required);
-        assert!(!env_vars[0].secret);
-        assert_eq!(env_vars[0].primary, Some(true));
-        assert_eq!(
-            env_vars[0].default,
-            Some("http://localhost:1337".to_string())
-        );
-        assert_eq!(
-            env_vars[0].description.as_deref(),
-            Some("Base URL of the Atomic Chat server (default: http://localhost:1337)")
-        );
-    }
-
-    #[test]
-    fn test_routstr_json_deserializes() {
-        let json = include_str!("../providers/declarative/routstr.json");
-        let config: DeclarativeProviderConfig =
-            serde_json::from_str(json).expect("routstr.json should parse");
-        assert_eq!(config.name, "routstr");
-        assert_eq!(config.display_name, "Routstr");
-        assert!(matches!(config.engine, ProviderEngine::OpenAI));
-        assert_eq!(config.api_key_env, "ROUTSTR_API_KEY");
-        assert_eq!(config.base_url, "${ROUTSTR_HOST}/v1");
-        assert_eq!(config.dynamic_models, Some(true));
-        assert_eq!(config.supports_streaming, Some(true));
-        assert!(config.skip_canonical_filtering);
-        assert_eq!(config.models.len(), 6);
-
-        let env_vars = config.env_vars.as_ref().expect("env_vars should be set");
-        assert_eq!(env_vars.len(), 1);
-        assert_eq!(env_vars[0].name, "ROUTSTR_HOST");
-        assert!(!env_vars[0].required);
-        assert!(!env_vars[0].secret);
-        assert_eq!(env_vars[0].primary, Some(true));
-        assert_eq!(
-            env_vars[0].default,
-            Some("https://api.routstr.com".to_string())
-        );
     }
 }

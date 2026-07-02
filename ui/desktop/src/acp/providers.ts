@@ -6,8 +6,7 @@ import type {
   ProviderTemplateCatalogEntryDto,
   ProviderTemplateDto,
 } from '@aaif/goose-sdk';
-import type { ProviderDetails, ThinkingEffort } from '../api';
-import type { UpdateCustomProviderRequest } from '../types/providers';
+import type { ProviderDetails, ThinkingEffort, UpdateCustomProviderRequest } from '../types/providers';
 import { getAcpClient } from './acpConnection';
 
 export type { CanonicalModelInfoDto, ProviderSecretDto };

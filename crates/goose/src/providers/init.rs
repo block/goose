@@ -30,7 +30,6 @@ use super::{
     kimicode::KimiCodeProvider,
     litellm::LiteLLMProvider,
     nanogpt::NanoGptProvider,
-    ollama::OllamaProvider,
     openrouter::OpenRouterProvider,
     pi_acp::PiAcpProvider,
     provider_registry::ProviderRegistry,
@@ -42,6 +41,7 @@ use super::{
 use crate::config::ExtensionConfig;
 use crate::providers::anthropic_def::AnthropicProviderDef;
 use crate::providers::base::ProviderType;
+use crate::providers::ollama_def::OllamaProviderDef;
 use crate::providers::openai_def::OpenAiProviderDef;
 use crate::{
     config::declarative_providers::register_declarative_providers,
@@ -115,7 +115,7 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         registry.register::<KimiCodeProvider>(true);
         registry.register::<LiteLLMProvider>(false);
         registry.register::<NanoGptProvider>(true);
-        registry.register_with_inventory::<OllamaProvider>(
+        registry.register_with_inventory::<OllamaProviderDef>(
             true,
             Some(registrations::ollama_inventory()),
         );
@@ -272,43 +272,6 @@ mod tests {
     use std::fs;
 
     #[tokio::test]
-    async fn test_tanzu_declarative_provider_registry_wiring() {
-        let providers_list = providers().await;
-        let tanzu = providers_list
-            .iter()
-            .find(|(m, _)| m.name == "tanzu_ai")
-            .expect("tanzu_ai provider should be registered");
-        let (meta, provider_type) = tanzu;
-
-        // Should be a Declarative (fixed) provider
-        assert_eq!(*provider_type, ProviderType::Declarative);
-
-        assert_eq!(meta.display_name, "VMware Tanzu Platform");
-        assert_eq!(meta.default_model, "openai/gpt-oss-120b");
-
-        // First config key should be TANZU_AI_API_KEY (secret, required)
-        let api_key = meta
-            .config_keys
-            .iter()
-            .find(|k| k.name == "TANZU_AI_API_KEY")
-            .expect("TANZU_AI_API_KEY config key should exist");
-        assert!(
-            api_key.required,
-            "API key should be required for fixed declarative provider"
-        );
-        assert!(api_key.secret, "API key should be secret");
-
-        // Should have TANZU_AI_ENDPOINT config key (not secret, required)
-        let endpoint = meta
-            .config_keys
-            .iter()
-            .find(|k| k.name == "TANZU_AI_ENDPOINT")
-            .expect("TANZU_AI_ENDPOINT config key should exist");
-        assert!(endpoint.required, "Endpoint should be required");
-        assert!(!endpoint.secret, "Endpoint should not be secret");
-    }
-
-    #[tokio::test]
     async fn test_huggingface_provider_registry_wiring() {
         let huggingface = get_from_registry("huggingface")
             .await
@@ -322,91 +285,6 @@ mod tests {
             .config_keys
             .iter()
             .any(|key| key.name == "HF_TOKEN" && key.secret));
-    }
-
-    #[tokio::test]
-    async fn test_nvidia_declarative_provider_registry_wiring() {
-        let nvidia = get_from_registry("nvidia")
-            .await
-            .expect("nvidia provider should be registered");
-        let meta = nvidia.metadata();
-
-        assert_eq!(nvidia.provider_type(), ProviderType::Declarative);
-        assert!(nvidia.supports_inventory_refresh());
-        assert_eq!(meta.display_name, "NVIDIA");
-        assert_eq!(meta.default_model, "z-ai/glm-4.7");
-        assert_eq!(meta.model_doc_link, "https://build.nvidia.com/models");
-        assert!(!meta.setup_steps.is_empty());
-
-        let api_key = meta
-            .config_keys
-            .iter()
-            .find(|k| k.name == "NVIDIA_API_KEY")
-            .expect("NVIDIA_API_KEY config key should exist");
-        assert!(api_key.required, "NVIDIA_API_KEY should be required");
-        assert!(api_key.secret, "NVIDIA_API_KEY should be secret");
-        assert!(api_key.primary, "NVIDIA_API_KEY should be primary");
-        assert!(
-            !meta.config_keys.iter().any(|k| k.name == "OPENAI_HOST"),
-            "NVIDIA should not expose OpenAI host configuration"
-        );
-        assert!(
-            !meta
-                .config_keys
-                .iter()
-                .any(|k| k.name == "OPENAI_BASE_PATH"),
-            "NVIDIA should not expose OpenAI base path configuration"
-        );
-    }
-
-    #[tokio::test]
-    async fn test_nearai_declarative_provider_registry_wiring() {
-        let nearai = get_from_registry("nearai")
-            .await
-            .expect("nearai provider should be registered");
-        let meta = nearai.metadata();
-
-        assert_eq!(nearai.provider_type(), ProviderType::Declarative);
-        assert!(nearai.supports_inventory_refresh());
-        assert_eq!(meta.display_name, "NEAR AI Cloud");
-        assert_eq!(meta.model_doc_link, "https://docs.near.ai/");
-        assert!(!meta.setup_steps.is_empty());
-
-        let api_key = meta
-            .config_keys
-            .iter()
-            .find(|k| k.name == "NEARAI_API_KEY")
-            .expect("NEARAI_API_KEY config key should exist");
-        assert!(api_key.required, "NEARAI_API_KEY should be required");
-        assert!(api_key.secret, "NEARAI_API_KEY should be secret");
-        assert!(api_key.primary, "NEARAI_API_KEY should be primary");
-    }
-
-    #[tokio::test]
-    async fn test_alibaba_declarative_provider_registry_wiring() {
-        let alibaba = get_from_registry("alibaba")
-            .await
-            .expect("alibaba provider should be registered");
-        let meta = alibaba.metadata();
-
-        assert_eq!(alibaba.provider_type(), ProviderType::Declarative);
-        assert!(alibaba.supports_inventory_refresh());
-        assert_eq!(meta.display_name, "Alibaba (Qwen)");
-        assert_eq!(meta.default_model, "qwen3.7-max");
-        assert_eq!(
-            meta.model_doc_link,
-            "https://www.alibabacloud.com/help/en/model-studio/models"
-        );
-        assert!(!meta.setup_steps.is_empty());
-
-        let api_key = meta
-            .config_keys
-            .iter()
-            .find(|k| k.name == "DASHSCOPE_API_KEY")
-            .expect("DASHSCOPE_API_KEY config key should exist");
-        assert!(api_key.required, "DASHSCOPE_API_KEY should be required");
-        assert!(api_key.secret, "DASHSCOPE_API_KEY should be secret");
-        assert!(api_key.primary, "DASHSCOPE_API_KEY should be primary");
     }
 
     #[tokio::test]

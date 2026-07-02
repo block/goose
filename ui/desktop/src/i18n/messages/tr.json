@@ -44,6 +44,12 @@
   "appsView.retry": {
     "defaultMessage": "Yeniden dene"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.title": {
     "defaultMessage": "Uygulamalar"
   },
@@ -1168,6 +1174,9 @@
   },
   "externalBackendSection.description": {
     "defaultMessage": "Varsayılan olarak goose sizin için bir sunucu başlatır; harici bir goose sunucusuna bağlanmak için bunu kullanın"
+  },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
   },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Değişikliklerin etkili olması için Goose'nin yeniden başlatılması gerekir. Yeni sohbet pencereleri harici sunucuya bağlanacaktır."

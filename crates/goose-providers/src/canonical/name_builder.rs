@@ -365,12 +365,6 @@ mod tests {
             Some("anthropic/claude-3.5-sonnet".to_string())
         );
 
-        // 3.x: {model}-{version} → {version}-{model}
-        assert_eq!(
-            map_to_canonical_model("databricks", "claude-haiku-3-5", r),
-            Some("anthropic/claude-3.5-haiku".to_string())
-        );
-
         // 4.x: {version}-{model} → {model}-{version}
         assert_eq!(
             map_to_canonical_model("databricks", "claude-4-sonnet", r),

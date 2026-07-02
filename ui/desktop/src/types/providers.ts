@@ -1,3 +1,49 @@
+export type ProviderType = 'Preferred' | 'Builtin' | 'Declarative' | 'Custom';
+
+export type ThinkingEffort = 'off' | 'low' | 'medium' | 'high' | 'max';
+
+export type ConfigKey = {
+  default?: string | null;
+  device_code_flow?: boolean;
+  name: string;
+  oauth_flow: boolean;
+  primary?: boolean;
+  required: boolean;
+  secret: boolean;
+};
+
+export type ModelInfo = {
+  context_limit: number;
+  currency?: string | null;
+  input_token_cost?: number | null;
+  name: string;
+  output_token_cost?: number | null;
+  reasoning?: boolean;
+  resolved_model?: string | null;
+  supports_cache_control?: boolean | null;
+};
+
+export type ProviderMetadata = {
+  config_keys: ConfigKey[];
+  default_model: string;
+  description: string;
+  display_name: string;
+  fast_model?: string | null;
+  known_models: ModelInfo[];
+  model_doc_link: string;
+  model_selection_hint?: string | null;
+  name: string;
+  setup_steps?: string[];
+};
+
+export type ProviderDetails = {
+  is_configured: boolean;
+  metadata: ProviderMetadata;
+  name: string;
+  provider_type: ProviderType;
+  saved_model?: string | null;
+};
+
 export type UpdateCustomProviderRequest = {
   api_key: string;
   api_url: string;

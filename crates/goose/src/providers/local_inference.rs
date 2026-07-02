@@ -2,6 +2,7 @@ mod backend;
 pub mod hf_models;
 mod llamacpp;
 pub mod local_model_registry;
+pub mod management;
 mod mlx;
 pub(crate) mod multimodal;
 #[cfg(feature = "mlx")]
@@ -67,10 +68,11 @@ pub fn builtin_chat_template_names() -> Vec<String> {
 }
 
 /// Global weak reference used to share a single `InferenceRuntime` across
-/// all providers and server routes. Only a `Weak` is stored — strong `Arc`s
-/// live in providers and `AppState`. When all strong refs drop (normal
-/// shutdown), the runtime is deallocated and the backend freed. The `Weak`
-/// left behind is inert during `__cxa_finalize`, so no ggml statics race.
+/// all providers and management APIs. Only a `Weak` is stored here — strong
+/// `Arc`s live in providers and the local-inference management layer. When all
+/// strong refs drop (normal shutdown), the runtime is deallocated and the
+/// backend freed. The `Weak` left behind is inert during `__cxa_finalize`, so no
+/// ggml statics race.
 static RUNTIME: StdMutex<Weak<InferenceRuntime>> = StdMutex::new(Weak::new());
 
 impl InferenceRuntime {

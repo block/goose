@@ -2345,8 +2345,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "961b955a666e25ee5a1091d219128d6e6401e3dab84efb1a2bf6b4035d797b39"
 dependencies = [
  "crmf",
- "der 0.7.10",
- "spki 0.7.3",
+ "der",
+ "spki",
  "x509-cert",
 ]
 
@@ -2357,8 +2357,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b77c319abfd5219629c45c34c89ba945ed3c5e49fcde9d16b6c3885f118a730"
 dependencies = [
  "const-oid 0.9.6",
- "der 0.7.10",
- "spki 0.7.3",
+ "der",
+ "spki",
  "x509-cert",
 ]
 
@@ -2693,8 +2693,8 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "36fe21b96d5b87f5de4b5b7202ec41c00110ac817ce6728fe75fb2fe5962ed92"
 dependencies = [
  "cms",
- "der 0.7.10",
- "spki 0.7.3",
+ "der",
+ "spki",
  "x509-cert",
 ]
 
@@ -3470,16 +3470,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "der"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71fd89660b2dc699704064e59e9dba0147b903e85319429e131620d022be411b"
-dependencies = [
- "const-oid 0.10.2",
- "zeroize",
-]
-
-[[package]]
 name = "der-parser"
 version = "10.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3820,12 +3810,12 @@ version = "0.16.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ee27f32b5c5292967d2d4a9d7f1e0b0aed2c15daded5a60300e4abb9d8020bca"
 dependencies = [
- "der 0.7.10",
+ "der",
  "digest 0.10.7",
  "elliptic-curve",
  "rfc6979",
  "signature",
- "spki 0.7.3",
+ "spki",
 ]
 
 [[package]]
@@ -3843,7 +3833,7 @@ version = "2.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53"
 dependencies = [
- "pkcs8 0.10.2",
+ "pkcs8",
  "signature",
 ]
 
@@ -3884,7 +3874,7 @@ dependencies = [
  "group",
  "hkdf",
  "pem-rfc7468",
- "pkcs8 0.10.2",
+ "pkcs8",
  "rand_core 0.6.4",
  "sec1",
  "subtle",
@@ -4875,7 +4865,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.39.0"
+version = "1.40.0"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-http",
@@ -4885,10 +4875,12 @@ dependencies = [
  "async-stream",
  "async-trait",
  "aws-config",
+ "aws-lc-rs",
  "aws-sdk-bedrockruntime",
  "aws-sdk-sagemakerruntime",
  "aws-smithy-types",
  "axum",
+ "axum-server",
  "base64 0.22.1",
  "blake3",
  "byteorder",
@@ -4941,6 +4933,7 @@ dependencies = [
  "nostr-sdk",
  "oauth2",
  "once_cell",
+ "openssl",
  "opentelemetry 0.32.0",
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp 0.32.0",
@@ -4948,10 +4941,12 @@ dependencies = [
  "opentelemetry_sdk 0.32.1",
  "pastey",
  "pctx_code_mode",
+ "pem",
  "process-wrap",
  "pulldown-cmark",
  "rand 0.10.1",
  "rayon",
+ "rcgen",
  "regex",
  "reqwest 0.13.4",
  "rmcp",
@@ -5013,7 +5008,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp-macros"
-version = "1.39.0"
+version = "1.40.0"
 dependencies = [
  "quote",
  "syn 2.0.117",
@@ -5021,12 +5016,13 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.39.0"
+version = "1.40.0"
 dependencies = [
  "anstream",
  "anyhow",
  "async-trait",
  "axum",
+ "axum-server",
  "base64 0.22.1",
  "bat",
  "bzip2",
@@ -5075,7 +5071,7 @@ dependencies = [
 
 [[package]]
 name = "goose-mcp"
-version = "1.39.0"
+version = "1.40.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -5105,7 +5101,7 @@ dependencies = [
 
 [[package]]
 name = "goose-providers"
-version = "1.39.0"
+version = "1.40.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5117,7 +5113,7 @@ dependencies = [
  "once_cell",
  "pem",
  "pkcs1",
- "pkcs8 0.11.0",
+ "pkcs8",
  "rand 0.10.1",
  "regex",
  "reqwest 0.13.4",
@@ -5141,7 +5137,7 @@ dependencies = [
 
 [[package]]
 name = "goose-sdk"
-version = "1.39.0"
+version = "1.40.0"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",
@@ -5154,7 +5150,7 @@ dependencies = [
 
 [[package]]
 name = "goose-sdk-types"
-version = "1.39.0"
+version = "1.40.0"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",
@@ -5165,10 +5161,9 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.39.0"
+version = "1.40.0"
 dependencies = [
  "anyhow",
- "aws-lc-rs",
  "axum",
  "axum-server",
  "base64 0.22.1",
@@ -5182,10 +5177,7 @@ dependencies = [
  "goose-providers",
  "hex",
  "http 1.4.2",
- "openssl",
- "pem",
  "rand 0.10.1",
- "rcgen",
  "reqwest 0.13.4",
  "rmcp",
  "rustls",
@@ -5208,7 +5200,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.39.0"
+version = "1.40.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -5216,7 +5208,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test-support"
-version = "1.39.0"
+version = "1.40.0"
 dependencies = [
  "axum",
  "env-lock",
@@ -8225,9 +8217,9 @@ version = "0.7.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c8ffb9f10fa047879315e6625af03c164b16962a5368d724ed16323b68ace47f"
 dependencies = [
- "der 0.7.10",
- "pkcs8 0.10.2",
- "spki 0.7.3",
+ "der",
+ "pkcs8",
+ "spki",
 ]
 
 [[package]]
@@ -8236,18 +8228,8 @@ version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7"
 dependencies = [
- "der 0.7.10",
- "spki 0.7.3",
-]
-
-[[package]]
-name = "pkcs8"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "451913da69c775a56034ea8d9003d27ee8948e12443eae7c038ba100a4f21cb7"
-dependencies = [
- "der 0.8.0",
- "spki 0.8.0",
+ "der",
+ "spki",
 ]
 
 [[package]]
@@ -9187,10 +9169,10 @@ dependencies = [
  "num-integer",
  "num-traits",
  "pkcs1",
- "pkcs8 0.10.2",
+ "pkcs8",
  "rand_core 0.6.4",
  "signature",
- "spki 0.7.3",
+ "spki",
  "subtle",
  "zeroize",
 ]
@@ -9561,9 +9543,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d3e97a565f76233a6003f9f5c54be1d9c5bdfa3eccfb189469f11ec4901c47dc"
 dependencies = [
  "base16ct",
- "der 0.7.10",
+ "der",
  "generic-array",
- "pkcs8 0.10.2",
+ "pkcs8",
  "subtle",
  "zeroize",
 ]
@@ -9976,14 +9958,14 @@ dependencies = [
  "aws-lc-rs",
  "base64 0.22.1",
  "const-oid 0.9.6",
- "der 0.7.10",
+ "der",
  "digest 0.10.7",
  "pem",
  "rand_core 0.9.5",
  "sha2 0.10.9",
  "signature",
  "sigstore-types",
- "spki 0.7.3",
+ "spki",
  "thiserror 2.0.18",
  "tracing",
  "x509-cert",
@@ -10050,7 +10032,7 @@ dependencies = [
  "cmpv2",
  "cms",
  "const-oid 0.9.6",
- "der 0.7.10",
+ "der",
  "hex",
  "jiff",
  "rand 0.9.4",
@@ -10287,17 +10269,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
 dependencies = [
  "base64ct",
- "der 0.7.10",
-]
-
-[[package]]
-name = "spki"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d9efca8738c78ee9484207732f728b1ef517bbb1833d6fc0879ca898a522f6f"
-dependencies = [
- "base64ct",
- "der 0.8.0",
+ "der",
 ]
 
 [[package]]
@@ -13870,10 +13842,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1301e935010a701ae5f8655edc0ad17c44bad3ac5ce8c39185f75453b720ae94"
 dependencies = [
  "const-oid 0.9.6",
- "der 0.7.10",
+ "der",
  "sha1",
  "signature",
- "spki 0.7.3",
+ "spki",
  "tls_codec",
 ]
 
@@ -13903,7 +13875,7 @@ checksum = "f5ceece934a21607055b7ac5c25adb56a2ff559804b10705dc674d1d838c15e1"
 dependencies = [
  "cmpv2",
  "cms",
- "der 0.7.10",
+ "der",
 ]
 
 [[package]]

@@ -596,10 +596,11 @@ pub fn create_responses_request(
         None
     };
 
+    let store = model_config.request_param::<bool>("store").unwrap_or(false);
     let mut payload = json!({
         "model": model_name,
         "input": input_items,
-        "store": false,
+        "store": store,
     });
 
     if let Some(effort) = reasoning_effort {
@@ -1410,6 +1411,27 @@ mod tests {
             result.get("reasoning").is_none(),
             "non-reasoning models should not receive reasoning config"
         );
+    }
+
+    #[test]
+    fn test_request_params_override_store() {
+        let model_config = ModelConfig {
+            model_name: "o3".to_string(),
+            context_limit: None,
+            temperature: None,
+            max_tokens: None,
+            toolshim: false,
+            toolshim_model: None,
+            request_params: Some(std::collections::HashMap::from([(
+                "store".to_string(),
+                serde_json::json!(true),
+            )])),
+            reasoning: None,
+        };
+
+        let result = create_responses_request(&model_config, "", &[], &[]).unwrap();
+
+        assert_eq!(result["store"], true);
     }
 
     #[test]
