@@ -13243,6 +13243,39 @@
     }
   },
   {
+    "id": "amazon-bedrock/global.anthropic.claude-sonnet-5",
+    "name": "Claude Sonnet 5 (Global)",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-06-01",
+    "last_updated": "2026-07-01",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read": 0.3,
+      "cache_write": 3.75
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 64000
+    }
+  },
+  {
     "id": "amazon-bedrock/google.gemma-3-12b-it",
     "name": "Google Gemma 3 12B",
     "family": "gemma",
@@ -15780,6 +15813,40 @@
     "knowledge": "2025-08-31",
     "release_date": "2026-02-17",
     "last_updated": "2026-03-13",
+    "modalities": {
+      "input": [
+        "text",
+        "image",
+        "pdf"
+      ],
+      "output": [
+        "text"
+      ]
+    },
+    "open_weights": false,
+    "cost": {
+      "input": 3.0,
+      "output": 15.0,
+      "cache_read": 0.3,
+      "cache_write": 3.75
+    },
+    "limit": {
+      "context": 1000000,
+      "output": 64000
+    }
+  },
+  {
+    "id": "anthropic/claude-sonnet-5",
+    "name": "Claude Sonnet 5",
+    "family": "claude-sonnet",
+    "attachment": true,
+    "reasoning": true,
+    "thinking_mode": "adaptive",
+    "tool_call": true,
+    "temperature": true,
+    "knowledge": "2025-08-31",
+    "release_date": "2026-06-01",
+    "last_updated": "2026-07-01",
     "modalities": {
       "input": [
         "text",

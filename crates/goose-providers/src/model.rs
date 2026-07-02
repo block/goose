@@ -565,6 +565,20 @@ mod tests {
         }
 
         #[test]
+        fn resolves_claude_sonnet_5_on_aws_bedrock() {
+            let _guard = env_lock::lock_env([
+                ("GOOSE_MAX_TOKENS", None::<&str>),
+                ("GOOSE_CONTEXT_LIMIT", None::<&str>),
+            ]);
+            let config = ModelConfig::new("global.anthropic.claude-sonnet-5")
+                .with_canonical_limits("aws_bedrock");
+
+            assert_eq!(config.context_limit, Some(1_000_000));
+            assert_eq!(config.max_tokens, Some(64_000));
+            assert_eq!(config.reasoning, Some(true));
+        }
+
+        #[test]
         fn unknown_model_leaves_fields_none() {
             let _guard = env_lock::lock_env([
                 ("GOOSE_MAX_TOKENS", None::<&str>),
