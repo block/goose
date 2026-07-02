@@ -574,7 +574,7 @@ mod tests {
                 .with_canonical_limits("aws_bedrock");
 
             assert_eq!(config.context_limit, Some(1_000_000));
-            assert_eq!(config.max_tokens, Some(64_000));
+            assert_eq!(config.max_tokens, Some(128_000));
             assert_eq!(config.reasoning, Some(true));
         }
 
