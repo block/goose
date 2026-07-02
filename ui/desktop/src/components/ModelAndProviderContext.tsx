@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { toastError, toastSuccess } from '../toasts';
-import Model, { getProviderMetadata, validateProviderModel } from './settings/models/modelInterface';
+import Model, { getProviderMetadata } from './settings/models/modelInterface';
 import type { ProviderMetadata } from '../types/providers';
 import { acpChatSessionActions, acpChatSessionStore } from '../acp/chatSessionStore';
 import {
@@ -93,13 +93,10 @@ export const ModelAndProviderProvider: React.FC<ModelAndProviderProviderProps> =
     async (sessionId: string | null, model: Model) => {
       const modelName = model.name;
       const providerName = model.provider;
-      let phase = 'validation';
+      let phase = sessionId ? 'agent' : 'config';
 
       try {
-        await validateProviderModel(providerName, modelName);
-
         if (sessionId) {
-          phase = 'agent';
           const applied = await acpSetSessionProviderModel(
             sessionId,
             providerName,

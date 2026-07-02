@@ -2,14 +2,26 @@ import type {
   CanonicalModelInfoDto,
   CustomProviderCreateRequest_unstable,
   CustomProviderReadResponse_unstable,
+  ProviderInventoryEntryDto,
+  ProviderInventoryModelDto,
   ProviderSecretDto,
   ProviderTemplateCatalogEntryDto,
   ProviderTemplateDto,
+  RefreshProviderInventoryResponse_unstable,
 } from '@aaif/goose-sdk';
-import type { ProviderDetails, ThinkingEffort, UpdateCustomProviderRequest } from '../types/providers';
+import type {
+  ProviderDetails,
+  ThinkingEffort,
+  UpdateCustomProviderRequest,
+} from '../types/providers';
 import { getAcpClient } from './acpConnection';
 
-export type { CanonicalModelInfoDto, ProviderSecretDto };
+export type {
+  CanonicalModelInfoDto,
+  ProviderInventoryEntryDto,
+  ProviderInventoryModelDto,
+  ProviderSecretDto,
+};
 
 function acpErrorMessage(error: unknown): string | null {
   if (typeof error !== 'object' || error === null) {
@@ -66,6 +78,9 @@ export async function acpListProviderDetails(): Promise<ProviderDetails[]> {
     name: entry.providerId,
     is_configured: entry.configured,
     provider_type: entry.providerType as ProviderDetails['provider_type'],
+    supports_refresh: entry.supportsRefresh,
+    refreshing: entry.refreshing,
+    last_refresh_error: entry.lastRefreshError ?? null,
     metadata: {
       name: entry.providerId,
       display_name: entry.providerName,
@@ -92,10 +107,23 @@ export async function acpListProviderDetails(): Promise<ProviderDetails[]> {
   }));
 }
 
-export async function acpListProviderModels(providerId: string) {
+export async function acpGetProviderInventoryEntry(
+  providerId: string
+): Promise<ProviderInventoryEntryDto | null> {
   const client = await getAcpClient();
   const { entries } = await client.goose.providersList_unstable({ providerIds: [providerId] });
-  return entries.find((e) => e.providerId === providerId)?.models ?? [];
+  return entries.find((entry) => entry.providerId === providerId) ?? null;
+}
+
+export async function acpListProviderModels(providerId: string) {
+  return (await acpGetProviderInventoryEntry(providerId))?.models ?? [];
+}
+
+export async function acpRefreshProviderInventory(
+  providerId: string
+): Promise<RefreshProviderInventoryResponse_unstable> {
+  const client = await getAcpClient();
+  return client.goose.providersInventoryRefresh_unstable({ providerIds: [providerId] });
 }
 
 export async function acpListProviderCatalogEntries(

@@ -4,12 +4,13 @@ use goose_providers::base::ProviderDescriptor;
 use std::collections::HashMap;
 
 use crate::config::declarative_providers::DeclarativeProviderConfig;
+use crate::config::Config;
 use crate::providers::base::{ProviderDef, DEFAULT_PROVIDER_TIMEOUT_SECS};
+use crate::providers::custom_provider_config::ConfigKeyResolver;
 use goose_providers::api_client::{ApiClient, AuthMethod};
 use goose_providers::openai::{
-    ensure_url_scheme, parse_custom_headers, parse_openai_base_url, OpenAiProvider,
-    OpenAiProviderBuilder, OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_DEFAULT_FAST_MODEL,
-    OPEN_AI_VERSIONLESS_BASE_PATH,
+    parse_custom_headers, parse_openai_base_url, OpenAiProvider, OpenAiProviderBuilder,
+    OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_DEFAULT_FAST_MODEL, OPEN_AI_VERSIONLESS_BASE_PATH,
 };
 
 pub struct OpenAiProviderDef;
@@ -203,85 +204,19 @@ pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<goose_providers::api_client::TlsConfig>,
 ) -> Result<OpenAiProvider> {
-    let custom_models = if !config.models.is_empty() {
-        Some(
-            config
-                .models
-                .iter()
-                .map(|m| m.name.clone())
-                .collect::<Vec<String>>(),
-        )
-    } else {
-        None
-    };
-
-    if config.dynamic_models == Some(false) && custom_models.is_none() {
-        return Err(anyhow::anyhow!(
-            "Provider '{}' has dynamic_models: false but no static models listed; \
-             at least one entry in `models` is required.",
-            config.name
-        ));
-    }
-
-    let global_config = crate::config::Config::global();
-    let api_key = resolve_api_key(&config, &|key| global_config.get_secret(key))?;
-
-    let normalized_base_url = ensure_url_scheme(&config.base_url);
-    let url = url::Url::parse(&normalized_base_url)
-        .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
-
-    let host = if let Some(port) = url.port() {
-        format!(
-            "{}://{}:{}",
-            url.scheme(),
-            url.host_str().unwrap_or(""),
-            port
-        )
-    } else {
-        format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
-    };
-    let base_path = if let Some(ref explicit_path) = config.base_path {
-        explicit_path.trim_start_matches('/').to_string()
-    } else {
-        derive_base_path(url.path())
-    };
-
-    let timeout_secs = config
-        .timeout_seconds
-        .unwrap_or(DEFAULT_PROVIDER_TIMEOUT_SECS);
-
-    let auth = match api_key {
-        Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
-        _ => AuthMethod::NoAuth,
-    };
-    let mut api_client = ApiClient::with_timeout_and_tls(
-        host,
-        auth,
-        std::time::Duration::from_secs(timeout_secs),
+    goose_providers::openai::from_declarative_config(
+        config,
         tls_config,
-    )?
-    .with_request_builder(crate::session_context::session_id_request_builder());
-
-    if let Some(headers) = &config.headers {
-        let mut header_map = reqwest::header::HeaderMap::new();
-        for (key, value) in headers {
-            let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
-            let header_value = reqwest::header::HeaderValue::from_str(value)?;
-            header_map.insert(header_name, header_value);
-        }
-        api_client = api_client.with_headers(header_map)?;
-    }
-
-    Ok(OpenAiProviderBuilder::new(api_client)
-        .base_path(base_path)
-        .custom_headers(config.headers)
-        .supports_streaming(config.supports_streaming.unwrap_or(true))
-        .name(config.name.clone())
-        .custom_models(custom_models)
-        .dynamic_models(config.dynamic_models)
-        .skip_canonical_filtering(config.skip_canonical_filtering)
-        .preserve_thinking_context(config.preserves_thinking)
-        .build())
+        ConfigKeyResolver::new(Config::global()),
+    )
+    .map(|builder| {
+        builder
+            .map_api_client(|api_client| {
+                api_client
+                    .with_request_builder(crate::session_context::session_id_request_builder())
+            })
+            .build()
+    })
 }
 
 /// Components extracted from an `OPENAI_BASE_URL` value.
@@ -359,26 +294,6 @@ fn is_direct_openai_host(host: &str) -> bool {
         .unwrap_or(false)
 }
 
-fn derive_base_path(url_path: &str) -> String {
-    let stripped = url_path.trim_start_matches('/');
-    let normalized = stripped.trim_end_matches('/');
-    if normalized.is_empty() {
-        "v1/chat/completions".to_string()
-    } else if normalized.ends_with("chat/completions") {
-        stripped.to_string()
-    } else if ends_with_version_segment(normalized) {
-        format!("{}/chat/completions", normalized)
-    } else {
-        format!("{}/v1/chat/completions", normalized)
-    }
-}
-
-fn ends_with_version_segment(path: &str) -> bool {
-    let last = path.rsplit('/').next().unwrap_or(path);
-    last.strip_prefix('v')
-        .is_some_and(|rest| !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -427,12 +342,6 @@ mod tests {
     }
 
     #[test]
-    fn derive_base_path_not_removing_api_path() {
-        let r = derive_base_path("https://opencode.ai/zen/go");
-        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
-    }
-
-    #[test]
     fn is_direct_openai_host_matches_only_openai() {
         assert!(is_direct_openai_host("https://api.openai.com"));
         assert!(is_direct_openai_host("https://api.openai.com/v1"));
@@ -440,33 +349,6 @@ mod tests {
         assert!(!is_direct_openai_host("https://api.openai.com.local:8000"));
         assert!(!is_direct_openai_host("https://localhost:1234"));
         assert!(!is_direct_openai_host("https://router.huggingface.co/v1"));
-    }
-
-    #[test]
-    fn derive_base_path_should_support_v1() {
-        let r = derive_base_path("https://opencode.ai/zen/go/v1");
-        assert_eq!(r, "https://opencode.ai/zen/go/v1/chat/completions");
-    }
-
-    #[test]
-    fn derive_base_path_should_support_no_base_path() {
-        let r = derive_base_path("https://opencode.ai/");
-        assert_eq!(r, "https://opencode.ai/v1/chat/completions");
-    }
-
-    #[test]
-    fn derive_base_path_preserves_non_v1_version_prefix() {
-        // Zhipu's default base_url is https://open.bigmodel.cn/api/paas/v4 and
-        // from_custom_config passes url.path() ("/api/paas/v4") here. The
-        // existing /api/paas/v4 version must not gain an extra /v1 segment.
-        let r = derive_base_path("/api/paas/v4");
-        assert_eq!(r, "api/paas/v4/chat/completions");
-    }
-
-    #[test]
-    fn derive_base_path_does_not_treat_v_word_as_version() {
-        let r = derive_base_path("/api/voice");
-        assert_eq!(r, "api/voice/v1/chat/completions");
     }
 
     #[test]

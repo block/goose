@@ -1,7 +1,7 @@
 {
   "name": "empiriolabs",
   "engine": "openai",
-  "display_name": "EmpirioLabs",
+  "display_name": "EmpirioLabs AI",
   "description": "Frontier open and proprietary chat models through one OpenAI-compatible API with streaming support",
   "api_key_env": "EMPIRIOLABS_API_KEY",
   "base_url": "https://api.empiriolabs.ai/v1/chat/completions",

@@ -1,0 +1,388 @@
+use std::{collections::HashMap, str::FromStr};
+
+use anyhow::Result;
+use serde::{Deserialize, Deserializer, Serialize};
+use utoipa::ToSchema;
+
+use crate::{
+    anthropic,
+    api_client::TlsConfig,
+    base::{ModelInfo, Provider},
+    ollama, openai,
+};
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct EnvVarConfig {
+    pub name: String,
+    #[serde(default)]
+    pub required: bool,
+    #[serde(default)]
+    pub secret: bool,
+    /// Defaults to the value of `required` if not specified.
+    /// UIs may use this to feature this config value more prominently.
+    pub primary: Option<bool>,
+    pub description: Option<String>,
+    pub default: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "lowercase")]
+pub enum ProviderEngine {
+    #[serde(alias = "openai_compatible")]
+    OpenAI,
+    #[serde(alias = "ollama_compatible")]
+    Ollama,
+    #[serde(alias = "anthropic_compatible")]
+    Anthropic,
+}
+
+impl FromStr for ProviderEngine {
+    type Err = anyhow::Error;
+
+    fn from_str(engine: &str) -> Result<Self> {
+        match engine.trim().to_lowercase().as_str() {
+            "openai" | "openai_compatible" => Ok(Self::OpenAI),
+            "anthropic" | "anthropic_compatible" => Ok(Self::Anthropic),
+            "ollama" | "ollama_compatible" => Ok(Self::Ollama),
+            _ => Err(anyhow::anyhow!("Invalid provider type: {}", engine)),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
+pub struct DeclarativeProviderConfig {
+    pub name: String,
+    pub engine: ProviderEngine,
+    pub display_name: String,
+    pub description: Option<String>,
+    #[serde(default)]
+    pub api_key_env: String,
+    pub base_url: String,
+    pub models: Vec<ModelInfo>,
+    pub headers: Option<HashMap<String, String>>,
+    pub timeout_seconds: Option<u64>,
+    pub supports_streaming: Option<bool>,
+    #[serde(default = "default_requires_auth")]
+    pub requires_auth: bool,
+    #[serde(default)]
+    pub catalog_provider_id: Option<String>,
+    #[serde(default)]
+    pub base_path: Option<String>,
+    #[serde(default)]
+    pub env_vars: Option<Vec<EnvVarConfig>>,
+    /// Controls whether `fetch_supported_models` calls the provider's `/v1/models`
+    /// endpoint or returns the static `models` list directly.
+    ///
+    /// - `Some(false)` + non-empty `models`: return the static list; no API call.
+    ///   Construction fails if `models` is empty.
+    /// - `Some(true)` or `None`: try the API; fall back to `models` on 404.
+    #[serde(default)]
+    pub dynamic_models: Option<bool>,
+    #[serde(default)]
+    pub skip_canonical_filtering: bool,
+    #[serde(default, deserialize_with = "deserialize_non_empty_string")]
+    pub model_doc_link: Option<String>,
+    #[serde(default)]
+    pub setup_steps: Vec<String>,
+    #[serde(default, deserialize_with = "deserialize_non_empty_string")]
+    pub fast_model: Option<String>,
+    #[serde(default)]
+    pub preserves_thinking: bool,
+}
+
+fn default_requires_auth() -> bool {
+    true
+}
+
+fn should_preserve_thinking_by_default(engine: &ProviderEngine) -> bool {
+    matches!(engine, ProviderEngine::OpenAI)
+}
+
+/// Deserialize an optional string, treating empty/whitespace-only values as None.
+fn deserialize_non_empty_string<'de, D>(deserializer: D) -> Result<Option<String>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let opt: Option<String> = Option::deserialize(deserializer)?;
+    Ok(opt.filter(|s| !s.trim().is_empty()))
+}
+
+impl DeclarativeProviderConfig {
+    pub fn id(&self) -> &str {
+        &self.name
+    }
+
+    pub fn display_name(&self) -> &str {
+        &self.display_name
+    }
+
+    pub fn models(&self) -> &[ModelInfo] {
+        &self.models
+    }
+}
+
+pub trait KeyResolver {
+    type Error: std::error::Error + Send + Sync + 'static;
+
+    fn resolve_key(&self, key: &str) -> std::result::Result<String, Self::Error>;
+}
+
+pub struct EnvKeyResolver;
+
+impl EnvKeyResolver {
+    pub fn new() -> Self {
+        EnvKeyResolver {}
+    }
+}
+
+impl Default for EnvKeyResolver {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl KeyResolver for EnvKeyResolver {
+    type Error = std::env::VarError;
+
+    fn resolve_key(&self, key: &str) -> std::result::Result<String, Self::Error> {
+        std::env::var(key)
+    }
+}
+
+fn expand_env_vars(template: &str, env_vars: &[EnvVarConfig]) -> Result<String> {
+    let mut result = template.to_string();
+
+    for var in env_vars {
+        let placeholder = format!("${{{}}}", var.name);
+        if !result.contains(&placeholder) {
+            continue;
+        }
+
+        let value = match std::env::var(&var.name) {
+            Ok(value) => value,
+            Err(_) => match &var.default {
+                Some(default) => default.clone(),
+                None if var.required => {
+                    anyhow::bail!("Required environment variable {} is not set", var.name)
+                }
+                None => continue,
+            },
+        };
+
+        result = result.replace(&placeholder, &value);
+    }
+
+    Ok(result)
+}
+
+fn resolve_config(config: &mut DeclarativeProviderConfig) -> Result<()> {
+    if let Some(env_vars) = &config.env_vars {
+        config.base_url = expand_env_vars(&config.base_url, env_vars)?;
+
+        for var in env_vars {
+            if var.name.ends_with("_STREAMING") {
+                let value = std::env::var(&var.name)
+                    .ok()
+                    .or_else(|| var.default.clone())
+                    .map(|value| value.eq_ignore_ascii_case("true"));
+                if let Some(value) = value {
+                    config.supports_streaming = Some(value);
+                }
+            }
+        }
+    }
+
+    Ok(())
+}
+
+fn config_from_json(json: &str) -> Result<DeclarativeProviderConfig> {
+    let raw: serde_json::Value = serde_json::from_str(json)?;
+    let preserves_thinking_was_set = raw.get("preserves_thinking").is_some();
+    let mut config: DeclarativeProviderConfig = serde_json::from_value(raw)?;
+
+    if !preserves_thinking_was_set {
+        config.preserves_thinking = should_preserve_thinking_by_default(&config.engine);
+    }
+
+    resolve_config(&mut config)?;
+    Ok(config)
+}
+
+pub fn from_json(
+    json: &str,
+    tls_config: Option<TlsConfig>,
+    key_resolver: impl KeyResolver,
+) -> Result<Box<dyn Provider>> {
+    let config = config_from_json(json)?;
+
+    match config.engine {
+        ProviderEngine::OpenAI => openai::from_declarative_config(config, tls_config, key_resolver)
+            .map(|provider| Box::new(provider.build()) as Box<dyn Provider>),
+        ProviderEngine::Ollama => ollama::from_declarative_config(config, tls_config, key_resolver)
+            .map(|provider| Box::new(provider.build()) as Box<dyn Provider>),
+        ProviderEngine::Anthropic => {
+            anthropic::from_declarative_config(config, tls_config, key_resolver)
+                .map(|provider| Box::new(provider.build()) as Box<dyn Provider>)
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn model_json() -> serde_json::Value {
+        json!({
+            "name": "test-model",
+            "context_limit": 4096,
+            "input_token_cost": null,
+            "output_token_cost": null,
+            "currency": null,
+            "supports_cache_control": null,
+            "reasoning": false
+        })
+    }
+
+    #[test]
+    fn provider_engine_deserializes_compatible_aliases() {
+        let openai: DeclarativeProviderConfig = serde_json::from_value(json!({
+            "name": "test-openai",
+            "engine": "openai_compatible",
+            "display_name": "Test OpenAI",
+            "base_url": "http://localhost:1234",
+            "models": [model_json()]
+        }))
+        .unwrap();
+        assert_eq!(openai.engine, ProviderEngine::OpenAI);
+
+        let anthropic: DeclarativeProviderConfig = serde_json::from_value(json!({
+            "name": "test-anthropic",
+            "engine": "anthropic_compatible",
+            "display_name": "Test Anthropic",
+            "base_url": "http://localhost:1234",
+            "models": [model_json()]
+        }))
+        .unwrap();
+        assert_eq!(anthropic.engine, ProviderEngine::Anthropic);
+
+        let ollama: DeclarativeProviderConfig = serde_json::from_value(json!({
+            "name": "test-ollama",
+            "engine": "ollama_compatible",
+            "display_name": "Test Ollama",
+            "base_url": "http://localhost:11434",
+            "models": [model_json()]
+        }))
+        .unwrap();
+        assert_eq!(ollama.engine, ProviderEngine::Ollama);
+    }
+
+    #[test]
+    fn from_json_defaults_openai_preserves_thinking_to_true() {
+        let json = json!({
+            "name": "test-provider",
+            "engine": "openai",
+            "display_name": "Test Provider",
+            "base_url": "http://localhost:1234/v1/chat/completions",
+            "models": [model_json()],
+            "requires_auth": false,
+            "dynamic_models": false
+        })
+        .to_string();
+
+        let config = config_from_json(&json).unwrap();
+
+        assert!(config.preserves_thinking);
+    }
+
+    #[test]
+    fn from_json_preserves_explicit_openai_preserves_thinking_false() {
+        let json = json!({
+            "name": "test-provider",
+            "engine": "openai",
+            "display_name": "Test Provider",
+            "base_url": "http://localhost:1234/v1/chat/completions",
+            "models": [model_json()],
+            "requires_auth": false,
+            "dynamic_models": false,
+            "preserves_thinking": false
+        })
+        .to_string();
+
+        let config = config_from_json(&json).unwrap();
+
+        assert!(!config.preserves_thinking);
+    }
+
+    #[test]
+    fn from_json_expands_base_url_from_env_var_default() {
+        let _guard = env_lock::lock_env([("TEST_PROVIDER_HOST", None::<&str>)]);
+        let json = json!({
+            "name": "test-provider",
+            "engine": "openai",
+            "display_name": "Test Provider",
+            "base_url": "${TEST_PROVIDER_HOST}/v1/chat/completions",
+            "models": [model_json()],
+            "requires_auth": false,
+            "dynamic_models": false,
+            "env_vars": [{
+                "name": "TEST_PROVIDER_HOST",
+                "default": "http://localhost:1234"
+            }]
+        })
+        .to_string();
+
+        let provider = from_json(&json, None, EnvKeyResolver).unwrap();
+
+        assert_eq!(provider.get_name(), "test-provider");
+    }
+
+    #[tokio::test]
+    async fn from_json_ollama_returns_static_models_when_dynamic_models_false() {
+        let json = json!({
+            "name": "test-ollama",
+            "engine": "ollama",
+            "display_name": "Test Ollama",
+            "base_url": "http://localhost:11434",
+            "models": [model_json()],
+            "requires_auth": false,
+            "dynamic_models": false
+        })
+        .to_string();
+
+        let provider = from_json(&json, None, EnvKeyResolver).unwrap();
+
+        assert_eq!(
+            provider.fetch_supported_models().await.unwrap(),
+            vec!["test-model".to_string()]
+        );
+    }
+
+    #[test]
+    fn from_json_errors_when_required_env_var_is_missing() {
+        let _guard = env_lock::lock_env([("TEST_PROVIDER_REQUIRED_HOST", None::<&str>)]);
+        let json = json!({
+            "name": "test-provider",
+            "engine": "openai",
+            "display_name": "Test Provider",
+            "base_url": "${TEST_PROVIDER_REQUIRED_HOST}/v1/chat/completions",
+            "models": [model_json()],
+            "requires_auth": false,
+            "dynamic_models": false,
+            "env_vars": [{
+                "name": "TEST_PROVIDER_REQUIRED_HOST",
+                "required": true
+            }]
+        })
+        .to_string();
+
+        let err = match from_json(&json, None, EnvKeyResolver) {
+            Ok(_) => panic!("expected missing required env var error"),
+            Err(err) => err,
+        };
+
+        assert!(err
+            .to_string()
+            .contains("Required environment variable TEST_PROVIDER_REQUIRED_HOST is not set"));
+    }
+}

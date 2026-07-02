@@ -390,6 +390,14 @@ mod tests {
             map_to_canonical_model("bedrock", "claude-3-5-sonnet", r),
             Some("anthropic/claude-3.5-sonnet".to_string())
         );
+        assert_eq!(
+            map_to_canonical_model("aws_bedrock", "global.anthropic.claude-sonnet-5", r),
+            Some("amazon-bedrock/global.anthropic.claude-sonnet-5".to_string())
+        );
+        assert_eq!(
+            map_to_canonical_model("anthropic", "claude-sonnet-5", r),
+            Some("anthropic/claude-sonnet-5".to_string())
+        );
 
         // === OpenAI GPT ===
         assert_eq!(

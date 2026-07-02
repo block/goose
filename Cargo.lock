@@ -5159,6 +5159,7 @@ dependencies = [
  "url",
  "utoipa 4.2.3",
  "uuid",
+ "wiremock",
 ]
 
 [[package]]

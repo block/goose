@@ -34,7 +34,7 @@ struct DatabricksMessage {
 fn format_text_content(text: &str, image_format: &ImageFormat) -> (Vec<Value>, bool) {
     let mut items = vec![json!({"type": "text", "text": text})];
     let has_image = if let Some(path) = detect_image_path(text) {
-        if let Ok(image) = load_image_file(path) {
+        if let Ok(image) = load_image_file(path.as_ref()) {
             items.push(convert_image(&image, image_format));
         }
         true
@@ -303,11 +303,9 @@ fn apply_claude_thinking_config(
     }
 }
 
-pub fn format_tools(tools: &[Tool], model_name: &str) -> anyhow::Result<Vec<Value>> {
+pub fn format_tools(tools: &[Tool], _model_name: &str) -> anyhow::Result<Vec<Value>> {
     let mut tool_names = std::collections::HashSet::new();
     let mut result = Vec::new();
-
-    let is_gemini = model_name.contains("gemini");
 
     for tool in tools {
         if !tool_names.insert(&tool.name) {
@@ -320,25 +318,17 @@ pub fn format_tools(tools: &[Tool], model_name: &str) -> anyhow::Result<Vec<Valu
             .and_then(|v| v.as_object())
             .is_some_and(|p| !p.is_empty());
 
-        let function_def = if is_gemini {
-            let mut def = json!({
-                "name": tool.name,
-                "description": tool.description,
-            });
-            if has_properties {
-                def["parametersJsonSchema"] = json!(tool.input_schema);
-            }
-            def
-        } else {
-            let mut def = json!({
-                "name": tool.name,
-                "description": tool.description,
-            });
-            if has_properties {
-                def["parameters"] = json!(tool.input_schema);
-            }
-            def
-        };
+        // Databricks serving endpoints (including Gemini-backed ones) use the
+        // OpenAI-compatible chat format, so tools always use "parameters" — not
+        // the Google-native "parametersJsonSchema" field.
+        let mut def = json!({
+            "name": tool.name,
+            "description": tool.description,
+        });
+        if has_properties {
+            def["parameters"] = json!(tool.input_schema);
+        }
+        let function_def = def;
 
         result.push(json!({
             "type": "function",
@@ -801,19 +791,17 @@ mod tests {
             "http://json-schema.org/draft-07/schema#"
         );
 
+        // Databricks Gemini endpoints use OpenAI-compatible format, so tools use
+        // "parameters" (not "parametersJsonSchema") regardless of model family.
         let spec = format_tools(std::slice::from_ref(&tool), "gemini-2-5-flash")?;
-        assert!(spec[0]["function"].get("parametersJsonSchema").is_some());
-        assert_eq!(
-            spec[0]["function"]["parametersJsonSchema"]["type"],
-            "object"
-        );
+        assert!(spec[0]["function"].get("parametersJsonSchema").is_none());
+        assert!(spec[0]["function"].get("parameters").is_some());
+        assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
 
         let spec = format_tools(&[tool], "databricks-gemini-3-pro")?;
-        assert!(spec[0]["function"].get("parametersJsonSchema").is_some());
-        assert_eq!(
-            spec[0]["function"]["parametersJsonSchema"]["type"],
-            "object"
-        );
+        assert!(spec[0]["function"].get("parametersJsonSchema").is_none());
+        assert!(spec[0]["function"].get("parameters").is_some());
+        assert_eq!(spec[0]["function"]["parameters"]["type"], "object");
 
         Ok(())
     }

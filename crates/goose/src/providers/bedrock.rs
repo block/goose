@@ -42,7 +42,14 @@ pub const BEDROCK_DOC_LINK: &str =
 
 pub const BEDROCK_DEFAULT_MODEL: &str = "us.anthropic.claude-sonnet-4-5-20250929-v1:0";
 pub const BEDROCK_MANTLE_MODELS: &[&str] = &["openai.gpt-5.5", "openai.gpt-5.4"];
-pub const BEDROCK_BOOTSTRAP_MODELS: &[&str] = &[BEDROCK_DEFAULT_MODEL];
+pub const BEDROCK_BOOTSTRAP_MODELS: &[&str] = &[
+    "global.anthropic.claude-sonnet-5",
+    "us.anthropic.claude-sonnet-4-5-20250929-v1:0",
+    "us.anthropic.claude-sonnet-4-20250514-v1:0",
+    "us.anthropic.claude-3-7-sonnet-20250219-v1:0",
+    "us.anthropic.claude-opus-4-20250514-v1:0",
+    "us.anthropic.claude-opus-4-1-20250805-v1:0",
+];
 
 pub const BEDROCK_DEFAULT_MAX_RETRIES: usize = 6;
 pub const BEDROCK_DEFAULT_INITIAL_RETRY_INTERVAL_MS: u64 = 2000;
@@ -1747,10 +1754,19 @@ mod tests {
     #[test]
     fn test_bootstrap_models_includes_mantle_with_bearer_token() {
         let without_mantle = BedrockProvider::bootstrap_models(false);
-        assert_eq!(without_mantle, vec![BEDROCK_DEFAULT_MODEL.to_string()]);
+        assert_eq!(
+            without_mantle,
+            BEDROCK_BOOTSTRAP_MODELS
+                .iter()
+                .map(|model| model.to_string())
+                .collect::<Vec<_>>()
+        );
+        assert!(without_mantle.contains(&BEDROCK_DEFAULT_MODEL.to_string()));
+        assert!(!without_mantle.contains(&"openai.gpt-5.5".to_string()));
 
         let with_mantle = BedrockProvider::bootstrap_models(true);
         assert!(with_mantle.contains(&"openai.gpt-5.5".to_string()));
+        assert!(with_mantle.contains(&"openai.gpt-5.4".to_string()));
         assert!(with_mantle.contains(&BEDROCK_DEFAULT_MODEL.to_string()));
     }
 

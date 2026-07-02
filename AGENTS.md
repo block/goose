@@ -14,7 +14,7 @@ cargo build
 ```bash
 cargo build                   # debug
 cargo build --release         # release  
-just release-binary           # release + openapi
+just release-binary           # release binary
 ```
 
 ### Test
@@ -33,8 +33,8 @@ cargo clippy --all-targets -- -D warnings
 
 ### UI
 ```bash
-just generate-openapi        # after server changes
 just run-ui                  # start desktop
+cd ui/desktop && pnpm run typecheck
 cd ui/desktop && pnpm test   # test UI
 ```
 
@@ -44,12 +44,10 @@ crates/
 ├── goose              # core logic
 ├── goose-acp-macros   # ACP proc macros
 ├── goose-cli          # CLI entry
-├── goose-server       # backend (binary: goosed)
 ├── goose-mcp          # MCP extensions
 ├── goose-test         # test utilities
 └── goose-test-support # test helpers
 
-evals/open-model-gym/  # benchmarking / evals
 ui/desktop/            # Electron app
 ```
 
@@ -65,7 +63,6 @@ ui/desktop/            # Electron app
 # 1. cargo build
 # 2. cargo test -p <crate>
 # 3. cargo clippy --all-targets -- -D warnings
-# 4. [if server] just generate-openapi
 ```
 
 ## Rules
@@ -75,7 +72,7 @@ ui/desktop/            # Electron app
 - Error: Use anyhow::Result
 - Provider: Implement Provider trait see providers/base.rs
 - MCP: Extensions in crates/goose-mcp/
-- Server: Changes need just generate-openapi
+- UI Desktop: Use ACP SDK types or local `src/types/*` types. Do not import generated OpenAPI types/client code from `ui/desktop/src/api`
 
 ## Code Quality
 
@@ -107,7 +104,7 @@ remaining space for dynamic text.
 
 ## Never
 
-- Never: Edit ui/desktop/openapi.json manually
+- Never: Recreate `ui/desktop/src/api` or add `@hey-api/openapi-ts` to `ui/desktop`
 - Cargo.toml: For human-authored dependency changes, use `cargo add` instead of manually editing dependency entries unless there is a specific reason not to.
 - Cargo.toml: Automated dependency bump PRs are exempt; when manual edits are necessary, keep `Cargo.lock` consistent.
 - Never: Skip cargo fmt
@@ -116,6 +113,5 @@ remaining space for dynamic text.
 
 ## Entry Points
 - CLI: crates/goose-cli/src/main.rs
-- Server: crates/goose-server/src/main.rs
 - UI: ui/desktop/src/main.ts
 - Agent: crates/goose/src/agents/agent.rs

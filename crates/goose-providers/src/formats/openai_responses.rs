@@ -6,7 +6,7 @@ use crate::formats::openai::{
 };
 use crate::mcp_utils::extract_text_from_resource;
 use crate::model::ModelConfig;
-use anyhow::Error;
+use anyhow::{anyhow, Error};
 use async_stream::try_stream;
 use chrono;
 use futures::Stream;
@@ -317,19 +317,24 @@ pub struct ResponseMetadata {
 #[serde(rename_all = "snake_case")]
 pub enum ResponseOutputItemInfo {
     Reasoning {
-        id: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
         #[serde(default)]
         summary: Vec<SummaryText>,
     },
     Message {
-        id: String,
-        status: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        status: Option<String>,
         role: String,
         content: Vec<ContentPart>,
     },
     FunctionCall {
-        id: String,
-        status: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        status: Option<String>,
         #[serde(skip_serializing_if = "Option::is_none")]
         call_id: Option<String>,
         name: String,
@@ -691,7 +696,9 @@ pub fn responses_api_to_message(response: &ResponsesApiResponse) -> anyhow::Resu
                 arguments,
                 ..
             } => {
-                let request_id = call_id.clone().or_else(|| id.clone()).unwrap_or_default();
+                let request_id = call_id.clone().or_else(|| id.clone()).ok_or_else(|| {
+                    anyhow!("Responses function_call output missing call_id and id")
+                })?;
                 let parsed_args = if arguments.is_empty() {
                     json!({})
                 } else {
@@ -724,7 +731,7 @@ pub fn get_responses_usage(response: &ResponsesApiResponse) -> Usage {
 fn process_streaming_output_items(
     output_items: Vec<ResponseOutputItemInfo>,
     is_text_response: bool,
-) -> Vec<MessageContent> {
+) -> anyhow::Result<Vec<MessageContent>> {
     let mut content = Vec::new();
 
     for item in output_items {
@@ -772,7 +779,9 @@ fn process_streaming_output_items(
                 arguments,
                 ..
             } => {
-                let request_id = call_id.unwrap_or(id);
+                let request_id = call_id.or(id).ok_or_else(|| {
+                    anyhow!("Responses function_call output missing call_id and id")
+                })?;
                 let parsed_args = if arguments.is_empty() {
                     json!({})
                 } else {
@@ -787,7 +796,7 @@ fn process_streaming_output_items(
         }
     }
 
-    content
+    Ok(content)
 }
 
 pub fn responses_api_to_streaming_message<S>(
@@ -945,7 +954,7 @@ where
         }
 
         // Process final output items and yield usage data
-        let content = process_streaming_output_items(output_items, is_text_response);
+        let content = process_streaming_output_items(output_items, is_text_response)?;
 
         if !content.is_empty() {
             let mut message = Message::new(Role::Assistant, chrono::Utc::now().timestamp(), content);
@@ -1048,6 +1057,84 @@ mod tests {
         assert_eq!(usage.model, "gpt-5.2-pro");
         assert_eq!(usage.usage.input_tokens, Some(10));
         assert_eq!(usage.usage.output_tokens, Some(4));
+        assert_eq!(usage.usage.total_tokens, Some(14));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_allows_message_output_without_id_status() -> anyhow::Result<()> {
+        let lines = vec![
+            r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"gpt-5.2-pro","output":[]}}"#.to_string(),
+            r#"data: {"type":"response.output_text.delta","sequence_number":2,"item_id":"msg_1","output_index":0,"content_index":0,"delta":"Hello"}"#.to_string(),
+            r#"data: {"type":"response.output_text.delta","sequence_number":3,"item_id":"msg_1","output_index":0,"content_index":0,"delta":" world"}"#.to_string(),
+            r#"data: {"type":"response.completed","sequence_number":4,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"completed","model":"gpt-5.2-pro","output":[{"type":"message","role":"assistant","content":[{"type":"output_text","text":"Hello world"}]}],"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14}}}"#.to_string(),
+            "data: [DONE]".to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let mut text_parts = Vec::new();
+        let mut usage: Option<ProviderUsage> = None;
+
+        while let Some(item) = messages.next().await {
+            let (message, maybe_usage) = item?;
+            if let Some(msg) = message {
+                for content in msg.content {
+                    if let MessageContent::Text(text) = content {
+                        text_parts.push(text.text.clone());
+                    }
+                }
+            }
+            if let Some(final_usage) = maybe_usage {
+                usage = Some(final_usage);
+            }
+        }
+
+        assert_eq!(text_parts.concat(), "Hello world");
+        let usage = usage.expect("usage should be present at completion");
+        assert_eq!(usage.model, "gpt-5.2-pro");
+        assert_eq!(usage.usage.input_tokens, Some(10));
+        assert_eq!(usage.usage.output_tokens, Some(4));
+        assert_eq!(usage.usage.total_tokens, Some(14));
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_responses_stream_allows_function_call_without_id_status() -> anyhow::Result<()> {
+        let lines = vec![
+            r#"data: {"type":"response.created","sequence_number":1,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"in_progress","model":"gpt-5.2-pro","output":[]}}"#.to_string(),
+            r#"data: {"type":"response.completed","sequence_number":2,"response":{"id":"resp_1","object":"response","created_at":1737368310,"status":"completed","model":"gpt-5.2-pro","output":[{"type":"reasoning","summary":[]},{"type":"function_call","call_id":"call_abc","name":"shell","arguments":"{\"command\":\"pwd\"}"}],"usage":{"input_tokens":10,"output_tokens":4,"total_tokens":14}}}"#.to_string(),
+            "data: [DONE]".to_string(),
+        ];
+
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let messages = responses_api_to_streaming_message(response_stream);
+        futures::pin_mut!(messages);
+
+        let mut tool_request_id = None;
+        let mut usage: Option<ProviderUsage> = None;
+
+        while let Some(item) = messages.next().await {
+            let (message, maybe_usage) = item?;
+            if let Some(msg) = message {
+                for content in msg.content {
+                    if let MessageContent::ToolRequest(request) = content {
+                        tool_request_id = Some(request.id);
+                    }
+                }
+            }
+            if let Some(final_usage) = maybe_usage {
+                usage = Some(final_usage);
+            }
+        }
+
+        assert_eq!(tool_request_id.as_deref(), Some("call_abc"));
+        let usage = usage.expect("usage should be present at completion");
+        assert_eq!(usage.model, "gpt-5.2-pro");
         assert_eq!(usage.usage.total_tokens, Some(14));
 
         Ok(())
@@ -1789,7 +1876,7 @@ mod tests {
     }
 
     #[test]
-    fn test_refusal_content_part_deserializes_in_streaming_output() {
+    fn test_refusal_content_part_deserializes_in_streaming_output() -> anyhow::Result<()> {
         let json = r#"{
             "type": "message",
             "id": "msg_1",
@@ -1799,13 +1886,15 @@ mod tests {
         }"#;
 
         let item: ResponseOutputItemInfo = serde_json::from_str(json).unwrap();
-        let content = process_streaming_output_items(vec![item], false);
+        let content = process_streaming_output_items(vec![item], false)?;
         assert_eq!(content.len(), 1);
         if let MessageContent::Text(t) = &content[0] {
             assert_eq!(t.text, "I'm unable to assist.");
         } else {
             panic!("expected text content from refusal");
         }
+
+        Ok(())
     }
 
     #[test]
@@ -1822,27 +1911,46 @@ mod tests {
     }
 
     #[test]
-    fn test_streamed_refusal_not_duplicated_in_output_items() {
+    fn test_streamed_refusal_not_duplicated_in_output_items() -> anyhow::Result<()> {
         let output_items = vec![ResponseOutputItemInfo::Message {
-            id: "msg_1".to_string(),
-            status: "completed".to_string(),
+            id: Some("msg_1".to_string()),
+            status: Some("completed".to_string()),
             role: "assistant".to_string(),
             content: vec![ContentPart::Refusal {
                 refusal: "I cannot help with that.".to_string(),
             }],
         }];
 
-        let content = process_streaming_output_items(output_items.clone(), true);
+        let content = process_streaming_output_items(output_items.clone(), true)?;
         assert!(
             content.is_empty(),
             "refusal should be suppressed when already streamed"
         );
 
-        let content = process_streaming_output_items(output_items, false);
+        let content = process_streaming_output_items(output_items, false)?;
         assert_eq!(
             content.len(),
             1,
             "refusal should appear in non-streaming path"
+        );
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_function_call_output_requires_call_id_or_id() {
+        let output_items = vec![ResponseOutputItemInfo::FunctionCall {
+            id: None,
+            status: None,
+            call_id: None,
+            name: "shell".to_string(),
+            arguments: "{}".to_string(),
+        }];
+
+        let error = process_streaming_output_items(output_items, false).unwrap_err();
+        assert!(
+            error.to_string().contains("missing call_id and id"),
+            "unexpected error: {error}"
         );
     }
 

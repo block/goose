@@ -1,4 +1,4 @@
-use std::{io::Read as _, path::Path};
+use std::{borrow::Cow, io::Read as _, path::Path};
 
 use base64::Engine as _;
 use rmcp::model::{AnnotateAble as _, ImageContent, RawImageContent};
@@ -33,11 +33,11 @@ pub fn convert_image(image: &ImageContent, image_format: &ImageFormat) -> Value 
     }
 }
 
-pub fn detect_image_path(text: &str) -> Option<&str> {
+pub fn detect_image_path(text: &str) -> Option<Cow<'_, str>> {
     const EXTENSIONS: [&str; 3] = [".png", ".jpg", ".jpeg"];
     const MAX_PATH_LEN: usize = 4096;
 
-    let mut best: Option<(usize, &str)> = None;
+    let mut best: Option<(usize, Cow<'_, str>)> = None;
     let mut from = 0;
     while from < text.len() {
         let Some(end) = EXTENSIONS
@@ -70,17 +70,16 @@ pub fn detect_image_path(text: &str) -> Option<&str> {
                     let Some(candidate) = text.get(start..end) else {
                         continue;
                     };
-                    let path = Path::new(candidate);
-                    if path.is_absolute() && path.is_file() && is_image_file(path) {
+                    if let Some(candidate_path) = image_path_candidate(candidate) {
                         // Keep the first referenced path, but allow a longer
                         // match anchored at the same start to extend it (a
                         // whitespace-terminated extension may be a prefix of a
                         // spaced filename ending in a later extension).
                         match best {
                             Some((best_start, _)) if start == best_start => {
-                                best = Some((start, candidate));
+                                best = Some((start, candidate_path));
                             }
-                            None => best = Some((start, candidate)),
+                            None => best = Some((start, candidate_path)),
                             Some(_) => {}
                         }
                         break;
@@ -91,6 +90,54 @@ pub fn detect_image_path(text: &str) -> Option<&str> {
         from = end;
     }
     best.map(|(_, candidate)| candidate)
+}
+
+fn clean_path(path: &str) -> Cow<'_, str> {
+    if !path.contains('\\') {
+        return Cow::Borrowed(path);
+    }
+
+    let mut cleaned = String::with_capacity(path.len());
+    let mut chars = path.chars().peekable();
+    let mut changed = false;
+
+    while let Some(c) = chars.next() {
+        if c == '\\' {
+            if let Some(&next) = chars.peek() {
+                if !next.is_alphanumeric() {
+                    cleaned.push(next);
+                    chars.next();
+                    changed = true;
+                    continue;
+                }
+            }
+        }
+        cleaned.push(c);
+    }
+
+    if changed {
+        Cow::Owned(cleaned)
+    } else {
+        Cow::Borrowed(path)
+    }
+}
+
+fn image_path_candidate(candidate: &str) -> Option<Cow<'_, str>> {
+    if is_existing_image_path(candidate) {
+        return Some(Cow::Borrowed(candidate));
+    }
+
+    let cleaned = clean_path(candidate);
+    if cleaned.as_ref() != candidate && is_existing_image_path(cleaned.as_ref()) {
+        return Some(cleaned);
+    }
+
+    None
+}
+
+fn is_existing_image_path(candidate: &str) -> bool {
+    let path = Path::new(candidate);
+    path.is_absolute() && path.is_file() && is_image_file(path)
 }
 
 /// Case-insensitive ASCII substring search returning a byte index into
@@ -196,23 +243,23 @@ mod tests {
 
         // Test with valid PNG file using absolute path
         let text = format!("Here is an image {}", png_path_str);
-        assert_eq!(detect_image_path(&text), Some(png_path_str));
+        assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
 
         // Test with non-image file that has .png extension
         let text = format!("Here is a fake image {}", fake_png_path.to_str().unwrap());
-        assert_eq!(detect_image_path(&text), None);
+        assert_eq!(detect_image_path(&text).as_deref(), None);
 
         // Test with nonexistent file
         let text = "Here is a fake.png that doesn't exist";
-        assert_eq!(detect_image_path(text), None);
+        assert_eq!(detect_image_path(text).as_deref(), None);
 
         // Test with non-image file
         let text = "Here is a file.txt";
-        assert_eq!(detect_image_path(text), None);
+        assert_eq!(detect_image_path(text).as_deref(), None);
 
         // Test with relative path (should not match)
         let text = "Here is a relative/path/image.png";
-        assert_eq!(detect_image_path(text), None);
+        assert_eq!(detect_image_path(text).as_deref(), None);
     }
 
     #[test]
@@ -225,25 +272,25 @@ mod tests {
         let png_path_str = png_path.to_str().unwrap();
 
         let text = format!("please describe {} for me", png_path_str);
-        assert_eq!(detect_image_path(&text), Some(png_path_str));
+        assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
 
         // Case-insensitive extension also matches.
         let upper = temp_dir.path().join("Another Shot.PNG");
         std::fs::write(&upper, png_data).unwrap();
         let upper_str = upper.to_str().unwrap();
         let text = format!("see {}", upper_str);
-        assert_eq!(detect_image_path(&text), Some(upper_str));
+        assert_eq!(detect_image_path(&text).as_deref(), Some(upper_str));
 
         // Quoted path with spaces: the closing quote terminates the candidate.
         let text = format!("describe \"{}\" please", png_path_str);
-        assert_eq!(detect_image_path(&text), Some(png_path_str));
+        assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
         let text = format!("describe '{}'", png_path_str);
-        assert_eq!(detect_image_path(&text), Some(png_path_str));
+        assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
 
         // A stray closing quote in prose must not act as a terminator for an
         // unquoted path.
         let text = format!("here {}\" trailing", png_path_str);
-        assert_eq!(detect_image_path(&text), Some(png_path_str));
+        assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
 
         // When a spaced filename contains an earlier image extension, prefer
         // the longer existing candidate over the embedded prefix.
@@ -253,7 +300,7 @@ mod tests {
         let prefix = temp_dir.path().join("Screen Shot.png");
         std::fs::write(&prefix, png_data).unwrap();
         let text = format!("look at {}", edited_str);
-        assert_eq!(detect_image_path(&text), Some(edited_str));
+        assert_eq!(detect_image_path(&text).as_deref(), Some(edited_str));
 
         // With multiple distinct images, the first referenced one wins even if
         // a later one has a longer path.
@@ -266,7 +313,46 @@ mod tests {
             a.to_str().unwrap(),
             longer.to_str().unwrap()
         );
-        assert_eq!(detect_image_path(&text), Some(a.to_str().unwrap()));
+        assert_eq!(
+            detect_image_path(&text).as_deref(),
+            Some(a.to_str().unwrap())
+        );
+    }
+
+    #[test]
+    fn test_detect_image_path_with_shell_escaped_metacharacters() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let png_data = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        let png_path = temp_dir
+            .path()
+            .join("Bob's Project (v2) & $draft [final].png");
+        std::fs::write(&png_path, png_data).unwrap();
+        let png_path_str = png_path.to_str().unwrap();
+
+        let escaped_path = png_path_str
+            .replace(' ', "\\ ")
+            .replace('(', "\\(")
+            .replace(')', "\\)")
+            .replace('&', "\\&")
+            .replace('$', "\\$")
+            .replace('\'', "\\'")
+            .replace('[', "\\[")
+            .replace(']', "\\]");
+        let text = format!("please describe {}", escaped_path);
+
+        assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
+    }
+
+    #[test]
+    fn test_detect_image_path_prefers_existing_literal_backslash_path() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let png_data = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
+        let png_path = temp_dir.path().join("literal\\&name.png");
+        std::fs::write(&png_path, png_data).unwrap();
+        let png_path_str = png_path.to_str().unwrap();
+        let text = format!("please describe {}", png_path_str);
+
+        assert_eq!(detect_image_path(&text).as_deref(), Some(png_path_str));
     }
 
     #[test]
@@ -280,14 +366,14 @@ mod tests {
         let png_path = temp_dir.path().join("photo.png");
         std::fs::write(&png_path, png_data).unwrap();
         let url = format!("https:/{}/photo.png", dir);
-        assert_eq!(detect_image_path(&url), None);
+        assert_eq!(detect_image_path(&url).as_deref(), None);
 
         // A backup file sharing the image extension prefix must not be
         // truncated to the bare image path.
         let real = temp_dir.path().join("shot.png");
         std::fs::write(&real, png_data).unwrap();
         let backup = format!("{}.backup", real.to_str().unwrap());
-        assert_eq!(detect_image_path(&backup), None);
+        assert_eq!(detect_image_path(&backup).as_deref(), None);
     }
 
     #[test]
@@ -295,7 +381,7 @@ mod tests {
         // Many extension-like tokens but no real absolute path: must scan
         // cheaply (bounded) and find nothing.
         let text = "see foo.png and bar.jpg and baz.jpeg ".repeat(500);
-        assert_eq!(detect_image_path(&text), None);
+        assert_eq!(detect_image_path(&text).as_deref(), None);
     }
 
     #[test]

@@ -1,12 +1,18 @@
-import {
-  checkProvider,
-  getProviderModelInfo,
-  getProviderModels,
-} from '../../../api';
 import { listLocalModels } from '../../../acp/local-inference';
-import { acpListProviderDetails } from '../../../acp/providers';
+import {
+  acpGetCanonicalModelInfo,
+  acpGetProviderInventoryEntry,
+  acpListProviderDetails,
+  acpRefreshProviderInventory,
+  type ProviderInventoryEntryDto,
+  type ProviderInventoryModelDto,
+} from '../../../acp/providers';
 import type { ProviderDetails, ThinkingEffort } from '../../../types/providers';
 import { errorMessage as getErrorMessage } from '../../../utils/conversionUtils';
+
+const INVENTORY_REFRESH_INITIAL_DELAY_MS = 250;
+const INVENTORY_REFRESH_POLL_INTERVAL_MS = 500;
+const INVENTORY_REFRESH_MAX_ATTEMPTS = 60;
 
 export default interface Model {
   id?: number; // Make `id` optional to allow user-defined models
@@ -48,18 +54,91 @@ export async function getProviderMetadata(providerName: string) {
   return matches.metadata;
 }
 
-export async function validateProviderModel(provider: string, model: string): Promise<void> {
-  await checkProvider({
-    body: { provider, model },
-    throwOnError: true,
-  });
-}
-
 export interface ProviderModelsResult {
   provider: ProviderDetails;
   models: Model[] | null;
   error: string | null;
   warning: string | null;
+}
+
+function delay(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function providerInventoryModelToModel(
+  providerName: string,
+  model: ProviderInventoryModelDto
+): Model {
+  return {
+    name: model.id,
+    provider: providerName,
+    context_limit: model.contextLimit ?? undefined,
+    reasoning: model.reasoning ?? undefined,
+  };
+}
+
+function knownModelsForProvider(provider: ProviderDetails): Model[] {
+  return provider.metadata.known_models.map(
+    (model) =>
+      ({
+        name: model.name,
+        provider: provider.name,
+        context_limit: model.context_limit,
+        reasoning: model.reasoning ?? undefined,
+      }) as Model
+  );
+}
+
+async function waitForProviderInventoryRefresh(
+  providerName: string
+): Promise<ProviderInventoryEntryDto> {
+  for (let attempt = 0; attempt < INVENTORY_REFRESH_MAX_ATTEMPTS; attempt++) {
+    const entry = await acpGetProviderInventoryEntry(providerName);
+    if (!entry) {
+      throw new Error(`No inventory entry for provider: ${providerName}`);
+    }
+    if (!entry.refreshing) {
+      return entry;
+    }
+    await delay(INVENTORY_REFRESH_POLL_INTERVAL_MS);
+  }
+
+  throw new Error(`Timed out refreshing models for ${providerName}`);
+}
+
+async function fetchInventoryModelsForProvider(
+  provider: ProviderDetails
+): Promise<{ models: Model[]; warning: string | null }> {
+  let entry = await acpGetProviderInventoryEntry(provider.name);
+  if (!entry) {
+    throw new Error(`No inventory entry for provider: ${provider.name}`);
+  }
+
+  const supportsRefresh = provider.supports_refresh ?? entry.supportsRefresh;
+  if (supportsRefresh) {
+    const refresh = await acpRefreshProviderInventory(provider.name);
+    const skippedForRefreshInProgress = refresh.skipped?.some(
+      (skip) => skip.providerId === provider.name && skip.reason === 'already_refreshing'
+    );
+    if (refresh.started.includes(provider.name) || skippedForRefreshInProgress) {
+      await delay(INVENTORY_REFRESH_INITIAL_DELAY_MS);
+      entry = await waitForProviderInventoryRefresh(provider.name);
+    } else {
+      entry = (await acpGetProviderInventoryEntry(provider.name)) ?? entry;
+    }
+  }
+
+  const models = entry.models.map((model) => providerInventoryModelToModel(provider.name, model));
+  if (entry.lastRefreshError && models.length === 0) {
+    throw new Error(entry.lastRefreshError);
+  }
+
+  return {
+    models,
+    warning: entry.lastRefreshError
+      ? 'Could not refresh models from provider - showing cached models instead.'
+      : null,
+  };
 }
 
 export async function fetchModelsForProviders(
@@ -76,32 +155,12 @@ export async function fetchModelsForProviders(
         return { provider: p, models: downloadedModels, error: null, warning: null };
       }
 
-      const response = await getProviderModels({
-        path: { name: p.name },
-        throwOnError: true,
-      });
-      const models = (response.data || []).map(
-        (m) =>
-          ({
-            name: m.name,
-            provider: p.name,
-            context_limit: m.context_limit,
-            reasoning: m.reasoning ?? undefined,
-          }) as Model
-      );
-      return { provider: p, models, error: null, warning: null };
+      const { models, warning } = await fetchInventoryModelsForProvider(p);
+      return { provider: p, models, error: null, warning };
     } catch (e: unknown) {
       // For custom providers, fall back to the configured model list
       if (p.provider_type === 'Custom') {
-        const fallbackModels = p.metadata.known_models.map(
-          (m) =>
-            ({
-              name: m.name,
-              provider: p.name,
-              context_limit: m.context_limit,
-              reasoning: m.reasoning ?? undefined,
-            }) as Model
-        );
+        const fallbackModels = knownModelsForProvider(p);
         if (fallbackModels.length > 0) {
           console.warn(`Failed to fetch models for ${p.name}:`, getErrorMessage(e));
           return {
@@ -133,11 +192,8 @@ export async function fetchModelReasoning(
   fallback?: boolean
 ): Promise<boolean | null> {
   try {
-    const response = await getProviderModelInfo({
-      path: { name: provider },
-      body: { model },
-    });
-    return response.data?.reasoning ?? fallback ?? null;
+    const modelInfo = await acpGetCanonicalModelInfo(provider, model);
+    return modelInfo?.reasoning ?? fallback ?? null;
   } catch {
     return fallback ?? null;
   }
