@@ -76,16 +76,6 @@ fn provider_price_per_million(price: Option<f64>) -> Option<f64> {
     price.map(|price| price * 1_000_000.0)
 }
 
-fn provider_price_for_client(
-    price: Option<f64>,
-    provider_type: Option<crate::providers::base::ProviderType>,
-) -> Option<f64> {
-    match provider_type {
-        Some(crate::providers::base::ProviderType::Custom) => price,
-        _ => provider_price_per_million(price),
-    }
-}
-
 fn provider_config_key_to_dto(key: crate::providers::base::ConfigKey) -> ProviderConfigKey {
     ProviderConfigKey {
         name: key.name,
@@ -1038,12 +1028,9 @@ impl GooseAcpAgent {
 
         // TODO: Rename this legacy method to provider model info. It now returns
         // provider-declared metadata first and falls back to canonical metadata.
-        let provider_entry = crate::providers::get_from_registry(&req.provider)
+        let provider_model = crate::providers::get_from_registry(&req.provider)
             .await
-            .ok();
-        let provider_type = provider_entry.as_ref().map(|entry| entry.provider_type());
-        let provider_model = provider_entry
-            .as_ref()
+            .ok()
             .and_then(|entry| entry.model_info(&req.model));
 
         let canonical_model =
@@ -1082,14 +1069,10 @@ impl GooseAcpAgent {
                         .and_then(|model| model.reasoning)
                         .unwrap_or_else(|| ModelConfig::new(&req.model).is_reasoning_model()),
                 input_token_cost: provider
-                    .and_then(|model| {
-                        provider_price_for_client(model.input_token_cost, provider_type)
-                    })
+                    .and_then(|model| provider_price_per_million(model.input_token_cost))
                     .or_else(|| canonical.and_then(|model| model.cost.input)),
                 output_token_cost: provider
-                    .and_then(|model| {
-                        provider_price_for_client(model.output_token_cost, provider_type)
-                    })
+                    .and_then(|model| provider_price_per_million(model.output_token_cost))
                     .or_else(|| canonical.and_then(|model| model.cost.output)),
                 cache_read_token_cost: canonical.and_then(|model| model.cost.cache_read),
                 cache_write_token_cost: canonical.and_then(|model| model.cost.cache_write),
@@ -1106,29 +1089,11 @@ impl GooseAcpAgent {
 
 #[cfg(test)]
 mod tests {
-    use super::{provider_price_for_client, provider_price_per_million};
-    use crate::providers::base::ProviderType;
+    use super::provider_price_per_million;
 
     #[test]
     fn provider_price_per_million_normalizes_per_token_price() {
         assert_eq!(provider_price_per_million(Some(0.000003)), Some(3.0));
         assert_eq!(provider_price_per_million(None), None);
-    }
-
-    #[test]
-    fn provider_price_for_client_leaves_custom_provider_prices_as_declared() {
-        assert_eq!(
-            provider_price_for_client(Some(500.0), Some(ProviderType::Custom)),
-            Some(500.0)
-        );
-    }
-
-    #[test]
-    fn provider_price_for_client_normalizes_fixed_provider_prices() {
-        assert_eq!(
-            provider_price_for_client(Some(0.000003), Some(ProviderType::Declarative)),
-            Some(3.0)
-        );
-        assert_eq!(provider_price_for_client(Some(0.000003), None), Some(3.0));
     }
 }
