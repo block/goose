@@ -1,4 +1,4 @@
-use crate::paths::Paths;
+use crate::{config_resolver, paths::Paths};
 use anyhow::Result;
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
@@ -44,8 +44,7 @@ pub fn usable_oauth_token() -> Option<String> {
 }
 
 pub fn hf_token_secret() -> Result<Option<String>> {
-    Ok(std::env::var(HUGGINGFACE_TOKEN_SECRET_KEY)
-        .ok()
+    Ok(config_resolver::string_param(HUGGINGFACE_TOKEN_SECRET_KEY)?
         .filter(|token| !token.trim().is_empty()))
 }
 

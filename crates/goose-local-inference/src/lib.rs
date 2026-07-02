@@ -1,3 +1,4 @@
+pub mod config_resolver;
 pub mod download_manager;
 pub mod huggingface_auth;
 pub mod paths;
@@ -181,7 +182,11 @@ fn resolve_model_path(model_id: &str) -> Option<ResolvedModelPaths> {
             let draft_model = settings
                 .draft_model
                 .clone()
-                .or_else(|| std::env::var("GOOSE_LOCAL_DRAFT_MODEL").ok())
+                .or_else(|| {
+                    config_resolver::string_param("GOOSE_LOCAL_DRAFT_MODEL")
+                        .ok()
+                        .flatten()
+                })
                 .filter(|draft_model| draft_model != model_id);
             let draft_model_path = draft_model.as_deref().and_then(resolve_model_local_path);
             return Some(ResolvedModelPaths {
@@ -598,9 +603,9 @@ impl Provider for LocalInferenceProvider {
         if let Some(false) = model_config
             .request_param::<bool>("enable_thinking")
             .or_else(|| {
-                std::env::var("GOOSE_LOCAL_ENABLE_THINKING")
+                config_resolver::bool_param("GOOSE_LOCAL_ENABLE_THINKING")
                     .ok()
-                    .and_then(|value| value.parse().ok())
+                    .flatten()
             })
         {
             model_settings.enable_thinking = false;
