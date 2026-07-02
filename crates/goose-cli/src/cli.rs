@@ -408,7 +408,9 @@ async fn get_or_create_session_id(
 
     let resolved_id = if resume {
         let Some(id) = identifier else {
-            let sessions = session_manager.list_sessions().await?;
+            let sessions = session_manager
+                .list_sessions_by_types(&[SessionType::User])
+                .await?;
             let session_id = sessions
                 .first()
                 .map(|s| s.id.clone())
