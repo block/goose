@@ -292,7 +292,7 @@ Context limits are automatically detected based on your model name, but goose pr
 
 | Model | Description | Best For | Setting |
 |-------|-------------|----------|---------|
-| **Main** | Set context limit for the main model (also serves as fallback for other models) | LiteLLM proxies, custom models with non-standard names | `GOOSE_CONTEXT_LIMIT` |
+| **Main** | Set the context limit for models goose has no known context window for (a model's known limit takes precedence) | LiteLLM proxies, custom models with non-standard names | `GOOSE_CONTEXT_LIMIT` |
 | **Planner** | Set context for [planner models](/docs/guides/context-engineering/creating-plans) | Large planning tasks requiring extensive context | `GOOSE_PLANNER_CONTEXT_LIMIT` |
 
 :::info
@@ -310,8 +310,8 @@ goose resolves context limits with the following precedence (highest to lowest):
 
 1. Explicit context_limit in model configuration (if set programmatically)
 2. Specific environment variable (e.g., `GOOSE_PLANNER_CONTEXT_LIMIT`)
-3. Global environment variable (`GOOSE_CONTEXT_LIMIT`)
-4. Model-specific default based on name pattern matching
+3. The model's known context window from goose's canonical model data
+4. Global environment variable (`GOOSE_CONTEXT_LIMIT`)
 5. Global default (128,000 tokens)
 
 **Configuration**
