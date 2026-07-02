@@ -17,7 +17,6 @@ import {
   Tray,
 } from 'electron';
 import { pathToFileURL, format as formatUrl, URLSearchParams } from 'node:url';
-import { Buffer } from 'node:buffer';
 import fs from 'node:fs/promises';
 import fsSync from 'node:fs';
 import started from 'electron-squirrel-startup';
@@ -53,6 +52,13 @@ import { GooseApp } from './api';
 import installExtension, { REACT_DEVELOPER_TOOLS } from 'electron-devtools-installer';
 import { BLOCKED_PROTOCOLS, WEB_PROTOCOLS } from './utils/urlSecurity';
 import { buildCSP } from './utils/csp';
+import {
+  handleGoosedCertificateError,
+  installGoosedCertificateVerifier,
+  installGoosedCertificateVerifierForWindow,
+  setGoosedPinnedCertFingerprint,
+  setTrustedExternalGoosedHostname,
+} from './utils/goosedCertificateVerifier';
 
 function shouldSetupUpdater(): boolean {
   // Setup updater if either the flag is enabled OR dev updates are enabled
@@ -290,58 +296,11 @@ async function configureProxy() {
 
 if (started) app.quit();
 
-// Certificate trust for goosed servers (local and external).
-// Both certificate-error (renderer) and setCertificateVerifyProc (main-process
-// net.fetch) pin to the exact cert fingerprint. For locally-spawned goosed the
-// fingerprint comes from its stdout; for external backends we use Trust-On-First-Use
-// (TOFU) — the first TLS handshake pins the cert for the lifetime of the process.
-let pinnedCertFingerprint: string | null = null;
-
-// Cached hostname of the configured external goosed server, updated when a
-// chat is created so we don't hit the filesystem on every TLS handshake.
-let trustedExternalHostname: string | null = null;
-
-function isLocalhost(hostname: string): boolean {
-  return hostname === '127.0.0.1' || hostname === 'localhost';
-}
-
-function isTrustedHost(hostname: string): boolean {
-  if (isLocalhost(hostname)) return true;
-  return trustedExternalHostname !== null && hostname === trustedExternalHostname;
-}
-
-function normalizeFingerprint(fp: string): string {
-  if (fp.startsWith('sha256/')) {
-    const b64 = fp.slice('sha256/'.length);
-    const buf = Buffer.from(b64, 'base64');
-    return Array.from(buf)
-      .map((b) => b.toString(16).padStart(2, '0'))
-      .join(':')
-      .toUpperCase();
-  }
-  return fp.toUpperCase();
-}
-
 // Renderer requests: pin to the exact cert goosed generated once known.
 // Before the fingerprint is available (during the health-check bootstrap
 // window) any localhost cert is accepted so the server can come up.
 app.on('certificate-error', (event, _webContents, url, _error, certificate, callback) => {
-  const parsed = new URL(url);
-  if (!isTrustedHost(parsed.hostname)) {
-    callback(false);
-    return;
-  }
-  if (pinnedCertFingerprint) {
-    const match =
-      normalizeFingerprint(certificate.fingerprint) === pinnedCertFingerprint.toUpperCase();
-    event.preventDefault();
-    callback(match);
-  } else {
-    // TOFU: pin the certificate from the first successful handshake.
-    pinnedCertFingerprint = normalizeFingerprint(certificate.fingerprint);
-    event.preventDefault();
-    callback(true);
-  }
+  handleGoosedCertificateError(event, url, certificate, callback);
 });
 
 app.whenReady().then(() => {
@@ -350,21 +309,7 @@ app.whenReady().then(() => {
 
 // Main-process net.fetch: pin to the exact cert goosed generated.
 app.whenReady().then(() => {
-  session.defaultSession.setCertificateVerifyProc((request, callback) => {
-    if (!isTrustedHost(request.hostname)) {
-      callback(-3);
-      return;
-    }
-    if (!pinnedCertFingerprint) {
-      // TOFU: pin the certificate from the first successful handshake.
-      pinnedCertFingerprint = normalizeFingerprint(request.certificate.fingerprint);
-      callback(0);
-      return;
-    }
-    const match =
-      normalizeFingerprint(request.certificate.fingerprint) === pinnedCertFingerprint.toUpperCase();
-    callback(match ? 0 : -2);
-  });
+  installGoosedCertificateVerifier(session.defaultSession);
 });
 
 if (process.env.ENABLE_PLAYWRIGHT) {
@@ -906,20 +851,20 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   // connections to the configured remote backend.
   if (settings.externalGoosed?.enabled && settings.externalGoosed.url) {
     try {
-      trustedExternalHostname = new URL(settings.externalGoosed.url).hostname;
+      setTrustedExternalGoosedHostname(new URL(settings.externalGoosed.url).hostname);
     } catch {
-      trustedExternalHostname = null;
+      setTrustedExternalGoosedHostname(null);
     }
   } else {
-    trustedExternalHostname = null;
+    setTrustedExternalGoosedHostname(null);
   }
 
   // If the user provided a cert fingerprint for the external backend, pin it
   // directly (skips TOFU). Otherwise reset so the first handshake pins via TOFU.
   if (settings.externalGoosed?.enabled && settings.externalGoosed.certFingerprint) {
-    pinnedCertFingerprint = normalizeFingerprint(settings.externalGoosed.certFingerprint);
+    setGoosedPinnedCertFingerprint(settings.externalGoosed.certFingerprint);
   } else {
-    pinnedCertFingerprint = null;
+    setGoosedPinnedCertFingerprint(null);
   }
 
   const goosedResult = await startGoosed({
@@ -939,7 +884,7 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
   // For external backends the TOFU path in the cert handlers will pin
   // the fingerprint on the first successful TLS handshake.
   if (goosedResult.certFingerprint) {
-    pinnedCertFingerprint = goosedResult.certFingerprint;
+    setGoosedPinnedCertFingerprint(goosedResult.certFingerprint);
   }
 
   const {
@@ -956,6 +901,9 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
     defaultWidth: 940,
     defaultHeight: 800,
   });
+
+  const mainWindowSession = session.fromPartition('persist:goose');
+  installGoosedCertificateVerifier(mainWindowSession);
 
   const mainWindow = new BrowserWindow({
     titleBarStyle: process.platform === 'darwin' ? 'hidden' : 'default',
@@ -1001,6 +949,8 @@ const createChat = async (app: App, options: CreateChatOptions = {}) => {
       partition: 'persist:goose',
     },
   });
+
+  installGoosedCertificateVerifierForWindow(mainWindow);
 
   if (!app.isPackaged) {
     installExtension(REACT_DEVELOPER_TOOLS, {
@@ -1772,6 +1722,62 @@ ipcMain.handle('get-goosed-host-port', async (event) => {
   }
   return client.getConfig().baseUrl || null;
 });
+
+ipcMain.handle(
+  'goosed-fetch',
+  async (
+    event,
+    input: string,
+    init?: { method?: string; headers?: Record<string, string>; body?: string | null }
+  ) => {
+    const windowId = BrowserWindow.fromWebContents(event.sender)?.id;
+    if (!windowId) {
+      throw new Error('Missing window for goosed request');
+    }
+
+    const client = goosedClients.get(windowId);
+    const baseUrl = client?.getConfig().baseUrl;
+    if (!baseUrl) {
+      throw new Error('Missing goosed backend for window');
+    }
+
+    const requestedUrl = new URL(input);
+    const allowedUrl = new URL(baseUrl);
+    if (requestedUrl.origin !== allowedUrl.origin) {
+      throw new Error('Blocked non-goosed request');
+    }
+
+    const requestInit = {
+      method: init?.method,
+      headers: init?.headers,
+      body: init?.body ?? undefined,
+    };
+
+    let response: Response | null = null;
+    for (let attempt = 0; attempt < 4; attempt++) {
+      try {
+        response = await net.fetch(requestedUrl.toString(), requestInit);
+        break;
+      } catch (error) {
+        if (!String(error).includes('ERR_NETWORK_CHANGED') || attempt === 3) {
+          throw error;
+        }
+        await new Promise((resolve) => setTimeout(resolve, 250));
+      }
+    }
+
+    if (!response) {
+      throw new Error('goosed request failed');
+    }
+
+    return {
+      status: response.status,
+      statusText: response.statusText,
+      headers: Object.fromEntries(response.headers.entries()),
+      body: await response.text(),
+    };
+  }
+);
 
 ipcMain.handle('get-acp-url', async (event) => {
   const windowId = BrowserWindow.fromWebContents(event.sender)?.id;

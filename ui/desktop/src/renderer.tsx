@@ -41,8 +41,24 @@ function handleIntlError(err: { code: string; message?: string }) {
       window.alert('failed to start goose backend process');
       return;
     }
+    const goosedFetch: typeof fetch = async (input, init) => {
+      const request = new Request(input, init);
+      const body = await request.text();
+      const response = await window.electron.goosedFetch(request.url, {
+        method: request.method,
+        headers: Object.fromEntries(request.headers.entries()),
+        body: body || null,
+      });
+
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
+    };
     client.setConfig({
       baseUrl: gooseApiHost,
+      fetch: goosedFetch,
       headers: {
         'Content-Type': 'application/json',
         'X-Secret-Key': await window.electron.getSecretKey(),
