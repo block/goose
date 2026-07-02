@@ -4,30 +4,35 @@ import { Input } from '../../ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { AlertCircle } from 'lucide-react';
 import { ExternalGoosedConfig, defaultSettings } from '../../../utils/settings';
-import { WEB_PROTOCOLS } from '../../../utils/urlSecurity';
 import { defineMessages, useIntl } from '../../../i18n';
+import { normalizeAcpHttpBaseUrl } from '../../../acp/url';
 
 const i18n = defineMessages({
   title: {
     id: 'externalBackendSection.title',
-    defaultMessage: 'Goose Server',
+    defaultMessage: 'External Backend (ACP)',
   },
   description: {
     id: 'externalBackendSection.description',
     defaultMessage:
-      'By default goose launches a server for you, use this to connect to an external goose server',
+      'By default Goose starts a local backend. Use this to connect to an external ACP-compatible backend.',
   },
   useExternalServer: {
     id: 'externalBackendSection.useExternalServer',
-    defaultMessage: 'Use external server',
+    defaultMessage: 'Use external backend',
   },
   useExternalServerDescription: {
     id: 'externalBackendSection.useExternalServerDescription',
-    defaultMessage: 'Connect to a goose server running elsewhere (requires app restart)',
+    defaultMessage: 'Connect to an ACP-compatible backend running elsewhere.',
   },
   serverUrl: {
     id: 'externalBackendSection.serverUrl',
-    defaultMessage: 'Server URL',
+    defaultMessage: 'Backend Base URL',
+  },
+  serverUrlHelp: {
+    id: 'externalBackendSection.serverUrlHelp',
+    defaultMessage:
+      'Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base.',
   },
   secretKey: {
     id: 'externalBackendSection.secretKey',
@@ -39,7 +44,7 @@ const i18n = defineMessages({
   },
   secretKeyHelp: {
     id: 'externalBackendSection.secretKeyHelp',
-    defaultMessage: 'The secret key configured on the goosed server (GOOSE_SERVER__SECRET_KEY)',
+    defaultMessage: 'The secret key configured on the external backend (GOOSE_SERVER__SECRET_KEY).',
   },
   certFingerprint: {
     id: 'externalBackendSection.certFingerprint',
@@ -56,7 +61,7 @@ const i18n = defineMessages({
   restartNote: {
     id: 'externalBackendSection.restartNote',
     defaultMessage:
-      'Changes require restarting Goose to take effect. New chat windows will connect to the external server.',
+      'Changes apply to new chat windows. Restart Goose to update existing windows.',
   },
   urlProtocolError: {
     id: 'externalBackendSection.urlProtocolError',
@@ -69,6 +74,10 @@ const i18n = defineMessages({
   urlFormatError: {
     id: 'externalBackendSection.urlFormatError',
     defaultMessage: 'Invalid URL format',
+  },
+  urlBaseError: {
+    id: 'externalBackendSection.urlBaseError',
+    defaultMessage: 'URL must be the backend base URL before /acp, without query parameters or fragments',
   },
 });
 
@@ -95,19 +104,26 @@ export default function ExternalBackendSection() {
       return true;
     }
     try {
-      const parsed = new URL(value);
-      if (!WEB_PROTOCOLS.includes(parsed.protocol)) {
-        setUrlError(intl.formatMessage(i18n.urlProtocolError));
-        return false;
-      }
+      const normalizedUrl = normalizeAcpHttpBaseUrl(value);
+      const parsed = new URL(normalizedUrl);
       if (certFingerprint?.trim() && parsed.protocol !== 'https:') {
         setUrlError(intl.formatMessage(i18n.fingerprintRequiresHttps));
         return false;
       }
       setUrlError(null);
       return true;
-    } catch {
-      setUrlError(intl.formatMessage(i18n.urlFormatError));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : '';
+      if (message.includes('http: or https:')) {
+        setUrlError(intl.formatMessage(i18n.urlProtocolError));
+      } else if (
+        message.includes('base URL before /acp') ||
+        message.includes('query parameters or fragments')
+      ) {
+        setUrlError(intl.formatMessage(i18n.urlBaseError));
+      } else {
+        setUrlError(intl.formatMessage(i18n.urlFormatError));
+      }
       return false;
     }
   };
@@ -203,6 +219,9 @@ export default function ExternalBackendSection() {
                     {urlError}
                   </p>
                 )}
+                <p className="text-xs text-text-secondary">
+                  {intl.formatMessage(i18n.serverUrlHelp)}
+                </p>
               </div>
 
               <div className="space-y-2">

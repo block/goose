@@ -23,17 +23,6 @@ const windowsFiles = [
     'goose-npm/**/*'
 ];
 
-const macosFiles = [
-    'goosed',
-    'goose',
-    'jbang',
-    'npx',
-    'uvx',
-    '*.db',
-    '*.log',
-    '.gitkeep'
-];
-
 // Helper function to check if file matches patterns
 function matchesPattern(filename, patterns) {
     return patterns.some(pattern => {
@@ -174,9 +163,10 @@ function cleanBinDirectory(targetPlatform) {
         const filePath = path.join(srcBinDir, file.name);
         
         if (targetPlatform === 'darwin' || targetPlatform === 'linux') {
-            // For macOS/Linux, remove Windows-specific files
-            if (matchesPattern(file.name, windowsFiles)) {
-                console.log(`Removing Windows file: ${file.name}`);
+            const isLegacyBackendBinary = file.name === 'goosed';
+            if (isLegacyBackendBinary || matchesPattern(file.name, windowsFiles)) {
+                const fileType = isLegacyBackendBinary ? 'legacy backend binary' : 'Windows file';
+                console.log(`Removing ${fileType}: ${file.name}`);
                 if (file.isDirectory()) {
                     fs.rmSync(filePath, { recursive: true, force: true });
                 } else {

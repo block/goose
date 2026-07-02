@@ -2,8 +2,10 @@ use super::api_client::ApiClient;
 use super::base::{ConfigKey, MessageStream, Provider, ProviderMetadata};
 use super::openai_compatible::handle_status;
 use super::retry::{ProviderRetry, RetryConfig};
+use crate::api_client::{AuthMethod, TlsConfig};
 use crate::base::ProviderDescriptor;
 use crate::conversation::message::Message;
+use crate::declarative::{DeclarativeProviderConfig, KeyResolver};
 use crate::errors::ProviderError;
 use crate::formats::ollama::{create_request, response_to_streaming_message_ollama};
 use crate::images::ImageFormat;
@@ -13,7 +15,7 @@ use anyhow::{Error, Result};
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::TryStreamExt;
-use reqwest::Response;
+use reqwest::{Response, StatusCode};
 use rmcp::model::Tool;
 use serde_json::{json, Value};
 use std::time::Duration;
@@ -21,6 +23,7 @@ use tokio::pin;
 use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
+use url::Url;
 
 pub const OLLAMA_PROVIDER_NAME: &str = "ollama";
 pub const OLLAMA_HOST: &str = "localhost";
@@ -79,8 +82,86 @@ pub struct OllamaProvider {
     #[serde(skip)]
     api_client: ApiClient,
     name: String,
+    custom_models: Option<Vec<String>>,
+    dynamic_models: Option<bool>,
     skip_canonical_filtering: bool,
     options: OllamaOptions,
+}
+
+pub struct OllamaProviderBuilder {
+    api_client: ApiClient,
+    name: String,
+    custom_models: Option<Vec<String>>,
+    dynamic_models: Option<bool>,
+    skip_canonical_filtering: bool,
+    options: OllamaOptions,
+}
+
+impl OllamaProviderBuilder {
+    pub fn new(api_client: ApiClient) -> Self {
+        Self {
+            api_client,
+            name: OLLAMA_PROVIDER_NAME.to_string(),
+            custom_models: None,
+            dynamic_models: None,
+            skip_canonical_filtering: false,
+            options: OllamaOptions::default(),
+        }
+    }
+
+    pub fn api_client(mut self, api_client: ApiClient) -> Self {
+        self.api_client = api_client;
+        self
+    }
+
+    pub fn map_api_client(mut self, f: impl FnOnce(ApiClient) -> ApiClient) -> Self {
+        self.api_client = f(self.api_client);
+        self
+    }
+
+    pub fn try_map_api_client(
+        mut self,
+        f: impl FnOnce(ApiClient) -> Result<ApiClient>,
+    ) -> Result<Self> {
+        self.api_client = f(self.api_client)?;
+        Ok(self)
+    }
+
+    pub fn name(mut self, name: impl Into<String>) -> Self {
+        self.name = name.into();
+        self
+    }
+
+    pub fn custom_models(mut self, custom_models: Option<Vec<String>>) -> Self {
+        self.custom_models = custom_models;
+        self
+    }
+
+    pub fn dynamic_models(mut self, dynamic_models: Option<bool>) -> Self {
+        self.dynamic_models = dynamic_models;
+        self
+    }
+
+    pub fn skip_canonical_filtering(mut self, skip_canonical_filtering: bool) -> Self {
+        self.skip_canonical_filtering = skip_canonical_filtering;
+        self
+    }
+
+    pub fn options(mut self, options: OllamaOptions) -> Self {
+        self.options = options;
+        self
+    }
+
+    pub fn build(self) -> OllamaProvider {
+        OllamaProvider {
+            api_client: self.api_client,
+            name: self.name,
+            custom_models: self.custom_models,
+            dynamic_models: self.dynamic_models,
+            skip_canonical_filtering: self.skip_canonical_filtering,
+            options: self.options,
+        }
+    }
 }
 
 impl OllamaProvider {
@@ -90,12 +171,58 @@ impl OllamaProvider {
         skip_canonical_filtering: bool,
         options: OllamaOptions,
     ) -> Self {
-        Self {
-            api_client,
-            name,
-            skip_canonical_filtering,
-            options,
+        OllamaProviderBuilder::new(api_client)
+            .name(name)
+            .skip_canonical_filtering(skip_canonical_filtering)
+            .options(options)
+            .build()
+    }
+
+    pub fn with_options(mut self, options: OllamaOptions) -> Self {
+        self.options = options;
+        self
+    }
+
+    async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
+        let response = self
+            .api_client
+            .request("api/tags")
+            .response_get()
+            .await
+            .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
+
+        if response.status() == StatusCode::NOT_FOUND {
+            return Err(ProviderError::EndpointNotFound(
+                "Ollama models endpoint not found".to_string(),
+            ));
         }
+
+        if !response.status().is_success() {
+            return Err(ProviderError::RequestFailed(format!(
+                "Failed to fetch models: HTTP {}",
+                response.status()
+            )));
+        }
+
+        let json_response = response.json::<Value>().await.map_err(|e| {
+            ProviderError::RequestFailed(format!("Failed to parse response: {}", e))
+        })?;
+
+        let models = json_response
+            .get("models")
+            .and_then(|m| m.as_array())
+            .ok_or_else(|| {
+                ProviderError::RequestFailed("No models array in response".to_string())
+            })?;
+
+        let mut model_names: Vec<String> = models
+            .iter()
+            .filter_map(|model| model.get("name").and_then(|n| n.as_str()).map(String::from))
+            .collect();
+
+        model_names.sort();
+
+        Ok(model_names)
     }
 }
 
@@ -134,6 +261,100 @@ fn apply_ollama_options(payload: &mut Value, options: &OllamaOptions, model_conf
             }
         }
     }
+}
+
+pub fn from_declarative_config(
+    config: DeclarativeProviderConfig,
+    tls_config: Option<TlsConfig>,
+    key_resolver: impl KeyResolver,
+) -> Result<OllamaProviderBuilder> {
+    let custom_models = if !config.models.is_empty() {
+        Some(
+            config
+                .models
+                .iter()
+                .map(|m| m.name.clone())
+                .collect::<Vec<String>>(),
+        )
+    } else {
+        None
+    };
+
+    if config.dynamic_models == Some(false) && custom_models.is_none() {
+        return Err(anyhow::anyhow!(
+            "Provider '{}' has dynamic_models: false but no static models listed; \
+             at least one entry in `models` is required.",
+            config.name
+        ));
+    }
+
+    let timeout = Duration::from_secs(config.timeout_seconds.unwrap_or(OLLAMA_TIMEOUT));
+
+    let base_has_scheme =
+        config.base_url.starts_with("http://") || config.base_url.starts_with("https://");
+    let base = if base_has_scheme {
+        config.base_url.clone()
+    } else {
+        format!("http://{}", config.base_url)
+    };
+
+    let mut base_url = Url::parse(&base)
+        .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
+
+    let is_localhost = matches!(base_url.host_str(), Some("localhost" | "127.0.0.1" | "::1"));
+
+    if base_url.port().is_none() && !base_has_scheme && is_localhost {
+        base_url
+            .set_port(Some(OLLAMA_DEFAULT_PORT))
+            .map_err(|_| anyhow::anyhow!("Failed to set default port"))?;
+    }
+
+    let api_key = if config.api_key_env.is_empty() {
+        None
+    } else {
+        match key_resolver.resolve_key(config.api_key_env.as_str()) {
+            Ok(key) => Some(key),
+            Err(err) => {
+                if config.requires_auth {
+                    anyhow::bail!("missing required key {}: {}", config.api_key_env, err);
+                }
+                None
+            }
+        }
+    };
+
+    let auth = match api_key {
+        Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
+        _ => AuthMethod::NoAuth,
+    };
+
+    let mut api_client =
+        ApiClient::with_timeout_and_tls(base_url.to_string(), auth, timeout, tls_config)?;
+
+    if let Some(headers) = &config.headers {
+        let mut header_map = reqwest::header::HeaderMap::new();
+        for (key, value) in headers {
+            let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
+            let header_value = reqwest::header::HeaderValue::from_str(value)?;
+            header_map.insert(header_name, header_value);
+        }
+        api_client = api_client.with_headers(header_map)?;
+    }
+
+    let supports_streaming = config.supports_streaming.unwrap_or(true);
+
+    if !supports_streaming {
+        return Err(anyhow::anyhow!(
+            "Ollama provider does not support non-streaming mode. All Ollama models support streaming. \
+            Please remove 'supports_streaming: false' from your provider configuration."
+        ));
+    }
+
+    Ok(OllamaProviderBuilder::new(api_client)
+        .name(config.name.clone())
+        .custom_models(custom_models)
+        .dynamic_models(config.dynamic_models)
+        .skip_canonical_filtering(config.skip_canonical_filtering))
 }
 
 impl ProviderDescriptor for OllamaProvider {
@@ -213,39 +434,26 @@ impl Provider for OllamaProvider {
     }
 
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
-        let response = self
-            .api_client
-            .request("api/tags")
-            .response_get()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
+        if let Some(custom_models) = &self.custom_models {
+            if self.dynamic_models == Some(false) {
+                return Ok(custom_models.clone());
+            }
 
-        if !response.status().is_success() {
-            return Err(ProviderError::RequestFailed(format!(
-                "Failed to fetch models: HTTP {}",
-                response.status()
-            )));
+            match self.fetch_models_from_api().await {
+                Ok(models) => return Ok(models),
+                Err(e) if e.is_endpoint_not_found() => {
+                    tracing::debug!(
+                        "Models endpoint not implemented for provider '{}' ({}), using predefined list",
+                        self.name,
+                        e
+                    );
+                    return Ok(custom_models.clone());
+                }
+                Err(e) => return Err(e),
+            }
         }
 
-        let json_response = response.json::<Value>().await.map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to parse response: {}", e))
-        })?;
-
-        let models = json_response
-            .get("models")
-            .and_then(|m| m.as_array())
-            .ok_or_else(|| {
-                ProviderError::RequestFailed("No models array in response".to_string())
-            })?;
-
-        let mut model_names: Vec<String> = models
-            .iter()
-            .filter_map(|model| model.get("name").and_then(|n| n.as_str()).map(String::from))
-            .collect();
-
-        model_names.sort();
-
-        Ok(model_names)
+        self.fetch_models_from_api().await
     }
 }
 
@@ -323,6 +531,105 @@ fn stream_ollama(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::base::ModelInfo;
+
+    fn ollama_config(
+        dynamic_models: Option<bool>,
+        models: Vec<ModelInfo>,
+    ) -> DeclarativeProviderConfig {
+        ollama_config_with_base_url(dynamic_models, models, "http://localhost:11434")
+    }
+
+    fn ollama_config_with_base_url(
+        dynamic_models: Option<bool>,
+        models: Vec<ModelInfo>,
+        base_url: &str,
+    ) -> DeclarativeProviderConfig {
+        DeclarativeProviderConfig {
+            name: "test-ollama".to_string(),
+            engine: crate::declarative::ProviderEngine::Ollama,
+            display_name: "Test Ollama".to_string(),
+            description: None,
+            api_key_env: String::new(),
+            base_url: base_url.to_string(),
+            models,
+            headers: None,
+            timeout_seconds: None,
+            supports_streaming: None,
+            requires_auth: false,
+            catalog_provider_id: None,
+            base_path: None,
+            env_vars: None,
+            dynamic_models,
+            skip_canonical_filtering: false,
+            model_doc_link: None,
+            setup_steps: vec![],
+            fast_model: None,
+            preserves_thinking: false,
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_uses_static_models_when_dynamic_models_false() {
+        let provider = from_declarative_config(
+            ollama_config(Some(false), vec![ModelInfo::new("static-model", 4096)]),
+            None,
+            crate::declarative::EnvKeyResolver,
+        )
+        .unwrap()
+        .build();
+
+        assert_eq!(
+            provider.fetch_supported_models().await.unwrap(),
+            vec!["static-model".to_string()]
+        );
+    }
+
+    #[test]
+    fn from_custom_config_requires_static_models_when_dynamic_models_false() {
+        let err = from_declarative_config(
+            ollama_config(Some(false), vec![]),
+            None,
+            crate::declarative::EnvKeyResolver,
+        )
+        .err()
+        .expect("expected static models validation error");
+
+        assert!(err
+            .to_string()
+            .contains("dynamic_models: false but no static models listed"));
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_falls_back_to_static_models_on_404() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/api/tags"))
+            .respond_with(ResponseTemplate::new(404))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider = from_declarative_config(
+            ollama_config_with_base_url(
+                None,
+                vec![ModelInfo::new("static-model", 4096)],
+                &server.uri(),
+            ),
+            None,
+            crate::declarative::EnvKeyResolver,
+        )
+        .unwrap()
+        .build();
+
+        assert_eq!(
+            provider.fetch_supported_models().await.unwrap(),
+            vec!["static-model".to_string()]
+        );
+    }
 
     #[test]
     fn test_apply_ollama_options_uses_input_limit() {

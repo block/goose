@@ -4865,7 +4865,7 @@ dependencies = [
 
 [[package]]
 name = "goose"
-version = "1.40.0"
+version = "1.41.0"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-http",
@@ -4894,7 +4894,6 @@ dependencies = [
  "dirs",
  "dotenvy",
  "dtor 1.0.5",
- "encoding_rs",
  "env-lock",
  "etcetera 0.11.0",
  "fs-err 3.3.0",
@@ -4902,11 +4901,11 @@ dependencies = [
  "futures",
  "gethostname",
  "goose-acp-macros",
+ "goose-download-manager",
  "goose-mcp",
  "goose-providers",
  "goose-sdk-types",
  "goose-test-support",
- "hf-hub 1.0.0-rc.1",
  "http 1.4.2",
  "icu_calendar",
  "icu_locale",
@@ -4920,13 +4919,8 @@ dependencies = [
  "jsonwebtoken",
  "keyring",
  "libc",
- "llama-cpp-2",
- "llama-cpp-sys-2",
  "lru 0.18.0",
  "minijinja",
- "mlx-lm",
- "mlx-lm-utils",
- "mlx-rs",
  "mockall",
  "nanoid",
  "nostr",
@@ -5008,7 +5002,7 @@ dependencies = [
 
 [[package]]
 name = "goose-acp-macros"
-version = "1.40.0"
+version = "1.41.0"
 dependencies = [
  "quote",
  "syn 2.0.117",
@@ -5016,7 +5010,7 @@ dependencies = [
 
 [[package]]
 name = "goose-cli"
-version = "1.40.0"
+version = "1.41.0"
 dependencies = [
  "anstream",
  "anyhow",
@@ -5070,8 +5064,57 @@ dependencies = [
 ]
 
 [[package]]
+name = "goose-download-manager"
+version = "1.41.0"
+dependencies = [
+ "anyhow",
+ "once_cell",
+ "reqwest 0.13.4",
+ "serde",
+ "tokio",
+ "tracing",
+ "utoipa 4.2.3",
+]
+
+[[package]]
+name = "goose-local-inference"
+version = "1.41.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "async-trait",
+ "base64 0.22.1",
+ "chrono",
+ "encoding_rs",
+ "etcetera 0.11.0",
+ "fs2",
+ "futures",
+ "goose-download-manager",
+ "goose-provider-types",
+ "goose-sdk-types",
+ "hf-hub 1.0.0-rc.1",
+ "include_dir",
+ "llama-cpp-2",
+ "llama-cpp-sys-2",
+ "minijinja",
+ "mlx-lm",
+ "mlx-lm-utils",
+ "mlx-rs",
+ "regex",
+ "reqwest 0.13.4",
+ "rmcp",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "utoipa 4.2.3",
+ "uuid",
+]
+
+[[package]]
 name = "goose-mcp"
-version = "1.40.0"
+version = "1.41.0"
 dependencies = [
  "anyhow",
  "base64 0.22.1",
@@ -5100,8 +5143,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose-providers"
-version = "1.40.0"
+name = "goose-provider-types"
+version = "1.41.0"
 dependencies = [
  "anyhow",
  "async-stream",
@@ -5111,14 +5154,10 @@ dependencies = [
  "env-lock",
  "futures",
  "once_cell",
- "pem",
- "pkcs1",
- "pkcs8",
  "rand 0.10.1",
  "regex",
  "reqwest 0.13.4",
  "rmcp",
- "sec1",
  "serde",
  "serde_json",
  "strum 0.28.0",
@@ -5127,17 +5166,48 @@ dependencies = [
  "thiserror 2.0.18",
  "tokio",
  "tokio-stream",
- "tokio-util",
  "tracing",
  "unicode-normalization",
- "url",
  "utoipa 4.2.3",
  "uuid",
 ]
 
 [[package]]
+name = "goose-providers"
+version = "1.41.0"
+dependencies = [
+ "anyhow",
+ "async-stream",
+ "async-trait",
+ "chrono",
+ "env-lock",
+ "futures",
+ "goose-local-inference",
+ "goose-provider-types",
+ "include_dir",
+ "pem",
+ "pkcs1",
+ "pkcs8",
+ "reqwest 0.13.4",
+ "rmcp",
+ "sec1",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "test-case",
+ "tokio",
+ "tokio-stream",
+ "tokio-util",
+ "tracing",
+ "url",
+ "urlencoding",
+ "utoipa 4.2.3",
+ "wiremock",
+]
+
+[[package]]
 name = "goose-sdk"
-version = "1.40.0"
+version = "1.41.0"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",
@@ -5150,7 +5220,7 @@ dependencies = [
 
 [[package]]
 name = "goose-sdk-types"
-version = "1.40.0"
+version = "1.41.0"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",
@@ -5161,7 +5231,7 @@ dependencies = [
 
 [[package]]
 name = "goose-server"
-version = "1.40.0"
+version = "1.41.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -5200,7 +5270,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test"
-version = "1.40.0"
+version = "1.41.0"
 dependencies = [
  "clap",
  "serde_json",
@@ -5208,7 +5278,7 @@ dependencies = [
 
 [[package]]
 name = "goose-test-support"
-version = "1.40.0"
+version = "1.41.0"
 dependencies = [
  "axum",
  "env-lock",

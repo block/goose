@@ -51,6 +51,22 @@ fn generate_serve_secret_key() -> String {
     )
 }
 
+#[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ServePlatform {
+    #[default]
+    Cli,
+    Desktop,
+}
+
+impl From<ServePlatform> for GoosePlatform {
+    fn from(platform: ServePlatform) -> Self {
+        match platform {
+            ServePlatform::Cli => GoosePlatform::GooseCli,
+            ServePlatform::Desktop => GoosePlatform::GooseDesktop,
+        }
+    }
+}
+
 #[derive(Parser)]
 #[command(name = "goose", author, version, display_name = "", about, long_about = None)]
 pub struct Cli {
@@ -840,6 +856,9 @@ enum Command {
         #[arg(long = "tls-key-path", value_name = "PATH")]
         tls_key_path: Option<String>,
 
+        #[arg(long, value_enum, default_value_t = ServePlatform::Cli)]
+        platform: ServePlatform,
+
         #[arg(
             long = "with-builtin",
             value_name = "NAME",
@@ -849,6 +868,20 @@ enum Command {
             action = clap::ArgAction::Append
         )]
         builtins: Vec<String>,
+
+        #[arg(
+            long = "dangerously-unauthenticated",
+            help = "Start the ACP endpoint without requiring GOOSE_SERVER__SECRET_KEY"
+        )]
+        dangerously_unauthenticated: bool,
+
+        #[arg(
+            long = "allowed-origin",
+            value_name = "ORIGIN",
+            action = clap::ArgAction::Append,
+            help = "Allow an exact Origin value for ACP CORS; may be specified multiple times and replaces the default loopback origins"
+        )]
+        allowed_origins: Vec<String>,
     },
 
     /// Start or resume interactive chat sessions
@@ -1342,20 +1375,39 @@ async fn handle_mcp_command(server: McpCommand) -> Result<()> {
     Ok(())
 }
 
-async fn handle_serve_command(
+struct ServeCommandArgs {
     host: String,
+
     port: u16,
     tls: bool,
     tls_cert_path: Option<String>,
     tls_key_path: Option<String>,
+    platform: ServePlatform,
     builtins: Vec<String>,
-) -> Result<()> {
+    dangerously_unauthenticated: bool,
+    allowed_origins: Vec<String>,
+}
+
+async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
+    use axum::http::HeaderValue;
     use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
     use goose::acp::transport::create_router;
     use goose::config::paths::Paths;
     use std::net::SocketAddr;
     use std::sync::Arc;
     use tracing::{info, warn};
+
+    let ServeCommandArgs {
+        host,
+        port,
+        tls,
+        tls_cert_path,
+        tls_key_path,
+        platform,
+        builtins,
+        dangerously_unauthenticated,
+        allowed_origins,
+    } = args;
 
     let builtins = if builtins.is_empty() {
         vec!["developer".to_string()]
@@ -1379,7 +1431,7 @@ async fn handle_serve_command(
         builtins,
         data_dir: Paths::data_dir(),
         config_dir: Paths::config_dir(),
-        goose_platform: GoosePlatform::GooseCli,
+        goose_platform: platform.into(),
         additional_source_roots,
         scheduler: None,
     }));
@@ -1388,13 +1440,35 @@ async fn handle_serve_command(
         .map(|secret| secret.trim().to_string())
         .filter(|secret| !secret.is_empty());
     let require_token = env_secret.is_some();
-    if !require_token {
-        warn!(
-            "{GOOSE_SERVER_SECRET_KEY_ENV} is not set; the ACP endpoint will accept unauthenticated connections"
+    if !require_token && !dangerously_unauthenticated {
+        anyhow::bail!(
+            "{GOOSE_SERVER_SECRET_KEY_ENV} must be set to start `goose serve`; pass --dangerously-unauthenticated to run without ACP authentication"
         );
     }
+    if dangerously_unauthenticated && !require_token {
+        warn!(
+            "{GOOSE_SERVER_SECRET_KEY_ENV} is not set and --dangerously-unauthenticated was passed; the ACP endpoint will accept unauthenticated connections"
+        );
+    }
+    let additional_allowed_origins = allowed_origins
+        .into_iter()
+        .map(|origin| {
+            let origin = origin.trim();
+            if origin.is_empty() || origin == "*" {
+                anyhow::bail!("--allowed-origin must be a non-wildcard Origin value");
+            }
+            HeaderValue::from_str(origin).map_err(|error| {
+                anyhow::anyhow!("invalid --allowed-origin value `{origin}`: {error}")
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
     let secret_key = env_secret.unwrap_or_else(generate_serve_secret_key);
-    let router = create_router(server, secret_key, require_token);
+    let router = create_router(
+        server,
+        secret_key,
+        require_token,
+        additional_allowed_origins,
+    );
 
     let config = Config::global();
     let tls_cert_path =
@@ -1964,6 +2038,8 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
     use goose::providers::local_inference::hf_models;
     use goose::providers::local_inference::local_model_registry::get_registry;
 
+    goose::providers::local_inference::configure_huggingface_auth();
+
     match command {
         LocalModelsCommand::Search { query, limit } => {
             println!("Searching HuggingFace for '{}'...", query);
@@ -2158,8 +2234,24 @@ pub async fn cli() -> anyhow::Result<()> {
             tls,
             tls_cert_path,
             tls_key_path,
+            platform,
             builtins,
-        }) => handle_serve_command(host, port, tls, tls_cert_path, tls_key_path, builtins).await,
+            dangerously_unauthenticated,
+            allowed_origins,
+        }) => {
+            handle_serve_command(ServeCommandArgs {
+                host,
+                port,
+                tls,
+                tls_cert_path,
+                tls_key_path,
+                platform,
+                builtins,
+                dangerously_unauthenticated,
+                allowed_origins,
+            })
+            .await
+        }
         Some(Command::Session {
             command: Some(cmd), ..
         }) => handle_session_subcommand(cmd).await,
@@ -2353,6 +2445,35 @@ mod tests {
                 command: SkillsCommand::List,
             }) => {}
             _ => panic!("expected skills list command"),
+        }
+    }
+
+    #[test]
+    fn serve_command_accepts_dangerously_unauthenticated_flag() {
+        let cli = Cli::try_parse_from([
+            "goose",
+            "serve",
+            "--dangerously-unauthenticated",
+            "--allowed-origin",
+            "app://localhost",
+            "--allowed-origin",
+            "https://app.example",
+        ])
+        .expect("parse failed");
+
+        match cli.command {
+            Some(Command::Serve {
+                dangerously_unauthenticated,
+                allowed_origins,
+                ..
+            }) => {
+                assert!(dangerously_unauthenticated);
+                assert_eq!(
+                    allowed_origins,
+                    vec!["app://localhost", "https://app.example"]
+                );
+            }
+            _ => panic!("expected serve command"),
         }
     }
 
