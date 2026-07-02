@@ -23,6 +23,7 @@ use std::future::Future;
 use std::hash::{Hash, Hasher};
 use std::pin::Pin;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
 use tokio_util::sync::CancellationToken;
 
@@ -203,6 +204,7 @@ impl CodeExecutionClient {
         &self,
         session_id: &str,
         arguments: Option<JsonObject>,
+        cancellation_token: CancellationToken,
     ) -> Result<Vec<Content>, String> {
         let input: ExecuteBashInput = arguments
             .map(|args| serde_json::from_value(Value::Object(args)))
@@ -212,23 +214,17 @@ impl CodeExecutionClient {
         let command = input.command;
         let code_mode = self.get_code_mode(session_id).await?;
 
-        // Deno runtime is not Send, so we need to run it in a blocking task
-        // with its own tokio runtime
-        let output = tokio::task::spawn_blocking(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .map_err(|e| format!("Failed to create runtime: {e}"))?;
-
-            rt.block_on(async move {
+        let output = run_in_deno_runtime(
+            execution_timeout(),
+            cancellation_token,
+            move || async move {
                 code_mode
                     .execute_bash(&command)
                     .await
-                    .map_err(|e| format!("Typescript execution error: {e}"))
-            })
-        })
-        .await
-        .map_err(|e| format!("Typescript execution task failed: {e}"))??;
+                    .map_err(|e| format!("Bash execution error: {e}"))
+            },
+        )
+        .await?;
 
         Ok(vec![Content::text(output.markdown())])
     }
@@ -238,6 +234,7 @@ impl CodeExecutionClient {
         &self,
         ctx: &ToolCallContext,
         arguments: Option<JsonObject>,
+        cancellation_token: CancellationToken,
     ) -> Result<Vec<Content>, String> {
         let args: ExecuteWithToolGraph = arguments
             .map(|args| serde_json::from_value(Value::Object(args)))
@@ -251,26 +248,66 @@ impl CodeExecutionClient {
         let code = args.input.code.clone();
         let disclosure = self.disclosure;
 
-        // Deno runtime is not Send, so we need to run it in a blocking task
-        // with its own tokio runtime
-        let output = tokio::task::spawn_blocking(move || {
-            let rt = tokio::runtime::Builder::new_current_thread()
-                .enable_all()
-                .build()
-                .map_err(|e| format!("Failed to create runtime: {e}"))?;
-
-            rt.block_on(async move {
+        let output = run_in_deno_runtime(
+            execution_timeout(),
+            cancellation_token,
+            move || async move {
                 code_mode
                     .execute_typescript(&code, disclosure, Some(registry))
                     .await
                     .map_err(|e| format!("Typescript execution error: {e}"))
-            })
-        })
-        .await
-        .map_err(|e| format!("Typescript execution task failed: {e}"))??;
+            },
+        )
+        .await?;
 
         Ok(vec![Content::text(output.markdown())])
     }
+}
+
+fn execution_timeout() -> Duration {
+    let secs = crate::config::Config::global()
+        .get_goose_default_extension_timeout()
+        .unwrap_or(crate::config::DEFAULT_EXTENSION_TIMEOUT);
+    Duration::from_secs(secs)
+}
+
+/// Deno runtime is not Send, so execution runs in a blocking task with its
+/// own tokio runtime. pctx serializes all executions behind a process-wide
+/// V8 mutex, so a hung script would wedge code execution for every session:
+/// bound the wait with the extension timeout and honor cancellation.
+async fn run_in_deno_runtime<T, F, Fut>(
+    timeout: Duration,
+    cancellation_token: CancellationToken,
+    task: F,
+) -> Result<T, String>
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: Future<Output = Result<T, String>>,
+    T: Send + 'static,
+{
+    tokio::task::spawn_blocking(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| format!("Failed to create runtime: {e}"))?;
+
+        rt.block_on(async move {
+            tokio::select! {
+                _ = cancellation_token.cancelled() => {
+                    Err("Execution cancelled".to_string())
+                }
+                result = tokio::time::timeout(timeout, task()) => match result {
+                    Ok(output) => output,
+                    Err(_) => Err(format!(
+                        "Execution timed out after {} seconds",
+                        timeout.as_secs()
+                    )),
+                },
+            }
+        })
+    })
+    .await
+    .map_err(|e| format!("Execution task failed: {e}"))?
 }
 
 fn create_tool_callback(
@@ -447,7 +484,7 @@ impl McpClientTrait for CodeExecutionClient {
         ctx: &ToolCallContext,
         name: &str,
         arguments: Option<JsonObject>,
-        _cancellation_token: CancellationToken,
+        cancellation_token: CancellationToken,
     ) -> Result<CallToolResult, Error> {
         let session_id = &ctx.session_id;
         let result = match name {
@@ -456,8 +493,14 @@ impl McpClientTrait for CodeExecutionClient {
                 self.handle_get_function_details(session_id, arguments)
                     .await
             }
-            "execute_bash" => self.handle_execute_bash(session_id, arguments).await,
-            "execute_typescript" => self.handle_execute_typescript(ctx, arguments).await,
+            "execute_bash" => {
+                self.handle_execute_bash(session_id, arguments, cancellation_token)
+                    .await
+            }
+            "execute_typescript" => {
+                self.handle_execute_typescript(ctx, arguments, cancellation_token)
+                    .await
+            }
             _ => Err(format!("Unknown tool: {name}")),
         };
 
@@ -555,6 +598,29 @@ impl CodeModeState {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[tokio::test]
+    async fn run_in_deno_runtime_times_out_on_hung_execution() {
+        let result: Result<(), String> = run_in_deno_runtime(
+            Duration::from_millis(50),
+            CancellationToken::new(),
+            std::future::pending,
+        )
+        .await;
+
+        assert!(result.unwrap_err().contains("timed out"));
+    }
+
+    #[tokio::test]
+    async fn run_in_deno_runtime_honors_cancellation() {
+        let token = CancellationToken::new();
+        token.cancel();
+
+        let result: Result<(), String> =
+            run_in_deno_runtime(Duration::from_secs(60), token, std::future::pending).await;
+
+        assert_eq!(result.unwrap_err(), "Execution cancelled");
+    }
 
     #[test]
     fn catalog_moim_mentions_inspection_tools_without_function_names() {
