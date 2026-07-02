@@ -622,6 +622,56 @@ mod tests {
         assert_eq!(result.unwrap_err(), "Execution cancelled");
     }
 
+    /// Exercises the real Deno/V8 stack: a script whose event loop never
+    /// resolves must time out instead of wedging forever, and a normal
+    /// script must run right after, proving pctx's process-wide V8 mutex
+    /// was released (i.e. one hung execution no longer blocks other sessions).
+    #[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+    async fn real_v8_hung_script_times_out_and_frees_the_runtime() {
+        let hung = CodeMode::default();
+        let hung_result = run_in_deno_runtime(
+            Duration::from_secs(2),
+            CancellationToken::new(),
+            move || async move {
+                hung.execute_typescript(
+                    "async function run() { await new Promise(() => {}); }",
+                    ToolDisclosure::default(),
+                    None,
+                )
+                .await
+                .map_err(|e| format!("execution error: {e}"))
+            },
+        )
+        .await;
+        assert!(
+            hung_result.unwrap_err().contains("timed out"),
+            "hung script should time out"
+        );
+
+        let normal = CodeMode::default();
+        let normal_result = run_in_deno_runtime(
+            Duration::from_secs(60),
+            CancellationToken::new(),
+            move || async move {
+                normal
+                    .execute_typescript(
+                        "async function run() { return 1 + 1; }",
+                        ToolDisclosure::default(),
+                        None,
+                    )
+                    .await
+                    .map_err(|e| format!("execution error: {e}"))
+            },
+        )
+        .await
+        .expect("normal script should run after a prior timeout");
+        assert!(
+            normal_result.success,
+            "normal script should succeed once the V8 mutex is released: {}",
+            normal_result.stderr
+        );
+    }
+
     #[test]
     fn catalog_moim_mentions_inspection_tools_without_function_names() {
         let moim = catalog_disclosure_moim(3);
