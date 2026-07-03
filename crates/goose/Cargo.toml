@@ -241,7 +241,7 @@ libc = { version = "0.2.182", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
-mockall = { version = "0.14", default-features = false }
+mockall = { version = "0.15", default-features = false }
 wiremock = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
