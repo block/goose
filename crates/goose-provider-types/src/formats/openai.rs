@@ -709,68 +709,71 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     })
                     .filter(|m: &serde_json::Map<String, Value>| !m.is_empty());
 
-                if !is_valid_function_name(&function_name) {
-                    let error = ErrorData {
-                        code: ErrorCode::INVALID_REQUEST,
-                        message: Cow::from(format!(
-                            "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
-                            function_name
-                        )),
-                        data: None,
-                    };
-                    content.push(MessageContent::tool_request_with_metadata(
-                        id,
-                        Err(error),
-                        metadata.as_ref(),
-                    ));
-                } else {
-                    match parse_tool_arguments(&arguments_str) {
-                        Some(params) if params.is_object() => {
-                            content.push(MessageContent::tool_request_with_metadata(
+                let function_name = match normalize_function_name(&function_name) {
+                    Some(name) => name,
+                    None => {
+                        let error = ErrorData {
+                            code: ErrorCode::INVALID_REQUEST,
+                            message: Cow::from(format!(
+                                "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
+                                function_name
+                            )),
+                            data: None,
+                        };
+                        content.push(MessageContent::tool_request_with_metadata(
+                            id,
+                            Err(error),
+                            metadata.as_ref(),
+                        ));
+                        continue;
+                    }
+                };
+                match parse_tool_arguments(&arguments_str) {
+                    Some(params) if params.is_object() => {
+                        content.push(MessageContent::tool_request_with_metadata(
+                            id,
+                            Ok(CallToolRequestParams::new(function_name)
+                                .with_arguments(object(params))),
+                            metadata.as_ref(),
+                        ));
+                    }
+                    // Valid JSON but NOT an object (a bare array/string/number).
+                    // Weaker models emit this; surface a tool error so the model
+                    // retries with a proper object instead of crashing the run
+                    // (rmcp's `object()` debug-asserts on non-objects).
+                    Some(other) => {
+                        let error = ErrorData {
+                            code: ErrorCode::INVALID_PARAMS,
+                            message: Cow::from(format!(
+                                "Tool arguments for {} (id {}) must be a JSON object, got {}. Raw arguments: '{}'",
+                                function_name,
                                 id,
-                                Ok(CallToolRequestParams::new(function_name)
-                                    .with_arguments(object(params))),
-                                metadata.as_ref(),
-                            ));
-                        }
-                        // Valid JSON but NOT an object (a bare array/string/number).
-                        // Weaker models emit this; surface a tool error so the model
-                        // retries with a proper object instead of crashing the run
-                        // (rmcp's `object()` debug-asserts on non-objects).
-                        Some(other) => {
-                            let error = ErrorData {
-                                code: ErrorCode::INVALID_PARAMS,
-                                message: Cow::from(format!(
-                                    "Tool arguments for {} (id {}) must be a JSON object, got {}. Raw arguments: '{}'",
-                                    function_name,
-                                    id,
-                                    describe_json_value(&other),
-                                    arguments_str
-                                )),
-                                data: None,
-                            };
-                            content.push(MessageContent::tool_request_with_metadata(
-                                id,
-                                Err(error),
-                                metadata.as_ref(),
-                            ));
-                        }
-                        None => {
-                            let message_text = truncation_error_message(&arguments_str)
-                                .unwrap_or_else(|| {
-                                    format!("Could not interpret tool use parameters for id {id}")
-                                });
-                            let error = ErrorData {
-                                code: ErrorCode::INVALID_PARAMS,
-                                message: Cow::from(message_text),
-                                data: None,
-                            };
-                            content.push(MessageContent::tool_request_with_metadata(
-                                id,
-                                Err(error),
-                                metadata.as_ref(),
-                            ));
-                        }
+                                describe_json_value(&other),
+                                arguments_str
+                            )),
+                            data: None,
+                        };
+                        content.push(MessageContent::tool_request_with_metadata(
+                            id,
+                            Err(error),
+                            metadata.as_ref(),
+                        ));
+                    }
+                    None => {
+                        let message_text =
+                            truncation_error_message(&arguments_str).unwrap_or_else(|| {
+                                format!("Could not interpret tool use parameters for id {id}")
+                            });
+                        let error = ErrorData {
+                            code: ErrorCode::INVALID_PARAMS,
+                            message: Cow::from(message_text),
+                            data: None,
+                        };
+                        content.push(MessageContent::tool_request_with_metadata(
+                            id,
+                            Err(error),
+                            metadata.as_ref(),
+                        ));
                     }
                 }
             }
@@ -1180,6 +1183,11 @@ where
 
                 for index in sorted_indices {
                     if let Some((id, function_name, arguments, extra_fields)) = tool_call_data.get(&index) {
+                        // Recover malformed-but-recognizable names the same way the
+                        // non-streaming decoder does; degenerate names pass through
+                        // unchanged, preserving this path's historical leniency.
+                        let function_name = &normalize_function_name(function_name)
+                            .unwrap_or_else(|| function_name.clone());
                         let metadata = if let Some(sig) = &last_signature {
                             let mut combined = extra_fields.clone().unwrap_or_default();
                             combined.insert(
@@ -1550,6 +1558,36 @@ pub fn is_valid_function_name(name: &str) -> bool {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap());
     re.is_match(name)
+}
+
+/// Normalize a tool name emitted by the model into goose's valid-name charset,
+/// recovering the malformed-but-recognizable shapes some models produce
+/// (see #9486):
+/// - a leaked "functions." namespace prefix is stripped
+///   ("functions.developer__shell" → "developer__shell")
+/// - dots map to goose's "__" extension separator
+///   ("developer.shell" → "developer__shell")
+/// - remaining invalid characters are sanitized to "_", mirroring the outbound
+///   [`sanitize_function_name`]; unknown results are answered by tool dispatch
+///   with a recoverable "tool not found" error instead of aborting the parse
+///
+/// Returns `None` when nothing salvageable remains (no alphanumeric characters).
+pub fn normalize_function_name(name: &str) -> Option<String> {
+    let name = name.trim();
+    let name = name
+        .strip_prefix("functions.")
+        .or_else(|| name.strip_prefix("functions:"))
+        .unwrap_or(name);
+
+    if is_valid_function_name(name) {
+        return Some(name.to_string());
+    }
+
+    if !name.chars().any(|c| c.is_ascii_alphanumeric()) {
+        return None;
+    }
+
+    Some(sanitize_function_name(&name.replace('.', "__")))
 }
 
 #[cfg(test)]
@@ -2004,9 +2042,10 @@ mod tests {
 
     #[test]
     fn test_response_to_message_invalid_func_name() -> anyhow::Result<()> {
+        // A name with no salvageable identifier characters cannot be
+        // normalized and must still be rejected.
         let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
-        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] =
-            json!("invalid fn");
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] = json!("???!");
 
         let message = response_to_message(&response)?;
 
@@ -2021,6 +2060,89 @@ mod tests {
                 }
                 _ => panic!("Expected ToolNotFound error"),
             }
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_recovers_dotted_tool_name() -> anyhow::Result<()> {
+        // GLM emits dotted namespaces (see #9486). Goose separates extension
+        // and tool with "__", so "developer.shell" must map to
+        // "developer__shell" instead of hard-failing the parse.
+        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] =
+            json!("developer.shell");
+
+        let message = response_to_message(&response)?;
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+            assert_eq!(tool_call.name, "developer__shell");
+            assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_strips_functions_namespace_prefix() -> anyhow::Result<()> {
+        // Models trained on OpenAI-style tool schemas leak the internal
+        // "functions." namespace into the emitted name (see #9486).
+        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] =
+            json!("functions.example_fn");
+
+        let message = response_to_message(&response)?;
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+            assert_eq!(tool_call.name, "example_fn");
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_recovers_invalid_name_chars() -> anyhow::Result<()> {
+        // Stray invalid characters are sanitized the same way outbound tool
+        // names are, so the call reaches dispatch (which answers unknown names
+        // with a recoverable "tool not found" listing) instead of aborting.
+        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] =
+            json!("example fn");
+
+        let message = response_to_message(&response)?;
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+            assert_eq!(tool_call.name, "example_fn");
+        } else {
+            panic!("Expected ToolRequest content");
+        }
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_response_to_message_fenced_arguments() -> anyhow::Result<()> {
+        // GLM/Minimax sometimes wrap tool arguments in a markdown fence
+        // (see #9486); the arguments must still parse into an object.
+        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
+            json!("```json\n{\"param\": \"value\"}\n```");
+
+        let message = response_to_message(&response)?;
+
+        if let MessageContent::ToolRequest(request) = &message.content[0] {
+            let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+            assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
         } else {
             panic!("Expected ToolRequest content");
         }
@@ -3817,6 +3939,74 @@ data: [DONE]"#;
     }
 
     #[tokio::test]
+    async fn test_streaming_tool_call_normalizes_function_name() -> anyhow::Result<()> {
+        // The streaming decoder must apply the same tool-name normalization as
+        // the non-streaming one: dotted names map to goose's "__" separator
+        // (see #9486).
+        let response_lines = concat!(
+            "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"tc1\",\"type\":\"function\",\"function\":{\"name\":\"developer.shell\",\"arguments\":\"{\\\"command\\\": \\\"ls\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n",
+            "data: [DONE]"
+        );
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let mut tool_calls = Vec::new();
+        while let Some(result) = messages.next().await {
+            let (message, _usage) = result?;
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    if let MessageContent::ToolRequest(request) = content {
+                        let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+                        tool_calls.push((tool_call.name.to_string(), tool_call.arguments.clone()));
+                    }
+                }
+            }
+        }
+
+        assert_eq!(tool_calls.len(), 1);
+        assert_eq!(tool_calls[0].0, "developer__shell");
+        assert_eq!(tool_calls[0].1, Some(object!({"command": "ls"})));
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn test_streaming_tool_call_degenerate_name_passes_through() -> anyhow::Result<()> {
+        // The streaming decoder historically accepted any name; a name with
+        // nothing salvageable must keep passing through unchanged rather than
+        // becoming an error this path never produced.
+        let response_lines = concat!(
+            "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"tc1\",\"type\":\"function\",\"function\":{\"name\":\"???\",\"arguments\":\"{}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n",
+            "data: [DONE]"
+        );
+        let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
+        let response_stream = tokio_stream::iter(lines.into_iter().map(Ok));
+        let mut messages = std::pin::pin!(response_to_streaming_message(response_stream));
+
+        let mut names = Vec::new();
+        while let Some(result) = messages.next().await {
+            let (message, _usage) = result?;
+            if let Some(msg) = message {
+                for content in &msg.content {
+                    if let MessageContent::ToolRequest(request) = content {
+                        names.push(
+                            request
+                                .tool_call
+                                .as_ref()
+                                .expect("passes through")
+                                .name
+                                .to_string(),
+                        );
+                    }
+                }
+            }
+        }
+
+        assert_eq!(names, vec!["???".to_string()]);
+        Ok(())
+    }
+
+    #[tokio::test]
     async fn test_streaming_multiple_tool_calls_without_tool_call_index() -> anyhow::Result<()> {
         let response_lines = concat!(
             "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"id\":\"functions.get_weather:0\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Paris\\\"}\"}},{\"id\":\"functions.get_weather:1\",\"type\":\"function\",\"function\":{\"name\":\"get_weather\",\"arguments\":\"{\\\"city\\\": \\\"Tokyo\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n",
@@ -3966,6 +4156,84 @@ data: [DONE]"#;
         assert!(is_valid_function_name("hello_world"));
         assert!(!is_valid_function_name("hello world"));
         assert!(!is_valid_function_name("hello@world"));
+    }
+
+    #[test]
+    fn test_normalize_function_name() {
+        // Already-valid names pass through untouched — including degenerate
+        // but previously-accepted ones like "-_-".
+        assert_eq!(
+            normalize_function_name("developer__shell").as_deref(),
+            Some("developer__shell")
+        );
+        assert_eq!(normalize_function_name("-_-").as_deref(), Some("-_-"));
+
+        // Leaked OpenAI-style namespace prefixes are stripped.
+        assert_eq!(
+            normalize_function_name("functions.developer__shell").as_deref(),
+            Some("developer__shell")
+        );
+        assert_eq!(
+            normalize_function_name("functions:developer__shell").as_deref(),
+            Some("developer__shell")
+        );
+
+        // Dots map to goose's "__" extension separator, including after a
+        // stripped prefix.
+        assert_eq!(
+            normalize_function_name("developer.shell").as_deref(),
+            Some("developer__shell")
+        );
+        assert_eq!(
+            normalize_function_name("functions.developer.shell").as_deref(),
+            Some("developer__shell")
+        );
+
+        // Other invalid characters sanitize to "_", and surrounding
+        // whitespace is trimmed.
+        assert_eq!(
+            normalize_function_name(" example fn ").as_deref(),
+            Some("example_fn")
+        );
+
+        // Nothing salvageable → rejected.
+        assert_eq!(normalize_function_name("???!"), None);
+        assert_eq!(normalize_function_name(""), None);
+        assert_eq!(normalize_function_name("functions."), None);
+    }
+
+    #[test]
+    fn test_normalize_function_name_is_fixed_point_of_sanitize() {
+        // Every name the model can legitimately echo went through
+        // sanitize_function_name on the way out, so normalization must be the
+        // identity on that whole domain — a real tool can never be renamed.
+        // (A sanitized name contains no dots, so the dot mapping can only ever
+        // fire on names the model mangled itself.)
+        for raw in [
+            "developer__shell",
+            "platform.search",
+            "weird name!",
+            "a.b.c",
+            "functions_helper",
+            "UPPER-case_09",
+        ] {
+            let outbound = sanitize_function_name(raw);
+            assert_eq!(
+                normalize_function_name(&outbound).as_deref(),
+                Some(outbound.as_str()),
+                "sanitized name '{outbound}' must normalize to itself"
+            );
+        }
+
+        // Normalization is also idempotent on its own successful outputs.
+        for mangled in ["functions.developer__shell", "developer.shell", "a b"] {
+            let once = normalize_function_name(mangled).unwrap();
+            assert_eq!(
+                normalize_function_name(&once).as_deref(),
+                Some(once.as_str()),
+                "normalized name '{once}' must be stable"
+            );
+        }
     }
 
     #[test]
