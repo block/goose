@@ -9,10 +9,11 @@
 use anyhow::{anyhow, Result};
 use chrono::{DateTime, Utc};
 use rmcp::model::{CallToolRequestParams, CallToolResult, Content, ErrorCode, ErrorData};
-use serde_json::{json, Map, Value};
+use serde_json::Value;
 
 use crate::conversation::message::Message;
 use crate::conversation::Conversation;
+use goose_providers::conversation::token_usage::Usage;
 
 pub fn convert(content: &str) -> Result<String> {
     let lines: Vec<Value> = content
@@ -50,6 +51,8 @@ pub fn convert(content: &str) -> Result<String> {
     let mut messages: Vec<Message> = Vec::new();
     let mut total_input: i64 = 0;
     let mut total_output: i64 = 0;
+    let mut total_cache_read: i64 = 0;
+    let mut total_cache_write: i64 = 0;
     let mut first_ts: Option<DateTime<Utc>> = None;
     let mut last_ts: Option<DateTime<Utc>> = None;
     let mut first_user_text: Option<String> = None;
@@ -83,18 +86,21 @@ pub fn convert(content: &str) -> Result<String> {
                         .and_then(|m| m.get("usage"))
                         .and_then(|u| u.as_object())
                     {
+                        let cache_write = usage
+                            .get("cache_creation_input_tokens")
+                            .and_then(|v| v.as_i64())
+                            .unwrap_or(0);
+                        let cache_read = usage
+                            .get("cache_read_input_tokens")
+                            .and_then(|v| v.as_i64())
+                            .unwrap_or(0);
                         total_input += usage
                             .get("input_tokens")
                             .and_then(|v| v.as_i64())
                             .unwrap_or(0);
-                        total_input += usage
-                            .get("cache_creation_input_tokens")
-                            .and_then(|v| v.as_i64())
-                            .unwrap_or(0);
-                        total_input += usage
-                            .get("cache_read_input_tokens")
-                            .and_then(|v| v.as_i64())
-                            .unwrap_or(0);
+                        total_input += cache_write + cache_read;
+                        total_cache_write += cache_write;
+                        total_cache_read += cache_read;
                         total_output += usage
                             .get("output_tokens")
                             .and_then(|v| v.as_i64())
@@ -124,16 +130,20 @@ pub fn convert(content: &str) -> Result<String> {
 
     let conversation = Conversation::new_unvalidated(messages);
 
-    let session_json = build_session_json(
-        &session_id,
-        &working_dir,
-        &name,
+    let session_json = super::build_session_json(super::ImportedSession {
+        session_id: &session_id,
+        working_dir: &working_dir,
+        name: &name,
         created_at,
         updated_at,
-        Some(total_input as i32),
-        Some(total_output as i32),
+        usage: Usage::new(Some(total_input as i32), Some(total_output as i32), None)
+            .with_cache_tokens(
+                (total_cache_read > 0).then_some(total_cache_read as i32),
+                (total_cache_write > 0).then_some(total_cache_write as i32),
+            ),
+        accumulated_cost: None,
         conversation,
-    );
+    });
 
     serde_json::to_string_pretty(&session_json).map_err(Into::into)
 }
@@ -299,53 +309,6 @@ fn extract_first_text(msg: &Message) -> Option<String> {
     None
 }
 
-#[allow(clippy::too_many_arguments)]
-fn build_session_json(
-    session_id: &str,
-    working_dir: &str,
-    name: &str,
-    created_at: DateTime<Utc>,
-    updated_at: DateTime<Utc>,
-    input_tokens: Option<i32>,
-    output_tokens: Option<i32>,
-    conversation: Conversation,
-) -> Value {
-    let total = match (input_tokens, output_tokens) {
-        (Some(a), Some(b)) => Some(a + b),
-        _ => None,
-    };
-    let mut obj = Map::new();
-    obj.insert("id".into(), json!(session_id));
-    obj.insert("working_dir".into(), json!(working_dir));
-    obj.insert("name".into(), json!(name));
-    obj.insert("user_set_name".into(), json!(false));
-    obj.insert("session_type".into(), json!("user"));
-    obj.insert("created_at".into(), json!(created_at.to_rfc3339()));
-    obj.insert("updated_at".into(), json!(updated_at.to_rfc3339()));
-    obj.insert("extension_data".into(), json!({}));
-    obj.insert("total_tokens".into(), json!(total));
-    obj.insert("input_tokens".into(), json!(input_tokens));
-    obj.insert("output_tokens".into(), json!(output_tokens));
-    obj.insert("accumulated_total_tokens".into(), json!(total));
-    obj.insert("accumulated_input_tokens".into(), json!(input_tokens));
-    obj.insert("accumulated_output_tokens".into(), json!(output_tokens));
-    obj.insert("accumulated_cost".into(), json!(null));
-    obj.insert("schedule_id".into(), json!(null));
-    obj.insert("recipe".into(), json!(null));
-    obj.insert("user_recipe_values".into(), json!(null));
-    obj.insert(
-        "conversation".into(),
-        serde_json::to_value(&conversation).unwrap(),
-    );
-    obj.insert("message_count".into(), json!(conversation.messages().len()));
-    obj.insert("provider_name".into(), json!(null));
-    obj.insert("model_config".into(), json!(null));
-    obj.insert("goose_mode".into(), json!("auto"));
-    obj.insert("archived_at".into(), json!(null));
-    obj.insert("project_id".into(), json!(null));
-    Value::Object(obj)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -368,6 +331,20 @@ mod tests {
         let resp = &msgs[2];
         let content = resp["content"].as_array().unwrap();
         assert!(content.iter().any(|c| c["type"] == "toolResponse"));
+    }
+
+    #[test]
+    fn emits_cache_token_breakdown() {
+        let jsonl = r#"{"type":"user","sessionId":"s","uuid":"u1","timestamp":"2026-01-01T00:00:01Z","cwd":"/tmp","message":{"role":"user","content":"hi"}}
+{"type":"assistant","sessionId":"s","uuid":"u2","timestamp":"2026-01-01T00:00:02Z","message":{"role":"assistant","content":[{"type":"text","text":"hello"}],"usage":{"input_tokens":7,"cache_creation_input_tokens":1000,"cache_read_input_tokens":5000,"output_tokens":50}}}"#;
+        let json = convert(jsonl).unwrap();
+        let v: Value = serde_json::from_str(&json).unwrap();
+        assert_eq!(v["usage"]["input_tokens"], 6007); // 7 + 1000 + 5000
+        assert_eq!(v["usage"]["output_tokens"], 50);
+        assert_eq!(v["usage"]["cache_read_input_tokens"], 5000);
+        assert_eq!(v["usage"]["cache_write_input_tokens"], 1000);
+        assert_eq!(v["accumulated_usage"]["cache_read_input_tokens"], 5000);
+        assert_eq!(v["accumulated_usage"]["cache_write_input_tokens"], 1000);
     }
 
     #[test]

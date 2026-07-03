@@ -77,7 +77,7 @@ jobs:
         run: df -h
 
       - name: Checkout code
-        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
         with:
           # Only pass ref if it's explicitly set, otherwise let checkout action use its default behavior
           ref: ${{ inputs.ref != '' && inputs.ref || '' }}
@@ -118,8 +118,10 @@ jobs:
           key: macos-deployment-target-12
 
       # Build the project
-      - name: Build goosed
-        run: source ./bin/activate-hermit && cargo build --release -p goose-server
+      - name: Build desktop backend
+        run: |
+          source ./bin/activate-hermit
+          cargo build --release -p goose-cli --bin goose
 
       # Post-build cleanup to free space
       - name: Post-build cleanup
@@ -134,12 +136,16 @@ jobs:
           # Check disk space after cleanup
           df -h
 
-      - name: Copy binaries into Electron folder
+      - name: Copy backend binary into Electron folder
         run: |
-          cp target/release/goosed ui/desktop/src/bin/goosed
+          mkdir -p ui/desktop/src/bin
+          rm -f ui/desktop/src/bin/goose
+          cp target/release/goose ui/desktop/src/bin/goose
+          chmod +x ui/desktop/src/bin/goose
+          ls -la ui/desktop/src/bin/
 
       - name: Cache pnpm dependencies
-        uses: actions/cache@8b402f58fbc84540c8b491a91e594a4576fec3d7  # v5.0.2
+        uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8  # v6.0.0
         with:
           path: |
             ui/desktop/node_modules
@@ -184,6 +190,10 @@ jobs:
           fi
         working-directory: ui/desktop
 
+      - name: Verify macOS updater resources
+        run: node scripts/verify-mac-update-resources.js "out/Goose-darwin-arm64/Goose.app"
+        working-directory: ui/desktop
+
       - name: Clean up signing keychain
         if: always()
         run: |
@@ -201,7 +211,7 @@ jobs:
 
       - name: Upload Desktop artifact
         id: upload-app-bundle
-        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: Goose-darwin-arm64
           path: ui/desktop/out/Goose-darwin-arm64/Goose.zip

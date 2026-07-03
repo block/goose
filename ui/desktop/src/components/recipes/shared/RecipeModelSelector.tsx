@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { Select } from '../../ui/Select';
 import { Input } from '../../ui/input';
-import { useConfig } from '../../ConfigContext';
+import { acpListProviderDetails } from '../../../acp/providers';
 import { fetchModelsForProviders } from '../../settings/models/modelInterface';
 import { defineMessages, useIntl } from '../../../i18n';
 
@@ -70,7 +70,6 @@ export const RecipeModelSelector = ({
   onModelChange,
 }: RecipeModelSelectorProps) => {
   const intl = useIntl();
-  const { getProviders } = useConfig();
   const [providerOptions, setProviderOptions] = useState<{ value: string; label: string }[]>([]);
   const [modelOptions, setModelOptions] = useState<
     { options: { value: string; label: string; provider: string }[] }[]
@@ -83,7 +82,7 @@ export const RecipeModelSelector = ({
     (async () => {
       try {
         setFetchError(null);
-        const providersResponse = await getProviders(false);
+        const providersResponse = await acpListProviderDetails();
         const activeProviders = providersResponse.filter((provider) => provider.is_configured);
 
         setProviderOptions([
@@ -132,7 +131,7 @@ export const RecipeModelSelector = ({
         setLoadingModels(false);
       }
     })();
-  }, [getProviders, intl]);
+  }, [intl]);
 
   useEffect(() => {
     if (!loadingModels && selectedModel && selectedProvider) {

@@ -24,8 +24,7 @@ local-inference = [
     "dep:candle-core",
     "dep:candle-nn",
     "dep:candle-transformers",
-    "dep:llama-cpp-2",
-    "dep:llama-cpp-sys-2",
+    "goose-providers/local-inference",
     "dep:tokenizers",
     "dep:symphonia",
     "dep:rubato",
@@ -38,10 +37,16 @@ aws-providers = [
     "dep:aws-sdk-sagemakerruntime",
     "dep:smithy-transport-reqwest",
 ]
-cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
-vulkan = ["local-inference", "llama-cpp-2/vulkan"]
+cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "goose-providers/cuda"]
+vulkan = ["local-inference", "goose-providers/vulkan"]
+mlx = ["local-inference", "goose-providers/mlx"]
 rustls-tls = [
     "dep:rustls",
+    "dep:rcgen",
+    "dep:pem",
+    "dep:axum-server",
+    "dep:aws-lc-rs",
+    "axum-server/tls-rustls",
     "reqwest/rustls",
     "rmcp/reqwest",
     "smithy-transport-reqwest?/rustls",
@@ -49,12 +54,14 @@ rustls-tls = [
     "jsonwebtoken/aws_lc_rs",
     "oauth2/reqwest",
     "oauth2/rustls-tls",
+    "goose-providers/rustls-tls",
 ]
 native-tls = [
+    "dep:rcgen",
     "dep:pem",
-    "dep:pkcs1",
-    "dep:pkcs8",
-    "dep:sec1",
+    "dep:axum-server",
+    "dep:openssl",
+    "axum-server/tls-openssl",
     "reqwest/native-tls",
     "rmcp/reqwest-native-tls",
     "smithy-transport-reqwest?/native-tls",
@@ -62,6 +69,7 @@ native-tls = [
     "jsonwebtoken/rust_crypto",
     "oauth2/reqwest",
     "oauth2/native-tls",
+    "goose-providers/native-tls",
 ]
 system-keyring = ["dep:keyring"]
 portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel"]
@@ -86,9 +94,10 @@ thiserror = { workspace = true }
 futures = { workspace = true }
 dirs = { workspace = true }
 reqwest = { workspace = true, features = ["json", "cookies", "gzip", "brotli", "deflate", "zstd", "charset", "http2", "stream", "blocking", "multipart", "system-proxy"] }
-tokio = { workspace = true }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "sync", "time", "fs", "process", "net", "signal", "io-std", "io-util"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+serde_path_to_error = { version = "0.1.8", default-features = false }
 serde_urlencoded = { version = "0.7.1", default-features = false }
 jsonschema = { version = "0.30", default-features = false }
 uuid = { workspace = true, features = ["v7"] }
@@ -97,7 +106,7 @@ async-trait = { workspace = true }
 async-stream = { workspace = true }
 minijinja = { version = "2.18", default-features = false, features = ["loader", "multi_template", "serde"] }
 include_dir = { workspace = true }
-tiktoken-rs = { version = "0.11", default-features = false }
+tiktoken-rs = { version = "0.12", default-features = false }
 chrono = { workspace = true }
 clap = { workspace = true }
 indoc = { workspace = true }
@@ -123,6 +132,7 @@ once_cell = { workspace = true }
 etcetera = { workspace = true }
 fs-err = { version = "3.1", default-features = false }
 goose-providers = { path = "../goose-providers", default-features = false }
+goose-download-manager = { path = "../goose-download-manager" }
 goose-sdk-types = { path = "../goose-sdk-types" }
 rand = { workspace = true }
 utoipa = { workspace = true, features = ["chrono"] }
@@ -130,6 +140,7 @@ tokio-cron-scheduler = { version = "0.15", default-features = false }
 urlencoding = { workspace = true }
 v_htmlescape = { version = "0.17", default-features = false, features = ["std"] }
 sqlx = { version = "0.8.5", default-features = false, features = [
+    "runtime-tokio",
     "sqlite",
     "chrono",
     "json",
@@ -156,6 +167,7 @@ tempfile = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }
 agent-client-protocol-schema = { workspace = true }
 agent-client-protocol = { workspace = true, features = ["unstable"] }
+agent-client-protocol-http = { workspace = true }
 unicode-normalization = { version = "0.1.22", default-features = false, features = ["std"] }
 
 # For local Whisper transcription (optional, behind "local-inference" feature)
@@ -163,13 +175,10 @@ candle-core = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
 candle-transformers = { version = "0.10", default-features = false, optional = true }
 byteorder = { version = "1.5", default-features = false, features = ["std"], optional = true }
-tokenizers = { version = "0.22", default-features = false, features = ["onig"], optional = true }
+tokenizers = { version = "0.23", default-features = false, features = ["onig"], optional = true }
 symphonia = { version = "0.5", default-features = false, features = ["aac", "adpcm", "alac", "isomp4", "mkv", "mp3", "pcm", "vorbis", "wav"], optional = true }
 rubato = { version = "0.16", default-features = false, optional = true }
-zip = { workspace = true }
 sys-info = { version = "0.9", default-features = false }
-
-llama-cpp-2 = { workspace = true, optional = true }
 
 schemars = { workspace = true, features = [
     "derive",
@@ -190,21 +199,20 @@ tree-sitter-swift = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 which = { workspace = true }
 pulldown-cmark = { version = "0.13", default-features = false }
-encoding_rs = { version = "0.8.35", default-features = false }
 pastey = { version = "0.2", default-features = false }
 shell-words = { workspace = true }
-pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
-pkcs1 = { version = "0.7.5", default-features = false, features = ["pkcs8", "std"], optional = true }
-pkcs8 = { version = "0.11.0", default-features = false, features = ["alloc", "std"], optional = true }
-sec1 = { version = "0.7", default-features = false, features = ["der", "pkcs8", "std"], optional = true }
 goose-acp-macros = { path = "../goose-acp-macros", default-features = false }
 tower-http = { workspace = true, features = ["cors"] }
-http-body-util = { version = "0.1.2", default-features = false }
 tracing-appender = { workspace = true }
 process-wrap = { version = "9", default-features = false, features = ["std"] }
 nostr = { version = "0.44", default-features = false, features = ["nip44", "std"], optional = true }
 nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"], optional = true }
 rustls = { workspace = true, optional = true }
+rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "crypto", "pem"], optional = true }
+axum-server = { version = "0.8", default-features = false, optional = true }
+aws-lc-rs = { version = "1.17", default-features = false, optional = true }
+openssl = { version = "0.10.66", default-features = false, optional = true }
+pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
 
 pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 
@@ -213,8 +221,9 @@ pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 # They are just here to pin the version, and can be removed if PCTX updates temporal_rs
 icu_calendar = { version = "=2.1.1", default-features = false }
 icu_locale = { version = "=2.1.1", default-features = false }
-llama-cpp-sys-2 = { workspace = true, optional = true }
 image = { version = "0.24.9", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
+subtle = { version = "2.5", default-features = false, features = ["std"] }
+gethostname = "1.1.0"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 winapi = { workspace = true }
@@ -224,7 +233,6 @@ keyring = { workspace = true, features = ["windows-native"], optional = true }
 [target.'cfg(target_os = "macos")'.dependencies]
 candle-core = { workspace = true, features = ["metal"], optional = true }
 candle-nn = { workspace = true, features = ["metal"], optional = true }
-llama-cpp-2 = { workspace = true, features = ["sampler", "metal", "mtmd"], optional = true }
 keyring = { workspace = true, features = ["apple-native"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -249,6 +257,7 @@ http = { workspace = true }
 goose-mcp = { path = "../goose-mcp", default-features = false }
 insta = { version = "1", default-features = false }
 dtor = { version = "1.0.5", default-features = false, features = ["proc_macro"] }
+tower = { version = "0.5.2", default-features = false, features = ["util"] }
 
 [[example]]
 name = "agent"

@@ -13,20 +13,43 @@ impl GooseAcpAgent {
         let path = std::path::PathBuf::from(&working_dir);
         validate_absolute_cwd(&path)?;
         let session_id = &req.session_id;
+
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .map_err(|_| {
+                agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
+                    .data(format!("Session not found: {}", session_id))
+            })?;
+
+        if path == session.working_dir {
+            return Ok(EmptyResponse {});
+        }
+
         self.session_manager
             .update(session_id)
-            .working_dir(path.clone())
+            .working_dir(path)
             .apply()
             .await
-            .internal_err()?;
+            .internal_err_ctx("Failed to update session working directory")?;
 
-        if let Some(session) = self.sessions.lock().await.get(session_id) {
-            session
-                .agent
-                .extension_manager
-                .update_working_dir(&path)
-                .await;
-        }
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .internal_err_ctx("Failed to reload session")?;
+
+        let agent = self.get_session_agent(session_id).await?;
+        agent
+            .restore_provider_from_session(&session)
+            .await
+            .internal_err_ctx("Failed to refresh provider from session")?;
+
+        agent
+            .extension_manager
+            .update_working_dir(&session.working_dir)
+            .await;
 
         Ok(EmptyResponse {})
     }
@@ -42,7 +65,7 @@ impl GooseAcpAgent {
             );
         }
 
-        let agent = self.get_session_agent(session_id, None).await?;
+        let agent = self.get_session_agent(session_id).await?;
         match req.mode {
             SessionSystemPromptMode::Set => {
                 if req.text.trim().is_empty() {
@@ -81,7 +104,10 @@ impl GooseAcpAgent {
             .await
             .internal_err()?;
         self.sessions.lock().await.remove(&req.session_id);
-        let _ = self.agent_manager.remove_session(&req.session_id).await;
+        self.agent_manager
+            .remove_session_if_loaded(&req.session_id)
+            .await
+            .internal_err_ctx("Failed to remove in-memory agent")?;
         Ok(EmptyResponse {})
     }
 
@@ -101,9 +127,23 @@ impl GooseAcpAgent {
         &self,
         req: ImportSessionRequest,
     ) -> Result<ImportSessionResponse, agent_client_protocol::Error> {
+        let is_nostr = match req.source {
+            SessionImportSource::Auto => is_nostr_session_link(&req.input),
+            SessionImportSource::Json => false,
+            SessionImportSource::Nostr => true,
+        };
+        let (data, session_type) = if is_nostr {
+            (
+                import_nostr_session_json(&req.input).await?,
+                Some(SessionType::User),
+            )
+        } else {
+            (req.input, None)
+        };
+
         let session = self
             .session_manager
-            .import_session(&req.data, None)
+            .import_session(&data, session_type)
             .await
             .internal_err()?;
 
@@ -115,6 +155,69 @@ impl GooseAcpAgent {
             updated_at: Some(session.updated_at.to_rfc3339()),
             message_count: msg_count,
         })
+    }
+
+    pub(super) async fn on_share_session_nostr(
+        &self,
+        req: ShareSessionNostrRequest,
+    ) -> Result<ShareSessionNostrResponse, agent_client_protocol::Error> {
+        let data = self
+            .session_manager
+            .export_session(&req.session_id)
+            .await
+            .internal_err()?;
+
+        let share = publish_session_to_nostr(&data, req.relays).await?;
+
+        Ok(ShareSessionNostrResponse {
+            deeplink: share.deeplink,
+            nevent: share.nevent,
+            event_id: share.event_id,
+            relays: share.relays,
+        })
+    }
+
+    pub(super) async fn on_get_session_info(
+        &self,
+        req: GetSessionInfoRequest,
+    ) -> Result<GetSessionInfoResponse, agent_client_protocol::Error> {
+        let session_id = req.session_id.trim();
+        if session_id.is_empty() {
+            return Err(
+                agent_client_protocol::Error::invalid_params().data("sessionId cannot be empty")
+            );
+        }
+
+        let session = self
+            .session_manager
+            .get_session(session_id, false)
+            .await
+            .map_err(|_| {
+                agent_client_protocol::Error::resource_not_found(Some(session_id.to_string()))
+                    .data(format!("Session not found: {}", session_id))
+            })?;
+
+        Ok(GetSessionInfoResponse {
+            session: build_session_info(session),
+        })
+    }
+
+    pub(super) async fn on_truncate_session_conversation(
+        &self,
+        req: TruncateSessionConversationRequest,
+    ) -> Result<EmptyResponse, agent_client_protocol::Error> {
+        let session_id = req.session_id.trim();
+        if session_id.is_empty() {
+            return Err(
+                agent_client_protocol::Error::invalid_params().data("sessionId cannot be empty")
+            );
+        }
+
+        self.session_manager
+            .truncate_conversation(session_id, req.truncate_from)
+            .await
+            .internal_err()?;
+        Ok(EmptyResponse {})
     }
 
     pub(super) async fn on_update_session_project(
@@ -154,7 +257,10 @@ impl GooseAcpAgent {
             .await
             .internal_err()?;
         self.sessions.lock().await.remove(&req.session_id);
-        let _ = self.agent_manager.remove_session(&req.session_id).await;
+        self.agent_manager
+            .remove_session_if_loaded(&req.session_id)
+            .await
+            .internal_err_ctx("Failed to remove in-memory agent")?;
         Ok(EmptyResponse {})
     }
 
@@ -170,4 +276,56 @@ impl GooseAcpAgent {
             .internal_err()?;
         Ok(EmptyResponse {})
     }
+}
+
+fn is_nostr_session_link(input: &str) -> bool {
+    input.trim_start().starts_with("goose://sessions/nostr")
+}
+
+#[cfg(feature = "nostr")]
+async fn import_nostr_session_json(deeplink: &str) -> Result<String, agent_client_protocol::Error> {
+    crate::session::nostr_share::import_session_json_from_deeplink(deeplink)
+        .await
+        .invalid_params_err()
+}
+
+#[cfg(not(feature = "nostr"))]
+async fn import_nostr_session_json(
+    _deeplink: &str,
+) -> Result<String, agent_client_protocol::Error> {
+    Err(agent_client_protocol::Error::invalid_params()
+        .data("Nostr session import is not available in this build"))
+}
+
+#[cfg(feature = "nostr")]
+async fn publish_session_to_nostr(
+    data: &str,
+    relays: Vec<String>,
+) -> Result<NostrSessionShare, agent_client_protocol::Error> {
+    let relays = crate::session::nostr_share::resolve_relays(relays, Config::global());
+    let share = crate::session::nostr_share::publish_session_json(data, relays)
+        .await
+        .internal_err()?;
+    Ok(NostrSessionShare {
+        deeplink: share.deeplink,
+        nevent: share.nevent,
+        event_id: share.event_id,
+        relays: share.relays,
+    })
+}
+
+#[cfg(not(feature = "nostr"))]
+async fn publish_session_to_nostr(
+    _data: &str,
+    _relays: Vec<String>,
+) -> Result<NostrSessionShare, agent_client_protocol::Error> {
+    Err(agent_client_protocol::Error::invalid_params()
+        .data("Nostr session sharing is not available in this build"))
+}
+
+struct NostrSessionShare {
+    deeplink: String,
+    nevent: String,
+    event_id: String,
+    relays: Vec<String>,
 }

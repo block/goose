@@ -1,17 +1,17 @@
 use super::api_client::{ApiClient, AuthMethod, AuthProvider};
 use super::base::{ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata};
-use super::errors::ProviderError;
 use super::openai_compatible::OpenAiCompatibleProvider;
 use super::xai::{XAI_API_HOST, XAI_DEFAULT_MODEL, XAI_KNOWN_MODELS};
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
 use anyhow::{anyhow, Result};
 use async_trait::async_trait;
 use axum::{extract::Query, response::Html, routing::get, Router};
 use base64::Engine;
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
+use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use sha2::Digest;
@@ -72,7 +72,7 @@ struct XaiAuthState {
 }
 
 impl XaiAuthState {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             oauth_mutex: TokioMutex::new(()),
             refresh_mutex: TokioMutex::new(()),
@@ -97,7 +97,7 @@ struct TokenData {
 }
 
 #[derive(Debug, Clone)]
-struct TokenCache {
+pub(crate) struct TokenCache {
     cache_path: PathBuf,
 }
 
@@ -106,7 +106,7 @@ fn get_cache_path() -> PathBuf {
 }
 
 impl TokenCache {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         let cache_path = get_cache_path();
         if let Some(parent) = cache_path.parent() {
             let _ = std::fs::create_dir_all(parent);
@@ -117,6 +117,9 @@ impl TokenCache {
     fn load(&self) -> Option<TokenData> {
         let contents = std::fs::read_to_string(&self.cache_path).ok()?;
         serde_json::from_str(&contents).ok()
+    }
+    pub(crate) fn has_token(&self) -> bool {
+        self.load().is_some()
     }
 
     fn save(&self, token_data: &TokenData) -> Result<()> {
@@ -700,20 +703,15 @@ impl Provider for XaiOAuthProvider {
         self.inner.get_name()
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.inner.get_model_config()
-    }
-
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         self.inner
-            .stream(model_config, session_id, system, messages, tools)
+            .stream(model_config, system, messages, tools)
             .await
     }
 
@@ -757,9 +755,7 @@ impl Provider for XaiOAuthProvider {
     }
 }
 
-impl ProviderDef for XaiOAuthProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for XaiOAuthProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             XAI_OAUTH_PROVIDER_NAME,
@@ -774,10 +770,14 @@ impl ProviderDef for XaiOAuthProvider {
             ],
         )
     }
+}
+
+impl ProviderDef for XaiOAuthProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async move {
             let config = crate::config::Config::global();
@@ -787,15 +787,16 @@ impl ProviderDef for XaiOAuthProvider {
 
             let auth_provider = Arc::new(XaiOAuthAuthProvider::new(XaiAuthState::instance()));
             let auth_for_client = Arc::clone(&auth_provider);
-            let api_client = ApiClient::new(
+            let api_client = ApiClient::new_with_tls(
                 host,
                 AuthMethod::Custom(Box::new(SharedAuthProvider(auth_for_client))),
-            )?;
+                tls_config,
+            )?
+            .with_request_builder(crate::session_context::session_id_request_builder());
 
             let inner = OpenAiCompatibleProvider::new(
                 XAI_OAUTH_PROVIDER_NAME.to_string(),
                 api_client,
-                model,
                 String::new(),
             );
 
@@ -804,10 +805,6 @@ impl ProviderDef for XaiOAuthProvider {
                 auth_provider,
             })
         })
-    }
-
-    fn inventory_configured() -> bool {
-        TokenCache::new().load().is_some()
     }
 }
 

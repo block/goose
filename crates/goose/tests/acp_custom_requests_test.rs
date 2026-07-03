@@ -2,19 +2,23 @@
 #[path = "acp_common_tests/mod.rs"]
 mod common_tests;
 
+use agent_client_protocol::schema::v1::{
+    ContentBlock, PromptRequest, SessionUpdate, StopReason, TextContent,
+};
 use common_tests::fixtures::server::AcpServerConnection;
 use common_tests::fixtures::{
     run_test, send_custom, Connection, PermissionDecision, Session, SessionData,
     TestConnectionConfig,
 };
 use goose::acp::server::AcpProviderFactory;
-use goose::model::ModelConfig;
 use goose::providers::base::{MessageStream, Provider};
-use goose::providers::errors::ProviderError;
+use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use goose_test_support::{EnforceSessionId, IgnoreSessionId};
 use serial_test::serial;
 use std::path::PathBuf;
 use std::sync::{Arc, LazyLock, Mutex};
+use std::time::Duration;
 
 use common_tests::fixtures::OpenAiFixture;
 
@@ -43,7 +47,6 @@ fn write_acp_global_config(contents: &str) -> PathBuf {
 
 struct MockProvider {
     name: String,
-    model_config: ModelConfig,
     recommended_models: Vec<String>,
     supported_models: Vec<String>,
 }
@@ -57,7 +60,6 @@ impl Provider for MockProvider {
     async fn stream(
         &self,
         _model_config: &ModelConfig,
-        _session_id: &str,
         _system: &str,
         _messages: &[goose::conversation::message::Message],
         _tools: &[rmcp::model::Tool],
@@ -65,11 +67,10 @@ impl Provider for MockProvider {
         unimplemented!()
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model_config.clone()
-    }
-
-    async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+    async fn fetch_recommended_models(
+        &self,
+        _toolshim: bool,
+    ) -> Result<Vec<String>, ProviderError> {
         Ok(self.recommended_models.clone())
     }
 
@@ -78,24 +79,86 @@ impl Provider for MockProvider {
     }
 }
 
-fn mock_provider_factory() -> AcpProviderFactory {
-    Arc::new(|provider_name, model_config, _extensions, _working_dir| {
-        Box::pin(async move {
-            let recommended_models = match provider_name.as_str() {
-                "anthropic" => vec![
-                    "claude-3-7-sonnet-latest".to_string(),
-                    "claude-3-5-haiku-latest".to_string(),
-                ],
-                _ => vec!["gpt-4o".to_string(), "o4-mini".to_string()],
+fn active_run_id_from_update(update: &SessionUpdate) -> Option<String> {
+    let SessionUpdate::SessionInfoUpdate(info) = update else {
+        return None;
+    };
+    info.meta
+        .as_ref()?
+        .get("goose")?
+        .get("activeRunId")?
+        .as_str()
+        .map(ToString::to_string)
+}
+
+fn queued_steer_message_ids(updates: &[SessionUpdate]) -> Vec<String> {
+    updates
+        .iter()
+        .filter_map(|update| {
+            let SessionUpdate::SessionInfoUpdate(info) = update else {
+                return None;
             };
-            Ok(Arc::new(MockProvider {
-                name: provider_name,
-                model_config,
-                supported_models: recommended_models.clone(),
-                recommended_models,
-            }) as Arc<dyn Provider>)
+            info.meta
+                .as_ref()?
+                .get("goose")?
+                .get("queuedSteer")?
+                .get("messageId")?
+                .as_str()
+                .map(ToString::to_string)
         })
-    })
+        .collect()
+}
+
+fn steer_chunk_message_ids(updates: &[SessionUpdate]) -> Vec<String> {
+    updates
+        .iter()
+        .filter_map(|update| {
+            let SessionUpdate::UserMessageChunk(chunk) = update else {
+                return None;
+            };
+            let goose = chunk.meta.as_ref()?.get("goose")?;
+            goose.get("steer")?.as_bool().filter(|b| *b)?;
+            goose.get("messageId")?.as_str().map(ToString::to_string)
+        })
+        .collect()
+}
+
+fn steer_chunk_texts(updates: &[SessionUpdate]) -> Vec<String> {
+    updates
+        .iter()
+        .filter_map(|update| {
+            // A steered message is a user message injected mid-run, so it must
+            // arrive as a UserMessageChunk (matching the replay path), never an
+            // AgentMessageChunk.
+            let SessionUpdate::UserMessageChunk(chunk) = update else {
+                return None;
+            };
+            let ContentBlock::Text(text) = &chunk.content else {
+                return None;
+            };
+            let is_steer = chunk
+                .meta
+                .as_ref()
+                .and_then(|m| m.get("goose"))
+                .and_then(|g| g.get("steer"))
+                .and_then(|s| s.as_bool())
+                .unwrap_or(false);
+            is_steer.then(|| text.text.clone())
+        })
+        .collect()
+}
+
+fn collect_agent_text(updates: &[SessionUpdate]) -> String {
+    updates
+        .iter()
+        .filter_map(|update| match update {
+            SessionUpdate::AgentMessageChunk(chunk) => match &chunk.content {
+                ContentBlock::Text(text) => Some(text.text.as_str()),
+                _ => None,
+            },
+            _ => None,
+        })
+        .collect()
 }
 
 #[test]
@@ -251,6 +314,90 @@ fn test_custom_get_extensions() {
 
 #[test]
 #[serial]
+fn test_custom_session_extensions_add_list_remove() {
+    let extension_name = "summarize";
+    let _guard = env_lock::lock_env([("EXTENSIONS", None::<&str>)]);
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let SessionData { session, .. } = conn.new_session().await.unwrap();
+        let session_id = session.session_id().0.clone();
+
+        let list_extension = || async {
+            let result = send_custom(
+                conn.cx(),
+                "_goose/unstable/session/extensions/list",
+                serde_json::json!({ "sessionId": session_id.clone() }),
+            )
+            .await;
+            assert!(result.is_ok(), "expected ok, got: {:?}", result);
+
+            let response = result.unwrap();
+            let extensions = response
+                .get("extensions")
+                .and_then(|extensions| extensions.as_array())
+                .expect("extensions should be an array");
+            extensions
+                .iter()
+                .find(|extension| extension["name"] == extension_name)
+                .cloned()
+        };
+
+        assert!(
+            list_extension().await.is_none(),
+            "{extension_name} should not be enabled before add"
+        );
+
+        let add_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/session/extensions/add",
+            serde_json::json!({
+                "sessionId": session_id.clone(),
+                "extension": {
+                    "type": "platform",
+                    "name": extension_name,
+                    "description": "Load files/directories and get an LLM summary in a single call",
+                    "displayName": "Summarize",
+                    "bundled": true
+                }
+            }),
+        )
+        .await;
+        assert!(add_result.is_ok(), "expected ok, got: {:?}", add_result);
+
+        let extension = list_extension()
+            .await
+            .unwrap_or_else(|| panic!("missing added session extension"));
+        assert_eq!(extension["type"], "platform");
+        assert_eq!(extension["name"], extension_name);
+
+        let remove_result = send_custom(
+            conn.cx(),
+            "_goose/unstable/session/extensions/remove",
+            serde_json::json!({
+                "sessionId": session_id.clone(),
+                "name": extension_name,
+            }),
+        )
+        .await;
+        assert!(
+            remove_result.is_ok(),
+            "expected ok, got: {:?}",
+            remove_result
+        );
+
+        assert!(
+            list_extension().await.is_none(),
+            "removed session extension should not be listed"
+        );
+    });
+}
+
+#[test]
+#[serial]
 fn test_custom_get_available_extensions() {
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async move {
@@ -289,6 +436,215 @@ fn test_custom_get_available_extensions() {
                 extension["type"] == "platform" && extension["name"] == "orchestrator"
             }),
             "hidden orchestrator platform extension should not be available"
+        );
+    });
+}
+
+#[test]
+#[serial]
+fn test_custom_prompt_methods() {
+    let _guard = env_lock::lock_env([("EXTENSIONS", None::<&str>)]);
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+
+    run_test(async move {
+        let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
+        let conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let list_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/list",
+            serde_json::json!({}),
+        )
+        .await
+        .expect("list prompts should succeed");
+        let prompts = list_response["prompts"]
+            .as_array()
+            .expect("prompts should be an array");
+        assert!(
+            prompts.iter().any(|prompt| prompt["name"] == "system.md"),
+            "system.md should be listed"
+        );
+
+        let get_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/get",
+            serde_json::json!({ "name": "system.md" }),
+        )
+        .await
+        .expect("get prompt should succeed");
+        assert_eq!(get_response["name"], "system.md");
+        assert!(get_response["content"]
+            .as_str()
+            .is_some_and(|s| !s.is_empty()));
+        assert_eq!(get_response["isCustomized"], false);
+
+        let content = "custom acp system prompt";
+        let save_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/save",
+            serde_json::json!({ "name": "system.md", "content": content }),
+        )
+        .await
+        .expect("save prompt should succeed");
+        assert_eq!(save_response["message"], "Saved prompt: system.md");
+
+        let get_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/get",
+            serde_json::json!({ "name": "system.md" }),
+        )
+        .await
+        .expect("get saved prompt should succeed");
+        assert_eq!(get_response["content"], content);
+        assert_eq!(get_response["isCustomized"], true);
+
+        let reset_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/reset",
+            serde_json::json!({ "name": "system.md" }),
+        )
+        .await
+        .expect("reset prompt should succeed");
+        assert_eq!(
+            reset_response["message"],
+            "Reset prompt to default: system.md"
+        );
+
+        let get_response = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/get",
+            serde_json::json!({ "name": "system.md" }),
+        )
+        .await
+        .expect("get reset prompt should succeed");
+        assert_eq!(get_response["isCustomized"], false);
+        assert_ne!(get_response["content"], content);
+
+        let missing = send_custom(
+            conn.cx(),
+            "_goose/unstable/config/prompts/get",
+            serde_json::json!({ "name": "missing.md" }),
+        )
+        .await
+        .expect_err("unknown prompt should fail");
+        assert_eq!(
+            missing.code,
+            agent_client_protocol::ErrorCode::InvalidParams
+        );
+    });
+}
+
+#[test]
+#[serial]
+fn test_steer_session_adds_input_to_active_prompt() {
+    write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
+    run_test(async move {
+        // Two-turn exchange: the first turn ends the turn with plain text. A
+        // steer queued before the turn ends keeps the loop alive (it flips
+        // `exit_chat` back to false), so a second provider request fires whose
+        // body must now contain the steered text.
+        let openai = OpenAiFixture::new(
+            vec![
+                (
+                    "start work".to_string(),
+                    include_str!("acp_test_data/openai_steer_first.txt"),
+                ),
+                (
+                    "steer while active".to_string(),
+                    include_str!("acp_test_data/openai_steer_second.txt"),
+                ),
+            ],
+            Arc::new(IgnoreSessionId),
+        )
+        .await;
+        let mut conn = AcpServerConnection::new(TestConnectionConfig::default(), openai).await;
+
+        let SessionData { session, .. } = conn.new_session().await.unwrap();
+        let session_id = session.session_id().0.to_string();
+        let acp_session_id = session.session_id().clone();
+
+        let mut prompt = Box::pin(
+            conn.cx()
+                .send_request(PromptRequest::new(
+                    acp_session_id,
+                    vec![ContentBlock::Text(TextContent::new("start work"))],
+                ))
+                .block_task(),
+        );
+        let mut steer_sent = false;
+        let mut steer_message_id: Option<String> = None;
+        let mut final_response = None;
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(3);
+
+        while tokio::time::Instant::now() < deadline {
+            tokio::select! {
+                response = &mut prompt => {
+                    final_response = Some(response.unwrap());
+                    break;
+                }
+                _ = tokio::time::sleep(Duration::from_millis(10)), if !steer_sent => {
+                    let updates = session.session_updates();
+                    if let Some(run_id) = updates.iter().find_map(active_run_id_from_update) {
+                        let response = send_custom(
+                            conn.cx(),
+                            "_goose/unstable/session/steer",
+                            serde_json::json!({
+                                "sessionId": session_id,
+                                "expectedRunId": run_id,
+                                "prompt": [
+                                    { "type": "text", "text": "steer while active" }
+                                ]
+                            }),
+                        )
+                        .await
+                        .unwrap();
+                        assert_eq!(response["runId"], run_id);
+                        let mid = response["messageId"].as_str();
+                        assert!(
+                            mid.is_some_and(|id| !id.is_empty()),
+                            "steer response must return a messageId for correlation, got: {response:?}"
+                        );
+                        steer_message_id = mid.map(ToString::to_string);
+                        steer_sent = true;
+                    }
+                }
+            }
+        }
+
+        let response = final_response.expect("prompt did not complete");
+        assert_eq!(response.stop_reason, StopReason::EndTurn);
+        assert!(steer_sent, "test never observed an active run id");
+
+        let updates = session.session_updates();
+        let agent_text = collect_agent_text(&updates);
+        assert!(
+            agent_text.contains("saw steer"),
+            "expected provider to receive steered input, got: {agent_text:?}"
+        );
+
+        // The echoed steer prompt must be marked structurally so the client
+        // can locate the boundary without matching user-visible text.
+        let steer_chunks = steer_chunk_texts(&updates);
+        assert!(
+            steer_chunks
+                .iter()
+                .any(|t| t.contains("steer while active")),
+            "expected a chunk marked _meta.goose.steer with the steer text, got: {steer_chunks:?}"
+        );
+
+        // The queued steer must be announced (so a UI can show it as pending)
+        // and carry the same messageId returned by the steer response and later
+        // stamped on the picked-up UserMessageChunk.
+        let steer_message_id = steer_message_id.expect("steer response had no messageId");
+        let queued_ids = queued_steer_message_ids(&updates);
+        assert!(
+            queued_ids.contains(&steer_message_id),
+            "expected a queuedSteer SessionInfoUpdate with messageId {steer_message_id:?}, got: {queued_ids:?}"
+        );
+        let picked_up_ids = steer_chunk_message_ids(&updates);
+        assert!(
+            picked_up_ids.contains(&steer_message_id),
+            "picked-up steer chunk must carry the queued messageId {steer_message_id:?} for correlation, got: {picked_up_ids:?}"
         );
     });
 }
@@ -366,7 +722,7 @@ fn test_custom_provider_inventory_includes_metadata() {
 #[serial]
 fn test_custom_preferences_read_save_remove() {
     let config_dir = write_acp_global_config(
-        "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_AUTO_COMPACT_THRESHOLD: 0.7\nVOICE_AUTO_SUBMIT_PHRASES: send it\n",
+        "GOOSE_MODEL: gpt-4o\nGOOSE_PROVIDER: openai\nGOOSE_AUTO_COMPACT_THRESHOLD: 0.7\nGOOSE_THINKING_EFFORT: high\nVOICE_AUTO_SUBMIT_PHRASES: send it\n",
     );
 
     run_test(async move {
@@ -383,6 +739,7 @@ fn test_custom_preferences_read_save_remove() {
             serde_json::json!({
                 "keys": [
                     "autoCompactThreshold",
+                    "gooseThinkingEffort",
                     "voiceAutoSubmitPhrases",
                     "voiceDictationPreferredMic"
                 ],
@@ -394,6 +751,7 @@ fn test_custom_preferences_read_save_remove() {
             response.get("values"),
             Some(&serde_json::json!([
                 { "key": "autoCompactThreshold", "value": 0.7 },
+                { "key": "gooseThinkingEffort", "value": "high" },
                 { "key": "voiceAutoSubmitPhrases", "value": "send it" },
                 { "key": "voiceDictationPreferredMic", "value": null },
             ]))
@@ -404,6 +762,7 @@ fn test_custom_preferences_read_save_remove() {
             "_goose/unstable/preferences/save",
             serde_json::json!({
                 "values": [
+                    { "key": "gooseThinkingEffort", "value": "disabled" },
                     { "key": "voiceDictationProvider", "value": "__disabled__" },
                     { "key": "voiceDictationPreferredMic", "value": "mic-1" }
                 ],
@@ -426,7 +785,7 @@ fn test_custom_preferences_read_save_remove() {
             conn.cx(),
             "_goose/unstable/preferences/read",
             serde_json::json!({
-                "keys": ["voiceDictationProvider", "voiceDictationPreferredMic"],
+                "keys": ["gooseThinkingEffort", "voiceDictationProvider", "voiceDictationPreferredMic"],
             }),
         )
         .await
@@ -434,6 +793,7 @@ fn test_custom_preferences_read_save_remove() {
         assert_eq!(
             response.get("values"),
             Some(&serde_json::json!([
+                { "key": "gooseThinkingEffort", "value": "off" },
                 { "key": "voiceDictationProvider", "value": null },
                 { "key": "voiceDictationPreferredMic", "value": "mic-1" },
             ]))
@@ -455,6 +815,12 @@ fn test_custom_preferences_save_rejects_invalid_values() {
             }),
             serde_json::json!({
                 "values": [{ "key": "autoCompactThreshold", "value": 1.1 }],
+            }),
+            serde_json::json!({
+                "values": [{ "key": "gooseThinkingEffort", "value": "bogus" }],
+            }),
+            serde_json::json!({
+                "values": [{ "key": "gooseThinkingEffort", "value": ["high"] }],
             }),
             serde_json::json!({
                 "values": [{ "key": "voiceAutoSubmitPhrases", "value": ["send"] }],
@@ -658,11 +1024,11 @@ fn test_raw_config_and_secret_methods_are_removed() {
 #[test]
 #[serial]
 fn test_provider_switching_updates_session_state() {
+    let _env = env_lock::lock_env([("ANTHROPIC_API_KEY", Some("test-key"))]);
     write_acp_global_config(DEFAULT_ACP_TEST_CONFIG);
     run_test(async {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let config = TestConnectionConfig {
-            provider_factory: Some(mock_provider_factory()),
             current_model: "gpt-4o".to_string(),
             ..Default::default()
         };
@@ -730,9 +1096,11 @@ fn test_developer_fs_requests_use_acp_session_id() {
             current_model: "gpt-4.1".to_string(),
             read_text_file: Some(Arc::new(move |req| {
                 *seen_session_id_clone.lock().unwrap() = Some(req.session_id.0.to_string());
-                Ok(agent_client_protocol::schema::ReadTextFileResponse::new(
-                    "test-read-content-12345",
-                ))
+                Ok(
+                    agent_client_protocol::schema::v1::ReadTextFileResponse::new(
+                        "test-read-content-12345",
+                    ),
+                )
             })),
             ..Default::default()
         };
@@ -765,11 +1133,10 @@ fn test_custom_provider_supported_models_lists_raw_provider_models() {
     run_test(async move {
         let openai = OpenAiFixture::new(vec![], Arc::new(EnforceSessionId::default())).await;
         let provider_factory: AcpProviderFactory =
-            Arc::new(|provider_name, model_config, _extensions, _working_dir| {
+            Arc::new(|provider_name, _extensions, _working_dir| {
                 Box::pin(async move {
                     Ok(Arc::new(MockProvider {
                         name: provider_name,
-                        model_config,
                         recommended_models: vec!["canonical-filtered-model".to_string()],
                         supported_models: vec![
                             "goose-claude-opus-4-8".to_string(),

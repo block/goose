@@ -157,15 +157,7 @@ pub async fn get_token_state(session_manager: &SessionManager, session_id: &str)
     session_manager
         .get_session(session_id, false)
         .await
-        .map(|session| TokenState {
-            input_tokens: session.input_tokens.unwrap_or(0),
-            output_tokens: session.output_tokens.unwrap_or(0),
-            total_tokens: session.total_tokens.unwrap_or(0),
-            accumulated_input_tokens: session.accumulated_input_tokens.unwrap_or(0),
-            accumulated_output_tokens: session.accumulated_output_tokens.unwrap_or(0),
-            accumulated_total_tokens: session.accumulated_total_tokens.unwrap_or(0),
-            accumulated_cost: session.accumulated_cost,
-        })
+        .map(|session| TokenState::from(&session))
         .inspect_err(|e| {
             tracing::warn!(
                 "Failed to fetch session token state for {}: {}",
@@ -356,6 +348,7 @@ pub async fn reply(
 
                             stream_event(MessageEvent::Message { message, token_state }, &tx, &cancel_token).await;
                         }
+                        Ok(Some(Ok(AgentEvent::Usage(_)))) => {}
                         Ok(Some(Ok(AgentEvent::HistoryReplaced(new_messages)))) => {
                             all_messages = new_messages.clone();
                             stream_event(MessageEvent::UpdateConversation {conversation: new_messages}, &tx, &cancel_token).await;
@@ -396,7 +389,7 @@ pub async fn reply(
         let session_duration = session_start.elapsed();
 
         if let Ok(session) = state.session_manager().get_session(&session_id, true).await {
-            let total_tokens = session.total_tokens.unwrap_or(0);
+            let total_tokens = session.usage.total_tokens.unwrap_or(0);
             tracing::info!(
                 monotonic_counter.goose.session_completions = 1,
                 session_type = "app",

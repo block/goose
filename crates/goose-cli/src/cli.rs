@@ -43,12 +43,28 @@ use tracing::warn;
 const GOOSE_SERVER_SECRET_KEY_ENV: &str = "GOOSE_SERVER__SECRET_KEY";
 
 fn generate_serve_secret_key() -> String {
-    use rand::distributions::{Alphanumeric, DistString};
+    use rand::distr::{Alphanumeric, SampleString};
 
     format!(
         "goose-acp-{}",
-        Alphanumeric.sample_string(&mut rand::thread_rng(), 32)
+        Alphanumeric.sample_string(&mut rand::rng(), 32)
     )
+}
+
+#[derive(clap::ValueEnum, Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum ServePlatform {
+    #[default]
+    Cli,
+    Desktop,
+}
+
+impl From<ServePlatform> for GoosePlatform {
+    fn from(platform: ServePlatform) -> Self {
+        match platform {
+            ServePlatform::Cli => GoosePlatform::GooseCli,
+            ServePlatform::Desktop => GoosePlatform::GooseDesktop,
+        }
+    }
 }
 
 #[derive(Parser)]
@@ -75,7 +91,7 @@ pub struct Identifier {
         alias = "id",
         value_name = "SESSION_ID",
         help = "Session ID (e.g., '20250921_143022')",
-        long_help = "Specify a session ID directly. When used with --resume, will resume this specific session if it exists."
+        long_help = "Specify a session ID to resume. Requires --resume."
     )]
     pub session_id: Option<String>,
 
@@ -360,6 +376,13 @@ pub struct RunBehavior {
     )]
     pub resume: bool,
 
+    /// Print generation statistics after completion
+    #[arg(
+        long = "stats",
+        help = "Print generation statistics after the run completes"
+    )]
+    pub stats: bool,
+
     /// Scheduled job ID (used internally for scheduled executions)
     #[arg(
         long = "scheduled-job-id",
@@ -573,11 +596,9 @@ enum SessionCommand {
     },
     #[command(name = "diagnostics")]
     Diagnostics {
-        /// Session identifier for generating diagnostics
         #[command(flatten)]
         identifier: Option<Identifier>,
 
-        /// Output path for the diagnostics zip file (optional, defaults to current directory)
         #[arg(short = 'o', long)]
         output: Option<PathBuf>,
     },
@@ -826,6 +847,18 @@ enum Command {
         #[arg(long, default_value = "3284")]
         port: u16,
 
+        #[arg(long, help = "Serve ACP over TLS")]
+        tls: bool,
+
+        #[arg(long = "tls-cert-path", value_name = "PATH")]
+        tls_cert_path: Option<String>,
+
+        #[arg(long = "tls-key-path", value_name = "PATH")]
+        tls_key_path: Option<String>,
+
+        #[arg(long, value_enum, default_value_t = ServePlatform::Cli)]
+        platform: ServePlatform,
+
         #[arg(
             long = "with-builtin",
             value_name = "NAME",
@@ -835,6 +868,20 @@ enum Command {
             action = clap::ArgAction::Append
         )]
         builtins: Vec<String>,
+
+        #[arg(
+            long = "dangerously-unauthenticated",
+            help = "Start the ACP endpoint without requiring GOOSE_SERVER__SECRET_KEY"
+        )]
+        dangerously_unauthenticated: bool,
+
+        #[arg(
+            long = "allowed-origin",
+            value_name = "ORIGIN",
+            action = clap::ArgAction::Append,
+            help = "Allow an exact Origin value for ACP CORS; may be specified multiple times and replaces the default loopback origins"
+        )]
+        allowed_origins: Vec<String>,
     },
 
     /// Start or resume interactive chat sessions
@@ -866,6 +913,15 @@ enum Command {
             long_help = "Create a new session by copying all messages from a previous session. Must be used with --resume. If --name or --session-id is provided, forks that specific session. Otherwise, forks the most recently used session."
         )]
         fork: bool,
+
+        /// Open the session's conversation in $EDITOR before starting
+        #[arg(
+            long,
+            requires = "resume",
+            help = "Edit the session conversation in $EDITOR before starting",
+            long_help = "Open the session's conversation in your editor ($VISUAL / $EDITOR / vi) for modification before resuming. When combined with --fork, creates a new session from the edited result."
+        )]
+        edit: bool,
 
         /// Show message history when resuming
         #[arg(
@@ -1128,7 +1184,6 @@ enum Command {
         #[arg(long = "severity", value_name = "LEVEL", default_value = "medium")]
         severity: String,
     },
-
     #[command(
         name = "validate-extensions",
         about = "Validate a bundled-extensions.json file",
@@ -1143,8 +1198,8 @@ enum Command {
 #[cfg(feature = "local-inference")]
 #[derive(Subcommand)]
 enum LocalModelsCommand {
-    /// Search HuggingFace for GGUF models
-    #[command(about = "Search HuggingFace for GGUF models")]
+    /// Search HuggingFace for local models
+    #[command(about = "Search HuggingFace for local GGUF and MLX models")]
     Search {
         /// Search query
         query: String,
@@ -1155,9 +1210,9 @@ enum LocalModelsCommand {
     },
 
     /// Download a model from HuggingFace
-    #[command(about = "Download a GGUF model (e.g. bartowski/Llama-3.2-1B-Instruct-GGUF:Q4_K_M)")]
+    #[command(about = "Download a local model from a search result")]
     Download {
-        /// Model spec in user/repo:quantization format
+        /// Model spec/download id, e.g. user/repo:Q4_K_M or user/repo
         spec: String,
     },
 
@@ -1320,13 +1375,39 @@ async fn handle_mcp_command(server: McpCommand) -> Result<()> {
     Ok(())
 }
 
-async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) -> Result<()> {
+struct ServeCommandArgs {
+    host: String,
+
+    port: u16,
+    tls: bool,
+    tls_cert_path: Option<String>,
+    tls_key_path: Option<String>,
+    platform: ServePlatform,
+    builtins: Vec<String>,
+    dangerously_unauthenticated: bool,
+    allowed_origins: Vec<String>,
+}
+
+async fn handle_serve_command(args: ServeCommandArgs) -> Result<()> {
+    use axum::http::HeaderValue;
     use goose::acp::server_factory::{AcpServer, AcpServerFactoryConfig};
     use goose::acp::transport::create_router;
     use goose::config::paths::Paths;
     use std::net::SocketAddr;
     use std::sync::Arc;
-    use tracing::info;
+    use tracing::{info, warn};
+
+    let ServeCommandArgs {
+        host,
+        port,
+        tls,
+        tls_cert_path,
+        tls_key_path,
+        platform,
+        builtins,
+        dangerously_unauthenticated,
+        allowed_origins,
+    } = args;
 
     let builtins = if builtins.is_empty() {
         vec!["developer".to_string()]
@@ -1350,25 +1431,94 @@ async fn handle_serve_command(host: String, port: u16, builtins: Vec<String>) ->
         builtins,
         data_dir: Paths::data_dir(),
         config_dir: Paths::config_dir(),
-        goose_platform: GoosePlatform::GooseCli,
+        goose_platform: platform.into(),
         additional_source_roots,
+        scheduler: None,
     }));
-    let secret_key = std::env::var(GOOSE_SERVER_SECRET_KEY_ENV)
+    let env_secret = std::env::var(GOOSE_SERVER_SECRET_KEY_ENV)
         .ok()
         .map(|secret| secret.trim().to_string())
-        .filter(|secret| !secret.is_empty())
-        .unwrap_or_else(generate_serve_secret_key);
-    let router = create_router(server, secret_key);
+        .filter(|secret| !secret.is_empty());
+    let require_token = env_secret.is_some();
+    if !require_token && !dangerously_unauthenticated {
+        anyhow::bail!(
+            "{GOOSE_SERVER_SECRET_KEY_ENV} must be set to start `goose serve`; pass --dangerously-unauthenticated to run without ACP authentication"
+        );
+    }
+    if dangerously_unauthenticated && !require_token {
+        warn!(
+            "{GOOSE_SERVER_SECRET_KEY_ENV} is not set and --dangerously-unauthenticated was passed; the ACP endpoint will accept unauthenticated connections"
+        );
+    }
+    let additional_allowed_origins = allowed_origins
+        .into_iter()
+        .map(|origin| {
+            let origin = origin.trim();
+            if origin.is_empty() || origin == "*" {
+                anyhow::bail!("--allowed-origin must be a non-wildcard Origin value");
+            }
+            HeaderValue::from_str(origin).map_err(|error| {
+                anyhow::anyhow!("invalid --allowed-origin value `{origin}`: {error}")
+            })
+        })
+        .collect::<Result<Vec<_>>>()?;
+    let secret_key = env_secret.unwrap_or_else(generate_serve_secret_key);
+    let router = create_router(
+        server,
+        secret_key,
+        require_token,
+        additional_allowed_origins,
+    );
+
+    let config = Config::global();
+    let tls_cert_path =
+        tls_cert_path.or_else(|| config.get_param::<String>("GOOSE_TLS_CERT_PATH").ok());
+    let tls_key_path =
+        tls_key_path.or_else(|| config.get_param::<String>("GOOSE_TLS_KEY_PATH").ok());
+    let tls = tls
+        || config.get_param::<bool>("GOOSE_TLS").unwrap_or(false)
+        || tls_cert_path.is_some()
+        || tls_key_path.is_some();
 
     let addr: SocketAddr = format!("{}:{}", host, port).parse()?;
-    info!("Starting ACP server on {}", addr);
+    if tls {
+        #[cfg(any(feature = "rustls-tls", feature = "native-tls"))]
+        {
+            let tls_setup = goose::acp::transport::tls::setup_tls(
+                tls_cert_path.as_deref(),
+                tls_key_path.as_deref(),
+            )
+            .await?;
+            info!("Starting ACP server on https://{}", addr);
 
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(
-        listener,
-        router.into_make_service_with_connect_info::<SocketAddr>(),
-    )
-    .await?;
+            #[cfg(feature = "rustls-tls")]
+            axum_server::bind_rustls(addr, tls_setup.config)
+                .serve(router.into_make_service_with_connect_info::<SocketAddr>())
+                .await?;
+
+            #[cfg(feature = "native-tls")]
+            axum_server::bind_openssl(addr, tls_setup.config)
+                .serve(router.into_make_service_with_connect_info::<SocketAddr>())
+                .await?;
+        }
+
+        #[cfg(not(any(feature = "rustls-tls", feature = "native-tls")))]
+        {
+            let _ = (tls_cert_path, tls_key_path);
+            anyhow::bail!(
+                "TLS was requested but no TLS backend is enabled. \
+                 Enable the `rustls-tls` or `native-tls` feature."
+            );
+        }
+    } else {
+        info!("Starting ACP server on http://{}", addr);
+        let listener = tokio::net::TcpListener::bind(addr).await?;
+        axum::serve(
+            listener,
+            router.into_make_service_with_connect_info::<SocketAddr>(),
+        )
+        .await?;
+    }
 
     Ok(())
 }
@@ -1453,6 +1603,7 @@ async fn handle_interactive_session(
     identifier: Option<Identifier>,
     resume: bool,
     fork: bool,
+    edit: bool,
     history: bool,
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
@@ -1492,12 +1643,31 @@ async fn handle_interactive_session(
     let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
     let mut session_id = get_or_create_session_id(identifier, resume, false, goose_mode).await?;
 
-    if fork {
-        if let Some(id) = session_id {
+    if edit || fork {
+        if let Some(ref id) = session_id {
             let session_manager = SessionManager::instance();
-            let original = session_manager.get_session(&id, false).await?;
-            let copied = session_manager.copy_session(&id, original.name).await?;
-            session_id = Some(copied.id);
+            let original = session_manager.get_session(id, true).await?;
+
+            let target_id = if fork {
+                let copied = session_manager
+                    .copy_session(id, original.name.clone())
+                    .await?;
+                let copied_id = copied.id.clone();
+                session_id = Some(copied.id);
+                copied_id
+            } else {
+                id.clone()
+            };
+
+            if edit {
+                let conversation = original
+                    .conversation
+                    .ok_or_else(|| anyhow::anyhow!("session has no messages to edit"))?;
+                let edited = crate::session::editor::edit_conversation(&conversation)?;
+                session_manager
+                    .replace_conversation(&target_id, &edited)
+                    .await?;
+            }
         }
     }
 
@@ -1522,6 +1692,7 @@ async fn handle_interactive_session(
         quiet: false,
         output_format: "text".to_string(),
         container: session_opts.container.map(Container::new),
+        stats: false,
     })
     .await;
 
@@ -1546,7 +1717,7 @@ async fn log_session_completion(
     let (total_tokens, message_count) = session
         .get_session()
         .await
-        .map(|m| (m.total_tokens.unwrap_or(0), m.message_count))
+        .map(|m| (m.usage.total_tokens.unwrap_or(0), m.message_count))
         .unwrap_or((0, 0));
 
     tracing::info!(
@@ -1734,6 +1905,7 @@ async fn handle_run_command(
         quiet: output_opts.quiet,
         output_format: output_opts.output_format,
         container: session_opts.container.map(Container::new),
+        stats: run_behavior.stats,
     })
     .await;
 
@@ -1842,19 +2014,39 @@ async fn handle_term_subcommand(command: TermCommand) -> Result<()> {
 }
 
 #[cfg(feature = "local-inference")]
+fn print_download_progress(manager: &goose::download_manager::DownloadManager) {
+    let Some(progress) = manager
+        .list_progress()
+        .into_iter()
+        .find(|progress| progress.status == goose::download_manager::DownloadStatus::Downloading)
+    else {
+        return;
+    };
+
+    print!(
+        "\r  {:.1}% ({:.0}MB / {:.0}MB)",
+        progress.progress_percent,
+        progress.bytes_downloaded as f64 / (1024.0 * 1024.0),
+        progress.total_bytes as f64 / (1024.0 * 1024.0),
+    );
+    use std::io::Write;
+    std::io::stdout().flush().ok();
+}
+
+#[cfg(feature = "local-inference")]
 async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> {
     use goose::providers::local_inference::hf_models;
-    use goose::providers::local_inference::local_model_registry::{
-        get_registry, mmproj_local_path, model_id_from_repo, LocalModelEntry,
-    };
+    use goose::providers::local_inference::local_model_registry::get_registry;
+
+    goose::providers::local_inference::configure_huggingface_auth();
 
     match command {
         LocalModelsCommand::Search { query, limit } => {
             println!("Searching HuggingFace for '{}'...", query);
-            let results = hf_models::search_gguf_models(&query, limit).await?;
+            let results = hf_models::search_local_models(&query, limit).await?;
 
             if results.is_empty() {
-                println!("No GGUF models found.");
+                println!("No compatible local models found.");
                 return Ok(());
             }
 
@@ -1863,131 +2055,68 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                     "\n{} (by {}) — {} downloads",
                     model.model_name, model.author, model.downloads
                 );
-                for file in &model.gguf_files {
-                    let size = if file.size_bytes > 0 {
+                for variant in &model.variants {
+                    let size = if variant.size_bytes > 0 {
                         format!(
                             "{:.1}GB",
-                            file.size_bytes as f64 / (1024.0 * 1024.0 * 1024.0)
+                            variant.size_bytes as f64 / (1024.0 * 1024.0 * 1024.0)
                         )
                     } else {
                         "unknown".to_string()
                     };
-                    println!("  {} — {}", file.quantization, size);
+                    let support = if variant.supported {
+                        String::new()
+                    } else {
+                        format!(
+                            " ({})",
+                            variant
+                                .unsupported_reason
+                                .as_deref()
+                                .unwrap_or("unsupported on this platform")
+                        )
+                    };
+                    println!(
+                        "  [{}] {} — {} — {}{}",
+                        variant.format, variant.label, size, variant.description, support
+                    );
+                    if variant.supported {
+                        println!(
+                            "    Download: goose local-models download '{}'",
+                            variant.download_id
+                        );
+                    }
                 }
-                println!(
-                    "  Download: goose local-models download {}:<quantization>",
-                    model.repo_id
-                );
             }
         }
         LocalModelsCommand::Download { spec } => {
             println!("Resolving {}...", spec);
-            let (repo_id, resolved) = hf_models::resolve_model_spec_full(&spec).await?;
-            if resolved.files.len() > 1 {
-                anyhow::bail!(
-                    "Model '{}' is sharded ({} files) — download it from the desktop UI",
-                    spec,
-                    resolved.files.len()
-                );
-            }
-            let mmproj = resolved.mmproj;
-            let file = resolved.files.into_iter().next().unwrap();
-            let model_id = model_id_from_repo(&repo_id, &file.quantization);
-            let local_path =
-                goose::config::paths::Paths::in_data_dir("models").join(&file.filename);
-            let mmproj_path = mmproj
-                .as_ref()
-                .map(|mmproj| mmproj_local_path(&repo_id, &mmproj.filename));
-            let mmproj_source_url = mmproj.as_ref().map(|mmproj| mmproj.download_url.clone());
-            let mmproj_size_bytes = mmproj.as_ref().map_or(0, |mmproj| mmproj.size_bytes);
-            let mut download_files = vec![(file.download_url.clone(), local_path.clone())];
-            if let Some(mmproj) = mmproj {
-                download_files.push((mmproj.download_url, mmproj_path.clone().unwrap()));
-            }
+            let manager = goose::download_manager::get_download_manager();
+            let resolve_task = hf_models::resolve_local_model_spec(&spec);
+            tokio::pin!(resolve_task);
+            let resolved = loop {
+                tokio::select! {
+                    result = &mut resolve_task => break result?,
+                    _ = tokio::time::sleep(std::time::Duration::from_millis(500)) => {
+                        print_download_progress(manager);
+                    }
+                }
+            };
+            let model_id = resolved.model_id();
+            let total_size = resolved.total_size();
 
             println!(
-                "Downloading {} ({})...",
+                "\nDownloaded {} ({}). Registering...",
                 model_id,
-                if file.size_bytes > 0 {
-                    format!(
-                        "{:.1}GB",
-                        file.size_bytes as f64 / (1024.0 * 1024.0 * 1024.0)
-                    )
+                if total_size > 0 {
+                    format!("{:.1}GB", total_size as f64 / (1024.0 * 1024.0 * 1024.0))
                 } else {
                     "unknown size".to_string()
                 }
             );
 
-            // Register
-            let entry = LocalModelEntry {
-                id: model_id.clone(),
-                repo_id: repo_id.clone(),
-                filename: file.filename.clone(),
-                quantization: file.quantization.clone(),
-                local_path: local_path.clone(),
-                source_url: file.download_url.clone(),
-                settings: Default::default(),
-                size_bytes: file.size_bytes,
-                mmproj_path,
-                mmproj_source_url,
-                mmproj_size_bytes,
-                mmproj_checked: true,
-                shard_files: vec![],
-            };
+            let model_id = hf_models::register_resolved_model(resolved, &spec)?;
 
-            {
-                let mut registry = get_registry()
-                    .lock()
-                    .map_err(|_| anyhow::anyhow!("Failed to acquire registry lock"))?;
-                registry.add_model(entry)?;
-            }
-
-            // Download
-            let manager = goose::download_manager::get_download_manager();
-            let hf_token = goose::providers::huggingface_auth::resolve_token_async()
-                .await
-                .ok()
-                .flatten();
-            manager
-                .download_model_sharded_with_bearer_token(
-                    format!("{}-model", model_id),
-                    download_files,
-                    file.size_bytes + mmproj_size_bytes,
-                    hf_token,
-                    None,
-                )
-                .await?;
-
-            // Poll progress
-            loop {
-                if let Some(progress) = manager.get_progress(&format!("{}-model", model_id)) {
-                    match progress.status {
-                        goose::download_manager::DownloadStatus::Downloading => {
-                            print!(
-                                "\r  {:.1}% ({:.0}MB / {:.0}MB)",
-                                progress.progress_percent,
-                                progress.bytes_downloaded as f64 / (1024.0 * 1024.0),
-                                progress.total_bytes as f64 / (1024.0 * 1024.0),
-                            );
-                            use std::io::Write;
-                            std::io::stdout().flush().ok();
-                        }
-                        goose::download_manager::DownloadStatus::Completed => {
-                            println!("\nDownloaded: {}", model_id);
-                            break;
-                        }
-                        goose::download_manager::DownloadStatus::Failed => {
-                            let err = progress.error.unwrap_or_default();
-                            anyhow::bail!("Download failed: {}", err);
-                        }
-                        goose::download_manager::DownloadStatus::Cancelled => {
-                            println!("\nDownload cancelled.");
-                            break;
-                        }
-                    }
-                }
-                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
-            }
+            println!("Registered: {}", model_id);
         }
         LocalModelsCommand::List => {
             let registry = get_registry()
@@ -2000,12 +2129,16 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 return Ok(());
             }
 
-            println!("{:<50} {:<10} Downloaded", "ID", "Quant");
-            println!("{}", "-".repeat(70));
+            println!(
+                "{:<50} {:<10} {:<12} Downloaded",
+                "ID", "Backend", "Variant"
+            );
+            println!("{}", "-".repeat(88));
             for m in models {
                 println!(
-                    "{:<50} {:<10} {}",
+                    "{:<50} {:<10} {:<12} {}",
                     m.id,
+                    m.backend_id.as_deref().unwrap_or("llamacpp"),
                     m.quantization,
                     if m.is_downloaded() { "✓" } else { "✗" }
                 );
@@ -2016,11 +2149,8 @@ async fn handle_local_models_command(command: LocalModelsCommand) -> Result<()> 
                 .lock()
                 .map_err(|_| anyhow::anyhow!("Failed to acquire registry lock"))?;
 
-            if let Some(entry) = registry.get_model(&id) {
-                if entry.local_path.exists() {
-                    std::fs::remove_file(&entry.local_path)?;
-                }
-                registry.remove_model(&id)?;
+            if registry.get_model(&id).is_some() {
+                registry.delete_model(&id)?;
                 println!("Deleted model: {}", id);
             } else {
                 println!("Model not found: {}", id);
@@ -2065,6 +2195,7 @@ async fn handle_default_session() -> Result<()> {
         quiet: false,
         output_format: "text".to_string(),
         container: None,
+        stats: false,
     })
     .await;
     session.interactive(None).await
@@ -2100,8 +2231,27 @@ pub async fn cli() -> anyhow::Result<()> {
         Some(Command::Serve {
             host,
             port,
+            tls,
+            tls_cert_path,
+            tls_key_path,
+            platform,
             builtins,
-        }) => handle_serve_command(host, port, builtins).await,
+            dangerously_unauthenticated,
+            allowed_origins,
+        }) => {
+            handle_serve_command(ServeCommandArgs {
+                host,
+                port,
+                tls,
+                tls_cert_path,
+                tls_key_path,
+                platform,
+                builtins,
+                dangerously_unauthenticated,
+                allowed_origins,
+            })
+            .await
+        }
         Some(Command::Session {
             command: Some(cmd), ..
         }) => handle_session_subcommand(cmd).await,
@@ -2110,6 +2260,7 @@ pub async fn cli() -> anyhow::Result<()> {
             identifier,
             resume,
             fork,
+            edit,
             history,
             session_opts,
             extension_opts,
@@ -2118,6 +2269,7 @@ pub async fn cli() -> anyhow::Result<()> {
                 identifier,
                 resume,
                 fork,
+                edit,
                 history,
                 session_opts,
                 extension_opts,
@@ -2282,5 +2434,135 @@ mod tests {
 
         let help = String::from_utf8(buffer).expect("utf8");
         assert!(help.contains("nu"));
+    }
+
+    #[test]
+    fn skills_command_accepts_list_subcommand() {
+        let cli = Cli::try_parse_from(["goose", "skills", "list"]).expect("parse failed");
+
+        match cli.command {
+            Some(Command::Skills {
+                command: SkillsCommand::List,
+            }) => {}
+            _ => panic!("expected skills list command"),
+        }
+    }
+
+    #[test]
+    fn serve_command_accepts_dangerously_unauthenticated_flag() {
+        let cli = Cli::try_parse_from([
+            "goose",
+            "serve",
+            "--dangerously-unauthenticated",
+            "--allowed-origin",
+            "app://localhost",
+            "--allowed-origin",
+            "https://app.example",
+        ])
+        .expect("parse failed");
+
+        match cli.command {
+            Some(Command::Serve {
+                dangerously_unauthenticated,
+                allowed_origins,
+                ..
+            }) => {
+                assert!(dangerously_unauthenticated);
+                assert_eq!(
+                    allowed_origins,
+                    vec!["app://localhost", "https://app.example"]
+                );
+            }
+            _ => panic!("expected serve command"),
+        }
+    }
+
+    #[test]
+    fn review_command_accepts_options() {
+        let cli = Cli::try_parse_from([
+            "goose",
+            "review",
+            "origin/main...HEAD",
+            "--prompt",
+            "REVIEW.md",
+            "--model",
+            "test-model",
+            "--provider",
+            "openai",
+            "--override-model",
+            "check-model",
+            "--turn-limit",
+            "4",
+            "--dry-run",
+            "--quiet",
+            "--no-orchestrate",
+            "--instructions",
+            "focus on correctness",
+            "--files",
+            "src/lib.rs",
+            "--check-filter",
+            "security",
+            "--check-scope",
+            ".agents",
+            "--checks-only",
+            "--summary-only",
+            "--severity",
+            "low",
+        ])
+        .expect("parse failed");
+
+        match cli.command {
+            Some(Command::Review {
+                range,
+                prompt,
+                model,
+                provider,
+                override_model,
+                turn_limit,
+                dry_run,
+                quiet,
+                no_orchestrate,
+                instructions,
+                files,
+                check_filter,
+                check_scope,
+                checks_only,
+                summary_only,
+                severity,
+            }) => {
+                assert_eq!(range.as_deref(), Some("origin/main...HEAD"));
+                assert_eq!(prompt.as_deref(), Some(std::path::Path::new("REVIEW.md")));
+                assert_eq!(model.as_deref(), Some("test-model"));
+                assert_eq!(provider.as_deref(), Some("openai"));
+                assert_eq!(override_model.as_deref(), Some("check-model"));
+                assert_eq!(turn_limit, Some(4));
+                assert!(dry_run);
+                assert!(quiet);
+                assert!(no_orchestrate);
+                assert_eq!(instructions.as_deref(), Some("focus on correctness"));
+                assert_eq!(files, vec!["src/lib.rs"]);
+                assert_eq!(check_filter, vec!["security"]);
+                assert_eq!(
+                    check_scope.as_deref(),
+                    Some(std::path::Path::new(".agents"))
+                );
+                assert!(checks_only);
+                assert!(summary_only);
+                assert_eq!(severity, "low");
+            }
+            _ => panic!("expected review command"),
+        }
+    }
+
+    #[cfg(feature = "tui")]
+    #[test]
+    fn tui_command_accepts_trailing_args() {
+        let cli =
+            Cli::try_parse_from(["goose", "tui", "--", "--theme", "dark"]).expect("parse failed");
+
+        match cli.command {
+            Some(Command::Tui { args }) => assert_eq!(args, vec!["--theme", "dark"]),
+            _ => panic!("expected tui command"),
+        }
     }
 }

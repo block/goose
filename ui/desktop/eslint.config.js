@@ -54,6 +54,9 @@ module.exports = [
         __dirname: 'readonly',
         require: 'readonly',
         module: 'readonly',
+        Buffer: 'readonly',
+        TextDecoder: 'readonly',
+        TextEncoder: 'readonly',
         // Browser globals
         window: 'readonly',
         document: 'readonly',
@@ -68,6 +71,7 @@ module.exports = [
         CustomEvent: 'readonly',
         HTMLElement: 'readonly',
         HTMLInputElement: 'readonly',
+        HTMLSelectElement: 'readonly',
         HTMLTextAreaElement: 'readonly',
         HTMLButtonElement: 'readonly',
         HTMLDivElement: 'readonly',

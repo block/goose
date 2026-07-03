@@ -1,8 +1,9 @@
 use super::{anthropic, google};
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
-use crate::providers::base::Usage;
 use anyhow::{Context, Result};
+use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+use goose_providers::formats::anthropic::AnthropicFormatOptions;
+use goose_providers::model::ModelConfig;
 use rmcp::model::Tool;
 use serde_json::Value;
 
@@ -10,12 +11,8 @@ use std::fmt;
 
 pub type StreamingMessageStream = std::pin::Pin<
     Box<
-        dyn futures::Stream<
-                Item = anyhow::Result<(
-                    Option<Message>,
-                    Option<crate::providers::base::ProviderUsage>,
-                )>,
-            > + Send
+        dyn futures::Stream<Item = anyhow::Result<(Option<Message>, Option<ProviderUsage>)>>
+            + Send
             + 'static,
     >,
 >;
@@ -224,7 +221,14 @@ fn create_anthropic_request(
     messages: &[Message],
     tools: &[Tool],
 ) -> Result<Value> {
-    let mut request = anthropic::create_request(model_config, system, messages, tools)?;
+    let mut request = anthropic::create_request(
+        "anthropic",
+        model_config,
+        system,
+        messages,
+        tools,
+        AnthropicFormatOptions::default(),
+    )?;
 
     let obj = request
         .as_object_mut()

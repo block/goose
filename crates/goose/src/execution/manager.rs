@@ -238,8 +238,21 @@ impl AgentManager {
 
         if agent.provider().await.is_err() {
             if let Some(provider) = &*self.default_provider.read().await {
+                let config = crate::config::Config::global();
+                let model_config = config
+                    .get_goose_provider()
+                    .ok()
+                    .zip(config.get_goose_model().ok())
+                    .and_then(|(provider_name, model_name)| {
+                        crate::model_config::model_config_from_user_config(
+                            &provider_name,
+                            &model_name,
+                        )
+                        .ok()
+                    })
+                    .unwrap_or_else(|| goose_providers::model::ModelConfig::new("unknown"));
                 agent
-                    .update_provider(Arc::clone(provider), session_id)
+                    .update_provider(Arc::clone(provider), model_config, session_id)
                     .await?;
                 provider
                     .update_mode(session_id, mode)
@@ -310,6 +323,21 @@ impl AgentManager {
         // HashMap doesn't grow unbounded.  Any caller still holding a
         // clone of the Arc keeps the underlying Mutex alive until it
         // releases its guard.
+        self.prune_creation_lock(session_id).await;
+        info!("Removed session {}", session_id);
+        Ok(())
+    }
+
+    /// Drops an in-memory agent when one is loaded for `session_id`.
+    pub async fn remove_session_if_loaded(&self, session_id: &str) -> Result<()> {
+        if let Some(token) = self.cancel_tokens.write().await.remove(session_id) {
+            token.cancel();
+        }
+        let mut sessions = self.sessions.write().await;
+        if sessions.pop(session_id).is_none() {
+            return Ok(());
+        }
+        drop(sessions);
         self.prune_creation_lock(session_id).await;
         info!("Removed session {}", session_id);
         Ok(())
@@ -472,6 +500,20 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn test_remove_session_if_loaded() {
+        let temp_dir = TempDir::new().unwrap();
+        let manager = create_test_manager(&temp_dir).await;
+        let session = String::from("remove-if-loaded-test");
+
+        manager.remove_session_if_loaded(&session).await.unwrap();
+
+        manager.get_or_create_agent(session.clone()).await.unwrap();
+        manager.remove_session_if_loaded(&session).await.unwrap();
+        assert!(!manager.has_session(&session).await);
+        manager.remove_session_if_loaded(&session).await.unwrap();
+    }
+
+    #[tokio::test]
     async fn test_concurrent_access() {
         let temp_dir = TempDir::new().unwrap();
         let manager = Arc::new(create_test_manager(&temp_dir).await);
@@ -609,9 +651,10 @@ mod tests {
         use rmcp::model::Tool;
 
         use crate::conversation::message::Message;
-        use crate::model::ModelConfig;
-        use crate::providers::base::{MessageStream, Provider, ProviderUsage, Usage};
-        use crate::providers::errors::ProviderError;
+        use crate::providers::base::{MessageStream, Provider};
+        use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
+        use goose_providers::errors::ProviderError;
+        use goose_providers::model::ModelConfig;
 
         struct FailingProvider;
 
@@ -621,14 +664,9 @@ mod tests {
                 "failing-test-provider"
             }
 
-            fn get_model_config(&self) -> ModelConfig {
-                ModelConfig::new_or_fail("test-model")
-            }
-
             async fn stream(
                 &self,
                 _model_config: &ModelConfig,
-                _session_id: &str,
                 _system: &str,
                 _messages: &[Message],
                 _tools: &[Tool],

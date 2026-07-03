@@ -1,6 +1,7 @@
 use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
-use crate::model::{ModelConfig, ThinkingEffort};
-use crate::providers::formats::openai;
+use goose_providers::formats::openai;
+use goose_providers::model::ModelConfig;
+use goose_providers::thinking::ThinkingEffort;
 use rmcp::model::Role;
 use serde_json::{json, Value};
 
@@ -104,6 +105,11 @@ pub fn apply_reasoning_config(payload: &mut Value, model_config: &ModelConfig) {
     };
 
     if let Some(obj) = payload.as_object_mut() {
+        if obj.contains_key("reasoning") {
+            obj.remove("reasoning_effort");
+            return;
+        }
+
         let clamped_effort = obj
             .remove("reasoning_effort")
             .and_then(|value| value.as_str().map(str::to_owned));
@@ -189,7 +195,7 @@ mod tests {
             "messages": [],
             "reasoning_effort": "high"
         });
-        let mut model_config = ModelConfig::new_or_fail("openai/gpt-5");
+        let mut model_config = ModelConfig::new("openai/gpt-5");
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("max"));
         model_config.request_params = Some(params);
@@ -201,12 +207,50 @@ mod tests {
     }
 
     #[test]
+    fn test_apply_reasoning_config_preserves_user_reasoning() {
+        let mut payload = json!({
+            "model": "openai/gpt-5",
+            "messages": [],
+            "reasoning": { "max_tokens": 2000 },
+            "reasoning_effort": "high"
+        });
+        let mut model_config = ModelConfig::new("openai/gpt-5");
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("high"));
+        model_config.request_params = Some(params);
+
+        apply_reasoning_config(&mut payload, &model_config);
+
+        assert_eq!(payload["reasoning"], json!({ "max_tokens": 2000 }));
+        assert!(payload.get("reasoning_effort").is_none());
+    }
+
+    #[test]
+    fn test_apply_reasoning_config_disables_reasoning_capable_model() {
+        let mut payload = json!({
+            "model": "google/gemini-2.5-flash",
+            "messages": []
+        });
+        // Reasoning-capable model (per canonical) with thinking explicitly off, as a
+        // fast-model config is built: OpenRouter must still emit the disable object.
+        let mut model_config = ModelConfig::new("google/gemini-2.5-flash");
+        model_config.reasoning = Some(true);
+        let mut params = HashMap::new();
+        params.insert("thinking_effort".to_string(), json!("off"));
+        model_config.request_params = Some(params);
+
+        apply_reasoning_config(&mut payload, &model_config);
+
+        assert_eq!(payload["reasoning"], json!({ "effort": "none" }));
+    }
+
+    #[test]
     fn test_apply_reasoning_config_uses_reasoning_metadata() {
         let mut payload = json!({
             "model": "x-ai/grok-4",
             "messages": []
         });
-        let mut model_config = ModelConfig::new_or_fail("x-ai/grok-4");
+        let mut model_config = ModelConfig::new("x-ai/grok-4");
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("high"));
         model_config.request_params = Some(params);
@@ -223,7 +267,7 @@ mod tests {
             "model": "anthropic/claude-sonnet-4",
             "messages": []
         });
-        let mut model_config = ModelConfig::new_or_fail("anthropic/claude-sonnet-4");
+        let mut model_config = ModelConfig::new("anthropic/claude-sonnet-4");
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("high"));
         model_config.request_params = Some(params);
@@ -239,7 +283,7 @@ mod tests {
             "model": "openai/gpt-4o",
             "messages": []
         });
-        let mut model_config = ModelConfig::new_or_fail("openai/gpt-4o");
+        let mut model_config = ModelConfig::new("openai/gpt-4o");
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("high"));
         model_config.request_params = Some(params);
@@ -256,7 +300,7 @@ mod tests {
             "model": "x-ai/grok-4",
             "messages": []
         });
-        let mut model_config = ModelConfig::new_or_fail("x-ai/grok-4");
+        let mut model_config = ModelConfig::new("x-ai/grok-4");
         let mut params = HashMap::new();
         params.insert("thinking_effort".to_string(), json!("off"));
         model_config.request_params = Some(params);

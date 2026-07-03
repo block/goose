@@ -6,7 +6,7 @@ const isLinuxVulkanBuild = process.env.GOOSE_DESKTOP_LINUX_VARIANT === 'vulkan';
 
 let cfg = {
   asar: true,
-  extraResource: ['src/bin', 'src/images'],
+  extraResource: ['src/bin', 'src/images', 'src/app-update.yml'],
   icon: 'src/images/icon',
   // Windows specific configuration
   win32: {
@@ -113,7 +113,6 @@ module.exports = {
           icon: 'src/images/icon.png',
           prefix: '/opt',
           ...(isLinuxVulkanBuild ? { requires: ['vulkan-loader'] } : {}),
-          fpm: ['--rpm-rpmbuild-define', '_build_id_links none'],
         },
       },
     },

@@ -12,7 +12,7 @@ use clap::Parser;
 use goose::providers::create_with_named_model;
 use goose_providers::canonical::{
     canonical_name, CanonicalModel, CanonicalModelRegistry, Limit, Modalities, Modality,
-    ModelMapping, Pricing,
+    ModelMapping, Pricing, ThinkingMode,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -321,7 +321,7 @@ impl MappingReport {
 
 fn data_file_path(filename: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../goose-providers/src/canonical/data")
+        .join("../goose-provider-types/src/canonical/data")
         .join(filename)
 }
 
@@ -344,6 +344,26 @@ async fn fetch_models_dev() -> Result<Value> {
 
 fn get_string(value: &Value, field: &str) -> Option<String> {
     value.get(field).and_then(|v| v.as_str()).map(String::from)
+}
+
+fn get_thinking_mode(canonical_id: &str, value: &Value) -> Option<ThinkingMode> {
+    value
+        .get("thinking_mode")
+        .and_then(|v| v.as_str())
+        .and_then(|mode| serde_json::from_value(Value::String(mode.to_string())).ok())
+        .or_else(|| inferred_thinking_mode(canonical_id))
+}
+
+fn inferred_thinking_mode(canonical_id: &str) -> Option<ThinkingMode> {
+    match canonical_id {
+        "anthropic/claude-fable-5" => Some(ThinkingMode::AlwaysOnAdaptive),
+        "anthropic/claude-opus-4.6" => Some(ThinkingMode::Adaptive),
+        "anthropic/claude-opus-4.7" => Some(ThinkingMode::Adaptive),
+        "anthropic/claude-opus-4.8" => Some(ThinkingMode::Adaptive),
+        "anthropic/claude-sonnet-4.6" => Some(ThinkingMode::Adaptive),
+        "anthropic/claude-sonnet-5" => Some(ThinkingMode::Adaptive),
+        _ => None,
+    }
 }
 
 fn parse_modalities(model_data: &Value, field: &str) -> Vec<Modality> {
@@ -412,6 +432,7 @@ fn process_model(
         family: get_string(model_data, "family"),
         attachment: model_data.get("attachment").and_then(|v| v.as_bool()),
         reasoning: model_data.get("reasoning").and_then(|v| v.as_bool()),
+        thinking_mode: get_thinking_mode(&canonical_id, model_data),
         tool_call: model_data
             .get("tool_call")
             .and_then(|v| v.as_bool())
@@ -497,6 +518,7 @@ fn collect_provider_metadata(
         println!("  Added {} ({}) - {} models", provider_id, npm, model_count);
     }
 
+    metadata_list.sort_by(|a, b| a.id.cmp(&b.id));
     metadata_list
 }
 
@@ -598,11 +620,11 @@ async fn build_canonical_models() -> Result<()> {
 
 async fn check_provider(
     provider_name: &str,
-    model_for_init: &str,
+    _model_for_init: &str,
 ) -> Result<(Vec<String>, Vec<ModelMapping>, Vec<String>)> {
     println!("Checking provider: {}", provider_name);
 
-    let provider = match create_with_named_model(provider_name, model_for_init, Vec::new()).await {
+    let provider = match create_with_named_model(provider_name, Vec::new()).await {
         Ok(p) => p,
         Err(e) => {
             println!("  ⚠ Failed to create provider: {}", e);
@@ -623,7 +645,7 @@ async fn check_provider(
         }
     };
 
-    let recommended_models = match provider.fetch_recommended_models().await {
+    let recommended_models = match provider.fetch_recommended_models(false).await {
         Ok(models) => {
             println!("  ✓ Found {} recommended models", models.len());
             models
@@ -722,6 +744,7 @@ mod tests {
                 family: None,
                 attachment: None,
                 reasoning: None,
+                thinking_mode: None,
                 tool_call: false,
                 temperature: None,
                 knowledge: None,

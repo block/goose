@@ -2,14 +2,18 @@ mod chat_history_search;
 mod diagnostics;
 pub mod extension_data;
 pub mod import_formats;
+mod last_message_snippet;
 mod legacy;
 #[cfg(feature = "nostr")]
 pub mod nostr_share;
 pub mod session_manager;
+mod session_naming;
 
 pub use diagnostics::{
     config_path, generate_diagnostics, get_system_info, latest_llm_log_path,
-    latest_server_log_path, read_capped, read_tail, SystemInfo,
+    latest_server_log_path, read_capped, read_tail, DiagnosticsConfig, DiagnosticsError,
+    DiagnosticsExtensions, DiagnosticsLevel, DiagnosticsLogs, DiagnosticsPrompt, DiagnosticsReport,
+    DiagnosticsScheduledRecipe, DiagnosticsTextFile, SystemInfo,
 };
 pub use extension_data::{EnabledExtensionsState, ExtensionData, ExtensionState, TodoState};
 pub use session_manager::{

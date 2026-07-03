@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MainPanelLayout } from '../Layout/MainPanelLayout';
 import { Button } from '../ui/button';
-import { Download, Play, Upload } from 'lucide-react';
-import { exportApp, GooseApp, importApp, listApps } from '../../api';
+import { AlertTriangle, Download, Play, Upload } from 'lucide-react';
+import type { GooseApp } from '../../types/apps';
+import { exportMcpApp, importMcpApp, listMcpApps } from '../../acp/mcp-apps';
 import { useChatContext } from '../../contexts/ChatContext';
 import { formatAppName } from '../../utils/conversionUtils';
 import { errorMessage } from '../../utils/conversionUtils';
+import { isRetiredGooseChatApp } from '../../utils/retiredApps';
 import { defineMessages, useIntl } from '../../i18n';
 
 const i18n = defineMessages({
@@ -51,6 +53,14 @@ const i18n = defineMessages({
     id: 'appsView.launch',
     defaultMessage: 'Launch',
   },
+  retiredChatApp: {
+    id: 'appsView.retiredChatApp',
+    defaultMessage: 'Chat app retired',
+  },
+  retiredChatAppDetail: {
+    id: 'appsView.retiredChatAppDetail',
+    defaultMessage: 'We removed this feature because MCP sampling is no longer supported.',
+  },
 });
 
 const GridLayout = ({ children }: { children: React.ReactNode }) => {
@@ -79,10 +89,7 @@ export default function AppsView() {
   useEffect(() => {
     const loadCachedApps = async () => {
       try {
-        const response = await listApps({
-          throwOnError: true,
-        });
-        const cachedApps = response.data?.apps || [];
+        const cachedApps = await listMcpApps();
         // Only show apps from the "apps" extension (vibe coded apps built by Goose)
         setApps(cachedApps.filter((a) => a.mcpServers?.includes('apps')));
       } catch (err) {
@@ -101,11 +108,7 @@ export default function AppsView() {
 
     const refreshApps = async () => {
       try {
-        const response = await listApps({
-          throwOnError: true,
-          query: { session_id: sessionId },
-        });
-        const freshApps = response.data?.apps || [];
+        const freshApps = await listMcpApps(sessionId);
         // Only show apps from the "apps" extension (vibe coded apps built by Goose)
         setApps(freshApps.filter((a) => a.mcpServers?.includes('apps')));
         setError(null);
@@ -134,13 +137,8 @@ export default function AppsView() {
 
         // Refresh apps list to get latest state
         if (eventSessionId) {
-          listApps({
-            throwOnError: false,
-            query: { session_id: eventSessionId },
-          }).then((response) => {
-            if (response.data?.apps) {
-              setApps(response.data.apps.filter((a) => a.mcpServers?.includes('apps')));
-            }
+          listMcpApps(eventSessionId).then((apps) => {
+            setApps(apps.filter((a) => a.mcpServers?.includes('apps')));
           });
         }
       }
@@ -155,11 +153,7 @@ export default function AppsView() {
 
     try {
       setLoading(true);
-      const response = await listApps({
-        throwOnError: true,
-        query: { session_id: sessionId },
-      });
-      const fetchedApps = response.data?.apps || [];
+      const fetchedApps = await listMcpApps(sessionId);
       // Only show apps from the "apps" extension (vibe coded apps built by Goose)
       setApps(fetchedApps.filter((a) => a.mcpServers?.includes('apps')));
       setError(null);
@@ -184,22 +178,16 @@ export default function AppsView() {
 
   const handleDownloadApp = async (app: GooseApp) => {
     try {
-      const response = await exportApp({
-        throwOnError: true,
-        path: { name: app.name },
-      });
-
-      if (response.data) {
-        const blob = new Blob([response.data as string], { type: 'text/html' });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${app.name}.html`;
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
-      }
+      const html = await exportMcpApp(app.name);
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${app.name}.html`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
     } catch (err) {
       console.error('Failed to export app:', err);
       setError(errorMessage(err, 'Failed to export app'));
@@ -218,15 +206,9 @@ export default function AppsView() {
 
     try {
       const text = await file.text();
-      await importApp({
-        throwOnError: true,
-        body: { html: text },
-      });
+      await importMcpApp(text);
 
-      const response = await listApps({
-        throwOnError: true,
-      });
-      const cachedApps = response.data?.apps || [];
+      const cachedApps = await listMcpApps();
       // Only show apps from the "apps" extension (vibe coded apps built by Goose)
       setApps(cachedApps.filter((a) => a.mcpServers?.includes('apps')));
       setError(null);
@@ -299,11 +281,25 @@ export default function AppsView() {
             <GridLayout>
               {apps.map((app) => {
                 const isCustomApp = app.mcpServers?.includes('apps') ?? false;
+                const retiredChatApp = isRetiredGooseChatApp(app);
                 return (
                   <div
                     key={`${app.uri}-${app.mcpServers?.join(',')}`}
                     className="flex flex-col p-4 border rounded-lg hover:border-border-primary transition-colors"
                   >
+                    {retiredChatApp && (
+                      <div className="mb-3 flex items-start gap-2 rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-100">
+                        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                        <div>
+                          <div className="font-medium">
+                            {intl.formatMessage(i18n.retiredChatApp)}
+                          </div>
+                          <p className="mt-1 text-xs leading-5">
+                            {intl.formatMessage(i18n.retiredChatAppDetail)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <div className="flex-1 mb-4">
                       <h3 className="font-medium text-text-primary mb-2">
                         {formatAppName(app.name)}
@@ -324,6 +320,7 @@ export default function AppsView() {
                         variant="default"
                         size="sm"
                         onClick={() => handleLaunchApp(app)}
+                        disabled={retiredChatApp}
                         className="flex items-center gap-2 flex-1"
                       >
                         <Play className="h-4 w-4" />

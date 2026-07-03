@@ -1,19 +1,19 @@
 use crate::config::paths::Paths;
 use crate::conversation::message::Message;
-use crate::model::ModelConfig;
+use crate::providers::api_client::RequestBuilderDecorator;
 use crate::providers::base::{
     ConfigKey, MessageStream, Provider, ProviderDef, ProviderMetadata,
     DEFAULT_PROVIDER_TIMEOUT_SECS,
 };
-use crate::providers::errors::ProviderError;
 use crate::providers::formats::google::{create_request, response_to_streaming_message};
 use crate::providers::google::GOOGLE_DOC_URL;
+use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 
 const GEMINI_OAUTH_DEFAULT_MODEL: &str = "gemini-3-flash-preview";
 const GEMINI_OAUTH_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash-lite";
 use crate::providers::retry::ProviderRetry;
-use crate::providers::utils::RequestLog;
-use crate::session_context::SESSION_ID_HEADER;
 use anyhow::{anyhow, Result};
 use async_stream::try_stream;
 use async_trait::async_trait;
@@ -22,7 +22,6 @@ use base64::Engine;
 use chrono::{DateTime, Utc};
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
-use reqwest::header::{HeaderName, HeaderValue};
 use rmcp::model::Tool;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -827,27 +826,28 @@ fn parse_retry_delay(body: &str) -> Option<Duration> {
 // Provider
 // ---------------------------------------------------------------------------
 
-#[derive(Debug, serde::Serialize)]
+#[derive(serde::Serialize)]
 pub struct GeminiOAuthProvider {
     #[serde(skip)]
     token_provider: Arc<GeminiOAuthTokenProvider>,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
+    #[serde(skip)]
+    request_builder: RequestBuilderDecorator,
 }
 
 impl GeminiOAuthProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(GEMINI_OAUTH_DEFAULT_FAST_MODEL, GEMINI_OAUTH_PROVIDER_NAME)?;
-
+    pub async fn from_env(
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let token_provider = Arc::new(GeminiOAuthTokenProvider::new(
             GeminiOAuthAuthState::instance(),
         ));
 
         Ok(Self {
             token_provider,
-            model,
             name: GEMINI_OAUTH_PROVIDER_NAME.to_string(),
+            request_builder: crate::session_context::session_id_request_builder(),
         })
     }
 
@@ -858,7 +858,6 @@ impl GeminiOAuthProvider {
 
     async fn post_stream(
         &self,
-        session_id: Option<&str>,
         model_name: &str,
         payload: &Value,
     ) -> Result<reqwest::Response, ProviderError> {
@@ -875,7 +874,7 @@ impl GeminiOAuthProvider {
             CODE_ASSIST_ENDPOINT, CODE_ASSIST_API_VERSION
         );
 
-        let mut request = HTTP_CLIENT
+        let request = HTTP_CLIENT
             .post(&url)
             .header(
                 "Authorization",
@@ -883,14 +882,8 @@ impl GeminiOAuthProvider {
             )
             .header("Content-Type", "application/json");
 
-        if let Some(session_id) = session_id.filter(|id| !id.is_empty()) {
-            if let Ok(val) = HeaderValue::from_str(session_id) {
-                request = request.header(HeaderName::from_static(SESSION_ID_HEADER), val);
-            }
-        }
-
-        let response = request
-            .json(&wrapped)
+        let response = (self.request_builder)(request.json(&wrapped))
+            .map_err(|e| ProviderError::ExecutionError(e.to_string()))?
             .send()
             .await
             .map_err(|e| ProviderError::RequestFailed(e.to_string()))?;
@@ -928,9 +921,7 @@ impl GeminiOAuthProvider {
     }
 }
 
-impl ProviderDef for GeminiOAuthProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for GeminiOAuthProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             GEMINI_OAUTH_PROVIDER_NAME,
@@ -947,13 +938,18 @@ impl ProviderDef for GeminiOAuthProvider {
                 false,
             )],
         )
+        .with_fast_model(GEMINI_OAUTH_DEFAULT_FAST_MODEL)
     }
+}
+
+impl ProviderDef for GeminiOAuthProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -961,10 +957,6 @@ impl ProviderDef for GeminiOAuthProvider {
 impl Provider for GeminiOAuthProvider {
     fn get_name(&self) -> &str {
         &self.name
-    }
-
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
     }
 
     async fn configure_oauth(&self) -> Result<(), ProviderError> {
@@ -985,19 +977,15 @@ impl Provider for GeminiOAuthProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let payload = create_request(model_config, system, messages, tools)?;
-        let mut log = RequestLog::start(model_config, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = self
-            .with_retry(|| async {
-                self.post_stream(Some(session_id), &model_config.model_name, &payload)
-                    .await
-            })
+            .with_retry(|| async { self.post_stream(&model_config.model_name, &payload).await })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
@@ -1015,9 +1003,10 @@ impl Provider for GeminiOAuthProvider {
             let message_stream = response_to_streaming_message(raw_lines);
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e|
-                    ProviderError::RequestFailed(format!("Stream decode error: {}", e))
-                )?;
+                let (message, usage) = message.map_err(|e| {
+                    e.downcast::<ProviderError>()
+                        .unwrap_or_else(ProviderError::stream_decode_error)
+                })?;
                 if message.is_some() || usage.is_some() {
                     log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
                 }

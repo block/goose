@@ -1,53 +1,31 @@
 use anyhow::Result;
-use std::sync::Once;
+use goose::providers::utils::init_goose_request_log;
+use std::sync::OnceLock;
 
 // Used to ensure we only set up tracing once
-static INIT: Once = Once::new();
+static INIT: OnceLock<Result<()>> = OnceLock::new();
 
 /// Sets up the logging infrastructure for the CLI.
 /// Logs go to a JSON file only (no console output).
-pub fn setup_logging(name: Option<&str>) -> Result<()> {
-    setup_logging_internal(name, false)
-}
+pub fn setup_logging(name: Option<&str>) -> &'static Result<()> {
+    INIT.get_or_init(|| {
+        use tracing_subscriber::util::SubscriberInitExt;
 
-fn setup_logging_internal(name: Option<&str>, force: bool) -> Result<()> {
-    let mut result = Ok(());
+        init_goose_request_log()?;
+        let config = goose::logging::LoggingConfig {
+            component: "cli",
+            name,
+            extra_directives: &["goose_cli=info"],
+            console: false,
+            json: true,
+        };
+        let subscriber = goose::logging::build_logging_subscriber(&config)?;
 
-    let mut setup = || {
-        result = (|| {
-            use tracing_subscriber::util::SubscriberInitExt;
-
-            let config = goose::logging::LoggingConfig {
-                component: "cli",
-                name,
-                extra_directives: &["goose_cli=info"],
-                console: false,
-                json: true,
-            };
-            let subscriber = goose::logging::build_logging_subscriber(&config)?;
-
-            if force {
-                let _guard = subscriber.set_default();
-                tracing::warn!("Test log entry from setup");
-                tracing::info!("Another test log entry from setup");
-                std::thread::sleep(std::time::Duration::from_millis(100));
-                Ok(())
-            } else {
-                subscriber
-                    .try_init()
-                    .map_err(|e| anyhow::anyhow!("Failed to set global subscriber: {}", e))?;
-                Ok(())
-            }
-        })();
-    };
-
-    if force {
-        setup();
-    } else {
-        INIT.call_once(setup);
-    }
-
-    result
+        subscriber
+            .try_init()
+            .map_err(|e| anyhow::anyhow!("Failed to set global subscriber: {}", e))?;
+        Ok(())
+    })
 }
 
 #[cfg(test)]

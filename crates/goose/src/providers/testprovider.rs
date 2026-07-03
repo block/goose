@@ -9,12 +9,13 @@ use std::sync::{Arc, Mutex};
 
 #[cfg(test)]
 use super::base::stream_from_single_message;
-use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata, ProviderUsage};
-use super::errors::ProviderError;
+use super::base::{MessageStream, Provider, ProviderDef, ProviderMetadata};
 use crate::conversation::message::{Message, ToolResponse};
-use crate::model::ModelConfig;
 use crate::utils::bytes_to_hex;
 use futures::future::BoxFuture;
+use goose_providers::conversation::token_usage::ProviderUsage;
+use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use rmcp::model::{CallToolResult, Tool};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -137,9 +138,7 @@ impl TestProvider {
     }
 }
 
-impl ProviderDef for TestProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for TestProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             Self::PROVIDER_NAME,
@@ -151,10 +150,14 @@ impl ProviderDef for TestProvider {
             vec![],
         )
     }
+}
+
+impl ProviderDef for TestProvider {
+    type Provider = Self;
 
     fn from_env(
-        _model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        _tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
         Box::pin(async { Err(anyhow!("TestProvider must be constructed explicitly")) })
     }
@@ -169,7 +172,6 @@ impl Provider for TestProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
@@ -178,9 +180,7 @@ impl Provider for TestProvider {
 
         if let Some(inner) = &self.inner {
             // Call inner provider's stream and collect it
-            let stream = inner
-                .stream(model_config, session_id, system, messages, tools)
-                .await?;
+            let stream = inner.stream(model_config, system, messages, tools).await?;
             let (message, usage) = super::base::collect_stream(stream).await?;
 
             let record = TestRecord {
@@ -215,24 +215,19 @@ impl Provider for TestProvider {
             }
         }
     }
-
-    fn get_model_config(&self) -> ModelConfig {
-        ModelConfig::new_or_fail("test-model")
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::conversation::message::{Message, MessageContent};
-    use crate::providers::base::{ProviderUsage, Usage};
     use chrono::Utc;
+    use goose_providers::conversation::token_usage::{ProviderUsage, Usage};
     use rmcp::model::{RawTextContent, Role, TextContent};
     use std::env;
 
     #[derive(Clone)]
     struct MockProvider {
-        model_config: ModelConfig,
         response: String,
     }
 
@@ -245,7 +240,6 @@ mod tests {
         async fn stream(
             &self,
             _model_config: &ModelConfig,
-            _session_id: &str,
             _system: &str,
             _messages: &[Message],
             _tools: &[Tool],
@@ -264,10 +258,6 @@ mod tests {
             let usage = ProviderUsage::new("mock-model".to_string(), Usage::default());
             Ok(stream_from_single_message(message, usage))
         }
-
-        fn get_model_config(&self) -> ModelConfig {
-            self.model_config.clone()
-        }
     }
 
     #[tokio::test]
@@ -279,22 +269,15 @@ mod tests {
         );
 
         let mock = Arc::new(MockProvider {
-            model_config: ModelConfig::new_or_fail("mock-model"),
             response: "Hello, world!".to_string(),
         });
 
         {
             let test_provider = TestProvider::new_recording(mock, &temp_file);
-            let model_config = test_provider.get_model_config();
+            let model_config = ModelConfig::new("test-model");
 
             let result = test_provider
-                .complete(
-                    &model_config,
-                    "test-session-id",
-                    "You are helpful",
-                    &[],
-                    &[],
-                )
+                .complete(&model_config, "You are helpful", &[], &[])
                 .await;
 
             assert!(result.is_ok());
@@ -310,16 +293,10 @@ mod tests {
 
         {
             let replay_provider = TestProvider::new_replaying(&temp_file).unwrap();
-            let model_config = replay_provider.get_model_config();
+            let model_config = ModelConfig::new("test-model");
 
             let result = replay_provider
-                .complete(
-                    &model_config,
-                    "test-session-id",
-                    "You are helpful",
-                    &[],
-                    &[],
-                )
+                .complete(&model_config, "You are helpful", &[], &[])
                 .await;
 
             assert!(result.is_ok());
@@ -342,16 +319,10 @@ mod tests {
         );
 
         let replay_provider = TestProvider::new_replaying(&temp_file).unwrap();
-        let model_config = replay_provider.get_model_config();
+        let model_config = ModelConfig::new("test-model");
 
         let result = replay_provider
-            .complete(
-                &model_config,
-                "test-session-id",
-                "Different system prompt",
-                &[],
-                &[],
-            )
+            .complete(&model_config, "Different system prompt", &[], &[])
             .await;
 
         assert!(result.is_err());

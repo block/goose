@@ -1,3 +1,11 @@
+pub mod registrations;
+mod resolver;
+
+pub use resolver::{
+    default_inventory_identity_resolver, InventoryConfiguredResolver, InventoryIdentityResolver,
+    InventoryRegistration, InventoryResolvers,
+};
+
 use super::base::{ConfigKey, ModelInfo, Provider, ProviderType};
 use super::canonical::{map_provider_name, map_to_canonical_model, CanonicalModelRegistry};
 use super::catalog::ProviderSetupCategory;
@@ -609,9 +617,11 @@ impl ProviderInventoryService {
                             .await
                         {
                             Ok(()) => {
-                                match AssertUnwindSafe(provider.fetch_recommended_models())
-                                    .catch_unwind()
-                                    .await
+                                match AssertUnwindSafe(provider.fetch_recommended_models(
+                                    crate::model_config::global_toolshim(),
+                                ))
+                                .catch_unwind()
+                                .await
                                 {
                                     Ok(Ok(models)) => Ok(models),
                                     Ok(Err(error)) => Err(anyhow::anyhow!(error.to_string())),

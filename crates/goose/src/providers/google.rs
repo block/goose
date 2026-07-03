@@ -1,20 +1,19 @@
 use super::api_client::{ApiClient, AuthMethod};
 use super::base::MessageStream;
-use super::errors::ProviderError;
 use super::openai_compatible::{handle_status, map_http_error_to_provider_error, sanitize_url};
 use super::retry::ProviderRetry;
-use super::utils::RequestLog;
 use crate::conversation::message::Message;
+use goose_providers::errors::ProviderError;
 
-use crate::model::ModelConfig;
 use crate::providers::base::{ConfigKey, Provider, ProviderDef, ProviderMetadata};
 use crate::providers::formats::google::{create_request, response_to_streaming_message};
-use crate::providers::inventory::{config_secret_value, InventoryIdentityInput};
 use anyhow::Result;
 use async_stream::try_stream;
 use async_trait::async_trait;
 use futures::future::BoxFuture;
 use futures::TryStreamExt;
+use goose_providers::model::ModelConfig;
+use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 use serde_json::Value;
 use std::io;
@@ -23,7 +22,7 @@ use tokio_stream::StreamExt;
 use tokio_util::codec::{FramedRead, LinesCodec};
 use tokio_util::io::StreamReader;
 
-const GOOGLE_PROVIDER_NAME: &str = "google";
+pub(crate) const GOOGLE_PROVIDER_NAME: &str = "google";
 pub const GOOGLE_API_HOST: &str = "https://generativelanguage.googleapis.com";
 pub const GOOGLE_DEFAULT_MODEL: &str = "gemini-2.5-pro";
 pub const GOOGLE_DEFAULT_FAST_MODEL: &str = "gemini-2.5-flash";
@@ -61,15 +60,14 @@ pub const GOOGLE_DOC_URL: &str = "https://ai.google.dev/gemini-api/docs/models";
 pub struct GoogleProvider {
     #[serde(skip)]
     api_client: ApiClient,
-    model: ModelConfig,
     #[serde(skip)]
     name: String,
 }
 
 impl GoogleProvider {
-    pub async fn from_env(model: ModelConfig) -> Result<Self> {
-        let model = model.with_fast(GOOGLE_DEFAULT_FAST_MODEL, GOOGLE_PROVIDER_NAME)?;
-
+    pub async fn from_env(
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    ) -> Result<Self> {
         let config = crate::config::Config::global();
         let api_key: String = config.get_secret("GOOGLE_API_KEY")?;
         let host: String = config
@@ -81,34 +79,28 @@ impl GoogleProvider {
             key: api_key,
         };
 
-        let api_client =
-            ApiClient::new(host, auth)?.with_header("Content-Type", "application/json")?;
+        let api_client = ApiClient::new_with_tls(host, auth, tls_config)?
+            .with_request_builder(crate::session_context::session_id_request_builder())
+            .with_header("Content-Type", "application/json")?;
 
         Ok(Self {
             api_client,
-            model,
             name: GOOGLE_PROVIDER_NAME.to_string(),
         })
     }
 
     async fn post_stream(
         &self,
-        session_id: Option<&str>,
         model_name: &str,
         payload: &Value,
     ) -> Result<reqwest::Response, ProviderError> {
         let path = format!("v1beta/models/{}:streamGenerateContent?alt=sse", model_name);
-        let response = self
-            .api_client
-            .response_post(session_id, &path, payload)
-            .await?;
+        let response = self.api_client.response_post(&path, payload).await?;
         handle_status(response).await
     }
 }
 
-impl ProviderDef for GoogleProvider {
-    type Provider = Self;
-
+impl goose_providers::base::ProviderDescriptor for GoogleProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             GOOGLE_PROVIDER_NAME,
@@ -122,6 +114,7 @@ impl ProviderDef for GoogleProvider {
                 ConfigKey::new("GOOGLE_HOST", false, false, Some(GOOGLE_API_HOST), false),
             ],
         )
+        .with_fast_model(GOOGLE_DEFAULT_FAST_MODEL)
         .with_setup_steps(vec![
             "Go to https://aistudio.google.com and sign in with your Google account",
             "Click 'Get API key' on the left sidebar",
@@ -129,33 +122,16 @@ impl ProviderDef for GoogleProvider {
             "Copy the key and paste it above",
         ])
     }
+}
+
+impl ProviderDef for GoogleProvider {
+    type Provider = Self;
 
     fn from_env(
-        model: ModelConfig,
         _extensions: Vec<crate::config::ExtensionConfig>,
+        tls_config: Option<crate::providers::api_client::TlsConfig>,
     ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(model))
-    }
-
-    fn supports_inventory_refresh() -> bool {
-        true
-    }
-
-    fn inventory_identity() -> Result<InventoryIdentityInput> {
-        let config = crate::config::Config::global();
-        let mut identity = InventoryIdentityInput::new(GOOGLE_PROVIDER_NAME, GOOGLE_PROVIDER_NAME)
-            .with_public(
-                "host",
-                config
-                    .get_param::<String>("GOOGLE_HOST")
-                    .unwrap_or_else(|_| GOOGLE_API_HOST.to_string()),
-            );
-
-        if let Some(api_key) = config_secret_value(config, "GOOGLE_API_KEY") {
-            identity = identity.with_secret("api_key", api_key);
-        }
-
-        Ok(identity)
+        Box::pin(Self::from_env(tls_config))
     }
 }
 
@@ -165,14 +141,10 @@ impl Provider for GoogleProvider {
         &self.name
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model.clone()
-    }
-
     async fn fetch_supported_models(&self) -> Result<Vec<String>, ProviderError> {
         let response = self
             .api_client
-            .request(None, "v1beta/models")
+            .request("v1beta/models")
             .response_get()
             .await?;
         let status = response.status();
@@ -204,19 +176,15 @@ impl Provider for GoogleProvider {
     async fn stream(
         &self,
         model_config: &ModelConfig,
-        session_id: &str,
         system: &str,
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
         let payload = create_request(model_config, system, messages, tools)?;
-        let mut log = RequestLog::start(model_config, &payload)?;
+        let mut log = start_log(model_config, &payload)?;
 
         let response = self
-            .with_retry(|| async {
-                self.post_stream(Some(session_id), &model_config.model_name, &payload)
-                    .await
-            })
+            .with_retry(|| async { self.post_stream(&model_config.model_name, &payload).await })
             .await
             .inspect_err(|e| {
                 let _ = log.error(e);
@@ -232,9 +200,10 @@ impl Provider for GoogleProvider {
             let message_stream = response_to_streaming_message(framed);
             pin!(message_stream);
             while let Some(message) = message_stream.next().await {
-                let (message, usage) = message.map_err(|e|
-                    ProviderError::RequestFailed(format!("Stream decode error: {}", e))
-                )?;
+                let (message, usage) = message.map_err(|e| {
+                    e.downcast::<ProviderError>()
+                        .unwrap_or_else(ProviderError::stream_decode_error)
+                })?;
                 if message.is_some() || usage.is_some() {
                     log.write(&message, usage.as_ref().map(|f| f.usage).as_ref())?;
                 }

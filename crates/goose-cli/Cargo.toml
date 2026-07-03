@@ -23,6 +23,7 @@ path = "src/bin/generate_manpages.rs"
 clap_mangen = { version = "0.3", default-features = false }
 goose = { path = "../goose", default-features = false }
 goose-mcp = { path = "../goose-mcp", default-features = false }
+goose-providers = { path = "../goose-providers", default-features = false }
 rmcp = { workspace = true }
 clap = { workspace = true }
 cliclack = { version = "0.5", default-features = false }
@@ -43,7 +44,7 @@ rustyline = { version = "18", default-features = false, features = ["custom-bind
 tracing = { workspace = true }
 chrono = { workspace = true }
 tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "json", "time"] }
-shlex = { version = "1.3", default-features = false, features = ["std"] }
+shlex = { version = "2.0", default-features = false, features = ["std"] }
 async-trait = { workspace = true }
 base64 = { workspace = true }
 regex = { workspace = true }
@@ -61,8 +62,9 @@ urlencoding = { workspace = true }
 clap_complete = { version = "4", default-features = false }
 comfy-table = { version = "7", default-features = false }
 sha2 = { workspace = true }
-sigstore-verify = { version = "0.8", default-features = false, optional = true }
+sigstore-verify = { version = "0.9", default-features = false, optional = true }
 axum.workspace = true
+axum-server = { version = "0.8", default-features = false, optional = true }
 clap_complete_nushell = { version = "4", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -87,6 +89,7 @@ local-inference = ["goose/local-inference"]
 aws-providers = ["goose/aws-providers"]
 cuda = ["goose/cuda", "local-inference"]
 vulkan = ["goose/vulkan", "local-inference"]
+mlx = ["goose/mlx", "local-inference"]
 telemetry = ["goose/telemetry"]
 nostr = ["goose/nostr"]
 otel = ["goose/otel"]
@@ -97,16 +100,22 @@ portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel", "tui"]
 # disables the update command
 disable-update = []
 rustls-tls = [
+    "dep:axum-server",
     "reqwest/rustls",
+    "axum-server/tls-rustls",
     "sigstore-verify?/rustls",
     "goose/rustls-tls",
     "goose-mcp/rustls-tls",
+    "goose-providers/rustls-tls",
 ]
 native-tls = [
+    "dep:axum-server",
     "reqwest/native-tls",
+    "axum-server/tls-openssl",
     "sigstore-verify?/native-tls",
     "goose/native-tls",
     "goose-mcp/native-tls",
+    "goose-providers/native-tls",
 ]
 
 [dev-dependencies]

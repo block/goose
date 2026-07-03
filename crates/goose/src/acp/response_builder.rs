@@ -1,13 +1,17 @@
-use crate::config::GooseMode;
+use crate::agents::ExtensionLoadResult;
+use crate::config::{Config, GooseMode};
 use crate::providers::inventory::{ProviderInventoryEntry, ProviderInventoryService};
 use crate::session::Session;
-use agent_client_protocol::schema::{
-    AvailableCommand, AvailableCommandInput, AvailableCommandsUpdate, ModelId, ModelInfo,
-    SessionConfigOption, SessionConfigOptionCategory, SessionConfigSelectOption, SessionId,
-    SessionMode, SessionModeId, SessionModeState, SessionModelState, SessionNotification,
-    SessionUpdate, UnstructuredCommandInput,
+use crate::slash_commands::types::{SlashCommandEntry, SlashCommandSource};
+use agent_client_protocol::schema::v1::{
+    AvailableCommand, AvailableCommandInput, AvailableCommandsUpdate, SessionConfigOption,
+    SessionConfigOptionCategory, SessionConfigSelectOption, SessionId, SessionInfo, SessionMode,
+    SessionModeId, SessionModeState, SessionNotification, SessionUpdate, UnstructuredCommandInput,
 };
 use agent_client_protocol::{Client, ConnectionTo};
+use goose_providers::model::ModelConfig;
+use goose_providers::thinking::ThinkingEffort;
+use serde::Serialize;
 use strum::{EnumMessage, VariantNames};
 
 use super::server::{build_usage_updates, DEFAULT_PROVIDER_ID, DEFAULT_PROVIDER_LABEL};
@@ -19,25 +23,137 @@ pub(super) fn session_provider_selection(session: &Session) -> &str {
         .unwrap_or(DEFAULT_PROVIDER_ID)
 }
 
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SessionMeta<'a> {
+    message_count: usize,
+    created_at: chrono::DateTime<chrono::Utc>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_message_at: Option<chrono::DateTime<chrono::Utc>>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    archived_at: Option<chrono::DateTime<chrono::Utc>>,
+    user_set_name: bool,
+    session_type: String,
+    has_recipe: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    project_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    provider_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    model_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    last_message_snippet: Option<&'a str>,
+}
+
+impl<'a> From<&'a Session> for SessionMeta<'a> {
+    fn from(session: &'a Session) -> Self {
+        Self {
+            message_count: session.message_count,
+            created_at: session.created_at,
+            last_message_at: session.last_message_at,
+            archived_at: session.archived_at,
+            user_set_name: session.user_set_name,
+            session_type: session.session_type.to_string(),
+            has_recipe: session.recipe.is_some(),
+            project_id: session.project_id.as_deref(),
+            provider_id: session.provider_name.as_deref(),
+            model_id: session
+                .model_config
+                .as_ref()
+                .map(|mc| mc.model_name.as_str()),
+            last_message_snippet: session.last_message_snippet.as_deref(),
+        }
+    }
+}
+
+pub(super) fn session_meta(session: &Session) -> serde_json::Map<String, serde_json::Value> {
+    match serde_json::to_value(SessionMeta::from(session)) {
+        Ok(serde_json::Value::Object(meta)) => meta,
+        _ => serde_json::Map::new(),
+    }
+}
+
+pub(super) fn session_response_meta(
+    session: &Session,
+    extension_results: &[ExtensionLoadResult],
+) -> serde_json::Map<String, serde_json::Value> {
+    let mut meta = serde_json::Map::new();
+    if let Some(recipe) = &session.recipe {
+        if let Ok(v) = serde_json::to_value(recipe) {
+            meta.insert("recipe".to_string(), v);
+        }
+    }
+    if let Some(values) = &session.user_recipe_values {
+        if let Ok(v) = serde_json::to_value(values) {
+            meta.insert("userRecipeValues".to_string(), v);
+        }
+    }
+    if let Ok(v) = serde_json::to_value(extension_results) {
+        meta.insert("extensionResults".to_string(), v);
+    }
+    meta.insert(
+        "workingDir".to_string(),
+        serde_json::Value::String(session.working_dir.to_string_lossy().to_string()),
+    );
+    meta
+}
+
+pub(super) fn build_session_info(session: Session) -> SessionInfo {
+    let meta = session_meta(&session);
+    let mut info = SessionInfo::new(SessionId::new(session.id), session.working_dir)
+        .updated_at(session.updated_at.to_rfc3339())
+        .meta(meta);
+    if !session.name.is_empty() {
+        info = info.title(session.name);
+    }
+    info
+}
+
+/// A model and its label, used to build the "model" session config option.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ModelOption {
+    pub id: String,
+    pub name: String,
+}
+
+/// The currently selected model and the set of available models for a session.
+///
+/// Replaces the removed `SessionModelState` ACP schema type; goose now surfaces
+/// model selection through the generic session config option API.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct ModelSelection {
+    pub current_model_id: String,
+    pub available_models: Vec<ModelOption>,
+}
+
 pub(super) fn build_model_state(
     current_model: &str,
     inventory: &ProviderInventoryEntry,
-) -> SessionModelState {
+) -> ModelSelection {
     let mut available_models = inventory
         .models
         .iter()
-        .map(|model| ModelInfo::new(ModelId::new(model.id.as_str()), model.name.as_str()))
+        .map(|model| ModelOption {
+            id: model.id.clone(),
+            name: model.name.clone(),
+        })
         .collect::<Vec<_>>();
     if !available_models
         .iter()
-        .any(|model| model.model_id.0.as_ref() == current_model)
+        .any(|model| model.id == current_model)
     {
         available_models.insert(
             0,
-            ModelInfo::new(ModelId::new(current_model), current_model),
+            ModelOption {
+                id: current_model.to_string(),
+                name: current_model.to_string(),
+            },
         );
     }
-    SessionModelState::new(ModelId::new(current_model), available_models)
+    ModelSelection {
+        current_model_id: current_model.to_string(),
+        available_models,
+    }
 }
 
 struct ProviderOptionEntry {
@@ -118,27 +234,20 @@ pub(super) fn build_mode_state(
 pub(super) async fn build_session_setup_config(
     provider_inventory: &ProviderInventoryService,
     session: &Session,
-) -> Result<
-    (
-        SessionModeState,
-        Option<SessionModelState>,
-        Option<Vec<SessionConfigOption>>,
-    ),
-    agent_client_protocol::Error,
-> {
+) -> Result<(SessionModeState, Option<Vec<SessionConfigOption>>), agent_client_protocol::Error> {
     let mode_state = build_mode_state(session.goose_mode)?;
 
     let (Some(provider_name), Some(model_config)) = (
         session.provider_name.as_deref(),
         session.model_config.as_ref(),
     ) else {
-        return Ok((mode_state, None, None));
+        return Ok((mode_state, None));
     };
     let Some(inventory) = provider_inventory
         .find_entry_for_provider(provider_name)
         .await
     else {
-        return Ok((mode_state, None, None));
+        return Ok((mode_state, None));
     };
     let model_state = build_model_state(model_config.model_name.as_str(), &inventory);
     let provider_selection = session_provider_selection(session);
@@ -146,15 +255,17 @@ pub(super) async fn build_session_setup_config(
     let config_options = build_config_options(
         &mode_state,
         &model_state,
+        model_config,
         provider_selection,
         provider_options,
     );
-    Ok((mode_state, Some(model_state), Some(config_options)))
+    Ok((mode_state, Some(config_options)))
 }
 
 pub(super) fn build_config_options(
     mode_state: &SessionModeState,
-    model_state: &SessionModelState,
+    model_state: &ModelSelection,
+    model_config: &ModelConfig,
     provider_selection: &str,
     provider_options: Vec<SessionConfigSelectOption>,
 ) -> Vec<SessionConfigOption> {
@@ -169,8 +280,16 @@ pub(super) fn build_config_options(
     let model_options: Vec<SessionConfigSelectOption> = model_state
         .available_models
         .iter()
-        .map(|m| SessionConfigSelectOption::new(m.model_id.0.clone(), m.name.clone()))
+        .map(|m| SessionConfigSelectOption::new(m.id.clone(), m.name.clone()))
         .collect();
+    let thinking_effort_options = thinking_effort_values(model_config)
+        .iter()
+        .map(|effort| {
+            let effort = effort.to_string();
+            SessionConfigSelectOption::new(effort.clone(), effort)
+        })
+        .collect::<Vec<_>>();
+    let current_thinking_effort = current_thinking_effort_value(model_config);
     vec![
         SessionConfigOption::select(
             "provider",
@@ -188,28 +307,95 @@ pub(super) fn build_config_options(
         SessionConfigOption::select(
             "model",
             "Model",
-            model_state.current_model_id.0.clone(),
+            model_state.current_model_id.clone(),
             model_options,
         )
         .category(SessionConfigOptionCategory::Model),
+        SessionConfigOption::select(
+            "thinking_effort",
+            "Thinking effort",
+            current_thinking_effort,
+            thinking_effort_options,
+        )
+        .description("Controls reasoning effort for models that support extended thinking.")
+        .category(SessionConfigOptionCategory::ThoughtLevel),
     ]
 }
 
-fn available_commands_update(working_dir: &std::path::Path) -> AvailableCommandsUpdate {
-    let commands = crate::slash_commands::slash_command::list_acp_commands(Some(working_dir))
-        .into_iter()
-        .map(|entry| {
-            let mut command = AvailableCommand::new(entry.name, entry.description);
-            if let Some(input_hint) = entry.input_hint {
-                command = command.input(AvailableCommandInput::Unstructured(
-                    UnstructuredCommandInput::new(input_hint),
-                ));
-            }
-            command
-        })
-        .collect();
+fn thinking_effort_values(model_config: &ModelConfig) -> &'static [ThinkingEffort] {
+    if model_config.is_reasoning_model() {
+        &[
+            ThinkingEffort::Off,
+            ThinkingEffort::Low,
+            ThinkingEffort::Medium,
+            ThinkingEffort::High,
+            ThinkingEffort::Max,
+        ]
+    } else {
+        &[ThinkingEffort::Off]
+    }
+}
 
-    AvailableCommandsUpdate::new(commands)
+fn current_thinking_effort_value(model_config: &ModelConfig) -> String {
+    if model_config.is_reasoning_model() {
+        model_config
+            .thinking_effort()
+            .or_else(|| Config::global().get_goose_thinking_effort())
+            .map(|effort| effort.to_string())
+            .unwrap_or_else(|| "off".to_string())
+    } else {
+        "off".to_string()
+    }
+}
+
+fn slash_command_meta(entry: &SlashCommandEntry) -> serde_json::Map<String, serde_json::Value> {
+    let mut meta = serde_json::Map::new();
+    let command_type = match entry.source {
+        SlashCommandSource::Builtin => "Builtin",
+        SlashCommandSource::Recipe => "Recipe",
+        SlashCommandSource::Skill => "Skill",
+    };
+    meta.insert(
+        "commandType".to_string(),
+        serde_json::Value::String(command_type.to_string()),
+    );
+    if let Some(source_path) = &entry.source_path {
+        meta.insert(
+            "sourcePath".to_string(),
+            serde_json::Value::String(source_path.clone()),
+        );
+    }
+    meta
+}
+
+fn slash_command_to_available_command(entry: SlashCommandEntry) -> AvailableCommand {
+    let meta = slash_command_meta(&entry);
+    let mut command = AvailableCommand::new(entry.name, entry.description);
+    if let Some(input_hint) = entry.input_hint {
+        command = command.input(AvailableCommandInput::Unstructured(
+            UnstructuredCommandInput::new(input_hint),
+        ));
+    }
+    command.meta(meta)
+}
+
+pub(super) fn available_commands_for_working_dir(
+    working_dir: &std::path::Path,
+) -> Vec<AvailableCommand> {
+    available_commands_for_optional_working_dir(Some(working_dir))
+}
+
+pub(super) fn available_commands_for_optional_working_dir(
+    working_dir: Option<&std::path::Path>,
+) -> Vec<AvailableCommand> {
+    crate::slash_commands::slash_command::list_acp_commands(working_dir)
+        .into_iter()
+        .map(slash_command_to_available_command)
+        .collect()
+}
+
+fn available_commands_update(working_dir: &std::path::Path) -> AvailableCommandsUpdate {
+    AvailableCommandsUpdate::new(available_commands_for_working_dir(working_dir))
 }
 
 pub(super) fn send_session_setup_notifications(
@@ -236,27 +422,33 @@ pub(super) fn send_session_setup_notifications(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use agent_client_protocol::schema::v1::SessionConfigKind;
     use test_case::test_case;
+
+    fn model_selection(current: &str, models: &[&str]) -> ModelSelection {
+        ModelSelection {
+            current_model_id: current.to_string(),
+            available_models: models
+                .iter()
+                .map(|m| ModelOption {
+                    id: m.to_string(),
+                    name: m.to_string(),
+                })
+                .collect(),
+        }
+    }
 
     #[test_case(
         vec!["model-a".into(), "model-b".into()]
-        => SessionModelState::new(
-            ModelId::new("unused"),
-            vec![ModelInfo::new(ModelId::new("unused"), "unused"),
-                 ModelInfo::new(ModelId::new("model-a"), "model-a"),
-                 ModelInfo::new(ModelId::new("model-b"), "model-b")],
-        )
+        => model_selection("unused", &["unused", "model-a", "model-b"])
         ; "returns current and available models"
     )]
     #[test_case(
         vec![]
-        => SessionModelState::new(
-            ModelId::new("unused"),
-            vec![ModelInfo::new(ModelId::new("unused"), "unused")],
-        )
+        => model_selection("unused", &["unused"])
         ; "empty model list"
     )]
-    fn test_build_model_state(models: Vec<String>) -> SessionModelState {
+    fn test_build_model_state(models: Vec<String>) -> ModelSelection {
         let inventory = ProviderInventoryEntry {
             provider_id: "mock".to_string(),
             provider_name: "Mock".to_string(),
@@ -328,6 +520,49 @@ mod tests {
         build_mode_state(current_mode)
     }
 
+    #[test]
+    fn test_slash_command_to_available_command_maps_core_fields_to_acp() {
+        let cases = [
+            (SlashCommandSource::Builtin, "Builtin", None),
+            (
+                SlashCommandSource::Recipe,
+                "Recipe",
+                Some("/tmp/release.yaml".to_string()),
+            ),
+            (SlashCommandSource::Skill, "Skill", None),
+        ];
+
+        for (source, expected_command_type, expected_source_path) in cases {
+            let command = slash_command_to_available_command(SlashCommandEntry {
+                name: "release".to_string(),
+                description: "Run release workflow".to_string(),
+                source,
+                source_path: expected_source_path.clone(),
+                input_hint: Some("[task]".to_string()),
+            });
+
+            assert_eq!(command.name, "release");
+            assert_eq!(command.description, "Run release workflow");
+
+            match command.input.as_ref() {
+                Some(AvailableCommandInput::Unstructured(input)) => {
+                    assert_eq!(input.hint, "[task]");
+                }
+                other => panic!("unexpected command input: {other:?}"),
+            }
+
+            let meta = command.meta.as_ref().expect("command _meta");
+            let expected_command_type = serde_json::json!(expected_command_type);
+            assert_eq!(meta.get("commandType"), Some(&expected_command_type));
+            if let Some(source_path) = expected_source_path {
+                let expected_source_path = serde_json::json!(source_path);
+                assert_eq!(meta.get("sourcePath"), Some(&expected_source_path));
+            } else {
+                assert!(meta.get("sourcePath").is_none());
+            }
+        }
+    }
+
     #[test_case(
         build_mode_state(GooseMode::Auto).unwrap(),
         "openai",
@@ -335,10 +570,7 @@ mod tests {
             SessionConfigSelectOption::new("anthropic", "anthropic"),
             SessionConfigSelectOption::new("openai", "openai"),
         ],
-        SessionModelState::new(
-            ModelId::new("gpt-4"),
-            vec![ModelInfo::new(ModelId::new("gpt-4"), "gpt-4"), ModelInfo::new(ModelId::new("gpt-3.5"), "gpt-3.5")],
-        )
+        model_selection("gpt-4", &["gpt-4", "gpt-3.5"])
         => vec![
             SessionConfigOption::select(
                 "provider", "Provider", "openai",
@@ -363,6 +595,12 @@ mod tests {
                     SessionConfigSelectOption::new("gpt-3.5", "gpt-3.5"),
                 ],
             ).category(SessionConfigOptionCategory::Model),
+            SessionConfigOption::select(
+                "thinking_effort", "Thinking effort", "off",
+                vec![SessionConfigSelectOption::new("off", "off")],
+            )
+            .description("Controls reasoning effort for models that support extended thinking.")
+            .category(SessionConfigOptionCategory::ThoughtLevel),
         ]
         ; "auto mode with multiple models"
     )]
@@ -370,7 +608,7 @@ mod tests {
         build_mode_state(GooseMode::Approve).unwrap(),
         "openai",
         vec![SessionConfigSelectOption::new("openai", "openai")],
-        SessionModelState::new(ModelId::new("only-model"), vec![ModelInfo::new(ModelId::new("only-model"), "only-model")])
+        model_selection("only-model", &["only-model"])
         => vec![
             SessionConfigOption::select(
                 "provider", "Provider", "openai",
@@ -389,6 +627,12 @@ mod tests {
                 "model", "Model", "only-model",
                 vec![SessionConfigSelectOption::new("only-model", "only-model")],
             ).category(SessionConfigOptionCategory::Model),
+            SessionConfigOption::select(
+                "thinking_effort", "Thinking effort", "off",
+                vec![SessionConfigSelectOption::new("off", "off")],
+            )
+            .description("Controls reasoning effort for models that support extended thinking.")
+            .category(SessionConfigOptionCategory::ThoughtLevel),
         ]
         ; "approve mode with single model"
     )]
@@ -396,8 +640,84 @@ mod tests {
         mode_state: SessionModeState,
         provider_name: &'static str,
         provider_options: Vec<SessionConfigSelectOption>,
-        model_state: SessionModelState,
+        model_state: ModelSelection,
     ) -> Vec<SessionConfigOption> {
-        build_config_options(&mode_state, &model_state, provider_name, provider_options)
+        let model_config = ModelConfig::new(model_state.current_model_id.as_str())
+            .with_merged_request_params(std::collections::HashMap::from([(
+                "thinking_effort".to_string(),
+                serde_json::json!("off"),
+            )]));
+        build_config_options(
+            &mode_state,
+            &model_state,
+            &model_config,
+            provider_name,
+            provider_options,
+        )
+    }
+
+    #[test]
+    fn test_build_config_options_uses_current_thinking_effort() {
+        let mode_state = build_mode_state(GooseMode::Auto).unwrap();
+        let model_state = model_selection("claude-sonnet-4", &["claude-sonnet-4"]);
+        let model_config = ModelConfig::new("claude-sonnet-4").with_merged_request_params(
+            std::collections::HashMap::from([(
+                "thinking_effort".to_string(),
+                serde_json::json!("high"),
+            )]),
+        );
+
+        let options = build_config_options(
+            &mode_state,
+            &model_state,
+            &model_config,
+            "openai",
+            vec![SessionConfigSelectOption::new("openai", "openai")],
+        );
+        let option = options
+            .iter()
+            .find(|option| option.id.0.as_ref() == "thinking_effort")
+            .expect("thinking_effort option");
+        let select = match &option.kind {
+            SessionConfigKind::Select(select) => select,
+            _ => panic!("thinking_effort should be a select option"),
+        };
+
+        assert_eq!(select.current_value.0.as_ref(), "high");
+    }
+
+    #[test]
+    fn test_build_config_options_masks_non_reasoning_thinking_effort() {
+        let mode_state = build_mode_state(GooseMode::Auto).unwrap();
+        let model_state = model_selection("gpt-4", &["gpt-4"]);
+        let mut model_config =
+            ModelConfig::new("gpt-4").with_merged_request_params(std::collections::HashMap::from(
+                [("thinking_effort".to_string(), serde_json::json!("high"))],
+            ));
+        model_config.reasoning = Some(false);
+
+        let options = build_config_options(
+            &mode_state,
+            &model_state,
+            &model_config,
+            "openai",
+            vec![SessionConfigSelectOption::new("openai", "openai")],
+        );
+        let option = options
+            .iter()
+            .find(|option| option.id.0.as_ref() == "thinking_effort")
+            .expect("thinking_effort option");
+        let select = match &option.kind {
+            SessionConfigKind::Select(select) => select,
+            _ => panic!("thinking_effort should be a select option"),
+        };
+
+        assert_eq!(select.current_value.0.as_ref(), "off");
+        assert_eq!(
+            select.options,
+            agent_client_protocol::schema::v1::SessionConfigSelectOptions::Ungrouped(vec![
+                SessionConfigSelectOption::new("off", "off")
+            ])
+        );
     }
 }

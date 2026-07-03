@@ -23,14 +23,15 @@ export type DefaultKeyboardShortcuts = {
   [K in keyof KeyboardShortcuts]: string;
 };
 
-export interface SessionSharingConfig {
-  enabled: boolean;
-  baseUrl: string;
-}
+// prettier-ignore
+export type LanguageSetting =
+  | 'system' | 'en' | 'es' | 'fr' | 'de' | 'it' | 'pt' | 'id' | 'ms' | 'vi'
+  | 'hi' | 'ja' | 'ko' | 'ru' | 'tr' | 'zh-CN' | 'zh-TW';
 
 export interface Settings {
   // Desktop app settings
   showMenuBarIcon: boolean;
+  disableAutoDownload: boolean;
   showDockIcon: boolean;
   enableWakelock: boolean;
   enableNotifications: boolean;
@@ -42,9 +43,9 @@ export interface Settings {
   // UI preferences (migrated from localStorage)
   theme: 'dark' | 'light';
   useSystemTheme: boolean;
+  language: LanguageSetting;
   responseStyle: string;
   showPricing: boolean;
-  sessionSharing: SessionSharingConfig;
   seenAnnouncementIds: string[];
 }
 
@@ -67,6 +68,7 @@ export const defaultKeyboardShortcuts: DefaultKeyboardShortcuts = {
 export const defaultSettings: Settings = {
   // Desktop app settings
   showMenuBarIcon: true,
+  disableAutoDownload: false,
   showDockIcon: true,
   enableWakelock: false,
   enableNotifications: true,
@@ -81,12 +83,9 @@ export const defaultSettings: Settings = {
   // UI preferences
   theme: 'light',
   useSystemTheme: true,
+  language: 'system',
   responseStyle: 'concise',
   showPricing: true,
-  sessionSharing: {
-    enabled: false,
-    baseUrl: '',
-  },
   seenAnnouncementIds: [],
 };
 

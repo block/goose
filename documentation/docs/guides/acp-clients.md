@@ -35,9 +35,24 @@ Any editor or IDE that supports ACP can connect to goose as an agent server. Che
 
 ### Example: Zed Editor Setup
 
-ACP was originally developed by [Zed](https://zed.dev/). Here's how to configure goose in Zed:
+ACP was originally developed by [Zed](https://zed.dev/). Zed offers two ways to add goose, and you can use either one.
 
-#### 1. Prerequisites
+#### Option 1: Install from the ACP Registry (recommended)
+
+goose is published in the [ACP Registry](https://agentclientprotocol.com/registry), and Zed 1.5.0 and later has built-in registry support, so it can download and run goose for you, with no manual configuration and no pre-installed CLI required.
+
+1. Open Zed
+2. Open Agent Settings
+3. Click `Add Agent`, then choose `Install from Registry`
+4. Select `goose`
+
+A registry-installed goose runs the same `goose acp` server and reads your existing goose configuration, so your providers, models, and extensions carry over. Zed keeps the installed version up to date for you.
+
+#### Option 2: Configure goose as a Custom Agent
+
+Use a custom agent if you want to run your own goose binary (for example, a local development build) or pass environment overrides.
+
+##### Prerequisites
 
 Ensure you have both Zed and goose CLI installed:
 
@@ -48,37 +63,35 @@ Ensure you have both Zed and goose CLI installed:
 
   - Temporarily run `goose acp` to test that ACP support is working:
 
-    ```
-    ~ goose acp
-    Goose ACP agent started. Listening on stdio...
+    ```bash
+    goose acp
     ```
 
     Press `Ctrl+C` to exit the test.
 
-#### 2. Configure goose as a Custom Agent
-
-Add goose to your Zed settings:
+##### Add goose to Your Zed Settings
 
 1. Open Zed
-2. Press `Cmd+Option+,` (macOS) or `Ctrl+Alt+,` (Linux/Windows) to open the settings file
-3. Add the following configuration:
+2. Open Agent Settings, click `Add Agent`, then choose `Add Custom Agent`. Zed scaffolds an `agent_servers` entry and opens your settings file
+3. Edit the entry so it runs goose:
 
 ```json
 {
   "agent_servers": {
     "goose": {
+      "type": "custom",
       "command": "goose",
-      "args": ["acp"],
-      "env": {}
+      "args": ["acp"]
     }
   },
-  // more settings
 }
 ```
 
 You should now be able to interact with goose directly in Zed. Your ACP sessions use the same extensions that are enabled in your goose configuration, and your tools (Developer, Computer Controller, etc.) work the same way as in regular goose sessions.
 
-#### 3. Start Using goose in Zed
+#### Start Using goose in Zed
+
+After adding goose with either option above:
 
 1. **Open the Agent Panel**: Click the sparkles agent icon in Zed's status bar
 2. **Create New Thread**: Click the `+` button to show thread options
@@ -99,11 +112,12 @@ The following Zed settings example configures two goose agent instances. This is
 {
   "agent_servers": {
     "goose": {
+      "type": "custom",
       "command": "goose",
-      "args": ["acp"],
-      "env": {}
+      "args": ["acp"]
     },
     "goose (GPT-4o)": {
+      "type": "custom",
       "command": "goose",
       "args": ["acp"],
       "env": {
@@ -112,7 +126,6 @@ The following Zed settings example configures two goose agent instances. This is
       }
     }
   },
-  // more settings
 }
 ```
 
@@ -136,12 +149,11 @@ MCP servers configured in the ACP client's `context_servers` are automatically a
   },
   "agent_servers": {
     "goose": {
+      "type": "custom",
       "command": "goose",
-      "args": ["acp"],
-      "env": {}
+      "args": ["acp"]
     }
   },
-  // more settings
 }
 ```
 
@@ -152,6 +164,7 @@ All MCP servers in `context_servers` are automatically available to goose, provi
 
 If a server in `context_servers` has the same name as a goose extension, goose uses its own [configuration](/docs/guides/config-files).
 :::
+
 ## TUI Client
 
 For terminal-based workflows, goose provides a TUI (Terminal User Interface) client that communicates with goose via ACP. This is useful for developers who prefer working entirely in the terminal or need a lightweight alternative to the desktop app.
@@ -191,8 +204,29 @@ For servers that support the draft standard ACP over Streamable HTTP https://git
 npm start -- --server http://HOST:PORT
 
 # example server
-cargo run -p goose-cli --bin goose -- serve
+GOOSE_SERVER__SECRET_KEY='a-long-random-secret' cargo run -p goose-cli --bin goose -- serve
 ```
+
+### Server Authentication
+
+Set the `GOOSE_SERVER__SECRET_KEY` environment variable to authenticate the ACP endpoint. `goose serve` refuses to start without this secret unless you explicitly pass `--dangerously-unauthenticated`:
+
+```bash
+GOOSE_SERVER__SECRET_KEY='a-long-random-secret' goose serve
+```
+
+Clients authenticate by sending the token in the `X-Secret-Key` header, or as a `?token=` query parameter for WebSocket connections (the browser WebSocket API can't set custom headers). Requests without a matching token receive `401 Unauthorized`, including WebSocket handshakes.
+
+ACP WebSocket Origin validation allows loopback web origins by default. For `goose serve`, ACP CORS follows the same policy. If you pass any `--allowed-origin` values, that explicit list replaces the default loopback origins, so include every origin the client needs:
+
+```bash
+GOOSE_SERVER__SECRET_KEY='a-long-random-secret' goose serve \
+  --allowed-origin 'http://localhost:5173' \
+  --allowed-origin 'app://localhost' \
+  --allowed-origin 'https://app.example'
+```
+
+For local development only, `goose serve --dangerously-unauthenticated` starts without a secret and logs a warning. Do not use this mode with shell-capable builtins enabled unless the server is isolated from untrusted browser traffic.
 
 ### Single Prompt Mode
 

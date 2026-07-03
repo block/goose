@@ -6,8 +6,14 @@ yanked = "deny"
 unmaintained = "none"
 unsound = "none"
 
-# Ignore proc-macro-error unmaintained warning
-# See: https://github.com/aaif-goose/goose/issues/7008
 ignore = [
-    "RUSTSEC-2023-0071",  # rsa: Marvin Attack timing sidechannel (no safe upgrade available, via jsonwebtoken)
+    # rsa: Marvin Attack timing sidechannel. No safe upgrade is available, and
+    # the reachable path is through jsonwebtoken.
+    "RUSTSEC-2023-0071",
+
+    # quick-xml: duplicate-attribute and namespace-declaration allocation issues.
+    # Current paths are through docx-rs, umya-spreadsheet, and bat/plist, and their
+    # latest releases do not yet expose a quick-xml >= 0.41.0 upgrade path.
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
 ]

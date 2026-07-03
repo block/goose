@@ -33,7 +33,7 @@ jobs:
       version: ${{ steps.set-version.outputs.version }}
     steps:
       # checkout code so we can read the Cargo.toml
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
       - name: Generate a canary version
         id: set-version
         run: |
@@ -60,14 +60,14 @@ jobs:
     runs-on: ubuntu-latest
     needs: [build-cli]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6.0.2
-      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f  # v6.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0  # v7.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
           name: download_cli.sh
           path: download_cli.sh
 
   # ------------------------------------------------------------
-  # 4) Bundle Desktop App (macOS only) - builds goosed and Electron app
+  # 4) Bundle Desktop App (macOS only)
   # ------------------------------------------------------------
   bundle-desktop:
     needs: [prepare-version]
@@ -80,7 +80,7 @@ jobs:
       signing: false
 
   # ------------------------------------------------------------
-  # 5) Bundle Desktop App (macOS Intel) - builds goosed and Electron app
+  # 5) Bundle Desktop App (macOS Intel)
   # ------------------------------------------------------------
   bundle-desktop-intel:
     needs: [prepare-version]
@@ -93,7 +93,7 @@ jobs:
       signing: false
 
   # ------------------------------------------------------------
-  # 6) Bundle Desktop App (Linux) - builds goosed and Electron app
+  # 6) Bundle Desktop App (Linux)
   # ------------------------------------------------------------
   bundle-desktop-linux:
     needs: [prepare-version]
@@ -102,7 +102,7 @@ jobs:
       version: ${{ needs.prepare-version.outputs.version }}
 
   # ------------------------------------------------------------
-  # 6) Bundle Desktop App (Windows) - builds goosed and Electron app
+  # 6) Bundle Desktop App (Windows)
   # ------------------------------------------------------------
   bundle-desktop-windows:
     needs: [prepare-version]
@@ -138,7 +138,7 @@ jobs:
           merge-multiple: true
 
       - name: Attest build provenance
-        uses: actions/attest-build-provenance@a2bbfa25375fe432b6a289bc6b6cd05ecd0c4c32  # v4.1.0
+        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373  # v4.1.1
         with:
           subject-path: |
             goose-*.tar.bz2

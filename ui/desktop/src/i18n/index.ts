@@ -2,28 +2,35 @@
  * Locale detection and message loading for the i18n system.
  *
  * Locale resolution order:
- *   1. GOOSE_LOCALE config value (set via environment variable, passed through appConfig)
+ *   1. GOOSE_LOCALE config value (manual setting or environment variable, passed through appConfig)
  *   2. navigator.languages (full accept-language list from OS/browser)
  *   3. "en" (fallback)
  *
  * For Chinese: any Simplified Chinese tag (zh, zh-CN, zh-Hans, zh-Hans-CN, zh-SG, zh-MY)
- * maps to the "zh-CN" catalog. Traditional variants (zh-TW, zh-HK, zh-Hant) are not yet
- * translated and fall through to English.
+ * maps to the "zh-CN" catalog; Traditional variants (zh-TW, zh-HK, zh-MO, zh-Hant) map to
+ * the "zh-TW" catalog.
  */
 
 // Re-export react-intl utilities that components use directly
 export { defineMessages, useIntl } from 'react-intl';
 
 /** The set of locales that have translation catalogs. */
-const SUPPORTED_LOCALES = new Set(['en', 'ru', 'tr', 'zh-CN']);
+// prettier-ignore
+export const SUPPORTED_LOCALES = [
+  'en', 'es', 'fr', 'de', 'it', 'pt', 'id', 'ms', 'vi', 'hi', 'ja', 'ko', 'ru', 'tr', 'zh-CN', 'zh-TW',
+] as const;
+export type SupportedLocale = (typeof SUPPORTED_LOCALES)[number];
+const SUPPORTED_LOCALE_SET = new Set<string>(SUPPORTED_LOCALES);
 
 /**
- * Map Simplified Chinese aliases (zh, zh-Hans*, zh-SG, zh-MY) to "zh-CN".
- * Traditional variants (zh-Hant*, zh-TW, zh-HK, zh-MO) and non-Chinese tags pass through unchanged.
+ * Map Simplified Chinese aliases (zh, zh-Hans*, zh-SG, zh-MY) to "zh-CN" and Traditional
+ * variants (zh-Hant*, zh-TW, zh-HK, zh-MO) to "zh-TW". Non-Chinese tags pass through unchanged.
  */
 function resolveChineseAlias(tag: string): string {
   const lower = tag.toLowerCase();
-  if (/^zh-(hant|tw|hk|mo)(-|$)/.test(lower)) return tag;
+  // Traditional Chinese variants (zh-Hant*, zh-TW, zh-HK, zh-MO) → "zh-TW".
+  if (/^zh-(hant|tw|hk|mo)(-|$)/.test(lower)) return 'zh-TW';
+  // Remaining Chinese tags (zh, zh-CN, zh-Hans*, zh-SG, zh-MY) → "zh-CN".
   if (lower === 'zh' || lower.startsWith('zh-')) return 'zh-CN';
   return tag;
 }
@@ -61,12 +68,12 @@ export function getLocale(): { locale: string; messageLocale: string } {
     const tag = resolveChineseAlias(normalized);
 
     // Exact match first
-    if (SUPPORTED_LOCALES.has(tag)) return { locale: tag, messageLocale: tag };
+    if (SUPPORTED_LOCALE_SET.has(tag)) return { locale: tag, messageLocale: tag };
 
     // Try base language (e.g. "pt-BR" → "pt") for the catalog, but keep the
     // full regional tag for formatting so date/number output respects the region.
     const base = tag.split('-')[0];
-    if (SUPPORTED_LOCALES.has(base)) {
+    if (SUPPORTED_LOCALE_SET.has(base)) {
       // Validate the full tag is a well-formed BCP 47 locale before using it
       // for formatting. Invalid tags (e.g. "en-") would cause RangeError in
       // Intl APIs, so fall back to the base language in that case.

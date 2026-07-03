@@ -18,16 +18,18 @@ const MANIFESTS: [&str; 3] = [
 ];
 const FORMAT: &str = "open-plugins";
 
-const COMPONENT_MARKERS: &[&str] = &["hooks/hooks.json", "commands", "agents"];
+const COMPONENT_MARKERS: &[&str] = &["hooks/hooks.json", "commands", "agents", ".mcp.json"];
 
 #[derive(Debug, Deserialize)]
-struct OpenPluginsManifest {
+pub struct OpenPluginsManifest {
     #[serde(default)]
-    name: Option<String>,
+    pub name: Option<String>,
     #[serde(default)]
-    version: Option<String>,
+    pub version: Option<String>,
     #[serde(default)]
-    skills: Option<serde_json::Value>,
+    pub skills: Option<serde_json::Value>,
+    #[serde(default, rename = "mcpServers")]
+    pub mcp_servers: Option<serde_json::Value>,
 }
 
 #[derive(Debug)]
@@ -88,6 +90,7 @@ fn install_from_manifest(
     }
 
     let skills = find_agent_skills(checkout_dir, manifest.skills.as_ref())?;
+    validate_mcp_servers(checkout_dir, manifest.mcp_servers.as_ref())?;
 
     copy_dir_all(checkout_dir, &destination)?;
 
@@ -146,7 +149,10 @@ pub(in crate::plugins) fn installed_skill_dirs(plugin_dir: &Path) -> Vec<PathBuf
     dedupe_paths(dirs)
 }
 
-fn read_manifest(plugin_dir: &Path, source: &str) -> Result<OpenPluginsManifest> {
+pub(in crate::plugins) fn read_manifest(
+    plugin_dir: &Path,
+    source: &str,
+) -> Result<OpenPluginsManifest> {
     let mut manifest = match manifest_path(plugin_dir) {
         Some(manifest_path) => {
             serde_json::from_str::<OpenPluginsManifest>(&fs::read_to_string(&manifest_path)?)
@@ -156,6 +162,7 @@ fn read_manifest(plugin_dir: &Path, source: &str) -> Result<OpenPluginsManifest>
             name: None,
             version: None,
             skills: None,
+            mcp_servers: None,
         },
     };
 
@@ -240,6 +247,50 @@ fn namespaced_component_name(plugin_name: &str, component_name: &str) -> String 
     format!("{plugin_name}:{component_name}")
 }
 
+fn validate_mcp_servers(
+    plugin_dir: &Path,
+    mcp_servers_config: Option<&serde_json::Value>,
+) -> Result<()> {
+    if let Some(value) = mcp_servers_config {
+        crate::plugins::mcp_servers::validate_mcp_servers_manifest_value(value)?;
+    }
+
+    for path in mcp_config_paths_for_validation(plugin_dir, mcp_servers_config)? {
+        if !path.is_file() {
+            continue;
+        }
+        let value = serde_json::from_str::<serde_json::Value>(&fs::read_to_string(&path)?)
+            .with_context(|| format!("Failed to parse {}", path.display()))?;
+        crate::plugins::mcp_servers::validate_mcp_server_document(&value)?;
+    }
+
+    Ok(())
+}
+
+fn mcp_config_paths_for_validation(
+    plugin_dir: &Path,
+    config: Option<&serde_json::Value>,
+) -> Result<Vec<PathBuf>> {
+    let custom_paths = config
+        .filter(|value| {
+            !value
+                .as_object()
+                .is_some_and(|object| object.contains_key("mcpServers"))
+        })
+        .map(parse_component_paths)
+        .transpose()?
+        .unwrap_or_default();
+
+    let mut paths = Vec::new();
+    if !custom_paths.exclusive {
+        paths.push(plugin_dir.join(".mcp.json"));
+    }
+    for path in custom_paths.paths {
+        paths.push(plugin_dir.join(validate_relative_plugin_path(&path)?));
+    }
+    Ok(dedupe_paths(paths))
+}
+
 fn find_agent_skills(
     plugin_dir: &Path,
     skills_config: Option<&serde_json::Value>,
@@ -283,12 +334,14 @@ fn skill_root_directories(
 }
 
 #[derive(Default)]
-struct ComponentPaths {
-    paths: Vec<String>,
-    exclusive: bool,
+pub(in crate::plugins) struct ComponentPaths {
+    pub paths: Vec<String>,
+    pub exclusive: bool,
 }
 
-fn parse_component_paths(value: &serde_json::Value) -> Result<ComponentPaths> {
+pub(in crate::plugins) fn parse_component_paths(
+    value: &serde_json::Value,
+) -> Result<ComponentPaths> {
     match value {
         serde_json::Value::String(path) => Ok(ComponentPaths {
             paths: vec![path.clone()],
@@ -332,7 +385,7 @@ fn parse_component_paths(value: &serde_json::Value) -> Result<ComponentPaths> {
     }
 }
 
-fn validate_relative_plugin_path(path: &str) -> Result<PathBuf> {
+pub(in crate::plugins) fn validate_relative_plugin_path(path: &str) -> Result<PathBuf> {
     if !path.starts_with("./") {
         bail!(
             "Open Plugins component paths must start with './': {}",
@@ -460,7 +513,7 @@ fn build_skill_md(name: &str, body: &str) -> String {
     )
 }
 
-fn dedupe_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
+pub(in crate::plugins) fn dedupe_paths(paths: Vec<PathBuf>) -> Vec<PathBuf> {
     let mut seen = HashSet::new();
     paths
         .into_iter()

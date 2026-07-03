@@ -1,23 +1,32 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Download, Trash2, X, ChevronDown, ChevronUp, Settings2, Eye } from 'lucide-react';
+import {
+  Download,
+  Trash2,
+  X,
+  ChevronDown,
+  ChevronUp,
+  Settings2,
+  Eye,
+  RefreshCw,
+} from 'lucide-react';
 import { Button } from '../../ui/button';
 import { useModelAndProvider } from '../../ModelAndProviderContext';
 import { defineMessages, useIntl } from '../../../i18n';
 import {
   listLocalModels,
-  syncFeaturedModels,
   downloadHfModel,
   getLocalModelDownloadProgress,
   cancelLocalModelDownload,
   deleteLocalModel,
-  setConfigProvider,
   type DownloadProgress,
+  type DownloadModelRequest,
   type LocalModelResponse,
-} from '../../../api';
+} from '../../../acp/local-inference';
 import { HuggingFaceModelSearch } from './HuggingFaceModelSearch';
 import { ModelSettingsPanel } from './ModelSettingsPanel';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '../../ui/dialog';
 import HuggingFaceSignInPrompt from '../auth/HuggingFaceSignInPrompt';
+import { acpSaveDefaults } from '../../../acp/providers';
 
 const i18n = defineMessages({
   title: {
@@ -27,7 +36,7 @@ const i18n = defineMessages({
   description: {
     id: 'localInferenceSettings.description',
     defaultMessage:
-      'Download and manage local LLM models for inference without API keys. Search HuggingFace for any GGUF model or use the featured picks below.',
+      'Download and manage local LLM models for inference without API keys. Search HuggingFace for GGUF or MLX models, or use the featured picks below.',
   },
   downloading: {
     id: 'localInferenceSettings.downloading',
@@ -77,6 +86,18 @@ const i18n = defineMessages({
     id: 'localInferenceSettings.downloadFailed',
     defaultMessage: 'Download failed',
   },
+  downloadCancelled: {
+    id: 'localInferenceSettings.downloadCancelled',
+    defaultMessage: 'Download cancelled',
+  },
+  retry: {
+    id: 'localInferenceSettings.retry',
+    defaultMessage: 'Retry',
+  },
+  dismiss: {
+    id: 'localInferenceSettings.dismiss',
+    defaultMessage: 'Dismiss',
+  },
   deleteConfirm: {
     id: 'localInferenceSettings.deleteConfirm',
     defaultMessage: 'Delete this model? You can re-download it later.',
@@ -111,9 +132,9 @@ const VisionBadge = ({
   model: LocalModelResponse;
   intl: ReturnType<typeof useIntl>;
 }) => {
-  if (!model.vision_capable) return null;
+  if (!model.visionCapable) return null;
 
-  const mmproj = model.mmproj_status;
+  const mmproj = model.mmprojStatus;
   const isDownloaded = mmproj?.state === 'Downloaded';
   const isDownloading = mmproj?.state === 'Downloading';
 
@@ -128,7 +149,7 @@ const VisionBadge = ({
 
   if (isDownloading) {
     const percent =
-      mmproj && 'progress_percent' in mmproj ? Math.round(mmproj.progress_percent) : null;
+      mmproj && mmproj.progressPercent != null ? Math.round(mmproj.progressPercent) : null;
     return (
       <span className="inline-flex items-center gap-1 text-xs text-yellow-400 bg-yellow-500/10 px-2 py-0.5 rounded">
         <Eye className="w-3 h-3" />
@@ -157,6 +178,9 @@ export const LocalInferenceSettings = () => {
   const intl = useIntl();
   const [models, setModels] = useState<LocalModelResponse[]>([]);
   const [downloads, setDownloads] = useState<Map<string, DownloadProgress>>(new Map());
+  const [downloadRequests, setDownloadRequests] = useState<Map<string, DownloadModelRequest>>(
+    new Map()
+  );
   const [showAllFeatured, setShowAllFeatured] = useState(false);
   const [settingsOpenFor, setSettingsOpenFor] = useState<string | null>(null);
   const { currentModel, currentProvider, refreshCurrentModelAndProvider } = useModelAndProvider();
@@ -166,17 +190,33 @@ export const LocalInferenceSettings = () => {
 
   const loadModels = useCallback(async (): Promise<LocalModelResponse[] | undefined> => {
     try {
-      await syncFeaturedModels();
-      const response = await listLocalModels();
-      if (response.data) {
-        setModels(response.data);
-        response.data.forEach((model) => {
+      const models = await listLocalModels();
+      if (models) {
+        setModels(models);
+        const downloadedIds = new Set(
+          models
+            .filter((model) => model.status.state === 'Downloaded')
+            .map((model) => model.id)
+        );
+        if (downloadedIds.size > 0) {
+          setDownloads((prev) => {
+            const next = new Map(prev);
+            downloadedIds.forEach((modelId) => next.delete(modelId));
+            return next;
+          });
+          setDownloadRequests((prev) => {
+            const next = new Map(prev);
+            downloadedIds.forEach((modelId) => next.delete(modelId));
+            return next;
+          });
+        }
+        models.forEach((model) => {
           if (model.status.state === 'Downloading') {
             pollDownloadProgress(model.id);
           }
         });
 
-        return response.data;
+        return models;
       }
     } catch (error) {
       console.error('Failed to load models:', error);
@@ -193,7 +233,7 @@ export const LocalInferenceSettings = () => {
   // Poll model list while any vision encoder is downloading
   useEffect(() => {
     const hasDownloadingMmproj = models.some(
-      (m) => m.vision_capable && m.mmproj_status?.state === 'Downloading'
+      (m) => m.visionCapable && m.mmprojStatus?.state === 'Downloading'
     );
     if (!hasDownloadingMmproj) return;
 
@@ -205,10 +245,7 @@ export const LocalInferenceSettings = () => {
 
   const selectModel = async (modelId: string) => {
     try {
-      await setConfigProvider({
-        body: { provider: 'local', model: modelId },
-        throwOnError: true,
-      });
+      await acpSaveDefaults('local', modelId);
       await refreshCurrentModelAndProvider();
     } catch (error) {
       console.error('Failed to select model:', error);
@@ -218,8 +255,10 @@ export const LocalInferenceSettings = () => {
   const startFeaturedDownload = async (modelId: string) => {
     const model = models.find((m) => m.id === modelId);
     if (!model) return;
+    const request = { spec: model.id };
     try {
-      await downloadHfModel({ body: { spec: model.id } });
+      await downloadHfModel(request);
+      setDownloadRequests((prev) => new Map(prev).set(modelId, request));
       pollDownloadProgress(modelId);
       scrollToDownloads();
     } catch (error) {
@@ -244,9 +283,8 @@ export const LocalInferenceSettings = () => {
 
     const interval = setInterval(async () => {
       try {
-        const response = await getLocalModelDownloadProgress({ path: { model_id: modelId } });
-        if (response.data) {
-          const progress = response.data;
+        const progress = await getLocalModelDownloadProgress(modelId);
+        if (progress) {
           setDownloads((prev) => new Map(prev).set(modelId, progress));
 
           if (progress.status === 'completed') {
@@ -260,11 +298,6 @@ export const LocalInferenceSettings = () => {
             await selectModel(modelId);
           } else if (progress.status === 'failed' || progress.status === 'cancelled') {
             stopPolling(interval);
-            setDownloads((prev) => {
-              const next = new Map(prev);
-              next.delete(modelId);
-              return next;
-            });
             await loadModels();
           }
         } else {
@@ -278,10 +311,13 @@ export const LocalInferenceSettings = () => {
 
   const cancelDownload = async (modelId: string) => {
     try {
-      await cancelLocalModelDownload({ path: { model_id: modelId } });
+      await cancelLocalModelDownload(modelId);
       setDownloads((prev) => {
         const next = new Map(prev);
-        next.delete(modelId);
+        const progress = next.get(modelId);
+        if (progress) {
+          next.set(modelId, { ...progress, status: 'cancelled' });
+        }
         return next;
       });
       await loadModels();
@@ -290,10 +326,36 @@ export const LocalInferenceSettings = () => {
     }
   };
 
+  const dismissDownload = (modelId: string) => {
+    setDownloads((prev) => {
+      const next = new Map(prev);
+      next.delete(modelId);
+      return next;
+    });
+    setDownloadRequests((prev) => {
+      const next = new Map(prev);
+      next.delete(modelId);
+      return next;
+    });
+  };
+
+  const retryDownload = async (modelId: string) => {
+    const request = downloadRequests.get(modelId) ?? { spec: modelId };
+    dismissDownload(modelId);
+    try {
+      const nextModelId = await downloadHfModel(request);
+      setDownloadRequests((prev) => new Map(prev).set(nextModelId, request));
+      pollDownloadProgress(nextModelId);
+      scrollToDownloads();
+    } catch (error) {
+      console.error('Failed to retry download:', error);
+    }
+  };
+
   const handleDeleteModel = async (modelId: string) => {
     if (!window.confirm(intl.formatMessage(i18n.deleteConfirm))) return;
     try {
-      await deleteLocalModel({ path: { model_id: modelId } });
+      await deleteLocalModel(modelId);
       const updatedModels = await loadModels();
 
       if (selectedModelId === modelId && updatedModels) {
@@ -309,7 +371,8 @@ export const LocalInferenceSettings = () => {
     }
   };
 
-  const handleHfDownloadStarted = (modelId: string) => {
+  const handleHfDownloadStarted = (modelId: string, request: DownloadModelRequest) => {
+    setDownloadRequests((prev) => new Map(prev).set(modelId, request));
     pollDownloadProgress(modelId);
     loadModels();
     scrollToDownloads();
@@ -324,6 +387,11 @@ export const LocalInferenceSettings = () => {
   const recommendedModels = notDownloadedModels.filter((m) => m.recommended);
   const displayedFeatured = showAllFeatured ? notDownloadedModels : recommendedModels;
   const showFeaturedToggle = notDownloadedModels.length > recommendedModels.length;
+  const activeDownloadIds = new Set(
+    Array.from(downloads.entries())
+      .filter(([, progress]) => progress.status === 'downloading')
+      .map(([modelId]) => modelId)
+  );
 
   return (
     <div className="space-y-6">
@@ -370,39 +438,68 @@ export const LocalInferenceSettings = () => {
                       <div className="w-full bg-gray-700 rounded-full h-2">
                         <div
                           className="bg-blue-500 h-2 rounded-full transition-all duration-300"
-                          style={{ width: `${progress.progress_percent}%` }}
+                          style={{ width: `${progress.progressPercent}%` }}
                         />
                       </div>
                       <div className="flex justify-between text-xs text-text-muted">
                         <span>
                           {intl.formatMessage(i18n.downloadProgress, {
-                            downloaded: formatBytes(progress.bytes_downloaded),
-                            total: formatBytes(progress.total_bytes),
-                            percent: progress.progress_percent.toFixed(0),
+                            downloaded: formatBytes(progress.bytesDownloaded),
+                            total: formatBytes(progress.totalBytes),
+                            percent: progress.progressPercent.toFixed(0),
                           })}
                         </span>
                         <span className="flex gap-2">
-                          {progress.eta_seconds != null && progress.eta_seconds > 0 && (
+                          {progress.etaSeconds != null && progress.etaSeconds > 0 && (
                             <span>
                               {intl.formatMessage(i18n.remaining, {
                                 time:
-                                  progress.eta_seconds < 60
-                                    ? `${Math.round(progress.eta_seconds)}s`
-                                    : `${Math.round(progress.eta_seconds / 60)}m`,
+                                  progress.etaSeconds < 60
+                                    ? `${Math.round(progress.etaSeconds)}s`
+                                    : `${Math.round(progress.etaSeconds / 60)}m`,
                               })}
                             </span>
                           )}
-                          {progress.speed_bps != null && progress.speed_bps > 0 && (
-                            <span>{formatBytes(progress.speed_bps)}/s</span>
+                          {progress.speedBps != null && progress.speedBps > 0 && (
+                            <span>{formatBytes(progress.speedBps)}/s</span>
                           )}
                         </span>
                       </div>
                     </div>
                   )}
                   {progress.status === 'failed' && (
-                    <p className="text-xs text-destructive">
-                      {progress.error || intl.formatMessage(i18n.downloadFailed)}
-                    </p>
+                    <div className="space-y-2">
+                      <p className="text-xs text-destructive">
+                        {progress.error || intl.formatMessage(i18n.downloadFailed)}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => retryDownload(modelId)}>
+                          <RefreshCw className="w-3 h-3 mr-1" />
+                          {intl.formatMessage(i18n.retry)}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => dismissDownload(modelId)}>
+                          <X className="w-3 h-3 mr-1" />
+                          {intl.formatMessage(i18n.dismiss)}
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                  {progress.status === 'cancelled' && (
+                    <div className="space-y-2">
+                      <p className="text-xs text-text-muted">
+                        {progress.error || intl.formatMessage(i18n.downloadCancelled)}
+                      </p>
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="sm" onClick={() => retryDownload(modelId)}>
+                          <RefreshCw className="w-3 h-3 mr-1" />
+                          {intl.formatMessage(i18n.retry)}
+                        </Button>
+                        <Button variant="ghost" size="sm" onClick={() => dismissDownload(modelId)}>
+                          <X className="w-3 h-3 mr-1" />
+                          {intl.formatMessage(i18n.dismiss)}
+                        </Button>
+                      </div>
+                    </div>
                   )}
                 </div>
               );
@@ -439,7 +536,7 @@ export const LocalInferenceSettings = () => {
                       />
                       <span className="text-sm font-medium text-text-default">{model.id}</span>
                       <span className="text-xs text-text-muted">
-                        {formatBytes(model.size_bytes)}
+                        {formatBytes(model.sizeBytes)}
                       </span>
                       {model.recommended && (
                         <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
@@ -491,7 +588,7 @@ export const LocalInferenceSettings = () => {
                     <div className="flex items-center gap-2 flex-wrap">
                       <h4 className="text-sm font-medium text-text-default">{model.id}</h4>
                       <span className="text-xs text-text-muted">
-                        {formatBytes(model.size_bytes)}
+                        {formatBytes(model.sizeBytes)}
                       </span>
                       {model.recommended && (
                         <span className="text-xs bg-blue-500 text-white px-2 py-0.5 rounded">
@@ -543,7 +640,7 @@ export const LocalInferenceSettings = () => {
       <div className="border-t border-border-subtle pt-4">
         <HuggingFaceModelSearch
           onDownloadStarted={handleHfDownloadStarted}
-          activeDownloadIds={new Set(downloads.keys())}
+          activeDownloadIds={activeDownloadIds}
           downloadedModelIds={
             new Set(models.filter((m) => m.status.state === 'Downloaded').map((m) => m.id))
           }

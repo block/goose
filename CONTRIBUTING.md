@@ -173,41 +173,38 @@ The app opens a window and displays first-time setup. After completing setup, go
 
 Make GUI changes in `ui/desktop`.
 
-### Regenerating the OpenAPI schema
+#### Troubleshooting: blank screen on `just run-ui`
 
-The file `ui/desktop/openapi.json` is automatically generated during the build.
-It is written by the `generate_schema` binary in `crates/goose-server`.
-To update the spec without starting the UI, run:
+If the app opens to a blank window (logs show `Cannot read properties of null (reading 'useRef')`), your `node_modules` is out of date and is loading two copies of React. Delete it and reinstall:
 
 ```
-just generate-openapi
+rm -rf ui/desktop/node_modules
+cd ui && pnpm install
 ```
 
-This command regenerates `ui/desktop/openapi.json` and then runs the UI's
-`generate-api` script to rebuild the TypeScript client from that spec.
-
-API changes should be made in the Rust source under `crates/goose-server/src/`.
+See #8757.
 
 ### Debugging
 
-To debug the Goose server, run it from an IDE. The configuration will depend on the IDE. The command to run is:
+To debug the external ACP backend, run it from an IDE. The configuration will depend on the IDE. The command to run is:
 
 ```
 export GOOSE_SERVER__SECRET_KEY=test
-cargo run --package goose-server --bin goosed -- agent   # or: `just run-server`
+cargo run --package goose-cli --bin goose -- serve --platform desktop --host 127.0.0.1 --port 3000
 ```
 
-The server listens on port `3000` by default; this can be changed by setting the
-`GOOSE_PORT` environment variable.
+The `debug-ui` recipe connects to `http://127.0.0.1:3000` by default. If the
+backend uses another port, set `GOOSE_PORT` when starting the UI, or set
+`GOOSE_EXTERNAL_BACKEND_URL` to the backend's HTTP base URL.
 
-Once the server is running, start a UI and connect it to the server by running:
+Once the backend is running, start a UI and connect it to the backend by running:
 
 ```
 just debug-ui
 ```
 
-The UI connects to the server started in the IDE, allowing breakpoints
-and stepping through the server code while interacting with the UI.
+The UI connects to the backend started in the IDE, allowing breakpoints
+and stepping through the backend code while interacting with the UI.
 
 ## Creating a fork
 
@@ -349,16 +346,6 @@ This project follows the [Conventional Commits](https://www.conventionalcommits.
 [issues]: https://github.com/aaif-goose/goose/issues
 [hermit]: https://cashapp.github.io/hermit/
 [just]: https://github.com/casey/just?tab=readme-ov-file#installation
-
-## Developer Certificate of Origin
-
-This project requires a [Developer Certificate of Origin](https://en.wikipedia.org/wiki/Developer_Certificate_of_Origin) sign-offs on all commits. This is a statement indicating that you are allowed to make the contribution and that the project has the right to distribute it under its license. When you are ready to commit, use the `--signoff` or `-s` flag to attach the sign-off to your commit.
-
-```
-git commit --signoff ...
-# OR
-git commit -s ...
-```
 
 ## Other Ways to Contribute
 

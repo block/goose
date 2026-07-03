@@ -23,6 +23,12 @@ trap 'log "An error occurred. Exiting with status $?."' ERR
 
 log "Starting node setup (common)."
 
+# GUI-launched macOS apps inherit a minimal PATH that omits the system sbin
+# directories, so Hermit's bootstrap cannot find tools like `chown` (which lives
+# in /usr/sbin on macOS) and aborts with exit 127. Ensure they are reachable;
+# this is harmless on Linux, where these paths are typically already present.
+export PATH="/usr/sbin:/sbin:${PATH}"
+
 if [ -n "${GOOSE_PATH_ROOT:-}" ]; then
     RESOLVED_GOOSE_CONFIG_DIR="${GOOSE_PATH_ROOT}/config"
 elif [ -n "${GOOSE_CONFIG_DIR:-}" ]; then
@@ -32,16 +38,31 @@ else
     RESOLVED_GOOSE_CONFIG_DIR="${HOME}/.config/goose"
 fi
 MCP_HERMIT_DIR="${RESOLVED_GOOSE_CONFIG_DIR}/mcp-hermit"
+mkdir -p "${RESOLVED_GOOSE_CONFIG_DIR}"
+HERMIT_SETUP_LOCK_DIR="${RESOLVED_GOOSE_CONFIG_DIR}/.mcp-hermit-setup.lock"
+HERMIT_SETUP_LOCK_TIMEOUT=300
+HERMIT_SETUP_LOCK_STARTED_AT=$(date +%s)
+while ! mkdir "${HERMIT_SETUP_LOCK_DIR}" 2>/dev/null; do
+    if [ $(( $(date +%s) - HERMIT_SETUP_LOCK_STARTED_AT )) -ge "${HERMIT_SETUP_LOCK_TIMEOUT}" ]; then
+        log "Timed out waiting for ${HERMIT_SETUP_LOCK_DIR}; removing stale lock."
+        rm -rf "${HERMIT_SETUP_LOCK_DIR}"
+        HERMIT_SETUP_LOCK_STARTED_AT=$(date +%s)
+    fi
+    sleep 0.1
+done
+trap 'rm -rf "${HERMIT_SETUP_LOCK_DIR}"; log "An error occurred. Exiting with status $?."' ERR
+trap 'rm -rf "${HERMIT_SETUP_LOCK_DIR}"' EXIT
 
 # One-time cleanup for existing Linux users to fix locking issues
 CLEANUP_MARKER="${RESOLVED_GOOSE_CONFIG_DIR}/.mcp-hermit-cleanup-v1"
 if [[ "$(uname -s)" == "Linux" ]] && [ ! -f "${CLEANUP_MARKER}" ]; then
     log "Performing one-time cleanup of old mcp-hermit directory to fix locking issues."
     if [ -d "${MCP_HERMIT_DIR}" ]; then
-        rm -rf "${MCP_HERMIT_DIR}"
+        STALE_MCP_HERMIT_DIR="${MCP_HERMIT_DIR}.stale.$$"
+        mv "${MCP_HERMIT_DIR}" "${STALE_MCP_HERMIT_DIR}"
+        rm -rf "${STALE_MCP_HERMIT_DIR}"
         log "Removed old mcp-hermit directory."
     fi
-    mkdir -p "${RESOLVED_GOOSE_CONFIG_DIR}"
     touch "${CLEANUP_MARKER}"
     log "Cleanup completed. Marker file created."
 fi
@@ -91,6 +112,7 @@ if [ ! -f "bin/activate-hermit" ]; then
         mkdir -p "${HERMIT_TMP_DIR}"
         cp "${MCP_HERMIT_DIR}/bin/hermit" "${HERMIT_TMP_DIR}/hermit"
         chmod +x "${HERMIT_TMP_DIR}/hermit"
+        HERMIT_ORIGINAL_PATH="${PATH}"
         export PATH="${HERMIT_TMP_DIR}:${PATH}"
         HERMIT_CLEANUP_DIR="/tmp/hermit_tmp_$$"
     fi
@@ -102,17 +124,20 @@ if [ ! -f "bin/activate-hermit" ]; then
     # Clean up temp dir if it was created
     if [[ -n "${HERMIT_CLEANUP_DIR:-}" ]]; then
         log "Cleaning up temporary hermit binary directory."
+        export PATH="${HERMIT_ORIGINAL_PATH}"
         rm -rf "${HERMIT_CLEANUP_DIR}"
     fi
 else
     log "Hermit environment already initialized. Skipping init."
 fi
 
-# Activate the environment with output redirected to log
-if [[ "$(uname -s)" == "Linux" ]]; then
-    log "Activating hermit environment."
-    { . "bin/activate-hermit"; } >> "${LOG_FILE}" 2>&1
-fi
+# Activate the environment with output redirected to log.
+# Activation must run on every platform: macOS GUI apps otherwise never get the
+# hermit-managed node/npx onto PATH, so STDIO extensions fail with
+# "env: node: No such file or directory". The Linux-only guard was introduced in
+# #5372 to "preserve existing behavior" on macOS, but that path is now broken.
+log "Activating hermit environment."
+{ . "bin/activate-hermit"; } >> "${LOG_FILE}" 2>&1
 
 # Install Node.js using hermit
 log "Installing Node.js with hermit."
@@ -123,6 +148,10 @@ log "Verifying installation locations:"
 log "hermit: $(which hermit)"
 log "node: $(which node)"
 log "npx: $(which npx)"
+
+rm -rf "${HERMIT_SETUP_LOCK_DIR}"
+trap 'log "An error occurred. Exiting with status $?."' ERR
+trap - EXIT
 
 
 log "Checking for GOOSE_NPM_REGISTRY and GOOSE_NPM_CERT environment variables for custom npm registry setup..."

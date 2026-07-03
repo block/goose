@@ -6,18 +6,17 @@ use common_tests::fixtures::server::AcpServerConnection;
 use common_tests::fixtures::{run_test, send_custom, Connection, TestConnectionConfig};
 use goose::config::paths::Paths;
 use goose::config::{Config, ConfigError};
-use goose::model::ModelConfig;
 use goose::providers::base::{MessageStream, Provider};
-use goose::providers::errors::ProviderError;
 use goose::providers::inventory::ProviderInventoryService;
 use goose::session::session_manager::SessionStorage;
+use goose_providers::errors::ProviderError;
+use goose_providers::model::ModelConfig;
 use goose_test_support::EnforceSessionId;
 use serial_test::serial;
 use std::sync::Arc;
 
 struct MockProvider {
     name: String,
-    model_config: ModelConfig,
 }
 
 #[async_trait::async_trait]
@@ -29,7 +28,6 @@ impl Provider for MockProvider {
     async fn stream(
         &self,
         _model_config: &ModelConfig,
-        _session_id: &str,
         _system: &str,
         _messages: &[goose::conversation::message::Message],
         _tools: &[rmcp::model::Tool],
@@ -37,21 +35,19 @@ impl Provider for MockProvider {
         unimplemented!()
     }
 
-    fn get_model_config(&self) -> ModelConfig {
-        self.model_config.clone()
-    }
-
-    async fn fetch_recommended_models(&self) -> Result<Vec<String>, ProviderError> {
+    async fn fetch_recommended_models(
+        &self,
+        _toolshim: bool,
+    ) -> Result<Vec<String>, ProviderError> {
         Ok(vec!["claude-3-5-haiku-latest".to_string()])
     }
 }
 
 fn mock_provider_factory() -> goose::acp::server::AcpProviderFactory {
-    Arc::new(|provider_name, model_config, _extensions, _working_dir| {
+    Arc::new(|provider_name, _extensions, _working_dir| {
         Box::pin(async move {
             Ok(Arc::new(MockProvider {
                 name: provider_name,
-                model_config,
             }) as Arc<dyn Provider>)
         })
     })
