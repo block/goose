@@ -18,7 +18,7 @@ import AnnouncementModal from './components/AnnouncementModal';
 import TelemetryConsentPrompt from './components/TelemetryConsentPrompt';
 import OnboardingGuard from './components/onboarding/OnboardingGuard';
 import { createSession } from './sessions';
-import { listSessions, deleteSession } from './api';
+import { acpListSessions, acpDeleteSession } from './acp/sessions';
 
 import { ChatType } from './types/chat';
 import Hub from './components/Hub';
@@ -397,13 +397,13 @@ export function AppInner() {
   }, []);
 
   useEffect(() => {
-    listSessions()
-      .then(({ data }) => {
-        const phantom = (data?.sessions ?? []).filter(
-          (s) => s.message_count === 0 && !s.user_set_name && !s.recipe
+    acpListSessions()
+      .then(({ sessions }) => {
+        const phantom = sessions.filter(
+          (s) => s.messageCount === 0 && !s.userSetName && !s.hasRecipe
         );
         for (const s of phantom) {
-          deleteSession({ path: { session_id: s.id } }).catch(() => {});
+          acpDeleteSession(s.id).catch(() => {});
         }
       })
       .catch(() => {});

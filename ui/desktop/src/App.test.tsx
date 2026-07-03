@@ -34,28 +34,10 @@ vi.mock('./utils/costDatabase', () => ({
   initializeCostDatabase: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('./api', () => {
-  const test_chat = {
-    data: {
-      session_id: 'test',
-      messages: [],
-      metadata: {
-        description: '',
-      },
-    },
-  };
-
-  return {
-    initConfig: vi.fn().mockResolvedValue(undefined),
-    backupConfig: vi.fn().mockResolvedValue(undefined),
-    recoverConfig: vi.fn().mockResolvedValue(undefined),
-    validateConfig: vi.fn().mockResolvedValue(undefined),
-    startAgent: vi.fn().mockResolvedValue(test_chat),
-    resumeAgent: vi.fn().mockResolvedValue(test_chat),
-    listSessions: vi.fn().mockResolvedValue({ data: { sessions: [] } }),
-    deleteSession: vi.fn().mockResolvedValue(undefined),
-  };
-});
+vi.mock('./acp/sessions', () => ({
+  acpListSessions: vi.fn().mockResolvedValue({ sessions: [], nextCursor: null }),
+  acpDeleteSession: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock('./sessions', () => ({
   fetchSessionDetails: vi

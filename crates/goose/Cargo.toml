@@ -24,9 +24,7 @@ local-inference = [
     "dep:candle-core",
     "dep:candle-nn",
     "dep:candle-transformers",
-    "dep:hf-hub",
-    "dep:llama-cpp-2",
-    "dep:llama-cpp-sys-2",
+    "goose-providers/local-inference",
     "dep:tokenizers",
     "dep:symphonia",
     "dep:rubato",
@@ -39,9 +37,9 @@ aws-providers = [
     "dep:aws-sdk-sagemakerruntime",
     "dep:smithy-transport-reqwest",
 ]
-cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
-vulkan = ["local-inference", "llama-cpp-2/vulkan"]
-mlx = ["local-inference", "dep:mlx-rs", "dep:mlx-lm", "dep:mlx-lm-utils"]
+cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "goose-providers/cuda"]
+vulkan = ["local-inference", "goose-providers/vulkan"]
+mlx = ["local-inference", "goose-providers/mlx"]
 rustls-tls = [
     "dep:rustls",
     "dep:rcgen",
@@ -56,7 +54,6 @@ rustls-tls = [
     "jsonwebtoken/aws_lc_rs",
     "oauth2/reqwest",
     "oauth2/rustls-tls",
-    "hf-hub/rustls-tls",
     "goose-providers/rustls-tls",
 ]
 native-tls = [
@@ -135,6 +132,7 @@ once_cell = { workspace = true }
 etcetera = { workspace = true }
 fs-err = { version = "3.1", default-features = false }
 goose-providers = { path = "../goose-providers", default-features = false }
+goose-download-manager = { path = "../goose-download-manager" }
 goose-sdk-types = { path = "../goose-sdk-types" }
 rand = { workspace = true }
 utoipa = { workspace = true, features = ["chrono"] }
@@ -182,8 +180,6 @@ symphonia = { version = "0.5", default-features = false, features = ["aac", "adp
 rubato = { version = "0.16", default-features = false, optional = true }
 sys-info = { version = "0.9", default-features = false }
 
-llama-cpp-2 = { workspace = true, optional = true }
-
 schemars = { workspace = true, features = [
     "derive",
 ] }
@@ -203,7 +199,6 @@ tree-sitter-swift = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 which = { workspace = true }
 pulldown-cmark = { version = "0.13", default-features = false }
-encoding_rs = { version = "0.8.35", default-features = false }
 pastey = { version = "0.2", default-features = false }
 shell-words = { workspace = true }
 goose-acp-macros = { path = "../goose-acp-macros", default-features = false }
@@ -218,10 +213,6 @@ axum-server = { version = "0.8", default-features = false, optional = true }
 aws-lc-rs = { version = "1.17", default-features = false, optional = true }
 openssl = { version = "0.10.66", default-features = false, optional = true }
 pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
-hf-hub = { version = "1.0.0-rc.1", default-features = false, optional = true }
-mlx-rs = { version = "0.25.3", default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true }
-mlx-lm = { git = "https://github.com/jh-block/mlx-lm", optional = true }
-mlx-lm-utils = { git = "https://github.com/jh-block/mlx-lm", optional = true }
 
 pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 
@@ -230,7 +221,6 @@ pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 # They are just here to pin the version, and can be removed if PCTX updates temporal_rs
 icu_calendar = { version = "=2.1.1", default-features = false }
 icu_locale = { version = "=2.1.1", default-features = false }
-llama-cpp-sys-2 = { workspace = true, optional = true }
 image = { version = "0.24.9", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 subtle = { version = "2.5", default-features = false, features = ["std"] }
 gethostname = "1.1.0"
@@ -243,7 +233,6 @@ keyring = { workspace = true, features = ["windows-native"], optional = true }
 [target.'cfg(target_os = "macos")'.dependencies]
 candle-core = { workspace = true, features = ["metal"], optional = true }
 candle-nn = { workspace = true, features = ["metal"], optional = true }
-llama-cpp-2 = { workspace = true, features = ["sampler", "metal", "mtmd"], optional = true }
 keyring = { workspace = true, features = ["apple-native"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]

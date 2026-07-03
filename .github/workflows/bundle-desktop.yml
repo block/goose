@@ -118,8 +118,10 @@ jobs:
           key: macos-deployment-target-12
 
       # Build the project
-      - name: Build goosed
-        run: source ./bin/activate-hermit && cargo build --release -p goose-server
+      - name: Build desktop backend
+        run: |
+          source ./bin/activate-hermit
+          cargo build --release -p goose-cli --bin goose
 
       # Post-build cleanup to free space
       - name: Post-build cleanup
@@ -134,9 +136,13 @@ jobs:
           # Check disk space after cleanup
           df -h
 
-      - name: Copy binaries into Electron folder
+      - name: Copy backend binary into Electron folder
         run: |
-          cp target/release/goosed ui/desktop/src/bin/goosed
+          mkdir -p ui/desktop/src/bin
+          rm -f ui/desktop/src/bin/goose
+          cp target/release/goose ui/desktop/src/bin/goose
+          chmod +x ui/desktop/src/bin/goose
+          ls -la ui/desktop/src/bin/
 
       - name: Cache pnpm dependencies
         uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8  # v6.0.0
