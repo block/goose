@@ -44,8 +44,8 @@ const i18n = defineMessages({
 });
 
 const splitDirPath = (dir: string): { name: string; parent: string } => {
-  const trimmed = dir.replace(/\/+$/, '');
-  const parts = trimmed.split('/');
+  const normalized = dir.replace(/[\\/]+$/, '');
+  const parts = normalized.split(/[\\/]/);
   const name = parts.pop() || dir;
   const parent = parts.join('/');
   return { name, parent };
