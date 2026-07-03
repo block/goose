@@ -13,15 +13,13 @@ check-everything:
     cargo clippy --all-targets -- -D warnings
     @echo "  → Checking UI code formatting..."
     cd ui/desktop && pnpm run lint:check
-    @echo "  → Validating OpenAPI schema..."
-    ./scripts/check-openapi-schema.sh
     @echo ""
     @echo "✅ All style checks passed!"
 
 # Default release command
 release-binary:
     @echo "Building release version..."
-    cargo build --release
+    cargo build --release -p goose-cli --bin goose
     @just copy-binary
     @echo "Generating OpenAPI schema..."
     cargo run -p goose-server --bin generate_schema
@@ -34,7 +32,7 @@ release-windows:
 
 [windows]
 release-windows:
-    @powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'rustup target add x86_64-pc-windows-msvc; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; cargo build --release --target x86_64-pc-windows-msvc -p goose-server; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Write-Host "Windows executable created at ./target/x86_64-pc-windows-msvc/release/goosed.exe"'
+    @powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'rustup target add x86_64-pc-windows-msvc; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; cargo build --release --target x86_64-pc-windows-msvc -p goose-cli --bin goose; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; Write-Host "Windows executable created at ./target/x86_64-pc-windows-msvc/release/goose.exe"'
 
 # Build for Intel Mac
 release-intel:
@@ -43,14 +41,7 @@ release-intel:
     @just copy-binary-intel
 
 copy-binary BUILD_MODE="release":
-    @if [ -f ./target/{{BUILD_MODE}}/goosed ]; then \
-        echo "Copying goosed binary from target/{{BUILD_MODE}}..."; \
-        rm -f ./ui/desktop/src/bin/goosed; \
-        cp -p ./target/{{BUILD_MODE}}/goosed ./ui/desktop/src/bin/; \
-    else \
-        echo "Binary not found in target/{{BUILD_MODE}}"; \
-        exit 1; \
-    fi
+    @rm -f ./ui/desktop/src/bin/goosed
     @if [ -f ./target/{{BUILD_MODE}}/goose ]; then \
         echo "Copying goose CLI binary from target/{{BUILD_MODE}}..."; \
         rm -f ./ui/desktop/src/bin/goose; \
@@ -62,14 +53,7 @@ copy-binary BUILD_MODE="release":
 
 # Copy binary command for Intel build
 copy-binary-intel:
-    @if [ -f ./target/x86_64-apple-darwin/release/goosed ]; then \
-        echo "Copying Intel goosed binary to ui/desktop/src/bin with permissions preserved..."; \
-        rm -f ./ui/desktop/src/bin/goosed; \
-        cp -p ./target/x86_64-apple-darwin/release/goosed ./ui/desktop/src/bin/; \
-    else \
-        echo "Intel release binary not found."; \
-        exit 1; \
-    fi
+    @rm -f ./ui/desktop/src/bin/goosed
     @if [ -f ./target/x86_64-apple-darwin/release/goose ]; then \
         echo "Copying Intel goose CLI binary to ui/desktop/src/bin..."; \
         rm -f ./ui/desktop/src/bin/goose; \
@@ -87,10 +71,11 @@ copy-binary-windows:
 
 [windows]
 copy-binary-windows:
-    @powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'if (Test-Path ./target/x86_64-pc-windows-msvc/release/goosed.exe) { \
+    @powershell.exe -NoProfile -ExecutionPolicy Bypass -Command 'if (Test-Path ./target/x86_64-pc-windows-msvc/release/goose.exe) { \
         Write-Host "Copying Windows binary to ui/desktop/src/bin..."; \
         New-Item -ItemType Directory -Force "./ui/desktop/src/bin" | Out-Null; \
-        Copy-Item -Path "./target/x86_64-pc-windows-msvc/release/goosed.exe" -Destination "./ui/desktop/src/bin/" -Force; \
+        Remove-Item -Path "./ui/desktop/src/bin/goosed.exe" -Force -ErrorAction SilentlyContinue; \
+        Copy-Item -Path "./target/x86_64-pc-windows-msvc/release/goose.exe" -Destination "./ui/desktop/src/bin/" -Force; \
     } else { \
         Write-Host "Windows binary not found." -ForegroundColor Red; \
         exit 1; \
@@ -116,7 +101,7 @@ run-ui-only:
     cd ui/desktop && pnpm install && pnpm run start-gui
 
 debug-ui:
-    @echo "🚀 Starting goose frontend in external backend mode"
+    @echo "🚀 Starting goose frontend in external ACP backend mode"
     cd ui/desktop && \
     export GOOSE_EXTERNAL_BACKEND=true && \
     export GOOSE_SERVER__SECRET_KEY="${GOOSE_SERVER__SECRET_KEY:-test}" && \
@@ -161,19 +146,13 @@ run-docs:
 
 # Run server
 run-server:
-    @echo "Running server..."
-    cargo run -p goose-server --bin goosed agent
-
-# Check if OpenAPI schema is up-to-date
-check-openapi-schema: generate-openapi
-    ./scripts/check-openapi-schema.sh
+    @echo "Running external ACP backend..."
+    GOOSE_SERVER__SECRET_KEY="${GOOSE_SERVER__SECRET_KEY:-test}" cargo run -p goose-cli --bin goose -- serve --platform desktop --host 127.0.0.1 --port 3000
 
 # Generate OpenAPI specification without starting the UI
 generate-openapi:
     @echo "Generating OpenAPI schema..."
     cargo run -p goose-server --bin generate_schema
-    @echo "Generating frontend API..."
-    cd ui/desktop && npx @hey-api/openapi-ts
 
 # Check if generated ACP schema and TypeScript types are up-to-date
 check-acp-schema: generate-acp-types
@@ -334,8 +313,8 @@ prepare-release version:
         ui/desktop/package.json \
         ui/pnpm-lock.yaml \
         ui/desktop/openapi.json \
-        crates/goose-providers/src/canonical/data/canonical_models.json \
-        crates/goose-providers/src/canonical/data/provider_metadata.json
+        crates/goose-provider-types/src/canonical/data/canonical_models.json \
+        crates/goose-provider-types/src/canonical/data/provider_metadata.json
     @git commit --message "chore(release): release version {{ version }}"
 
 set-openapi-version version:
@@ -404,6 +383,7 @@ win-app-deps:
 win-copy-win profile:
   copy target{{s}}{{profile}}{{s}}*.exe ui{{s}}desktop{{s}}src{{s}}bin
   copy target{{s}}{{profile}}{{s}}*.dll ui{{s}}desktop{{s}}src{{s}}bin
+  if exist ui{{s}}desktop{{s}}src{{s}}bin{{s}}goosed.exe del /f /q ui{{s}}desktop{{s}}src{{s}}bin{{s}}goosed.exe
 
 ### "Other" copy {release|debug} files to ui/desktop/src/bin
 ### s = os dependent file separator

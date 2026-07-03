@@ -19,8 +19,6 @@ use super::{
     codex_acp::CodexAcpProvider,
     copilot_acp::CopilotAcpProvider,
     cursor_agent::CursorAgentProvider,
-    databricks::DatabricksProvider,
-    databricks_v2::DatabricksV2Provider,
     gcpvertexai::GcpVertexAIProvider,
     gemini_cli::GeminiCliProvider,
     gemini_oauth::GeminiOAuthProvider,
@@ -41,6 +39,8 @@ use super::{
 use crate::config::ExtensionConfig;
 use crate::providers::anthropic_def::AnthropicProviderDef;
 use crate::providers::base::ProviderType;
+use crate::providers::databricks_def::{self, DatabricksProviderDef};
+use crate::providers::databricks_v2_def::{self, DatabricksV2ProviderDef};
 use crate::providers::ollama_def::OllamaProviderDef;
 use crate::providers::openai_def::OpenAiProviderDef;
 use crate::{
@@ -92,11 +92,11 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
         );
         registry.register::<CodexProvider>(true);
         registry.register::<CursorAgentProvider>(false);
-        registry.register_with_inventory::<DatabricksProvider>(
+        registry.register_with_inventory::<DatabricksProviderDef>(
             true,
             Some(registrations::refresh_only()),
         );
-        registry.register_with_inventory::<DatabricksV2Provider>(
+        registry.register_with_inventory::<DatabricksV2ProviderDef>(
             false,
             Some(registrations::refresh_only()),
         );
@@ -145,11 +145,11 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
     );
     registry.set_cleanup(
         "databricks",
-        Arc::new(|| Box::pin(DatabricksProvider::cleanup())),
+        Arc::new(|| Box::pin(databricks_def::cleanup())),
     );
     registry.set_cleanup(
         "databricks_v2",
-        Arc::new(|| Box::pin(DatabricksV2Provider::cleanup())),
+        Arc::new(|| Box::pin(databricks_v2_def::cleanup())),
     );
     registry.set_cleanup(
         "kimi_code",

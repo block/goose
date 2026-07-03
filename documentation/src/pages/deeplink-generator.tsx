@@ -68,7 +68,7 @@ export default function DeeplinkGenerator() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.toString()) {
       try {
-        if (urlParams.get('cmd') === 'goosed' && urlParams.getAll('arg').includes('mcp')) {
+        if (urlParams.get('cmd') === 'goose' && urlParams.getAll('arg').includes('mcp')) {
           const args = urlParams.getAll('arg');
           const extensionId = args[args.indexOf('mcp') + 1];
           if (!extensionId) {
@@ -187,7 +187,7 @@ export default function DeeplinkGenerator() {
   const generateDeeplink = (server: ServerConfig): string => {
     if (server.is_builtin) {
       const queryParams = [
-        'cmd=goosed',
+        'cmd=goose',
         'arg=mcp',
         `arg=${encodeURIComponent(server.id)}`,
         `description=${encodeURIComponent(server.id)}`

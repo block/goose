@@ -1,8 +1,56 @@
-use std::{collections::HashMap, str::FromStr};
+#[macro_use]
+mod macros;
+
+use std::{collections::HashMap, path::Path, str::FromStr};
 
 use anyhow::Result;
+use include_dir::{include_dir, Dir};
 use serde::{Deserialize, Deserializer, Serialize};
 use utoipa::ToSchema;
+
+pub static FIXED_PROVIDERS: Dir = include_dir!("$CARGO_MANIFEST_DIR/src/declarative/definitions");
+
+pub(crate) mod declarative_providers {
+    use super::*;
+
+    expose_declarative_providers!(
+        alibaba,
+        atomic_chat,
+        cerebras,
+        deepseek,
+        empiriolabs,
+        fireworks,
+        futurmix,
+        groq,
+        iflytek,
+        iflytek_astron,
+        inception,
+        llama_swap,
+        lmstudio,
+        minimax,
+        mistral,
+        moonshot,
+        nearai,
+        novita,
+        nvidia,
+        ollama_cloud,
+        omlx,
+        opencode_go,
+        orcarouter,
+        ovhcloud,
+        perplexity,
+        routstr,
+        saladcloud,
+        scaleway,
+        tanzu,
+        tensorix,
+        together,
+        venice,
+        vercel_ai_gateway,
+        zai,
+        zhipu,
+    );
+}
 
 use crate::{
     anthropic,
@@ -10,6 +58,14 @@ use crate::{
     base::{ModelInfo, Provider},
     ollama, openai,
 };
+
+pub fn fixed_provider_configs() -> anyhow::Result<Vec<DeclarativeProviderConfig>> {
+    declarative_providers::fixed_provider_configs()
+}
+
+pub fn fixed_provider_config_entries() -> Vec<(&'static str, &'static str)> {
+    declarative_providers::fixed_provider_config_entries()
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize, ToSchema)]
 pub struct EnvVarConfig {
@@ -94,7 +150,7 @@ fn default_requires_auth() -> bool {
     true
 }
 
-fn should_preserve_thinking_by_default(engine: &ProviderEngine) -> bool {
+pub fn should_preserve_thinking_by_default(engine: &ProviderEngine) -> bool {
     matches!(engine, ProviderEngine::OpenAI)
 }
 
@@ -195,7 +251,7 @@ fn resolve_config(config: &mut DeclarativeProviderConfig) -> Result<()> {
     Ok(())
 }
 
-fn config_from_json(json: &str) -> Result<DeclarativeProviderConfig> {
+pub fn deserialize_provider_config(json: &str) -> Result<DeclarativeProviderConfig> {
     let raw: serde_json::Value = serde_json::from_str(json)?;
     let preserves_thinking_was_set = raw.get("preserves_thinking").is_some();
     let mut config: DeclarativeProviderConfig = serde_json::from_value(raw)?;
@@ -204,8 +260,31 @@ fn config_from_json(json: &str) -> Result<DeclarativeProviderConfig> {
         config.preserves_thinking = should_preserve_thinking_by_default(&config.engine);
     }
 
+    Ok(config)
+}
+
+fn config_from_json(json: &str) -> Result<DeclarativeProviderConfig> {
+    let mut config = deserialize_provider_config(json)?;
     resolve_config(&mut config)?;
     Ok(config)
+}
+
+pub fn load_custom_providers(dir: &Path) -> Result<Vec<DeclarativeProviderConfig>> {
+    if !dir.exists() {
+        return Ok(Vec::new());
+    }
+
+    std::fs::read_dir(dir)?
+        .filter_map(|entry| {
+            let path = entry.ok()?.path();
+            (path.extension()? == "json").then_some(path)
+        })
+        .map(|path| {
+            let content = std::fs::read_to_string(&path)?;
+            deserialize_provider_config(&content)
+                .map_err(|e| anyhow::anyhow!("Failed to parse {}: {}", path.display(), e))
+        })
+        .collect()
 }
 
 pub fn from_json(
@@ -231,6 +310,7 @@ pub fn from_json(
 mod tests {
     use super::*;
     use serde_json::json;
+    use std::collections::HashSet;
 
     fn model_json() -> serde_json::Value {
         json!({
@@ -275,6 +355,132 @@ mod tests {
         }))
         .unwrap();
         assert_eq!(ollama.engine, ProviderEngine::Ollama);
+    }
+
+    #[test]
+    fn existing_json_files_still_deserialize_without_new_fields() {
+        let config =
+            deserialize_provider_config(crate::groq::JSON).expect("groq.json should parse");
+        assert!(config.env_vars.is_none());
+        assert!(config.dynamic_models.is_none());
+        assert!(config.model_doc_link.is_none());
+        assert!(config.setup_steps.is_empty());
+        assert!(config.preserves_thinking);
+    }
+
+    fn placeholder_var_names(template: &str) -> Vec<String> {
+        template
+            .split("${")
+            .skip(1)
+            .filter_map(|chunk| chunk.split_once('}'))
+            .map(|(name, _)| name.to_string())
+            .collect()
+    }
+
+    fn validate_provider_id(id: &str) -> Result<()> {
+        let mut chars = id.chars();
+        let Some(first) = chars.next() else {
+            anyhow::bail!("Invalid provider id: provider id cannot be empty");
+        };
+
+        if !(first.is_ascii_lowercase() || first.is_ascii_digit() || first == '_') {
+            anyhow::bail!("Invalid provider id: {id}");
+        }
+
+        if chars.all(|ch| ch.is_ascii_lowercase() || ch.is_ascii_digit() || ch == '_' || ch == '-')
+        {
+            Ok(())
+        } else {
+            anyhow::bail!("Invalid provider id: {id}")
+        }
+    }
+
+    #[test]
+    fn expose_declarative_providers_enumerates_all_bundled_json_files() {
+        let enumerated: HashSet<_> = fixed_provider_config_entries()
+            .into_iter()
+            .map(|(path, _)| path.to_string())
+            .collect();
+        let bundled: HashSet<_> = FIXED_PROVIDERS
+            .files()
+            .filter(|file| file.path().extension().and_then(|s| s.to_str()) == Some("json"))
+            .map(|file| {
+                file.path()
+                    .file_name()
+                    .unwrap()
+                    .to_string_lossy()
+                    .into_owned()
+            })
+            .collect();
+
+        assert_eq!(enumerated, bundled);
+    }
+
+    #[test]
+    fn all_bundled_providers_are_valid() {
+        let mut seen_ids = HashSet::new();
+
+        for (path, json) in fixed_provider_config_entries() {
+            let config = deserialize_provider_config(json)
+                .unwrap_or_else(|e| panic!("{path} failed to parse: {e}"));
+
+            validate_provider_id(config.id())
+                .unwrap_or_else(|e| panic!("{path} has an invalid provider id: {e}"));
+            assert!(
+                seen_ids.insert(config.id().to_string()),
+                "{path} has a duplicate provider id: {}",
+                config.id()
+            );
+            assert!(!config.base_url.is_empty(), "{path} has an empty base_url");
+
+            if config.dynamic_models == Some(false) {
+                assert!(
+                    !config.models.is_empty(),
+                    "{path} disables dynamic_models but lists no static models"
+                );
+            }
+
+            let declared: HashSet<&str> = config
+                .env_vars
+                .iter()
+                .flatten()
+                .map(|v| v.name.as_str())
+                .collect();
+            let templates = std::iter::once(config.base_url.as_str())
+                .chain(config.base_path.as_deref())
+                .chain(
+                    config
+                        .headers
+                        .iter()
+                        .flat_map(|h| h.values())
+                        .map(String::as_str),
+                );
+            for template in templates {
+                for var in placeholder_var_names(template) {
+                    assert!(
+                        declared.contains(var.as_str()),
+                        "{path} references ${{{var}}} but declares no matching env_var"
+                    );
+                }
+            }
+        }
+
+        assert!(!seen_ids.is_empty(), "no bundled providers were found");
+    }
+
+    #[test]
+    fn fixed_provider_configs_are_unresolved() {
+        let configs = fixed_provider_configs().expect("bundled providers should load");
+        let config = configs
+            .iter()
+            .find(|config| config.env_vars.is_some())
+            .expect("at least one bundled provider should declare env_vars");
+
+        assert!(
+            config.base_url.contains("${"),
+            "{} should keep base_url placeholders unresolved",
+            config.id()
+        );
     }
 
     #[test]
