@@ -84,6 +84,17 @@ impl RepetitionInspector {
         self.repeat_count = 0;
         self.call_counts.clear();
     }
+
+    fn would_exceed_limit(&self, tool_call: &CallToolRequestParams) -> bool {
+        let Some(max) = self.max_repetitions else {
+            return false;
+        };
+        let internal_call = InternalToolCall::from_tool_call(tool_call);
+        match &self.last_call {
+            Some(last) if last.matches(&internal_call) => self.repeat_count + 1 > max,
+            _ => false,
+        }
+    }
 }
 
 #[async_trait]
@@ -108,13 +119,7 @@ impl ToolInspector for RepetitionInspector {
         // Check repetition limits for each tool request
         for tool_request in tool_requests {
             if let Ok(tool_call) = &tool_request.tool_call {
-                // Create a temporary clone to check without modifying state
-                let mut temp_inspector = RepetitionInspector::new(self.max_repetitions);
-                temp_inspector.last_call = self.last_call.clone();
-                temp_inspector.repeat_count = self.repeat_count;
-                temp_inspector.call_counts = self.call_counts.clone();
-
-                if !temp_inspector.check_tool_call(tool_call.clone()) {
+                if self.would_exceed_limit(tool_call) {
                     results.push(InspectionResult {
                         tool_request_id: tool_request.id.clone(),
                         action: InspectionAction::Deny,
