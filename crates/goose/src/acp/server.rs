@@ -93,6 +93,7 @@ mod extensions;
 mod fork_session;
 mod list_sessions;
 mod load_session;
+mod local_inference;
 mod manage_sessions;
 mod new_session;
 mod onboarding;
@@ -1177,7 +1178,10 @@ impl GooseAcpAgent {
                 .await
                 .internal_err_ctx("Failed to update session")?;
 
-            let _ = self.agent_manager.remove_session(&session_id).await;
+            self.agent_manager
+                .remove_session_if_loaded(&session_id)
+                .await
+                .internal_err_ctx("Failed to remove in-memory agent")?;
 
             session = self
                 .session_manager
@@ -2336,7 +2340,17 @@ impl GooseAcpAgent {
 
         if self.closed_session_ids.lock().await.contains(session_id) {
             self.sessions.lock().await.remove(session_id);
-            let _ = self.agent_manager.remove_session(session_id).await;
+            if let Err(error) = self
+                .agent_manager
+                .remove_session_if_loaded(session_id)
+                .await
+            {
+                tracing::warn!(
+                    session_id,
+                    %error,
+                    "Failed to remove in-memory agent for closed session"
+                );
+            }
         }
     }
 
@@ -2968,7 +2982,10 @@ impl GooseAcpAgent {
         sessions.remove(session_id);
         drop(sessions);
 
-        let _ = self.agent_manager.remove_session(session_id).await;
+        self.agent_manager
+            .remove_session_if_loaded(session_id)
+            .await
+            .internal_err_ctx("Failed to remove in-memory agent")?;
 
         info!(session_id = %session_id, "ACP session closed");
         Ok(CloseSessionResponse::new())

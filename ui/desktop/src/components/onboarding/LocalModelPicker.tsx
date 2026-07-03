@@ -1,13 +1,12 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   listLocalModels,
-  syncFeaturedModels,
   downloadHfModel,
   getLocalModelDownloadProgress,
   cancelLocalModelDownload,
   type DownloadProgress,
   type LocalModelResponse,
-} from '../../api';
+} from '../../acp/local-inference';
 import { trackOnboardingSetupFailed } from '../../utils/analytics';
 import { defineMessages, useIntl } from '../../i18n';
 
@@ -124,16 +123,15 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
   useEffect(() => {
     const load = async () => {
       try {
-        await syncFeaturedModels();
-        const response = await listLocalModels({ throwOnError: true });
-        if (response.data) {
-          setModels(response.data);
+        const models = await listLocalModels();
+        if (models) {
+          setModels(models);
 
-          const alreadyDownloaded = response.data.find((m) => m.status.state === 'Downloaded');
+          const alreadyDownloaded = models.find((m) => m.status.state === 'Downloaded');
           if (alreadyDownloaded) {
             setSelectedModelId(alreadyDownloaded.id);
           } else {
-            const recommended = response.data.find((m: LocalModelResponse) => m.recommended);
+            const recommended = models.find((m: LocalModelResponse) => m.recommended);
             if (recommended) setSelectedModelId(recommended.id);
           }
         }
@@ -165,7 +163,7 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
     }
 
     try {
-      await downloadHfModel({ body: { spec: model.id }, throwOnError: true });
+      await downloadHfModel({ spec: model.id });
     } catch (error) {
       console.error('Failed to start download:', error);
       setErrorMessage(intl.formatMessage(i18n.failedToStartDownload));
@@ -176,24 +174,27 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
 
     pollRef.current = setInterval(async () => {
       try {
-        const response = await getLocalModelDownloadProgress({
-          path: { model_id: modelId },
-          throwOnError: true,
-        });
-        if (response.data) {
-          setDownloadProgress(response.data);
-          if (response.data.status === 'completed') {
-            cleanup();
-            finishSetup(modelId);
-          } else if (response.data.status === 'failed') {
-            cleanup();
-            setErrorMessage(response.data.error || 'Download failed.');
-            trackOnboardingSetupFailed(LOCAL_PROVIDER, response.data.error || 'download_failed');
-            setPhase('error');
-          } else if (response.data.status === 'cancelled') {
-            cleanup();
-            setPhase('select');
-          }
+        const progress = await getLocalModelDownloadProgress(modelId);
+        if (!progress) {
+          cleanup();
+          setErrorMessage(intl.formatMessage(i18n.lostConnection));
+          trackOnboardingSetupFailed(LOCAL_PROVIDER, 'progress_missing');
+          setPhase('error');
+          return;
+        }
+
+        setDownloadProgress(progress);
+        if (progress.status === 'completed') {
+          cleanup();
+          finishSetup(modelId);
+        } else if (progress.status === 'failed') {
+          cleanup();
+          setErrorMessage(progress.error || 'Download failed.');
+          trackOnboardingSetupFailed(LOCAL_PROVIDER, progress.error || 'download_failed');
+          setPhase('error');
+        } else if (progress.status === 'cancelled') {
+          cleanup();
+          setPhase('select');
         }
       } catch {
         cleanup();
@@ -208,7 +209,7 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
     if (phase === 'downloading' && selectedModelId) {
       cleanup();
       try {
-        await cancelLocalModelDownload({ path: { model_id: selectedModelId } });
+        await cancelLocalModelDownload(selectedModelId);
       } catch {
         // best-effort
       }
@@ -296,7 +297,7 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
                       )}
                     </div>
                     <p className="text-text-muted text-xs mt-1">
-                      {formatSize(recommended.size_bytes)}
+                      {formatSize(recommended.sizeBytes)}
                     </p>
                   </div>
                 </div>
@@ -350,7 +351,7 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
                                 {model.id}
                               </span>
                               <span className="text-xs text-text-muted">
-                                {formatSize(model.size_bytes)}
+                                {formatSize(model.sizeBytes)}
                               </span>
                               {model.status.state === 'Downloaded' && (
                                 <span className="text-xs bg-green-600 text-white px-2 py-0.5 rounded-full">
@@ -375,7 +376,7 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
               {selectedModel?.status.state === 'Downloaded'
                 ? intl.formatMessage(i18n.useModel, { modelId: selectedModel.id })
                 : selectedModel
-                  ? intl.formatMessage(i18n.downloadModel, { modelId: selectedModel.id, size: formatSize(selectedModel.size_bytes) })
+                  ? intl.formatMessage(i18n.downloadModel, { modelId: selectedModel.id, size: formatSize(selectedModel.sizeBytes) })
                   : intl.formatMessage(i18n.selectModel)}
             </button>
 
@@ -394,30 +395,30 @@ export default function LocalModelPicker({ onConfigured }: LocalModelPickerProps
                   <div className="w-full bg-background-subtle rounded-full h-2 overflow-hidden">
                     <div
                       className="bg-blue-500 h-2 rounded-full transition-all duration-500 ease-out"
-                      style={{ width: `${downloadProgress.progress_percent}%` }}
+                      style={{ width: `${downloadProgress.progressPercent}%` }}
                     />
                   </div>
 
                   <div className="flex justify-between text-xs text-text-muted">
                     <span>
-                      {formatBytes(downloadProgress.bytes_downloaded)} of{' '}
-                      {formatBytes(downloadProgress.total_bytes)}
+                      {formatBytes(downloadProgress.bytesDownloaded)} of{' '}
+                      {formatBytes(downloadProgress.totalBytes)}
                     </span>
-                    <span>{downloadProgress.progress_percent.toFixed(0)}%</span>
+                    <span>{downloadProgress.progressPercent.toFixed(0)}%</span>
                   </div>
 
                   <div className="flex justify-between text-xs text-text-muted">
-                    {downloadProgress.speed_bps ? (
-                      <span>{formatBytes(downloadProgress.speed_bps)}/s</span>
+                    {downloadProgress.speedBps ? (
+                      <span>{formatBytes(downloadProgress.speedBps)}/s</span>
                     ) : (
                       <span />
                     )}
-                    {downloadProgress.eta_seconds != null && downloadProgress.eta_seconds > 0 && (
+                    {downloadProgress.etaSeconds != null && downloadProgress.etaSeconds > 0 && (
                       <span>
                         ~
-                        {downloadProgress.eta_seconds < 60
-                          ? `${Math.round(downloadProgress.eta_seconds)}s`
-                          : `${Math.round(downloadProgress.eta_seconds / 60)}m`}{' '}
+                        {downloadProgress.etaSeconds < 60
+                          ? `${Math.round(downloadProgress.etaSeconds)}s`
+                          : `${Math.round(downloadProgress.etaSeconds / 60)}m`}{' '}
                         remaining
                       </span>
                     )}

@@ -19,6 +19,8 @@ type InitializedAcpClient = {
   initializeResponse: InitializeResponse;
 };
 
+const ACP_INITIALIZE_TIMEOUT_MS = 10_000;
+
 let clientPromise: Promise<InitializedAcpClient> | null = null;
 let resolvedClient: InitializedAcpClient | null = null;
 
@@ -44,6 +46,21 @@ function monitorConnection(client: GooseClient): void {
     });
 }
 
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | null = null;
+  const timeout = new Promise<T>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(message)), timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+    }
+  }
+}
+
 async function initializeConnection(): Promise<InitializedAcpClient> {
   const wsUrl = await window.electron.getAcpUrl();
   if (!wsUrl) {
@@ -53,26 +70,35 @@ async function initializeConnection(): Promise<InitializedAcpClient> {
   const stream = createWebSocketStream(wsUrl);
   const client = new GooseClient(createClientCallbacks(), stream);
 
-  const initializeResponse = await client.initialize({
-    protocolVersion: PROTOCOL_VERSION,
-    clientCapabilities: {
-      elicitation: { form: {} },
-      _meta: {
-        goose: {
-          mcpHostCapabilities: DEFAULT_GOOSE_MCP_HOST_CAPABILITIES,
-          customNotifications: true,
-          recipeParameterRequests: true,
+  try {
+    const initializeResponse = await withTimeout(
+      client.initialize({
+        protocolVersion: PROTOCOL_VERSION,
+        clientCapabilities: {
+          elicitation: { form: {} },
+          _meta: {
+            goose: {
+              mcpHostCapabilities: DEFAULT_GOOSE_MCP_HOST_CAPABILITIES,
+              customNotifications: true,
+              recipeParameterRequests: true,
+            },
+          },
         },
-      },
-    },
-    clientInfo: {
-      name: packageJson.name,
-      version: packageJson.version,
-    },
-  });
+        clientInfo: {
+          name: packageJson.name,
+          version: packageJson.version,
+        },
+      }),
+      ACP_INITIALIZE_TIMEOUT_MS,
+      `ACP initialize timed out after ${ACP_INITIALIZE_TIMEOUT_MS}ms`
+    );
 
-  monitorConnection(client);
-  return { client, initializeResponse };
+    monitorConnection(client);
+    return { client, initializeResponse };
+  } catch (error) {
+    stream.close();
+    throw error;
+  }
 }
 
 export async function getAcpClient(): Promise<GooseClient> {

@@ -27,7 +27,7 @@ import Model, {
   getProviderMetadata,
 } from '../modelInterface';
 import { getPredefinedModelsFromEnv, shouldShowPredefinedModels } from '../predefinedModelsUtils';
-import type { ProviderType, ThinkingEffort } from '../../../../api';
+import type { ProviderDetails, ProviderType, ThinkingEffort } from '../../../../types/providers';
 import { trackModelChanged } from '../../../../utils/analytics';
 
 const i18n = defineMessages({
@@ -305,9 +305,7 @@ export const SwitchModelModal = ({
   const [userClearedModel, setUserClearedModel] = useState(false);
   const [providerErrors, setProviderErrors] = useState<Record<string, string>>({});
   const [providerWarnings, setProviderWarnings] = useState<Record<string, string>>({});
-  const [activeProvidersList, setActiveProvidersList] = useState<
-    import('../../../../api').ProviderDetails[]
-  >([]);
+  const [activeProvidersList, setActiveProvidersList] = useState<ProviderDetails[]>([]);
   const fetchedProviders = useRef<Set<string>>(new Set());
   const reasoningRequestId = useRef(0);
   const [thinkingEffort, setThinkingEffort] = useState<ThinkingEffort | null>(null);

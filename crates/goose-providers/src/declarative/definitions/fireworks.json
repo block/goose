@@ -1,0 +1,55 @@
+{
+  "name": "fireworks-ai",
+  "engine": "openai",
+  "display_name": "Fireworks AI",
+  "description": "Fast serverless inference for open models with an OpenAI-compatible API",
+  "api_key_env": "FIREWORKS_API_KEY",
+  "base_url": "https://api.fireworks.ai/inference/v1/chat/completions",
+  "catalog_provider_id": "fireworks-ai",
+  "dynamic_models": false,
+  "models": [
+    {
+      "name": "accounts/fireworks/models/kimi-k2p7-code",
+      "context_limit": 262000
+    },
+    {
+      "name": "accounts/fireworks/models/kimi-k2p6",
+      "context_limit": 262000
+    },
+    {
+      "name": "accounts/fireworks/models/glm-5p2",
+      "context_limit": 1048576
+    },
+    {
+      "name": "accounts/fireworks/models/deepseek-v4-pro",
+      "context_limit": 1000000
+    },
+    {
+      "name": "accounts/fireworks/models/deepseek-v4-flash",
+      "context_limit": 1000000
+    },
+    {
+      "name": "accounts/fireworks/models/minimax-m3",
+      "context_limit": 512000
+    },
+    {
+      "name": "accounts/fireworks/models/qwen3p7-plus",
+      "context_limit": 262144
+    },
+    {
+      "name": "accounts/fireworks/models/glm-5p1",
+      "context_limit": 202800
+    },
+    {
+      "name": "accounts/fireworks/models/gpt-oss-120b",
+      "context_limit": 131072
+    },
+    {
+      "name": "accounts/fireworks/models/gpt-oss-20b",
+      "context_limit": 131072
+    }
+  ],
+  "preserves_thinking": true,
+  "supports_streaming": true,
+  "model_doc_link": "https://fireworks.ai/models"
+}

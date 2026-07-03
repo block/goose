@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import type { ProviderDetails } from '../../api';
 import { acpCreateCustomProviderFromRequest, acpListProviderDetails } from '../../acp/providers';
-import type { UpdateCustomProviderRequest } from '../../types/providers';
+import type { ProviderDetails, UpdateCustomProviderRequest } from '../../types/providers';
 import { Select } from '../ui/Select';
 import ProviderConfigForm from './ProviderConfigForm';
 import LocalModelPicker from './LocalModelPicker';

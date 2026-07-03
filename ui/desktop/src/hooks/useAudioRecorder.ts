@@ -1,7 +1,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
-import { DictationProvider } from '../api';
 import { getDictationConfig, transcribeDictation } from '../acp/dictation';
 import { useConfig } from '../components/ConfigContext';
+import type { DictationProvider } from '../types/dictation';
 import { errorMessage } from '../utils/conversionUtils';
 
 interface UseAudioRecorderOptions {

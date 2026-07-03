@@ -145,6 +145,7 @@ async function loadSession(sessionId: string, options: AcpLoadSessionOptions = {
     acpChatSessionActions.finishSessionLoad(sessionId, sessionInfoToSession(sessionInfo, meta));
     options.onSessionLoaded?.();
   } catch (error) {
+    console.error('Failed to load ACP session:', error);
     acpChatSessionActions.failSessionLoad(sessionId, errorMessage(error));
   }
 }
