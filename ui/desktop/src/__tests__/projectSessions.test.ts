@@ -54,6 +54,15 @@ describe('groupSessionsByProject', () => {
     expect(groups[0].sessions.map((session) => session.id)).toEqual(['new', 'middle', 'old']);
   });
 
+  it('prefers lastMessageAt over updatedAt for sorting', () => {
+    const groups = groupSessionsByProject([
+      makeSession({ id: 'renamed', updatedAt: '2026-01-03T00:00:00.000Z', lastMessageAt: '2026-01-01T00:00:00.000Z' }),
+      makeSession({ id: 'active', updatedAt: '2026-01-02T00:00:00.000Z', lastMessageAt: '2026-01-03T00:00:00.000Z' }),
+    ]);
+
+    expect(groups[0].sessions.map((session) => session.id)).toEqual(['active', 'renamed']);
+  });
+
   it('canonicalizes trailing separators when grouping projects', () => {
     const groups = groupSessionsByProject([
       makeSession({ id: 'a', workingDir: '/tmp/goose' }),

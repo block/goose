@@ -4,7 +4,11 @@ export interface ProjectGroup {
   path: string;
   label: string;
   sessions: SessionListItem[];
-  updatedAt: string;
+  lastActivityAt: string;
+}
+
+function getSessionActivityTime(session: SessionListItem): string {
+  return session.lastMessageAt ?? session.updatedAt;
 }
 
 const UNKNOWN_PROJECT_LABEL = 'Unknown';
@@ -49,13 +53,15 @@ export function groupSessionsByProject(sessions: SessionListItem[]): ProjectGrou
 
   const baseGroups = Array.from(groups.entries()).map(([path, projectSessions]) => {
     const sortedSessions = [...projectSessions].sort(
-      (a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      (a, b) =>
+        new Date(getSessionActivityTime(b)).getTime() -
+        new Date(getSessionActivityTime(a)).getTime()
     );
     return {
       path,
       label: getProjectLabel(path),
       sessions: sortedSessions,
-      updatedAt: sortedSessions[0]?.updatedAt ?? '',
+      lastActivityAt: getSessionActivityTime(sortedSessions[0] ?? { updatedAt: '' } as SessionListItem),
     };
   });
 
@@ -72,7 +78,9 @@ export function groupSessionsByProject(sessions: SessionListItem[]): ProjectGrou
           ? getDisambiguatedProjectLabel(group.path)
           : group.label,
     }))
-    .sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime());
+    .sort(
+      (a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime()
+    );
 }
 
 function getDisambiguatedProjectLabel(workingDir: string): string {
