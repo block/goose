@@ -295,4 +295,69 @@ mod tests {
         let cancelled = bus.cancel_request("req-1").await;
         assert!(!cancelled);
     }
+
+    #[tokio::test]
+    async fn test_guard_drop_cleans_up_when_not_disarmed() {
+        let bus = std::sync::Arc::new(SessionEventBus::new());
+        bus.register_request("req-1".to_string()).await;
+
+        {
+            let _guard = RequestGuard::new(bus.clone(), "req-1".to_string());
+            // guard dropped here without disarm → Drop spawns cleanup task
+        }
+
+        // Give the spawned cleanup task time to run
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // Active request should have been cleaned up by Drop
+        let ids = bus.active_request_ids().await;
+        assert!(ids.is_empty(), "expected no active requests after guard drop, got: {:?}", ids);
+    }
+
+    #[tokio::test]
+    async fn test_guard_disarmed_skips_drop_cleanup() {
+        let bus = std::sync::Arc::new(SessionEventBus::new());
+        bus.register_request("req-1".to_string()).await;
+
+        {
+            let mut guard = RequestGuard::new(bus.clone(), "req-1".to_string());
+            guard.disarm();
+            // guard dropped here with disarm → Drop is no-op
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // Active request should still be present (disarmed guard does not clean up)
+        let ids = bus.active_request_ids().await;
+        assert_eq!(ids.len(), 1, "expected active request to remain after disarmed guard drop");
+    }
+
+    #[tokio::test]
+    async fn test_cleanup_before_disarm_is_safe() {
+        // Verifies the correct ordering: cleanup_request() then disarm().
+        // If the task is cancelled after cleanup but before disarm, the
+        // entry is already removed. The Drop fallback runs (guard still
+        // armed) but cleanup_request for a missing key is a harmless no-op.
+        let bus = std::sync::Arc::new(SessionEventBus::new());
+        bus.register_request("req-1".to_string()).await;
+
+        // Simulate: cleanup succeeds
+        bus.cleanup_request("req-1").await;
+
+        // Then task is cancelled before disarm → guard drops while still armed
+        {
+            let _guard = RequestGuard::new(bus.clone(), "req-1".to_string());
+            // Drop runs cleanup again (no-op for missing key)
+        }
+
+        tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+
+        // Should be clean — no dangling entries
+        let ids = bus.active_request_ids().await;
+        assert!(ids.is_empty());
+
+        // New request should succeed
+        let result = bus.try_register_request("req-2".to_string()).await;
+        assert!(result.is_ok());
+    }
 }

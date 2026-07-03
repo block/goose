@@ -591,8 +591,13 @@ pub async fn session_reply(
         )
         .await;
 
-        _guard.disarm();
+        // Clean up the active-request entry before disarming the guard.
+        // Reversing this order (disarm → cleanup) creates a race: if the
+        // tokio task is cancelled between the two calls, cleanup is skipped
+        // AND the Drop fallback is a no-op because `disarmed == true`,
+        // leaving a dangling entry in the active_requests HashMap forever.
         task_bus.cleanup_request(&task_request_id).await;
+        _guard.disarm();
     }));
 
     Ok(Json(SessionReplyResponse { request_id }))
