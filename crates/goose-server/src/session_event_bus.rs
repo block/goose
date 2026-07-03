@@ -311,7 +311,11 @@ mod tests {
 
         // Active request should have been cleaned up by Drop
         let ids = bus.active_request_ids().await;
-        assert!(ids.is_empty(), "expected no active requests after guard drop, got: {:?}", ids);
+        assert!(
+            ids.is_empty(),
+            "expected no active requests after guard drop, got: {:?}",
+            ids
+        );
     }
 
     #[tokio::test]
@@ -329,7 +333,11 @@ mod tests {
 
         // Active request should still be present (disarmed guard does not clean up)
         let ids = bus.active_request_ids().await;
-        assert_eq!(ids.len(), 1, "expected active request to remain after disarmed guard drop");
+        assert_eq!(
+            ids.len(),
+            1,
+            "expected active request to remain after disarmed guard drop"
+        );
     }
 
     #[tokio::test]
