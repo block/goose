@@ -258,7 +258,11 @@ pub fn format_messages_with_options(
                     reasoning_text.push_str(&t.thinking);
                 }
                 MessageContent::RedactedThinking(_) => {
-                    continue;
+                    // The underlying content is opaque, but providers like DeepSeek
+                    // still require a non-empty reasoning_content on tool-call
+                    // messages that followed thinking. Emit a placeholder so it
+                    // isn't silently dropped (see #9434).
+                    reasoning_text.push_str("[redacted]");
                 }
                 MessageContent::SystemNotification(_) => {
                     continue;
@@ -503,8 +507,10 @@ pub fn format_messages_with_options(
 /// This function merges them back into one assistant message with all tool_calls,
 /// followed by the tool results — the standard OpenAI format.
 ///
-/// Only merges when `reasoning_content` is present and matches, since that is
-/// the only signal that messages were split from the same turn.
+/// Only merges when `reasoning_content` is present (non-empty), since that is
+/// the signal that messages were split from the same turn. The exact text is
+/// not required to match — streaming accumulation can produce slightly
+/// different reasoning text across split messages within the same turn.
 fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
     let mut i = 0;
     while i < messages.len() {
@@ -513,13 +519,15 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
                 .get("tool_calls")
                 .and_then(|tc| tc.as_array())
                 .is_some_and(|a| !a.is_empty());
-        let base_reasoning = messages[i].get("reasoning_content");
+        let has_base_reasoning = messages[i]
+            .get("reasoning_content")
+            .and_then(|v| v.as_str())
+            .is_some_and(|s| !s.is_empty());
 
-        if !is_assistant_tool_call || base_reasoning.is_none() {
+        if !is_assistant_tool_call || !has_base_reasoning {
             i += 1;
             continue;
         }
-        let base_reasoning = base_reasoning.unwrap().clone();
 
         let mut extra_tool_calls: Vec<Value> = Vec::new();
         let mut collected: Vec<Value> = Vec::new();
@@ -546,13 +554,20 @@ fn merge_split_tool_call_messages(messages: &mut Vec<Value>) {
                     || c.as_str().is_some_and(|s| s.is_empty())
                     || c.as_array().is_some_and(|a| a.is_empty())
             });
+            // Reasoning text can differ slightly between split messages within the
+            // same turn (streaming accumulation boundaries, redacted-thinking
+            // placeholders), so only require that reasoning is present, not that
+            // it matches exactly (see #9434).
             let is_split = next.get("role") == Some(&json!("assistant"))
                 && next
                     .get("tool_calls")
                     .and_then(|tc| tc.as_array())
                     .is_some_and(|a| !a.is_empty())
                 && has_no_content
-                && next.get("reasoning_content") == Some(&base_reasoning);
+                && next
+                    .get("reasoning_content")
+                    .and_then(|v| v.as_str())
+                    .is_some_and(|s| !s.is_empty());
 
             if !is_split {
                 break;
@@ -3594,6 +3609,60 @@ data: [DONE]"#;
         assert_eq!(messages[2]["role"], "user");
         assert_eq!(messages[2]["content"], "what happened?");
         assert_eq!(messages[3]["tool_calls"].as_array().unwrap().len(), 1);
+    }
+
+    #[test]
+    fn test_merge_split_tool_calls_with_mismatched_reasoning() {
+        // Streaming accumulation can produce slightly different reasoning_content
+        // text on each split tool-call message within the same turn (see #9434).
+        // They must still be merged — an exact-match requirement leaves tool calls
+        // unmerged and can drop reasoning_content, which DeepSeek rejects with 400.
+        let mut messages = vec![
+            json!({"role": "assistant", "tool_calls": [{"id": "tc1", "type": "function", "function": {"name": "read", "arguments": "{}"}}], "reasoning_content": "thinking A"}),
+            json!({"role": "tool", "tool_call_id": "tc1", "content": "result1"}),
+            json!({"role": "assistant", "tool_calls": [{"id": "tc2", "type": "function", "function": {"name": "write", "arguments": "{}"}}], "reasoning_content": "thinking B"}),
+            json!({"role": "tool", "tool_call_id": "tc2", "content": "result2"}),
+        ];
+        merge_split_tool_call_messages(&mut messages);
+
+        assert_eq!(messages.len(), 3);
+        assert_eq!(messages[0]["tool_calls"].as_array().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn test_format_messages_redacted_thinking_still_sets_reasoning_content() -> anyhow::Result<()> {
+        // A RedactedThinking-only assistant message (signature verification /
+        // content filtering flows) followed by a tool call must still produce a
+        // non-empty reasoning_content, or DeepSeek rejects the request with 400
+        // (see #9434, pathway 1).
+        let messages = vec![Message::assistant()
+            .with_content(MessageContent::redacted_thinking("opaque-data"))
+            .with_tool_request(
+                "tool1",
+                Ok(CallToolRequestParams::new("tool_a").with_arguments(object!({}))),
+            )];
+
+        let spec = format_messages_with_options(
+            &messages,
+            &ImageFormat::OpenAi,
+            OpenAiFormatOptions {
+                preserve_thinking_context: true,
+            },
+        );
+
+        let assistant_msg = spec
+            .iter()
+            .find(|m| m.get("role") == Some(&json!("assistant")))
+            .expect("assistant message must be present");
+        assert!(
+            assistant_msg
+                .get("reasoning_content")
+                .is_some_and(|v| v.as_str().is_some_and(|s| !s.is_empty())),
+            "expected non-empty reasoning_content, got {:?}",
+            assistant_msg.get("reasoning_content")
+        );
+
+        Ok(())
     }
 
     #[test]
