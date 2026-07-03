@@ -146,6 +146,7 @@ impl CodeExecutionClient {
         &self,
         ctx: &ToolCallContext,
         code_mode: &CodeMode,
+        cancellation_token: CancellationToken,
     ) -> Result<PctxRegistry, String> {
         let manager = self
             .context
@@ -164,7 +165,12 @@ impl CodeExecutionClient {
                     .unwrap_or_default(),
                 &cfg.name
             );
-            let callback = create_tool_callback(ctx.clone(), full_name, manager.clone());
+            let callback = create_tool_callback(
+                ctx.clone(),
+                full_name,
+                manager.clone(),
+                cancellation_token.clone(),
+            );
             registry
                 .add_callback(&cfg.id(), callback)
                 .map_err(|e| format!("Failed to register callback: {e}"))?;
@@ -214,9 +220,11 @@ impl CodeExecutionClient {
         let command = input.command;
         let code_mode = self.get_code_mode(session_id).await?;
 
+        let dispatch_token = cancellation_token.child_token();
         let output = run_in_deno_runtime(
             execution_timeout(),
             cancellation_token,
+            dispatch_token,
             move || async move {
                 code_mode
                     .execute_bash(&command)
@@ -244,13 +252,15 @@ impl CodeExecutionClient {
 
         let session_id = &ctx.session_id;
         let code_mode = self.get_code_mode(session_id).await?;
-        let registry = self.build_callback_registry(ctx, &code_mode)?;
+        let dispatch_token = cancellation_token.child_token();
+        let registry = self.build_callback_registry(ctx, &code_mode, dispatch_token.clone())?;
         let code = args.input.code.clone();
         let disclosure = self.disclosure;
 
         let output = run_in_deno_runtime(
             execution_timeout(),
             cancellation_token,
+            dispatch_token,
             move || async move {
                 code_mode
                     .execute_typescript(&code, disclosure, Some(registry))
@@ -275,9 +285,16 @@ fn execution_timeout() -> Duration {
 /// own tokio runtime. pctx serializes all executions behind a process-wide
 /// V8 mutex, so a hung script would wedge code execution for every session:
 /// bound the wait with the extension timeout and honor cancellation.
+///
+/// `dispatch_token` is the child token shared with the callback dispatches that
+/// a script makes back into Goose tools. When execution is abandoned (timeout
+/// or cancellation), the token is cancelled so an in-flight nested tool call
+/// (e.g. a long `developer.shell` command) is told to stop instead of running
+/// on in the background.
 async fn run_in_deno_runtime<T, F, Fut>(
     timeout: Duration,
     cancellation_token: CancellationToken,
+    dispatch_token: CancellationToken,
     task: F,
 ) -> Result<T, String>
 where
@@ -294,14 +311,18 @@ where
         rt.block_on(async move {
             tokio::select! {
                 _ = cancellation_token.cancelled() => {
+                    dispatch_token.cancel();
                     Err("Execution cancelled".to_string())
                 }
                 result = tokio::time::timeout(timeout, task()) => match result {
                     Ok(output) => output,
-                    Err(_) => Err(format!(
-                        "Execution timed out after {} seconds",
-                        timeout.as_secs()
-                    )),
+                    Err(_) => {
+                        dispatch_token.cancel();
+                        Err(format!(
+                            "Execution timed out after {} seconds",
+                            timeout.as_secs()
+                        ))
+                    }
                 },
             }
         })
@@ -314,11 +335,13 @@ fn create_tool_callback(
     ctx: ToolCallContext,
     full_name: String,
     manager: Arc<crate::agents::ExtensionManager>,
+    cancellation_token: CancellationToken,
 ) -> CallbackFn {
     Arc::new(move |args: Option<Value>| {
         let ctx = ctx.clone();
         let full_name = full_name.clone();
         let manager = manager.clone();
+        let cancellation_token = cancellation_token.clone();
         Box::pin(async move {
             let tool_call = {
                 let mut params = CallToolRequestParams::new(full_name);
@@ -328,7 +351,7 @@ fn create_tool_callback(
                 params
             };
             match manager
-                .dispatch_tool_call(&ctx, tool_call, CancellationToken::new())
+                .dispatch_tool_call(&ctx, tool_call, cancellation_token)
                 .await
             {
                 Ok(dispatch_result) => match dispatch_result.result.await {
@@ -604,6 +627,7 @@ mod tests {
         let result: Result<(), String> = run_in_deno_runtime(
             Duration::from_millis(50),
             CancellationToken::new(),
+            CancellationToken::new(),
             std::future::pending,
         )
         .await;
@@ -616,10 +640,45 @@ mod tests {
         let token = CancellationToken::new();
         token.cancel();
 
-        let result: Result<(), String> =
-            run_in_deno_runtime(Duration::from_secs(60), token, std::future::pending).await;
+        let result: Result<(), String> = run_in_deno_runtime(
+            Duration::from_secs(60),
+            token,
+            CancellationToken::new(),
+            std::future::pending,
+        )
+        .await;
 
         assert_eq!(result.unwrap_err(), "Execution cancelled");
+    }
+
+    #[tokio::test]
+    async fn run_in_deno_runtime_cancels_dispatch_token_when_abandoned() {
+        // On timeout, an in-flight nested tool call (via the dispatch token)
+        // must be told to stop rather than left running in the background.
+        let dispatch_token = CancellationToken::new();
+        let result: Result<(), String> = run_in_deno_runtime(
+            Duration::from_millis(50),
+            CancellationToken::new(),
+            dispatch_token.clone(),
+            std::future::pending,
+        )
+        .await;
+        assert!(result.unwrap_err().contains("timed out"));
+        assert!(dispatch_token.is_cancelled());
+
+        // On cancellation, the child dispatch token is likewise cancelled.
+        let outer = CancellationToken::new();
+        outer.cancel();
+        let dispatch_token = outer.child_token();
+        let result: Result<(), String> = run_in_deno_runtime(
+            Duration::from_secs(60),
+            outer,
+            dispatch_token.clone(),
+            std::future::pending,
+        )
+        .await;
+        assert_eq!(result.unwrap_err(), "Execution cancelled");
+        assert!(dispatch_token.is_cancelled());
     }
 
     /// Exercises the real Deno/V8 stack: a script whose event loop never
@@ -631,6 +690,7 @@ mod tests {
         let hung = CodeMode::default();
         let hung_result = run_in_deno_runtime(
             Duration::from_secs(2),
+            CancellationToken::new(),
             CancellationToken::new(),
             move || async move {
                 hung.execute_typescript(
@@ -651,6 +711,7 @@ mod tests {
         let normal = CodeMode::default();
         let normal_result = run_in_deno_runtime(
             Duration::from_secs(60),
+            CancellationToken::new(),
             CancellationToken::new(),
             move || async move {
                 normal
