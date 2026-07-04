@@ -435,9 +435,9 @@ export default function SessionActionsHeader({
     toast.success(intl.formatMessage(i18n.copiedJson));
   }, [intl, jsonText]);
 
-  const handleCopyMarkdown = useCallback(() => {
+  const handleCopyMarkdown = useCallback(async () => {
     const markdown = conversationToMarkdown(messages, session?.name);
-    navigator.clipboard.writeText(markdown);
+    await navigator.clipboard.writeText(markdown);
     toast.success(intl.formatMessage(i18n.copiedMarkdown));
   }, [intl, messages, session?.name]);
 
@@ -507,7 +507,7 @@ export default function SessionActionsHeader({
               )}
               {intl.formatMessage(i18n.viewJson)}
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleCopyMarkdown}>
+            <DropdownMenuItem onSelect={() => void handleCopyMarkdown()}>
               <FileText className="size-4" />
               {intl.formatMessage(i18n.copyAsMarkdown)}
             </DropdownMenuItem>
