@@ -184,46 +184,50 @@ impl OllamaProvider {
     }
 
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
-        let response = self
-            .api_client
-            .request("api/tags")
-            .response_get()
-            .await
-            .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
-
-        if response.status() == StatusCode::NOT_FOUND {
-            return Err(ProviderError::EndpointNotFound(
-                "Ollama models endpoint not found".to_string(),
-            ));
-        }
-
-        if !response.status().is_success() {
-            return Err(ProviderError::RequestFailed(format!(
-                "Failed to fetch models: HTTP {}",
-                response.status()
-            )));
-        }
-
-        let json_response = response.json::<Value>().await.map_err(|e| {
-            ProviderError::RequestFailed(format!("Failed to parse response: {}", e))
-        })?;
-
-        let models = json_response
-            .get("models")
-            .and_then(|m| m.as_array())
-            .ok_or_else(|| {
-                ProviderError::RequestFailed("No models array in response".to_string())
-            })?;
-
-        let mut model_names: Vec<String> = models
-            .iter()
-            .filter_map(|model| model.get("name").and_then(|n| n.as_str()).map(String::from))
-            .collect();
-
-        model_names.sort();
-
-        Ok(model_names)
+        fetch_ollama_model_names(&self.api_client)
+            .await?
+            .ok_or_else(|| ProviderError::RequestFailed("No models array in response".to_string()))
     }
+}
+
+pub async fn fetch_ollama_model_names(
+    client: &ApiClient,
+) -> Result<Option<Vec<String>>, ProviderError> {
+    let response = client
+        .request("api/tags")
+        .response_get()
+        .await
+        .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
+
+    if response.status() == StatusCode::NOT_FOUND {
+        return Err(ProviderError::EndpointNotFound(
+            "Ollama models endpoint not found".to_string(),
+        ));
+    }
+
+    if !response.status().is_success() {
+        return Err(ProviderError::RequestFailed(format!(
+            "Failed to fetch models: HTTP {}",
+            response.status()
+        )));
+    }
+
+    let json: Value = response
+        .json()
+        .await
+        .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response: {}", e)))?;
+
+    let Some(models) = json.get("models").and_then(|m| m.as_array()) else {
+        return Ok(None);
+    };
+
+    let mut names: Vec<String> = models
+        .iter()
+        .filter_map(|m| m.get("name").and_then(|n| n.as_str()).map(String::from))
+        .collect();
+
+    names.sort();
+    Ok(Some(names))
 }
 
 fn resolve_ollama_num_ctx(options: &OllamaOptions, model_config: &ModelConfig) -> Option<usize> {
