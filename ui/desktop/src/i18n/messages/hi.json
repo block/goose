@@ -828,7 +828,7 @@
     "defaultMessage": "गुप्त कुंजी"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "गुप्त सर्वर पर कॉन्फ़िगर की गई गुप्त कुंजी (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "गुप्त सर्वर पर कॉन्फ़िगर की गई गुप्त कुंजी (GOSLING_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "सर्वर की गुप्त कुंजी दर्ज करें"
@@ -857,67 +857,67 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "कहीं और चल रहे gosling सर्वर से कनेक्ट करें (ऐप पुनरारंभ की आवश्यकता है)"
   },
-  "goosehintsModal.close": {
+  "goslinghintsModal.close": {
     "defaultMessage": "बंद करें"
   },
-  "goosehintsModal.developer": {
+  "goslinghintsModal.developer": {
     "defaultMessage": "डेवलपर"
   },
-  "goosehintsModal.dialogDescription": {
+  "goslinghintsModal.dialogDescription": {
     "defaultMessage": "Gosling के साथ संचार को बेहतर बनाने के लिए अपने प्रोजेक्ट के बारे में अतिरिक्त संदर्भ प्रदान करें"
   },
-  "goosehintsModal.dialogTitle": {
-    "defaultMessage": "प्रोजेक्ट संकेत कॉन्फ़िगर करें (.goosehints)"
+  "goslinghintsModal.dialogTitle": {
+    "defaultMessage": "प्रोजेक्ट संकेत कॉन्फ़िगर करें (.goslinghints)"
   },
-  "goosehintsModal.errorReading": {
-    "defaultMessage": ".goosehints फ़ाइल पढ़ने में त्रुटि: {error}"
+  "goslinghintsModal.errorReading": {
+    "defaultMessage": ".goslinghints फ़ाइल पढ़ने में त्रुटि: {error}"
   },
-  "goosehintsModal.failedToAccess": {
-    "defaultMessage": ".goosehints फ़ाइल तक पहुँचने में विफल"
+  "goslinghintsModal.failedToAccess": {
+    "defaultMessage": ".goslinghints फ़ाइल तक पहुँचने में विफल"
   },
-  "goosehintsModal.failedToSave": {
-    "defaultMessage": ".goosehints फ़ाइल सहेजने में विफल"
+  "goslinghintsModal.failedToSave": {
+    "defaultMessage": ".goslinghints फ़ाइल सहेजने में विफल"
   },
-  "goosehintsModal.fileCreating": {
-    "defaultMessage": "नई .goosehints फ़ाइल यहां बनाई जा रही है: {filePath}"
+  "goslinghintsModal.fileCreating": {
+    "defaultMessage": "नई .goslinghints फ़ाइल यहां बनाई जा रही है: {filePath}"
   },
-  "goosehintsModal.fileFound": {
-    "defaultMessage": ".goosehints फ़ाइल यहां मिली: {filePath}"
+  "goslinghintsModal.fileFound": {
+    "defaultMessage": ".goslinghints फ़ाइल यहां मिली: {filePath}"
   },
-  "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints एक टेक्स्ट फ़ाइल है जिसका उपयोग आपके प्रोजेक्ट के बारे में अतिरिक्त संदर्भ प्रदान करने और Gosling के साथ संचार को बेहतर बनाने के लिए किया जाता है।"
+  "goslinghintsModal.helpText1": {
+    "defaultMessage": ".goslinghints एक टेक्स्ट फ़ाइल है जिसका उपयोग आपके प्रोजेक्ट के बारे में अतिरिक्त संदर्भ प्रदान करने और Gosling के साथ संचार को बेहतर बनाने के लिए किया जाता है।"
   },
-  "goosehintsModal.helpText2": {
-    "defaultMessage": "कृपया सुनिश्चित करें कि एक्सटेंशन पृष्ठ में {bold} एक्सटेंशन सक्षम है। .goosehints का उपयोग करने के लिए यह एक्सटेंशन आवश्यक है। .goosehints अपडेट को प्रभावी बनाने के लिए आपको अपना सत्र पुनः आरंभ करना होगा।"
+  "goslinghintsModal.helpText2": {
+    "defaultMessage": "कृपया सुनिश्चित करें कि एक्सटेंशन पृष्ठ में {bold} एक्सटेंशन सक्षम है। .goslinghints का उपयोग करने के लिए यह एक्सटेंशन आवश्यक है। .goslinghints अपडेट को प्रभावी बनाने के लिए आपको अपना सत्र पुनः आरंभ करना होगा।"
   },
-  "goosehintsModal.helpText3": {
+  "goslinghintsModal.helpText3": {
     "defaultMessage": "अधिक जानकारी के लिए {link} देखें।"
   },
-  "goosehintsModal.helpTextLink": {
-    "defaultMessage": ".goosehints का उपयोग करना"
+  "goslinghintsModal.helpTextLink": {
+    "defaultMessage": ".goslinghints का उपयोग करना"
   },
-  "goosehintsModal.placeholder": {
+  "goslinghintsModal.placeholder": {
     "defaultMessage": "प्रोजेक्ट संकेत यहां दर्ज करें..."
   },
-  "goosehintsModal.save": {
+  "goslinghintsModal.save": {
     "defaultMessage": "सहेजें"
   },
-  "goosehintsModal.savedSuccessfully": {
+  "goslinghintsModal.savedSuccessfully": {
     "defaultMessage": "सफलतापूर्वक सहेजा गया"
   },
-  "goosehintsModal.saving": {
+  "goslinghintsModal.saving": {
     "defaultMessage": "सहेजा जा रहा है..."
   },
-  "goosehintsSection.configure": {
+  "goslinghintsSection.configure": {
     "defaultMessage": "कॉन्फ़िगर करें"
   },
-  "goosehintsSection.description": {
-    "defaultMessage": "Gosling को अतिरिक्त संदर्भ प्रदान करने के लिए अपने प्रोजेक्ट की .goosehints फ़ाइल को कॉन्फ़िगर करें"
+  "goslinghintsSection.description": {
+    "defaultMessage": "Gosling को अतिरिक्त संदर्भ प्रदान करने के लिए अपने प्रोजेक्ट की .goslinghints फ़ाइल को कॉन्फ़िगर करें"
   },
-  "goosehintsSection.title": {
-    "defaultMessage": "प्रोजेक्ट संकेत (.goosehints)"
+  "goslinghintsSection.title": {
+    "defaultMessage": "प्रोजेक्ट संकेत (.goslinghints)"
   },
-  "groupedExtensionLoadingToast.askGoose": {
+  "groupedExtensionLoadingToast.askGosling": {
     "defaultMessage": "पूछें gosling"
   },
   "groupedExtensionLoadingToast.collapseDetails": {
@@ -1184,25 +1184,25 @@
   "launcher.placeholder": {
     "defaultMessage": "gosling से कुछ भी पूछें..."
   },
-  "loadingGoose.compacting": {
+  "loadingGosling.compacting": {
     "defaultMessage": "gosling बातचीत को संक्षिप्त कर रहा है..."
   },
-  "loadingGoose.idle": {
+  "loadingGosling.idle": {
     "defaultMessage": "gosling इस पर काम कर रहा है..."
   },
-  "loadingGoose.loadingConversation": {
+  "loadingGosling.loadingConversation": {
     "defaultMessage": "बातचीत लोड हो रही है..."
   },
-  "loadingGoose.restartingAgent": {
+  "loadingGosling.restartingAgent": {
     "defaultMessage": "सत्र पुनः प्रारंभ हो रहा है..."
   },
-  "loadingGoose.streaming": {
+  "loadingGosling.streaming": {
     "defaultMessage": "gosling इस पर काम कर रहा है..."
   },
-  "loadingGoose.thinking": {
+  "loadingGosling.thinking": {
     "defaultMessage": "gosling सोच रहा है..."
   },
-  "loadingGoose.waiting": {
+  "loadingGosling.waiting": {
     "defaultMessage": "gosling इंतज़ार कर रहा है..."
   },
   "markdownContent.cancel": {
@@ -2421,7 +2421,7 @@
     "defaultMessage": "कोई मिलान कौशल नहीं मिला"
   },
   "skillsView.noSkillsDescription": {
-    "defaultMessage": "कौशल SKILL.md फ़ाइलों से ~/.config/agents/skills/, .goose/skills/, या अन्य समर्थित निर्देशिकाओं में लोड किए जाते हैं।"
+    "defaultMessage": "कौशल SKILL.md फ़ाइलों से ~/.config/agents/skills/, .gosling/skills/, या अन्य समर्थित निर्देशिकाओं में लोड किए जाते हैं।"
   },
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "कोई कौशल स्थापित नहीं"
@@ -2678,14 +2678,14 @@
   "toolConfirmation.allowToolCallWithName": {
     "defaultMessage": "{toolName} को अनुमति दें?"
   },
-  "toolConfirmation.gooseWouldLikeToCallWithName": {
+  "toolConfirmation.goslingWouldLikeToCallWithName": {
     "defaultMessage": "Gosling {toolName} को कॉल करना चाहेंगे। अनुमति दें?"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "अपडेट बैकग्राउंड में अपने आप डाउनलोड हो जाएगा."
   },
   "updateSection.autoDownloadDisabledByEnv": {
-    "defaultMessage": "स्वचालित डाउनलोड GOOSE_DISABLE_AUTO_DOWNLOAD पर्यावरण चर के माध्यम से अक्षम हैं।"
+    "defaultMessage": "स्वचालित डाउनलोड GOSLING_DISABLE_AUTO_DOWNLOAD पर्यावरण चर के माध्यम से अक्षम हैं।"
   },
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "स्वचालित डाउनलोड अक्षम है। मैन्युअल रूप से डाउनलोड करने के लिए \"अभी डाउनलोड करें\" पर क्लिक करें।"

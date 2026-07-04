@@ -1,22 +1,22 @@
 ---
 title: Building Custom Extensions
-description: Create your own custom MCP Server to use as a goose extension
+description: Create your own custom MCP Server to use as a gosling extension
 ---
 
 import { PanelLeft } from 'lucide-react';
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# Building Custom Extensions with goose
+# Building Custom Extensions with gosling
 
-goose allows you to extend its functionality by creating your own custom extensions, which are built as MCP servers. These extensions are compatible with goose because it adheres to the [Model Context Protocol (MCP)][mcp-docs]. MCP is an open protocol that standardizes how applications provide context to LLMs. It enables a consistent way to connect LLMs to various data sources and tools, making it ideal for extending functionality in a structured and interoperable way. 
+gosling allows you to extend its functionality by creating your own custom extensions, which are built as MCP servers. These extensions are compatible with gosling because it adheres to the [Model Context Protocol (MCP)][mcp-docs]. MCP is an open protocol that standardizes how applications provide context to LLMs. It enables a consistent way to connect LLMs to various data sources and tools, making it ideal for extending functionality in a structured and interoperable way. 
 
-In this guide, we build an MCP server using the [Python SDK for MCP][mcp-python]. We’ll demonstrate how to create an MCP server that reads Wikipedia articles and converts them to Markdown, integrate it as an extension in goose. You can follow a similar process to develop your own custom extensions for goose.
+In this guide, we build an MCP server using the [Python SDK for MCP][mcp-python]. We’ll demonstrate how to create an MCP server that reads Wikipedia articles and converts them to Markdown, integrate it as an extension in gosling. You can follow a similar process to develop your own custom extensions for gosling.
 
 You can check out other example servers in the [MCP servers repository][mcp-servers]. MCP SDKs are also available for other common languages, such as [TypeScript][mcp-typescript] and [Kotlin][mcp-kotlin].
 
 :::info
-goose supports Tools, Resources, and Prompts from the [Model Context Protocol](https://modelcontextprotocol.io/). See [`mcp_client.rs`](https://github.com/aaif-goose/goose/blob/main/crates/goose/src/agents/mcp_client.rs) for the supported protocol version and client capabilities.
+gosling supports Tools, Resources, and Prompts from the [Model Context Protocol](https://modelcontextprotocol.io/). See [`mcp_client.rs`](https://github.com/repo-makeover/gosling/blob/main/crates/gosling/src/agents/mcp_client.rs) for the supported protocol version and client capabilities.
 :::
 
 ---
@@ -280,9 +280,9 @@ uv sync
 
 ---
 
-## Step 5: Integrate with goose
+## Step 5: Integrate with gosling
 
-To add your MCP server as an extension in goose:
+To add your MCP server as an extension in gosling:
 
 1. Build the extension binary:
 
@@ -290,7 +290,7 @@ To add your MCP server as an extension in goose:
    uv pip install .
    ```
 
-2. Open goose Desktop and click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
+2. Open gosling Desktop and click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
 3. Click `Extensions` in the sidebar
 4. Set the `Type` to `STDIO`
 5. Provide a name and description for your extension
@@ -307,7 +307,7 @@ To add your MCP server as an extension in goose:
    ```
 
 :::tip Rebuild binary after changes
-To see any changes you make to your MCP server code after integrating with goose, re-run `uv pip install .` and then restart goose Desktop.
+To see any changes you make to your MCP server code after integrating with gosling, re-run `uv pip install .` and then restart gosling Desktop.
 :::
 
 For the purposes of this guide, we'll run the local version. Alternatively, you can publish your package to PyPI. Once published, the server can be run directly using `uvx`. For example:
@@ -318,29 +318,29 @@ uvx mcp-wiki
 
 ---
 
-## Step 6: Use Your Extension in goose
+## Step 6: Use Your Extension in gosling
 
-Once integrated, you can start using your extension in goose. Open the goose chat interface and call your tool as needed.
+Once integrated, you can start using your extension in gosling. Open the gosling chat interface and call your tool as needed.
 
-You can verify that goose has picked up the tools from your custom extension by asking it "what tools do you have?"
+You can verify that gosling has picked up the tools from your custom extension by asking it "what tools do you have?"
 
-![goose Chat - Ask about tools](../assets/guides/custom-extension-tools.png)
+![gosling Chat - Ask about tools](../assets/guides/custom-extension-tools.png)
 
 Then, you can try asking questions that require using the extension you added.
 
-![goose Chat - Use custom extension](../assets/guides/custom-extension-chat.png)
+![gosling Chat - Use custom extension](../assets/guides/custom-extension-chat.png)
 
-🎉 **Congratulations!** You’ve successfully built and integrated a custom MCP server with goose.
+🎉 **Congratulations!** You’ve successfully built and integrated a custom MCP server with gosling.
 
 ---
 
 ## Advanced Features for MCP Extensions
 
-goose supports advanced MCP features that can enhance your extensions.
+gosling supports advanced MCP features that can enhance your extensions.
 
 ### MCP Sampling: AI-Powered Tools
 
-**[MCP Sampling](/docs/guides/mcp-sampling)** allows your MCP servers to request AI completions from goose's LLM, transforming simple tools into intelligent agents.
+**[MCP Sampling](/docs/guides/mcp-sampling)** allows your MCP servers to request AI completions from gosling's LLM, transforming simple tools into intelligent agents.
 
 **Key Benefits:**
 
@@ -352,8 +352,8 @@ goose supports advanced MCP features that can enhance your extensions.
 **Getting Started:**
 
 - Use the `sampling/createMessage` method in your MCP server to request AI assistance
-- [goose's implementation](https://github.com/aaif-goose/goose/blob/main/crates/goose/src/agents/mcp_client.rs) currently supports text and image content types
-- goose automatically advertises sampling capability to all MCP servers
+- [gosling's implementation](https://github.com/repo-makeover/gosling/blob/main/crates/gosling/src/agents/mcp_client.rs) currently supports text and image content types
+- gosling automatically advertises sampling capability to all MCP servers
 
 **Use Cases:** Document summarization, smart search filtering, code analysis, data insights
 
@@ -366,7 +366,7 @@ goose supports advanced MCP features that can enhance your extensions.
 **Key Benefits:**
 
 - Return interactive UI components from your MCP server tools
-- Components render securely in isolated sandboxes within goose Desktop
+- Components render securely in isolated sandboxes within gosling Desktop
 - Real-time user interactions trigger callbacks to your server
 
 **Use Cases:** Interactive forms, data visualizations, booking interfaces, configuration wizards

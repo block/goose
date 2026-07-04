@@ -33,19 +33,19 @@ function UpcomingEventsSection() {
     <section className="w-full flex flex-col items-center gap-8 my-8">
       <div className="text-center">
         <Heading as="h1">📆 Upcoming Events</Heading>
-        <p>Join us for livestreams, workshops, and discussions about goose and open source projects.</p>
+        <p>Join us for livestreams, workshops, and discussions about gosling and open source projects.</p>
       </div>
       
       {/* Embedded Calendar */}
       <iframe
         src="https://calget.com/c/t7jszrie"
         className="w-full h-[600px] border-0 rounded-lg"
-        title="Goose Community Calendar"
+        title="Gosling Community Calendar"
       />
       
       {/* Call to Action */}
       <p className="italic text-textStandard">
-        Have ideas for future events? Reach out to the team on <Link href="https://discord.gg/goose-oss">Discord</Link>. 
+        Have ideas for future events? Reach out to the team on <Link href="https://discord.gg/gosling-oss">Discord</Link>. 
         You may also add this calendar to yours via{' '}
         <Link href="https://calendar.google.com/calendar/embed?src=c_b2b8367dac536ebf757b2745fcc5fbff2099f6c574bc13f83d16423db2dd5535%40group.calendar.google.com&ctz=America%2FNew_York">
           this link
@@ -129,10 +129,10 @@ function CommunityAllStarsSection() {
           </div>
           <div className="text-sm">
             Want to be a Community All Star? Just start contributing on{' '}
-            <Link href="https://github.com/aaif-goose/goose">GitHub</Link>, helping others on{' '}
-            <Link href="https://discord.gg/goose-oss">Discord</Link>, or share your 
-            goose projects with the community! You can check out the{' '}
-            <Link href="https://github.com/aaif-goose/goose/blob/main/CONTRIBUTING.md">contributing guide</Link>{' '}
+            <Link href="https://github.com/repo-makeover/gosling">GitHub</Link>, helping others on{' '}
+            <Link href="https://discord.gg/gosling-oss">Discord</Link>, or share your 
+            gosling projects with the community! You can check out the{' '}
+            <Link href="https://github.com/repo-makeover/gosling/blob/main/CONTRIBUTING.md">contributing guide</Link>{' '}
             for more tips.
           </div>
         </div>
@@ -373,7 +373,7 @@ export default function Community(): ReactNode {
   return (
     <Layout 
       title="Community" 
-      description="Join the goose community - connect with developers, contribute to the project, and help shape the future of AI-powered development tools."
+      description="Join the gosling community - connect with developers, contribute to the project, and help shape the future of AI-powered development tools."
     >
       <main className="container">
         <UpcomingEventsSection />

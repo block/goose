@@ -454,7 +454,7 @@ export default function ChatInput({
   // Save queue state (paused/interrupted) to storage
   useEffect(() => {
     try {
-      window.sessionStorage.setItem('goose-queue-paused', JSON.stringify(queuePausedRef.current));
+      window.sessionStorage.setItem('gosling-queue-paused', JSON.stringify(queuePausedRef.current));
     } catch (error) {
       console.error('Error saving queue pause state:', error);
     }
@@ -462,7 +462,7 @@ export default function ChatInput({
 
   useEffect(() => {
     try {
-      window.sessionStorage.setItem('goose-queue-interruption', JSON.stringify(lastInterruption));
+      window.sessionStorage.setItem('gosling-queue-interruption', JSON.stringify(lastInterruption));
     } catch (error) {
       console.error('Error saving queue interruption state:', error);
     }
@@ -473,8 +473,8 @@ export default function ChatInput({
     return () => {
       // Save final queue state when component unmounts
       try {
-        window.sessionStorage.setItem('goose-queue-paused', JSON.stringify(queuePausedRef.current));
-        window.sessionStorage.setItem('goose-queue-interruption', JSON.stringify(lastInterruption));
+        window.sessionStorage.setItem('gosling-queue-paused', JSON.stringify(queuePausedRef.current));
+        window.sessionStorage.setItem('gosling-queue-interruption', JSON.stringify(lastInterruption));
       } catch (error) {
         console.error('Error saving queue state on unmount:', error);
       }

@@ -1,14 +1,14 @@
 {
-  "name": "@aaif/goose",
+  "name": "@repo-makeover/gosling",
   "version": "0.20.1",
-  "description": "Goose - an open-source AI agent",
+  "description": "Gosling - an open-source AI agent",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aaif-goose/goose.git"
+    "url": "git+https://github.com/repo-makeover/gosling.git"
   },
   "keywords": [
-    "goose",
+    "gosling",
     "ai",
     "agent",
     "cli",
@@ -16,7 +16,7 @@
   ],
   "type": "module",
   "bin": {
-    "goose-tui": "dist/tui.js"
+    "gosling-tui": "dist/tui.js"
   },
   "files": [
     "dist"
@@ -27,7 +27,7 @@
     "lint": "tsc --noEmit"
   },
   "dependencies": {
-    "@aaif/goose-sdk": "0.20.2",
+    "@repo-makeover/gosling-sdk": "0.20.2",
     "@agentclientprotocol/sdk": "^0.19.0",
     "@inkjs/ui": "^2.0.0",
     "ink": "^6.8.0",

@@ -40,16 +40,16 @@ You will update the CLI Commands documentation based on changes in cli-changes.m
    - Located at: ./cli-changes.md
    - Contains: Command changes, option changes, breaking changes, migration guidance
 
-2. **goose-cli-commands.md** - The target documentation file:
+2. **gosling-cli-commands.md** - The target documentation file:
    - Located at: ${CLI_COMMANDS_PATH} (environment variable)
-   - Default: ${GOOSE_REPO}/documentation/docs/guides/goose-cli-commands.md
+   - Default: ${GOSLING_REPO}/documentation/docs/guides/gosling-cli-commands.md
    - Contains: Complete CLI reference documentation
 
 3. **update-summary.md** - Output file for change summary:
    - Located at: ./update-summary.md
    - You will create this file to document what was updated
 
-## Target Sections in goose-cli-commands.md
+## Target Sections in gosling-cli-commands.md
 
 The CLI Commands Guide has this structure:
 - Flag Naming Conventions
@@ -89,7 +89,7 @@ For each change documented in cli-changes.md:
 
 ### 3. Documentation Style
 
-Follow the existing style in goose-cli-commands.md:
+Follow the existing style in gosling-cli-commands.md:
 
 - **Command headers**: Use #### for command names
 - **Options**: Use bullet lists with bold option names
@@ -110,10 +110,10 @@ Brief description of what the command does.
 **Usage:**
 
     # Basic usage
-    goose command-name
+    gosling command-name
     
     # With options
-    goose command-name --format json --verbose
+    gosling command-name --format json --verbose
 
 ### 4. Verification
 
@@ -125,7 +125,7 @@ After making updates:
 
 ## Output Requirements
 
-### 1. Updated goose-cli-commands.md
+### 1. Updated gosling-cli-commands.md
 
 Apply all changes from cli-changes.md:
 - Add new commands in appropriate sections
@@ -141,7 +141,7 @@ Generate a summary document:
 
 **Date**: {current_date}
 **Source**: cli-changes.md ({old_version} → {new_version})
-**Target**: goose-cli-commands.md
+**Target**: gosling-cli-commands.md
 
 ## Changes Applied
 
@@ -177,13 +177,13 @@ Any special considerations or decisions made during the update.
 ## File Locations Summary
 
 - Input 1: ./cli-changes.md (change documentation)
-- Input 2: ${CLI_COMMANDS_PATH} or ${GOOSE_REPO}/documentation/docs/guides/goose-cli-commands.md
+- Input 2: ${CLI_COMMANDS_PATH} or ${GOSLING_REPO}/documentation/docs/guides/gosling-cli-commands.md
 - Output 1: Same as Input 2 (updated in place)
 - Output 2: ./update-summary.md (change summary)
 
 ## Environment Variables
 
-- CLI_COMMANDS_PATH: Full path to goose-cli-commands.md file (overrides default)
-- GOOSE_REPO: Path to goose repository (used if CLI_COMMANDS_PATH not set)
+- CLI_COMMANDS_PATH: Full path to gosling-cli-commands.md file (overrides default)
+- GOSLING_REPO: Path to gosling repository (used if CLI_COMMANDS_PATH not set)
 
 Start by reading both input files, then apply the updates and generate the summary.

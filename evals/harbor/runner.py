@@ -52,7 +52,7 @@ def load_dotenv() -> None:
         os.environ.setdefault(key, value)
 
 
-def render_goose_config(extensions: list[str]) -> str:
+def render_gosling_config(extensions: list[str]) -> str:
     """Render config.yaml from the template, enabling the given extensions.
 
     Raises ValueError for any extension not found in the template.
@@ -79,7 +79,7 @@ def default_job_name(model: str, dataset: str) -> str:
     safe_model = re.sub(r"[^A-Za-z0-9._-]+", "-", model).strip("-")
     safe_dataset = re.sub(r"[^A-Za-z0-9._-]+", "-", dataset).strip("-")
     timestamp = datetime.now().strftime("%Y-%m-%d__%H-%M-%S")
-    return f"goose-{safe_dataset}-{safe_model}-{timestamp}"
+    return f"gosling-{safe_dataset}-{safe_model}-{timestamp}"
 
 
 def validate_job_name(job_name: str) -> str:
@@ -129,11 +129,11 @@ def build_harbor_config(args: argparse.Namespace) -> dict[str, Any]:
     if args.timeout_multiplier <= 0:
         raise ValueError("--timeout-multiplier must be positive")
 
-    goose_binary = args.goose_binary.expanduser().resolve()
-    if not goose_binary.is_file():
-        raise ValueError(f"--goose-binary does not exist or is not a file: {args.goose_binary}")
+    gosling_binary = args.gosling_binary.expanduser().resolve()
+    if not gosling_binary.is_file():
+        raise ValueError(f"--gosling-binary does not exist or is not a file: {args.gosling_binary}")
 
-    config_yaml = render_goose_config(args.extensions)
+    config_yaml = render_gosling_config(args.extensions)
 
     provider = args.model.split("/", 1)[0]
     missing_secrets = [
@@ -146,9 +146,9 @@ def build_harbor_config(args: argparse.Namespace) -> dict[str, Any]:
         )
 
     agent_kwargs: dict[str, Any] = {
-        "goose_binary": str(goose_binary),
+        "gosling_binary": str(gosling_binary),
         "config_yaml": config_yaml,
-        "install_goose_runtime_deps": args.install_goose_runtime_deps,
+        "install_gosling_runtime_deps": args.install_gosling_runtime_deps,
     }
     if args.max_turns is not None:
         agent_kwargs["max_turns"] = args.max_turns
@@ -179,7 +179,7 @@ def build_harbor_config(args: argparse.Namespace) -> dict[str, Any]:
         },
         "agents": [
             {
-                "import_path": "agent:GooseBinaryAgent",
+                "import_path": "agent:GoslingBinaryAgent",
                 "model_name": args.model,
                 "kwargs": agent_kwargs,
             }

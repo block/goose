@@ -22,7 +22,7 @@ const FeatureList: FeatureItem[] = [
     Svg: require("@site/static/img/lock-unlocked-fill.svg").default,
     description: (
       <>
-        Built with transparency and collaboration in mind, goose empowers
+        Built with transparency and collaboration in mind, gosling empowers
         developers to contribute, customize, and innovate freely.
       </>
     ),
@@ -32,7 +32,7 @@ const FeatureList: FeatureItem[] = [
     Svg: require("@site/static/img/category-moving.svg").default,
     description: (
       <>
-        Goose runs locally to execute tasks efficiently, keeping control in your
+        Gosling runs locally to execute tasks efficiently, keeping control in your
         hands.
       </>
     ),
@@ -42,7 +42,7 @@ const FeatureList: FeatureItem[] = [
     Svg: require("@site/static/img/category-ETF.svg").default,
     description: (
       <>
-        Customize goose with your preferred LLM and enhance its capabilities by connecting it to any
+        Customize gosling with your preferred LLM and enhance its capabilities by connecting it to any
         external MCP server or API.
       </>
     ),
@@ -52,7 +52,7 @@ const FeatureList: FeatureItem[] = [
     Svg: require("@site/static/img/pay-in-four.svg").default,
     description: (
       <>
-        Goose independently handles complex tasks, from debugging to deployment,
+        Gosling independently handles complex tasks, from debugging to deployment,
         freeing you to focus on what matters most.
       </>
     ),
@@ -65,49 +65,49 @@ const FeatureQuotes: FeatureQuote[] = [
     github: "https://github.com/cloud-on-prem",
     role: "Software Engineer",
     testimonial:
-      "With Goose, I feel like I am Maverick. Thanks a ton for creating this. 🙏 I have been having way too much fun with it today.",
+      "With Gosling, I feel like I am Maverick. Thanks a ton for creating this. 🙏 I have been having way too much fun with it today.",
   },
   {
     name: "Jarrod Sibbison",
     github: "https://github.com/jsibbison-square",
     role: "Software Engineer",
     testimonial:
-      "I wanted to construct some fake data for an API with a large request body and business rules I haven't memorized. So I told Goose which object to update and a test to run that calls the vendor. Got it to use the errors descriptions from the vendor response to keep correcting the request until it was successful. So good!",
+      "I wanted to construct some fake data for an API with a large request body and business rules I haven't memorized. So I told Gosling which object to update and a test to run that calls the vendor. Got it to use the errors descriptions from the vendor response to keep correcting the request until it was successful. So good!",
   },
   {
     name: "Manik Surtani",
     github: "https://github.com/maniksurtani",
     role: "Head of Open Source",
     testimonial:
-      "I asked Goose to write up a few Google Scripts that mimic Clockwise's functionality (particularly, creating blocks on my work calendar based on events in my personal calendar, as well as color-coding calendar entries based on type and importance). Took me under an hour. If you haven't tried Goose yet, I highly encourage you to do so!",
+      "I asked Gosling to write up a few Google Scripts that mimic Clockwise's functionality (particularly, creating blocks on my work calendar based on events in my personal calendar, as well as color-coding calendar entries based on type and importance). Took me under an hour. If you haven't tried Gosling yet, I highly encourage you to do so!",
   },
   {
     name: "Andrey Bolduzev",
     github: "https://github.com/andrey-bolduzev",
     role: "Android Engineer",
     testimonial:
-      "If anyone was looking for another reason to check it out: I just asked Goose to break a string-array into individual string resources across eleven localizations, and it performed amazingly well and saved me a bunch of time doing it manually or figuring out some way to semi-automate it.",
+      "If anyone was looking for another reason to check it out: I just asked Gosling to break a string-array into individual string resources across eleven localizations, and it performed amazingly well and saved me a bunch of time doing it manually or figuring out some way to semi-automate it.",
   },
   {
     name: "Kang Huang",
     github: "https://github.com/kang-square",
     role: "Software Engineer",
     testimonial:
-      "Hi team, thank you for much for making Goose, it's so amazing. Our team is working on migrating Dashboard components to React components. I am working with Goose to help the migration.",
+      "Hi team, thank you for much for making Gosling, it's so amazing. Our team is working on migrating Dashboard components to React components. I am working with Gosling to help the migration.",
   },
   {
     name: "Lily Delalande",
     github: "https://github.com/lily-de",
     role: "Software Engineer",
     testimonial:
-      "Wanted to document what I had Goose do -- took about 30 minutes end to end! I created a custom CLI command in the gh CLI library to download in-line comments on PRs about code changes (currently they aren't directly viewable). I don't know Go that well and I definitely didn't know where to start looking in the code base or how to even test the new command was working and Goose did it all for me 😁",
+      "Wanted to document what I had Gosling do -- took about 30 minutes end to end! I created a custom CLI command in the gh CLI library to download in-line comments on PRs about code changes (currently they aren't directly viewable). I don't know Go that well and I definitely didn't know where to start looking in the code base or how to even test the new command was working and Gosling did it all for me 😁",
   },
   {
     name: "Rizel Scarlett",
     github: "blackgirlbytes",
     role: "Developer Advocate",
     testimonial:
-      "My sister had been asking me for months to help her build a Google Docs extension but I kept putting it off. Today, we hopped on FaceTime and built one in just 30 minutes with Goose!",
+      "My sister had been asking me for months to help her build a Google Docs extension but I kept putting it off. Today, we hopped on FaceTime and built one in just 30 minutes with Gosling!",
   }
   //Can't find Kristen's github
   // {
@@ -115,7 +115,7 @@ const FeatureQuotes: FeatureQuote[] = [
   //   github: "https://github.com/",
   //   role: "Product Lead",
   //   testimonial:
-  //     "I know Goose is made for engineers, but I’ve been pretty excited about this launch. In the last 20 minutes playing with Goose, I drafted a product requirements document for a small change that I'd been putting off, pressure tested a few product ideas and how they might stack up to competitive offerings, and had it run analysis on an experiment from a feature rollout!",
+  //     "I know Gosling is made for engineers, but I’ve been pretty excited about this launch. In the last 20 minutes playing with Gosling, I drafted a product requirements document for a small change that I'd been putting off, pressure tested a few product ideas and how they might stack up to competitive offerings, and had it run analysis on an experiment from a feature rollout!",
   // },
 ];
 

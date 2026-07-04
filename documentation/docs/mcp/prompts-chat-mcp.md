@@ -1,21 +1,21 @@
 ---
 title: prompts.chat Extension
-description: Add prompts.chat MCP Server as a goose Extension
+description: Add prompts.chat MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
-This tutorial covers how to add the [prompts.chat MCP Server](https://prompts.chat) as a goose extension to enable access to thousands of AI prompts directly in your AI assistant.
+This tutorial covers how to add the [prompts.chat MCP Server](https://prompts.chat) as a gosling extension to enable access to thousands of AI prompts directly in your AI assistant.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@fkadev/prompts.chat-mcp@latest&id=prompts-chat-mcp&name=prompts.chat&description=Access%20thousands%20of%20AI%20prompts%20directly%20in%20your%20AI%20assistant&env=PROMPTS_API_KEY%3DAPI%20Key%20to%20save%20and%20list%20private%20prompts)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=@fkadev/prompts.chat-mcp@latest&id=prompts-chat-mcp&name=prompts.chat&description=Access%20thousands%20of%20AI%20prompts%20directly%20in%20your%20AI%20assistant&env=PROMPTS_API_KEY%3DAPI%20Key%20to%20save%20and%20list%20private%20prompts)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y @fkadev/prompts.chat-mcp@latest
@@ -35,8 +35,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="prompts-chat-mcp"
     extensionName="prompts.chat"
     description="Access thousands of AI prompts directly in your AI assistant"
@@ -49,7 +49,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     apiKeyLinkText="prompts.chat API Key"
   />
 </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="prompts.chat"
       description="Access thousands of AI prompts directly in your AI assistant"
@@ -71,18 +71,18 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-The prompts.chat extension provides access to a curated library of AI prompts that you can search and use directly within goose. This is useful when you need inspiration or want to leverage proven prompt patterns for specific tasks.
+The prompts.chat extension provides access to a curated library of AI prompts that you can search and use directly within gosling. This is useful when you need inspiration or want to leverage proven prompt patterns for specific tasks.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  1. Open a new session in goose Desktop
+  <TabItem value="ui" label="gosling Desktop" default>
+  1. Open a new session in gosling Desktop
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
-  1. Open a terminal and start a new goose session:
+  1. Open a terminal and start a new gosling session:
 
   ```sh
-  goose session
+  gosling session
   ```
 
   </TabItem>
@@ -90,13 +90,13 @@ The prompts.chat extension provides access to a curated library of AI prompts th
 
 ### Searching for Prompts
 
-#### goose Prompt
+#### gosling Prompt
 
 ```
 Search for prompts about code review
 ```
 
-#### goose Output
+#### gosling Output
 
 ```
 I found several prompts related to code review:
@@ -111,13 +111,13 @@ Would you like me to retrieve any of these prompts?
 
 ### Using a Prompt
 
-#### goose Prompt
+#### gosling Prompt
 
 ```
 Get the Code Review Assistant prompt and use it to review my current file
 ```
 
-#### goose Output
+#### gosling Output
 
 ```
 I've retrieved the Code Review Assistant prompt. Let me apply it to analyze your code...

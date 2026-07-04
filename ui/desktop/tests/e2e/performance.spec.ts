@@ -1,9 +1,9 @@
 import { test, expect } from './fixtures';
 
 test.describe('Performance Tests', () => {
-  test('measure end-to-end performance for prompt submission', async ({ goosePage }) => {
+  test('measure end-to-end performance for prompt submission', async ({ goslingPage }) => {
     // Start Playwright tracing to capture all performance data
-    await goosePage.context().tracing.start({
+    await goslingPage.context().tracing.start({
       screenshots: true,
       snapshots: true,
       sources: true
@@ -12,56 +12,56 @@ test.describe('Performance Tests', () => {
     console.log('\n=== Performance Test Started ===\n');
 
     // Mark: App ready
-    await goosePage.waitForSelector('[data-testid="chat-input"]', { timeout: 30000 });
-    await goosePage.evaluate(() => performance.mark('app-ready'));
+    await goslingPage.waitForSelector('[data-testid="chat-input"]', { timeout: 30000 });
+    await goslingPage.evaluate(() => performance.mark('app-ready'));
     console.log('✓ App ready');
 
     // Prepare prompt
-    const chatInput = await goosePage.waitForSelector('[data-testid="chat-input"]');
+    const chatInput = await goslingPage.waitForSelector('[data-testid="chat-input"]');
     const testPrompt = 'Write a haiku about testing software';
     await chatInput.fill(testPrompt);
 
     // Mark: Prompt submit
-    await goosePage.evaluate(() => performance.mark('prompt-submit-start'));
+    await goslingPage.evaluate(() => performance.mark('prompt-submit-start'));
     await chatInput.press('Enter');
-    await goosePage.evaluate(() => performance.mark('prompt-submitted'));
+    await goslingPage.evaluate(() => performance.mark('prompt-submitted'));
 
     // Wait for loading indicator to appear and check if it's "loading conversation..."
-    await goosePage.waitForSelector('[data-testid="loading-indicator"]', {
+    await goslingPage.waitForSelector('[data-testid="loading-indicator"]', {
       state: 'visible',
       timeout: 5000
     });
 
-    const loadingText = await goosePage.locator('[data-testid="loading-indicator"]').textContent();
+    const loadingText = await goslingPage.locator('[data-testid="loading-indicator"]').textContent();
     if (loadingText?.includes('loading conversation')) {
-      await goosePage.evaluate(() => performance.mark('loading-conversation-start'));
+      await goslingPage.evaluate(() => performance.mark('loading-conversation-start'));
       console.log('✓ Loading conversation detected');
 
       // Wait for it to change or disappear
-      await goosePage.waitForFunction(() => {
+      await goslingPage.waitForFunction(() => {
         const indicator = document.querySelector('[data-testid="loading-indicator"]');
         if (!indicator) return true; // Disappeared
         const text = indicator.textContent || '';
         return !text.includes('loading conversation'); // Changed to different state
       }, { timeout: 30000 });
 
-      await goosePage.evaluate(() => performance.mark('loading-conversation-end'));
+      await goslingPage.evaluate(() => performance.mark('loading-conversation-end'));
       console.log('✓ Loading conversation complete');
     }
 
-    await goosePage.evaluate(() => performance.mark('loading-started'));
+    await goslingPage.evaluate(() => performance.mark('loading-started'));
 
     // Monitor for first token (first visible response content)
     let firstTokenDetected = false;
     const checkForFirstToken = async () => {
       while (!firstTokenDetected) {
         try {
-          const messageContainers = await goosePage.locator('[data-testid="message-container"]').all();
+          const messageContainers = await goslingPage.locator('[data-testid="message-container"]').all();
           if (messageContainers.length > 0) {
             const lastMessage = messageContainers[messageContainers.length - 1];
             const content = await lastMessage.textContent();
             if (content && content.trim().length > 0) {
-              await goosePage.evaluate(() => performance.mark('first-token-received'));
+              await goslingPage.evaluate(() => performance.mark('first-token-received'));
               firstTokenDetected = true;
               console.log('✓ First token detected');
               break;
@@ -70,7 +70,7 @@ test.describe('Performance Tests', () => {
         } catch (e) {
           // Continue checking
         }
-        await goosePage.waitForTimeout(50);
+        await goslingPage.waitForTimeout(50);
       }
     };
 
@@ -79,15 +79,15 @@ test.describe('Performance Tests', () => {
     await firstTokenPromise;
 
     // Wait for response to complete
-    await goosePage.waitForSelector('[data-testid="loading-indicator"]', {
+    await goslingPage.waitForSelector('[data-testid="loading-indicator"]', {
       state: 'hidden',
       timeout: 60000
     });
-    await goosePage.evaluate(() => performance.mark('response-complete'));
+    await goslingPage.evaluate(() => performance.mark('response-complete'));
     console.log('✓ Response complete');
 
     // Create performance measures
-    await goosePage.evaluate(() => {
+    await goslingPage.evaluate(() => {
       // Measure loading conversation if it was detected
       const marks = performance.getEntriesByType('mark').map(m => m.name);
       if (marks.includes('loading-conversation-start') && marks.includes('loading-conversation-end')) {
@@ -102,7 +102,7 @@ test.describe('Performance Tests', () => {
     });
 
     // Extract and display performance metrics
-    const metrics = await goosePage.evaluate(() => {
+    const metrics = await goslingPage.evaluate(() => {
       const measures = performance.getEntriesByType('measure');
       const result: Record<string, number> = {};
       measures.forEach(measure => {
@@ -123,7 +123,7 @@ test.describe('Performance Tests', () => {
     console.log('===========================\n');
 
     // Verify we got a response
-    const response = await goosePage.locator('[data-testid="message-container"]').last();
+    const response = await goslingPage.locator('[data-testid="message-container"]').last();
     const responseText = await response.textContent();
     expect(responseText).toBeTruthy();
     expect(responseText!.length).toBeGreaterThan(0);
@@ -134,7 +134,7 @@ test.describe('Performance Tests', () => {
 
     // Stop tracing and save
     const tracePath = test.info().outputPath('trace.zip');
-    await goosePage.context().tracing.stop({ path: tracePath });
+    await goslingPage.context().tracing.stop({ path: tracePath });
     console.log(`✓ Performance trace saved to: ${tracePath}`);
     console.log(`  View with: npx playwright show-trace ${tracePath}\n`);
 
@@ -145,33 +145,33 @@ test.describe('Performance Tests', () => {
     });
   });
 
-  test('measure cold start vs warm cache performance', async ({ goosePage }) => {
-    await goosePage.context().tracing.start({ screenshots: true, snapshots: true });
+  test('measure cold start vs warm cache performance', async ({ goslingPage }) => {
+    await goslingPage.context().tracing.start({ screenshots: true, snapshots: true });
 
     console.log('\n=== Cold vs Warm Performance ===\n');
 
     // Cold start measurement
-    await goosePage.waitForSelector('[data-testid="chat-input"]', { timeout: 30000 });
-    await goosePage.evaluate(() => performance.mark('app-ready'));
+    await goslingPage.waitForSelector('[data-testid="chat-input"]', { timeout: 30000 });
+    await goslingPage.evaluate(() => performance.mark('app-ready'));
 
     // First prompt (cold)
-    const chatInput = await goosePage.waitForSelector('[data-testid="chat-input"]');
+    const chatInput = await goslingPage.waitForSelector('[data-testid="chat-input"]');
     await chatInput.fill('Say hello');
 
-    await goosePage.evaluate(() => performance.mark('cold-prompt-start'));
+    await goslingPage.evaluate(() => performance.mark('cold-prompt-start'));
     await chatInput.press('Enter');
 
-    await goosePage.waitForSelector('[data-testid="loading-indicator"]', {
+    await goslingPage.waitForSelector('[data-testid="loading-indicator"]', {
       state: 'visible',
       timeout: 5000
     });
 
-    await goosePage.waitForSelector('[data-testid="loading-indicator"]', {
+    await goslingPage.waitForSelector('[data-testid="loading-indicator"]', {
       state: 'hidden',
       timeout: 60000
     });
 
-    await goosePage.evaluate(() => {
+    await goslingPage.evaluate(() => {
       performance.mark('cold-prompt-complete');
       performance.measure('cold-prompt-duration', 'cold-prompt-start', 'cold-prompt-complete');
     });
@@ -179,23 +179,23 @@ test.describe('Performance Tests', () => {
     console.log('✓ Cold prompt complete');
 
     // Second prompt (warm)
-    const chatInput2 = await goosePage.waitForSelector('[data-testid="chat-input"]');
+    const chatInput2 = await goslingPage.waitForSelector('[data-testid="chat-input"]');
     await chatInput2.fill('Say goodbye');
 
-    await goosePage.evaluate(() => performance.mark('warm-prompt-start'));
+    await goslingPage.evaluate(() => performance.mark('warm-prompt-start'));
     await chatInput2.press('Enter');
 
-    await goosePage.waitForSelector('[data-testid="loading-indicator"]', {
+    await goslingPage.waitForSelector('[data-testid="loading-indicator"]', {
       state: 'visible',
       timeout: 5000
     });
 
-    await goosePage.waitForSelector('[data-testid="loading-indicator"]', {
+    await goslingPage.waitForSelector('[data-testid="loading-indicator"]', {
       state: 'hidden',
       timeout: 60000
     });
 
-    await goosePage.evaluate(() => {
+    await goslingPage.evaluate(() => {
       performance.mark('warm-prompt-complete');
       performance.measure('warm-prompt-duration', 'warm-prompt-start', 'warm-prompt-complete');
     });
@@ -203,7 +203,7 @@ test.describe('Performance Tests', () => {
     console.log('✓ Warm prompt complete');
 
     // Extract metrics
-    const metrics = await goosePage.evaluate(() => {
+    const metrics = await goslingPage.evaluate(() => {
       const measures = performance.getEntriesByType('measure');
       const result: Record<string, number> = {};
       measures.forEach(measure => {
@@ -224,7 +224,7 @@ test.describe('Performance Tests', () => {
 
     // Save trace
     const tracePath = test.info().outputPath('cold-vs-warm-trace.zip');
-    await goosePage.context().tracing.stop({ path: tracePath });
+    await goslingPage.context().tracing.stop({ path: tracePath });
     console.log(`✓ Trace saved to: ${tracePath}\n`);
 
     // Attach results
@@ -238,13 +238,13 @@ test.describe('Performance Tests', () => {
     });
   });
 
-  test('capture full performance profile with navigation timing', async ({ goosePage }) => {
-    await goosePage.context().tracing.start({ screenshots: true, snapshots: true });
+  test('capture full performance profile with navigation timing', async ({ goslingPage }) => {
+    await goslingPage.context().tracing.start({ screenshots: true, snapshots: true });
 
     console.log('\n=== Full Performance Profile ===\n');
 
     // Get navigation timing
-    const navigationTiming = await goosePage.evaluate(() => {
+    const navigationTiming = await goslingPage.evaluate(() => {
       const perf = performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
       return {
         domContentLoaded: Math.round(perf.domContentLoadedEventEnd - perf.fetchStart),
@@ -259,11 +259,11 @@ test.describe('Performance Tests', () => {
     console.log(`  Load Complete:      ${navigationTiming.loadComplete}ms`);
 
     // Wait for app ready
-    await goosePage.waitForSelector('[data-testid="chat-input"]', { timeout: 30000 });
-    await goosePage.evaluate(() => performance.mark('app-interactive'));
+    await goslingPage.waitForSelector('[data-testid="chat-input"]', { timeout: 30000 });
+    await goslingPage.evaluate(() => performance.mark('app-interactive'));
 
     // Measure time from navigation to interactive
-    const appReadyTime = await goosePage.evaluate(() => {
+    const appReadyTime = await goslingPage.evaluate(() => {
       const appInteractive = performance.getEntriesByName('app-interactive')[0];
       return Math.round(appInteractive.startTime);
     });
@@ -271,21 +271,21 @@ test.describe('Performance Tests', () => {
     console.log(`  App Interactive:    ${appReadyTime}ms\n`);
 
     // Submit a prompt and measure
-    const chatInput = await goosePage.waitForSelector('[data-testid="chat-input"]');
+    const chatInput = await goslingPage.waitForSelector('[data-testid="chat-input"]');
     await chatInput.fill('Hello');
 
-    await goosePage.evaluate(() => performance.mark('user-interaction-start'));
+    await goslingPage.evaluate(() => performance.mark('user-interaction-start'));
     await chatInput.press('Enter');
 
-    await goosePage.waitForSelector('[data-testid="loading-indicator"]', { state: 'visible', timeout: 5000 });
-    await goosePage.waitForSelector('[data-testid="loading-indicator"]', { state: 'hidden', timeout: 60000 });
+    await goslingPage.waitForSelector('[data-testid="loading-indicator"]', { state: 'visible', timeout: 5000 });
+    await goslingPage.waitForSelector('[data-testid="loading-indicator"]', { state: 'hidden', timeout: 60000 });
 
-    await goosePage.evaluate(() => {
+    await goslingPage.evaluate(() => {
       performance.mark('user-interaction-complete');
       performance.measure('user-interaction-duration', 'user-interaction-start', 'user-interaction-complete');
     });
 
-    const interactionTime = await goosePage.evaluate(() => {
+    const interactionTime = await goslingPage.evaluate(() => {
       const measure = performance.getEntriesByName('user-interaction-duration')[0];
       return Math.round(measure.duration);
     });
@@ -293,7 +293,7 @@ test.describe('Performance Tests', () => {
     console.log(`User Interaction Duration: ${interactionTime}ms\n`);
 
     // Get resource timing summary
-    const resourceStats = await goosePage.evaluate(() => {
+    const resourceStats = await goslingPage.evaluate(() => {
       const resources = performance.getEntriesByType('resource');
       const types: Record<string, number> = {};
       resources.forEach(resource => {
@@ -313,7 +313,7 @@ test.describe('Performance Tests', () => {
 
     // Save trace
     const tracePath = test.info().outputPath('full-profile-trace.zip');
-    await goosePage.context().tracing.stop({ path: tracePath });
+    await goslingPage.context().tracing.stop({ path: tracePath });
     console.log(`✓ Full trace saved to: ${tracePath}\n`);
 
     // Attach all metrics

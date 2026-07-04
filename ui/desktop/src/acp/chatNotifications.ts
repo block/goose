@@ -1,4 +1,4 @@
-import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
+import type { GoslingSessionNotification_unstable } from '@repo-makeover/gosling-sdk';
 import type { SessionNotification } from '@agentclientprotocol/sdk';
 import { AppEvents } from '../constants/events';
 import { acpChatSessionActions, acpChatSessionStore } from './chatSessionStore';
@@ -24,9 +24,9 @@ export function handleAcpSessionNotification(notification: SessionNotification):
   return Promise.resolve();
 }
 
-export function handleAcpGooseSessionNotification(
-  notification: GooseSessionNotification_unstable
+export function handleAcpGoslingSessionNotification(
+  notification: GoslingSessionNotification_unstable
 ): Promise<void> {
-  acpChatSessionActions.applyAcpGooseSessionNotification(notification);
+  acpChatSessionActions.applyAcpGoslingSessionNotification(notification);
   return Promise.resolve();
 }

@@ -2,22 +2,22 @@
 sidebar_position: 9
 title: ACP Providers
 sidebar_label: ACP Providers
-description: Use ACP agents like Claude Code and Codex as goose providers with extension support
+description: Use ACP agents like Claude Code and Codex as gosling providers with extension support
 ---
 
 # ACP Providers
 
-goose supports [Agent Client Protocol (ACP)](https://agentclientprotocol.com/) agents as providers. ACP is a standard protocol for communicating with coding agents, and there's a growing [registry](https://github.com/agentclientprotocol/registry) of agents that implement it.
+gosling supports [Agent Client Protocol (ACP)](https://agentclientprotocol.com/) agents as providers. ACP is a standard protocol for communicating with coding agents, and there's a growing [registry](https://github.com/agentclientprotocol/registry) of agents that implement it.
 
-ACP providers pass goose [extensions](/docs/getting-started/using-extensions) through to the agent as MCP servers, so the agent can call your extensions directly.
+ACP providers pass gosling [extensions](/docs/getting-started/using-extensions) through to the agent as MCP servers, so the agent can call your extensions directly.
 
 :::tip Use Your Existing Subscriptions
-ACP providers let you use goose with your existing Claude Code or ChatGPT Plus/Pro subscriptions — no per-token API costs. They are the recommended replacement for the deprecated [CLI providers](/docs/guides/cli-providers).
+ACP providers let you use gosling with your existing Claude Code or ChatGPT Plus/Pro subscriptions — no per-token API costs. They are the recommended replacement for the deprecated [CLI providers](/docs/guides/cli-providers).
 :::
 
 :::warning Limitations
-- **No session fork or resume**: You can start new sessions, but `goose session resume` and `goose session fork` are not supported yet.
-- **ACP session ID differs from goose session ID**: Telemetry fields may not correlate across the two.
+- **No session fork or resume**: You can start new sessions, but `gosling session resume` and `gosling session fork` are not supported yet.
+- **ACP session ID differs from gosling session ID**: Telemetry fields may not correlate across the two.
 :::
 
 ## Available ACP Providers
@@ -43,7 +43,7 @@ Wraps [claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp
 
 ### Codex ACP
 
-Wraps [codex-acp](https://github.com/zed-industries/codex-acp), an ACP adapter for OpenAI's Codex. Uses the same ChatGPT subscription as the deprecated `codex` CLI provider. Codex's sandbox blocks network by default; goose automatically enables network access when HTTP MCP servers are configured.
+Wraps [codex-acp](https://github.com/zed-industries/codex-acp), an ACP adapter for OpenAI's Codex. Uses the same ChatGPT subscription as the deprecated `codex` CLI provider. Codex's sandbox blocks network by default; gosling automatically enables network access when HTTP MCP servers are configured.
 
 **Requirements:**
 - Node.js and npm
@@ -79,14 +79,14 @@ Wraps `pi-acp`, an ACP adapter for Pi. Uses your existing Pi installation.
 
    Run `amp` and follow the authentication prompts.
 
-4. **Configure goose**
+4. **Configure gosling**
 
    Set the provider environment variable:
    ```bash
-   export GOOSE_PROVIDER=amp-acp
+   export GOSLING_PROVIDER=amp-acp
    ```
 
-   Or configure through the goose CLI using `goose configure`.
+   Or configure through the gosling CLI using `gosling configure`.
 
 ### Claude ACP
 
@@ -100,17 +100,17 @@ Wraps `pi-acp`, an ACP adapter for Pi. Uses your existing Pi installation.
 
    Ensure your Claude CLI is authenticated and working
 
-3. **Configure goose**
+3. **Configure gosling**
 
    Set the provider environment variable:
    ```bash
-   export GOOSE_PROVIDER=claude-acp
+   export GOSLING_PROVIDER=claude-acp
    ```
 
-   Or configure through the goose CLI using `goose configure`:
+   Or configure through the gosling CLI using `gosling configure`:
 
    ```bash
-   ┌   goose-configure
+   ┌   gosling-configure
    │
    ◇  What would you like to configure?
    │  Configure Providers
@@ -136,17 +136,17 @@ Wraps `pi-acp`, an ACP adapter for Pi. Uses your existing Pi installation.
 
    Run `codex` and follow the authentication prompts. You can use your ChatGPT account or API key.
 
-3. **Configure goose**
+3. **Configure gosling**
 
    Set the provider environment variable:
    ```bash
-   export GOOSE_PROVIDER=codex-acp
+   export GOSLING_PROVIDER=codex-acp
    ```
 
-   Or configure through the goose CLI using `goose configure`:
+   Or configure through the gosling CLI using `gosling configure`:
 
    ```bash
-   ┌   goose-configure
+   ┌   gosling-configure
    │
    ◇  What would you like to configure?
    │  Configure Providers
@@ -170,21 +170,21 @@ Wraps `pi-acp`, an ACP adapter for Pi. Uses your existing Pi installation.
 
    Run `pi` and follow the authentication prompts.
 
-3. **Configure goose**
+3. **Configure gosling**
 
    Set the provider environment variable:
    ```bash
-   export GOOSE_PROVIDER=pi-acp
+   export GOSLING_PROVIDER=pi-acp
    ```
 
-   Or configure through the goose CLI using `goose configure`.
+   Or configure through the gosling CLI using `gosling configure`.
 
 ## Usage Examples
 
 ### Basic Usage
 
 ```bash
-goose session
+gosling session
 ```
 
 ### Using with Extensions
@@ -192,13 +192,13 @@ goose session
 Extensions configured via `--with-extension` or `--with-streamable-http-extension` are passed through to the ACP agent:
 
 ```bash
-GOOSE_PROVIDER=claude-acp goose run \
+GOSLING_PROVIDER=claude-acp gosling run \
   --with-extension 'npx -y @modelcontextprotocol/server-everything' \
   -t 'Use the echo tool to say hello'
 ```
 
 ```bash
-GOOSE_PROVIDER=codex-acp goose run \
+GOSLING_PROVIDER=codex-acp gosling run \
   --with-streamable-http-extension 'https://mcp.kiwi.com' \
   -t 'Search for flights from BKI to SYD tomorrow'
 ```
@@ -209,24 +209,24 @@ GOOSE_PROVIDER=codex-acp goose run \
 
 | Environment Variable | Description       | Default   |
 |----------------------|-------------------|-----------|
-| `GOOSE_PROVIDER`     | Set to `amp-acp`  | None      |
-| `GOOSE_MODEL`        | Model to use      | `current` |
-| `GOOSE_MODE`         | Permission mode   | `auto`    |
+| `GOSLING_PROVIDER`     | Set to `amp-acp`  | None      |
+| `GOSLING_MODEL`        | Model to use      | `current` |
+| `GOSLING_MODE`         | Permission mode   | `auto`    |
 
 ### Claude ACP Configuration
 
 | Environment Variable | Description         | Default   |
 |----------------------|---------------------|-----------|
-| `GOOSE_PROVIDER`     | Set to `claude-acp` | None      |
-| `GOOSE_MODEL`        | Model to use        | `default` |
-| `GOOSE_MODE`         | Permission mode     | `auto`    |
+| `GOSLING_PROVIDER`     | Set to `claude-acp` | None      |
+| `GOSLING_MODEL`        | Model to use        | `default` |
+| `GOSLING_MODE`         | Permission mode     | `auto`    |
 
 **Known Models:**
 - `default` (opus)
 - `sonnet`
 - `haiku`
 
-**Permission Modes (`GOOSE_MODE`):**
+**Permission Modes (`GOSLING_MODE`):**
 
 | Mode            | Session Mode        | Behavior                                              |
 |-----------------|---------------------|-------------------------------------------------------|
@@ -241,9 +241,9 @@ See [claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp) 
 
 | Environment Variable | Description        | Default         |
 |----------------------|--------------------|-----------------|
-| `GOOSE_PROVIDER`     | Set to `codex-acp` | None            |
-| `GOOSE_MODEL`        | Model to use       | `gpt-5.2-codex` |
-| `GOOSE_MODE`         | Permission mode    | `auto`          |
+| `GOSLING_PROVIDER`     | Set to `codex-acp` | None            |
+| `GOSLING_MODEL`        | Model to use       | `gpt-5.2-codex` |
+| `GOSLING_MODE`         | Permission mode    | `auto`          |
 
 **Known Models:**
 - `gpt-5.2-codex`
@@ -251,7 +251,7 @@ See [claude-agent-acp](https://github.com/agentclientprotocol/claude-agent-acp) 
 - `gpt-5.1-codex-max`
 - `gpt-5.1-codex-mini`
 
-**Permission Modes (`GOOSE_MODE`):**
+**Permission Modes (`GOSLING_MODE`):**
 
 | Mode            | Approval / Sandbox          | Behavior                                                       |
 |-----------------|-----------------------------|----------------------------------------------------------------|
@@ -266,9 +266,9 @@ See [codex-acp](https://github.com/zed-industries/codex-acp) for approval policy
 
 | Environment Variable | Description      | Default   |
 |----------------------|------------------|-----------|
-| `GOOSE_PROVIDER`     | Set to `pi-acp`  | None      |
-| `GOOSE_MODEL`        | Model to use     | `current` |
-| `GOOSE_MODE`         | Permission mode  | `auto`    |
+| `GOSLING_PROVIDER`     | Set to `pi-acp`  | None      |
+| `GOSLING_MODEL`        | Model to use     | `current` |
+| `GOSLING_MODE`         | Permission mode  | `auto`    |
 
 ## Error Handling
 
@@ -279,4 +279,4 @@ ACP providers depend on external binaries, so ensure:
 - Subscription limits are not exceeded
 - Node.js and npm are installed (for npm-distributed adapters)
 
-If goose can't find the binary, session startup will fail with an error. Run `which <binary>` to verify installation.
+If gosling can't find the binary, session startup will fail with an error. Run `which <binary>` to verify installation.

@@ -144,11 +144,11 @@ jobs:
           rustup show
 
           if [ "${{ matrix.variant }}" = "musl" ]; then
-            cargo build --release --target ${TARGET} -p goose-cli --bin goose \
+            cargo build --release --target ${TARGET} -p gosling-cli --bin gosling \
               --no-default-features \
               --features portable-default
           else
-            cargo build --release --target ${TARGET} -p goose-cli
+            cargo build --release --target ${TARGET} -p gosling-cli
           fi
 
       - name: Build CLI (manylinux container)
@@ -170,7 +170,7 @@ jobs:
           rustup toolchain install "$RUST_CHANNEL" --profile minimal \
             --component rustc,cargo --target "$TARGET"
           rustup show
-          cargo build --release --target "$TARGET" -p goose-cli
+          cargo build --release --target "$TARGET" -p gosling-cli
 
       - name: Setup Rust (Windows)
         if: matrix.platform == 'windows'
@@ -184,16 +184,16 @@ jobs:
         shell: pwsh
         run: |
           Write-Output "Building Windows CLI executable..."
-          cargo build --release --target x86_64-pc-windows-msvc -p goose-cli
+          cargo build --release --target x86_64-pc-windows-msvc -p gosling-cli
 
-          if (-not (Test-Path "./target/x86_64-pc-windows-msvc/release/goose.exe")) {
+          if (-not (Test-Path "./target/x86_64-pc-windows-msvc/release/gosling.exe")) {
             Write-Error "Windows CLI binary not found."
             Get-ChildItem ./target/x86_64-pc-windows-msvc/release/ -ErrorAction SilentlyContinue
             exit 1
           }
 
           Write-Output "Windows CLI binary found."
-          Get-Item ./target/x86_64-pc-windows-msvc/release/goose.exe
+          Get-Item ./target/x86_64-pc-windows-msvc/release/gosling.exe
 
       - name: Package CLI (Linux/macOS)
         if: matrix.platform != 'windows'
@@ -206,16 +206,16 @@ jobs:
           export VARIANT_SUFFIX=""
 
           # Create a directory for the package contents
-          mkdir -p "target/${TARGET}/release/goose-package"
+          mkdir -p "target/${TARGET}/release/gosling-package"
 
-          # Copy the goose binary
-          cp "target/${TARGET}/release/goose" "target/${TARGET}/release/goose-package/"
+          # Copy the gosling binary
+          cp "target/${TARGET}/release/gosling" "target/${TARGET}/release/gosling-package/"
 
           cd "target/${TARGET}/release"
-          tar -cjf "goose-${TARGET}${VARIANT_SUFFIX}.tar.bz2" -C goose-package .
-          tar -czf "goose-${TARGET}${VARIANT_SUFFIX}.tar.gz" -C goose-package .
-          echo "ARTIFACT_BZ2=target/${TARGET}/release/goose-${TARGET}${VARIANT_SUFFIX}.tar.bz2" >> $GITHUB_ENV
-          echo "ARTIFACT_GZ=target/${TARGET}/release/goose-${TARGET}${VARIANT_SUFFIX}.tar.gz" >> $GITHUB_ENV
+          tar -cjf "gosling-${TARGET}${VARIANT_SUFFIX}.tar.bz2" -C gosling-package .
+          tar -czf "gosling-${TARGET}${VARIANT_SUFFIX}.tar.gz" -C gosling-package .
+          echo "ARTIFACT_BZ2=target/${TARGET}/release/gosling-${TARGET}${VARIANT_SUFFIX}.tar.bz2" >> $GITHUB_ENV
+          echo "ARTIFACT_GZ=target/${TARGET}/release/gosling-${TARGET}${VARIANT_SUFFIX}.tar.gz" >> $GITHUB_ENV
 
       - name: Package CLI (Windows)
         if: matrix.platform == 'windows'
@@ -224,18 +224,18 @@ jobs:
           export TARGET="${{ matrix.architecture }}-${{ matrix.target-suffix }}"
           export VARIANT_SUFFIX=""
 
-          mkdir -p "target/${TARGET}/release/goose-package"
+          mkdir -p "target/${TARGET}/release/gosling-package"
 
-          cp "target/${TARGET}/release/goose.exe" "target/${TARGET}/release/goose-package/"
+          cp "target/${TARGET}/release/gosling.exe" "target/${TARGET}/release/gosling-package/"
 
           cd "target/${TARGET}/release"
-          7z a -tzip "goose-${TARGET}${VARIANT_SUFFIX}.zip" goose-package/
-          echo "ARTIFACT_ZIP=target/${TARGET}/release/goose-${TARGET}${VARIANT_SUFFIX}.zip" >> $GITHUB_ENV
+          7z a -tzip "gosling-${TARGET}${VARIANT_SUFFIX}.zip" gosling-package/
+          echo "ARTIFACT_ZIP=target/${TARGET}/release/gosling-${TARGET}${VARIANT_SUFFIX}.zip" >> $GITHUB_ENV
 
       - name: Upload CLI artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: goose-${{ matrix.architecture }}-${{ matrix.target-suffix }}${{ matrix.variant != 'standard' && matrix.variant != 'musl' && format('-{0}', matrix.variant) || '' }}
+          name: gosling-${{ matrix.architecture }}-${{ matrix.target-suffix }}${{ matrix.variant != 'standard' && matrix.variant != 'musl' && format('-{0}', matrix.variant) || '' }}
           path: |
             ${{ env.ARTIFACT_BZ2 }}
             ${{ env.ARTIFACT_GZ }}

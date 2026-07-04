@@ -24,7 +24,7 @@ jobs:
   stale:
     name: 'Mark and Close Stale PRs'
     runs-on: ubuntu-latest
-    if: github.repository == 'aaif-goose/goose'
+    if: github.repository == 'repo-makeover/gosling'
     
     steps:
       # Use the official stale action from GitHub

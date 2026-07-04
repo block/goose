@@ -2,7 +2,7 @@ import Layout from "@theme/Layout";
 import { Download, Terminal, Star, ArrowLeft, Info, BookOpen } from "lucide-react";
 import { Button } from "@site/src/components/ui/button";
 import { Badge } from "@site/src/components/ui/badge";
-import { getGooseInstallLink } from "@site/src/utils/install-links";
+import { getGoslingInstallLink } from "@site/src/utils/install-links";
 import { useLocation } from "@docusaurus/router";
 import { useEffect, useState } from "react";
 import type { MCPServer } from "@site/src/types/server";
@@ -100,7 +100,7 @@ const getDocumentationPath = (serverId: string): string => {
                       <div className="flex items-center gap-2">
                         <Info className="h-4 w-4 text-textSubtle shrink-0" />
                         <span className="text-sm text-textSubtle">
-                           Can be enabled on the Extensions page in goose
+                           Can be enabled on the Extensions page in gosling
                         </span>
                       </div>
                     ) : server.show_install_command !== false ? (
@@ -112,15 +112,15 @@ const getDocumentationPath = (serverId: string): string => {
                         <div className="command-content">
                           {(server.type === "local" || !server.type) ? (
                             <code className="text-sm block">
-                              {`goose session --with-extension "${server.command}"`}
+                              {`gosling session --with-extension "${server.command}"`}
                             </code>
                           ) : server.type === "remote" ? (
                             <code className="text-sm block">
-                              {`goose session --with-remote-extension "${server.url}"`}
+                              {`gosling session --with-remote-extension "${server.url}"`}
                             </code>
                           ) : server.type === "streamable-http" ? (
                             <code className="text-sm block">
-                              {`goose session --with-streamable-http-extension "${server.url}"`}
+                              {`gosling session --with-streamable-http-extension "${server.url}"`}
                             </code>
                           ) : (
                             <code className="text-sm block">
@@ -211,13 +211,13 @@ const getDocumentationPath = (serverId: string): string => {
                     {server.is_builtin ? (
                       <div
                         className="built-in-badge"
-                        title="This extension is built into Goose and can be enabled on the Extensions page"
+                        title="This extension is built into Gosling and can be enabled on the Extensions page"
                       >
                         Built-in
                       </div>
                     ) : server.show_install_link !== false ? (
                       <a
-                        href={getGooseInstallLink(server)}
+                        href={getGoslingInstallLink(server)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="install-button"

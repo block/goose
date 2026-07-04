@@ -119,7 +119,7 @@ export function normalizeSkill(
   const sourceUrl = frontmatter.source_url || frontmatter.sourceUrl;
   const repoUrl = frontmatter.repo_url || frontmatter.repoUrl || sourceUrl;
   const author = frontmatter.author;
-  const isCommunity = !!author && author.toLowerCase() !== "goose";
+  const isCommunity = !!author && author.toLowerCase() !== "gosling";
 
   const installMethod = determineInstallMethod(sourceUrl, id);
   const installCommand = generateInstallCommand(sourceUrl, id, installMethod);
@@ -218,7 +218,7 @@ function determineInstallMethod(
   skillId: string,
 ): SkillInstallMethod {
   if (!sourceUrl) return "download";
-  if (sourceUrl.includes("aaif-goose/goose")) return "npx-multi";
+  if (sourceUrl.includes("repo-makeover/gosling")) return "npx-multi";
 
   const simpleRepoPattern = /^https:\/\/github\.com\/[^\/]+\/[^\/]+\/?$/;
   if (simpleRepoPattern.test(sourceUrl)) return "npx-single";

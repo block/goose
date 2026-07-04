@@ -115,7 +115,7 @@ export const zMcpServer = z.union([
     zMcpServerStdio
 ]);
 
-export const zGooseExtension = z.union([
+export const zGoslingExtension = z.union([
     z.object({
         name: z.string(),
         description: z.union([
@@ -192,7 +192,7 @@ export const zGooseExtension = z.union([
  */
 export const zAddSessionExtensionRequest_unstable = z.object({
     sessionId: z.string(),
-    extension: zGooseExtension
+    extension: zGoslingExtension
 });
 
 /**
@@ -270,7 +270,7 @@ export const zSetToolPermissionsResponse_unstable = z.record(z.unknown());
 /**
  * Call a tool from an extension.
  */
-export const zGooseToolCallRequest_unstable = z.object({
+export const zGoslingToolCallRequest_unstable = z.object({
     sessionId: z.string(),
     name: z.string(),
     arguments: z.unknown().optional().default(null)
@@ -279,7 +279,7 @@ export const zGooseToolCallRequest_unstable = z.object({
 /**
  * Tool call response.
  */
-export const zGooseToolCallResponse_unstable = z.object({
+export const zGoslingToolCallResponse_unstable = z.object({
     content: z.array(z.unknown()).optional().default([]),
     structuredContent: z.unknown().optional(),
     isError: z.boolean(),
@@ -321,7 +321,7 @@ export const zSessionSystemPromptMode = z.union([
 /**
  * Set, append, or clear system prompt text for a session.
  *
- * `mode: "set"` replaces Goose's base system prompt. `mode: "append"` adds an
+ * `mode: "set"` replaces Gosling's base system prompt. `mode: "append"` adds an
  * instruction under "Additional Instructions". Reusing a key replaces the
  * previous value for that mode/key; sending empty text clears it.
  */
@@ -563,7 +563,7 @@ export const zDiagnosticsGetResponse_unstable = z.object({
 });
 
 /**
- * List all available Goose prompt templates.
+ * List all available Gosling prompt templates.
  */
 export const zListPromptsRequest_unstable = z.record(z.unknown());
 
@@ -586,7 +586,7 @@ export const zListPromptsResponse_unstable = z.object({
 });
 
 /**
- * Read a Goose prompt template.
+ * Read a Gosling prompt template.
  */
 export const zGetPromptRequest_unstable = z.object({
     name: z.string()
@@ -600,7 +600,7 @@ export const zGetPromptResponse_unstable = z.object({
 });
 
 /**
- * Save a custom Goose prompt template.
+ * Save a custom Gosling prompt template.
  */
 export const zSavePromptRequest_unstable = z.object({
     name: z.string(),
@@ -612,7 +612,7 @@ export const zPromptOperationResponse_unstable = z.object({
 });
 
 /**
- * Reset a Goose prompt template to its default content.
+ * Reset a Gosling prompt template to its default content.
  */
 export const zResetPromptRequest_unstable = z.object({
     name: z.string()
@@ -630,8 +630,8 @@ export const zDeleteSessionRequest = z.object({
  */
 export const zGetConfigExtensionsRequest_unstable = z.record(z.unknown());
 
-export const zGooseExtensionEntry = z.object({
-    extension: zGooseExtension,
+export const zGoslingExtensionEntry = z.object({
+    extension: zGoslingExtension,
     enabled: z.boolean(),
     configKey: z.union([
         z.string(),
@@ -643,36 +643,36 @@ export const zGooseExtensionEntry = z.object({
  * List configured extensions and any warnings.
  */
 export const zGetConfigExtensionsResponse_unstable = z.object({
-    extensions: z.array(zGooseExtensionEntry),
+    extensions: z.array(zGoslingExtensionEntry),
     warnings: z.array(z.string()).optional().default([])
 });
 
 /**
- * List Goose-owned extension definitions available to configure or enable.
+ * List Gosling-owned extension definitions available to configure or enable.
  */
 export const zGetAvailableExtensionsRequest_unstable = z.record(z.unknown());
 
 export const zGetAvailableExtensionsResponse_unstable = z.object({
-    extensions: z.array(zGooseExtension)
+    extensions: z.array(zGoslingExtension)
 });
 
 /**
- * Persist a new extension to the user's global goose config.
+ * Persist a new extension to the user's global gosling config.
  */
 export const zAddConfigExtensionRequest_unstable = z.object({
-    extension: zGooseExtension,
+    extension: zGoslingExtension,
     enabled: z.boolean().optional().default(false)
 });
 
 /**
- * Remove a persisted extension from the user's global goose config.
+ * Remove a persisted extension from the user's global gosling config.
  */
 export const zRemoveConfigExtensionRequest_unstable = z.object({
     configKey: z.string()
 });
 
 /**
- * Set the `enabled` flag for a persisted extension in the user's global goose config.
+ * Set the `enabled` flag for a persisted extension in the user's global gosling config.
  */
 export const zSetConfigExtensionEnabledRequest_unstable = z.object({
     configKey: z.string(),
@@ -684,7 +684,7 @@ export const zGetSessionExtensionsRequest_unstable = z.object({
 });
 
 export const zGetSessionExtensionsResponse_unstable = z.object({
-    extensions: z.array(zGooseExtension)
+    extensions: z.array(zGoslingExtension)
 });
 
 /**
@@ -911,7 +911,7 @@ export const zProviderCatalogTemplateResponse_unstable = z.object({
 });
 
 /**
- * Create a custom provider backed by Goose's declarative provider store.
+ * Create a custom provider backed by Gosling's declarative provider store.
  */
 export const zCustomProviderCreateRequest_unstable = z.object({
     engine: z.string(),
@@ -1015,7 +1015,7 @@ export const zCustomProviderReadResponse_unstable = z.object({
 });
 
 /**
- * Update a custom provider backed by Goose's declarative provider store.
+ * Update a custom provider backed by Gosling's declarative provider store.
  */
 export const zCustomProviderUpdateRequest_unstable = z.object({
     providerId: z.string(),
@@ -1054,7 +1054,7 @@ export const zCustomProviderUpdateResponse_unstable = z.object({
 });
 
 /**
- * Delete a custom provider from Goose's declarative provider store.
+ * Delete a custom provider from Gosling's declarative provider store.
  */
 export const zCustomProviderDeleteRequest_unstable = z.object({
     providerId: z.string()
@@ -1138,7 +1138,7 @@ export const zProviderConfigAuthenticateRequest_unstable = z.object({
 });
 
 /**
- * List provider credentials stored locally by Goose.
+ * List provider credentials stored locally by Gosling.
  */
 export const zProviderSecretsListRequest_unstable = z.record(z.unknown());
 
@@ -1227,7 +1227,7 @@ export const zCanonicalModelInfoResponse_unstable = z.object({
 
 export const zPreferenceKey = z.enum([
     'autoCompactThreshold',
-    'gooseThinkingEffort',
+    'goslingThinkingEffort',
     'voiceAutoSubmitPhrases',
     'voiceDictationProvider',
     'voiceDictationPreferredMic'
@@ -1290,7 +1290,7 @@ export const zConfigReadAllResponse_unstable = z.object({
 });
 
 /**
- * Read Goose default provider and model configuration.
+ * Read Gosling default provider and model configuration.
  */
 export const zDefaultsReadRequest_unstable = z.record(z.unknown());
 
@@ -1306,7 +1306,7 @@ export const zDefaultsReadResponse_unstable = z.object({
 });
 
 /**
- * Save Goose default provider and model configuration.
+ * Save Gosling default provider and model configuration.
  */
 export const zDefaultsSaveRequest_unstable = z.object({
     providerId: z.string(),
@@ -1317,17 +1317,17 @@ export const zDefaultsSaveRequest_unstable = z.object({
 });
 
 /**
- * Clear Goose default provider and model configuration.
+ * Clear Gosling default provider and model configuration.
  */
 export const zDefaultsClearRequest_unstable = z.record(z.unknown());
 
 /**
  * Sources that onboarding knows how to discover and import.
  */
-export const zOnboardingImportSourceKind = z.enum(['goose_config', 'claude_desktop']);
+export const zOnboardingImportSourceKind = z.enum(['gosling_config', 'claude_desktop']);
 
 /**
- * Scan for existing Goose and compatible app data that onboarding can import.
+ * Scan for existing Gosling and compatible app data that onboarding can import.
  */
 export const zOnboardingImportScanRequest_unstable = z.object({
     sources: z.array(zOnboardingImportSourceKind).optional().default([])
@@ -1381,7 +1381,7 @@ export const zExportSessionRequest_unstable = z.object({
 });
 
 /**
- * Export session response — raw JSON of the goose session with `conversation`.
+ * Export session response — raw JSON of the gosling session with `conversation`.
  */
 export const zExportSessionResponse_unstable = z.object({
     data: z.string()
@@ -1552,7 +1552,7 @@ export const zCreateSourceRequest_unstable = z.object({
 });
 
 /**
- * A source discovered by Goose. Filesystem sources use an on-disk path;
+ * A source discovered by Gosling. Filesystem sources use an on-disk path;
  * built-in sources use a stable synthetic path. Sources may be either
  * `global` (shared across all projects) or project-specific.
  */
@@ -1719,7 +1719,7 @@ export const zExportSourceResponse_unstable = z.object({
 });
 
 /**
- * Import a source from a JSON export payload produced by `_goose/unstable/sources/export`.
+ * Import a source from a JSON export payload produced by `_gosling/unstable/sources/export`.
  * The imported source is written into the explicit target scope; on name
  * collisions a `-imported` suffix is appended.
  */
@@ -1857,14 +1857,14 @@ export const zStatusMessageUpdate = z.object({
 });
 
 /**
- * Discriminated union of goose-specific session update payloads.
+ * Discriminated union of gosling-specific session update payloads.
  * Variant tag matches ACP's convention (`sessionUpdate: "<snake_case>"`).
  *
  * `discriminator.mapping` is what makes TS codegen (`@hey-api/openapi-ts`)
  * emit the correct snake_case tag value even when this enum has a single
  * variant. Add a mapping entry per variant.
  */
-export const zGooseSessionUpdate = z.union([
+export const zGoslingSessionUpdate = z.union([
     z.object({
         sessionUpdate: z.literal('usage_update')
     }).and(zSessionUsageUpdate),
@@ -1874,12 +1874,12 @@ export const zGooseSessionUpdate = z.union([
 ]);
 
 /**
- * Goose-custom session update notification — a parallel to ACP's
- * `session/update` carrying goose-specific update variants.
+ * Gosling-custom session update notification — a parallel to ACP's
+ * `session/update` carrying gosling-specific update variants.
  */
-export const zGooseSessionNotification_unstable = z.object({
+export const zGoslingSessionNotification_unstable = z.object({
     sessionId: z.string(),
-    update: zGooseSessionUpdate
+    update: zGoslingSessionUpdate
 });
 
 export const zExtRequest = z.object({
@@ -1891,7 +1891,7 @@ export const zExtRequest = z.object({
             zRemoveSessionExtensionRequest_unstable,
             zGetToolsRequest_unstable,
             zSetToolPermissionsRequest_unstable,
-            zGooseToolCallRequest_unstable,
+            zGoslingToolCallRequest_unstable,
             zReadResourceRequest_unstable,
             zUpdateWorkingDirRequest_unstable,
             zSetSessionSystemPromptRequest_unstable,
@@ -1976,7 +1976,7 @@ export const zExtResponse = z.union([
                 zEmptyResponse,
                 zGetToolsResponse_unstable,
                 zSetToolPermissionsResponse_unstable,
-                zGooseToolCallResponse_unstable,
+                zGoslingToolCallResponse_unstable,
                 zReadResourceResponse_unstable,
                 zSteerSessionResponse_unstable,
                 zDiagnosticsGetResponse_unstable,
@@ -2037,7 +2037,7 @@ export const zExtResponse = z.union([
 export const zExtNotification = z.object({
     method: z.string(),
     params: z.union([
-        zGooseSessionNotification_unstable,
+        zGoslingSessionNotification_unstable,
         z.union([
             z.record(z.unknown()),
             z.null()

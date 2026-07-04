@@ -21,7 +21,7 @@ The tool shim works by instructing the primary model to output json for intended
    ```bash
    ollama pull mistral-nemo
    ```
-3. If you want to use a different model, make sure to pull it first from the Ollama server. Then override the default interpreter model using the `GOOSE_TOOLSHIM_OLLAMA_MODEL` environment variable. For example, to use the `llama3.2` model, run:
+3. If you want to use a different model, make sure to pull it first from the Ollama server. Then override the default interpreter model using the `GOSLING_TOOLSHIM_OLLAMA_MODEL` environment variable. For example, to use the `llama3.2` model, run:
 
    ```bash
    ollama pull llama3.2
@@ -29,7 +29,7 @@ The tool shim works by instructing the primary model to output json for intended
    Then,
 
    ```bash
-   GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2 
+   GOSLING_TOOLSHIM_OLLAMA_MODEL=llama3.2 
    ```
 
 4. For optimal performance, run the Ollama server with an increased context length:
@@ -37,14 +37,14 @@ The tool shim works by instructing the primary model to output json for intended
    OLLAMA_CONTEXT_LENGTH=32768 ollama serve
    ```
 
-5. Enable the tool shim by setting the `GOOSE_TOOLSHIM` environment variable:
+5. Enable the tool shim by setting the `GOSLING_TOOLSHIM` environment variable:
 
    ```bash
-   GOOSE_TOOLSHIM=1 
+   GOSLING_TOOLSHIM=1 
    ```
 
-Start a new goose session with your tool shim preferences:
+Start a new gosling session with your tool shim preferences:
 
   ```bash
-  GOOSE_TOOLSHIM=1 GOOSE_TOOLSHIM_OLLAMA_MODEL=llama3.2 cargo run --bin goose session
+  GOSLING_TOOLSHIM=1 GOSLING_TOOLSHIM_OLLAMA_MODEL=llama3.2 cargo run --bin gosling session
   ```

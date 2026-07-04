@@ -11,7 +11,7 @@ import type {
  */
 export type SandboxPermissions = string;
 
-export type GooseDisplayMode = McpUiDisplayMode | 'standalone';
+export type GoslingDisplayMode = McpUiDisplayMode | 'standalone';
 
 /**
  * Per the ext-apps spec, each axis is independently:
@@ -40,4 +40,4 @@ export type McpAppToolCancelled = McpUiToolCancelledNotification['params'];
  * Callback fired when the display mode changes, either via user-initiated
  * host-side controls or app-initiated `ui/request-display-mode` changes.
  */
-export type OnDisplayModeChange = (mode: GooseDisplayMode) => void;
+export type OnDisplayModeChange = (mode: GoslingDisplayMode) => void;

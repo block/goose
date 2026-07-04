@@ -44,7 +44,7 @@ export type Skill = {
   installCommand?: string;       // Computed: npx command
   viewSourceUrl: string;         // Computed: GitHub link to skill source
   repoUrl: string;               // Repository URL (Agent-Skills for official, sourceUrl for external)
-  isCommunity: boolean;          // True if author is not "goose" (community-contributed)
+  isCommunity: boolean;          // True if author is not "gosling" (community-contributed)
 };
 
 /**
@@ -97,7 +97,7 @@ type SkillInstallMethod = 'npx-single' | 'npx-multi' | 'download';`}
   installCommand?: string;       // Computed: npx command
   viewSourceUrl: string;         // Computed: GitHub link to skill source
   repoUrl: string;               // Repository URL (Agent-Skills for official, sourceUrl for external)
-  isCommunity: boolean;          // True if author is not "goose" (community-contributed)
+  isCommunity: boolean;          // True if author is not "gosling" (community-contributed)
 };`}
         </CodeBlock>
 

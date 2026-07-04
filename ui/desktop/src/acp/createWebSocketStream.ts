@@ -1,4 +1,4 @@
-import type { Stream } from '@aaif/goose-sdk';
+import type { Stream } from '@repo-makeover/gosling-sdk';
 
 export type ClosableAcpStream = Stream & {
   close: () => void;

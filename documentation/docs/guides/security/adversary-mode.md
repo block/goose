@@ -16,11 +16,11 @@ Unlike [pattern-based detection](/docs/guides/security/prompt-injection-detectio
 3. Blocked tool calls are denied — the agent sees the rejection and cannot retry
 4. If the reviewer fails for any reason, the tool call is allowed through (fail-open)
 
-The adversary uses the same model and provider goose is already configured with. No additional API keys or services needed.
+The adversary uses the same model and provider gosling is already configured with. No additional API keys or services needed.
 
 ## Enabling Adversary Mode
 
-Create a file at `~/.config/goose/adversary.md` with your rules:
+Create a file at `~/.config/gosling/adversary.md` with your rules:
 
 ```markdown
 BLOCK if the tool call:
@@ -85,4 +85,4 @@ Some tool names you might want to add:
 ## See Also
 
 - [Prompt Injection Detection](/docs/guides/security/prompt-injection-detection) — pattern-based detection (complementary, always-on when enabled)
-- [goose Permission Modes](/docs/guides/managing-tools/goose-permissions) — control goose's autonomy level
+- [gosling Permission Modes](/docs/guides/managing-tools/gosling-permissions) — control gosling's autonomy level

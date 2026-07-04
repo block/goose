@@ -1,12 +1,12 @@
 import {
-  DEFAULT_GOOSE_MCP_HOST_CAPABILITIES,
-  GooseClient,
-  type GooseClientCallbacks,
-} from '@aaif/goose-sdk';
+  DEFAULT_GOSLING_MCP_HOST_CAPABILITIES,
+  GoslingClient,
+  type GoslingClientCallbacks,
+} from '@repo-makeover/gosling-sdk';
 import { PROTOCOL_VERSION, type InitializeResponse } from '@agentclientprotocol/sdk';
 import packageJson from '../../package.json';
 import {
-  handleAcpGooseSessionNotification,
+  handleAcpGoslingSessionNotification,
   handleAcpSessionNotification,
 } from './chatNotifications';
 import { createWebSocketStream } from './createWebSocketStream';
@@ -14,7 +14,7 @@ import { requestAcpElicitation } from './elicitationRequests';
 import { requestAcpPermission } from './permissionRequests';
 
 type InitializedAcpClient = {
-  client: GooseClient;
+  client: GoslingClient;
   initializeResponse: InitializeResponse;
 };
 
@@ -23,16 +23,16 @@ const ACP_INITIALIZE_TIMEOUT_MS = 10_000;
 let clientPromise: Promise<InitializedAcpClient> | null = null;
 let resolvedClient: InitializedAcpClient | null = null;
 
-function createClientCallbacks(): () => GooseClientCallbacks {
+function createClientCallbacks(): () => GoslingClientCallbacks {
   return () => ({
     requestPermission: requestAcpPermission,
     unstable_createElicitation: requestAcpElicitation,
     sessionUpdate: handleAcpSessionNotification,
-    unstable_sessionUpdate: handleAcpGooseSessionNotification,
+    unstable_sessionUpdate: handleAcpGoslingSessionNotification,
   });
 }
 
-function monitorConnection(client: GooseClient): void {
+function monitorConnection(client: GoslingClient): void {
   client.closed
     .then(() => {
       resolvedClient = null;
@@ -66,7 +66,7 @@ async function initializeConnection(): Promise<InitializedAcpClient> {
   }
 
   const stream = createWebSocketStream(wsUrl);
-  const client = new GooseClient(createClientCallbacks(), stream);
+  const client = new GoslingClient(createClientCallbacks(), stream);
 
   try {
     const initializeResponse = await withTimeout(
@@ -75,8 +75,8 @@ async function initializeConnection(): Promise<InitializedAcpClient> {
         clientCapabilities: {
           elicitation: { form: {} },
           _meta: {
-            goose: {
-              mcpHostCapabilities: DEFAULT_GOOSE_MCP_HOST_CAPABILITIES,
+            gosling: {
+              mcpHostCapabilities: DEFAULT_GOSLING_MCP_HOST_CAPABILITIES,
               customNotifications: true,
             },
           },
@@ -98,11 +98,11 @@ async function initializeConnection(): Promise<InitializedAcpClient> {
   }
 }
 
-export async function getAcpClient(): Promise<GooseClient> {
+export async function getAcpClient(): Promise<GoslingClient> {
   return (await getInitializedAcpClient()).client;
 }
 
-export function getAcpClientSync(): GooseClient | null {
+export function getAcpClientSync(): GoslingClient | null {
   return resolvedClient?.client ?? null;
 }
 

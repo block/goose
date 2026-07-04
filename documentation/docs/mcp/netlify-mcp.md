@@ -1,24 +1,24 @@
 ---
 title: Netlify Extension
-description: Add Netlify MCP Server as a goose Extension
+description: Add Netlify MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/iSUNmxOf6gw" />
 
-This tutorial covers how to add the [Netlify MCP Server](https://github.com/netlify/netlify-mcp) as a goose extension to build, deploy, and manage Netlify sites.
+This tutorial covers how to add the [Netlify MCP Server](https://github.com/netlify/netlify-mcp) as a gosling extension to build, deploy, and manage Netlify sites.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40netlify%2Fmcp&id=netlify&name=Netlify&description=Build%2C%20deploy%2C%20and%20manage%20sites%20with%20Netlify%27s%20official%20MCP%20server.)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=%40netlify%2Fmcp&id=netlify&name=Netlify&description=Build%2C%20deploy%2C%20and%20manage%20sites%20with%20Netlify%27s%20official%20MCP%20server.)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y @netlify/mcp
@@ -42,8 +42,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="netlify"
     extensionName="Netlify"
     description="Build, deploy, and manage sites with Netlify's official MCP server."
@@ -51,7 +51,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     args={["-y", "@netlify/mcp"]}
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Netlify"
       description="Build, deploy, and manage sites with Netlify's official MCP server"
@@ -62,13 +62,13 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-In this example, I’ll show you how to use goose with the Netlify Extension to deploy a web application.
+In this example, I’ll show you how to use gosling with the Netlify Extension to deploy a web application.
 
-### goose Prompt
+### gosling Prompt
 
 > Can you deploy my app to Netlify via my GitHub repo?
 
-### goose Output
+### gosling Output
 
 :::note CLI
 

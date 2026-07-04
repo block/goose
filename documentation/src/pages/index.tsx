@@ -4,7 +4,7 @@ import useDocusaurusContext from "@docusaurus/useDocusaurusContext";
 import Layout from "@theme/Layout";
 
 import styles from "./index.module.css";
-import { GooseLogo } from "../components/GooseLogo";
+import { GoslingLogo } from "../components/GoslingLogo";
 
 function HeroSection() {
   return (
@@ -14,7 +14,7 @@ function HeroSection() {
           Open Source · Apache 2.0 · Agentic AI Foundation
         </div>
         <div className={styles.heroLogo}>
-          <GooseLogo />
+          <GoslingLogo />
         </div>
         <p className={styles.heroSubtitle}>
           Your native open source AI agent. Desktop app, CLI, and API — for code,
@@ -211,20 +211,6 @@ function StandardsSection() {
             </p>
             <Link to="/docs/guides/acp-clients">gosling as ACP server →</Link>
           </div>
-          <div className={styles.standardCard}>
-            <h3>Agentic AI Foundation</h3>
-            <p>
-              gosling is part of the{" "}
-              <a href="https://aaif.io/" target="_blank" rel="noopener">
-                Agentic AI Foundation
-              </a>{" "}
-              at the Linux Foundation — ensuring the project remains
-              vendor-neutral, community-governed, and open for the long term.
-            </p>
-            <a href="https://aaif.io/" target="_blank" rel="noopener">
-              Learn about AAIF →
-            </a>
-          </div>
         </div>
       </div>
     </section>
@@ -243,7 +229,7 @@ function CommunitySection() {
         </p>
         <div className={styles.communityGrid}>
           <a
-            href="https://discord.gg/goose-oss"
+            href="https://discord.gg/gosling-oss"
             target="_blank"
             rel="noopener"
             className={styles.communityCard}
@@ -255,7 +241,7 @@ function CommunitySection() {
             </p>
           </a>
           <a
-            href="https://github.com/aaif-goose/goose"
+            href="https://github.com/repo-makeover/gosling"
             target="_blank"
             rel="noopener"
             className={styles.communityCard}
@@ -308,7 +294,7 @@ function InstallSection() {
             </div>
             <pre className={styles.terminalBody}>
               <code>
-{`curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash`}
+{`curl -fsSL https://github.com/repo-makeover/gosling/releases/download/stable/download_cli.sh | bash`}
               </code>
             </pre>
           </div>

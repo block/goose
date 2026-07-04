@@ -1,24 +1,24 @@
 ---
 title: DataHub Extension
-description: Add DataHub MCP Server as a goose Extension
+description: Add DataHub MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VXRvHIZ3Eww?start=1878" />
 
-This tutorial covers how to add the [DataHub MCP Server](https://github.com/acryldata/mcp-server-datahub) as a goose extension to enable AI-powered data discovery, lineage exploration, and metadata querying across your data ecosystem.
+This tutorial covers how to add the [DataHub MCP Server](https://github.com/acryldata/mcp-server-datahub) as a gosling extension to enable AI-powered data discovery, lineage exploration, and metadata querying across your data ecosystem.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=uvx&arg=mcp-server-datahub%40latest&id=datahub-mcp&name=DataHub&description=Data%20discovery%20and%20metadata%20platform%20integration&env=DATAHUB_GMS_URL%3DDataHub%20GMS%20URL%20(e.g.%2C%20https%3A%2F%2Fyour-instance.acryl.io%20or%20http%3A%2F%2Flocalhost%3A8080)&env=DATAHUB_GMS_TOKEN%3DDataHub%20Personal%20Access%20Token)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=uvx&arg=mcp-server-datahub%40latest&id=datahub-mcp&name=DataHub&description=Data%20discovery%20and%20metadata%20platform%20integration&env=DATAHUB_GMS_URL%3DDataHub%20GMS%20URL%20(e.g.%2C%20https%3A%2F%2Fyour-instance.acryl.io%20or%20http%3A%2F%2Flocalhost%3A8080)&env=DATAHUB_GMS_TOKEN%3DDataHub%20Personal%20Access%20Token)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   uvx mcp-server-datahub@latest
@@ -59,9 +59,9 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="gosling Desktop" default>
 
-    <GooseDesktopInstaller
+    <GoslingDesktopInstaller
       extensionId="datahub-mcp"
       extensionName="DataHub"
       description="Data discovery and metadata platform integration"
@@ -78,7 +78,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     />
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
     <CLIExtensionInstructions
       name="DataHub"
@@ -109,11 +109,11 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 Find datasets related to your project by describing what you need in natural language.
 
-#### goose Prompt
+#### gosling Prompt
 
 > _Find all datasets related to customer transactions that are owned by the analytics team_
 
-#### goose Output
+#### gosling Output
 
 :::note Desktop
 
@@ -132,11 +132,11 @@ The DataHub extension will search across your data catalog and return relevant d
 
 I want to remove the "timestamp_seconds" column from the customer_orders table. What will break?
 
-#### goose Prompt
+#### gosling Prompt
 
 > _Show me the upstream lineage for the customer_orders table_
 
-#### goose Output
+#### gosling Output
 
 :::note Desktop
 
@@ -155,11 +155,11 @@ That would be impacted by removing the column.
 
 How do I calculate the number of orders made in the USA last year?
 
-#### goose Prompt
+#### gosling Prompt
 
 > _What are the most common queries run against the customer_orders dataset?_
 
-#### goose Output
+#### gosling Output
 
 :::note Desktop
 
@@ -178,11 +178,11 @@ In addition to column names, types, descriptions, and any labels. This will enab
 
 Determine whether a dataset is trustworthy before using it.
 
-#### goose Prompt
+#### gosling Prompt
 
 > _Is the customer_orders table fresh and free of data quality issues?_
 
-#### goose Output
+#### gosling Output
 
 :::note Desktop
 
@@ -255,4 +255,3 @@ If `uvx` is not found:
 1. Ensure `uv` is installed: `curl -LsSf https://astral.sh/uv/install.sh | sh`
 2. Restart your terminal or source your shell configuration
 3. Verify installation: `which uvx`
-

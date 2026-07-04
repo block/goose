@@ -1,24 +1,24 @@
 ---
 title: Playwright Extension
-description: Add Playwright MCP Server as a goose Extension for Modern Web Testing
+description: Add Playwright MCP Server as a gosling Extension for Modern Web Testing
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/iAxiFMlTE1Q" />
 
-This tutorial covers how to add the Playwright MCP Server as a goose extension, to enable cross-browser testing and web automation across Chromium and Webkit.
+This tutorial covers how to add the Playwright MCP Server as a gosling extension, to enable cross-browser testing and web automation across Chromium and Webkit.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@playwright/mcp@latest&id=playwright&name=Playwright&description=Modern%20web%20testing%20and%20automation)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=@playwright/mcp@latest&id=playwright&name=Playwright&description=Modern%20web%20testing%20and%20automation)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y @playwright/mcp@latest
@@ -34,8 +34,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="playwright"
     extensionName="Playwright"
     description="Modern web testing and automation"
@@ -43,7 +43,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     args={["-y", "@playwright/mcp@latest"]}
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Playwright"
       description="Modern web testing and automation"
@@ -54,13 +54,13 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-Let's use goose with the Playwright extension to create a cross-browser testing suite. In this example, we'll demonstrate how goose can help you:
+Let's use gosling with the Playwright extension to create a cross-browser testing suite. In this example, we'll demonstrate how gosling can help you:
 
 1. Test a web application across multiple browsers
 2. Generate maintainable test code
 3. Capture screenshots for visual comparison
 
-### goose Prompt
+### gosling Prompt
 ```
 Test the random redesign generator app (https://blackgirlbytes.github.io/random-redesign-picker/) 
 in Chromium and WebKit. For each browser:
@@ -71,7 +71,7 @@ in Chromium and WebKit. For each browser:
 Then generate a Playwright test that works across all browsers.
 ```
 
-### goose Output
+### gosling Output
 ```
 Let's start with Chromium:
 

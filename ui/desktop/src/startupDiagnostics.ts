@@ -11,7 +11,7 @@ export interface StartupTraceEvent {
 export interface StartupDiagnostics {
   attemptId: string;
   startedAt: string;
-  goosedPath: string | null;
+  goslingdPath: string | null;
   workingDir: string;
   baseUrl: string | null;
   pid: number | null;
@@ -23,7 +23,7 @@ export interface StartupDiagnostics {
   events: StartupTraceEvent[];
 }
 
-export interface GooseServeStartupDiagnostics {
+export interface GoslingServeStartupDiagnostics {
   attemptId: string;
   startedAt: string;
   binaryPath: string | null;
@@ -48,9 +48,9 @@ export interface StartupTrace {
   flush: () => void;
 }
 
-export interface GooseServeStartupTrace {
+export interface GoslingServeStartupTrace {
   diagnosticsPath: string;
-  diagnostics: GooseServeStartupDiagnostics;
+  diagnostics: GoslingServeStartupDiagnostics;
   record: (name: string, details?: Record<string, unknown>) => void;
   flush: () => void;
 }
@@ -70,7 +70,7 @@ const cleanupStartupDiagnostics = (diagnosticsDir: string) => {
     .readdirSync(diagnosticsDir, { withFileTypes: true })
     .filter(
       (entry) =>
-        entry.isFile() && entry.name.startsWith('goosed-startup-') && entry.name.endsWith('.json')
+        entry.isFile() && entry.name.startsWith('goslingd-startup-') && entry.name.endsWith('.json')
     )
     .map((entry) => {
       const filePath = path.join(diagnosticsDir, entry.name);
@@ -86,13 +86,13 @@ const cleanupStartupDiagnostics = (diagnosticsDir: string) => {
   }
 };
 
-const cleanupGooseServeStartupDiagnostics = (diagnosticsDir: string) => {
+const cleanupGoslingServeStartupDiagnostics = (diagnosticsDir: string) => {
   const startupLogs = fs
     .readdirSync(diagnosticsDir, { withFileTypes: true })
     .filter(
       (entry) =>
         entry.isFile() &&
-        entry.name.startsWith('goose-serve-startup-') &&
+        entry.name.startsWith('gosling-serve-startup-') &&
         entry.name.endsWith('.json')
     )
     .map((entry) => {
@@ -120,14 +120,14 @@ export const createStartupDiagnostics = (
   fs.mkdirSync(diagnosticsDir, { recursive: true });
   cleanupStartupDiagnostics(diagnosticsDir);
   const startedAt = new Date();
-  const attemptId = `goosed-startup-${startedAt.toISOString().replace(/:/g, '-')}-${process.pid}.json`;
+  const attemptId = `goslingd-startup-${startedAt.toISOString().replace(/:/g, '-')}-${process.pid}.json`;
   const diagnosticsPath = path.join(diagnosticsDir, attemptId);
   const monotonicStart = Date.now();
 
   const diagnostics: StartupDiagnostics = {
     attemptId,
     startedAt: startedAt.toISOString(),
-    goosedPath: null,
+    goslingdPath: null,
     workingDir,
     baseUrl: null,
     pid: null,
@@ -166,22 +166,22 @@ export const createStartupDiagnostics = (
   };
 };
 
-export const createGooseServeStartupDiagnostics = (
+export const createGoslingServeStartupDiagnostics = (
   diagnosticsDir: string | undefined,
   workingDir: string
-): GooseServeStartupTrace | null => {
+): GoslingServeStartupTrace | null => {
   if (!diagnosticsDir) {
     return null;
   }
 
   fs.mkdirSync(diagnosticsDir, { recursive: true });
-  cleanupGooseServeStartupDiagnostics(diagnosticsDir);
+  cleanupGoslingServeStartupDiagnostics(diagnosticsDir);
   const startedAt = new Date();
-  const attemptId = `goose-serve-startup-${startedAt.toISOString().replace(/:/g, '-')}-${process.pid}.json`;
+  const attemptId = `gosling-serve-startup-${startedAt.toISOString().replace(/:/g, '-')}-${process.pid}.json`;
   const diagnosticsPath = path.join(diagnosticsDir, attemptId);
   const monotonicStart = Date.now();
 
-  const diagnostics: GooseServeStartupDiagnostics = {
+  const diagnostics: GoslingServeStartupDiagnostics = {
     attemptId,
     startedAt: startedAt.toISOString(),
     binaryPath: null,

@@ -1,4 +1,4 @@
-export interface ExternalGoosedConfig {
+export interface ExternalGoslingdConfig {
   enabled: boolean;
   url: string;
   secret: string;
@@ -56,7 +56,7 @@ export interface Settings {
   spellcheckEnabled: boolean;
   archiveFolder: string | null;
   archivedSessionFiles: Record<string, string>;
-  externalGoosed: ExternalGoosedConfig;
+  externalGoslingd: ExternalGoslingdConfig;
   managedSecretProfiles: ManagedSecretProfile[];
   globalShortcut?: string | null;
   keyboardShortcuts: KeyboardShortcuts;
@@ -97,7 +97,7 @@ export const defaultSettings: Settings = {
   archiveFolder: null,
   archivedSessionFiles: {},
   keyboardShortcuts: defaultKeyboardShortcuts,
-  externalGoosed: {
+  externalGoslingd: {
     enabled: false,
     url: '',
     secret: '',

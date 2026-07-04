@@ -121,7 +121,7 @@ jobs:
       - name: Build desktop backend
         run: |
           source ./bin/activate-hermit
-          cargo build --release -p goose-cli --bin goose
+          cargo build --release -p gosling-cli --bin gosling
 
       # Post-build cleanup to free space
       - name: Post-build cleanup
@@ -139,9 +139,9 @@ jobs:
       - name: Copy backend binary into Electron folder
         run: |
           mkdir -p ui/desktop/src/bin
-          rm -f ui/desktop/src/bin/goose
-          cp target/release/goose ui/desktop/src/bin/goose
-          chmod +x ui/desktop/src/bin/goose
+          rm -f ui/desktop/src/bin/gosling
+          cp target/release/gosling ui/desktop/src/bin/gosling
+          chmod +x ui/desktop/src/bin/gosling
           ls -la ui/desktop/src/bin/
 
       - name: Cache pnpm dependencies
@@ -228,11 +228,11 @@ jobs:
           sleep 5
 
           # Check if it's running
-          if pgrep -f "Gosling.app/Contents/MacOS/Goose" > /dev/null; then
+          if pgrep -f "Gosling.app/Contents/MacOS/Gosling" > /dev/null; then
             echo "App appears to be running."
           else
             echo "App did not stay open. Possible crash or startup error."
             exit 1
           fi
           # Kill the app to clean up
-          pkill -f "Gosling.app/Contents/MacOS/Goose"
+          pkill -f "Gosling.app/Contents/MacOS/Gosling"

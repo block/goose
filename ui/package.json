@@ -1,10 +1,10 @@
 {
   "private": true,
   "workspaces": [
-    "acp",
+    "sdk",
     "text",
     "desktop",
-    "goose-binary/*"
+    "gosling-binary/*"
   ],
   "scripts": {
     "changeset": "changeset",

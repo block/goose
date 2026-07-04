@@ -1,6 +1,6 @@
 # hello-hooks
 
-A tiny [Open Plugins](https://open-plugins.com) plugin that demonstrates goose's
+A tiny [Open Plugins](https://open-plugins.com) plugin that demonstrates gosling's
 hook system. It registers four event handlers — `SessionStart`,
 `UserPromptSubmit`, `PreToolUse`, and `PostToolUse` (matched on
 `developer__shell|developer__text_editor`) — that each shell out to
@@ -20,7 +20,7 @@ hello-hooks/
 
 ## Try it
 
-Goose discovers plugins under `~/.agents/plugins/<name>/` (user scope) and
+Gosling discovers plugins under `~/.agents/plugins/<name>/` (user scope) and
 `<project-root>/.agents/plugins/<name>/` (project scope) per the Open Plugins
 [installation spec](https://open-plugins.com/plugin-builders/installation#recommended-storage-paths).
 
@@ -29,19 +29,19 @@ mkdir -p ~/.agents/plugins
 cp -R examples/plugins/hello-hooks ~/.agents/plugins/hello-hooks
 chmod +x ~/.agents/plugins/hello-hooks/scripts/announce.sh
 
-# Then run goose normally; you should see lines like
+# Then run gosling normally; you should see lines like
 # 🚀 [hello-hooks] SessionStart
 # 💬 [hello-hooks] UserPromptSubmit
 # ⚡ [hello-hooks] PreToolUse tool=developer__shell
 # ✅ [hello-hooks] PostToolUse tool=developer__shell
-goose session
+gosling session
 
-# Inspect the full payloads goose passed to the hook:
+# Inspect the full payloads gosling passed to the hook:
 tail ~/.agents/plugins/hello-hooks/last-event.log
 ```
 
 To turn the plugin off, add it to `disabledPlugins` in
-`~/.config/goose/settings.json`:
+`~/.config/gosling/settings.json`:
 
 ```json
 { "disabledPlugins": ["hello-hooks"] }

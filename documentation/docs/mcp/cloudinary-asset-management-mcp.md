@@ -1,25 +1,25 @@
 ---
 title: Cloudinary Asset Management Extension
-description: Add Cloudinary Asset Management MCP Server as a goose Extension
+description: Add Cloudinary Asset Management MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/4diEvoRFVrQ" />
 
-This tutorial covers how to add the [Cloudinary Asset Management MCP Server](https://github.com/cloudinary/asset-management-js) as a goose extension to automate complex image processing workflows that would typically require specialized design software or manual editing.
+This tutorial covers how to add the [Cloudinary Asset Management MCP Server](https://github.com/cloudinary/asset-management-js) as a gosling extension to automate complex image processing workflows that would typically require specialized design software or manual editing.
 
 :::tip Quick Install
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=--package&arg=@cloudinary/asset-management&arg=--&arg=mcp&arg=start&id=cloudinary&name=Cloudinary%20Asset%20Management&description=Powerful%20media%20processing%20and%20transformation&env=CLOUDINARY_URL%3DCloudinary%20URL)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=--package&arg=@cloudinary/asset-management&arg=--&arg=mcp&arg=start&id=cloudinary&name=Cloudinary%20Asset%20Management&description=Powerful%20media%20processing%20and%20transformation&env=CLOUDINARY_URL%3DCloudinary%20URL)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y --package @cloudinary/asset-management -- mcp start
@@ -39,8 +39,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="cloudinary"
     extensionName="Cloudinary Asset Management"
     description="Powerful media processing and transformation"
@@ -51,7 +51,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     apiKeyLinkText="Cloudinary URL"
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Cloudinary"
       description="Powerful media processing and transformation"
@@ -70,13 +70,13 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-Let's use the Cloudinary extension to find and transform product images with advanced visual effects. In this example, we'll demonstrate how goose can help you:
+Let's use the Cloudinary extension to find and transform product images with advanced visual effects. In this example, we'll demonstrate how gosling can help you:
 
 1. Search for specific images in your media library
 2. Apply complex transformations including background removal
 3. Add text overlays with precise positioning
 
-### goose Prompt
+### gosling Prompt
 ```
 1. find shoe images in my Cloudinary samples that have 'shoe' in the filename or public ID.
 2. Let's transform the first result and only extract just the shoes
@@ -84,7 +84,7 @@ Let's use the Cloudinary extension to find and transform product images with adv
 4. Add a background to the image. It should be black
 ```
 
-### goose Output
+### gosling Output
 ```
 I'll help you find shoe images in your Cloudinary samples and apply the transformations you've requested. Let me start by searching for images with 'shoe' in the filename or public ID.
 

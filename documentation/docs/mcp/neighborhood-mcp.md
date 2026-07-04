@@ -1,29 +1,29 @@
 ---
 title: Neighborhood Extension
-description: Add Neighborhood as a goose Extension
+description: Add Neighborhood as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/qY2i83l6dCQ" />
 
-Order food from nearby restaurants — right from your goose chat. Sellers are currently US-based.
+Order food from nearby restaurants — right from your gosling chat. Sellers are currently US-based.
 
-In this tutorial, you'll learn how to set up the Neighborhood extension and use it to discover nearby restaurants, browse menus, build a cart, and check out — all through natural conversation with goose.
+In this tutorial, you'll learn how to set up the Neighborhood extension and use it to discover nearby restaurants, browse menus, build a cart, and check out — all through natural conversation with gosling.
 
 ## Quick Install
 
 :::tip
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Install Neighborhood extension](goose://extension?type=streamable_http&url=https%3A%2F%2Fconnect.squareup.com%2Fv2%2Fmcp%2Fneighborhood&id=neighborhood&name=Neighborhood&description=Discover%20nearby%20restaurants%2C%20browse%20menus%2C%20and%20place%20takeout%20orders%20through%20natural%20conversation.)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Install Neighborhood extension](gosling://extension?type=streamable_http&url=https%3A%2F%2Fconnect.squareup.com%2Fv2%2Fmcp%2Fneighborhood&id=neighborhood&name=Neighborhood&description=Discover%20nearby%20restaurants%2C%20browse%20menus%2C%20and%20place%20takeout%20orders%20through%20natural%20conversation.)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
-  Use `goose configure` to add a `Remote Extension (Streamable HTTP)` with:
+  <TabItem value="cli" label="gosling CLI">
+  Use `gosling configure` to add a `Remote Extension (Streamable HTTP)` with:
 
   **Endpoint URL**
 
@@ -37,8 +37,8 @@ In this tutorial, you'll learn how to set up the Neighborhood extension and use 
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="neighborhood"
       extensionName="Neighborhood"
       description="Discover nearby restaurants, browse menus, and place takeout orders through natural conversation."
@@ -46,7 +46,7 @@ In this tutorial, you'll learn how to set up the Neighborhood extension and use 
       url="https://connect.squareup.com/v2/mcp/neighborhood"
     />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Neighborhood"
       description="Discover nearby restaurants, browse menus, and place takeout orders through natural conversation."
@@ -58,7 +58,7 @@ In this tutorial, you'll learn how to set up the Neighborhood extension and use 
 
 ## Example Usage
 
-Neighborhood is most powerful when goose combines it with context from your day — your schedule, your goals, your dietary needs. Instead of just searching for food, you can ask goose to reason about what to eat based on what you're doing.
+Neighborhood is most powerful when gosling combines it with context from your day — your schedule, your goals, your dietary needs. Instead of just searching for food, you can ask gosling to reason about what to eat based on what you're doing.
 
 :::info LLM
 Anthropic's Claude 4 Opus was used for this example.
@@ -66,7 +66,7 @@ Anthropic's Claude 4 Opus was used for this example.
 
 ### Step 1: Find restaurants near you
 
-Ask goose to find lunch options nearby. You can include details like your location, dietary restrictions, and what you're up to — goose will factor it all in.
+Ask gosling to find lunch options nearby. You can include details like your location, dietary restrictions, and what you're up to — gosling will factor it all in.
 
 **Prompt:**
 ```
@@ -76,7 +76,7 @@ Could you suggest some options so I can play well?
 ```
 
 <details>
-<summary>goose Output</summary>
+<summary>gosling Output</summary>
 
 ```
 Let me find some restaurants near you!
@@ -103,32 +103,32 @@ Would you like me to pull up the menu for any of these restaurants?
 
 </details>
 
-goose uses the Neighborhood extension's interactive UI to display restaurant cards right in the chat — each showing the name, category, and address with a **View menu** button.
+gosling uses the Neighborhood extension's interactive UI to display restaurant cards right in the chat — each showing the name, category, and address with a **View menu** button.
 
-[![Nearby restaurants displayed as interactive cards in goose](/img/neighborhood-restaurants-1.png)](/img/neighborhood-restaurants-1.png)
+[![Nearby restaurants displayed as interactive cards in gosling](/img/neighborhood-restaurants-1.png)](/img/neighborhood-restaurants-1.png)
 
-goose doesn't just list restaurants — it tailors its recommendations to your situation. Since you mentioned playing tennis later, goose suggests meals that are energizing but not too heavy, and even includes a pro tip on pre-match eating timing.
+gosling doesn't just list restaurants — it tailors its recommendations to your situation. Since you mentioned playing tennis later, gosling suggests meals that are energizing but not too heavy, and even includes a pro tip on pre-match eating timing.
 
-[![goose response with restaurant recommendations for pre-tennis meal](/img/neighborhood-restaurants-2.png)](/img/neighborhood-restaurants-2.png)
+[![gosling response with restaurant recommendations for pre-tennis meal](/img/neighborhood-restaurants-2.png)](/img/neighborhood-restaurants-2.png)
 
 Click on any restaurant to view its menu.
 
 ### Step 2: Browse the menu
 
-Ask goose to open a specific restaurant's menu. The interactive MCP app renders a full browsable menu directly in the chat — complete with category tabs, food photos, prices, and descriptions.
+Ask gosling to open a specific restaurant's menu. The interactive MCP app renders a full browsable menu directly in the chat — complete with category tabs, food photos, prices, and descriptions.
 
 **Prompt:**
 ```
 I'd like to view the Ba'al Falafel menu.
 ```
 
-[![Ba'al Falafel menu displayed with category tabs, photos, prices, and descriptions in goose](/img/neighborhood-menu.png)](/img/neighborhood-menu.png)
+[![Ba'al Falafel menu displayed with category tabs, photos, prices, and descriptions in gosling](/img/neighborhood-menu.png)](/img/neighborhood-menu.png)
 
-Browse through all the available dishes — Sandwiches, Salads, Combo platters, Soups, Pastries, Sides, Drinks, and more. Ask goose to add anything that catches your eye to your cart.
+Browse through all the available dishes — Sandwiches, Salads, Combo platters, Soups, Pastries, Sides, Drinks, and more. Ask gosling to add anything that catches your eye to your cart.
 
 ### Step 3: Add to cart and check out
 
-Tell goose what you'd like to order and it will add items to your cart. goose even takes your dietary preferences into account when suggesting items.
+Tell gosling what you'd like to order and it will add items to your cart. gosling even takes your dietary preferences into account when suggesting items.
 
 **Prompt:**
 ```
@@ -141,7 +141,7 @@ Your cart is ready! From here, just click the **Check out** button — it takes 
 
 ### More Prompt Ideas
 
-Try combining Neighborhood with other goose extensions for even more useful workflows:
+Try combining Neighborhood with other gosling extensions for even more useful workflows:
 
 - **Pair with your calendar:** *"Check my calendar for today and find somewhere I can grab a quick pickup lunch before my 1pm meeting. I'm near Union Square."*
 - **Track what you eat:** *"Order me a chicken bowl from that place on Sullivan St, and log the macros to my food diary."*

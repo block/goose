@@ -2,7 +2,7 @@ import { ModeSection } from '../mode/ModeSection';
 import { DictationSettings } from '../dictation/DictationSettings';
 import { SecurityToggle } from '../security/SecurityToggle';
 import { ResponseStylesSection } from '../response_styles/ResponseStylesSection';
-import { GoosehintsSection } from './GoosehintsSection';
+import { GoslinghintsSection } from './GoslinghintsSection';
 import { SpellcheckToggle } from './SpellcheckToggle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { defineMessages, useIntl } from '../../../i18n';
@@ -44,7 +44,7 @@ export default function ChatSettingsSection() {
 
       <Card className="pb-2 rounded-lg">
         <CardContent className="px-2">
-          <GoosehintsSection />
+          <GoslinghintsSection />
         </CardContent>
       </Card>
 

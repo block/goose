@@ -1,16 +1,16 @@
 ---
 title: Customizing the Sidebar
 sidebar_label: Customizing the Sidebar
-description: Personalize how you navigate goose Desktop by changing the sidebar's look, position, and behavior
+description: Personalize how you navigate gosling Desktop by changing the sidebar's look, position, and behavior
 ---
 
 import { PanelLeft, Menu } from 'lucide-react';
 
 :::info Desktop Only
-Sidebar customization is available only in goose Desktop.
+Sidebar customization is available only in gosling Desktop.
 :::
 
-The sidebar is how you navigate between pages in goose Desktop: Home, Chat, Extensions, and Settings. You can customize its appearance, position, and behavior to fit the way you work.
+The sidebar is how you navigate between pages in gosling Desktop: Home, Chat, Extensions, and Settings. You can customize its appearance, position, and behavior to fit the way you work.
 
 To access these settings:
 

@@ -828,7 +828,7 @@
     "defaultMessage": "密钥"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "在 goosed 服务器上配置的密钥（GOOSE_SERVER__SECRET_KEY）"
+    "defaultMessage": "在 goslingd 服务器上配置的密钥（GOSLING_SERVER__SECRET_KEY）"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "输入服务器的密钥"
@@ -857,67 +857,67 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "连接到运行在其他位置的 gosling 服务器（需要重启应用）"
   },
-  "goosehintsModal.close": {
+  "goslinghintsModal.close": {
     "defaultMessage": "关闭"
   },
-  "goosehintsModal.developer": {
+  "goslinghintsModal.developer": {
     "defaultMessage": "Developer"
   },
-  "goosehintsModal.dialogDescription": {
+  "goslinghintsModal.dialogDescription": {
     "defaultMessage": "为你的项目提供额外上下文，改善与 Gosling 的沟通"
   },
-  "goosehintsModal.dialogTitle": {
-    "defaultMessage": "配置项目提示（.goosehints）"
+  "goslinghintsModal.dialogTitle": {
+    "defaultMessage": "配置项目提示（.goslinghints）"
   },
-  "goosehintsModal.errorReading": {
-    "defaultMessage": "读取 .goosehints 文件出错：{error}"
+  "goslinghintsModal.errorReading": {
+    "defaultMessage": "读取 .goslinghints 文件出错：{error}"
   },
-  "goosehintsModal.failedToAccess": {
-    "defaultMessage": "访问 .goosehints 文件失败"
+  "goslinghintsModal.failedToAccess": {
+    "defaultMessage": "访问 .goslinghints 文件失败"
   },
-  "goosehintsModal.failedToSave": {
-    "defaultMessage": "保存 .goosehints 文件失败"
+  "goslinghintsModal.failedToSave": {
+    "defaultMessage": "保存 .goslinghints 文件失败"
   },
-  "goosehintsModal.fileCreating": {
-    "defaultMessage": "正在创建新的 .goosehints 文件：{filePath}"
+  "goslinghintsModal.fileCreating": {
+    "defaultMessage": "正在创建新的 .goslinghints 文件：{filePath}"
   },
-  "goosehintsModal.fileFound": {
-    "defaultMessage": "已找到 .goosehints 文件：{filePath}"
+  "goslinghintsModal.fileFound": {
+    "defaultMessage": "已找到 .goslinghints 文件：{filePath}"
   },
-  "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints 是一个文本文件，用于为你的项目提供额外上下文，改善与 Gosling 的沟通。"
+  "goslinghintsModal.helpText1": {
+    "defaultMessage": ".goslinghints 是一个文本文件，用于为你的项目提供额外上下文，改善与 Gosling 的沟通。"
   },
-  "goosehintsModal.helpText2": {
-    "defaultMessage": "请确认已在扩展页面启用 {bold} 扩展。此扩展是使用 .goosehints 所必需的。你需要重启会话，.goosehints 的更新才会生效。"
+  "goslinghintsModal.helpText2": {
+    "defaultMessage": "请确认已在扩展页面启用 {bold} 扩展。此扩展是使用 .goslinghints 所必需的。你需要重启会话，.goslinghints 的更新才会生效。"
   },
-  "goosehintsModal.helpText3": {
+  "goslinghintsModal.helpText3": {
     "defaultMessage": "更多信息请参见 {link}。"
   },
-  "goosehintsModal.helpTextLink": {
-    "defaultMessage": "使用 .goosehints"
+  "goslinghintsModal.helpTextLink": {
+    "defaultMessage": "使用 .goslinghints"
   },
-  "goosehintsModal.placeholder": {
+  "goslinghintsModal.placeholder": {
     "defaultMessage": "在此输入项目提示…"
   },
-  "goosehintsModal.save": {
+  "goslinghintsModal.save": {
     "defaultMessage": "保存"
   },
-  "goosehintsModal.savedSuccessfully": {
+  "goslinghintsModal.savedSuccessfully": {
     "defaultMessage": "保存成功"
   },
-  "goosehintsModal.saving": {
+  "goslinghintsModal.saving": {
     "defaultMessage": "保存中…"
   },
-  "goosehintsSection.configure": {
+  "goslinghintsSection.configure": {
     "defaultMessage": "配置"
   },
-  "goosehintsSection.description": {
-    "defaultMessage": "配置项目的 .goosehints 文件，为 Gosling 提供额外上下文"
+  "goslinghintsSection.description": {
+    "defaultMessage": "配置项目的 .goslinghints 文件，为 Gosling 提供额外上下文"
   },
-  "goosehintsSection.title": {
-    "defaultMessage": "项目提示（.goosehints）"
+  "goslinghintsSection.title": {
+    "defaultMessage": "项目提示（.goslinghints）"
   },
-  "groupedExtensionLoadingToast.askGoose": {
+  "groupedExtensionLoadingToast.askGosling": {
     "defaultMessage": "问问 gosling"
   },
   "groupedExtensionLoadingToast.collapseDetails": {
@@ -1184,25 +1184,25 @@
   "launcher.placeholder": {
     "defaultMessage": "问 gosling 任何问题…"
   },
-  "loadingGoose.compacting": {
+  "loadingGosling.compacting": {
     "defaultMessage": "gosling 正在压缩对话…"
   },
-  "loadingGoose.idle": {
+  "loadingGosling.idle": {
     "defaultMessage": "gosling 正在处理…"
   },
-  "loadingGoose.loadingConversation": {
+  "loadingGosling.loadingConversation": {
     "defaultMessage": "正在加载对话…"
   },
-  "loadingGoose.restartingAgent": {
+  "loadingGosling.restartingAgent": {
     "defaultMessage": "正在重启会话…"
   },
-  "loadingGoose.streaming": {
+  "loadingGosling.streaming": {
     "defaultMessage": "gosling 正在处理…"
   },
-  "loadingGoose.thinking": {
+  "loadingGosling.thinking": {
     "defaultMessage": "gosling 正在思考…"
   },
-  "loadingGoose.waiting": {
+  "loadingGosling.waiting": {
     "defaultMessage": "gosling 正在等待…"
   },
   "markdownContent.cancel": {
@@ -2421,7 +2421,7 @@
     "defaultMessage": "未找到匹配的技能"
   },
   "skillsView.noSkillsDescription": {
-    "defaultMessage": "技能从 ~/.config/agents/skills/、.goose/skills/ 或其他受支持目录中的 SKILL.md 文件加载。"
+    "defaultMessage": "技能从 ~/.config/agents/skills/、.gosling/skills/ 或其他受支持目录中的 SKILL.md 文件加载。"
   },
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "未安装任何技能"
@@ -2678,14 +2678,14 @@
   "toolConfirmation.allowToolCallWithName": {
     "defaultMessage": "允许 {toolName} 吗？"
   },
-  "toolConfirmation.gooseWouldLikeToCallWithName": {
+  "toolConfirmation.goslingWouldLikeToCallWithName": {
     "defaultMessage": "Gosling 想调用 {toolName}，允许吗？"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "更新将在后台自动下载。"
   },
   "updateSection.autoDownloadDisabledByEnv": {
-    "defaultMessage": "自动下载已通过 GOOSE_DISABLE_AUTO_DOWNLOAD 环境变量禁用。"
+    "defaultMessage": "自动下载已通过 GOSLING_DISABLE_AUTO_DOWNLOAD 环境变量禁用。"
   },
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "自动下载已禁用。点击\"立即下载\"以手动下载。"

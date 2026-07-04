@@ -9,7 +9,7 @@ on:
 jobs:
   update-leaderboard:
     runs-on: ubuntu-latest
-    if: github.repository == 'aaif-goose/goose'
+    if: github.repository == 'repo-makeover/gosling'
     permissions:
       contents: read
       pull-requests: read
@@ -27,9 +27,9 @@ jobs:
             const repo = context.repo.repo;
             const issueNumber = 4775; // Update if needed
 
-            // Track the Goose repo only
+            // Track the Gosling repo only
             const REPOS = [
-              'aaif-goose/goose'
+              'repo-makeover/gosling'
             ];
 
             const POINT_VALUES = { small: 5, medium: 10, large: 15 };
@@ -162,7 +162,7 @@ jobs:
                 .map(entry => `| ${entry.rank} ${rankStars(entry.rank)} | @${entry.username} | ${entry.points} | ${entry.prs} | ${entry.biggestPR} |`)
                 .join('\n');
 
-              const issueBody = `# 🏆 Hacktoberfest 2025 Goose Leaderboard 🏆
+              const issueBody = `# 🏆 Hacktoberfest 2025 Gosling Leaderboard 🏆
               Hello, lovely contributors! As Hacktoberfest 2025 and the crisp Fall breeze refreshes us, we wanted to make the contribution process extra fun. Check our live leaderboard below to see who our top contributors are this year in real-time. Not only does this recognize your efforts, it also brings an amplified competitive vibe with each contribution.
 
               ### 🌟 **Current Rankings:**
@@ -172,7 +172,7 @@ jobs:
               ${tableRows}
 
               ### 📜 How It Works:
-              The top 20 contributors will earn the first ever goose swag from the swag shop along with LLM credits! To earn your place in the leaderboard, we have created a points system that is explained below. As you complete a task by successfully merging a PR, you will automatically be granted a certain # of points.
+              The top 20 contributors will earn the first ever gosling swag from the swag shop along with LLM credits! To earn your place in the leaderboard, we have created a points system that is explained below. As you complete a task by successfully merging a PR, you will automatically be granted a certain # of points.
 
               #### 💯 Point System
               | Weight | Points Awarded | Description |
@@ -182,23 +182,23 @@ jobs:
               | 🐂 **Large** | 15 points | For heavy tasks that takes lots of time to complete and/or possibly require deep product knowledge. |
 
               #### 🎁 Rewards
-              - Made it to the **top 5**? Our Top 5 Contributors with the most points will be awarded $100 gift cards to our brand new goose swag shop and $100 of LLM credits!
-              - Reached the top **6-10**? Our Top 6-10 Contributors with the most points will be awarded $50 gift cards to our brand new goose swag shop and $50 of LLM credits!
+              - Made it to the **top 5**? Our Top 5 Contributors with the most points will be awarded $100 gift cards to our brand new gosling swag shop and $100 of LLM credits!
+              - Reached the top **6-10**? Our Top 6-10 Contributors with the most points will be awarded $50 gift cards to our brand new gosling swag shop and $50 of LLM credits!
               - Landed in the top **11-20**? Our Top 11-20 Contributors with the most points will be awarded $25 of LLM credits! Keep an eye on your progress to make sure you're one step ahead!
 
               ### FAQ
               - **Frequency of Updates:** The leaderboard will be updated every hour.
-              - **Criteria:** Rankings are based on how many points you earn across all approved PRs in the goose repo. To ensure your PRs are successfully merged:
+              - **Criteria:** Rankings are based on how many points you earn across all approved PRs in the gosling repo. To ensure your PRs are successfully merged:
                 - Ensure your contributions are aligned with our project's Code of Conduct.
-                - Refer to the goose repo's Contributing Guide.
+                - Refer to the gosling repo's Contributing Guide.
               - **Tie-Breakers:** In the event of a tie in total points, the contributor with the highest value single contribution (large > medium > small) will be ranked higher.
 
               ### 🚀 Get Featured:
               Want to see your name climbing our ranks?
 
-              Explore our issues with the labels \`good-first-issue\`, \`no-code\` and \`hacktoberfest\` in the goose repo' Project Hub:
+              Explore our issues with the labels \`good-first-issue\`, \`no-code\` and \`hacktoberfest\` in the gosling repo' Project Hub:
 
-              - **goose**
+              - **gosling**
                 - Hacktoberfest Project Hub
                 - Contributing Guide
 
@@ -226,7 +226,7 @@ jobs:
               await updateIssue(leaderboardData);
             } else {
               console.log("No leaderboard data to update.");
-              const emptyIssueBody = `# 🏆 Hacktoberfest 2025 Goose Leaderboard 🏆
+              const emptyIssueBody = `# 🏆 Hacktoberfest 2025 Gosling Leaderboard 🏆
 
               Hello, lovely contributors! As Hacktoberfest 2025 and the crisp Fall breeze refreshes us, we wanted to make the contribution process extra fun. Check our live leaderboard below to see who our top contributors are this year in real-time. Not only does this recognize everyone's efforts, it also brings an amplified competitive vibe with each contribution.
 

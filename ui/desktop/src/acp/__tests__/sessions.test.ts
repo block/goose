@@ -51,7 +51,7 @@ describe('ACP sessions', () => {
       },
     });
     const client = {
-      goose: {
+      gosling: {
         sessionInfo_unstable: vi
           .fn()
           .mockResolvedValueOnce({ session: sessionInfo() })
@@ -70,7 +70,7 @@ describe('ACP sessions', () => {
       cwd: '/tmp',
       mcpServers: [],
     });
-    expect(client.goose.sessionInfo_unstable).toHaveBeenCalledTimes(2);
+    expect(client.gosling.sessionInfo_unstable).toHaveBeenCalledTimes(2);
     expect(result.sessionInfo).toBe(loadedSessionInfo);
     expect(sessionInfoToSession(result.sessionInfo).provider_name).toBe('anthropic');
     expect(sessionInfoToSession(result.sessionInfo).model_config?.model_name).toBe(
@@ -80,7 +80,7 @@ describe('ACP sessions', () => {
 
   it('returns a list item from ACP session info', async () => {
     const client = {
-      goose: {
+      gosling: {
         sessionInfo_unstable: vi.fn().mockResolvedValue({
           session: sessionInfo({
             title: 'Subagent session',
@@ -102,7 +102,7 @@ describe('ACP sessions', () => {
 
     const item = await acpGetSessionListItem('session-1');
 
-    expect(client.goose.sessionInfo_unstable).toHaveBeenCalledWith({ sessionId: 'session-1' });
+    expect(client.gosling.sessionInfo_unstable).toHaveBeenCalledWith({ sessionId: 'session-1' });
     expect(item).toMatchObject({
       id: 'session-1',
       name: 'Subagent session',
@@ -133,7 +133,7 @@ describe('ACP sessions', () => {
       _meta: {
         types: ['user', 'scheduled'],
         query: 'archived',
-        goose: {
+        gosling: {
           archiveState: 'archived',
           includeLastMessageSnippet: true,
         },
@@ -155,7 +155,7 @@ describe('ACP sessions', () => {
     expect(client.listSessions).toHaveBeenCalledWith({
       _meta: {
         types: ['user', 'scheduled'],
-        goose: {
+        gosling: {
           archiveState: 'active',
           includeLastMessageSnippet: false,
         },
@@ -165,7 +165,7 @@ describe('ACP sessions', () => {
 
   it('calls ACP archive and unarchive session wrappers', async () => {
     const client = {
-      goose: {
+      gosling: {
         sessionArchive_unstable: vi.fn().mockResolvedValue(undefined),
         sessionUnarchive_unstable: vi.fn().mockResolvedValue(undefined),
       },
@@ -177,10 +177,10 @@ describe('ACP sessions', () => {
     await acpArchiveSession('session-1');
     await acpUnarchiveSession('session-1');
 
-    expect(client.goose.sessionArchive_unstable).toHaveBeenCalledWith({
+    expect(client.gosling.sessionArchive_unstable).toHaveBeenCalledWith({
       sessionId: 'session-1',
     });
-    expect(client.goose.sessionUnarchive_unstable).toHaveBeenCalledWith({
+    expect(client.gosling.sessionUnarchive_unstable).toHaveBeenCalledWith({
       sessionId: 'session-1',
     });
   });

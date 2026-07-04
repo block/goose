@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Script to parse goose-bench results and check for failures
+# Script to parse gosling-bench results and check for failures
 
 set -e
 

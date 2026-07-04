@@ -22,8 +22,8 @@ describe('httpBaseFromAcpWebSocketUrl', () => {
   });
 
   it('preserves path prefixes before the ACP endpoint', () => {
-    expect(httpBaseFromAcpWebSocketUrl('wss://example.com/goose/acp?token=secret')).toBe(
-      'https://example.com/goose'
+    expect(httpBaseFromAcpWebSocketUrl('wss://example.com/gosling/acp?token=secret')).toBe(
+      'https://example.com/gosling'
     );
   });
 
@@ -71,7 +71,7 @@ describe('normalizeAcpHttpBaseUrl', () => {
   });
 
   it('normalizes prefixed HTTPS base URLs', () => {
-    expect(normalizeAcpHttpBaseUrl('https://example.com/goose/')).toBe('https://example.com/goose');
+    expect(normalizeAcpHttpBaseUrl('https://example.com/gosling/')).toBe('https://example.com/gosling');
   });
 
   it('rejects WebSocket URLs', () => {
@@ -99,29 +99,29 @@ describe('normalizeAcpHttpBaseUrl', () => {
 describe('HTTP endpoint URLs from ACP HTTP base URLs', () => {
   it('builds status URLs from root and prefixed bases', () => {
     expect(statusHttpUrlFromHttpBase('https://example.com/')).toBe('https://example.com/status');
-    expect(statusHttpUrlFromHttpBase('https://example.com/goose/')).toBe(
-      'https://example.com/goose/status'
+    expect(statusHttpUrlFromHttpBase('https://example.com/gosling/')).toBe(
+      'https://example.com/gosling/status'
     );
   });
 
   it('builds ACP URLs from root and prefixed bases', () => {
     expect(acpHttpUrlFromHttpBase('https://example.com/')).toBe('https://example.com/acp');
-    expect(acpHttpUrlFromHttpBase('https://example.com/goose/')).toBe(
-      'https://example.com/goose/acp'
+    expect(acpHttpUrlFromHttpBase('https://example.com/gosling/')).toBe(
+      'https://example.com/gosling/acp'
     );
   });
 
   it('adds ACP query tokens when provided', () => {
-    expect(acpHttpUrlFromHttpBase('https://example.com/goose', 'test secret')).toBe(
-      'https://example.com/goose/acp?token=test+secret'
+    expect(acpHttpUrlFromHttpBase('https://example.com/gosling', 'test secret')).toBe(
+      'https://example.com/gosling/acp?token=test+secret'
     );
   });
 });
 
 describe('acpWebSocketUrlFromHttpBase', () => {
   it('derives WSS ACP URLs from HTTPS base URLs', () => {
-    expect(acpWebSocketUrlFromHttpBase('https://example.com/goose', 'secret')).toBe(
-      'wss://example.com/goose/acp?token=secret'
+    expect(acpWebSocketUrlFromHttpBase('https://example.com/gosling', 'secret')).toBe(
+      'wss://example.com/gosling/acp?token=secret'
     );
   });
 

@@ -1,5 +1,5 @@
 import type { ExtensionConfig, ExtensionEntry } from '../types/extensions';
-import type { GooseExtension, GooseExtensionEntry } from '@aaif/goose-sdk';
+import type { GoslingExtension, GoslingExtensionEntry } from '@repo-makeover/gosling-sdk';
 import { getAcpClient } from './acpConnection';
 
 export type ConfiguredExtensionEntry = ExtensionEntry & { configKey?: string };
@@ -9,7 +9,7 @@ export interface ConfiguredExtensionsResponse {
   warnings: string[];
 }
 
-export function gooseExtensionName(extension: GooseExtension): string {
+export function goslingExtensionName(extension: GoslingExtension): string {
   return extension.type === 'mcp' ? extension.server.name : extension.name;
 }
 
@@ -21,7 +21,7 @@ function availableToolsOrUndefined(availableTools?: string[] | null): string[] |
   return availableTools?.length ? availableTools : undefined;
 }
 
-export function gooseExtensionToExtensionConfig(extension: GooseExtension): ExtensionConfig | null {
+export function goslingExtensionToExtensionConfig(extension: GoslingExtension): ExtensionConfig | null {
   switch (extension.type) {
     case 'builtin':
     case 'platform':
@@ -64,34 +64,34 @@ export function gooseExtensionToExtensionConfig(extension: GooseExtension): Exte
   }
 }
 
-function gooseExtensionEntryToExtensionEntry(
-  entry: GooseExtensionEntry
+function goslingExtensionEntryToExtensionEntry(
+  entry: GoslingExtensionEntry
 ): ConfiguredExtensionEntry | null {
-  const config = gooseExtensionToExtensionConfig(entry.extension);
+  const config = goslingExtensionToExtensionConfig(entry.extension);
   if (!config) {
     return null;
   }
   return { ...config, enabled: entry.enabled, configKey: entry.configKey ?? undefined };
 }
 
-export async function getConfiguredGooseExtensions(): Promise<GooseExtensionEntry[]> {
+export async function getConfiguredGoslingExtensions(): Promise<GoslingExtensionEntry[]> {
   const client = await getAcpClient();
-  const response = await client.goose.configExtensionsList_unstable({});
+  const response = await client.gosling.configExtensionsList_unstable({});
   return response.extensions;
 }
 
 export async function getConfiguredExtensions(): Promise<ConfiguredExtensionsResponse> {
   const client = await getAcpClient();
-  const response = await client.goose.configExtensionsList_unstable({});
+  const response = await client.gosling.configExtensionsList_unstable({});
   return {
     extensions: response.extensions
-      .map(gooseExtensionEntryToExtensionEntry)
+      .map(goslingExtensionEntryToExtensionEntry)
       .filter((entry): entry is ConfiguredExtensionEntry => entry !== null),
     warnings: response.warnings ?? [],
   };
 }
 
-export function extensionConfigToGooseExtension(config: ExtensionConfig): GooseExtension | null {
+export function extensionConfigToGoslingExtension(config: ExtensionConfig): GoslingExtension | null {
   switch (config.type) {
     case 'builtin':
       return {
@@ -146,17 +146,17 @@ export function extensionConfigToGooseExtension(config: ExtensionConfig): GooseE
 }
 
 export async function addConfigExtension(config: ExtensionConfig, enabled: boolean): Promise<void> {
-  const extension = extensionConfigToGooseExtension(config);
+  const extension = extensionConfigToGoslingExtension(config);
   if (!extension) {
     throw new Error(`Unsupported extension type for ACP: ${config.type}`);
   }
   const client = await getAcpClient();
-  await client.goose.configExtensionsAdd_unstable({ extension, enabled });
+  await client.gosling.configExtensionsAdd_unstable({ extension, enabled });
 }
 
 export async function removeConfigExtension(configKey: string): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.configExtensionsRemove_unstable({ configKey });
+  await client.gosling.configExtensionsRemove_unstable({ configKey });
 }
 
 export async function setConfigExtensionEnabled(
@@ -164,5 +164,5 @@ export async function setConfigExtensionEnabled(
   enabled: boolean
 ): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.configExtensionsSetEnabled_unstable({ configKey, enabled });
+  await client.gosling.configExtensionsSetEnabled_unstable({ configKey, enabled });
 }

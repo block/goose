@@ -1,0 +1,97 @@
+[package]
+name = "gosling-server"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = [
+    "code-mode",
+    "aws-providers",
+    "telemetry",
+    "nostr",
+    "otel",
+    "rustls-tls",
+    "system-keyring",
+]
+code-mode = ["gosling/code-mode"]
+aws-providers = ["gosling/aws-providers"]
+telemetry = ["gosling/telemetry"]
+nostr = ["gosling/nostr"]
+otel = ["gosling/otel"]
+system-keyring = ["gosling/system-keyring"]
+portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel"]
+rustls-tls = [
+    "reqwest/rustls",
+    "axum-server/tls-rustls",
+    "dep:rustls",
+    "gosling/rustls-tls",
+    "gosling-mcp/rustls-tls",
+    "gosling-providers/rustls-tls",
+]
+native-tls = [
+    "reqwest/native-tls",
+    "axum-server/tls-openssl",
+    "gosling/native-tls",
+    "gosling-mcp/native-tls",
+    "gosling-providers/native-tls",
+]
+
+[dependencies]
+gosling = { path = "../gosling", default-features = false }
+gosling-mcp = { path = "../gosling-mcp", default-features = false }
+gosling-providers = { path = "../gosling-providers", default-features = false }
+rmcp = { workspace = true }
+axum = { workspace = true, features = ["ws", "macros"] }
+tokio = { workspace = true }
+chrono = { workspace = true }
+tower-http = { workspace = true, features = ["cors"] }
+serde = { workspace = true }
+serde_json = { workspace = true, features = ["preserve_order"] }
+futures = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true, features = ["env-filter", "fmt", "json", "time"] }
+tokio-stream = { workspace = true }
+anyhow = { workspace = true }
+bytes = { workspace = true }
+http = { workspace = true }
+base64 = { workspace = true }
+config = { version = "0.15", default-features = false, features = ["toml"] }
+thiserror = { workspace = true }
+clap = { workspace = true }
+serde_yaml = { workspace = true }
+utoipa = { workspace = true, features = ["axum_extras", "chrono"] }
+reqwest = { workspace = true, features = ["json", "blocking", "multipart", "system-proxy"] }
+tokio-util = { workspace = true }
+rand = { workspace = true }
+hex = { version = "0.4.3", default-features = false, features = ["std"] }
+rustls = { workspace = true, optional = true }
+uuid = { workspace = true }
+axum-server = { version = "0.8", default-features = false }
+lru.workspace = true
+
+[target.'cfg(windows)'.dependencies]
+winreg = { version = "0.56", default-features = false }
+
+[[bin]]
+name = "goslingd"
+path = "src/main.rs"
+
+[[bin]]
+name = "generate_schema"
+path = "src/bin/generate_schema.rs"
+
+[dev-dependencies]
+tower = { version = "0.5.2", default-features = false }
+
+[package.metadata.cargo-machete]
+ignored = [
+    # Used only in windows
+    "winreg",
+]

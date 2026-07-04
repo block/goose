@@ -1,38 +1,38 @@
 ---
 title: Chat Recall Extension
-description: Search conversation history and load session summaries across all your goose sessions
+description: Search conversation history and load session summaries across all your gosling sessions
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PlatformExtensionNote } from '@site/src/components/PlatformExtensionNote';
-import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
+import GoslingBuiltinInstaller from '@site/src/components/GoslingBuiltinInstaller';
 
-The Chat Recall extension helps goose remember past conversations by searching across your session history. When you need context from previous work, goose can search for relevant conversations or load summaries of specific sessions.
+The Chat Recall extension helps gosling remember past conversations by searching across your session history. When you need context from previous work, gosling can search for relevant conversations or load summaries of specific sessions.
 
-goose automatically uses Chat Recall when you reference past work or ask questions that require historical context.
+gosling automatically uses Chat Recall when you reference past work or ask questions that require historical context.
 
 ## Configuration
 
 <PlatformExtensionNote defaultEnabled={false} />
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseBuiltinInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingBuiltinInstaller
     extensionName="Chatrecall"
     description="Search conversation history across all your sessions"
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
   1. Run the `configure` command:
   ```sh
-  goose configure
+  gosling configure
   ```
 
   2. Choose to `Toggle Extensions`
   ```sh
-  ┌   goose-configure 
+  ┌   gosling-configure 
   │
   ◇  What would you like to configure?
   │  Toggle Extensions 
@@ -48,17 +48,17 @@ goose automatically uses Chat Recall when you reference past work or ask questio
 
 ## Example Usage
 
-Chat Recall can search across all sessions using keywords. Results are grouped by session and ordered by recency, and can be filtered by date. Alternatively, you can provide [session IDs](/docs/guides/goose-cli-commands#session-list-options) to load summaries of specific sessions.
+Chat Recall can search across all sessions using keywords. Results are grouped by session and ordered by recency, and can be filtered by date. Alternatively, you can provide [session IDs](/docs/guides/gosling-cli-commands#session-list-options) to load summaries of specific sessions.
 
-Let's ask goose to find recent conversations about a topic:
+Let's ask gosling to find recent conversations about a topic:
 
-### goose Prompt
+### gosling Prompt
 
 ```
 What did we discuss about database migrations last week?
 ```
 
-### goose Output
+### gosling Output
 
 :::note Desktop
 I found discussions about database migrations in your recent sessions. Here's what we covered:
@@ -87,5 +87,5 @@ Both sessions were focused on safely updating the database schema in production.
 :::
 
 :::info
-Compacted sessions from goose versions prior to v1.14.0 may not be searchable due to a change in how conversation history is stored.
+Compacted sessions from gosling versions prior to v1.14.0 may not be searchable due to a change in how conversation history is stored.
 :::

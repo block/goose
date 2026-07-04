@@ -1,10 +1,10 @@
 ---
-description: Integrate goose with Langfuse to observe performance
+description: Integrate gosling with Langfuse to observe performance
 ---
 
 # Observability with Langfuse
 
-This tutorial covers how to integrate goose with Langfuse to monitor your goose requests and understand how the agent is performing.
+This tutorial covers how to integrate gosling with Langfuse to monitor your gosling requests and understand how the agent is performing.
 
 ## What is Langfuse
 
@@ -15,9 +15,9 @@ This tutorial covers how to integrate goose with Langfuse to monitor your goose 
 
 [Sign up for Langfuse Cloud](https://cloud.langfuse.com) or self-host Langfuse [Docker Compose](https://langfuse.com/self-hosting/local) to get your Langfuse API keys.
 
-## Configure goose to Connect to Langfuse
+## Configure gosling to Connect to Langfuse
 
-Set the environment variables so that goose (written in Rust) can connect to the Langfuse server.
+Set the environment variables so that gosling (written in Rust) can connect to the Langfuse server.
 
 ```bash
 export LANGFUSE_INIT_PROJECT_PUBLIC_KEY=pk-lf-...
@@ -28,13 +28,13 @@ export LANGFUSE_URL=https://cloud.langfuse.com # EU data region 🇪🇺
 # https://localhost:3000 if you're self-hosting
 ```
 
-## Run goose with Langfuse Integration
+## Run gosling with Langfuse Integration
 
-Now, you can run goose and monitor your AI requests and actions through Langfuse.
+Now, you can run gosling and monitor your AI requests and actions through Langfuse.
 
-With goose running and the environment variables set, Langfuse will start capturing traces of your goose activities.
+With gosling running and the environment variables set, Langfuse will start capturing traces of your gosling activities.
 
 _[Example trace (public) in Langfuse](https://cloud.langfuse.com/project/cloramnkj0002jz088vzn1ja4/traces/cea4ed38-0c44-4b0a-8c20-4b0b6b9e8d73?timestamp=2025-01-31T15%3A52%3A30.362Z&observation=7c8e5807-3c29-4c28-9c6f-7d7427be401f)_
 
-![goose trace in Langfuse](https://langfuse.com//images/docs/goose-integration/goose-example-trace.png)
+![gosling trace in Langfuse](https://langfuse.com//images/docs/gosling-integration/gosling-example-trace.png)
 

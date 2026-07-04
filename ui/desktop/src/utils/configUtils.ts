@@ -1,15 +1,15 @@
 export const configLabels: Record<string, string> = {
-  // goose settings
-  GOOSE_PROVIDER: 'Provider',
-  GOOSE_MODEL: 'Model',
-  GOOSE_TEMPERATURE: 'Temperature',
-  GOOSE_MODE: 'Mode',
-  GOOSE_PLANNER_PROVIDER: 'Planner Provider',
-  GOOSE_PLANNER_MODEL: 'Planner Model',
-  GOOSE_TOOLSHIM: 'Tool Shim',
-  GOOSE_TOOLSHIM_OLLAMA_MODEL: 'Tool Shim Ollama Model',
-  GOOSE_CLI_MIN_PRIORITY: 'CLI Min Priority',
-  GOOSE_ALLOWLIST: 'Allow List',
+  // gosling settings
+  GOSLING_PROVIDER: 'Provider',
+  GOSLING_MODEL: 'Model',
+  GOSLING_TEMPERATURE: 'Temperature',
+  GOSLING_MODE: 'Mode',
+  GOSLING_PLANNER_PROVIDER: 'Planner Provider',
+  GOSLING_PLANNER_MODEL: 'Planner Model',
+  GOSLING_TOOLSHIM: 'Tool Shim',
+  GOSLING_TOOLSHIM_OLLAMA_MODEL: 'Tool Shim Ollama Model',
+  GOSLING_CLI_MIN_PRIORITY: 'CLI Min Priority',
+  GOSLING_ALLOWLIST: 'Allow List',
 
   // security settings
   SECURITY_PROMPT_ENABLED: 'Prompt Injection Detection Enabled',

@@ -8,7 +8,7 @@ export const SENT_PREVIEW_LEN = 60;
 export const SCROLL_STEP = 3;
 export const SCROLL_FAST_MULTIPLIER = 10;
 
-export const GOOSE_FRAMES = [
+export const GOSLING_FRAMES = [
   [
     "    ,_",
     "   (o >",

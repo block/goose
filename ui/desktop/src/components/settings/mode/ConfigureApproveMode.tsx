@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Card } from '../../ui/card';
 import { Button } from '../../ui/button';
-import { GooseMode, ModeSelectionItem } from './ModeSelectionItem';
+import { GoslingMode, ModeSelectionItem } from './ModeSelectionItem';
 import { defineMessages, useIntl } from '../../../i18n';
 
 const i18n = defineMessages({
@@ -55,7 +55,7 @@ export function ConfigureApproveMode({
   currentMode,
 }: ConfigureApproveModeProps) {
   const intl = useIntl();
-  const approveModes: GooseMode[] = [
+  const approveModes: GoslingMode[] = [
     {
       key: 'approve',
       labelDescriptor: i18n.manualApproval,
@@ -83,7 +83,7 @@ export function ConfigureApproveMode({
       handleModeChange(approveMode || '');
       onClose();
     } catch (error) {
-      console.error('Error configuring goose mode:', error);
+      console.error('Error configuring gosling mode:', error);
     } finally {
       setIsSubmitting(false);
     }

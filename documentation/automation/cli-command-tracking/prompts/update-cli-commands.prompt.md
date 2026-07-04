@@ -1,8 +1,8 @@
 Update the CLI Commands Guide based on cli-changes.md.
 
 IMPORTANT: You MUST use the text_editor tool to:
-1. Read cli-changes.md and goose-cli-commands.md
-2. Update goose-cli-commands.md with str_replace
+1. Read cli-changes.md and gosling-cli-commands.md
+2. Update gosling-cli-commands.md with str_replace
 3. Write update-summary.md
 
 Remember:

@@ -1,11 +1,11 @@
-# goose Documentation
-# https://goose-docs.ai/
+# gosling Documentation
+# https://gosling-docs.ai/
 
 User-agent: *
 Allow: /
 
 # Sitemap
-Sitemap: https://goose-docs.ai/sitemap.xml
+Sitemap: https://gosling-docs.ai/sitemap.xml
 
 # LLM context file available at /llms.txt
 

@@ -18,7 +18,7 @@ importers:
 
   desktop:
     dependencies:
-      '@aaif/goose-sdk':
+      '@repo-makeover/gosling-sdk':
         specifier: workspace:*
         version: link:../sdk
       '@agentclientprotocol/sdk':
@@ -344,15 +344,15 @@ importers:
         specifier: ^4.0.18
         version: 4.1.0(@opentelemetry/api@1.9.0)(@types/node@25.5.0)(@vitest/ui@4.1.0)(jsdom@28.1.0)(vite@7.3.1(@types/node@25.5.0)(jiti@2.6.1)(lightningcss@1.32.0)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.2))
 
-  goose-binary/goose-binary-darwin-arm64: {}
+  gosling-binary/gosling-binary-darwin-arm64: {}
 
-  goose-binary/goose-binary-darwin-x64: {}
+  gosling-binary/gosling-binary-darwin-x64: {}
 
-  goose-binary/goose-binary-linux-arm64: {}
+  gosling-binary/gosling-binary-linux-arm64: {}
 
-  goose-binary/goose-binary-linux-x64: {}
+  gosling-binary/gosling-binary-linux-x64: {}
 
-  goose-binary/goose-binary-win32-x64: {}
+  gosling-binary/gosling-binary-win32-x64: {}
 
   sdk:
     dependencies:
@@ -385,25 +385,25 @@ importers:
         specifier: ~5.9.3
         version: 5.9.3
     optionalDependencies:
-      '@aaif/goose-binary-darwin-arm64':
+      '@repo-makeover/gosling-binary-darwin-arm64':
         specifier: workspace:*
-        version: link:../goose-binary/goose-binary-darwin-arm64
-      '@aaif/goose-binary-darwin-x64':
+        version: link:../gosling-binary/gosling-binary-darwin-arm64
+      '@repo-makeover/gosling-binary-darwin-x64':
         specifier: workspace:*
-        version: link:../goose-binary/goose-binary-darwin-x64
-      '@aaif/goose-binary-linux-arm64':
+        version: link:../gosling-binary/gosling-binary-darwin-x64
+      '@repo-makeover/gosling-binary-linux-arm64':
         specifier: workspace:*
-        version: link:../goose-binary/goose-binary-linux-arm64
-      '@aaif/goose-binary-linux-x64':
+        version: link:../gosling-binary/gosling-binary-linux-arm64
+      '@repo-makeover/gosling-binary-linux-x64':
         specifier: workspace:*
-        version: link:../goose-binary/goose-binary-linux-x64
-      '@aaif/goose-binary-win32-x64':
+        version: link:../gosling-binary/gosling-binary-linux-x64
+      '@repo-makeover/gosling-binary-win32-x64':
         specifier: workspace:*
-        version: link:../goose-binary/goose-binary-win32-x64
+        version: link:../gosling-binary/gosling-binary-win32-x64
 
   text:
     dependencies:
-      '@aaif/goose-sdk':
+      '@repo-makeover/gosling-sdk':
         specifier: 0.20.2
         version: 0.20.2(@agentclientprotocol/sdk@0.19.0(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
       '@agentclientprotocol/sdk':
@@ -452,37 +452,37 @@ importers:
 
 packages:
 
-  '@aaif/goose-binary-darwin-arm64@0.20.2':
+  '@repo-makeover/gosling-binary-darwin-arm64@0.20.2':
     resolution: {integrity: sha512-0wv6UcYxg/dZXRuIUBTL+64Hz0D50PfUA2mJiUEBhWkBmiBCgS/Iymore0gYuayxVV7MzQhKrHqdDPBoo0lqIg==}
     cpu: [arm64]
     os: [darwin]
     hasBin: true
 
-  '@aaif/goose-binary-darwin-x64@0.20.2':
+  '@repo-makeover/gosling-binary-darwin-x64@0.20.2':
     resolution: {integrity: sha512-dZG6H1QF/lv/kVc1YmHVKRGJCZtoe9o0N2q4vgvDK0Lz+ZJp/ehKcIxUSqE/zebXDqLb4yWByDGelq5Ud2rnCw==}
     cpu: [x64]
     os: [darwin]
     hasBin: true
 
-  '@aaif/goose-binary-linux-arm64@0.20.2':
+  '@repo-makeover/gosling-binary-linux-arm64@0.20.2':
     resolution: {integrity: sha512-DLbm8r21v4c39dGbLepjXDmXNLsdWw0PFFpRbQtBd2m5Q+xIBgYOx1jNm3EygDQT9yGV9R3WS6SW3LvMJLA3xw==}
     cpu: [arm64]
     os: [linux]
     hasBin: true
 
-  '@aaif/goose-binary-linux-x64@0.20.2':
+  '@repo-makeover/gosling-binary-linux-x64@0.20.2':
     resolution: {integrity: sha512-+TgB2+MKj18kbw5PBnDMAWvuy8ZijNxXQL4qRBeMebcx07W3dIf6zoy9xD5mSyce61ugG9vsLt9a+3Pm8qZaRw==}
     cpu: [x64]
     os: [linux]
     hasBin: true
 
-  '@aaif/goose-binary-win32-x64@0.20.2':
+  '@repo-makeover/gosling-binary-win32-x64@0.20.2':
     resolution: {integrity: sha512-P0GrtagS0U/98XW4VuzQ77Fy02bw4wFhzyRWWbR9LDVwY+lLG+AkE5m0Ml/KGKgDWS6gd8BtkAqRxdFw3PM9RQ==}
     cpu: [x64]
     os: [win32]
     hasBin: true
 
-  '@aaif/goose-sdk@0.20.2':
+  '@repo-makeover/gosling-sdk@0.20.2':
     resolution: {integrity: sha512-HhsspN1OycRqgKgnUBWC/5xOpJ8zuKWmABax0Br0ZfND94AKKZbsBlya8e+pSM+CvztWLXHRz2KxPQuXYoGyBQ==}
     peerDependencies:
       '@agentclientprotocol/sdk': ^0.19.0
@@ -7288,33 +7288,33 @@ packages:
 
 snapshots:
 
-  '@aaif/goose-binary-darwin-arm64@0.20.2':
+  '@repo-makeover/gosling-binary-darwin-arm64@0.20.2':
     optional: true
 
-  '@aaif/goose-binary-darwin-x64@0.20.2':
+  '@repo-makeover/gosling-binary-darwin-x64@0.20.2':
     optional: true
 
-  '@aaif/goose-binary-linux-arm64@0.20.2':
+  '@repo-makeover/gosling-binary-linux-arm64@0.20.2':
     optional: true
 
-  '@aaif/goose-binary-linux-x64@0.20.2':
+  '@repo-makeover/gosling-binary-linux-x64@0.20.2':
     optional: true
 
-  '@aaif/goose-binary-win32-x64@0.20.2':
+  '@repo-makeover/gosling-binary-win32-x64@0.20.2':
     optional: true
 
-  '@aaif/goose-sdk@0.20.2(@agentclientprotocol/sdk@0.19.0(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
+  '@repo-makeover/gosling-sdk@0.20.2(@agentclientprotocol/sdk@0.19.0(zod@4.3.6))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)':
     dependencies:
       '@agentclientprotocol/sdk': 0.19.0(zod@4.3.6)
       '@modelcontextprotocol/ext-apps': 0.3.1(@modelcontextprotocol/sdk@1.27.1(zod@3.25.76))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(zod@3.25.76)
       '@modelcontextprotocol/sdk': 1.27.1(zod@3.25.76)
       zod: 3.25.76
     optionalDependencies:
-      '@aaif/goose-binary-darwin-arm64': 0.20.2
-      '@aaif/goose-binary-darwin-x64': 0.20.2
-      '@aaif/goose-binary-linux-arm64': 0.20.2
-      '@aaif/goose-binary-linux-x64': 0.20.2
-      '@aaif/goose-binary-win32-x64': 0.20.2
+      '@repo-makeover/gosling-binary-darwin-arm64': 0.20.2
+      '@repo-makeover/gosling-binary-darwin-x64': 0.20.2
+      '@repo-makeover/gosling-binary-linux-arm64': 0.20.2
+      '@repo-makeover/gosling-binary-linux-x64': 0.20.2
+      '@repo-makeover/gosling-binary-win32-x64': 0.20.2
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - react

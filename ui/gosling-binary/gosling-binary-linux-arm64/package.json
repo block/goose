@@ -1,0 +1,28 @@
+{
+  "name": "@repo-makeover/gosling-binary-linux-arm64",
+  "version": "0.20.2",
+  "description": "Gosling binary for Linux ARM64",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/repo-makeover/gosling.git"
+  },
+  "bin": {
+    "gosling": "bin/gosling"
+  },
+  "keywords": [
+    "gosling",
+    "ai",
+    "agent",
+    "binary"
+  ],
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "bin/gosling"
+  ]
+}

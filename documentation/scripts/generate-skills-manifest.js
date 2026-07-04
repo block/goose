@@ -228,7 +228,7 @@ function processOfficialSkills() {
       const supportingFiles = getSupportingFiles(skillDir);
       const sourceUrl = frontmatter.source_url || frontmatter.sourceUrl;
       const author = frontmatter.author;
-      const isCommunity = author && author.toLowerCase() !== 'goose';
+      const isCommunity = author && author.toLowerCase() !== 'gosling';
       
       const supportingFilesType = determineSupportingFilesType(supportingFiles);
       
@@ -280,7 +280,7 @@ function processExternalSkills() {
       const skillId = extSkill.id;
       const sourceUrl = extSkill.sourceUrl || extSkill.source_url;
       const author = extSkill.author;
-      const isCommunity = author && author.toLowerCase() !== 'goose';
+      const isCommunity = author && author.toLowerCase() !== 'gosling';
       
       const skill = {
         id: skillId,

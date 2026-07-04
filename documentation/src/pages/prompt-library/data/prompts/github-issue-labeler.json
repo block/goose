@@ -9,9 +9,9 @@
   "extensions": [
     {
       "name": "GitHub",
-      "command": "goose session --with-streamable-http-extension \"https://api.githubcopilot.com/mcp/\"",
+      "command": "gosling session --with-streamable-http-extension \"https://api.githubcopilot.com/mcp/\"",
       "is_builtin": false,
-      "link": "https://goose-docs.ai/docs/mcp/github-mcp",
+      "link": "https://gosling-docs.ai/docs/mcp/github-mcp",
       "environmentVariables": [
         {
           "name": "GITHUB_PERSONAL_ACCESS_TOKEN",

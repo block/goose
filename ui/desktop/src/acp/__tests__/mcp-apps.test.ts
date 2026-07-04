@@ -8,7 +8,7 @@ vi.mock('../acpConnection', () => ({
 
 function createClient() {
   return {
-    goose: {
+    gosling: {
       resourcesRead_unstable: vi.fn(),
       toolsCall_unstable: vi.fn(),
       toolsList_unstable: vi.fn(),
@@ -28,7 +28,7 @@ describe('ACP MCP app helpers', () => {
   });
 
   it('flattens ACP resource reads into the renderer resource shape', async () => {
-    client.goose.resourcesRead_unstable.mockResolvedValue({
+    client.gosling.resourcesRead_unstable.mockResolvedValue({
       result: {
         contents: [
           {
@@ -50,7 +50,7 @@ describe('ACP MCP app helpers', () => {
 
     const resource = await readMcpAppResource('session-1', 'weather', 'ui://weather/panel');
 
-    expect(client.goose.resourcesRead_unstable).toHaveBeenCalledWith({
+    expect(client.gosling.resourcesRead_unstable).toHaveBeenCalledWith({
       sessionId: 'session-1',
       extensionName: 'weather',
       uri: 'ui://weather/panel',
@@ -71,7 +71,7 @@ describe('ACP MCP app helpers', () => {
   });
 
   it('decodes blob resources as UTF-8 text', async () => {
-    client.goose.resourcesRead_unstable.mockResolvedValue({
+    client.gosling.resourcesRead_unstable.mockResolvedValue({
       result: {
         contents: [
           {
@@ -89,7 +89,7 @@ describe('ACP MCP app helpers', () => {
   });
 
   it('prefixes app tool calls before sending them over ACP', async () => {
-    client.goose.toolsCall_unstable.mockResolvedValue({
+    client.gosling.toolsCall_unstable.mockResolvedValue({
       content: [{ type: 'text', text: 'done' }],
       structuredContent: { ok: true },
       isError: false,
@@ -98,7 +98,7 @@ describe('ACP MCP app helpers', () => {
 
     const result = await callMcpAppTool('session-1', 'weather', 'refresh', { city: 'Amsterdam' });
 
-    expect(client.goose.toolsCall_unstable).toHaveBeenCalledWith({
+    expect(client.gosling.toolsCall_unstable).toHaveBeenCalledWith({
       sessionId: 'session-1',
       name: 'weather__refresh',
       arguments: { city: 'Amsterdam' },
@@ -112,7 +112,7 @@ describe('ACP MCP app helpers', () => {
   });
 
   it('maps and filters ACP tools for app host context', async () => {
-    client.goose.toolsList_unstable.mockResolvedValue({
+    client.gosling.toolsList_unstable.mockResolvedValue({
       tools: [
         {
           name: 'weather__refresh',
@@ -136,7 +136,7 @@ describe('ACP MCP app helpers', () => {
 
     const tools = await listMcpAppTools('session-1', 'weather');
 
-    expect(client.goose.toolsList_unstable).toHaveBeenCalledWith({ sessionId: 'session-1' });
+    expect(client.gosling.toolsList_unstable).toHaveBeenCalledWith({ sessionId: 'session-1' });
     expect(tools).toEqual([
       {
         name: 'weather__refresh',

@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 /**
- * Script to unregister ALL goose:// protocol handlers
+ * Script to unregister ALL gosling:// protocol handlers
  * Usage: node scripts/unregister-deeplink-protocols.js
  */
 
@@ -10,7 +10,7 @@ const { execSync } = require('child_process');
 const PROTOCOL = 'gosling';
 
 function unregisterAllProtocolHandlers() {
-  console.log('Unregistering ALL goose:// protocol handlers...');
+  console.log('Unregistering ALL gosling:// protocol handlers...');
   
   try {
     // Get all registered Goose apps
@@ -71,7 +71,7 @@ function unregisterAllProtocolHandlers() {
     }
     
     console.log(`\n✅ Successfully processed ${unregisteredCount} Gosling applications`);
-    console.log('All goose:// protocol handlers have been unregistered.');
+    console.log('All gosling:// protocol handlers have been unregistered.');
     console.log('\nNote: You may need to restart your system for changes to take full effect.');
     
   } catch (error) {

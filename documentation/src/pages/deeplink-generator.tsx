@@ -51,8 +51,8 @@ export default function DeeplinkGenerator() {
       type: "stdio",
       id: "example-extension",
       name: "Example Extension",
-      description: "An example goose extension",
-      command: "npx @gooseai/example-extension",
+      description: "An example gosling extension",
+      command: "npx @goslingai/example-extension",
       environmentVariables: [
         {
           name: "API_KEY",
@@ -68,7 +68,7 @@ export default function DeeplinkGenerator() {
     const urlParams = new URLSearchParams(window.location.search);
     if (urlParams.toString()) {
       try {
-        if (urlParams.get('cmd') === 'goose' && urlParams.getAll('arg').includes('mcp')) {
+        if (urlParams.get('cmd') === 'gosling' && urlParams.getAll('arg').includes('mcp')) {
           const args = urlParams.getAll('arg');
           const extensionId = args[args.indexOf('mcp') + 1];
           if (!extensionId) {
@@ -187,12 +187,12 @@ export default function DeeplinkGenerator() {
   const generateDeeplink = (server: ServerConfig): string => {
     if (server.is_builtin) {
       const queryParams = [
-        'cmd=goose',
+        'cmd=gosling',
         'arg=mcp',
         `arg=${encodeURIComponent(server.id)}`,
         `description=${encodeURIComponent(server.id)}`
       ].join('&');
-      return `goose://extension?${queryParams}`;
+      return `gosling://extension?${queryParams}`;
     }
 
     if (server.url || server.type === 'streamable_http') {
@@ -214,7 +214,7 @@ export default function DeeplinkGenerator() {
           ),
       ].join("&");
 
-      return `goose://extension?${queryParams}`;
+      return `gosling://extension?${queryParams}`;
     }
 
     const parts = server.command.split(" ");
@@ -233,7 +233,7 @@ export default function DeeplinkGenerator() {
         ),
     ].join("&");
 
-    return `goose://extension?${queryParams}`;
+    return `gosling://extension?${queryParams}`;
   };
 
   const handleFormSubmit = useCallback((e: React.FormEvent) => {
@@ -313,7 +313,7 @@ export default function DeeplinkGenerator() {
             Deeplink Generator
           </h1>
           <p className="text-textProminent">
-            Generate installation deeplinks for goose extensions that can be shared with others.
+            Generate installation deeplinks for gosling extensions that can be shared with others.
           </p>
         </div>
 
@@ -448,7 +448,7 @@ export default function DeeplinkGenerator() {
                         onChange={(e) => setCommand(e.target.value)}
                         required
                         className="w-full p-3 border border-borderSubtle rounded-lg bg-bgSubtle text-textStandard"
-                        placeholder="npx @gooseai/example-extension"
+                        placeholder="npx @goslingai/example-extension"
                       />
                     </div>
                   ) : (
@@ -618,13 +618,13 @@ export default function DeeplinkGenerator() {
             <li>For custom extensions:
               <ul className="list-disc pl-6 mt-2">
                 <li>Provide a unique ID, name, and description</li>
-                <li>Choose <strong>STDIO</strong> and enter the command to run your extension (e.g. <code>npx @gooseai/my-ext</code>), or choose <strong>Streamable HTTP</strong> and enter the endpoint URL</li>
+                <li>Choose <strong>STDIO</strong> and enter the command to run your extension (e.g. <code>npx @goslingai/my-ext</code>), or choose <strong>Streamable HTTP</strong> and enter the endpoint URL</li>
                 <li>Add any required environment variables</li>
                 <li>For Streamable HTTP, add any required request headers</li>
               </ul>
             </li>
             <li>Click "Generate Deeplink" to create your installation deeplink.</li>
-            <li>Copy and share the generated deeplink — when users click it, it will open goose Desktop and prompt them to install your extension.</li>
+            <li>Copy and share the generated deeplink — when users click it, it will open gosling Desktop and prompt them to install your extension.</li>
           </ol>
         </div>
       </div>

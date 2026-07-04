@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Tiny hook handler that loudly announces every event goose fires at it.
+# Tiny hook handler that loudly announces every event gosling fires at it.
 #
-# Goose pipes the event payload as JSON on stdin and sets PLUGIN_ROOT in the
+# Gosling pipes the event payload as JSON on stdin and sets PLUGIN_ROOT in the
 # environment. We tee a copy of the payload into a log file inside the plugin
 # directory so you can see the full structure later.
 set -euo pipefail
@@ -27,7 +27,7 @@ icon="$(emoji "$label")"
 suffix=""
 [ -n "$tool_name" ] && suffix=" tool=$tool_name"
 
-# Both stderr (so it shows up alongside goose tracing) and a log file.
+# Both stderr (so it shows up alongside gosling tracing) and a log file.
 printf '%s [hello-hooks] %s%s\n' "$icon" "${event_name:-$label}" "$suffix" 1>&2
 
 {

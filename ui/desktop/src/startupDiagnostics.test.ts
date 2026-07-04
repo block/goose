@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { createGooseServeStartupDiagnostics, createStartupDiagnostics } from './startupDiagnostics';
+import { createGoslingServeStartupDiagnostics, createStartupDiagnostics } from './startupDiagnostics';
 
 const tempDirs: string[] = [];
 
@@ -22,13 +22,13 @@ describe('startup diagnostics', () => {
     }
   });
 
-  it('keeps goosed startup diagnostics shape and file prefix', () => {
+  it('keeps goslingd startup diagnostics shape and file prefix', () => {
     const diagnosticsDir = makeTempDir();
     const trace = createStartupDiagnostics(diagnosticsDir, '/tmp/project');
     const expectedKeys = [
       'attemptId',
       'startedAt',
-      'goosedPath',
+      'goslingdPath',
       'workingDir',
       'baseUrl',
       'pid',
@@ -41,10 +41,10 @@ describe('startup diagnostics', () => {
     ];
 
     expect(trace).not.toBeNull();
-    expect(path.basename(trace!.diagnosticsPath)).toMatch(/^goosed-startup-.*\.json$/);
+    expect(path.basename(trace!.diagnosticsPath)).toMatch(/^goslingd-startup-.*\.json$/);
     expect(Object.keys(trace!.diagnostics)).toEqual(expectedKeys);
     expect(trace!.diagnostics).toMatchObject({
-      goosedPath: null,
+      goslingdPath: null,
       baseUrl: null,
       certFingerprintSeen: false,
     });
@@ -54,10 +54,10 @@ describe('startup diagnostics', () => {
 
   it('writes serve startup diagnostics with serve-specific fields', () => {
     const diagnosticsDir = makeTempDir();
-    const trace = createGooseServeStartupDiagnostics(diagnosticsDir, '/tmp/project');
+    const trace = createGoslingServeStartupDiagnostics(diagnosticsDir, '/tmp/project');
 
     expect(trace).not.toBeNull();
-    trace!.diagnostics.binaryPath = '/bin/goose';
+    trace!.diagnostics.binaryPath = '/bin/gosling';
     trace!.diagnostics.httpBaseUrl = 'http://127.0.0.1:3000';
     trace!.diagnostics.readinessUrl = 'http://127.0.0.1:3000/status';
     trace!.diagnostics.statusUrl = 'http://127.0.0.1:3000/status';
@@ -70,10 +70,10 @@ describe('startup diagnostics', () => {
     });
     trace!.record('healthcheck_success', { attempt: 1 });
 
-    expect(path.basename(trace!.diagnosticsPath)).toMatch(/^goose-serve-startup-.*\.json$/);
+    expect(path.basename(trace!.diagnosticsPath)).toMatch(/^gosling-serve-startup-.*\.json$/);
     const saved = JSON.parse(fs.readFileSync(trace!.diagnosticsPath, 'utf8'));
     expect(saved).toMatchObject({
-      binaryPath: '/bin/goose',
+      binaryPath: '/bin/gosling',
       httpBaseUrl: 'http://127.0.0.1:3000',
       readinessUrl: 'http://127.0.0.1:3000/status',
       statusUrl: 'http://127.0.0.1:3000/status',
@@ -81,7 +81,7 @@ describe('startup diagnostics', () => {
       acpUrl: 'ws://127.0.0.1:3000/acp?token=REDACTED',
       healthCheckSucceeded: true,
     });
-    expect(saved).not.toHaveProperty('goosedPath');
+    expect(saved).not.toHaveProperty('goslingdPath');
     expect(saved).not.toHaveProperty('certFingerprintSeen');
     expect(saved.events.map((event: { name: string }) => event.name)).toEqual([
       'healthcheck_start',

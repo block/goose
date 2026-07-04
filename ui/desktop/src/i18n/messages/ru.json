@@ -828,7 +828,7 @@
     "defaultMessage": "Секретный ключ"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "Секретный ключ, настроенный на сервере goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Секретный ключ, настроенный на сервере goslingd (GOSLING_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Введите секретный ключ сервера"
@@ -857,67 +857,67 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Подключиться к серверу gosling, запущенному в другом месте (требуется перезапуск приложения)"
   },
-  "goosehintsModal.close": {
+  "goslinghintsModal.close": {
     "defaultMessage": "Закрыть"
   },
-  "goosehintsModal.developer": {
+  "goslinghintsModal.developer": {
     "defaultMessage": "Разработчик"
   },
-  "goosehintsModal.dialogDescription": {
+  "goslinghintsModal.dialogDescription": {
     "defaultMessage": "Предоставьте дополнительный контекст о проекте, чтобы улучшить взаимодействие с Gosling"
   },
-  "goosehintsModal.dialogTitle": {
-    "defaultMessage": "Настроить подсказки проекта (.goosehints)"
+  "goslinghintsModal.dialogTitle": {
+    "defaultMessage": "Настроить подсказки проекта (.goslinghints)"
   },
-  "goosehintsModal.errorReading": {
-    "defaultMessage": "Ошибка чтения файла .goosehints: {error}"
+  "goslinghintsModal.errorReading": {
+    "defaultMessage": "Ошибка чтения файла .goslinghints: {error}"
   },
-  "goosehintsModal.failedToAccess": {
-    "defaultMessage": "Не удалось получить доступ к файлу .goosehints"
+  "goslinghintsModal.failedToAccess": {
+    "defaultMessage": "Не удалось получить доступ к файлу .goslinghints"
   },
-  "goosehintsModal.failedToSave": {
-    "defaultMessage": "Не удалось сохранить файл .goosehints"
+  "goslinghintsModal.failedToSave": {
+    "defaultMessage": "Не удалось сохранить файл .goslinghints"
   },
-  "goosehintsModal.fileCreating": {
-    "defaultMessage": "Создание нового файла .goosehints по пути: {filePath}"
+  "goslinghintsModal.fileCreating": {
+    "defaultMessage": "Создание нового файла .goslinghints по пути: {filePath}"
   },
-  "goosehintsModal.fileFound": {
-    "defaultMessage": "Файл .goosehints найден по пути: {filePath}"
+  "goslinghintsModal.fileFound": {
+    "defaultMessage": "Файл .goslinghints найден по пути: {filePath}"
   },
-  "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints — это текстовый файл для дополнительного контекста о проекте и улучшения взаимодействия с Gosling."
+  "goslinghintsModal.helpText1": {
+    "defaultMessage": ".goslinghints — это текстовый файл для дополнительного контекста о проекте и улучшения взаимодействия с Gosling."
   },
-  "goosehintsModal.helpText2": {
-    "defaultMessage": "Убедитесь, что расширение {bold} включено на странице расширений. Оно необходимо для использования .goosehints. Чтобы обновления .goosehints вступили в силу, перезапустите сеанс."
+  "goslinghintsModal.helpText2": {
+    "defaultMessage": "Убедитесь, что расширение {bold} включено на странице расширений. Оно необходимо для использования .goslinghints. Чтобы обновления .goslinghints вступили в силу, перезапустите сеанс."
   },
-  "goosehintsModal.helpText3": {
+  "goslinghintsModal.helpText3": {
     "defaultMessage": "Подробнее см. {link}."
   },
-  "goosehintsModal.helpTextLink": {
-    "defaultMessage": "использование .goosehints"
+  "goslinghintsModal.helpTextLink": {
+    "defaultMessage": "использование .goslinghints"
   },
-  "goosehintsModal.placeholder": {
+  "goslinghintsModal.placeholder": {
     "defaultMessage": "Введите подсказки проекта здесь..."
   },
-  "goosehintsModal.save": {
+  "goslinghintsModal.save": {
     "defaultMessage": "Сохранить"
   },
-  "goosehintsModal.savedSuccessfully": {
+  "goslinghintsModal.savedSuccessfully": {
     "defaultMessage": "Успешно сохранено"
   },
-  "goosehintsModal.saving": {
+  "goslinghintsModal.saving": {
     "defaultMessage": "Сохранение..."
   },
-  "goosehintsSection.configure": {
+  "goslinghintsSection.configure": {
     "defaultMessage": "Настроить"
   },
-  "goosehintsSection.description": {
-    "defaultMessage": "Настройте файл .goosehints вашего проекта, чтобы предоставить Gosling дополнительный контекст"
+  "goslinghintsSection.description": {
+    "defaultMessage": "Настройте файл .goslinghints вашего проекта, чтобы предоставить Gosling дополнительный контекст"
   },
-  "goosehintsSection.title": {
-    "defaultMessage": "Подсказки проекта (.goosehints)"
+  "goslinghintsSection.title": {
+    "defaultMessage": "Подсказки проекта (.goslinghints)"
   },
-  "groupedExtensionLoadingToast.askGoose": {
+  "groupedExtensionLoadingToast.askGosling": {
     "defaultMessage": "Спросить gosling"
   },
   "groupedExtensionLoadingToast.collapseDetails": {
@@ -1184,25 +1184,25 @@
   "launcher.placeholder": {
     "defaultMessage": "Спросите gosling о чем угодно..."
   },
-  "loadingGoose.compacting": {
+  "loadingGosling.compacting": {
     "defaultMessage": "gosling сжимает разговор..."
   },
-  "loadingGoose.idle": {
+  "loadingGosling.idle": {
     "defaultMessage": "gosling работает над этим…"
   },
-  "loadingGoose.loadingConversation": {
+  "loadingGosling.loadingConversation": {
     "defaultMessage": "загрузка разговора..."
   },
-  "loadingGoose.restartingAgent": {
+  "loadingGosling.restartingAgent": {
     "defaultMessage": "перезапуск сеанса..."
   },
-  "loadingGoose.streaming": {
+  "loadingGosling.streaming": {
     "defaultMessage": "gosling работает над этим…"
   },
-  "loadingGoose.thinking": {
+  "loadingGosling.thinking": {
     "defaultMessage": "gosling думает…"
   },
-  "loadingGoose.waiting": {
+  "loadingGosling.waiting": {
     "defaultMessage": "gosling ждет…"
   },
   "markdownContent.cancel": {
@@ -2421,7 +2421,7 @@
     "defaultMessage": "Подходящие навыки не найдены"
   },
   "skillsView.noSkillsDescription": {
-    "defaultMessage": "Навыки загружаются из файлов SKILL.md в ~/.config/agents/skills/, .goose/skills/ или других поддерживаемых каталогах."
+    "defaultMessage": "Навыки загружаются из файлов SKILL.md в ~/.config/agents/skills/, .gosling/skills/ или других поддерживаемых каталогах."
   },
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "Навыки не установлены"
@@ -2678,14 +2678,14 @@
   "toolConfirmation.allowToolCallWithName": {
     "defaultMessage": "Разрешить {toolName}?"
   },
-  "toolConfirmation.gooseWouldLikeToCallWithName": {
+  "toolConfirmation.goslingWouldLikeToCallWithName": {
     "defaultMessage": "Gosling хочет вызвать {toolName}. Разрешить?"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "Обновление будет автоматически скачано в фоновом режиме."
   },
   "updateSection.autoDownloadDisabledByEnv": {
-    "defaultMessage": "Автоматическая загрузка отключена через переменную окружения GOOSE_DISABLE_AUTO_DOWNLOAD."
+    "defaultMessage": "Автоматическая загрузка отключена через переменную окружения GOSLING_DISABLE_AUTO_DOWNLOAD."
   },
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Автоматическая загрузка отключена. Нажмите «Скачать сейчас», чтобы загрузить вручную."

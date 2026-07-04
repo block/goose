@@ -2,7 +2,7 @@ const { FusesPlugin } = require('@electron-forge/plugin-fuses');
 const { FuseV1Options, FuseVersion } = require('@electron/fuses');
 const { resolve } = require('path');
 
-const isLinuxVulkanBuild = process.env.GOOSE_DESKTOP_LINUX_VARIANT === 'vulkan';
+const isLinuxVulkanBuild = process.env.GOSLING_DESKTOP_LINUX_VARIANT === 'vulkan';
 
 let cfg = {
   asar: true,
@@ -89,8 +89,8 @@ module.exports = {
       config: {
         name: 'Gosling',
         bin: 'Gosling',
-        maintainer: 'AAIF (Agentic AI Foundation)',
-        homepage: 'https://goose-docs.ai/',
+        maintainer: 'repo-makeover',
+        homepage: 'https://gosling-docs.ai/',
         categories: ['Development'],
         desktopTemplate: './forge.deb.desktop',
         options: {
@@ -105,8 +105,8 @@ module.exports = {
       config: {
         name: 'Gosling',
         bin: 'Gosling',
-        maintainer: 'AAIF (Agentic AI Foundation)',
-        homepage: 'https://goose-docs.ai/',
+        maintainer: 'repo-makeover',
+        homepage: 'https://gosling-docs.ai/',
         categories: ['Development'],
         desktopTemplate: './forge.rpm.desktop',
         options: {
@@ -126,7 +126,7 @@ module.exports = {
             scalable: 'src/images/icon.svg',
             '512x512': 'src/images/icon-512.png',
           },
-          homepage: 'https://goose-docs.ai/',
+          homepage: 'https://gosling-docs.ai/',
           runtimeVersion: '25.08',
           baseVersion: '25.08',
           bin: 'Gosling',

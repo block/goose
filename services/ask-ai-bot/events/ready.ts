@@ -14,10 +14,10 @@ export default {
       client.user.setPresence({
         activities: [
           {
-            name: "goose",
+            name: "gosling",
             // eslint-disable-next-line @typescript-eslint/ban-ts-comment
             // @ts-ignore Discord.js does not have this property, but it is valid
-            state: "helping users with goose",
+            state: "helping users with gosling",
             type: ActivityType.Custom,
           },
         ],

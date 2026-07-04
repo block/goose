@@ -10,63 +10,63 @@ import type {
   Tool,
 } from "@modelcontextprotocol/sdk/types.js";
 
-export const GOOSE_MCP_UI_EXTENSION_ID = "io.modelcontextprotocol/ui" as const;
+export const GOSLING_MCP_UI_EXTENSION_ID = "io.modelcontextprotocol/ui" as const;
 
-export interface GooseMcpUiExtensionSettings {
+export interface GoslingMcpUiExtensionSettings {
   mimeTypes: string[];
 }
 
-export interface GooseMcpHostCapabilities {
-  extensions: Record<string, GooseMcpUiExtensionSettings>;
+export interface GoslingMcpHostCapabilities {
+  extensions: Record<string, GoslingMcpUiExtensionSettings>;
 }
 
-export type GooseToolUiMetadata = Extract<
+export type GoslingToolUiMetadata = Extract<
   McpUiAppToolConfig["_meta"],
   { ui: unknown }
 >["ui"];
 
-export type GooseToolMetadata = NonNullable<Tool["_meta"]> & {
-  ui?: GooseToolUiMetadata;
-  goose_extension?: string;
+export type GoslingToolMetadata = NonNullable<Tool["_meta"]> & {
+  ui?: GoslingToolUiMetadata;
+  gosling_extension?: string;
 };
 
-export type GooseSessionTool = Tool & {
-  meta?: GooseToolMetadata;
-  _meta?: GooseToolMetadata;
+export type GoslingSessionTool = Tool & {
+  meta?: GoslingToolMetadata;
+  _meta?: GoslingToolMetadata;
 };
 
-export type GooseTextResourceContents = TextResourceContents;
+export type GoslingTextResourceContents = TextResourceContents;
 
-export type GooseBlobResourceContents = BlobResourceContents;
+export type GoslingBlobResourceContents = BlobResourceContents;
 
-export type GooseResourceContents = TextResourceContents | BlobResourceContents;
+export type GoslingResourceContents = TextResourceContents | BlobResourceContents;
 
-export type GooseReadResourceResult = ReadResourceResult;
+export type GoslingReadResourceResult = ReadResourceResult;
 
-export type GooseResourceMetadata = NonNullable<
+export type GoslingResourceMetadata = NonNullable<
   Extract<NonNullable<McpUiAppResourceConfig["_meta"]>, { ui?: unknown }>["ui"]
 >;
 
-export interface GooseMcpAppToolPayload {
+export interface GoslingMcpAppToolPayload {
   toolName: string;
   extensionName: string;
   resourceUri: string;
-  toolMeta?: GooseToolMetadata;
-  resourceResult?: GooseReadResourceResult | null;
+  toolMeta?: GoslingToolMetadata;
+  resourceResult?: GoslingReadResourceResult | null;
   readError?: string;
 }
 
-export interface GooseToolCallUpdateMeta {
-  goose?: {
-    mcpApp?: GooseMcpAppToolPayload;
+export interface GoslingToolCallUpdateMeta {
+  gosling?: {
+    mcpApp?: GoslingMcpAppToolPayload;
     [key: string]: unknown;
   };
   [key: string]: unknown;
 }
 
-export const DEFAULT_GOOSE_MCP_HOST_CAPABILITIES: GooseMcpHostCapabilities = {
+export const DEFAULT_GOSLING_MCP_HOST_CAPABILITIES: GoslingMcpHostCapabilities = {
   extensions: {
-    [GOOSE_MCP_UI_EXTENSION_ID]: {
+    [GOSLING_MCP_UI_EXTENSION_ID]: {
       mimeTypes: [RESOURCE_MIME_TYPE],
     },
   },

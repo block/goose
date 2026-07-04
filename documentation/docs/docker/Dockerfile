@@ -11,7 +11,7 @@ RUN curl -fsSL https://deb.nodesource.com/setup_lts.x | bash - && \
     && rm -rf /var/lib/apt/lists/*
 
 # Create a new directory for the app
-WORKDIR /usr/src/goose
+WORKDIR /usr/src/gosling
 
 # Copy the entire project
 COPY . .
@@ -90,7 +90,7 @@ RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 RUN curl -Ls https://sh.jbang.dev | bash -s - app setup
 
 # Copy the built binaries
-COPY --from=builder /usr/src/goose/target/release/goose /usr/local/bin/
+COPY --from=builder /usr/src/gosling/target/release/gosling /usr/local/bin/
 
 # Create a wrapper script to initialize DBus and keyring
 RUN echo '#!/bin/bash\n\

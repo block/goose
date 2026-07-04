@@ -88,10 +88,10 @@ If we got points, count them. See `reporter.trial_status` for the canonical
 rule.
 
 Several `agent_result` fields can be `null` depending on the harness
-(notably `n_cache_tokens`, `n_output_tokens`, `cost_usd` on some goose
+(notably `n_cache_tokens`, `n_output_tokens`, `cost_usd` on some gosling
 runs). Don't treat that as a failure — just omit those facts from the
 comparison if missing on either side. `cmd.py task` already applies
-harbor's fallbacks (reading goose's `complete` event from `agent/goose.txt`
+harbor's fallbacks (reading gosling's `complete` event from `agent/gosling.txt`
 when the structured field is null), so its numbers are the right ones to
 report.
 
@@ -164,7 +164,7 @@ Two sources, prefer the first when present:
   gives a compact view. Most current runs have it; some older harness
   versions may not.
 - `$TRIAL_DIR/agent/<harness>.txt` — raw stream-json or log. The filename
-  matches the harness (commonly `goose.txt` or `pi.txt`; other harnesses
+  matches the harness (commonly `gosling.txt` or `pi.txt`; other harnesses
   use their own name). Don't guess — run `ls "$TRIAL_DIR/agent/"` and use
   whatever `.txt` file is there.
 

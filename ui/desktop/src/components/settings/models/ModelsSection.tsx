@@ -50,16 +50,16 @@ export default function ModelsSection({ setView }: ModelsSectionProps) {
         setProvider(providerDisplayName);
       } else {
         // Fallback to original provider lookup
-        const { providerId: gooseProvider } = await acpReadDefaults();
+        const { providerId: goslingProvider } = await acpReadDefaults();
         const providers = await acpListProviderDetails();
-        const providerDetailsList = providers.filter((provider) => provider.name === gooseProvider);
+        const providerDetailsList = providers.filter((provider) => provider.name === goslingProvider);
 
         if (providerDetailsList.length != 1) {
           toastError({
             title: intl.formatMessage(modelAndProviderMessages.unknownProviderTitle),
             msg: intl.formatMessage(modelAndProviderMessages.unknownProviderMsg),
           });
-          setProvider(gooseProvider);
+          setProvider(goslingProvider);
         } else {
           const fallbackProviderDisplayName = providerDetailsList[0].metadata.display_name;
           setProvider(fallbackProviderDisplayName);

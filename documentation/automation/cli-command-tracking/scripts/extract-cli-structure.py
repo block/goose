@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 """
-Extract CLI command structure from goose binary using --help output.
+Extract CLI command structure from gosling binary using --help output.
 
 Usage:
-    ./extract-cli-structure.py <goose-binary-path> > output/cli-structure.json
+    ./extract-cli-structure.py <gosling-binary-path> > output/cli-structure.json
     
 Example:
-    ./extract-cli-structure.py /path/to/goose > output/new-cli-structure.json
+    ./extract-cli-structure.py /path/to/gosling > output/new-cli-structure.json
 """
 
 import sys
@@ -40,7 +40,7 @@ def run_help_command(binary_path: str, command_path: List[str], short: bool = Fa
     Run --help or -h on a command and return the output.
     
     Args:
-        binary_path: Path to goose binary
+        binary_path: Path to gosling binary
         command_path: List of command parts (e.g., ['session', 'list'])
         short: If True, use -h instead of --help
         
@@ -252,7 +252,7 @@ def extract_command_structure(binary_path: str, command_path: List[str] = None,
     Recursively extract command structure starting from a command path.
     
     Args:
-        binary_path: Path to goose binary
+        binary_path: Path to gosling binary
         command_path: Current command path (e.g., ['session', 'list'])
         parent_aliases: Aliases passed from parent (since they appear in parent's help)
         
@@ -269,7 +269,7 @@ def extract_command_structure(binary_path: str, command_path: List[str] = None,
         return None
     
     # Parse command info
-    command_name = command_path[-1] if command_path else "goose"
+    command_name = command_path[-1] if command_path else "gosling"
     about = parse_about(help_text_long)
     # Use parent_aliases if provided, otherwise try to parse from own help
     aliases = parent_aliases if parent_aliases is not None else parse_aliases(help_text_long)
@@ -301,11 +301,11 @@ def extract_command_structure(binary_path: str, command_path: List[str] = None,
 
 
 def extract_version(binary_path: str) -> str:
-    """Extract version from goose --version."""
+    """Extract version from gosling --version."""
     try:
         result = subprocess.run([binary_path, '--version'], 
                               capture_output=True, text=True, timeout=5)
-        # Output is typically "goose 1.15.0" or similar
+        # Output is typically "gosling 1.15.0" or similar
         version_match = re.search(r'(\d+\.\d+\.\d+)', result.stdout)
         return version_match.group(1) if version_match else "unknown"
     except Exception as e:
@@ -315,8 +315,8 @@ def extract_version(binary_path: str) -> str:
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: extract-cli-structure.py <goose-binary-path> [source-version]", file=sys.stderr)
-        print("Example: extract-cli-structure.py /usr/local/bin/goose v1.15.0", file=sys.stderr)
+        print("Usage: extract-cli-structure.py <gosling-binary-path> [source-version]", file=sys.stderr)
+        print("Example: extract-cli-structure.py /usr/local/bin/gosling v1.15.0", file=sys.stderr)
         sys.exit(1)
     
     binary_path = sys.argv[1]
@@ -327,7 +327,7 @@ def main():
         result = subprocess.run([binary_path, '--version'], 
                               capture_output=True, timeout=5)
         if result.returncode != 0:
-            print(f"Error: {binary_path} is not a valid goose binary", file=sys.stderr)
+            print(f"Error: {binary_path} is not a valid gosling binary", file=sys.stderr)
             sys.exit(1)
     except Exception as e:
         print(f"Error: Cannot execute {binary_path}: {e}", file=sys.stderr)

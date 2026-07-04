@@ -1,24 +1,24 @@
 ---
 title: Google Maps Extension
-description: Add Google Maps MCP Server as a goose Extension
+description: Add Google Maps MCP Server as a gosling Extension
 unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
 Server archived
 
-This tutorial covers how to add the [Google Maps MCP Server](https://www.pulsemcp.com/servers/google-maps-docs) as a goose extension to enable geocoding, place searching, distance calculations, elevation data retrieval, and directions.
+This tutorial covers how to add the [Google Maps MCP Server](https://www.pulsemcp.com/servers/google-maps-docs) as a gosling extension to enable geocoding, place searching, distance calculations, elevation data retrieval, and directions.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-google-maps&id=google-maps&name=Google%20Maps&description=Google%20Maps%20API%20integration&env=GOOGLE_MAPS_API_KEY%3DGoogle%20Maps%20API%20key)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-google-maps&id=google-maps&name=Google%20Maps&description=Google%20Maps%20API%20integration&env=GOOGLE_MAPS_API_KEY%3DGoogle%20Maps%20API%20key)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y @modelcontextprotocol/server-google-maps
@@ -38,8 +38,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface" defaultValue="ui">
-  <TabItem value="ui" label="goose Desktop">
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop">
+  <GoslingDesktopInstaller
     extensionId="google-maps"
     extensionName="Google Maps"
     description="Google Maps API integration"
@@ -52,15 +52,15 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     apiKeyLinkText="Google Maps API Key"
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   1. Run the `configure` command:
   ```sh
-  goose configure
+  gosling configure
   ```
 
   2. Choose to add a `Command-line Extension`
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -76,7 +76,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   3. Give your extension a name
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -93,7 +93,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   4. Enter the command
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -111,9 +111,9 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     └ 
   ``` 
 
-  5. Enter the number of seconds goose should wait for actions to complete before timing out. Default is 300s
+  5. Enter the number of seconds gosling should wait for actions to complete before timing out. Default is 300s
    ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -136,7 +136,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
    ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -164,7 +164,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   7. Obtain a [Google Maps API Key](https://developers.google.com/maps/documentation/javascript/get-api-key) and paste it in.
 
    ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -205,29 +205,29 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-goose acts as an autonomous agent that tracks a delivery driver’s location, updates the customer in real-time, and adjusts ETAs dynamically based on Google Maps traffic data.
+gosling acts as an autonomous agent that tracks a delivery driver’s location, updates the customer in real-time, and adjusts ETAs dynamically based on Google Maps traffic data.
 
-goose can:
+gosling can:
 
 **Monitor Driver Location**
-* goose gets the driver’s GPS coordinates every few seconds.
-* If the driver’s location is significantly behind schedule, goose recalculates the ETA.
+* gosling gets the driver’s GPS coordinates every few seconds.
+* If the driver’s location is significantly behind schedule, gosling recalculates the ETA.
 
 **Traffic-Aware ETA Adjustments**
-* goose queries Google Maps for live traffic conditions.
-* If delays are detected, goose updates the customer’s tracker with a new estimated time.
+* gosling queries Google Maps for live traffic conditions.
+* If delays are detected, gosling updates the customer’s tracker with a new estimated time.
 
 **Dynamic Customer Notifications**
-* If the driver is stuck in traffic, goose sends an alert to the customer: “Your driver is running late due to traffic. Updated ETA: 7:25 PM.”
-* If the driver is ahead of schedule, goose notifies the restaurant to prepare the food earlier.
+* If the driver is stuck in traffic, gosling sends an alert to the customer: “Your driver is running late due to traffic. Updated ETA: 7:25 PM.”
+* If the driver is ahead of schedule, gosling notifies the restaurant to prepare the food earlier.
 
 
-### goose Prompt
+### gosling Prompt
 ```
 Track the live GPS location of driver ID #12345. Query Google Maps for real-time traffic data and adjust the estimated delivery time if delays exceed 5 minutes. If ETA changes, update the customer’s live tracker and send an SMS notification. If the delay is greater than 20 minutes, check if another driver within a 1-mile radius can take over the delivery.
 ```
 
-### goose Output
+### gosling Output
 
 :::note CLI
 Okay, I will track Driver #12345, query Google Maps for traffic data, adjust the ETA, and notify the customer.

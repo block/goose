@@ -1,19 +1,19 @@
 ---
 title: Todo Extension
-description: Breaks complex work into trackable steps to help goose stay organized
+description: Breaks complex work into trackable steps to help gosling stay organized
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PlatformExtensionNote } from '@site/src/components/PlatformExtensionNote';
-import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
+import GoslingBuiltinInstaller from '@site/src/components/GoslingBuiltinInstaller';
 
-The Todo extension helps goose stay organized by breaking complex work into a series of steps and keeping you updated as it completes each step.
+The Todo extension helps gosling stay organized by breaking complex work into a series of steps and keeping you updated as it completes each step.
 
-goose automatically knows to use the Todo extension for tasks involving multiple files/components or uncertain scope. At the start of the task, goose will create an internal checklist, read and update progress as it works, and verify that all tasks are completed.
+gosling automatically knows to use the Todo extension for tasks involving multiple files/components or uncertain scope. At the start of the task, gosling will create an internal checklist, read and update progress as it works, and verify that all tasks are completed.
 
 :::tip
-You can ask goose to "show me the current todo list" at any time to see what's being tracked.
+You can ask gosling to "show me the current todo list" at any time to see what's being tracked.
 :::
 
 This tutorial will cover enabling and using the Todo extension.
@@ -23,22 +23,22 @@ This tutorial will cover enabling and using the Todo extension.
 <PlatformExtensionNote/>
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseBuiltinInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingBuiltinInstaller
     extensionName="Todo"
     description="Manage complex tasks with structured checklists and progress tracking"
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
   1. Run the `configure` command:
   ```sh
-  goose configure
+  gosling configure
   ```
 
   2. Choose to `Toggle Extensions`
   ```sh
-  ┌   goose-configure 
+  ┌   gosling-configure 
   │
   ◇  What would you like to configure?
   │  Toggle Extensions 
@@ -54,15 +54,15 @@ This tutorial will cover enabling and using the Todo extension.
 
 ## Example Usage
 
-In this example, I'm going to have goose help me fix formatting inconsistencies in documentation files. This demonstrates how the Todo extension helps goose stay organized when working through systematic improvements.
+In this example, I'm going to have gosling help me fix formatting inconsistencies in documentation files. This demonstrates how the Todo extension helps gosling stay organized when working through systematic improvements.
 
-### goose Prompt
+### gosling Prompt
 
 ```
 I need to update our documentation to fix formatting inconsistencies between two tutorial files. There are several sections that don't match the expected pattern. Can you help me systematically work through these issues and track our progress?
 ```
 
-### goose Output
+### gosling Output
 
 ```md
 I'll help you fix the documentation inconsistencies systematically. Let me break this down into organized tasks and track our progress.

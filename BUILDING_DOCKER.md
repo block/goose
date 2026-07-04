@@ -1,26 +1,26 @@
-# Building and Running goose with Docker
+# Building and Running gosling with Docker
 
-This guide covers building Docker images for goose CLI for production use, CI/CD pipelines, and local development.
+This guide covers building Docker images for gosling CLI for production use, CI/CD pipelines, and local development.
 
 ## Quick Start
 
 ### Using Pre-built Images
 
-The easiest way to use goose with Docker is to pull the pre-built image from GitHub Container Registry:
+The easiest way to use gosling with Docker is to pull the pre-built image from GitHub Container Registry:
 
 ```bash
 # Pull the latest image
-docker pull ghcr.io/aaif-goose/goose:latest
+docker pull ghcr.io/repo-makeover/gosling:latest
 
-# Run goose CLI
-docker run --rm ghcr.io/aaif-goose/goose:latest --version
+# Run gosling CLI
+docker run --rm ghcr.io/repo-makeover/gosling:latest --version
 
 # Run with LLM configuration
 docker run --rm \
-  -e GOOSE_PROVIDER=openai \
-  -e GOOSE_MODEL=gpt-4o \
+  -e GOSLING_PROVIDER=openai \
+  -e GOSLING_MODEL=gpt-4o \
   -e OPENAI_API_KEY=$OPENAI_API_KEY \
-  ghcr.io/aaif-goose/goose:latest run -t "Hello, world!"
+  ghcr.io/repo-makeover/gosling:latest run -t "Hello, world!"
 ```
 
 ## Building from Source
@@ -35,47 +35,47 @@ docker run --rm \
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/aaif-goose/goose.git
-cd goose
+git clone https://github.com/repo-makeover/gosling.git
+cd gosling
 ```
 
 2. Build the Docker image:
 ```bash
-docker build -t goose:local .
+docker build -t gosling:local .
 ```
 
 The build process:
 - Uses a multi-stage build to minimize final image size
 - Compiles with optimizations (LTO, stripping, size optimization)
-- Results in a ~340MB image containing the `goose` CLI binary
+- Results in a ~340MB image containing the `gosling` CLI binary
 
 ### Build Options
 
 For a development build with debug symbols:
 ```bash
-docker build --build-arg CARGO_PROFILE_RELEASE_STRIP=false -t goose:dev .
+docker build --build-arg CARGO_PROFILE_RELEASE_STRIP=false -t gosling:dev .
 ```
 
 For multi-platform builds:
 ```bash
-docker buildx build --platform linux/amd64,linux/arm64 -t goose:multi .
+docker buildx build --platform linux/amd64,linux/arm64 -t gosling:multi .
 ```
 
-## Running goose in Docker
+## Running gosling in Docker
 
 ### CLI Mode
 
 Basic usage:
 ```bash
 # Show help
-docker run --rm goose:local --help
+docker run --rm gosling:local --help
 
 # Run a command
 docker run --rm \
-  -e GOOSE_PROVIDER=openai \
-  -e GOOSE_MODEL=gpt-4o \
+  -e GOSLING_PROVIDER=openai \
+  -e GOSLING_MODEL=gpt-4o \
   -e OPENAI_API_KEY=$OPENAI_API_KEY \
-  goose:local run -t "Explain Docker containers"
+  gosling:local run -t "Explain Docker containers"
 ```
 
 With volume mounts for file access:
@@ -83,20 +83,20 @@ With volume mounts for file access:
 docker run --rm \
   -v $(pwd):/workspace \
   -w /workspace \
-  -e GOOSE_PROVIDER=openai \
-  -e GOOSE_MODEL=gpt-4o \
+  -e GOSLING_PROVIDER=openai \
+  -e GOSLING_MODEL=gpt-4o \
   -e OPENAI_API_KEY=$OPENAI_API_KEY \
-  goose:local run -t "Analyze the code in this directory"
+  gosling:local run -t "Analyze the code in this directory"
 ```
 
 Interactive session mode with Databricks:
 ```bash
 docker run -it --rm \
-  -e GOOSE_PROVIDER=databricks \
-  -e GOOSE_MODEL=databricks-dbrx-instruct \
+  -e GOSLING_PROVIDER=databricks \
+  -e GOSLING_MODEL=databricks-dbrx-instruct \
   -e DATABRICKS_HOST="$DATABRICKS_HOST" \
   -e DATABRICKS_TOKEN="$DATABRICKS_TOKEN" \
-  goose:local session
+  gosling:local session
 ```
 
 
@@ -109,36 +109,36 @@ Create a `docker-compose.yml`:
 version: '3.8'
 
 services:
-  goose:
-    image: ghcr.io/aaif-goose/goose:latest
+  gosling:
+    image: ghcr.io/repo-makeover/gosling:latest
     environment:
-      - GOOSE_PROVIDER=${GOOSE_PROVIDER:-openai}
-      - GOOSE_MODEL=${GOOSE_MODEL:-gpt-4o}
+      - GOSLING_PROVIDER=${GOSLING_PROVIDER:-openai}
+      - GOSLING_MODEL=${GOSLING_MODEL:-gpt-4o}
       - OPENAI_API_KEY=${OPENAI_API_KEY}
     volumes:
       - ./workspace:/workspace
-      - goose-config:/home/goose/.config/goose
+      - gosling-config:/home/gosling/.config/gosling
     working_dir: /workspace
     stdin_open: true
     tty: true
 
 volumes:
-  goose-config:
+  gosling-config:
 ```
 
 Run with:
 ```bash
-docker-compose run --rm goose session
+docker-compose run --rm gosling session
 ```
 
 ## Configuration
 
 ### Environment Variables
 
-The Docker image accepts all standard goose environment variables:
+The Docker image accepts all standard gosling environment variables:
 
-- `GOOSE_PROVIDER`: LLM provider (openai, anthropic, google, etc.)
-- `GOOSE_MODEL`: Model to use (gpt-4o, claude-sonnet-4, etc.)
+- `GOSLING_PROVIDER`: LLM provider (openai, anthropic, google, etc.)
+- `GOSLING_MODEL`: Model to use (gpt-4o, claude-sonnet-4, etc.)
 - Provider-specific API keys (OPENAI_API_KEY, ANTHROPIC_API_KEY, etc.)
 
 ### Persistent Configuration
@@ -146,8 +146,8 @@ The Docker image accepts all standard goose environment variables:
 Mount the configuration directory to persist settings:
 ```bash
 docker run --rm \
-  -v ~/.config/goose:/home/goose/.config/goose \
-  goose:local configure
+  -v ~/.config/gosling:/home/gosling/.config/gosling \
+  gosling:local configure
 ```
 
 ### Installing Additional Tools
@@ -159,17 +159,17 @@ The image runs as a non-root user by default. To install additional packages:
 docker run --rm \
   -u root \
   --entrypoint bash \
-  goose:local \
-  -c "apt-get update && apt-get install -y vim && goose --version"
+  gosling:local \
+  -c "apt-get update && apt-get install -y vim && gosling --version"
 
 # Or create a custom Dockerfile
-FROM ghcr.io/aaif-goose/goose:latest
+FROM ghcr.io/repo-makeover/gosling:latest
 USER root
 RUN apt-get update && apt-get install -y \
     vim \
     tmux \
     && rm -rf /var/lib/apt/lists/*
-USER goose
+USER gosling
 ```
 
 ## CI/CD Integration
@@ -181,28 +181,28 @@ jobs:
   analyze:
     runs-on: ubuntu-latest
     container:
-      image: ghcr.io/aaif-goose/goose:latest
+      image: ghcr.io/repo-makeover/gosling:latest
       env:
-        GOOSE_PROVIDER: openai
-        GOOSE_MODEL: gpt-4o
+        GOSLING_PROVIDER: openai
+        GOSLING_MODEL: gpt-4o
         OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
     steps:
       - uses: actions/checkout@v4
-      - name: Run goose analysis
+      - name: Run gosling analysis
         run: |
-          goose run -t "Review this codebase for security issues"
+          gosling run -t "Review this codebase for security issues"
 ```
 
 ### GitLab CI
 
 ```yaml
 analyze:
-  image: ghcr.io/aaif-goose/goose:latest
+  image: ghcr.io/repo-makeover/gosling:latest
   variables:
-    GOOSE_PROVIDER: openai
-    GOOSE_MODEL: gpt-4o
+    GOSLING_PROVIDER: openai
+    GOSLING_MODEL: gpt-4o
   script:
-    - goose run -t "Generate documentation for this project"
+    - gosling run -t "Generate documentation for this project"
 ```
 
 ## Image Details
@@ -212,17 +212,17 @@ analyze:
 - **Base image**: Debian Bookworm Slim (minimal runtime dependencies)
 - **Final size**: ~340MB
 - **Optimizations**: Link-Time Optimization (LTO), binary stripping, size optimization
-- **Binary included**: `/usr/local/bin/goose` (32MB)
+- **Binary included**: `/usr/local/bin/gosling` (32MB)
 
 ### Security
 
-- Runs as non-root user `goose` (UID 1000)
+- Runs as non-root user `gosling` (UID 1000)
 - Minimal attack surface with only essential runtime dependencies
 - Regular security updates via automated builds
 
 ### Included Tools
 
-The image includes essential tools for goose operation:
+The image includes essential tools for gosling operation:
 - `git` - Version control operations
 - `curl` - HTTP requests
 - `ca-certificates` - SSL/TLS support
@@ -238,7 +238,7 @@ If you encounter permission errors when mounting volumes:
 docker run --rm \
   -v $(pwd):/workspace \
   -u $(id -u):$(id -g) \
-  goose:local run -t "List files"
+  gosling:local run -t "List files"
 ```
 
 ### API Key Issues
@@ -253,7 +253,7 @@ If API keys aren't being recognized:
 For accessing local services from within the container:
 ```bash
 # Use host network mode
-docker run --rm --network host goose:local
+docker run --rm --network host gosling:local
 ```
 
 ## Advanced Usage
@@ -262,7 +262,7 @@ docker run --rm --network host goose:local
 
 Override the default entrypoint for debugging:
 ```bash
-docker run --rm -it --entrypoint bash goose:local
+docker run --rm -it --entrypoint bash gosling:local
 ```
 
 ### Resource Limits
@@ -272,7 +272,7 @@ Set memory and CPU limits:
 docker run --rm \
   --memory="2g" \
   --cpus="2" \
-  goose:local
+  gosling:local
 ```
 
 ### Multi-stage Development
@@ -281,8 +281,8 @@ For development with hot reload:
 ```bash
 # Mount source code
 docker run --rm \
-  -v $(pwd):/usr/src/goose \
-  -w /usr/src/goose \
+  -v $(pwd):/usr/src/gosling \
+  -w /usr/src/gosling \
   rust:1.82-bookworm \
   cargo watch -x run
 ```
@@ -298,11 +298,11 @@ For production deployments:
 
 Example production Dockerfile:
 ```dockerfile
-FROM ghcr.io/aaif-goose/goose:v1.6.0
+FROM ghcr.io/repo-makeover/gosling:v1.6.0
 # Add any additional tools needed for your use case
 USER root
 RUN apt-get update && apt-get install -y your-tools && rm -rf /var/lib/apt/lists/*
-USER goose
+USER gosling
 ```
 
 ## Contributing
@@ -317,6 +317,6 @@ When contributing Docker-related changes:
 
 ## Related Documentation
 
-- [goose in Docker Tutorial](documentation/docs/tutorials/goose-in-docker.md) - Step-by-step tutorial
-- [Installation Guide](https://goose-docs.ai/docs/getting-started/installation) - All installation methods
-- [Configuration Guide](https://goose-docs.ai/docs/guides/config-files) - Detailed configuration options
+- [gosling in Docker Tutorial](documentation/docs/tutorials/gosling-in-docker.md) - Step-by-step tutorial
+- [Installation Guide](https://gosling-docs.ai/docs/getting-started/installation) - All installation methods
+- [Configuration Guide](https://gosling-docs.ai/docs/guides/config-files) - Detailed configuration options

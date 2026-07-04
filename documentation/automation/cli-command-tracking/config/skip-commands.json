@@ -3,7 +3,7 @@
   "skip_commands": [
     {
       "name": "term",
-      "reason": "Terminal integration documented via @goose/@g aliases"
+      "reason": "Terminal integration documented via @gosling/@g aliases"
     }
   ]
 }

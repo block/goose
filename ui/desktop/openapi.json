@@ -1,12 +1,8 @@
 {
   "openapi": "3.0.3",
   "info": {
-    "title": "goose-server",
+    "title": "gosling-server",
     "description": "An AI agent",
-    "contact": {
-      "name": "AAIF",
-      "email": "ai-oss-tools@block.xyz"
-    },
     "license": {
       "name": "Apache-2.0"
     },
@@ -2885,7 +2881,7 @@
           },
           {
             "type": "object",
-            "description": "Built-in extension that is part of the bundled goose MCP server",
+            "description": "Built-in extension that is part of the bundled gosling MCP server",
             "required": [
               "name",
               "description",
@@ -3274,7 +3270,7 @@
           }
         }
       },
-      "GooseMode": {
+      "GoslingMode": {
         "type": "string",
         "enum": [
           "auto",
@@ -3813,7 +3809,7 @@
           },
           "steer": {
             "type": "boolean",
-            "description": "Whether this message is a steer injected into an active run. UI-only:\nsurfaced as `_meta.goose.steer` so clients can mark the steer boundary\nwithout matching user-visible text. Never sent to providers."
+            "description": "Whether this message is a steer injected into an active run. UI-only:\nsurfaced as `_meta.gosling.steer` so clients can mark the steer boundary\nwithout matching user-visible text. Never sent to providers."
           },
           "userVisible": {
             "type": "boolean",
@@ -4715,8 +4711,8 @@
           "extension_data": {
             "$ref": "#/components/schemas/ExtensionData"
           },
-          "goose_mode": {
-            "$ref": "#/components/schemas/GooseMode"
+          "gosling_mode": {
+            "$ref": "#/components/schemas/GoslingMode"
           },
           "id": {
             "type": "string"
@@ -5467,7 +5463,7 @@
           "session_id"
         ],
         "properties": {
-          "goose_mode": {
+          "gosling_mode": {
             "type": "string",
             "nullable": true
           },

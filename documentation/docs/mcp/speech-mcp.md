@@ -1,20 +1,20 @@
 ---
 title: Speech Extension
-description: Add Speech MCP Server as a goose Extension
+description: Add Speech MCP Server as a gosling Extension
 unlisted: true
 ---
 
-Unlist per https://github.com/aaif-goose/goose/issues/5431
+Unlist per https://github.com/repo-makeover/gosling/issues/5431
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/rurAp_WzOiY" />
 
 
-This tutorial covers how to add the [Speech MCP Server](https://github.com/Kvadratni/speech-mcp) as a goose extension to enable real-time voice interaction, audio/video transcription, text-to-speech conversion, and multi-speaker audio generation.
+This tutorial covers how to add the [Speech MCP Server](https://github.com/Kvadratni/speech-mcp) as a gosling extension to enable real-time voice interaction, audio/video transcription, text-to-speech conversion, and multi-speaker audio generation.
 
 :::info Requirement
 [PortAudio](https://github.com/GoogleCloudPlatform/python-docs-samples/blob/main/scripts/readme-gen/templates/install_portaudio.tmpl.rst#install-portaudio) is required for PyAudio to capture audio from your microphone
@@ -22,10 +22,10 @@ This tutorial covers how to add the [Speech MCP Server](https://github.com/Kvadr
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=uvx&arg=-p&arg=3.10.14&arg=speech-mcp@latest&id=speech_mcp&name=Speech%20Interface&description=Voice%20interaction%20with%20audio%20visualization%20for%20goose)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=uvx&arg=-p&arg=3.10.14&arg=speech-mcp@latest&id=speech_mcp&name=Speech%20Interface&description=Voice%20interaction%20with%20audio%20visualization%20for%20gosling)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   uvx -p 3.10.14 speech-mcp@latest
@@ -43,24 +43,24 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="speech_mcp"
     extensionName="Speech Interface"
-    description="Voice interaction with audio visualization for goose"
+    description="Voice interaction with audio visualization for gosling"
     command="uvx"
     args={["-p", "3.10.14", "speech-mcp@latest"]}
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   1. Run the `configure` command:
   ```sh
-  goose configure
+  gosling configure
   ```
 
   2. Choose to add a `Command-line Extension`
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -76,7 +76,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
 
   3. Give your extension a name
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -93,7 +93,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
 
   4. Enter the command
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -111,9 +111,9 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
     └ 
   ```  
 
-  5. Enter the number of seconds goose should wait for actions to complete before timing out. Default is 300s
+  5. Enter the number of seconds gosling should wait for actions to complete before timing out. Default is 300s
    ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -136,7 +136,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
 
   6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
    ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -162,7 +162,7 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
 
   7. Choose No when asked to add environment variables
    ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -195,52 +195,52 @@ Before adding this extension, make sure [PortAudio](https://github.com/GoogleClo
 
 
 ## Example Usage
-In this example, you'll see how to use goose with the Speech MCP Server Extension to turn voice commands into code. By speaking directly to goose, you can launch the speech interface, give a spoken prompt, and have goose generate and open a webpage based on your request.
+In this example, you'll see how to use gosling with the Speech MCP Server Extension to turn voice commands into code. By speaking directly to gosling, you can launch the speech interface, give a spoken prompt, and have gosling generate and open a webpage based on your request.
 
-This allows you to build with goose hands-free, making development more accessible and interactive.
+This allows you to build with gosling hands-free, making development more accessible and interactive.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-   1. Open a new session in goose Desktop
+  <TabItem value="ui" label="gosling Desktop" default>
+   1. Open a new session in gosling Desktop
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
-  1. Open a terminal and start a new goose session:
+  <TabItem value="cli" label="gosling CLI">
+  1. Open a terminal and start a new gosling session:
 
   ```sh
-  goose session
+  gosling session
   ```
 
   </TabItem>
 </Tabs>
 
-### goose Prompt
+### gosling Prompt
 Here are some things you can say to activate the speech interface:
 
-- “goose, I don’t feel like typing today.”
+- “gosling, I don’t feel like typing today.”
 - “Let’s talk using voice.”
 - “Can we have a voice conversation?”
 - “I’d like to speak instead of typing.”
-- “goose, launch the speech UI.”
+- “gosling, launch the speech UI.”
 
 ```
-goose I don't feel like talking today
+gosling I don't feel like talking today
 ```
-### goose Output
+### gosling Output
 ```
 I understand! In that case, I can help you use voice commands instead. I'll launch the speech interface so you can speak your requests rather than type them
 
 ---- Launch Speech UI ----
 ```
 
-### goose Speech 🎙️
+### gosling Speech 🎙️
 
-**goose:** 
+**gosling:** 
 >_I've launched the speech interface. You can now speak your requests instead of typing. Just speak after you hear my voice and see the microphone activate. What would you like help with?_
 
 
 **Max:** 
 
->_goose, lets create a simple page with the word 'vibes' on it and maybe change colors and make it move around the page and then open this page in the browser once you're done_
+>_gosling, lets create a simple page with the word 'vibes' on it and maybe change colors and make it move around the page and then open this page in the browser once you're done_
 
 
 <div style={{ width: "100%", height: 0, position: "relative", paddingBottom: "56.25%" }}>

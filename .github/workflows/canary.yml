@@ -133,9 +133,9 @@ jobs:
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373  # v4.1.1
         with:
           subject-path: |
-            goose-*.tar.bz2
-            goose-*.tar.gz
-            goose-*.zip
+            gosling-*.tar.bz2
+            gosling-*.tar.gz
+            gosling-*.zip
             Gosling*.zip
             *.deb
             *.rpm
@@ -150,9 +150,9 @@ jobs:
           name: Canary
           token: ${{ secrets.GITHUB_TOKEN }}
           artifacts: |
-            goose-*.tar.bz2
-            goose-*.tar.gz
-            goose-*.zip
+            gosling-*.tar.bz2
+            gosling-*.tar.gz
+            gosling-*.zip
             Gosling*.zip
             *.deb
             *.rpm

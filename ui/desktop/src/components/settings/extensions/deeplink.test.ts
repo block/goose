@@ -88,9 +88,9 @@ describe('addExtensionFromDeepLink', () => {
   });
 
   describe('stdio command validation', () => {
-    it('should allow goose for bundled MCP deeplinks', async () => {
+    it('should allow gosling for bundled MCP deeplinks', async () => {
       const url =
-        'gosling://extension?cmd=goose&arg=mcp&arg=memory&name=Memory&description=Memory';
+        'gosling://extension?cmd=gosling&arg=mcp&arg=memory&name=Memory&description=Memory';
 
       await addExtensionFromDeepLink(url, mockAddExtension, mockSetView);
 
@@ -98,20 +98,20 @@ describe('addExtensionFromDeepLink', () => {
         'Memory',
         expect.objectContaining({
           type: 'stdio',
-          cmd: 'goose',
+          cmd: 'gosling',
           args: ['mcp', 'memory'],
         }),
         true
       );
     });
 
-    it('should reject legacy goosed deeplinks', async () => {
+    it('should reject legacy goslingd deeplinks', async () => {
       vi.mocked(toastService.handleError).mockImplementationOnce(() => {
         throw new Error('Invalid command');
       });
 
       const url =
-        'gosling://extension?cmd=goosed&arg=mcp&arg=memory&name=Memory&description=Memory';
+        'gosling://extension?cmd=goslingd&arg=mcp&arg=memory&name=Memory&description=Memory';
 
       await expect(addExtensionFromDeepLink(url, mockAddExtension, mockSetView)).rejects.toThrow(
         'Invalid command'
@@ -119,7 +119,7 @@ describe('addExtensionFromDeepLink', () => {
 
       expect(toastService.handleError).toHaveBeenCalledWith(
         'Invalid Command',
-        expect.stringContaining('Invalid command: goosed'),
+        expect.stringContaining('Invalid command: goslingd'),
         { shouldThrow: true }
       );
       expect(mockAddExtension).not.toHaveBeenCalled();

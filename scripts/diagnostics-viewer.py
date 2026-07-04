@@ -6,7 +6,7 @@
 WARNING: entirely vibe coded. use as a throwaway tool
 
 
-Diagnostics Viewer - Browse and inspect Goose diagnostics reports.
+Diagnostics Viewer - Browse and inspect Gosling diagnostics reports.
 
 Scans for diagnostics JSON reports and legacy zip files, displays their sessions, and provides
 an interactive viewer for examining session data, logs, and other files.
@@ -825,7 +825,7 @@ class DiagnosticsApp(App):
 
     def on_mount(self):
         """Handle mount event."""
-        self.title = "Goose Diagnostics Viewer"
+        self.title = "Gosling Diagnostics Viewer"
         self.scan_diagnostics()
         self.show_session_list()
 

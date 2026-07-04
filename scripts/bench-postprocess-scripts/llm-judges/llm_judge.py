@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-LLM Judge post-processing script for Goose benchmarks.
+LLM Judge post-processing script for Gosling benchmarks.
 
 This script evaluates benchmark results using OpenAI's API as a judge.
 It reads the eval-results.json file and a specified output file, then uses
@@ -210,7 +210,7 @@ Score the response on a scale from 0 to 2:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="LLM Judge post-processing script for Goose benchmarks")
+    parser = argparse.ArgumentParser(description="LLM Judge post-processing script for Gosling benchmarks")
     parser.add_argument("output_file", type=str, help="Name of the output file to evaluate (e.g., blog_summary_output.txt)")
     parser.add_argument("--rubric-max-score", type=int, default=2, help="Maximum score for the rubric (default: 2)")
     parser.add_argument("--prompt-file", type=str, help="Path to custom evaluation prompt file")

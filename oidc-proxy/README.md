@@ -27,7 +27,7 @@ Edit `wrangler.toml` for your upstream:
 | Variable | Description |
 |---|---|
 | `OIDC_ISSUER` | `https://token.actions.githubusercontent.com` |
-| `OIDC_AUDIENCE` | The audience your workflow requests (e.g. `goose-oidc-proxy`) |
+| `OIDC_AUDIENCE` | The audience your workflow requests (e.g. `gosling-oidc-proxy`) |
 | `MAX_TOKEN_AGE_SECONDS` | Operator-configured upper bound on `iat` age in seconds (default: `1200` = 20 min). Applied **in addition to** the IdP's `exp` claim, never as a replacement. |
 | `MAX_REQUESTS_PER_TOKEN` | Max requests per OIDC token (default: `200`) |
 | `RATE_LIMIT_PER_SECOND` | Max requests per second per token (default: `2`) |
@@ -73,7 +73,7 @@ steps:
     uses: actions/github-script@v7
     with:
       script: |
-        const token = await core.getIDToken('goose-oidc-proxy');
+        const token = await core.getIDToken('gosling-oidc-proxy');
         core.setOutput('token', token);
         core.setSecret(token);
 
@@ -81,7 +81,7 @@ steps:
     env:
       ANTHROPIC_BASE_URL: https://oidc-proxy.your-subdomain.workers.dev
       ANTHROPIC_API_KEY: ${{ steps.oidc.outputs.token }}
-    run: goose run --recipe my-recipe.yaml
+    run: gosling run --recipe my-recipe.yaml
 ```
 
 ## Testing

@@ -1,14 +1,14 @@
 ---
 title: Apify Extension
-description: Add Apify MCP server as a goose Extension
+description: Add Apify MCP server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
-This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as a goose extension, enabling goose to call thousands of tools from [Apify Store](https://apify.com/store) to extract data from social media, e-commerce sites, search engines, online maps, or any other website.
+This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as a gosling extension, enabling gosling to call thousands of tools from [Apify Store](https://apify.com/store) to extract data from social media, e-commerce sites, search engines, online maps, or any other website.
 
 ## Configuration
 
@@ -18,10 +18,10 @@ This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-   [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Fmcp.apify.com&id=apify&name=Apify&description=Extract%20data%20from%20any%20website%20with%20thousands%20of%20scrapers%2C%20crawlers%2C%20and%20automations%20on%20Apify%20Store&header=Authorization%3DBearer%20YOUR_APIFY_TOKEN)
+  <TabItem value="ui" label="gosling Desktop" default>
+   [Launch the installer](gosling://extension?type=streamable_http&url=https%3A%2F%2Fmcp.apify.com&id=apify&name=Apify&description=Extract%20data%20from%20any%20website%20with%20thousands%20of%20scrapers%2C%20crawlers%2C%20and%20automations%20on%20Apify%20Store&header=Authorization%3DBearer%20YOUR_APIFY_TOKEN)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   Add a `Remote Extension (Streaming HTTP)` extension type with:
 
   **Endpoint URL**
@@ -38,8 +38,8 @@ This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="apify"
       extensionName="Apify"
       description="Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store"
@@ -53,7 +53,7 @@ This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as
     />
   </TabItem>
 
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Apify"
       description="Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store"
@@ -79,11 +79,11 @@ This tutorial covers how to add the [Apify MCP server](https://mcp.apify.com) as
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=@apify/actors-mcp-server&arg=start&id=mcp_apify_local&name=Apify%20Local%20MCP%20Server&description=Run%20Apify%20MCP%20server%20locally%20using%20your%20token&env=APIFY_TOKEN%3DYour%20Apify%20Token)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=@apify/actors-mcp-server&arg=start&id=mcp_apify_local&name=Apify%20Local%20MCP%20Server&description=Run%20Apify%20MCP%20server%20locally%20using%20your%20token&env=APIFY_TOKEN%3DYour%20Apify%20Token)
   </TabItem>
 
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y @apify/actors-mcp-server
@@ -98,8 +98,8 @@ APIFY_TOKEN: <YOUR_APIFY_TOKEN>
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="mcp_apify_local"
       extensionName="Apify Local MCP Server"
       description="Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store"
@@ -114,7 +114,7 @@ APIFY_TOKEN: <YOUR_APIFY_TOKEN>
     />
   </TabItem>
 
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Apify Local MCP Server"
       description="Extract data from any website with thousands of scrapers, crawlers, and automations on Apify Store"
@@ -138,11 +138,11 @@ APIFY_TOKEN: <YOUR_APIFY_TOKEN>
 
 ## Example Usage
 
-The Apify MCP server lets you connect goose to [Apify Store](https://apify.com/store), a marketplace of thousands of ready-made tools (called _Actors_) for all kinds of web scraping, crawling, and data extraction use cases. Learn more about Apify Actors in the [official documentation](https://docs.apify.com/platform/actors)
+The Apify MCP server lets you connect gosling to [Apify Store](https://apify.com/store), a marketplace of thousands of ready-made tools (called _Actors_) for all kinds of web scraping, crawling, and data extraction use cases. Learn more about Apify Actors in the [official documentation](https://docs.apify.com/platform/actors)
 
-In this example, goose will use the [Google Places Scraper](https://apify.com/compass/crawler-google-places) Actor to identify the most credible, top-rated Italian restaurant in Prague based on public ratings, reviews, and fine-dining recognition.
+In this example, gosling will use the [Google Places Scraper](https://apify.com/compass/crawler-google-places) Actor to identify the most credible, top-rated Italian restaurant in Prague based on public ratings, reviews, and fine-dining recognition.
 
-### goose Prompt
+### gosling Prompt
 
 ```
 
@@ -150,7 +150,7 @@ In this example, goose will use the [Google Places Scraper](https://apify.com/co
 
 ```
 
-### goose Output
+### gosling Output
 
 ```
 

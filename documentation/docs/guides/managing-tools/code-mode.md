@@ -22,7 +22,7 @@ Code Mode controls how tools are discovered and called:
 
 ## How Code Mode Works
 
-The [Code Mode extension](/docs/mcp/code-mode-mcp) is an MCP server that uses the MCP protocol to expose three foundational meta-tools. When Code Mode is enabled, goose switches to Code Mode. For every request, the LLM writes JavaScript code that goose executes using [pctx (Port of Context)](https://portofcontext.com/) ([GitHub](https://github.com/portofcontext/pctx)), a custom Deno-based runtime, to:
+The [Code Mode extension](/docs/mcp/code-mode-mcp) is an MCP server that uses the MCP protocol to expose three foundational meta-tools. When Code Mode is enabled, gosling switches to Code Mode. For every request, the LLM writes JavaScript code that gosling executes using [pctx (Port of Context)](https://portofcontext.com/) ([GitHub](https://github.com/portofcontext/pctx)), a custom Deno-based runtime, to:
 
 - Discover available tools from your enabled extensions (if needed)
 - Learn how to work with the tools it needs for the current task
@@ -30,7 +30,7 @@ The [Code Mode extension](/docs/mcp/code-mode-mcp) is an MCP server that uses th
 
 ### Traditional vs. Code Mode Tool Calling
 
-Traditional MCP tool calling and Code Mode are two different approaches to the same goal: giving goose access to tools.
+Traditional MCP tool calling and Code Mode are two different approaches to the same goal: giving gosling access to tools.
 
 | Aspect | Traditional | Code Mode |
 |--------|------------------|-----------|
@@ -43,31 +43,3 @@ Traditional MCP tool calling and Code Mode are two different approaches to the s
 Code Mode only supports text content from tool results. Images, binary data, and other content types are ignored.
 :::
 
-## Additional Resources
-
-import ContentCardCarousel from '@site/src/components/ContentCardCarousel';
-import gooseCodeMode from '@site/blog/2025-12-15-code-mode-mcp/header-image.jpg';
-import notMcpReplacement from '@site/blog/2025-12-21-code-mode-doesnt-replace-mcp/header-image.png';
-
-<ContentCardCarousel
-  items={[
-    {
-      type: 'blog',
-      title: 'Code Mode for MCP',
-      description: 'Learn about the code execution approach to MCP tool calling.',
-      thumbnailUrl: gooseCodeMode,
-      linkUrl: '/blog/2025/12/15/code-mode-mcp',
-      date: '2025-12-15',
-      duration: '5 min read'
-    },
-    {
-      type: 'blog',
-      title: 'Code Mode Doesn\'t Replace MCP',
-      description: 'Understanding how Code Mode and MCP work together.',
-      thumbnailUrl: notMcpReplacement,
-      linkUrl: '/blog/2025/12/21/code-mode-doesnt-replace-mcp',
-      date: '2025-12-21',
-      duration: '8 min read'
-    }
-  ]}
-/>

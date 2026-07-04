@@ -1,5 +1,5 @@
 import type { ContentBlock, PromptResponse } from '@agentclientprotocol/sdk';
-import type { SteerSessionRequest_unstable, SteerSessionResponse_unstable } from '@aaif/goose-sdk';
+import type { SteerSessionRequest_unstable, SteerSessionResponse_unstable } from '@repo-makeover/gosling-sdk';
 import type { Message } from '../types/message';
 import { getAcpClient } from './acpConnection';
 
@@ -25,7 +25,7 @@ export async function acpSteerSession(
   expectedRunId: string
 ): Promise<SteerSessionResponse_unstable> {
   const client = await getAcpClient();
-  return client.goose.sessionSteer_unstable({
+  return client.gosling.sessionSteer_unstable({
     sessionId,
     expectedRunId,
     prompt: messageToAcpPromptContent(message) as unknown as SteerSessionRequest_unstable['prompt'],

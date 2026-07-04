@@ -28,7 +28,7 @@ const i18n = defineMessages({
   noSkillsDescription: {
     id: 'skillsView.noSkillsDescription',
     defaultMessage:
-      'Skills are loaded from SKILL.md files in ~/.config/agents/skills/, .goose/skills/, or other supported directories.',
+      'Skills are loaded from SKILL.md files in ~/.config/agents/skills/, .gosling/skills/, or other supported directories.',
   },
   noMatchingSkills: {
     id: 'skillsView.noMatchingSkills',

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Simple ACP client to test the goose ACP agent.
-Connects to goose acp running on stdio.
+Simple ACP client to test the gosling ACP agent.
+Connects to gosling acp running on stdio.
 
 Tests:
 1. Initialize - Establish connection and verify capabilities
@@ -20,7 +20,7 @@ import time
 class AcpClient:
     def __init__(self):
         self.process = subprocess.Popen(
-            ['cargo', 'run', '-p', 'goose-cli', '--', 'acp'],
+            ['cargo', 'run', '-p', 'gosling-cli', '--', 'acp'],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

@@ -387,13 +387,13 @@ export function setupAutoUpdater(tray?: Tray) {
     log.error('Error getting feed URL:', e);
   }
 
-  // Respect GOOSE_DISABLE_AUTO_DOWNLOAD env var (takes precedence over user setting)
+  // Respect GOSLING_DISABLE_AUTO_DOWNLOAD env var (takes precedence over user setting)
   const envDisabled =
-    process.env.GOOSE_DISABLE_AUTO_DOWNLOAD === '1' ||
-    process.env.GOOSE_DISABLE_AUTO_DOWNLOAD === 'true';
+    process.env.GOSLING_DISABLE_AUTO_DOWNLOAD === '1' ||
+    process.env.GOSLING_DISABLE_AUTO_DOWNLOAD === 'true';
   if (envDisabled) {
     autoDownloadDisabled = true;
-    log.info('Auto-download disabled via GOOSE_DISABLE_AUTO_DOWNLOAD environment variable');
+    log.info('Auto-download disabled via GOSLING_DISABLE_AUTO_DOWNLOAD environment variable');
   }
 
   // Configure auto-updater settings
@@ -752,7 +752,7 @@ async function githubAutoDownload(
 function updateTrayIcon(hasUpdate: boolean) {
   if (!trayRef) return;
 
-  if (process.env.GOOSE_VERSION) {
+  if (process.env.GOSLING_VERSION) {
     hasUpdate = false;
   }
 

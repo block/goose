@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
-import { all_goose_modes, ModeSelectionItem } from './ModeSelectionItem';
+import { all_gosling_modes, ModeSelectionItem } from './ModeSelectionItem';
 import { useConfig } from '../../ConfigContext';
 import { ConversationLimitsDropdown } from './ConversationLimitsDropdown';
 
@@ -10,24 +10,24 @@ export const ModeSection = () => {
 
   const handleModeChange = async (newMode: string) => {
     try {
-      await upsert('GOOSE_MODE', newMode, false);
+      await upsert('GOSLING_MODE', newMode, false);
       setCurrentMode(newMode);
     } catch (error) {
-      console.error('Error updating goose mode:', error);
-      throw new Error(`Failed to store new goose mode: ${newMode}`);
+      console.error('Error updating gosling mode:', error);
+      throw new Error(`Failed to store new gosling mode: ${newMode}`);
     }
   };
 
   useEffect(() => {
-    const mode = config.GOOSE_MODE as string | undefined;
+    const mode = config.GOSLING_MODE as string | undefined;
     if (mode) {
       setCurrentMode(mode);
     }
-  }, [config.GOOSE_MODE]);
+  }, [config.GOSLING_MODE]);
 
   const fetchMaxTurns = useCallback(async () => {
     try {
-      const turns = (await read('GOOSE_MAX_TURNS', false)) as number;
+      const turns = (await read('GOSLING_MAX_TURNS', false)) as number;
       if (turns) {
         setMaxTurns(turns);
       }
@@ -38,7 +38,7 @@ export const ModeSection = () => {
 
   const handleMaxTurnsChange = async (value: number) => {
     try {
-      await upsert('GOOSE_MAX_TURNS', value, false);
+      await upsert('GOSLING_MAX_TURNS', value, false);
       setMaxTurns(value);
     } catch (error) {
       console.error('Error updating max turns:', error);
@@ -52,7 +52,7 @@ export const ModeSection = () => {
   return (
     <div className="space-y-1">
       {/* Mode Selection */}
-      {all_goose_modes.map((mode) => (
+      {all_gosling_modes.map((mode) => (
         <ModeSelectionItem
           key={mode.key}
           mode={mode}

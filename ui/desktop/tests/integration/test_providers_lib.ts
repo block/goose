@@ -143,14 +143,14 @@ function getProviders(): ProviderConfig[] {
       models: ['gpt-4.1'],
       available: () =>
         hasEnv('GITHUB_COPILOT_TOKEN') ||
-        hasFile(path.join(os.homedir(), '.config/goose/github_copilot_token.json')),
+        hasFile(path.join(os.homedir(), '.config/gosling/github_copilot_token.json')),
     },
     {
       provider: 'chatgpt_codex',
       models: ['gpt-5.4'],
       available: () =>
         hasEnv('CHATGPT_CODEX_TOKEN') ||
-        hasFile(path.join(os.homedir(), '.config/goose/chatgpt_codex/tokens.json')),
+        hasFile(path.join(os.homedir(), '.config/gosling/chatgpt_codex/tokens.json')),
     },
     {
       provider: 'claude-code',
@@ -215,19 +215,19 @@ function shouldSkipProvider(provider: string): boolean {
 }
 
 // ---------------------------------------------------------------------------
-// Build goose binary
+// Build gosling binary
 // ---------------------------------------------------------------------------
 
-export function buildGoose(): string {
+export function buildGosling(): string {
   if (!process.env.SKIP_BUILD) {
-    console.error('Building goose...');
-    execSync('cargo build --bin goose', { stdio: 'inherit' });
+    console.error('Building gosling...');
+    execSync('cargo build --bin gosling', { stdio: 'inherit' });
     console.error('');
   } else {
     console.error('Skipping build (SKIP_BUILD is set)...');
     console.error('');
   }
-  return path.resolve(process.cwd(), '..', '..', 'target/debug/goose');
+  return path.resolve(process.cwd(), '..', '..', 'target/debug/gosling');
 }
 
 // ---------------------------------------------------------------------------
@@ -318,7 +318,7 @@ function registerTests(label: string, cases: TestCase[], fn: ProviderTestFn): vo
   }
 
   if (flaky.length > 0) {
-    // Use a longer vitest timeout (90s) so the internal runGoose timeout (55s)
+    // Use a longer vitest timeout (90s) so the internal runGosling timeout (55s)
     // fires first — that rejection is catchable and the test passes as "allowed".
     test.each(flaky)(
       `${label} — $provider / $model (flaky)`,
@@ -360,11 +360,11 @@ export function providerTest(cases: TestCase[]) {
 }
 
 // ---------------------------------------------------------------------------
-// Utility: run goose binary and capture output
+// Utility: run gosling binary and capture output
 // ---------------------------------------------------------------------------
 
-export function runGoose(
-  gooseBin: string,
+export function runGosling(
+  goslingBin: string,
   cwd: string,
   prompt: string,
   builtins: string,
@@ -373,7 +373,7 @@ export function runGoose(
 ): Promise<string> {
   return new Promise((resolve, reject) => {
     const child: ChildProcess = spawn(
-      gooseBin,
+      goslingBin,
       ['run', '--text', prompt, '--with-builtin', builtins],
       {
         cwd,
@@ -389,7 +389,7 @@ export function runGoose(
       if (!settled) {
         settled = true;
         child.kill('SIGKILL');
-        reject(new Error(`goose timed out after ${timeoutMs}ms\n\nPartial output:\n${output}`));
+        reject(new Error(`gosling timed out after ${timeoutMs}ms\n\nPartial output:\n${output}`));
       }
     }, timeoutMs);
 

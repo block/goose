@@ -1,24 +1,24 @@
 ---
 title: AgentQL Extension
-description: Add AgentQL MCP Server as a goose Extension
+description: Add AgentQL MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" /> -->
 
-This tutorial covers how to add the [AgentQL MCP Server](https://github.com/tinyfish-io/agentql-mcp) as a goose extension to extract and transform unstructured web content into structured data.
+This tutorial covers how to add the [AgentQL MCP Server](https://github.com/tinyfish-io/agentql-mcp) as a gosling extension to extract and transform unstructured web content into structured data.
 
 :::tip Quick Install
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=agentql-mcp&id=agentql&name=AgentQL&description=Transform%20unstructured%20web%20content%20into%20structured%20data&env=AGENTQL_API_KEY%3DAgentQL%20API%20Key)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=agentql-mcp&id=agentql&name=AgentQL&description=Transform%20unstructured%20web%20content%20into%20structured%20data&env=AGENTQL_API_KEY%3DAgentQL%20API%20Key)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y agentql-mcp
@@ -38,8 +38,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="agentql"
     extensionName="AgentQL"
     description="Transform unstructured web content into structured data"
@@ -52,7 +52,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     apiKeyLinkText="AGENTQL_API_KEY"
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="agentql"
       description="Transform unstructured web content into structured data"
@@ -75,7 +75,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 Let's use the AgentQL extension to gather and structure tech conference data to help plan speaking engagements. 
 
 
-### goose Prompt
+### gosling Prompt
 
 ```
 I'm a tech conference speaker planning my 2025-2026 submissions. 
@@ -94,7 +94,7 @@ To identify:
 Structure results as JSON
 ```
 
-### goose Output
+### gosling Output
 
 ```
 I'll help you analyze conference patterns using the web data extraction tool. Let me break this down into a few queries to get comprehensive data.

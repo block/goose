@@ -12,7 +12,7 @@
  *
  * Display modes:
  * - "inline" | "fullscreen" | "pip" — standard MCP display modes
- * - "standalone" — Goose-specific mode for dedicated Electron windows
+ * - "standalone" — Gosling-specific mode for dedicated Electron windows
  */
 
 import {
@@ -45,7 +45,7 @@ import { defineMessages, useIntl } from '../../i18n';
 import FlyingBird from '../FlyingBird';
 import { formatExtensionName } from '../settings/extensions/subcomponents/ExtensionList';
 import {
-  GooseDisplayMode,
+  GoslingDisplayMode,
   SandboxPermissions,
   McpAppToolCancelled,
   McpAppToolInput,
@@ -133,7 +133,7 @@ const DEFAULT_IFRAME_HEIGHT = 200;
 const FULLSCREEN_HEADER_HEIGHT = 48;
 const DEFAULT_SANDBOX_PERMISSIONS = 'allow-scripts allow-same-origin allow-forms';
 
-const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
+const DISPLAY_MODE_LAYOUTS: Record<GoslingDisplayMode, DimensionLayout> = {
   inline: { width: 'fixed', height: 'unbounded' },
   fullscreen: { width: 'fixed', height: 'fixed' },
   standalone: { width: 'fixed', height: 'fixed' },
@@ -142,7 +142,7 @@ const DISPLAY_MODE_LAYOUTS: Record<GooseDisplayMode, DimensionLayout> = {
 };
 
 function getContainerDimensions(
-  displayMode: GooseDisplayMode,
+  displayMode: GoslingDisplayMode,
   measuredWidth: number,
   measuredHeight: number
 ): McpUiHostContext['containerDimensions'] {
@@ -229,7 +229,7 @@ interface McpAppRendererProps {
   toolResult?: CallToolResult;
   toolCancelled?: McpAppToolCancelled;
   append?: (text: string) => void;
-  displayMode?: GooseDisplayMode;
+  displayMode?: GoslingDisplayMode;
   cachedHtml?: string;
   onDisplayModeChange?: OnDisplayModeChange;
 }
@@ -249,7 +249,7 @@ type FallbackRequestHandler = {
   ) => Promise<Record<string, unknown>>;
 };
 
-interface GooseAppFrameProps {
+interface GoslingAppFrameProps {
   html: string;
   sandbox: SandboxConfig;
   hostContext: McpUiHostContext;
@@ -282,7 +282,7 @@ interface GooseAppFrameProps {
 
 const SANDBOX_PROXY_READY_METHOD = 'ui/notifications/sandbox-proxy-ready';
 
-function GooseAppFrame({
+function GoslingAppFrame({
   html,
   sandbox,
   hostContext,
@@ -299,7 +299,7 @@ function GooseAppFrame({
   onSizeChanged,
   onInitialized,
   onError,
-}: GooseAppFrameProps) {
+}: GoslingAppFrameProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
   const bridgeRef = useRef<AppBridge | null>(null);
@@ -1043,7 +1043,7 @@ export default function McpAppRenderer({
     if (!sandboxConfig) return null;
 
     return (
-      <GooseAppFrame
+      <GoslingAppFrame
         sandbox={sandboxConfig}
         html={html ?? ''}
         hostContext={hostContext}

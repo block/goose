@@ -1,6 +1,6 @@
-# Building goose Desktop on Linux
+# Building gosling Desktop on Linux
 
-This guide covers building the goose Desktop application from source on various Linux distributions.
+This guide covers building the gosling Desktop application from source on various Linux distributions.
 
 ## Prerequisites
 
@@ -29,10 +29,9 @@ sudo zypper install dpkg fakeroot gcc gcc-c++ make
 
 **android / termux:**
 
-goose is not officially support termux build yet, you need some minor patch to fix build issues.
-We will publish goose (block-goose) into termux-packages. <!-- NOTE: package name kept for backwards compat -->
-If you want to try there is a non-official build, https://github.com/shawn111/goose/releases/download/termux/goose-termux-aarch64.tar.bz2
-For more details, see: https://github.com/aaif-goose/goose/pull/3890
+gosling is not officially support termux build yet, you need some minor patch to fix build issues.
+We will publish gosling into termux-packages once packaging is set up.
+For context on how upstream goose approached termux packaging, see: https://github.com/aaif-goose/goose/pull/3890
 
 ```bash
 pkg install rust
@@ -50,22 +49,22 @@ pkg install cmake protobuf clang build-essential
 
 ### 1. Clone and Setup
 ```bash
-git clone https://github.com/aaif-goose/goose.git
-cd goose
+git clone https://github.com/repo-makeover/gosling.git
+cd gosling
 ```
 
 ### 2. Build
 
-Build Goose CLI:
+Build Gosling CLI:
 
 ```bash
-cargo build --release -p goose-cli
+cargo build --release -p gosling-cli
 ```
 
-Build Goose Server:
+Build Gosling Server:
 
 ```bash
-cargo build --release -p goose-server
+cargo build --release -p gosling-server
 ```
 
 This command should give you a list of possible packages in the
@@ -82,7 +81,7 @@ pnpm install
 
 # Copy the server binary to the expected location
 mkdir -p src/bin
-cp ../../target/release/goosed src/bin/
+cp ../../target/release/goslingd src/bin/
 ```
 
 ### 4. Build the Application
@@ -93,7 +92,7 @@ Works on all Linux distributions:
 pnpm run make --targets=@electron-forge/maker-zip
 ```
 
-Output: `out/make/zip/linux/x64/goose-linux-x64-{version}.zip`
+Output: `out/make/zip/linux/x64/gosling-linux-x64-{version}.zip`
 
 #### Option B: DEB Package
 For Debian/Ubuntu systems:
@@ -101,7 +100,7 @@ For Debian/Ubuntu systems:
 pnpm run make --targets=@electron-forge/maker-deb
 ```
 
-Output: `out/make/deb/x64/goose_{version}_amd64.deb`
+Output: `out/make/deb/x64/gosling_{version}_amd64.deb`
 
 #### Option C: Both Formats
 ```bash
@@ -112,12 +111,12 @@ pnpm run make
 
 #### From Build Directory
 ```bash
-./out/goose-linux-x64/goose
+./out/gosling-linux-x64/gosling
 ```
 
 #### Install DEB Package (if built)
 ```bash
-sudo dpkg -i out/make/deb/x64/goose_*.deb
+sudo dpkg -i out/make/deb/x64/gosling_*.deb
 ```
 
 ## Troubleshooting
@@ -139,14 +138,14 @@ These are harmless and don't affect functionality. To suppress them, create a la
 
 ```bash
 #!/bin/bash
-cd /path/to/goose/ui/desktop/out/goose-linux-x64
-./goose 2>&1 | grep -v "GLib-GObject" | grep -v "browser_main_loop"
+cd /path/to/gosling/ui/desktop/out/gosling-linux-x64
+./gosling 2>&1 | grep -v "GLib-GObject" | grep -v "browser_main_loop"
 ```
 
 #### Server Binary Not Found
-If you see "Could not find goosed binary", ensure you've:
-1. Built the Rust backend: `cargo build --release -p goose-server`
-2. Copied it to the right location: `cp ../../target/release/goosed src/bin/`
+If you see "Could not find goslingd binary", ensure you've:
+1. Built the Rust backend: `cargo build --release -p gosling-server`
+2. Copied it to the right location: `cp ../../target/release/goslingd src/bin/`
 3. Rebuilt the application: `pnpm run make`
 
 ### Distribution-Specific Notes
@@ -177,32 +176,32 @@ Building as Snap packages is not currently supported but may be added in the fut
 
 For active development:
 
-1. **Backend changes**: Rebuild with `cargo build --release -p goose-server` and copy the binary
+1. **Backend changes**: Rebuild with `cargo build --release -p gosling-server` and copy the binary
 2. **Frontend changes**: Use `pnpm run start` for hot reload during development
 3. **Full rebuild**: Run the complete build process above
 
 ## Creating System Integration
 
 ### Desktop Entry
-Create `~/.local/share/applications/goose.desktop`:
+Create `~/.local/share/applications/gosling.desktop`:
 ```ini
 [Desktop Entry]
-Name=goose AI Agent
+Name=gosling AI Agent
 Comment=Local AI agent for development tasks
-Exec=/path/to/goose/ui/desktop/out/goose-linux-x64/goose %U
-Icon=/path/to/goose/ui/desktop/out/goose-linux-x64/resources/app.asar.unpacked/src/images/icon.png
+Exec=/path/to/gosling/ui/desktop/out/gosling-linux-x64/gosling %U
+Icon=/path/to/gosling/ui/desktop/out/gosling-linux-x64/resources/app.asar.unpacked/src/images/icon.png
 Terminal=false
 Type=Application
 Categories=Development;Utility;
 StartupNotify=true
-MimeType=x-scheme-handler/goose
+MimeType=x-scheme-handler/gosling
 ```
 
 ### System-wide Installation
 To install system-wide:
 ```bash
-sudo cp -r out/goose-linux-x64 /opt/goose
-sudo ln -s /opt/goose/goose /usr/local/bin/goose-gui
+sudo cp -r out/gosling-linux-x64 /opt/gosling
+sudo ln -s /opt/gosling/gosling /usr/local/bin/gosling-gui
 ```
 
 ## Contributing

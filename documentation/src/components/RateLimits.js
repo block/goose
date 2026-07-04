@@ -18,10 +18,10 @@ export const RateLimits = () => {
       <br />
       Some providers also have rate limits on API usage, which can affect your
       experience. Check out our{" "}
-      <a href="/docs/guides/handling-llm-rate-limits-with-goose" target="_blank">
+      <a href="/docs/guides/handling-llm-rate-limits-with-gosling" target="_blank">
         Handling Rate Limits
       </a>{" "}
-      guide to learn how to efficiently manage these limits while using goose.
+      guide to learn how to efficiently manage these limits while using gosling.
     </Admonition>
   );
 };

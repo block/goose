@@ -1,28 +1,28 @@
 ---
 title: Fetch Extension
-description: Add Fetch MCP Server as a goose Extension
+description: Add Fetch MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/_WMm4kDYMog" />
 
 :::warning Known Limitation
-The Fetch extension [does not work](https://github.com/aaif-goose/goose/issues/1184) with Google models (e.g. gemini-2.0-flash) because this extension uses `format: uri` in its JSON schema which Google doesn't support.
+The Fetch extension [does not work](https://github.com/repo-makeover/gosling/issues/1184) with Google models (e.g. gemini-2.0-flash) because this extension uses `format: uri` in its JSON schema which Google doesn't support.
 :::
 
-This tutorial covers how to add the [Fetch MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch) as a goose extension to retrieve and process content from the web.
+This tutorial covers how to add the [Fetch MCP Server](https://github.com/modelcontextprotocol/servers/tree/main/src/fetch) as a gosling extension to retrieve and process content from the web.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=uvx&arg=mcp-server-fetch&id=fetch&name=Fetch&description=Web%20content%20fetching%20and%20processing%20capabilities)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=uvx&arg=mcp-server-fetch&id=fetch&name=Fetch&description=Web%20content%20fetching%20and%20processing%20capabilities)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   uvx mcp-server-fetch
@@ -38,8 +38,8 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="fetch"
     extensionName="Fetch"
     description="Web content fetching and processing capabilities"
@@ -47,7 +47,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     args={["mcp-server-fetch"]}
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Fetch"
       description="Web content fetching and processing capabilities"
@@ -61,15 +61,15 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 Let's use the Fetch extension to get random programming jokes from the [Official Joke API](https://official-joke-api.appspot.com/random_joke).
 
 :::info
-While this API does not require an API key, many APIs do. If you need to provide an API key, you can set it as an environment variable and tell goose its name. Example: _"get tomorrow's weather for New Orleans from the weatherapi. Don't use the key directly but instead use a script that gets the value from the env var WEATHER_API_KEY"_
+While this API does not require an API key, many APIs do. If you need to provide an API key, you can set it as an environment variable and tell gosling its name. Example: _"get tomorrow's weather for New Orleans from the weatherapi. Don't use the key directly but instead use a script that gets the value from the env var WEATHER_API_KEY"_
 :::
 
-### goose Prompt
+### gosling Prompt
 ```
 make a web page that tells jokes for programmers. The page should ask the user the setup of the joke, allow them to guess the punchline and then tell them if they are right or wrong. Include a button that allows them to request another joke. you can fetch the jokes from the official joke api
 ```
 
-### goose Output
+### gosling Output
 
 ```
 I'll help you create a web page that uses the Official Joke API to display programming jokes. I'll break this down into steps:
@@ -124,7 +124,7 @@ You can open the file programmer_jokes.html in your web browser to try it out. W
 
 ### Results
 
-![website goose built](../assets/guides/programmer-jokes-fetch-mcp.png)
+![website gosling built](../assets/guides/programmer-jokes-fetch-mcp.png)
 
 <details>
 <summary>Source Code</summary>

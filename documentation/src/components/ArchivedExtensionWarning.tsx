@@ -19,7 +19,7 @@ export default function ArchivedExtensionWarning({ extensionName, repoUrl }: Arc
       ) : (
         'repository'
       )}{' '}
-      remains available for reference, but may not be compatible with current versions of goose.
+      remains available for reference, but may not be compatible with current versions of gosling.
     </Admonition>
   );
 }

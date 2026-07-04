@@ -72,8 +72,8 @@
     "name": "Auto Visualiser",
     "description": "Automatic data visualisation via MCP-UI",
     "command": "",
-    "link": "https://github.com/aaif-goose/goose/tree/main/crates/goose-mcp/src/autovisualiser",
-    "installation_notes": "This is a built-in extension that comes with goose. No installation required.",
+    "link": "https://github.com/repo-makeover/gosling/tree/main/crates/gosling-mcp/src/autovisualiser",
+    "installation_notes": "This is a built-in extension that comes with gosling. No installation required.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -151,7 +151,7 @@
     "description": "Knowledge graph and cognitive AI capabilities (requires local server setup)",
     "command": "uv --directory /path/to/cognee-mcp run python src/server.py",
     "link": "https://github.com/topoteretes/cognee",
-    "installation_notes": "This is a local extension. You must first clone and install the Cognee MCP server locally before using this extension. Update the placeholder path before running the 'goose session' command.",
+    "installation_notes": "This is a local extension. You must first clone and install the Cognee MCP server locally before using this extension. Update the placeholder path before running the 'gosling session' command.",
     "is_builtin": false,
     "endorsed": true,
     "show_install_link": false,
@@ -168,8 +168,8 @@
     "name": "Computer Controller",
     "description": "Built-in computer controls for webscraping, file caching, and automations",
     "command": "",
-    "link": "https://github.com/aaif-goose/goose/tree/main/crates/goose-mcp/src/computercontroller",
-    "installation_notes": "This is a built-in extension that comes with goose. No installation required.",
+    "link": "https://github.com/repo-makeover/gosling/tree/main/crates/gosling-mcp/src/computercontroller",
+    "installation_notes": "This is a built-in extension that comes with gosling. No installation required.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -177,7 +177,7 @@
   {
     "id": "container-use",
     "name": "Container Use",
-    "description": "Integrate container workflows with goose using the Container-Use MCP",
+    "description": "Integrate container workflows with gosling using the Container-Use MCP",
     "command": "npx -y mcp-remote https://container-use.com/mcp",
     "link": "https://container-use.com",
     "installation_notes": "Requires Node.js and Docker.",
@@ -234,8 +234,8 @@
     "name": "Code Mode",
     "description": "Execute JavaScript code to interact with MCP tools efficiently",
     "command": "",
-    "link": "https://github.com/aaif-goose/goose/tree/main/crates/goose/src/agents/platform_extensions/code_execution.rs",
-    "installation_notes": "This is a built-in platform extension that comes with goose. No installation required.",
+    "link": "https://github.com/repo-makeover/gosling/tree/main/crates/gosling/src/agents/platform_extensions/code_execution.rs",
+    "installation_notes": "This is a built-in platform extension that comes with gosling. No installation required.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -245,8 +245,8 @@
     "name": "Developer",
     "description": "Built-in developer tools for file editing and shell command execution",
     "command": "",
-    "link": "https://github.com/aaif-goose/goose/tree/main/crates/goose-mcp/src/developer",
-    "installation_notes": "This is a built-in extension that comes with goose and is enabled by default. No installation required.",
+    "link": "https://github.com/repo-makeover/gosling/tree/main/crates/gosling-mcp/src/developer",
+    "installation_notes": "This is a built-in extension that comes with gosling and is enabled by default. No installation required.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -361,10 +361,10 @@
     "environmentVariables": []
   },
   {
-    "id": "goose-docs",
-    "name": "goose Docs",
-    "description": "GitMCP for goose documentation",
-    "command": "npx mcp-remote https://block.gitmcp.io/goose/",
+    "id": "gosling-docs",
+    "name": "gosling Docs",
+    "description": "GitMCP for gosling documentation",
+    "command": "npx mcp-remote https://repo-makeover.gitmcp.io/gosling/",
     "link": "https://github.com/idosal/git-mcp",
     "is_builtin": false,
     "endorsed": false,
@@ -449,7 +449,7 @@
     "description": "Control a MakeBlock mbot2 rover through MQTT (requires local setup)",
     "command": "/path/to/java -jar /path/to/mbotmcp-0.0.1-SNAPSHOT.jar",
     "link": "https://github.com/deemkeen/mbotmcp",
-    "installation_notes": "This is a local extension. You must first download the JAR file from the repository, install Java, and update the placeholder paths before running the 'goose session' command.",
+    "installation_notes": "This is a local extension. You must first download the JAR file from the repository, install Java, and update the placeholder paths before running the 'gosling session' command.",
     "is_builtin": false,
     "endorsed": false,
     "show_install_link": false,
@@ -476,8 +476,8 @@
     "name": "Memory",
     "description": "Built-in memory system for persistent context and information storage",
     "command": "",
-    "link": "https://github.com/aaif-goose/goose/tree/main/crates/goose-mcp/src/memory",
-    "installation_notes": "This is a built-in extension that comes with goose. No installation required.",
+    "link": "https://github.com/repo-makeover/gosling/tree/main/crates/gosling-mcp/src/memory",
+    "installation_notes": "This is a built-in extension that comes with gosling. No installation required.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -595,7 +595,7 @@
     "name": "Pieces",
     "description": "Provides access to your Pieces long-term memory. You need to have Pieces installed to use this.",
     "command": "uvx --from pieces-cli pieces --ignore-onboarding mcp start",
-    "link": "https://pieces.app?utm_source=goose&utm_medium=collab&utm_campaign=mcp",
+    "link": "https://pieces.app?utm_source=gosling&utm_medium=collab&utm_campaign=mcp",
     "installation_notes": "Install PiecesOS first.",
     "is_builtin": false,
     "endorsed": true,
@@ -732,8 +732,8 @@
     "name": "Summon",
     "description": "Load skills and delegate tasks to subagents",
     "command": "",
-    "link": "https://github.com/aaif-goose/goose/tree/main/crates/goose/src/agents/platform_extensions/summon.rs",
-    "installation_notes": "This is a built-in platform extension that comes with goose. No installation required.",
+    "link": "https://github.com/repo-makeover/gosling/tree/main/crates/gosling/src/agents/platform_extensions/summon.rs",
+    "installation_notes": "This is a built-in platform extension that comes with gosling. No installation required.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": []
@@ -793,20 +793,20 @@
   {
     "id": "tom",
     "name": "Top of Mind",
-    "description": "Inject persistent instructions into goose's working memory every turn",
+    "description": "Inject persistent instructions into gosling's working memory every turn",
     "command": "",
-    "link": "https://github.com/aaif-goose/goose/tree/main/crates/goose/src/agents/platform_extensions/tom.rs",
-    "installation_notes": "This is a built-in platform extension that comes with goose and is enabled by default. Configure via GOOSE_MOIM_MESSAGE_TEXT or GOOSE_MOIM_MESSAGE_FILE environment variables.",
+    "link": "https://github.com/repo-makeover/gosling/tree/main/crates/gosling/src/agents/platform_extensions/tom.rs",
+    "installation_notes": "This is a built-in platform extension that comes with gosling and is enabled by default. Configure via GOSLING_MOIM_MESSAGE_TEXT or GOSLING_MOIM_MESSAGE_FILE environment variables.",
     "is_builtin": true,
     "endorsed": true,
     "environmentVariables": [
       {
-        "name": "GOOSE_MOIM_MESSAGE_TEXT",
+        "name": "GOSLING_MOIM_MESSAGE_TEXT",
         "description": "Literal text injected into working memory each turn",
         "required": false
       },
       {
-        "name": "GOOSE_MOIM_MESSAGE_FILE",
+        "name": "GOSLING_MOIM_MESSAGE_FILE",
         "description": "Path to a file whose contents are injected (supports ~/)",
         "required": false
       }
@@ -817,8 +817,8 @@
     "name": "Tutorial",
     "description": "Built-in tutorial and learning management system",
     "command": "",
-    "link": "https://github.com/aaif-goose/goose/tree/main/crates/goose-mcp/src/tutorial",
-    "installation_notes": "This is a built-in extension that comes with goose. No installation required.",
+    "link": "https://github.com/repo-makeover/gosling/tree/main/crates/gosling-mcp/src/tutorial",
+    "installation_notes": "This is a built-in extension that comes with gosling. No installation required.",
     "is_builtin": true,
     "endorsed": false,
     "environmentVariables": []

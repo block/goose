@@ -8,8 +8,8 @@ import TabItem from '@theme/TabItem';
 import { PanelLeft } from 'lucide-react';
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-Response Styles customize how tool interactions are displayed in the goose Desktop chat window. 
+  <TabItem value="ui" label="gosling Desktop" default>
+Response Styles customize how tool interactions are displayed in the gosling Desktop chat window. 
 
 To change this setting:
 1. Click the <PanelLeft className="inline" size={16} /> button on the top-left to open the sidebar.
@@ -19,30 +19,30 @@ To change this setting:
 
 - **Concise** (Default)
     - Tool calls are collapsed by default
-    - Shows only which tool goose used
+    - Shows only which tool gosling used
     - Best for users focusing on results rather than technical details
 
 - **Detailed**
     - Tool calls are expanded by default
     - Shows the details of tool calls and their responses
-    - Best for debugging or learning how goose works
+    - Best for debugging or learning how gosling works
 
 This setting only affects the default state of tool calls in the conversation. You can always manually expand or collapse any tool call regardless of your chosen style.
 
 </TabItem>
-  <TabItem value="cli" label="goose CLI">
-When working with the goose CLI, you can control the verbosity of tool output.
+  <TabItem value="cli" label="gosling CLI">
+When working with the gosling CLI, you can control the verbosity of tool output.
 
 To adjust the tool output, run:
 
 ```sh
-goose configure
+gosling configure
 ```
 
 Then choose `Adjust Tool Output`
 
 ```sh
-┌   goose-configure 
+┌   gosling-configure 
 │
 ◆  What would you like to configure?
 │  ○ Configure Providers 
@@ -57,7 +57,7 @@ Then choose `Adjust Tool Output`
 Next, choose one of the available modes:
 
 ```sh
-┌   goose-configure 
+┌   gosling-configure 
 │
 ◇  What would you like to configure?
 │  Adjust Tool Output 

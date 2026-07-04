@@ -1,4 +1,4 @@
-import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
+import type { GoslingSessionNotification_unstable } from '@repo-makeover/gosling-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import { describe, expect, it } from 'vitest';
 import type { Message, NotificationEvent } from '../../types/message';
@@ -16,9 +16,9 @@ function acpUpdate(update: SessionNotification['update']): SessionNotification {
   };
 }
 
-function gooseUpdate(
-  update: GooseSessionNotification_unstable['update']
-): GooseSessionNotification_unstable {
+function goslingUpdate(
+  update: GoslingSessionNotification_unstable['update']
+): GoslingSessionNotification_unstable {
   return {
     sessionId: SESSION_ID,
     update,
@@ -166,7 +166,7 @@ describe('createAcpSessionNotificationAdapter', () => {
               sessionUpdate: 'user_message_chunk',
               content: { type: 'text', text: 'hel' },
               _meta: {
-                goose: {
+                gosling: {
                   messageId: 'steer-1',
                   steer: true,
                 },
@@ -191,7 +191,7 @@ describe('createAcpSessionNotificationAdapter', () => {
               sessionUpdate: 'user_message_chunk',
               content: { type: 'text', text: 'lo' },
               _meta: {
-                goose: {
+                gosling: {
                   messageId: 'steer-1',
                   steer: true,
                 },
@@ -210,7 +210,7 @@ describe('createAcpSessionNotificationAdapter', () => {
               sessionUpdate: 'user_message_chunk',
               content: { type: 'image', data: 'base64-image', mimeType: 'image/png' },
               _meta: {
-                goose: {
+                gosling: {
                   messageId: 'steer-1',
                   steer: true,
                 },
@@ -244,7 +244,7 @@ describe('createAcpSessionNotificationAdapter', () => {
               sessionUpdate: 'user_message_chunk',
               content: { type: 'text', text: 'ha' },
               _meta: {
-                goose: {
+                gosling: {
                   messageId: 'steer-1',
                   steer: true,
                 },
@@ -263,7 +263,7 @@ describe('createAcpSessionNotificationAdapter', () => {
               sessionUpdate: 'user_message_chunk',
               content: { type: 'text', text: 'ha' },
               _meta: {
-                goose: {
+                gosling: {
                   messageId: 'steer-1',
                   steer: true,
                 },
@@ -317,7 +317,7 @@ describe('createAcpSessionNotificationAdapter', () => {
             rawInput: { path: 'README.md' },
             locations: [{ path: 'README.md', line: 1 }],
             _meta: {
-              goose: {
+              gosling: {
                 toolCall: {
                   extensionName: 'developer',
                   toolName: 'read_file',
@@ -362,7 +362,7 @@ describe('createAcpSessionNotificationAdapter', () => {
               },
             ],
             _meta: {
-              goose: {
+              gosling: {
                 mcpApp: {
                   resourceUri: 'ui://app/resource',
                   extensionName: 'developer',
@@ -575,13 +575,13 @@ describe('createAcpSessionNotificationAdapter', () => {
     });
   });
 
-  describe('applyGoose', () => {
+  describe('applyGosling', () => {
     it('maps usage updates into token state', () => {
       const adapter = createAcpSessionNotificationAdapter();
 
       expect(
-        adapter.applyGoose(
-          gooseUpdate({
+        adapter.applyGosling(
+          goslingUpdate({
             sessionUpdate: 'usage_update',
             used: 42,
             contextLimit: 200,
@@ -607,8 +607,8 @@ describe('createAcpSessionNotificationAdapter', () => {
     it('maps status messages and keeps later id-less chunks separate', () => {
       const adapter = createAcpSessionNotificationAdapter();
 
-      const noticeStateChanges = adapter.applyGoose(
-        gooseUpdate({
+      const noticeStateChanges = adapter.applyGosling(
+        goslingUpdate({
           sessionUpdate: 'status_message',
           status: { type: 'notice', message: 'Checking files' },
         })
@@ -629,8 +629,8 @@ describe('createAcpSessionNotificationAdapter', () => {
       expect(messages).toHaveLength(2);
       expect(firstContent(messages[1])).toMatchObject({ type: 'text', text: 'Result' });
 
-      const progressStateChanges = adapter.applyGoose(
-        gooseUpdate({
+      const progressStateChanges = adapter.applyGosling(
+        goslingUpdate({
           sessionUpdate: 'status_message',
           status: { type: 'progress', message: 'Still working' },
         })
@@ -663,7 +663,7 @@ describe('createAcpSessionNotificationAdapter', () => {
             },
           ],
           _meta: {
-            goose: {
+            gosling: {
               toolCall: {
                 toolName: 'edit_file',
               },

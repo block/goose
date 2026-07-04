@@ -1,44 +1,44 @@
 ---
 title: Developer Extension
-description: Use Developer MCP Server as a goose Extension
+description: Use Developer MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
+import GoslingBuiltinInstaller from '@site/src/components/GoslingBuiltinInstaller';
 import { Tornado } from 'lucide-react';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/on_p-LeIrak" />
 
-The Developer extension allows goose to automate developer-centric tasks such as file editing, shell command execution, and project setup. It also supports [enhanced code editing](/docs/guides/enhanced-code-editing). For semantic [codebase analysis](/docs/guides/codebase-analysis), see the separate Analyze extension.
+The Developer extension allows gosling to automate developer-centric tasks such as file editing, shell command execution, and project setup. It also supports [enhanced code editing](/docs/guides/enhanced-code-editing). For semantic [codebase analysis](/docs/guides/codebase-analysis), see the separate Analyze extension.
 
-This tutorial will cover enabling and using the Developer MCP Server, which is a built-in goose extension. 
+This tutorial will cover enabling and using the Developer MCP Server, which is a built-in gosling extension. 
 
 
 ## Configuration
 
 :::info
-The Developer extension is already enabled by default when goose is installed.
+The Developer extension is already enabled by default when gosling is installed.
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseBuiltinInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingBuiltinInstaller
     extensionName="Developer"
     description="Automate developer-centric tasks like file editing and shell commands"
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
   1. Run the `configure` command:
   ```sh
-  goose configure
+  gosling configure
   ```
 
   2. Choose to `Toggle Extensions`
   ```sh
-  ┌   goose-configure 
+  ┌   gosling-configure 
   │
   ◇  What would you like to configure?
   │  Toggle Extensions 
@@ -54,32 +54,32 @@ The Developer extension is already enabled by default when goose is installed.
 
 ## Example Usage
 
-In this example, I'm going to have goose automate setting up my JavaScript developer environment with Express, Mongoose, Nodemon, Dotenv and initialize Git.
+In this example, I'm going to have gosling automate setting up my JavaScript developer environment with Express, Mongosling, Nodemon, Dotenv and initialize Git.
 
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-   1. Open a new session in goose Desktop
+  <TabItem value="ui" label="gosling Desktop" default>
+   1. Open a new session in gosling Desktop
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
-  1. Open a terminal and start a new goose session:
+  1. Open a terminal and start a new gosling session:
 
   ```sh
-  goose session
+  gosling session
   ```
 
   </TabItem>
 </Tabs>
 
-### goose Prompt
+### gosling Prompt
 ```
-set up a new JavaScript project with Express, Mongoose, Nodemon, and Dotenv? Fetch the latest package versions, generate a README with those versions, and initialize Git
+set up a new JavaScript project with Express, Mongosling, Nodemon, and Dotenv? Fetch the latest package versions, generate a README with those versions, and initialize Git
 ```
 
-After 1 minute, goose was done setting up my entire dev environment! 🎉
+After 1 minute, gosling was done setting up my entire dev environment! 🎉
 
-### goose Output
+### gosling Output
 
 ```md
 I'll help you set up a new JavaScript project with those dependencies. I'll break this down into steps:
@@ -96,7 +96,7 @@ I'll help you set up a new JavaScript project with those dependencies. I'll brea
 Great! I've set up a complete Express project with MongoDB and Dotenv integrations:
 
 1. Created a new project directory and initialized npm
-2. Installed Express, Mongoose, and dotenv dependencies
+2. Installed Express, Mongosling, and dotenv dependencies
 3. set up the basic project structure with directories for:
     - config/
     - models/
@@ -154,15 +154,15 @@ Would you like me to add any additional features or make other improvements to t
 
 ## Environment Variables in Shell Commands
 
-Shell commands executed by the `shell` tool inherit the environment of the running goose process. This typically includes:
+Shell commands executed by the `shell` tool inherit the environment of the running gosling process. This typically includes:
 - System variables like `PATH`, `HOME`, and `USER`
-- Environment variables present in the process that launched goose (for example, your terminal's environment when you start goose from a shell)
-- Session-specific variables injected by goose, such as `AGENT_SESSION_ID` for [session-isolated workflows](/docs/guides/environment-variables#using-session-ids-in-workflows)
+- Environment variables present in the process that launched gosling (for example, your terminal's environment when you start gosling from a shell)
+- Session-specific variables injected by gosling, such as `AGENT_SESSION_ID` for [session-isolated workflows](/docs/guides/environment-variables#using-session-ids-in-workflows)
 
 This enables workflows that depend on environment configuration, such as authenticated CLI operations and build processes.
 
 :::info
-goose Desktop or launcher-based starts may use a different environment and may not load your shell startup files.
+gosling Desktop or launcher-based starts may use a different environment and may not load your shell startup files.
 :::
 
 :::warning Sensitive Information
@@ -171,10 +171,10 @@ Environment variables may contain sensitive values like API keys and tokens (e.g
 
 ## Configuring Access Controls
 
-By default, goose can run system commands with your user privileges and edit any accessible file **without your approval**. This is because goose runs in Autonomous permission mode by default and has access to the Developer extension's shell and file editing tools. While this configuration allows goose to work quickly and independently, there's potential for unexpected outcomes. Understanding the available access control features can help you configure goose to match your comfort level and specific needs.
+By default, gosling can run system commands with your user privileges and edit any accessible file **without your approval**. This is because gosling runs in Autonomous permission mode by default and has access to the Developer extension's shell and file editing tools. While this configuration allows gosling to work quickly and independently, there's potential for unexpected outcomes. Understanding the available access control features can help you configure gosling to match your comfort level and specific needs.
 
 :::tip
-See the [Quick Setup Example](#quick-setup-example) below for some ways to configure more control over goose's behavior.
+See the [Quick Setup Example](#quick-setup-example) below for some ways to configure more control over gosling's behavior.
 :::
 
 ### Developer Extension Tools
@@ -193,7 +193,7 @@ The Developer extension provides these tools:
 
 You can layer multiple controls to match your risk tolerance and workflow:
 
-- **[goose Permission Modes](/docs/guides/managing-tools/goose-permissions)** control when goose asks for approval:
+- **[gosling Permission Modes](/docs/guides/managing-tools/gosling-permissions)** control when gosling asks for approval:
 
   | Mode | Description | Use Cases |
   |------|-------------|-----------|
@@ -204,27 +204,27 @@ You can layer multiple controls to match your risk tolerance and workflow:
 
 - **[Tool Permissions](/docs/guides/managing-tools/tool-permissions)** let you set `Always allow`, `Ask before`, and `Never allow` permissions for individual extension tools when in Manual Approval or Smart Approval modes
 
-- **[.gooseignore files](/docs/guides/context-engineering/using-gooseignore)** restrict which files and directories goose can access (`.gitignore` files are fallback)
+- **[.goslingignore files](/docs/guides/context-engineering/using-goslingignore)** restrict which files and directories gosling can access (`.gitignore` files are fallback)
 
 :::tip Changing Modes In-Session
-You can change goose permission modes during a session without restarting:
+You can change gosling permission modes during a session without restarting:
 - **CLI**: Use the `/mode` command (e.g. `/mode approve`)
 - **Desktop**: Use the <Tornado className="inline" size={16} /> mode selector button in the bottom menu
 :::
 
 #### Quick Setup Example
 
-You might want more control over goose's operations when working with sensitive systems, exploring unfamiliar codebases, using untrusted models, or simply preferring to review actions before execution.
+You might want more control over gosling's operations when working with sensitive systems, exploring unfamiliar codebases, using untrusted models, or simply preferring to review actions before execution.
 
 Here's an example configuration that enables oversight:
 
-1. **Set the [permission mode](/docs/guides/managing-tools/goose-permissions)** to Smart Approval or Manual Approval:
+1. **Set the [permission mode](/docs/guides/managing-tools/gosling-permissions)** to Smart Approval or Manual Approval:
    ```yaml
-   # ~/.config/goose/config.yaml
-   GOOSE_MODE: smart_approve  # or approve
+   # ~/.config/gosling/config.yaml
+   GOSLING_MODE: smart_approve  # or approve
    ```
 
-2. **Create a [`.gooseignore` file](/docs/guides/context-engineering/using-gooseignore)** in your project to protect sensitive files:
+2. **Create a [`.goslingignore` file](/docs/guides/context-engineering/using-goslingignore)** in your project to protect sensitive files:
    ```
    .env*
    secrets.*
@@ -235,10 +235,10 @@ Here's an example configuration that enables oversight:
 
 3. **Configure [tool permissions](/docs/guides/managing-tools/tool-permissions)** based on your needs
 
-As you become more comfortable with goose's behavior, you can adjust these settings to reduce friction while maintaining appropriate safeguards for your environment.
+As you become more comfortable with gosling's behavior, you can adjust these settings to reduce friction while maintaining appropriate safeguards for your environment.
 
 :::info
-Also see the [Security Guide](/docs/guides/security/) for information about using goose safely.
+Also see the [Security Guide](/docs/guides/security/) for information about using gosling safely.
 :::
 
 ## Additional Resources

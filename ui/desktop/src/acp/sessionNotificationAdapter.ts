@@ -1,4 +1,4 @@
-import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
+import type { GoslingSessionNotification_unstable } from '@repo-makeover/gosling-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import type { Message } from '../types/message';
 import {
@@ -6,14 +6,14 @@ import {
   applyElicitationStatus as applyElicitationStatusToState,
   type ElicitationStatus,
 } from './adapter/elicitations';
-import { applyGooseSessionNotification } from './adapter/gooseSessionNotifications';
+import { applyGoslingSessionNotification } from './adapter/goslingSessionNotifications';
 import { applyContentChunk, applyThoughtChunk } from './adapter/messages';
 import { applyPermissionRequest as applyPermissionRequestToState } from './adapter/permissions';
 import {
   type AcpChatStateChange,
   type AdapterState,
   cloneMessage,
-  getGooseActiveRunId,
+  getGoslingActiveRunId,
 } from './adapter/shared';
 import { applyToolCall, applyToolCallUpdate } from './adapter/tools';
 import type { AcpElicitationRequest } from './elicitationRequests';
@@ -22,7 +22,7 @@ export type { AcpChatStateChange } from './adapter/shared';
 
 export interface AcpSessionNotificationAdapter {
   apply(notification: SessionNotification): AcpChatStateChange[];
-  applyGoose(notification: GooseSessionNotification_unstable): AcpChatStateChange[];
+  applyGosling(notification: GoslingSessionNotification_unstable): AcpChatStateChange[];
   applyPermissionRequest(request: RequestPermissionRequest): AcpChatStateChange[];
   applyElicitationRequest(request: AcpElicitationRequest): AcpChatStateChange[];
   applyElicitationStatus(elicitationId: string, status: ElicitationStatus): AcpChatStateChange[];
@@ -42,8 +42,8 @@ export function createAcpSessionNotificationAdapter(
     apply(notification) {
       return applyAcpSessionNotification(state, notification);
     },
-    applyGoose(notification) {
-      return applyGooseSessionNotification(state, notification);
+    applyGosling(notification) {
+      return applyGoslingSessionNotification(state, notification);
     },
     applyPermissionRequest(request) {
       return applyPermissionRequestToState(state, request);
@@ -78,7 +78,7 @@ function applyAcpSessionNotification(
     case 'tool_call_update':
       return applyToolCallUpdate(state, update);
     case 'session_info_update': {
-      const activeRunId = getGooseActiveRunId(update);
+      const activeRunId = getGoslingActiveRunId(update);
       if (!update.title && activeRunId === undefined) {
         return [];
       }

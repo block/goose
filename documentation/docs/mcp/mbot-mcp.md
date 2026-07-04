@@ -1,12 +1,12 @@
 ---
 title: mbot Extension
-description: Control a MakeBlock mbot2 rover through MQTT and MCP as a goose Extension
+description: Control a MakeBlock mbot2 rover through MQTT and MCP as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/QKg2Q6YCzdw" />
@@ -30,7 +30,7 @@ This tutorial will get you started with [deemkeen's MQTT MCP server](https://git
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="mbot2"
       description="Control a MakeBlock mbot2 rover through MQTT and MCP"
@@ -66,7 +66,7 @@ The available commands allow you to drive the mbot2 rover around, including:
 
 The default distance to travel is 70cm (about 27 inches), and the turn angles are set to 90 degrees. You can change these values in the [Python code on the mbot2](https://github.com/deemkeen/mbotmcp/blob/main/assets/mbot-mqtt.py). The mbot2 has a lot of other capabilities with the proximity sensors, lights, and color detection sensor on the bottom of the unit that you can add to the Python code, and will need to update [the Java code](https://github.com/deemkeen/mbotmcp/blob/main/src/main/java/de/emkeen/mbotmcp/service/BotService.java) to include those commands via MCP.
 
-#### goose Interaction
+#### gosling Interaction
 
 ```
 ( O)> Let my mbot2 explore the area

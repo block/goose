@@ -323,7 +323,7 @@ const electronAPI: ElectronAPI = {
     return ipcRenderer.invoke('open-external', url);
   },
   getVersion: (): string => {
-    return config.GOOSE_VERSION || ipcRenderer.sendSync('get-app-version') || '';
+    return config.GOSLING_VERSION || ipcRenderer.sendSync('get-app-version') || '';
   },
   checkForUpdates: (): Promise<{ updateInfo: unknown; error: string | null }> => {
     return ipcRenderer.invoke('check-for-updates');
@@ -361,15 +361,15 @@ const electronAPI: ElectronAPI = {
 
 function getAppLocale(): unknown {
   try {
-    return ipcRenderer.sendSync('get-app-locale') ?? config.GOOSE_LOCALE;
+    return ipcRenderer.sendSync('get-app-locale') ?? config.GOSLING_LOCALE;
   } catch {
-    return config.GOOSE_LOCALE;
+    return config.GOSLING_LOCALE;
   }
 }
 
 const appConfigAPI: AppConfigAPI = {
-  get: (key: string) => (key === 'GOOSE_LOCALE' ? getAppLocale() : config[key]),
-  getAll: () => ({ ...config, GOOSE_LOCALE: getAppLocale() }),
+  get: (key: string) => (key === 'GOSLING_LOCALE' ? getAppLocale() : config[key]),
+  getAll: () => ({ ...config, GOSLING_LOCALE: getAppLocale() }),
 };
 
 // Expose the APIs

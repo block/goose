@@ -44,13 +44,13 @@ The gap traces almost entirely to the local-inference stack (candle, llama.cpp, 
 
 ## What's new in gosling
 
-- **New name, new mark** — the goose branding has been replaced by the gosling: a fresh flying-gosling logo across the desktop app, tray, docs, and installers.
+- **New name, new mark** — the goose branding has been replaced by gosling: a fresh flying-gosling logo across the desktop app, tray, docs, and installers.
 - **Runs side by side with goose** — gosling is fully deconflicted from an existing goose install:
-  - separate config/data/state directories (`~/.config/gosling` vs `~/.config/goose`, etc.)
+  - separate config/data/state directories (`~/.config/goose` vs `~/.config/gosling`, etc.)
   - separate OS keyring service (`gosling`) for provider credentials
   - its own `gosling://` deep-link scheme (goose keeps `goose://`; gosling still accepts `goose://` session share links for interop)
   - its own app identity (`Gosling.app` / `Gosling.exe` / `Gosling` packages) and updater feed
-  - single-instance behavior is preserved per app: one running Gosling and one running Goose, each guarded by its own instance lock
+  - single-instance behavior is preserved per app: one running Goose and one running Gosling, each guarded by its own instance lock
 - **Provenance in the app** — Help → About shows that this is Gosling v0.0.1, a fork of goose v1.38.
 
 ## Get started
@@ -73,8 +73,8 @@ See [BUILDING_LINUX.md](BUILDING_LINUX.md), [BUILDING_DOCKER.md](BUILDING_DOCKER
 
 ## Upstream compatibility notes
 
-- CLI command names and binaries are unchanged (`goose`, `goosed`), so existing scripts and docs keep working; only where state is stored differs.
-- `GOOSE_*` environment variables and project files (`.goosehints`, `.goose/`) keep their upstream names for compatibility.
+- CLI command names and binaries are renamed from goose's (`gosling`, `goslingd` instead of `goose`, `goosed`); scripts and docs that shell out to `goose`/`goosed` need updating.
+- Environment variables and project files are renamed too (`GOSLING_*` instead of `GOOSE_*`; `.goslinghints`/`.gosling/` instead of `.goosehints`/`.goose/`) — see "Runs side by side with goose" above for why, and for the narrow spots (DB migration, `gosling://`/`goose://` share links) that do keep reading the old names.
 
 ## a little gosling humor 🐥
 

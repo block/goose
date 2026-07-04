@@ -1,26 +1,26 @@
 ---
 title: Dev.to Extension
-description: Add Dev.to MCP Server as a goose Extension
+description: Add Dev.to MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import { PanelLeft } from 'lucide-react';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/nkdksdxHxaQ" />  
 
-This tutorial covers how to add the [Dev.to MCP Server](https://github.com/nickytonline/dev-to-mcp) as a goose extension to enable access to the Dev.to public API. With this extension, goose can fetch articles, tags, user info, comments, and more—without requiring authentication.
+This tutorial covers how to add the [Dev.to MCP Server](https://github.com/nickytonline/dev-to-mcp) as a gosling extension to enable access to the Dev.to public API. With this extension, gosling can fetch articles, tags, user info, comments, and more—without requiring authentication.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?type=streamable_http&url=http%3A%2F%2Flocalhost%3A3000%2Fmcp&id=dev-to&name=Dev.to&description=Access%20Dev.to%20articles%20and%20content)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?type=streamable_http&url=http%3A%2F%2Flocalhost%3A3000%2Fmcp&id=dev-to&name=Dev.to&description=Access%20Dev.to%20articles%20and%20content)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
-  Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
+  <TabItem value="cli" label="gosling CLI">
+  Use `gosling configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
 
   **Endpoint URL**
 
@@ -57,8 +57,8 @@ Your server will now be running at:
 
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="dev-to"
       extensionName="Dev.to"
       description="Access Dev.to articles and content"
@@ -67,7 +67,7 @@ Your server will now be running at:
     />
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI" default>
+  <TabItem value="cli" label="gosling CLI" default>
       <CLIExtensionInstructions
         name="dev.to"
         description="Access Dev.to articles and content"
@@ -80,11 +80,11 @@ Your server will now be running at:
 
 ## Example Usage
 
-In this example, goose uses the `Dev.to MCP` extension to fetch the 5 most recent JavaScript articles and instantly turn them into a personalized learning hub.
+In this example, gosling uses the `Dev.to MCP` extension to fetch the 5 most recent JavaScript articles and instantly turn them into a personalized learning hub.
 
-### goose Prompt
+### gosling Prompt
 ```
-Hey goose, fetch the 5 most recent JavaScript articles from Dev.to
+Hey gosling, fetch the 5 most recent JavaScript articles from Dev.to
 Create a simple HTML landing page that:
 
 1. Lists each article title as a clickable link
@@ -98,7 +98,7 @@ Create a simple HTML landing page that:
 The goal is to save me time by quickly showing what’s worth reading and help me learn faster by giving actionable practice ideas.
 ```
 
-### goose Output
+### gosling Output
 
 :::note Desktop
 

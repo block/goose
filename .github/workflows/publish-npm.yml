@@ -36,12 +36,12 @@ jobs:
         with:
           version: 10.30.3
 
-      - name: Download freshly-built goose CLI binaries
+      - name: Download freshly-built gosling CLI binaries
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           path: /tmp/cli-artifacts
 
-      - name: Place binaries into goose-binary packages
+      - name: Place binaries into gosling-binary packages
         run: |
           set -euo pipefail
           echo "Available CLI artifacts:"
@@ -58,37 +58,37 @@ jobs:
 
           for platform in "${!PLATFORM_MAP[@]}"; do
             target="${PLATFORM_MAP[$platform]}"
-            artifact_dir="/tmp/cli-artifacts/goose-${target}"
-            pkg_dir="ui/goose-binary/goose-binary-${platform}/bin"
+            artifact_dir="/tmp/cli-artifacts/gosling-${target}"
+            pkg_dir="ui/gosling-binary/gosling-binary-${platform}/bin"
             mkdir -p "${pkg_dir}"
 
             if [[ "${platform}" == "win32-x64" ]]; then
-              archive="${artifact_dir}/goose-${target}.zip"
+              archive="${artifact_dir}/gosling-${target}.zip"
               if [[ ! -f "${archive}" ]]; then
                 echo "::error::Missing Windows CLI artifact: ${archive}"
                 exit 1
               fi
-              rm -rf /tmp/goose-extract
-              unzip -o "${archive}" -d /tmp/goose-extract
-              cp /tmp/goose-extract/goose-package/goose.exe "${pkg_dir}/goose.exe"
+              rm -rf /tmp/gosling-extract
+              unzip -o "${archive}" -d /tmp/gosling-extract
+              cp /tmp/gosling-extract/gosling-package/gosling.exe "${pkg_dir}/gosling.exe"
             else
-              archive="${artifact_dir}/goose-${target}.tar.bz2"
+              archive="${artifact_dir}/gosling-${target}.tar.bz2"
               if [[ ! -f "${archive}" ]]; then
                 echo "::error::Missing CLI artifact: ${archive}"
                 exit 1
               fi
-              rm -rf /tmp/goose-extract
-              mkdir -p /tmp/goose-extract
-              tar -xjf "${archive}" -C /tmp/goose-extract
-              cp /tmp/goose-extract/goose "${pkg_dir}/goose"
-              chmod +x "${pkg_dir}/goose"
+              rm -rf /tmp/gosling-extract
+              mkdir -p /tmp/gosling-extract
+              tar -xjf "${archive}" -C /tmp/gosling-extract
+              cp /tmp/gosling-extract/gosling "${pkg_dir}/gosling"
+              chmod +x "${pkg_dir}/gosling"
             fi
 
             echo "  ✅ ${platform} (${target})"
           done
 
       - name: List downloaded binaries (debug)
-        run: find ui/goose-binary -name 'goose*' -type f | sort
+        run: find ui/gosling-binary -name 'gosling*' -type f | sort
 
       - name: Install dependencies
         run: |
@@ -100,9 +100,9 @@ jobs:
           cd ui/sdk
           pnpm run build:ts
 
-      - name: Compatibility check (SDK client ↔ goose binary)
+      - name: Compatibility check (SDK client ↔ gosling binary)
         env:
-          GOOSE_BINARY: ${{ github.workspace }}/ui/goose-binary/goose-binary-linux-x64/bin/goose
+          GOSLING_BINARY: ${{ github.workspace }}/ui/gosling-binary/gosling-binary-linux-x64/bin/gosling
         run: |
           cd ui/sdk
           pnpm run check:compat
@@ -123,16 +123,16 @@ jobs:
             echo "### Source"
             echo "Commit: \`${GITHUB_SHA}\`"
             echo ""
-            echo "### Goose CLI Binaries"
+            echo "### Gosling CLI Binaries"
             echo "✅ Built from this commit for all platforms:"
-            for dir in ui/goose-binary/goose-binary-*/; do
-              platform=$(basename "$dir" | sed 's/goose-binary-//')
+            for dir in ui/gosling-binary/gosling-binary-*/; do
+              platform=$(basename "$dir" | sed 's/gosling-binary-//')
               echo "  - $platform"
             done
             echo ""
             echo "### npm Packages"
             cd ui
-            for pkg in sdk goose-binary/*/; do
+            for pkg in sdk gosling-binary/*/; do
               if [ -f "$pkg/package.json" ]; then
                 name=$(jq -r '.name' "$pkg/package.json")
                 version=$(jq -r '.version' "$pkg/package.json")
@@ -153,8 +153,8 @@ jobs:
           name: npm-packages
           path: ui/
 
-      - name: Restore executable bits on goose binaries
-        run: find ui/goose-binary -name 'goose' -type f -exec chmod +x {} +
+      - name: Restore executable bits on gosling binaries
+        run: find ui/gosling-binary -name 'gosling' -type f -exec chmod +x {} +
 
       - name: Setup Node.js
         uses: actions/setup-node@48b55a011bda9f5d6aeb4c2d9c7362e8dae4041e # v6.4.0
@@ -174,7 +174,7 @@ jobs:
           # Publish each package individually so one failure doesn't abort the rest.
           # Skips packages whose version is already published (409/403).
           failed=0
-          for pkg in sdk goose-binary/*/; do
+          for pkg in sdk gosling-binary/*/; do
             if [ -f "$pkg/package.json" ]; then
               name=$(jq -r '.name' "$pkg/package.json")
               version=$(jq -r '.version' "$pkg/package.json")
@@ -204,7 +204,7 @@ jobs:
           {
             echo "## 🚀 Published Packages"
             echo ""
-            for pkg in sdk goose-binary/*/; do
+            for pkg in sdk gosling-binary/*/; do
               if [ -f "$pkg/package.json" ]; then
                 name=$(jq -r '.name' "$pkg/package.json")
                 version=$(jq -r '.version' "$pkg/package.json")

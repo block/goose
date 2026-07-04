@@ -6,7 +6,7 @@ import { IconFacebook } from '@site/src/components/icons/facebook';
 import { IconReddit } from '@site/src/components/icons/reddit';
 import styles from './styles.module.css';
 
-const TWITTER_VIA = 'goose_oss';
+const TWITTER_VIA = 'gosling_oss';
 
 interface SocialShareProps {
   url: string;

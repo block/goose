@@ -15,7 +15,7 @@ export const DesktopAutoUpdateSteps = () => {
             <li>To automatically download the newer version, click <code>Check for Updates</code></li>
           </ul>
         </li>
-        <li>Click <code>Install & Restart</code> to immediately relaunch goose Desktop and apply the update<br />
+        <li>Click <code>Install & Restart</code> to immediately relaunch gosling Desktop and apply the update<br />
             <strong>Note:</strong> If the app can't be automatically updated, you'll be prompted to manually install the downloaded version</li>
       </ol>
     </>

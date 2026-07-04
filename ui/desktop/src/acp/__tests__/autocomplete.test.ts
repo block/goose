@@ -1,4 +1,4 @@
-import type { AgentMention, AvailableCommand } from '@aaif/goose-sdk';
+import type { AgentMention, AvailableCommand } from '@repo-makeover/gosling-sdk';
 import { describe, expect, it } from 'vitest';
 import { agentMentionToDisplayItem, availableCommandToDisplayItem } from '../autocomplete';
 

@@ -13,7 +13,7 @@ import { getPromptById } from "@site/src/utils/prompts";
 import ReactMarkdown from "react-markdown";
 
 import type { Prompt, Extension } from "@site/src/types/prompt";
-import { getGooseInstallLink } from "@site/src/utils/install-links";
+import { getGoslingInstallLink } from "@site/src/utils/install-links";
 
 function extensionToMCPServer(extension: Extension): MCPServer {
   return {
@@ -114,7 +114,7 @@ function ExtensionDetails({
           >
             <div className="mt-2 bg-background-subtle rounded-md p-3 border border-borderSubtle space-y-3">
               <a
-                href={getGooseInstallLink(extensionToMCPServer(extension))}
+                href={getGoslingInstallLink(extensionToMCPServer(extension))}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-textStandard hover:text-textProminent"
@@ -132,11 +132,11 @@ function ExtensionDetails({
               <div>
                 {extension.url ? (
                   <CodeBlock language="bash">
-                    goose session --with-remote-extension "{extension.url}"
+                    gosling session --with-remote-extension "{extension.url}"
                   </CodeBlock>
                 ) : (
                   <CodeBlock language="bash">
-                    goose session --with-extension "{extension.command}"
+                    gosling session --with-extension "{extension.command}"
                   </CodeBlock>
                 )}
               </div>

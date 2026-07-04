@@ -1,22 +1,22 @@
 ---
 title: Supabase Extension
-description: Add Supabase MCP Server as a goose Extension
+description: Add Supabase MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
-This tutorial covers how to add the [Supabase MCP Server](https://github.com/supabase-community/supabase-mcp) as a goose extension to interact with your Supabase projects, manage tables, query data, deploy Edge Functions, and interact with your Supabase backend directly.
+This tutorial covers how to add the [Supabase MCP Server](https://github.com/supabase-community/supabase-mcp) as a gosling extension to interact with your Supabase projects, manage tables, query data, deploy Edge Functions, and interact with your Supabase backend directly.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Fmcp.supabase.com%2Fmcp&id=supabase&name=Supabase&description=Connect%20your%20Supabase%20projects%20to%20AI%20assistants.%20Manage%20tables%2C%20query%20data%2C%20deploy%20Edge%20Functions%2C%20and%20interact%20with%20your%20Supabase%20backend%20directly%20from%20your%20MCP%20client.)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?type=streamable_http&url=https%3A%2F%2Fmcp.supabase.com%2Fmcp&id=supabase&name=Supabase&description=Connect%20your%20Supabase%20projects%20to%20AI%20assistants.%20Manage%20tables%2C%20query%20data%2C%20deploy%20Edge%20Functions%2C%20and%20interact%20with%20your%20Supabase%20backend%20directly%20from%20your%20MCP%20client.)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
-  Use `goose configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
+  <TabItem value="cli" label="gosling CLI">
+  Use `gosling configure` to add a `Remote Extension (Streaming HTTP)` extension type with:
   
   **Endpoint URL**
   ```
@@ -33,9 +33,9 @@ This tutorial covers how to add the [Supabase MCP Server](https://github.com/sup
 The Supabase MCP Server is hosted by Supabase and provides OAuth-based authentication. When you connect, you'll be redirected to supabase.com to sign in to your account.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="gosling Desktop" default>
 
-    <GooseDesktopInstaller
+    <GoslingDesktopInstaller
       extensionId="supabase"
       extensionName="Supabase"
       description="Connect your Supabase projects to AI assistants. Manage tables, query data, deploy Edge Functions, and interact with your Supabase backend directly from your MCP client."
@@ -45,7 +45,7 @@ The Supabase MCP Server is hosted by Supabase and provides OAuth-based authentic
     />
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
     <CLIExtensionInstructions
       name="Supabase"
@@ -61,7 +61,7 @@ The Supabase MCP Server is hosted by Supabase and provides OAuth-based authentic
 
 #### OAuth Flow
 
-When you first connect to the Supabase MCP Server through goose, an OAuth window will open in your browser. Follow the prompts to authorize access to your Supabase projects.
+When you first connect to the Supabase MCP Server through gosling, an OAuth window will open in your browser. Follow the prompts to authorize access to your Supabase projects.
 
 :::note Security Note
 The Supabase MCP Server grants access to your database and project management capabilities. Always review LLM-requested actions before execution and ensure you're working in the appropriate environment (development, staging, production).
@@ -73,13 +73,13 @@ The Supabase MCP Server grants access to your database and project management ca
 
 Get an overview of all your Supabase projects and their configurations.
 
-#### goose Prompt
+#### gosling Prompt
 
 ```
 List all my Supabase projects
 ```
 
-#### goose Output
+#### gosling Output
 
 :::note Desktop
 
@@ -109,13 +109,13 @@ Would you like more detailed information about any specific project?
 
 Discover and query tables within your Supabase project.
 
-#### goose Prompt
+#### gosling Prompt
 
 ```
 What tables exist in my project?
 ```
 
-#### goose Output
+#### gosling Output
 
 :::note Desktop
 
@@ -163,15 +163,15 @@ Would you like to query data from any of these tables?
 
 ### Example 3: Deploy an Edge Function
 
-Deploy and manage Supabase Edge Functions directly through goose.
+Deploy and manage Supabase Edge Functions directly through gosling.
 
-#### goose Prompt
+#### gosling Prompt
 
 ```
 Deploy a new Edge Function called 'hello-world' that returns a simple JSON response
 ```
 
-#### goose Output
+#### gosling Output
 
 :::note Desktop
 

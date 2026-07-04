@@ -39,7 +39,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@80c7e94dd9b9319bd5eb7a0e0fe9291e23a2a2e9  # v6.1.0
         with:
-          images: ghcr.io/${{ github.repository_owner }}/goose
+          images: ghcr.io/${{ github.repository_owner }}/gosling
           tags: |
             # For main branch: latest, main, and sha
             type=ref,event=branch
@@ -67,6 +67,6 @@ jobs:
       - name: Attest Docker image
         uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373  # v4.1.1
         with:
-          subject-name: ghcr.io/${{ github.repository_owner }}/goose
+          subject-name: ghcr.io/${{ github.repository_owner }}/gosling
           subject-digest: ${{ steps.docker-push.outputs.digest }}
           push-to-registry: true

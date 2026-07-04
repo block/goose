@@ -26,7 +26,7 @@ jobs:
     steps:
       - name: Notify Discord
         env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_GOOSE_STATUS }}
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_GOSLING_STATUS }}
           WORKFLOW_NAME: ${{ github.event.workflow_run.name }}
           HEAD_BRANCH: ${{ github.event.workflow_run.head_branch }}
           HEAD_SHA: ${{ github.event.workflow_run.head_sha }}

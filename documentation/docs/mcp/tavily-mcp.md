@@ -1,24 +1,24 @@
 ---
 title: Tavily Web Search Extension
-description: Add Tavily MCP Server as a goose Extension
+description: Add Tavily MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://youtube.com/embed/mxS2G9afGxE" />
 
-This tutorial covers how to add the [Tavily Web Search MCP Server](https://github.com/tavily-ai/tavily-mcp) as a goose extension to enable AI-powered web search functionality.
+This tutorial covers how to add the [Tavily Web Search MCP Server](https://github.com/tavily-ai/tavily-mcp) as a gosling extension to enable AI-powered web search functionality.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=tavily-mcp&id=tavily&name=Tavily%20Web%20Search&description=Search%20the%20web%20with%20Tavily%20MCP&env=TAVILY_API_KEY%3DTavily%20API%20Key)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=tavily-mcp&id=tavily&name=Tavily%20Web%20Search&description=Search%20the%20web%20with%20Tavily%20MCP&env=TAVILY_API_KEY%3DTavily%20API%20Key)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y tavily-mcp
@@ -38,8 +38,8 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="tavily"
     extensionName="Tavily Web Search"
     description="Search the web with Tavily MCP"
@@ -52,7 +52,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     apiKeyLinkText="Tavily API Key"
   />
 </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Tavily Web Search"
       description="Search the web with Tavily MCP"
@@ -71,20 +71,20 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 ## Example Usage
 
-The Tavily MCP server enables AI-powered web search functionality in your goose interactions. When you obtain your API key, you'll have access to Tavily's advanced search capabilities including:
+The Tavily MCP server enables AI-powered web search functionality in your gosling interactions. When you obtain your API key, you'll have access to Tavily's advanced search capabilities including:
 
 1. Real-time web search
 2. Structured data extraction
 3. Content analysis
 4. Topic-specific search
 
-### goose Prompt
+### gosling Prompt
 
 ```
 Search for recent news about artificial intelligence breakthroughs in medicine and summarize the key findings.
 ```
 
-### goose Output
+### gosling Output
 
 ```
 I'll use the Tavily news search tool to find recent news about AI breakthroughs in medicine.

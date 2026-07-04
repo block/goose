@@ -1,26 +1,26 @@
 ---
 title: PostgreSQL Extension
-description: Add PostgreSQL MCP Server as a goose Extension
+description: Add PostgreSQL MCP Server as a gosling Extension
 unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/PZlYQ5IthYM" />
 
 Server archived
 
-The PostgreSQL MCP Server extension allows goose to interact directly with your PostgreSQL databases, enabling database operations, querying, and schema management capabilities. This makes it easy to work with your databases through natural language interactions.
+The PostgreSQL MCP Server extension allows gosling to interact directly with your PostgreSQL databases, enabling database operations, querying, and schema management capabilities. This makes it easy to work with your databases through natural language interactions.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-postgres&arg=Your%20PostgreSQL%20connection%20URL&id=postgres&name=PostgreSQL&description=PostgreSQL%20database%20integration)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=@modelcontextprotocol/server-postgres&arg=Your%20PostgreSQL%20connection%20URL&id=postgres&name=PostgreSQL&description=PostgreSQL%20database%20integration)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y @modelcontextprotocol/server-postgres postgresql://localhost/mydb
@@ -63,8 +63,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="postgres"
     extensionName="PostgreSQL"
     description="PostgreSQL database integration"
@@ -77,15 +77,15 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
   :::
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   1. Run the `configure` command:
   ```sh
-  goose configure
+  gosling configure
   ```
 
   2. Choose to add a `Command-line Extension`
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -101,7 +101,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   3. Name your extension
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -118,7 +118,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   4. Enter the command with your database connection URL
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -135,7 +135,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   5. Set the timeout (default 300s is usually sufficient)
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -155,7 +155,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -178,7 +178,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
   7. Configure your PostgreSQL connection URL
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -209,14 +209,14 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 The PostgreSQL extension enables you to query and analyze data or give you information about the table structures. The extension is only capable of *read-only* operations, so you can use it to get information about your database, but not to modify it.
 
-Just describe what you want to do in natural language, and goose will help you accomplish it using the appropriate SQL commands and PostgreSQL features.
+Just describe what you want to do in natural language, and gosling will help you accomplish it using the appropriate SQL commands and PostgreSQL features.
 
-#### goose Prompt
+#### gosling Prompt
 ```
 Search my database for any students whose current GPA is higher than the average in their current grade level. Tell me their name, grade, and how much they exceed their grade’s average GPA, and the average GPA.
 ```
 
-#### goose Output
+#### gosling Output
 ```
 Based on the query results, here are the students who are performing above their grade level average:
 

@@ -357,7 +357,7 @@ export function AppInner() {
 
       if (
         !link.startsWith('gosling://sessions/nostr') &&
-        !link.startsWith('goose://sessions/nostr')
+        !link.startsWith('gosling://sessions/nostr')
       ) {
         toast.error('Unsupported session share link');
         navigate('/sessions');

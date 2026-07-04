@@ -1,26 +1,26 @@
 ---
 title: Google Drive Extension
-description: Add Google Drive MCP Server as a goose Extension
+description: Add Google Drive MCP Server as a gosling Extension
 unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/p9HGYbJk9wU" />
 
 Server archived 
 
-This tutorial covers how to add the [Google Drive MCP Server](https://www.pulsemcp.com/servers/modelcontextprotocol-gdrive) as a goose extension, allowing you to list, read, and search files in Google Drive.
+This tutorial covers how to add the [Google Drive MCP Server](https://www.pulsemcp.com/servers/modelcontextprotocol-gdrive) as a gosling extension, allowing you to list, read, and search files in Google Drive.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-gdrive&id=google-drive&name=Google%20Drive&description=Google%20Drive%20integration&env=GDRIVE_CREDENTIALS_PATH%3DPath%20to%20Google%20Drive%20credentials&env=GDRIVE_OAUTH_PATH%3DPath%20to%20OAuth%20token)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=%40modelcontextprotocol%2Fserver-gdrive&id=google-drive&name=Google%20Drive&description=Google%20Drive%20integration&env=GDRIVE_CREDENTIALS_PATH%3DPath%20to%20Google%20Drive%20credentials&env=GDRIVE_OAUTH_PATH%3DPath%20to%20OAuth%20token)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   GDRIVE_OAUTH_PATH=$USER_HOME/.config/gcp-oauth.keys.json \ 
@@ -95,8 +95,8 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="google-drive"
     extensionName="Google Drive"
     description="Google Drive integration"
@@ -115,15 +115,15 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
   Replace `$USER_HOME` with your home directory. You must specify an absolute path for this extension to work.
   :::
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   1. Run the `configure` command:
   ```sh
-  goose configure
+  gosling configure
   ```
 
   2. Choose to add a `Command-line Extension`
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -139,7 +139,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
 
   3. Give your extension a name
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -156,7 +156,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
 
   4. Enter the command
   ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -174,9 +174,9 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
     └ 
   ```  
 
-  5. Enter the number of seconds goose should wait for actions to complete before timing out. Default is 300s
+  5. Enter the number of seconds gosling should wait for actions to complete before timing out. Default is 300s
    ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -199,7 +199,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
 
   6. Choose to add a description. If you select "Yes" here, you will be prompted to enter a description for the extension.
    ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -226,7 +226,7 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
   7. Add your environment variables 
 
    ```sh
-    ┌   goose-configure 
+    ┌   gosling-configure 
     │
     ◇  What would you like to configure?
     │  Add Extension (Connect to a new extension) 
@@ -274,9 +274,9 @@ You'll need to re-authenticate once a day when using the Google Drive extension.
 
 ## Example Usage
 
-In this example, I’ll use goose to quickly gather and summarize important information for my upcoming marketing budget review meeting in 30 minutes. I’ll ask goose to find relevant documents from my Google Drive, summarize Q1 performance, highlight critical decisions on marketing automation and video production, and identify any outstanding action items from our last meeting.
+In this example, I’ll use gosling to quickly gather and summarize important information for my upcoming marketing budget review meeting in 30 minutes. I’ll ask gosling to find relevant documents from my Google Drive, summarize Q1 performance, highlight critical decisions on marketing automation and video production, and identify any outstanding action items from our last meeting.
 
-### goose Prompt
+### gosling Prompt
 ```
 I have an important marketing budget review meeting in 30 minutes and I need your help getting prepared. I have several documents in my Google Drive from our previous meetings and planning sessions. Could you help me by:
 
@@ -288,7 +288,7 @@ I have an important marketing budget review meeting in 30 minutes and I need you
 I need a quick but comprehensive overview so I can walk into this meeting well-prepared.
 ```
 
-### goose Output
+### gosling Output
 
 ```
 I'll help you prepare for your meeting. Let me first list available resources from Google Drive to make sure we access the correct files. 

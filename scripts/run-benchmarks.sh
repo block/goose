@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run-benchmarks.sh - Script to run goose benchmarks across multiple provider:model pairs
+# run-benchmarks.sh - Script to run gosling benchmarks across multiple provider:model pairs
 
 set -e
 
@@ -12,8 +12,8 @@ function show_usage() {
   echo "  -s, --suites             Comma-separated list of benchmark suites to run (e.g., 'core,small_models')"
   echo "  -o, --output-dir         Directory to store benchmark results (default: './benchmark-results')"
   echo "  -d, --debug              Use debug build instead of release build"
-  echo "  -t, --toolshim           Enable toolshim mode by setting GOOSE_TOOLSHIM=1"
-  echo "  -m, --toolshim-model     Set the toolshim model (sets GOOSE_TOOLSHIM_MODEL)"
+  echo "  -t, --toolshim           Enable toolshim mode by setting GOSLING_TOOLSHIM=1"
+  echo "  -m, --toolshim-model     Set the toolshim model (sets GOSLING_TOOLSHIM_MODEL)"
   echo "  -h, --help               Show this help message"
   echo ""
   echo "Example:"
@@ -101,20 +101,20 @@ fi
 echo "" >> "$SUMMARY_FILE"
 
 # Determine which binary to use
-GOOSE_CMD="goose"
+GOSLING_CMD="gosling"
 if [ "$DEBUG_MODE" = true ]; then
-  if [ -f "./target/debug/goose" ]; then
-    GOOSE_CMD="./target/debug/goose"
-    echo "Using debug binary: $GOOSE_CMD"
+  if [ -f "./target/debug/gosling" ]; then
+    GOSLING_CMD="./target/debug/gosling"
+    echo "Using debug binary: $GOSLING_CMD"
   else
-    echo "Warning: Debug binary not found at ./target/debug/goose. Falling back to system-installed goose."
+    echo "Warning: Debug binary not found at ./target/debug/gosling. Falling back to system-installed gosling."
   fi
 else
-  if [ -f "./target/release/goose" ]; then
-    GOOSE_CMD="./target/release/goose"
-    echo "Using release binary: $GOOSE_CMD"
+  if [ -f "./target/release/gosling" ]; then
+    GOSLING_CMD="./target/release/gosling"
+    echo "Using release binary: $GOSLING_CMD"
   else
-    echo "Warning: Release binary not found at ./target/release/goose. Falling back to system-installed goose."
+    echo "Warning: Release binary not found at ./target/release/gosling. Falling back to system-installed gosling."
   fi
 fi
 
@@ -155,14 +155,14 @@ for ((i=0; i<$COUNT; i++)); do
   echo "## Provider: $provider, Model: $model" >> "$SUMMARY_FILE"
   
   # Set environment variables for this provider/model instead of using configure
-  export GOOSE_PROVIDER="$provider"
-  export GOOSE_MODEL="$model"
+  export GOSLING_PROVIDER="$provider"
+  export GOSLING_MODEL="$model"
   
   # Set toolshim environment variables if enabled
   if [ "$TOOLSHIM" = true ]; then
-    export GOOSE_TOOLSHIM=1
+    export GOSLING_TOOLSHIM=1
     if [[ -n "$TOOLSHIM_MODEL" ]]; then
-      export GOOSE_TOOLSHIM_OLLAMA_MODEL="$TOOLSHIM_MODEL"
+      export GOSLING_TOOLSHIM_OLLAMA_MODEL="$TOOLSHIM_MODEL"
     fi
   fi
   
@@ -171,7 +171,7 @@ for ((i=0; i<$COUNT; i++)); do
   OUTPUT_FILE="$OUTPUT_DIR/${provider}-${model}.json"
   ANALYSIS_FILE="$OUTPUT_DIR/${provider}-${model}-analysis.txt"
   
-  if $GOOSE_CMD bench --suites "$SUITES" --output "$OUTPUT_FILE" --format json; then
+  if $GOSLING_CMD bench --suites "$SUITES" --output "$OUTPUT_FILE" --format json; then
     echo "✅ Benchmark completed successfully" | tee -a "$SUMMARY_FILE"
     
     # Parse the JSON to check for failures

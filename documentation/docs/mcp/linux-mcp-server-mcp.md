@@ -1,23 +1,23 @@
 ---
 title: Linux MCP Server Extension
-description: Add Linux MCP Server as a goose Extension
+description: Add Linux MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
-import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
+import GoslingBuiltinInstaller from '@site/src/components/GoslingBuiltinInstaller';
 
-This tutorial covers how to add the [Linux MCP Server](https://github.com/rhel-lightspeed/linux-mcp-server) as a goose extension to enable AI assistants to run, discover, and troubleshoot complex issues on Linux systems.
+This tutorial covers how to add the [Linux MCP Server](https://github.com/rhel-lightspeed/linux-mcp-server) as a gosling extension to enable AI assistants to run, discover, and troubleshoot complex issues on Linux systems.
 
 :::tip TLDR
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="gosling Desktop" default>
   [Install Linux MCP Server](https://rhel-lightspeed.github.io/linux-mcp-server/install/)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   # Using uv (recommended)
@@ -35,9 +35,9 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="gosling Desktop" default>
 
-    <GooseDesktopInstaller
+    <GoslingDesktopInstaller
       extensionId="linux-mcp-server"
       extensionName="Linux MCP server"
       description="Tools for Linux system discovery and troubleshooting"
@@ -49,7 +49,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
  
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
     <CLIExtensionInstructions
       name="Linux MCP Server"
@@ -66,12 +66,12 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 Follow the instructions on how to use the Linux MCP Server for system diagnostics and troubleshooting.
 
-### goose Prompt
+### gosling Prompt
 
 > _My wifi connection is not working very well. Find the error messages in the system logs and diagnose the problem to help me fix it._
 
 
-### goose Output
+### gosling Output
 
 :::note Desktop
 

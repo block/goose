@@ -5,13 +5,13 @@ import type {
   NewSessionRequest,
   SessionInfo,
 } from '@agentclientprotocol/sdk';
-import type { GooseExtension, SessionImportSource } from '@aaif/goose-sdk';
+import type { GoslingExtension, SessionImportSource } from '@repo-makeover/gosling-sdk';
 import { getAcpClient } from './acpConnection';
 import { DEFAULT_CHAT_TITLE } from '../contexts/ChatContext';
 import type { ExtensionLoadResult } from '../types/extensions';
 import type { Session } from '../types/session';
 
-interface GooseSessionInfoMeta {
+interface GoslingSessionInfoMeta {
   messageCount?: number;
   createdAt?: string;
   lastMessageAt?: string;
@@ -70,8 +70,8 @@ export function parseLoadMeta(response: LoadSessionResponse): LoadSessionMeta {
   return parseSessionResponseMeta(response._meta);
 }
 
-function sessionInfoMeta(s: SessionInfo): GooseSessionInfoMeta {
-  return (s._meta ?? {}) as GooseSessionInfoMeta;
+function sessionInfoMeta(s: SessionInfo): GoslingSessionInfoMeta {
+  return (s._meta ?? {}) as GoslingSessionInfoMeta;
 }
 
 export function sessionInfoToSession(s: SessionInfo, loadMeta: LoadSessionMeta = {}): Session {
@@ -146,7 +146,7 @@ export async function acpListSessions(
   if (keyword) {
     meta.query = keyword;
   }
-  meta.goose = {
+  meta.gosling = {
     archiveState: filter?.archiveState ?? 'active',
     includeLastMessageSnippet: filter?.includeLastMessageSnippet ?? false,
   };
@@ -170,7 +170,7 @@ export async function acpListRecentSessions(
   const response = await client.listSessions({
     _meta: {
       types: SESSION_LIST_TYPES,
-      goose: {
+      gosling: {
         archiveState,
         includeLastMessageSnippet: false,
       },
@@ -181,7 +181,7 @@ export async function acpListRecentSessions(
 
 export async function acpGetSessionListItem(sessionId: string): Promise<SessionListItem> {
   const client = await getAcpClient();
-  const response = await client.goose.sessionInfo_unstable({ sessionId });
+  const response = await client.gosling.sessionInfo_unstable({ sessionId });
   return sessionInfoToListItem(response.session);
 }
 
@@ -208,7 +208,7 @@ export function isAcpSessionLoadInFlight(sessionId: string): boolean {
 
 async function loadAcpSession(sessionId: string): Promise<AcpLoadSessionResult> {
   const client = await getAcpClient();
-  const initialSessionInfoResponse = await client.goose.sessionInfo_unstable({ sessionId });
+  const initialSessionInfoResponse = await client.gosling.sessionInfo_unstable({ sessionId });
   const initialSessionInfo = initialSessionInfoResponse.session;
   const response = await client.loadSession({
     sessionId,
@@ -216,7 +216,7 @@ async function loadAcpSession(sessionId: string): Promise<AcpLoadSessionResult> 
     mcpServers: [],
   });
   // Loading can populate missing provider/model metadata.
-  const sessionInfoResponse = await client.goose.sessionInfo_unstable({ sessionId });
+  const sessionInfoResponse = await client.gosling.sessionInfo_unstable({ sessionId });
 
   return {
     sessionInfo: sessionInfoResponse.session,
@@ -233,17 +233,17 @@ export interface AcpNewSessionResult {
 
 export async function acpNewSession(
   cwd: string,
-  gooseExtensions: GooseExtension[]
+  goslingExtensions: GoslingExtension[]
 ): Promise<AcpNewSessionResult> {
   const client = await getAcpClient();
-  const meta: Record<string, unknown> = { client: 'goose-desktop' };
-  if (gooseExtensions.length > 0) {
-    meta.enabledExtensions = gooseExtensions;
+  const meta: Record<string, unknown> = { client: 'gosling-desktop' };
+  if (goslingExtensions.length > 0) {
+    meta.enabledExtensions = goslingExtensions;
   }
   const request: NewSessionRequest = { cwd, mcpServers: [], _meta: meta };
   const response = await client.newSession(request);
   const sessionId = String(response.sessionId);
-  const sessionInfoResponse = await client.goose.sessionInfo_unstable({ sessionId });
+  const sessionInfoResponse = await client.gosling.sessionInfo_unstable({ sessionId });
 
   return {
     sessionId,
@@ -254,7 +254,7 @@ export async function acpNewSession(
 
 export async function acpDeleteSession(sessionId: string): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.sessionDelete({ sessionId });
+  await client.gosling.sessionDelete({ sessionId });
 }
 
 export async function acpCloseSession(sessionId: string): Promise<void> {
@@ -264,22 +264,22 @@ export async function acpCloseSession(sessionId: string): Promise<void> {
 
 export async function acpRenameSession(sessionId: string, title: string): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.sessionRename_unstable({ sessionId, title });
+  await client.gosling.sessionRename_unstable({ sessionId, title });
 }
 
 export async function acpArchiveSession(sessionId: string): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.sessionArchive_unstable({ sessionId });
+  await client.gosling.sessionArchive_unstable({ sessionId });
 }
 
 export async function acpUnarchiveSession(sessionId: string): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.sessionUnarchive_unstable({ sessionId });
+  await client.gosling.sessionUnarchive_unstable({ sessionId });
 }
 
 export async function acpUpdateWorkingDir(sessionId: string, workingDir: string): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.sessionWorkingDirUpdate_unstable({ sessionId, workingDir });
+  await client.gosling.sessionWorkingDirUpdate_unstable({ sessionId, workingDir });
 }
 
 export async function acpTruncateSessionConversation(
@@ -287,7 +287,7 @@ export async function acpTruncateSessionConversation(
   truncateFrom: number
 ): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.sessionConversationTruncate_unstable({ sessionId, truncateFrom });
+  await client.gosling.sessionConversationTruncate_unstable({ sessionId, truncateFrom });
 }
 
 export async function acpForkSession(
@@ -295,7 +295,7 @@ export async function acpForkSession(
   conversationBefore?: number
 ): Promise<string> {
   const client = await getAcpClient();
-  const sessionInfo = await client.goose.sessionInfo_unstable({ sessionId });
+  const sessionInfo = await client.gosling.sessionInfo_unstable({ sessionId });
   const { cwd } = sessionInfo.session;
   const request: ForkSessionRequest = { sessionId, cwd };
   if (conversationBefore !== undefined) {
@@ -307,7 +307,7 @@ export async function acpForkSession(
 
 export async function acpExportSession(sessionId: string): Promise<string> {
   const client = await getAcpClient();
-  const response = await client.goose.sessionExport_unstable({ sessionId });
+  const response = await client.gosling.sessionExport_unstable({ sessionId });
   return response.data;
 }
 
@@ -316,10 +316,10 @@ export async function acpImportSession(
   source: SessionImportSource
 ): Promise<void> {
   const client = await getAcpClient();
-  await client.goose.sessionImport_unstable({ input, source });
+  await client.gosling.sessionImport_unstable({ input, source });
 }
 
 export async function acpShareSessionNostr(sessionId: string, relays: string[]) {
   const client = await getAcpClient();
-  return await client.goose.sessionShareNostr_unstable({ sessionId, relays });
+  return await client.gosling.sessionShareNostr_unstable({ sessionId, relays });
 }

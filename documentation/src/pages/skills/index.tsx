@@ -79,7 +79,7 @@ export default function SkillsPage() {
           return skill.tags?.some((tag) => values.includes(tag)) ?? false;
         }
         if (group === "Source") {
-          // Use isCommunity field from manifest (true if author is not "goose")
+          // Use isCommunity field from manifest (true if author is not "gosling")
           const isCommunity = skill.isCommunity ?? false;
           if (values.includes("community")) return isCommunity;
           return true;
@@ -92,7 +92,7 @@ export default function SkillsPage() {
   return (
     <Layout
       title="Skills Marketplace"
-      description="Browse and install community-contributed skills for goose"
+      description="Browse and install community-contributed skills for gosling"
     >
       <div className="container mx-auto px-4 py-8 md:p-24">
         <div className="pb-8 md:pb-16">
@@ -133,7 +133,7 @@ export default function SkillsPage() {
             >
               skills
             </Link>{" "}
-            that teach goose how to perform specific tasks. Skills are reusable
+            that teach gosling how to perform specific tasks. Skills are reusable
             instruction sets with optional supporting files.
           </p>
         </div>

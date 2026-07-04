@@ -1,38 +1,38 @@
 ---
 title: Extension Manager
-description: Dynamically discover, enable, and disable extensions during goose sessions
+description: Dynamically discover, enable, and disable extensions during gosling sessions
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PlatformExtensionNote } from '@site/src/components/PlatformExtensionNote';
-import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
+import GoslingBuiltinInstaller from '@site/src/components/GoslingBuiltinInstaller';
 
-You don't always need to manually manage extensions. The Extension Manager extension enables goose to dynamically discover, enable, and disable extensions during active sessions. Based on the task you give it, goose recognizes when it needs a specific extension, enables it when required, and suggests disabling unused extensions if the bloat is eating up your context window.
+You don't always need to manually manage extensions. The Extension Manager extension enables gosling to dynamically discover, enable, and disable extensions during active sessions. Based on the task you give it, gosling recognizes when it needs a specific extension, enables it when required, and suggests disabling unused extensions if the bloat is eating up your context window.
 
-Simply describe your task, and goose will handle the extension management automatically.
+Simply describe your task, and gosling will handle the extension management automatically.
 
 ## Configuration
 
 <PlatformExtensionNote/>
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseBuiltinInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingBuiltinInstaller
     extensionName="Extension Manager"
     description="Dynamically discover, enable, and disable extensions during sessions"
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
   1. Run the `configure` command:
   ```sh
-  goose configure
+  gosling configure
   ```
 
   2. Choose to `Toggle Extensions`
   ```sh
-  ┌   goose-configure 
+  ┌   gosling-configure 
   │
   ◇  What would you like to configure?
   │  Toggle Extensions 
@@ -48,18 +48,18 @@ Simply describe your task, and goose will handle the extension management automa
 
 ## Why Use Extension Manager?
 
-goose can work with many extensions, but having too many enabled at once can:
+gosling can work with many extensions, but having too many enabled at once can:
 - Overwhelm the LLM with too many tool choices
 - Reduce the quality of tool selection
 - Slow down response times
 - Exceed recommended limits (5 extensions or 50 tools)
 
-The Extension Manager solves this by letting goose:
+The Extension Manager solves this by letting gosling:
 - **Discover** what extensions are available
 - **Enable** extensions only when needed for specific tasks
 - **Disable** extensions when they're no longer required
 
-This creates a more focused, efficient experience where goose has access to exactly the tools it needs, when it needs them.
+This creates a more focused, efficient experience where gosling has access to exactly the tools it needs, when it needs them.
 
 :::tip Recommended Limits
 For optimal performance, aim for **5 or fewer active extensions** with a total of **50 or fewer tools**. The Extension Manager helps you stay within these limits by enabling task-specific extensions only when needed.
@@ -84,13 +84,13 @@ The resource tools (`list_resources` and `read_resource`) are only available whe
 
 Let's enable an extension when we need it. In this example, we'll enable the GitHub extension to work with repositories.
 
-### goose Prompt
+### gosling Prompt
 
 ```
 List all my GitHub repositories
 ```
 
-### goose Output
+### gosling Output
 
 :::note Desktop
 

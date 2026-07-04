@@ -1,13 +1,13 @@
 ---
 title: I Ching Extension
-description: Add I Ching MCP Server as a goose Extension
+description: Add I Ching MCP Server as a gosling Extension
 ---
 
-This tutorial covers how to add the [I Ching MCP Server](https://github.com/threemachines/i-ching) as a goose extension to enable traditional I Ching divination readings.
+This tutorial covers how to add the [I Ching MCP Server](https://github.com/threemachines/i-ching) as a gosling extension to enable traditional I Ching divination readings.
 
 :::tip Quick Install
 1. Install: `cargo install i-ching`
-2. Configure: [Add I Ching Extension](goose://extension?cmd=i-ching-mcp-server&id=i-ching&name=I%20Ching&description=I%20Ching%20divination%20readings)
+2. Configure: [Add I Ching Extension](gosling://extension?cmd=i-ching-mcp-server&id=i-ching&name=I%20Ching&description=I%20Ching%20divination%20readings)
 :::
 
 ## Installation
@@ -20,8 +20,8 @@ rustc --version
 
 If you need to install or update Rust, visit [rustup.rs](https://rustup.rs/).
 
-:::tip Use goose to Help!
-If you're unsure about any of these steps, you can ask goose to help you check your system and guide you through the Rust installation process.
+:::tip Use gosling to Help!
+If you're unsure about any of these steps, you can ask gosling to help you check your system and guide you through the Rust installation process.
 :::
 
 Once Rust is ready, install the I Ching crate from crates.io:
@@ -30,15 +30,15 @@ Once Rust is ready, install the I Ching crate from crates.io:
 cargo install i-ching
 ```
 
-Then click the link above to configure it in goose.
+Then click the link above to configure it in gosling.
 
 ## Example Usage
 
-### goose Prompt
+### gosling Prompt
 
 > Our team is facing a challenging decision about our product roadmap. Could you consult the I Ching for some perspective on how to approach this choice?
 
-### goose Output
+### gosling Output
 
 :::note Desktop
 I'd be happy to consult the I Ching for guidance on your team's product roadmap decision. Let me cast a hexagram for you using the traditional three coins method.

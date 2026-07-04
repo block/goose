@@ -1,24 +1,24 @@
 ---
 title: Blender Extension
-description: Add Blender MCP Server as a goose Extension
+description: Add Blender MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/izoQatKtJ2I" />
 
-This tutorial covers how to add the [Blender MCP Server](https://github.com/ahujasid/blender-mcp) as a goose extension to create 3D scenes, control Blender with natural language, generate models, apply materials, and more.
+This tutorial covers how to add the [Blender MCP Server](https://github.com/ahujasid/blender-mcp) as a gosling extension to create 3D scenes, control Blender with natural language, generate models, apply materials, and more.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=uvx&arg=blender-mcp&id=blender&name=Blender&description=Blender%203D%20scene%20creation%20integration)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=uvx&arg=blender-mcp&id=blender&name=Blender&description=Blender%203D%20scene%20creation%20integration)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   uvx blender-mcp
@@ -52,8 +52,8 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 ### Add Blender MCP Server
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="blender"
     extensionName="Blender"
     description="Blender 3D scene creation integration"
@@ -61,7 +61,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     args={["blender-mcp"]}
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Blender"
       description="Blender 3D scene creation integration"
@@ -72,16 +72,16 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 ## Example Usage
 
-In this example, I’ll show you how to use goose with the Blender Extension to build an entire 3D campfire scene from scratch. By automating Blender controls through natural language, goose can create objects like logs and fireballs, apply realistic materials, add lighting effects, generate particles for sparks, create subtle smoke, and even animate the fire to gently pulse over time.
+In this example, I’ll show you how to use gosling with the Blender Extension to build an entire 3D campfire scene from scratch. By automating Blender controls through natural language, gosling can create objects like logs and fireballs, apply realistic materials, add lighting effects, generate particles for sparks, create subtle smoke, and even animate the fire to gently pulse over time.
 
-In this example, I’ll show you how to use goose with the Blender Extension to build a full 3D campfire scene, including logs, fireballs, lighting, and subtle fire animation, just by describing what you want.
+In this example, I’ll show you how to use gosling with the Blender Extension to build a full 3D campfire scene, including logs, fireballs, lighting, and subtle fire animation, just by describing what you want.
 
-### goose Prompt
+### gosling Prompt
 
 > Build a cozy campfire scene. Add a ground plane, place a few logs in a circle, and add a glowing fireball in the middle. Set the lighting to a warm tone like a sunset, and angle the camera for a dramatic shot. Give the logs a rough wood texture and make the fireball emit light.
 
 
-### goose Output
+### gosling Output
 
 :::note CLI
 

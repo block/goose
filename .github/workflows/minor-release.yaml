@@ -14,7 +14,7 @@ on:
 
 jobs:
   check-version-bump-pr:
-    if: github.repository == 'aaif-goose/goose' && github.event_name == 'push'
+    if: github.repository == 'repo-makeover/gosling' && github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
       should_run: ${{ steps.check.outputs.should_run }}
@@ -60,7 +60,7 @@ jobs:
 
   release:
     needs: check-version-bump-pr
-    if: always() && github.repository == 'aaif-goose/goose' && (github.event_name != 'push' || needs.check-version-bump-pr.outputs.should_run == 'true')
+    if: always() && github.repository == 'repo-makeover/gosling' && (github.event_name != 'push' || needs.check-version-bump-pr.outputs.should_run == 'true')
     uses: ./.github/workflows/create-version-bump-pr.yaml
     secrets:
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}

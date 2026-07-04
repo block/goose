@@ -3,12 +3,12 @@ import Model from './modelInterface';
 // Helper functions for predefined models - shared across components
 export function getPredefinedModelsFromEnv(): Model[] {
   try {
-    const envModels = window.appConfig.get('GOOSE_PREDEFINED_MODELS'); // process.env.GOOSE_PREDEFINED_MODELS
+    const envModels = window.appConfig.get('GOSLING_PREDEFINED_MODELS'); // process.env.GOSLING_PREDEFINED_MODELS
     if (envModels && typeof envModels === 'string') {
       return JSON.parse(envModels) as Model[];
     }
   } catch (error) {
-    console.warn('Failed to parse GOOSE_PREDEFINED_MODELS environment variable:', error);
+    console.warn('Failed to parse GOSLING_PREDEFINED_MODELS environment variable:', error);
   }
   return [];
 }

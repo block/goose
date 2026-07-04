@@ -23,7 +23,7 @@ jobs:
   update-dashboard:
     name: 'Update Health Dashboard'
     runs-on: ubuntu-latest
-    if: github.repository == 'aaif-goose/goose'
+    if: github.repository == 'repo-makeover/gosling'
     
     steps:
       - name: 'Download previous metrics'

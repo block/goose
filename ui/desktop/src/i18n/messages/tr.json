@@ -828,7 +828,7 @@
     "defaultMessage": "Gizli Anahtar"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "goosed sunucusunda yapılandırılan gizli anahtar (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "goslingd sunucusunda yapılandırılan gizli anahtar (GOSLING_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Sunucunun gizli anahtarını girin"
@@ -857,67 +857,67 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Başka bir yerde çalışan bir gosling sunucusuna bağlanın (uygulamanın yeniden başlatılmasını gerektirir)"
   },
-  "goosehintsModal.close": {
+  "goslinghintsModal.close": {
     "defaultMessage": "Kapat"
   },
-  "goosehintsModal.developer": {
+  "goslinghintsModal.developer": {
     "defaultMessage": "Geliştirici"
   },
-  "goosehintsModal.dialogDescription": {
+  "goslinghintsModal.dialogDescription": {
     "defaultMessage": "Gosling ile iletişimi geliştirmek için projeniz hakkında ek bağlam sağlayın"
   },
-  "goosehintsModal.dialogTitle": {
-    "defaultMessage": "Proje İpuçlarını Yapılandırma (.goosehints)"
+  "goslinghintsModal.dialogTitle": {
+    "defaultMessage": "Proje İpuçlarını Yapılandırma (.goslinghints)"
   },
-  "goosehintsModal.errorReading": {
-    "defaultMessage": ".goosehints dosyası okunurken hata oluştu: {error}"
+  "goslinghintsModal.errorReading": {
+    "defaultMessage": ".goslinghints dosyası okunurken hata oluştu: {error}"
   },
-  "goosehintsModal.failedToAccess": {
-    "defaultMessage": ".goosehints dosyasına erişilemedi"
+  "goslinghintsModal.failedToAccess": {
+    "defaultMessage": ".goslinghints dosyasına erişilemedi"
   },
-  "goosehintsModal.failedToSave": {
-    "defaultMessage": ".goosehints dosyası kaydedilemedi"
+  "goslinghintsModal.failedToSave": {
+    "defaultMessage": ".goslinghints dosyası kaydedilemedi"
   },
-  "goosehintsModal.fileCreating": {
-    "defaultMessage": "Şu konumda yeni.goosehints dosyası oluşturuluyor: {filePath}"
+  "goslinghintsModal.fileCreating": {
+    "defaultMessage": "Şu konumda yeni.goslinghints dosyası oluşturuluyor: {filePath}"
   },
-  "goosehintsModal.fileFound": {
-    "defaultMessage": ".goosehints dosyası şu konumda bulundu: {filePath}"
+  "goslinghintsModal.fileFound": {
+    "defaultMessage": ".goslinghints dosyası şu konumda bulundu: {filePath}"
   },
-  "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints, projeniz hakkında ek bağlam sağlamak ve Gosling ile iletişimi geliştirmek için kullanılan bir metin dosyasıdır."
+  "goslinghintsModal.helpText1": {
+    "defaultMessage": ".goslinghints, projeniz hakkında ek bağlam sağlamak ve Gosling ile iletişimi geliştirmek için kullanılan bir metin dosyasıdır."
   },
-  "goosehintsModal.helpText2": {
-    "defaultMessage": "Lütfen uzantılar sayfasında {bold} uzantısının etkinleştirildiğinden emin olun. Bu uzantı.goosehints'i kullanmak için gereklidir..goosehints güncellemelerinin etkili olması için oturumunuzu yeniden başlatmanız gerekir."
+  "goslinghintsModal.helpText2": {
+    "defaultMessage": "Lütfen uzantılar sayfasında {bold} uzantısının etkinleştirildiğinden emin olun. Bu uzantı.goslinghints'i kullanmak için gereklidir..goslinghints güncellemelerinin etkili olması için oturumunuzu yeniden başlatmanız gerekir."
   },
-  "goosehintsModal.helpText3": {
+  "goslinghintsModal.helpText3": {
     "defaultMessage": "Daha fazla bilgi için {link}'ye bakın."
   },
-  "goosehintsModal.helpTextLink": {
-    "defaultMessage": ".goosehints'i kullanma"
+  "goslinghintsModal.helpTextLink": {
+    "defaultMessage": ".goslinghints'i kullanma"
   },
-  "goosehintsModal.placeholder": {
+  "goslinghintsModal.placeholder": {
     "defaultMessage": "Proje ipuçlarını buraya girin..."
   },
-  "goosehintsModal.save": {
+  "goslinghintsModal.save": {
     "defaultMessage": "Kaydet"
   },
-  "goosehintsModal.savedSuccessfully": {
+  "goslinghintsModal.savedSuccessfully": {
     "defaultMessage": "Başarıyla kaydedildi"
   },
-  "goosehintsModal.saving": {
+  "goslinghintsModal.saving": {
     "defaultMessage": "Kaydediliyor..."
   },
-  "goosehintsSection.configure": {
+  "goslinghintsSection.configure": {
     "defaultMessage": "Yapılandır"
   },
-  "goosehintsSection.description": {
-    "defaultMessage": "Gosling'a ek bağlam sağlamak için projenizin.goosehints dosyasını yapılandırın"
+  "goslinghintsSection.description": {
+    "defaultMessage": "Gosling'a ek bağlam sağlamak için projenizin.goslinghints dosyasını yapılandırın"
   },
-  "goosehintsSection.title": {
-    "defaultMessage": "Proje İpuçları (.goosehints)"
+  "goslinghintsSection.title": {
+    "defaultMessage": "Proje İpuçları (.goslinghints)"
   },
-  "groupedExtensionLoadingToast.askGoose": {
+  "groupedExtensionLoadingToast.askGosling": {
     "defaultMessage": "gosling'a sorun"
   },
   "groupedExtensionLoadingToast.collapseDetails": {
@@ -1184,25 +1184,25 @@
   "launcher.placeholder": {
     "defaultMessage": "gosling'a herhangi bir şey sorun..."
   },
-  "loadingGoose.compacting": {
+  "loadingGosling.compacting": {
     "defaultMessage": "gosling konuşmayı sıkıştırıyor..."
   },
-  "loadingGoose.idle": {
+  "loadingGosling.idle": {
     "defaultMessage": "gosling bunun üzerinde çalışıyor…"
   },
-  "loadingGoose.loadingConversation": {
+  "loadingGosling.loadingConversation": {
     "defaultMessage": "konuşma yükleniyor..."
   },
-  "loadingGoose.restartingAgent": {
+  "loadingGosling.restartingAgent": {
     "defaultMessage": "oturum yeniden başlatılıyor..."
   },
-  "loadingGoose.streaming": {
+  "loadingGosling.streaming": {
     "defaultMessage": "gosling bunun üzerinde çalışıyor…"
   },
-  "loadingGoose.thinking": {
+  "loadingGosling.thinking": {
     "defaultMessage": "gosling düşünüyor…"
   },
-  "loadingGoose.waiting": {
+  "loadingGosling.waiting": {
     "defaultMessage": "gosling bekliyor…"
   },
   "markdownContent.cancel": {
@@ -2421,7 +2421,7 @@
     "defaultMessage": "Eşleşen beceri bulunamadı"
   },
   "skillsView.noSkillsDescription": {
-    "defaultMessage": "Beceriler ~/.config/agents/skills/,.goose/skills/ veya desteklenen diğer dizinlerdeki SKILL.md dosyalarından yüklenir."
+    "defaultMessage": "Beceriler ~/.config/agents/skills/,.gosling/skills/ veya desteklenen diğer dizinlerdeki SKILL.md dosyalarından yüklenir."
   },
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "Hiçbir beceri yüklü değil"
@@ -2678,14 +2678,14 @@
   "toolConfirmation.allowToolCallWithName": {
     "defaultMessage": "{toolName}'ye izin verilsin mi?"
   },
-  "toolConfirmation.gooseWouldLikeToCallWithName": {
+  "toolConfirmation.goslingWouldLikeToCallWithName": {
     "defaultMessage": "Gosling, {toolName}'yi aramak istiyor. İzin vermek?"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "Güncelleme arka planda otomatik olarak indirilecektir."
   },
   "updateSection.autoDownloadDisabledByEnv": {
-    "defaultMessage": "Otomatik indirmeler GOOSE_DISABLE_AUTO_DOWNLOAD ortam değişkeni aracılığıyla devre dışı bırakılmıştır."
+    "defaultMessage": "Otomatik indirmeler GOSLING_DISABLE_AUTO_DOWNLOAD ortam değişkeni aracılığıyla devre dışı bırakılmıştır."
   },
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Otomatik indirme devre dışı. Manuel olarak indirmek için \"Şimdi İndir\"e tıklayın."

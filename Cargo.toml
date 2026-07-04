@@ -10,9 +10,8 @@ resolver = "2"
 edition = "2021"
 version = "1.40.0"
 rust-version = "1.91.1"
-authors = ["AAIF <ai-oss-tools@block.xyz>"]
 license = "Apache-2.0"
-repository = "https://github.com/aaif-goose/goose"
+repository = "https://github.com/repo-makeover/gosling"
 description = "An AI agent"
 
 [workspace.lints.clippy]

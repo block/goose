@@ -1,11 +1,11 @@
 ---
 title: Cash App Extension
-description: Add Cash App as a goose Extension
+description: Add Cash App as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 Cash App brings local food ordering into the AI era. Discover nearby sellers, browse menus with calories and allergen info, customize orders, and complete checkout—all conversationally. The real magic? Combine it with your other tools: check your calendar for meeting times, log meals to your health app, or find options that fit your dietary goals. Try prompts like "Order a nut-free lunch that arrives before my 2pm flight" for truly connected experiences.
@@ -14,11 +14,11 @@ Cash App brings local food ordering into the AI era. Discover nearby sellers, br
 
 :::tip
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Install Cash App extension](goose://extension?type=streamable_http&url=https%3A%2F%2Fconnect.squareup.com%2Fv2%2Fmcp%2Fcash-app&id=cash-app&name=Cash%20App&description=Cash%20App%20brings%20local%20food%20ordering%20into%20the%20AI%20era.)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Install Cash App extension](gosling://extension?type=streamable_http&url=https%3A%2F%2Fconnect.squareup.com%2Fv2%2Fmcp%2Fcash-app&id=cash-app&name=Cash%20App&description=Cash%20App%20brings%20local%20food%20ordering%20into%20the%20AI%20era.)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
-  Use `goose configure` to add a `Remote Extension (Streamable HTTP)` with:
+  <TabItem value="cli" label="gosling CLI">
+  Use `gosling configure` to add a `Remote Extension (Streamable HTTP)` with:
 
   **Endpoint URL**
 
@@ -32,8 +32,8 @@ Cash App brings local food ordering into the AI era. Discover nearby sellers, br
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="cash-app"
       extensionName="Cash App"
       description="Cash App brings local food ordering into the AI era. Discover nearby sellers, browse menus, customize orders, and complete checkout—all conversationally."
@@ -41,7 +41,7 @@ Cash App brings local food ordering into the AI era. Discover nearby sellers, br
       url="https://connect.squareup.com/v2/mcp/cash-app"
     />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Cash App"
       description="Cash App brings local food ordering into the AI era. Discover nearby sellers, browse menus, customize orders, and complete checkout—all conversationally."
@@ -64,7 +64,7 @@ I'm in the mood for something quick and healthy.
 ```
 
 <details>
-<summary>goose Output</summary>
+<summary>gosling Output</summary>
 
 ```
 Here are restaurants near 375 W Broadway:
@@ -87,7 +87,7 @@ either menu?
 
 ### Browse Menus with Prices and Recommendations
 
-Get a full menu overview with categories, prices, descriptions, and recommended items — all in plain text that goose can reason about.
+Get a full menu overview with categories, prices, descriptions, and recommended items — all in plain text that gosling can reason about.
 
 **Prompt:**
 ```
@@ -95,7 +95,7 @@ Show me the full menu for Ba'al Falafel at 71 Sullivan St.
 ```
 
 <details>
-<summary>goose Output</summary>
+<summary>gosling Output</summary>
 
 ```
 # Ba'al Falafel
@@ -125,11 +125,11 @@ Show me the full menu for Ba'al Falafel at 71 Sullivan St.
 
 </details>
 
-Because the menu comes back as structured text, goose can answer follow-up questions like *"which items are under $10?"* or *"what's vegetarian?"* without another tool call.
+Because the menu comes back as structured text, gosling can answer follow-up questions like *"which items are under $10?"* or *"what's vegetarian?"* without another tool call.
 
 ### Build a Cart and Check Out
 
-Once you've found what you want, tell goose to build your order. It handles item selection, modifiers, and quantities — then gives you a checkout link to complete payment through Cash App.
+Once you've found what you want, tell gosling to build your order. It handles item selection, modifiers, and quantities — then gives you a checkout link to complete payment through Cash App.
 
 **Prompt:**
 ```
@@ -138,7 +138,7 @@ Add a Classic Falafel Sandwich and a Ginger Lemonade to my cart.
 
 ## Example Prompts
 
-Cash App is most powerful when goose combines it with your other tools and the context of your day:
+Cash App is most powerful when gosling combines it with your other tools and the context of your day:
 
 - **Time-aware ordering:** *"Order a nut-free lunch that arrives before my 2pm flight."*
 - **Pair with your calendar:** *"Check my calendar for today and find somewhere I can grab a quick pickup lunch before my 1pm meeting. I'm near Union Square."*

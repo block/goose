@@ -20,9 +20,9 @@ The use of models specializing in code editing can reduce the load on the main L
 Set these [environment variables](/docs/guides/environment-variables#enhanced-code-editing) to enable AI-powered code editing:
 
 ```bash
-export GOOSE_EDITOR_API_KEY="your-api-key-here"
-export GOOSE_EDITOR_HOST="https://api.openai.com/v1"
-export GOOSE_EDITOR_MODEL="gpt-4o"
+export GOSLING_EDITOR_API_KEY="your-api-key-here"
+export GOSLING_EDITOR_HOST="https://api.openai.com/v1"
+export GOSLING_EDITOR_MODEL="gpt-4o"
 ```
 
 **All three environment variables must be set and non-empty for the feature to activate.** 
@@ -35,46 +35,46 @@ Any OpenAI-compatible API endpoint should work. Examples:
 
 **OpenAI:**
 ```bash
-export GOOSE_EDITOR_API_KEY="sk-..."
-export GOOSE_EDITOR_HOST="https://api.openai.com/v1"
-export GOOSE_EDITOR_MODEL="gpt-4o"
+export GOSLING_EDITOR_API_KEY="sk-..."
+export GOSLING_EDITOR_HOST="https://api.openai.com/v1"
+export GOSLING_EDITOR_MODEL="gpt-4o"
 ```
 
 **Anthropic (via OpenAI-compatible proxy):**
 ```bash
-export GOOSE_EDITOR_API_KEY="sk-ant-..."
-export GOOSE_EDITOR_HOST="https://api.anthropic.com/v1"
-export GOOSE_EDITOR_MODEL="claude-3-5-sonnet-20241022"
+export GOSLING_EDITOR_API_KEY="sk-ant-..."
+export GOSLING_EDITOR_HOST="https://api.anthropic.com/v1"
+export GOSLING_EDITOR_MODEL="claude-3-5-sonnet-20241022"
 ```
 
 **Morph:**
 ```bash
-export GOOSE_EDITOR_API_KEY="sk-..."
-export GOOSE_EDITOR_HOST="https://api.morphllm.com/v1"
-export GOOSE_EDITOR_MODEL="morph-v0"
+export GOSLING_EDITOR_API_KEY="sk-..."
+export GOSLING_EDITOR_HOST="https://api.morphllm.com/v1"
+export GOSLING_EDITOR_MODEL="morph-v0"
 ```
 
 **Relace:**
 ```bash
-export GOOSE_EDITOR_API_KEY="rlc-..."
-export GOOSE_EDITOR_HOST="https://instantapply.endpoint.relace.run/v1/apply"
-export GOOSE_EDITOR_MODEL="auto"
+export GOSLING_EDITOR_API_KEY="rlc-..."
+export GOSLING_EDITOR_HOST="https://instantapply.endpoint.relace.run/v1/apply"
+export GOSLING_EDITOR_MODEL="auto"
 ```
 
 **Local/Custom endpoints:**
 ```bash
-export GOOSE_EDITOR_API_KEY="your-key"
-export GOOSE_EDITOR_HOST="http://localhost:8000/v1"
-export GOOSE_EDITOR_MODEL="your-model"
+export GOSLING_EDITOR_API_KEY="your-key"
+export GOSLING_EDITOR_HOST="http://localhost:8000/v1"
+export GOSLING_EDITOR_MODEL="your-model"
 ```
 
 ## How It Works
 
 When the `str_replace` tool is used to edit code:
 
-1. **Configuration Check**: goose checks if all three environment variables are properly set and non-empty.
+1. **Configuration Check**: gosling checks if all three environment variables are properly set and non-empty.
 
-2. **With AI Enabled**: If configured, goose sends the original code and your requested change to the configured AI model for processing.
+2. **With AI Enabled**: If configured, gosling sends the original code and your requested change to the configured AI model for processing.
 
 3. **Fallback**: If the AI API is not configured or the API call fails, it falls back to simple string replacement.
 

@@ -166,7 +166,7 @@ export function ExtensionInstallModal({ addExtension, setView }: ExtensionInstal
   ): Promise<ModalType> => {
     try {
       const config = window.electron.getConfig();
-      const ALLOWLIST_WARNING_MODE = config.GOOSE_ALLOWLIST_WARNING === true;
+      const ALLOWLIST_WARNING_MODE = config.GOSLING_ALLOWLIST_WARNING === true;
 
       if (ALLOWLIST_WARNING_MODE) {
         return 'untrusted';

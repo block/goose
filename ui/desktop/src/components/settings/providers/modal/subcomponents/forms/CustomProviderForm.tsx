@@ -4,7 +4,7 @@ import { Select } from '../../../../../ui/Select';
 import { Button } from '../../../../../ui/button';
 import { SecureStorageNotice } from '../SecureStorageNotice';
 import type { UpdateCustomProviderRequest } from '../../../../../../types/providers';
-import type { ProviderTemplateDto } from '@aaif/goose-sdk';
+import type { ProviderTemplateDto } from '@repo-makeover/gosling-sdk';
 import { Plus, X, Trash2, AlertTriangle, ExternalLink, Search, Settings } from 'lucide-react';
 import { cn } from '../../../../../../utils';
 import ProviderCatalogPicker from '../ProviderCatalogPicker';

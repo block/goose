@@ -1,14 +1,14 @@
 {
-  "name": "@aaif/goose-sdk",
+  "name": "@repo-makeover/gosling-sdk",
   "version": "0.20.2",
-  "description": "Agent Client Protocol (ACP) SDK for Goose AI agent",
+  "description": "Agent Client Protocol (ACP) SDK for Gosling AI agent",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/aaif-goose/goose.git"
+    "url": "git+https://github.com/repo-makeover/gosling.git"
   },
   "keywords": [
-    "goose",
+    "gosling",
     "ai",
     "agent",
     "acp",
@@ -51,11 +51,11 @@
     "@agentclientprotocol/sdk": "^0.19.0"
   },
   "optionalDependencies": {
-    "@aaif/goose-binary-darwin-arm64": "workspace:*",
-    "@aaif/goose-binary-darwin-x64": "workspace:*",
-    "@aaif/goose-binary-linux-arm64": "workspace:*",
-    "@aaif/goose-binary-linux-x64": "workspace:*",
-    "@aaif/goose-binary-win32-x64": "workspace:*"
+    "@repo-makeover/gosling-binary-darwin-arm64": "workspace:*",
+    "@repo-makeover/gosling-binary-darwin-x64": "workspace:*",
+    "@repo-makeover/gosling-binary-linux-arm64": "workspace:*",
+    "@repo-makeover/gosling-binary-linux-x64": "workspace:*",
+    "@repo-makeover/gosling-binary-win32-x64": "workspace:*"
   },
   "devDependencies": {
     "@agentclientprotocol/sdk": "^0.19.0",

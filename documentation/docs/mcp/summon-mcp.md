@@ -6,14 +6,14 @@ description: Load skills and delegate tasks to subagents
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PlatformExtensionNote } from '@site/src/components/PlatformExtensionNote';
-import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
+import GoslingBuiltinInstaller from '@site/src/components/GoslingBuiltinInstaller';
 
-The Summon extension lets you load knowledge into goose's context and delegate tasks to [subagents](/docs/guides/context-engineering/subagents). 
+The Summon extension lets you load knowledge into gosling's context and delegate tasks to [subagents](/docs/guides/context-engineering/subagents). 
 
 You can load sources such as:
-- [**Skills**](/docs/guides/context-engineering/using-skills) - Reusable instruction sets that teach goose specific workflows
+- [**Skills**](/docs/guides/context-engineering/using-skills) - Reusable instruction sets that teach gosling specific workflows
 
-This is useful for teaching goose how to perform tasks and running work in parallel through subagents.
+This is useful for teaching gosling how to perform tasks and running work in parallel through subagents.
 
 :::info
 This extension is available in v1.25.0+.
@@ -24,22 +24,22 @@ This extension is available in v1.25.0+.
 <PlatformExtensionNote/>
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseBuiltinInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingBuiltinInstaller
     extensionName="Summon"
     description="Load knowledge and delegate tasks to subagents"
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
   1. Run the `configure` command:
   ```sh
-  goose configure
+  gosling configure
   ```
 
   2. Choose to `Toggle Extensions`
   ```sh
-  ┌   goose-configure 
+  ┌   gosling-configure 
   │
   ◇  What would you like to configure?
   │  Toggle Extensions 
@@ -55,7 +55,7 @@ This extension is available in v1.25.0+.
 
 ## Example Usage
 
-In this example, we'll create a custom skill that teaches goose a 90s web aesthetic, then use Summon to load that skill and delegate a subagent to build a retro homepage.
+In this example, we'll create a custom skill that teaches gosling a 90s web aesthetic, then use Summon to load that skill and delegate a subagent to build a retro homepage.
 
 ### Create a Skill
 
@@ -76,13 +76,13 @@ Channel the 90s internet:
 6. Marquee-style excitement
 ```
 
-### goose Prompt
+### gosling Prompt
 
 ```
 Load the retro skill with summon. Then delegate a subagent to create an HTML page called my-site.html for a personal homepage.
 ```
 
-### goose Output
+### gosling Output
 
 ```
 ─── load | summon ───────────────────────────────────────────

@@ -34,7 +34,7 @@ const i18n = defineMessages({
   },
 });
 
-const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
+const TELEMETRY_CONFIG_KEY = 'GOSLING_TELEMETRY_ENABLED';
 
 export default function TelemetryConsentPrompt() {
   const intl = useIntl();
@@ -48,7 +48,7 @@ export default function TelemetryConsentPrompt() {
 
     (async () => {
       try {
-        const provider = await read('GOOSE_PROVIDER', false);
+        const provider = await read('GOSLING_PROVIDER', false);
         if (!provider || provider === '') return;
 
         const telemetryValue = await read(TELEMETRY_CONFIG_KEY, false);

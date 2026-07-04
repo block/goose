@@ -1,17 +1,16 @@
 ---
 title: Auto Visualiser Extension
-description: Add automatic data visualization to goose
+description: Add automatic data visualization to gosling
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
-import ImageCarousel from '@site/src/components/ImageCarousel';
+import GoslingBuiltinInstaller from '@site/src/components/GoslingBuiltinInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/txh6DlzPwNo" />
 
-The Auto Visualiser extension enables goose to automatically generate interactive data visualizations directly in your conversation. This built-in extension uses MCP Apps to render charts, graphs, maps, and diagrams inline in goose Desktop.
+The Auto Visualiser extension enables gosling to automatically generate interactive data visualizations directly in your conversation. This built-in extension uses MCP Apps to render charts, graphs, maps, and diagrams inline in gosling Desktop.
 
 This guide will cover enabling and using the Auto Visualiser MCP Server.
 
@@ -19,22 +18,22 @@ This guide will cover enabling and using the Auto Visualiser MCP Server.
 
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseBuiltinInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingBuiltinInstaller
     extensionName="Auto Visualiser"
     description="Automatically generate interactive data visualizations"
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
   1. Run the `configure` command:
   ```sh
-  goose configure
+  gosling configure
   ```
 
   2. Choose to `Toggle Extensions`
   ```sh
-  ┌   goose-configure 
+  ┌   gosling-configure 
   │
   ◇  What would you like you configure?
   │  Toggle Extensions 
@@ -50,12 +49,12 @@ This guide will cover enabling and using the Auto Visualiser MCP Server.
 
 
 :::info
-Auto Visualiser now uses [MCP Apps](/docs/tutorials/building-mcp-apps), which means visualizations can render inline in chat and expand into fullscreen or picture-in-picture modes in goose Desktop.
+Auto Visualiser now uses [MCP Apps](/docs/tutorials/building-mcp-apps), which means visualizations can render inline in chat and expand into fullscreen or picture-in-picture modes in gosling Desktop.
 :::
 
 ## Visualization Types
 
-The Auto Visualiser automatically detects when data would benefit from visualization and chooses the most appropriate chart or diagram type. It renders those visualizations as interactive MCP Apps inside goose Desktop.
+The Auto Visualiser automatically detects when data would benefit from visualization and chooses the most appropriate chart or diagram type. It renders those visualizations as interactive MCP Apps inside gosling Desktop.
 
 | Chart Type | Description | Detected When Prompt Implies |
 |------------|-------------|------------------------------|
@@ -68,23 +67,11 @@ The Auto Visualiser automatically detects when data would benefit from visualiza
 | **Mermaid Diagrams** | Flowcharts, sequence diagrams, Gantt charts, and other diagram types using Mermaid syntax | Diagram creation <br/>(flowcharts, sequence diagrams, architecture diagrams) |
 | **Line/Bar/Scatter Charts** | Traditional chart types for data analysis | Time series data <br/>(historical data, trends over time) |
 
-### Example Visualizations
-
-<ImageCarousel id="flappy" width="40%" images={[
-
-  require('/blog/2025-08-27-autovisualiser-with-mcp-ui/sankey.png').default,
-  require('/blog/2025-08-27-autovisualiser-with-mcp-ui/treemap.png').default,
- ]}
- names={[
-    "Sankey",
-    "Treemap"
-  ]} />
-
 ### Features
 
-- **Automatic Detection**: goose intelligently chooses the best visualization type for your data
+- **Automatic Detection**: gosling intelligently chooses the best visualization type for your data
 - **Interactive Components**: All visualizations are interactive with hover effects, zooming, and drilling capabilities
-- **MCP Apps Rendering**: Visualizations render as MCP Apps directly in goose Desktop
+- **MCP Apps Rendering**: Visualizations render as MCP Apps directly in gosling Desktop
 - **Multiple Display Modes**: Visualizations can appear inline and expand into fullscreen or picture-in-picture modes
 - **Multiple Chart Support**: Can render multiple visualizations in a single response
 - **Customizable Styling**: Supports custom colors, labels, and formatting options
@@ -92,7 +79,7 @@ The Auto Visualiser automatically detects when data would benefit from visualiza
 
 ## How It Works
 
-When goose decides that your data should be visualized, the Auto Visualiser extension returns an MCP App for the selected chart type. goose Desktop then renders that app directly in the conversation.
+When gosling decides that your data should be visualized, the Auto Visualiser extension returns an MCP App for the selected chart type. gosling Desktop then renders that app directly in the conversation.
 
 Depending on the visualization, you can:
 
@@ -103,10 +90,10 @@ Depending on the visualization, you can:
 
 ## Example Usage
 
-In this example, I'll have goose analyze some sales data and automatically visualize it using the Auto Visualiser extension.
+In this example, I'll have gosling analyze some sales data and automatically visualize it using the Auto Visualiser extension.
 
 
-### goose Prompt
+### gosling Prompt
 ```
 I have quarterly sales data for different product categories. Can you help me understand:
 1. The hierarchical breakdown of revenue across our nested product categories
@@ -119,7 +106,7 @@ Here's the data:
 - Home & Garden: Q1: $80k, Q2: $95k, Q3: $110k, Q4: $125k
 ```
 
-### goose Output
+### gosling Output
 
 :::note Desktop
 
@@ -172,7 +159,7 @@ Would you like me to create additional visualizations or dive deeper into any sp
 
 - **Visualization not appearing**: Ensure the Auto Visualiser extension is enabled and your data follows the expected format.
 
-- **Visualization opens but does not fit well inline**: Try fullscreen mode in goose Desktop for more space.
+- **Visualization opens but does not fit well inline**: Try fullscreen mode in gosling Desktop for more space.
 
 - **Data format errors**: Check that your data structure matches the required schema for the visualization type. The extension provides detailed error messages to guide you.
 

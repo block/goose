@@ -1,17 +1,17 @@
 ---
 title: Vercel Extension
-description: Add Vercel MCP Server as a goose Extension for managing your deployments
+description: Add Vercel MCP Server as a gosling Extension for managing your deployments
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/-Y-werFKtTw" />
 
-This tutorial covers how to add the [Vercel MCP Server](https://vercel.com/docs/mcp/vercel-mcp) as a goose extension to manage your Vercel projects and deployment status directly from goose.
+This tutorial covers how to add the [Vercel MCP Server](https://vercel.com/docs/mcp/vercel-mcp) as a gosling extension to manage your Vercel projects and deployment status directly from gosling.
 
 :::info
 Note that you'll need [Node.js](https://nodejs.org/) installed on your system to run installation commands, which use `npx`.
@@ -19,10 +19,10 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?url=https%3A%2F%2Fmcp.vercel.com&type=streamable_http&id=vercel&name=Vercel&description=Access%20deployments%2C%20manage%20projects%2C%20and%20more%20with%20Vercel%E2%80%99s%20official%20MCP%20server)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?url=https%3A%2F%2Fmcp.vercel.com&type=streamable_http&id=vercel&name=Vercel&description=Access%20deployments%2C%20manage%20projects%2C%20and%20more%20with%20Vercel%E2%80%99s%20official%20MCP%20server)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     ```sh
     npx mcp-remote https://mcp.vercel.com
     ```
@@ -33,8 +33,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="Vercel"
       extensionName="Vercel"
       description="Access Vercel deployments and manage projects"
@@ -42,7 +42,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
       url="https://mcp.vercel.com"
     />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Vercel"
       description="Access Vercel deployments and manage projects"
@@ -55,14 +55,14 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-### goose Prompt
+### gosling Prompt
 ```
 Get a list of my Vercel projects via the Vercel MCP server, and build me a table showing when I last deployed the project and other details I should know about their status.
 ```
 
 The first time you use the Vercel MCP server, you will be prompted to authenticate with Vercel via OAuth.
 
-### goose Output
+### gosling Output
 ```
 I'll help you get your Vercel projects and create a table with deployment details. Let me first get your teams to identify which team to use for listing projects.
 

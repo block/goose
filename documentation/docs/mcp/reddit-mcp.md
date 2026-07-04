@@ -1,26 +1,26 @@
 ---
 title: Reddit Extension
 
-description: Add Reddit MCP Server as a goose Extension
+description: Add Reddit MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VBtFinHieHA" /> 
 
 
-This tutorial covers how to add the [Reddit MCP Server](https://github.com/adhikasp/mcp-reddit) as a goose extension to fetch trending threads, analyze Reddit post content, and explore subreddit discussions.
+This tutorial covers how to add the [Reddit MCP Server](https://github.com/adhikasp/mcp-reddit) as a gosling extension to fetch trending threads, analyze Reddit post content, and explore subreddit discussions.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=uvx&arg=--from&arg=git%2Bhttps%3A%2F%2Fgithub.com%2Fadhikasp%2Fmcp-reddit.git&arg=mcp-reddit&id=reddit&name=Reddit&description=Fetch%20and%20analyze%20Reddit%20content)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=uvx&arg=--from&arg=git%2Bhttps%3A%2F%2Fgithub.com%2Fadhikasp%2Fmcp-reddit.git&arg=mcp-reddit&id=reddit&name=Reddit&description=Fetch%20and%20analyze%20Reddit%20content)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   uvx --from git+https://github.com/adhikasp/mcp-reddit.git mcp-reddit
@@ -36,8 +36,8 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="reddit"
       extensionName="Reddit"
       description="Fetch and analyze Reddit content"
@@ -46,7 +46,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     />
   </TabItem>
 
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Reddit MCP"
       description="Fetch and analyze Reddit content"
@@ -59,17 +59,17 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 ## Example Usage
 
-In this example, I’ll use goose with the Reddit MCP Server to build a custom news feed for AI topics. goose will pull top AI threads from Reddit and turn them into a scrollable, social media-style feed with images and highlights.
+In this example, I’ll use gosling with the Reddit MCP Server to build a custom news feed for AI topics. gosling will pull top AI threads from Reddit and turn them into a scrollable, social media-style feed with images and highlights.
 
 It’s like Reddit, but curated just for you.
 
-### goose Prompt
+### gosling Prompt
 
-> goose using the reddit MCP server, create a personalized social feed of the latest AI threads. Include images and format it like a real social media app.
+> gosling using the reddit MCP server, create a personalized social feed of the latest AI threads. Include images and format it like a real social media app.
 
 
 
-### goose Output
+### gosling Output
 
 :::note Desktop
 

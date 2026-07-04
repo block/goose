@@ -179,7 +179,7 @@ export default function ConfigSettings() {
     setIsModalOpen(open);
   };
 
-  const currentProvider = typedConfig.GOOSE_PROVIDER || '';
+  const currentProvider = typedConfig.GOSLING_PROVIDER || '';
 
   const configEntries: [string, ConfigValue][] = useMemo(() => {
     const currentProviderPrefixes = providerPrefixes[currentProvider] || [];

@@ -20,19 +20,19 @@ type SidebarItem = {
 
 const config: Config = {
   title: "gosling | Your open source AI agent",
-  tagline: "a lighter goose — your local AI agent, automating engineering tasks seamlessly",
+  tagline: "a lighter gosling — your local AI agent, automating engineering tasks seamlessly",
   favicon: "img/favicon.ico",
 
   // Set the production url of your site here
-  url: "https://goose-docs.ai/",
+  url: "https://gosling-docs.ai/",
   // Set the /<baseUrl>/ pathname under which your site is served
   // For GitHub pages deployment, it is often '/<projectName>/'
   baseUrl: process.env.TARGET_PATH || "/",
 
   // GitHub pages deployment config.
   // If you aren't using GitHub pages, you don't need these.
-  organizationName: "aaif-goose", // Usually your GitHub org/user name.
-  projectName: "goose", // Usually your repo name.
+  organizationName: "repo-makeover", // Usually your GitHub org/user name.
+  projectName: "gosling", // Usually your repo name.
 
   onBrokenLinks: "throw",
 
@@ -128,13 +128,9 @@ const config: Config = {
             "./src/css/tailwind.css",
           ],
         },
-        gtag:
-          process.env.NODE_ENV === "production"
-            ? {
-                trackingID: "G-ZS5D6SB4ZJ",
-                anonymizeIP: true,
-              }
-            : false,
+        // Analytics disabled pending a GA4 property owned by this project — the
+        // previous trackingID was never rotated off the pre-fork property.
+        gtag: false,
       } satisfies Preset.Options,
     ],
   ],
@@ -145,8 +141,8 @@ const config: Config = {
       {
         redirects: [
           {
-            from: "/docs/getting-started/using-goose-free",
-            to: "/docs/getting-started/providers#using-goose-for-free",
+            from: "/docs/getting-started/using-gosling-free",
+            to: "/docs/getting-started/providers#using-gosling-for-free",
           },
           {
             from: "/v1/docs/getting-started/providers",
@@ -181,7 +177,7 @@ const config: Config = {
             to: "/docs/mcp/computer-controller-mcp",
           },
           {
-            from: "/docs/guides/managing-goose-sessions",
+            from: "/docs/guides/managing-gosling-sessions",
             to: "/docs/guides/sessions/session-management",
           },
           {
@@ -197,8 +193,8 @@ const config: Config = {
             to: "/docs/guides/managing-tools/adjust-tool-output",
           },
           {
-            from: "/docs/guides/goose-in-docker",
-            to: "/docs/tutorials/goose-in-docker",
+            from: "/docs/guides/gosling-in-docker",
+            to: "/docs/tutorials/gosling-in-docker",
           },
           {
             from: "/docs/guides/multi-model/creating-plans",
@@ -209,8 +205,8 @@ const config: Config = {
             to: "/docs/guides/context-engineering/creating-plans",
           },
           {
-            from: "/docs/guides/using-gooseignore",
-            to: "/docs/guides/context-engineering/using-gooseignore",
+            from: "/docs/guides/using-goslingignore",
+            to: "/docs/guides/context-engineering/using-goslingignore",
           },
           {
             from: "/docs/guides/config-file",
@@ -229,12 +225,12 @@ const config: Config = {
             to: "/docs/guides/context-engineering/prompt-templates",
           },
           {
-            from: "/docs/guides/goose-permissions",
-            to: "/docs/guides/managing-tools/goose-permissions",
+            from: "/docs/guides/gosling-permissions",
+            to: "/docs/guides/managing-tools/gosling-permissions",
           },
           {
-            from: "/docs/guides/using-goosehints",
-            to: "/docs/guides/context-engineering/using-goosehints",
+            from: "/docs/guides/using-goslinghints",
+            to: "/docs/guides/context-engineering/using-goslinghints",
           },
           {
             from: "/docs/guides/managing-tools/hooks",
@@ -465,12 +461,12 @@ const config: Config = {
         },
 
         {
-          href: "https://discord.gg/goose-oss",
+          href: "https://discord.gg/gosling-oss",
           label: "Discord",
           position: "right",
         },
         {
-          href: "https://github.com/aaif-goose/goose",
+          href: "https://github.com/repo-makeover/gosling",
           label: "GitHub",
           position: "right",
         },
@@ -500,27 +496,19 @@ const config: Config = {
             },
             {
               label: "Discord",
-              href: "https://discord.gg/goose-oss",
+              href: "https://discord.gg/gosling-oss",
             },
             {
               label: "YouTube",
-              href: "https://www.youtube.com/@goose-oss",
+              href: "https://www.youtube.com/@gosling-oss",
             },
             {
               label: "LinkedIn",
-              href: "https://www.linkedin.com/company/goose-oss",
+              href: "https://www.linkedin.com/company/gosling-oss",
             },
             {
               label: "Twitter / X",
-              href: "https://x.com/goose_oss",
-            },
-            {
-              label: "BlueSky",
-              href: "https://bsky.app/profile/opensource.block.xyz",
-            },
-            {
-              label: "Nostr",
-              href: "https://njump.me/opensource@block.xyz",
+              href: "https://x.com/gosling_oss",
             },
           ],
         },
@@ -533,12 +521,12 @@ const config: Config = {
             },
             {
               label: "GitHub",
-              href: "https://github.com/aaif-goose/goose",
+              href: "https://github.com/repo-makeover/gosling",
             },
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} AAIF (Agentic AI Foundation)`,
+      copyright: `Copyright © ${new Date().getFullYear()} the gosling contributors`,
     },
     prism: {
       theme: prismThemes.github,
@@ -557,7 +545,7 @@ const config: Config = {
         getHelpCallToActions: [
           {
             name: "GitHub",
-            url: "https://github.com/aaif-goose/goose",
+            url: "https://github.com/repo-makeover/gosling",
             icon: {
               builtIn: "FaGithub",
             },
@@ -567,7 +555,7 @@ const config: Config = {
       },
     },
     announcementBar: {
-      id: 'goose-aaif-announcement', // Increment on new announcements to reuse the bar
+      id: 'gosling-announcement', // Increment on new announcements to reuse the bar
       content:
         '🐥 gosling is a lighter fork of goose v1.38 — same agent, smaller footprint. ✨',
       backgroundColor: '#20232a',

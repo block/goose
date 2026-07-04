@@ -1,12 +1,12 @@
 # CLI Command Tracking
 
-Automated pipeline for detecting and documenting CLI command changes between goose releases.
+Automated pipeline for detecting and documenting CLI command changes between gosling releases.
 
 ## Overview
 
-This automation keeps the [CLI Commands Guide](https://goose-docs.ai/docs/guides/goose-cli-commands) synchronized with code changes by:
+This automation keeps the [CLI Commands Guide](https://gosling-docs.ai/docs/guides/gosling-cli-commands) synchronized with code changes by:
 
-1. **Extracting** CLI structure from goose binary using `--help` output (deterministic)
+1. **Extracting** CLI structure from gosling binary using `--help` output (deterministic)
 2. **Detecting** changes between versions (deterministic diff)
 3. **Synthesizing** human-readable change documentation (AI-powered)
 4. **Updating** the CLI Commands Guide (AI-powered)
@@ -22,8 +22,8 @@ The automation runs automatically when a new release is published. See [TESTING.
 ### Manual (Local Testing)
 
 ```bash
-# Set the goose repository path
-export GOOSE_REPO=/path/to/goose
+# Set the gosling repository path
+export GOSLING_REPO=/path/to/gosling
 
 # Run the complete pipeline with auto-detected versions
 ./scripts/run-pipeline.sh
@@ -42,11 +42,11 @@ python3 scripts/diff-cli-structures.py output/old-cli-structure.json \
                                        > output/cli-changes.json
 
 # 3. Generate human-readable change documentation
-cd output && goose run --instructions ../prompts/synthesize-cli-changes.prompt.md \
+cd output && gosling run --instructions ../prompts/synthesize-cli-changes.prompt.md \
   --system "$(cat ../prompts/synthesize-cli-changes.system.md)"
 
-# 4. Update goose-cli-commands.md
-cd output && goose run --instructions ../prompts/update-cli-commands.prompt.md \
+# 4. Update gosling-cli-commands.md
+cd output && gosling run --instructions ../prompts/update-cli-commands.prompt.md \
   --system "$(cat ../prompts/update-cli-commands.system.md)"
 ```
 
@@ -98,14 +98,14 @@ The automation uses a **hybrid approach**: deterministic scripts for data extrac
 ├─────────────────────────────────────────────────────────────────┤
 │  update-cli-commands.yaml                                        │
 │  ↓                                                               │
-│  goose-cli-commands.md (updated) + update-summary.md             │
+│  gosling-cli-commands.md (updated) + update-summary.md             │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
 ### Why This Design?
 
 **Scripts handle deterministic tasks:**
-- Building goose from specific git tags
+- Building gosling from specific git tags
 - Running `--help` commands and parsing output
 - JSON structure comparison
 - No interpretation or inference - direct extraction
@@ -139,14 +139,14 @@ All stages communicate via JSON/Markdown files in the `output/` directory:
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `GOOSE_REPO` | Yes (local) | - | Path to goose repository root |
-| `CLI_COMMANDS_PATH` | No | `$GOOSE_REPO/documentation/docs/guides/goose-cli-commands.md` | Full path to target doc file |
+| `GOSLING_REPO` | Yes (local) | - | Path to gosling repository root |
+| `CLI_COMMANDS_PATH` | No | `$GOSLING_REPO/documentation/docs/guides/gosling-cli-commands.md` | Full path to target doc file |
 | `RELEASE_TAG` | No | - | Used by GitHub Actions to specify the new version |
 
 **Example:**
 ```bash
-export GOOSE_REPO=/Users/you/goose
-# CLI_COMMANDS_PATH is auto-constructed from GOOSE_REPO
+export GOSLING_REPO=/Users/you/gosling
+# CLI_COMMANDS_PATH is auto-constructed from GOSLING_REPO
 ```
 
 ### Skipped Commands
@@ -159,7 +159,7 @@ Some commands are intentionally excluded from extraction and documentation track
   "skip_commands": [
     {
       "name": "term",
-      "reason": "Terminal integration documented via @goose/@g aliases"
+      "reason": "Terminal integration documented via @gosling/@g aliases"
     }
   ]
 }
@@ -171,7 +171,7 @@ To add or remove skipped commands, edit the config file - no code changes requir
 
 ### `extract-cli-structure.sh`
 
-Builds goose from a specific git tag and extracts CLI structure using `--help` output.
+Builds gosling from a specific git tag and extracts CLI structure using `--help` output.
 
 **Usage:**
 ```bash
@@ -240,7 +240,7 @@ Analyzes detected changes and generates human-readable documentation.
 **Usage:**
 ```bash
 cd output
-goose run --instructions ../prompts/synthesize-cli-changes.prompt.md \
+gosling run --instructions ../prompts/synthesize-cli-changes.prompt.md \
   --system "$(cat ../prompts/synthesize-cli-changes.system.md)"
 ```
 
@@ -250,17 +250,17 @@ Updates the CLI Commands Guide based on synthesized changes.
 
 **Inputs:**
 - `output/cli-changes.md` - Change documentation from the synthesis step
-- `goose-cli-commands.md` - Target documentation file (path from `CLI_COMMANDS_PATH` or `GOOSE_REPO` env var)
+- `gosling-cli-commands.md` - Target documentation file (path from `CLI_COMMANDS_PATH` or `GOSLING_REPO` env var)
 
 **Outputs:**
-- Updated `goose-cli-commands.md` with changes applied
+- Updated `gosling-cli-commands.md` with changes applied
 - `output/update-summary.md` - Summary of changes for review
 
 **Usage:**
 ```bash
-export CLI_COMMANDS_PATH=/path/to/goose-cli-commands.md
+export CLI_COMMANDS_PATH=/path/to/gosling-cli-commands.md
 cd output
-goose run --instructions ../prompts/update-cli-commands.prompt.md \
+gosling run --instructions ../prompts/update-cli-commands.prompt.md \
   --system "$(cat ../prompts/update-cli-commands.system.md)"
 ```
 
@@ -274,7 +274,7 @@ cli-command-tracking/
 ├── config/                             # Configuration files
 │   └── skip-commands.json              # Commands to exclude from tracking
 ├── scripts/                            # Extraction and diff scripts
-│   ├── extract-cli-structure.sh        # Wrapper that builds goose and runs Python
+│   ├── extract-cli-structure.sh        # Wrapper that builds gosling and runs Python
 │   ├── extract-cli-structure.py        # Python script to parse --help output
 │   ├── diff-cli-structures.py          # Compare structures and detect changes
 │   └── run-pipeline.sh                 # End-to-end pipeline runner
@@ -299,8 +299,8 @@ cli-command-tracking/
 The automation runs via `.github/workflows/docs-update-cli-ref.yml`:
 
 - **Trigger**: Automatically on new releases, or manually for testing
-- **Process**: Builds goose for both versions, extracts CLI structures, detects changes, updates documentation
-- **Output**: Creates a PR with updated `goose-cli-commands.md` if changes detected
+- **Process**: Builds gosling for both versions, extracts CLI structures, detects changes, updates documentation
+- **Output**: Creates a PR with updated `gosling-cli-commands.md` if changes detected
 - **Testing**: See [TESTING.md](./TESTING.md) for detailed testing instructions
 
 ## What Gets Tracked
@@ -339,4 +339,4 @@ When modifying the automation:
 
 - [TESTING.md](./TESTING.md) - How to test the GitHub Actions workflow
 - [Automation Overview](../README.md) - All automation projects
-- [CLI Commands Guide](../../docs/guides/goose-cli-commands.md) - Target documentation
+- [CLI Commands Guide](../../docs/guides/gosling-cli-commands.md) - Target documentation

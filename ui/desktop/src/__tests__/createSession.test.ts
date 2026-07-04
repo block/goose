@@ -3,15 +3,15 @@ import { createSession } from '../sessions';
 import type { ExtensionConfig } from '../types/extensions';
 import type { Session } from '../types/session';
 import type { FixedExtensionEntry } from '../components/ConfigContext';
-import type { GooseExtension, GooseExtensionEntry } from '@aaif/goose-sdk';
-import { getConfiguredGooseExtensions } from '../acp/extensions';
+import type { GoslingExtension, GoslingExtensionEntry } from '@repo-makeover/gosling-sdk';
+import { getConfiguredGoslingExtensions } from '../acp/extensions';
 import { acpChatSessionController } from '../acp/chatSessionController';
 
 vi.mock('../acp/extensions', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../acp/extensions')>();
   return {
     ...actual,
-    getConfiguredGooseExtensions: vi.fn(),
+    getConfiguredGoslingExtensions: vi.fn(),
   };
 });
 
@@ -42,26 +42,26 @@ const configuredExtension = (name: string, enabled: boolean): FixedExtensionEntr
   enabled,
 });
 
-const gooseExtension = (name: string): GooseExtension => ({
+const goslingExtension = (name: string): GoslingExtension => ({
   type: 'builtin',
   name,
   description: `${name} extension`,
 });
 
-const gooseExtensionEntry = (name: string): GooseExtensionEntry => ({
-  extension: gooseExtension(name),
+const goslingExtensionEntry = (name: string): GoslingExtensionEntry => ({
+  extension: goslingExtension(name),
   enabled: true,
 });
 
-const mockedGetConfiguredGooseExtensions = vi.mocked(getConfiguredGooseExtensions);
+const mockedGetConfiguredGoslingExtensions = vi.mocked(getConfiguredGoslingExtensions);
 const mockedCreateAcpSession = vi.mocked(acpChatSessionController.createSession);
 
 describe('createSession ACP session extensions', () => {
   beforeEach(() => {
-    mockedGetConfiguredGooseExtensions.mockReset();
-    mockedGetConfiguredGooseExtensions.mockResolvedValue([
-      gooseExtensionEntry('developer'),
-      gooseExtensionEntry('memory'),
+    mockedGetConfiguredGoslingExtensions.mockReset();
+    mockedGetConfiguredGoslingExtensions.mockResolvedValue([
+      goslingExtensionEntry('developer'),
+      goslingExtensionEntry('memory'),
     ]);
     mockedCreateAcpSession.mockReset();
     mockedCreateAcpSession.mockResolvedValue(testSession);
@@ -72,8 +72,8 @@ describe('createSession ACP session extensions', () => {
       extensionConfigs: [extensionConfig('developer')],
     });
 
-    expect(mockedGetConfiguredGooseExtensions).toHaveBeenCalledOnce();
-    expect(mockedCreateAcpSession).toHaveBeenCalledWith('/tmp', [gooseExtension('developer')]);
+    expect(mockedGetConfiguredGoslingExtensions).toHaveBeenCalledOnce();
+    expect(mockedCreateAcpSession).toHaveBeenCalledWith('/tmp', [goslingExtension('developer')]);
   });
 
   it('falls back to enabled configured extensions when extension configs are empty', async () => {
@@ -82,8 +82,8 @@ describe('createSession ACP session extensions', () => {
       allExtensions: [configuredExtension('developer', true), configuredExtension('memory', false)],
     });
 
-    expect(mockedGetConfiguredGooseExtensions).toHaveBeenCalledOnce();
-    expect(mockedCreateAcpSession).toHaveBeenCalledWith('/tmp', [gooseExtension('developer')]);
+    expect(mockedGetConfiguredGoslingExtensions).toHaveBeenCalledOnce();
+    expect(mockedCreateAcpSession).toHaveBeenCalledWith('/tmp', [goslingExtension('developer')]);
   });
 
   it('omits ACP session extensions when no configured extensions are enabled', async () => {
@@ -91,7 +91,7 @@ describe('createSession ACP session extensions', () => {
       allExtensions: [configuredExtension('developer', false)],
     });
 
-    expect(mockedGetConfiguredGooseExtensions).not.toHaveBeenCalled();
+    expect(mockedGetConfiguredGoslingExtensions).not.toHaveBeenCalled();
     expect(mockedCreateAcpSession).toHaveBeenCalledWith('/tmp', []);
   });
 });

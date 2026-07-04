@@ -1,12 +1,12 @@
-# Custom Distributions of goose
+# Custom Distributions of gosling
 
 > **Tip:** This is sometimes referred to as "white labelling" — creating a branded or tailored version of an open source project for your organization.
 
-This guide explains how to create custom distributions of goose tailored to your organization's needs—whether that's preconfigured models, custom tools, branded interfaces, or entirely new user experiences.
+This guide explains how to create custom distributions of gosling tailored to your organization's needs—whether that's preconfigured models, custom tools, branded interfaces, or entirely new user experiences.
 
 ## Overview
 
-goose's architecture is designed for extensibility. Organizations can create "remixed" versions that:
+gosling's architecture is designed for extensibility. Organizations can create "remixed" versions that:
 
 - **Preconfigure AI providers**: Ship with a specific model (local or cloud) and API credentials
 - **Bundle custom tools**: Include proprietary extensions for internal data sources
@@ -20,19 +20,19 @@ goose's architecture is designed for extensibility. Organizations can create "re
 │                        User Interfaces                          │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
 │  │  CLI        │  │  Desktop    │  │  Your Custom UI         │  │
-│  │  (goose-cli)│  │  (Electron) │  │  (web, mobile, etc.)    │  │
+│  │  (gosling-cli)│  │  (Electron) │  │  (web, mobile, etc.)    │  │
 │  └──────┬──────┘  └──────┬──────┘  └────────────┬────────────┘  │
 └─────────┼────────────────┼──────────────────────┼───────────────┘
           │                │                      │
           ▼                ▼                      ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                    goose-server (goosed)                        │
-│         REST API for all goose functionality                    │
+│                    gosling-server (goslingd)                        │
+│         REST API for all gosling functionality                    │
 └─────────────────────────────────────────────────────────────────┘
           │
           ▼
 ┌─────────────────────────────────────────────────────────────────┐
-│                      Core (goose crate)                         │
+│                      Core (gosling crate)                         │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐  │
 │  │  Providers  │  │  Extensions │  │  Config & Defaults      │  │
 │  │  (AI models)│  │  (MCP tools)│  │  (behavior & defaults)  │  │
@@ -45,11 +45,11 @@ goose's architecture is designed for extensibility. Organizations can create "re
 | What You Want | Where to Look | Complexity |
 |---------------|---------------|------------|
 | Preconfigure a model/provider | `config.yaml`, `init-config.yaml`, environment variables | Low |
-| Add custom AI providers | `crates/goose/src/providers/declarative/` | Low |
+| Add custom AI providers | `crates/gosling/src/providers/declarative/` | Low |
 | Bundle custom MCP extensions | `config.yaml` extensions section, `ui/desktop/src/built-in-extensions.json`, `ui/desktop/src/components/settings/extensions/bundled-extensions.json` | Medium |
-| Modify system prompts | `crates/goose/src/prompts/` | Low |
+| Modify system prompts | `crates/gosling/src/prompts/` | Low |
 | Customize desktop branding | `ui/desktop/` (icons, names, colors) | Medium |
-| Build a new UI (web, mobile) | Integrate with `goose-server` REST API | High |
+| Build a new UI (web, mobile) | Integrate with `gosling-server` REST API | High |
 | Build complex multi-step workflows | Subagents | Medium |
 
 ## Getting Started
@@ -57,8 +57,8 @@ goose's architecture is designed for extensibility. Organizations can create "re
 ### 1. Fork and Clone
 
 ```bash
-git clone https://github.com/YOUR_ORG/goose.git
-cd goose
+git clone https://github.com/YOUR_ORG/gosling.git
+cd gosling
 ```
 
 ### 2. Choose Your Customization Strategy
@@ -75,10 +75,10 @@ See [BUILDING_LINUX.md](BUILDING_LINUX.md) and [ui/desktop/README.md](ui/desktop
 
 ### Licensing
 
-goose is licensed under Apache License 2.0 (ASL v2). Custom distributions must:
+gosling is licensed under Apache License 2.0 (ASL v2). Custom distributions must:
 - Include the original license and copyright notices
 - Clearly indicate any modifications made
-- Not use "Goose" trademarks in ways that imply official endorsement
+- Not use "Gosling" trademarks in ways that imply official endorsement
 
 For detailed guidance on ASL v2 compliance, see the [Apache License FAQ](https://www.apache.org/foundation/license-faq.html).
 
@@ -88,9 +88,9 @@ While you're free to maintain private forks, contributing improvements upstream 
 
 ### Telemetry
 
-goose includes optional telemetry (via PostHog) to help improve the project. For custom distributions, you can:
-- **Disable telemetry**: Set `GOOSE_DISABLE_TELEMETRY=1`
-- **Use your own instance**: Modify `crates/goose/src/posthog.rs` to point to your PostHog instance
+gosling includes optional telemetry (via PostHog) to help improve the project. For custom distributions, you can:
+- **Disable telemetry**: Set `GOSLING_DISABLE_TELEMETRY=1`
+- **Use your own instance**: Modify `crates/gosling/src/posthog.rs` to point to your PostHog instance
 
 ### Staying Current
 
@@ -105,7 +105,7 @@ To benefit from upstream improvements:
 
 ## A. Preconfigured Local Model Distribution
 
-**Goal**: Ship goose preconfigured to use a local Ollama model, requiring no API keys.
+**Goal**: Ship gosling preconfigured to use a local Ollama model, requiring no API keys.
 
 ### Steps
 
@@ -113,15 +113,15 @@ To benefit from upstream improvements:
 
 ```yaml
 # init-config.yaml - Applied on first run if no config exists
-GOOSE_PROVIDER: ollama
-GOOSE_MODEL: qwen3-coder:latest
+GOSLING_PROVIDER: ollama
+GOSLING_MODEL: qwen3-coder:latest
 ```
 
 2. **Set environment defaults** in your launcher script or packaging:
 
 ```bash
-export GOOSE_PROVIDER=ollama
-export GOOSE_MODEL=qwen3-coder:latest
+export GOSLING_PROVIDER=ollama
+export GOSLING_MODEL=qwen3-coder:latest
 export OLLAMA_HOST=http://localhost:11434  # Or your hosted instance
 ```
 
@@ -129,41 +129,41 @@ export OLLAMA_HOST=http://localhost:11434  # Or your hosted instance
 
 ### Technical Details
 
-- Provider configuration: `crates/goose/src/config/base.rs`
-- Ollama provider implementation: `crates/goose/src/providers/ollama.rs`
+- Provider configuration: `crates/gosling/src/config/base.rs`
+- Ollama provider implementation: `crates/gosling/src/providers/ollama.rs`
 - Config precedence: Environment variables → config.yaml → defaults
 
 ---
 
 ## B. Corporate Distribution with Managed API Keys
 
-**Goal**: Distribute goose internally with pre-provisioned API keys for a frontier model.
+**Goal**: Distribute gosling internally with pre-provisioned API keys for a frontier model.
 
 ### Steps
 
-1. **Store API keys securely** using goose's secret management:
+1. **Store API keys securely** using gosling's secret management:
 
 ```yaml
 # config.yaml (distributed with your package)
-GOOSE_PROVIDER: anthropic
-GOOSE_MODEL: claude-sonnet-4-20250514
+GOSLING_PROVIDER: anthropic
+GOSLING_MODEL: claude-sonnet-4-20250514
 ```
 
 2. **Inject secrets at install time** or via your MDM/configuration management:
 
 ```bash
-# Secrets are stored in system keyring or ~/.config/goose/secrets.yaml
-# if GOOSE_DISABLE_KEYRING=1
-goose configure set-secret ANTHROPIC_API_KEY "your-corporate-key"
+# Secrets are stored in system keyring or ~/.config/gosling/secrets.yaml
+# if GOSLING_DISABLE_KEYRING=1
+gosling configure set-secret ANTHROPIC_API_KEY "your-corporate-key"
 ```
 
 3. **Lock down provider changes** (optional) by modifying the settings UI.
 
 ### Technical Details
 
-- Secret storage: `crates/goose/src/config/base.rs` (SecretStorage enum)
+- Secret storage: `crates/gosling/src/config/base.rs` (SecretStorage enum)
 - Keyring integration: Uses system keyring by default, file-based fallback available
-- Config file location: `~/.config/goose/config.yaml`
+- Config file location: `~/.config/gosling/config.yaml`
 
 ---
 
@@ -211,9 +211,9 @@ Example:
 
 ### Technical Details
 
-- Extension types: `crates/goose/src/agents/extension.rs` (ExtensionConfig enum)
-- Built-in MCP servers: `crates/goose-mcp/`
-- Extension loading: `crates/goose/src/agents/extension_manager.rs`
+- Extension types: `crates/gosling/src/agents/extension.rs` (ExtensionConfig enum)
+- Built-in MCP servers: `crates/gosling-mcp/`
+- Extension loading: `crates/gosling/src/agents/extension_manager.rs`
 
 ---
 
@@ -242,7 +242,7 @@ module.exports = {
 };
 ```
 
-3. **Update the system prompt** to reflect your branding in `crates/goose/src/prompts/system.md`:
+3. **Update the system prompt** to reflect your branding in `crates/gosling/src/prompts/system.md`:
 
 ```markdown
 You are an AI assistant called [YourName], created by [YourCompany].
@@ -259,14 +259,14 @@ You are an AI assistant called [YourName], created by [YourCompany].
 
    - Set build/release environment variables consistently:
      - `GITHUB_OWNER` and `GITHUB_REPO` for publisher + updater repository lookup
-     - `GOOSE_BUNDLE_NAME` for bundle/debug scripts and updater asset naming (defaults to `Gosling`)
+     - `GOSLING_BUNDLE_NAME` for bundle/debug scripts and updater asset naming (defaults to `Gosling`)
 
 Example:
 
 ```bash
 export GITHUB_OWNER="your-org"
-export GITHUB_REPO="your-goose-fork"
-export GOOSE_BUNDLE_NAME="InsightStream-goose"
+export GITHUB_REPO="your-gosling-fork"
+export GOSLING_BUNDLE_NAME="InsightStream-gosling"
 ```
 
 6. **Use this branding consistency checklist** before release:
@@ -278,23 +278,23 @@ export GOOSE_BUNDLE_NAME="InsightStream-goose"
 
 - Electron config: `ui/desktop/forge.config.ts`
 - UI entry point: `ui/desktop/src/renderer.tsx`
-- System prompts: `crates/goose/src/prompts/`
+- System prompts: `crates/gosling/src/prompts/`
 
 ---
 
 ## E. Building a New Interface (Web, Mobile, etc.)
 
-**Goal**: Create an entirely new frontend while leveraging goose's backend.
+**Goal**: Create an entirely new frontend while leveraging gosling's backend.
 
-goose provides two integration options for building custom UIs:
+gosling provides two integration options for building custom UIs:
 
-### Option 1: REST API (goose-server)
+### Option 1: REST API (gosling-server)
 
-Use goose-server for HTTP-based integrations (web apps, simple clients):
+Use gosling-server for HTTP-based integrations (web apps, simple clients):
 
 ```bash
 # Start the server
-./target/release/goosed
+./target/release/goslingd
 
 # API available at http://localhost:3000
 ```
@@ -315,7 +315,7 @@ GET  /extensions            # List available extensions
 POST /extensions/{name}/enable  # Enable an extension
 ```
 
-**Handle streaming responses** - goose uses Server-Sent Events (SSE) for real-time responses.
+**Handle streaming responses** - gosling uses Server-Sent Events (SSE) for real-time responses.
 
 ### Option 2: Agent Client Protocol (ACP)
 
@@ -327,14 +327,14 @@ ACP provides:
 - **Session management**: Create, load, and resume sessions with full conversation history
 - **MCP server integration**: Dynamically add MCP servers to sessions
 
-**Start goose as an ACP agent**:
+**Start gosling as an ACP agent**:
 
 ```bash
-# Run goose as an ACP server on stdio
-goose acp --with-builtin developer,memory
+# Run gosling as an ACP server on stdio
+gosling acp --with-builtin developer,memory
 
 # Or programmatically
-cargo run -p goose-cli -- acp --with-builtin developer
+cargo run -p gosling-cli -- acp --with-builtin developer
 ```
 
 **Key ACP methods**:
@@ -356,7 +356,7 @@ import json
 class AcpClient:
     def __init__(self):
         self.process = subprocess.Popen(
-            ['goose', 'acp', '--with-builtin', 'developer'],
+            ['gosling', 'acp', '--with-builtin', 'developer'],
             stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             text=True
@@ -392,14 +392,14 @@ For the full ACP specification, see the [Agent Client Protocol documentation](ht
 
 ### Technical Details
 
-**REST API (goose-server)**:
-- Server implementation: `crates/goose-server/src/routes/`
+**REST API (gosling-server)**:
+- Server implementation: `crates/gosling-server/src/routes/`
 - OpenAPI generation: `just generate-openapi`
 - API client example: `ui/desktop/src/api/` (generated TypeScript client)
 
 **ACP**:
-- ACP server implementation: `crates/goose/src/acp/server.rs`
-- CLI integration: `crates/goose-cli/src/cli.rs` (Command::Acp)
+- ACP server implementation: `crates/gosling/src/acp/server.rs`
+- CLI integration: `crates/gosling-cli/src/cli.rs` (Command::Acp)
 - Protocol library: `agent-client-protocol` crate (Rust implementation of ACP)
 - Test client example: `test_acp_client.py`
 
@@ -407,11 +407,11 @@ For the full ACP specification, see the [Agent Client Protocol documentation](ht
 
 ## F. Audience-Specific Distributions (Legal, Design, etc.)
 
-**Goal**: Create a version of goose tailored for a specific professional audience.
+**Goal**: Create a version of gosling tailored for a specific professional audience.
 
 ### Steps
 
-1. **Tailor the system prompt** for the audience in `crates/goose/src/prompts/system.md`:
+1. **Tailor the system prompt** for the audience in `crates/gosling/src/prompts/system.md`:
 
 ```markdown
 You are a legal research assistant. You help lawyers and paralegals with:
@@ -435,15 +435,15 @@ extensions:
   legal-database:
     type: stdio
     cmd: python
-    args: ["/opt/legal-goose/legal_db_mcp.py"]
+    args: ["/opt/legal-gosling/legal_db_mcp.py"]
     description: Legal database search
     enabled: true
 ```
 
 ### Technical Details
 
-- System prompts: `crates/goose/src/prompts/`
-- Extension configuration: `crates/goose/src/agents/extension.rs` (ExtensionConfig enum)
+- System prompts: `crates/gosling/src/prompts/`
+- Extension configuration: `crates/gosling/src/agents/extension.rs` (ExtensionConfig enum)
 
 ---
 
@@ -453,7 +453,7 @@ extensions:
 
 ### Option 1: Declarative Provider (No Code)
 
-Create a JSON file in `~/.config/goose/custom_providers/` or bundle in your distribution:
+Create a JSON file in `~/.config/gosling/custom_providers/` or bundle in your distribution:
 
 ```json
 {
@@ -480,16 +480,16 @@ Supported engines: `openai`, `anthropic`, `ollama`
 
 For providers with unique APIs, implement the Provider trait:
 
-1. Create a new file in `crates/goose/src/providers/`
+1. Create a new file in `crates/gosling/src/providers/`
 2. Implement the `Provider` trait from `base.rs`
-3. Register in `crates/goose/src/providers/factory.rs`
+3. Register in `crates/gosling/src/providers/factory.rs`
 
 ### Technical Details
 
-- Declarative providers: `crates/goose/src/config/declarative_providers.rs`
-- Provider trait: `crates/goose/src/providers/base.rs`
-- Provider registration: `crates/goose/src/providers/factory.rs`
-- Example providers: `crates/goose/src/providers/declarative/*.json`
+- Declarative providers: `crates/gosling/src/config/declarative_providers.rs`
+- Provider trait: `crates/gosling/src/providers/base.rs`
+- Provider registration: `crates/gosling/src/providers/factory.rs`
+- Example providers: `crates/gosling/src/providers/declarative/*.json`
 
 ---
 
@@ -583,4 +583,4 @@ subagent(
 
 ### Technical Details
 
-- Subagent execution: `crates/goose/src/agents/subagent_handler.rs`
+- Subagent execution: `crates/gosling/src/agents/subagent_handler.rs`

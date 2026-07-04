@@ -1,8 +1,8 @@
-import type { GooseMcpHostCapabilities } from "./mcp-apps.js";
+import type { GoslingMcpHostCapabilities } from "./mcp-apps.js";
 
-export interface GooseClientCapabilitiesMeta {
-  goose?: {
-    mcpHostCapabilities?: GooseMcpHostCapabilities;
+export interface GoslingClientCapabilitiesMeta {
+  gosling?: {
+    mcpHostCapabilities?: GoslingMcpHostCapabilities;
     customNotifications?: boolean;
   };
 }

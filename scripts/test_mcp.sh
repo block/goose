@@ -2,8 +2,8 @@
 set -e
 
 if [ -z "$SKIP_BUILD" ]; then
-  echo "Building goose..."
-  cargo build --bin goose
+  echo "Building gosling..."
+  cargo build --bin gosling
   echo ""
 else
   echo "Skipping build (SKIP_BUILD is set)..."
@@ -11,10 +11,10 @@ else
 fi
 
 SCRIPT_DIR=$(pwd)
-GOOSE_BIN="$SCRIPT_DIR/target/debug/goose"
+GOSLING_BIN="$SCRIPT_DIR/target/debug/gosling"
 
-TEST_PROVIDER=${GOOSE_PROVIDER:-anthropic}
-TEST_MODEL=${GOOSE_MODEL:-claude-haiku-4-5-20251001}
+TEST_PROVIDER=${GOSLING_PROVIDER:-anthropic}
+TEST_MODEL=${GOSLING_MODEL:-claude-haiku-4-5-20251001}
 MCP_SAMPLING_TOOL="trigger-sampling-request"
 
 RESULTS=()
@@ -37,8 +37,8 @@ def add(
 EOF
 
 TMPFILE=$(mktemp)
-(cd "$TESTDIR" && GOOSE_PROVIDER="$TEST_PROVIDER" GOOSE_MODEL="$TEST_MODEL" \
-    "$GOOSE_BIN" run --text "Use the add tool to calculate 42 + 58" \
+(cd "$TESTDIR" && GOSLING_PROVIDER="$TEST_PROVIDER" GOSLING_MODEL="$TEST_MODEL" \
+    "$GOSLING_BIN" run --text "Use the add tool to calculate 42 + 58" \
     --with-extension "uv run --with fastmcp fastmcp run test_mcp.py" 2>&1) | tee "$TMPFILE"
 
 if grep -qE "(add \| test_mcp)|(▸.*add.*test_mcp)" "$TMPFILE" && grep -q "100" "$TMPFILE"; then
@@ -56,8 +56,8 @@ echo ""
 TESTDIR=$(mktemp -d)
 TMPFILE=$(mktemp)
 
-(cd "$TESTDIR" && GOOSE_PROVIDER="$TEST_PROVIDER" GOOSE_MODEL="$TEST_MODEL" \
-    "$GOOSE_BIN" run --text "Use the sampleLLM tool to ask for an original short poem about the ocean" \
+(cd "$TESTDIR" && GOSLING_PROVIDER="$TEST_PROVIDER" GOSLING_MODEL="$TEST_MODEL" \
+    "$GOSLING_BIN" run --text "Use the sampleLLM tool to ask for an original short poem about the ocean" \
     --with-extension "npx -y @modelcontextprotocol/server-everything@2026.1.14" 2>&1) | tee "$TMPFILE"
 
 if grep -qE "($MCP_SAMPLING_TOOL \| )|(▸.*$MCP_SAMPLING_TOOL)" "$TMPFILE"; then
@@ -84,8 +84,8 @@ $(cat "$TMPFILE")
 ----- END TRANSCRIPT -----
 EOF
 )
-    JUDGE_OUT=$(GOOSE_PROVIDER="$TEST_PROVIDER" GOOSE_MODEL="$TEST_MODEL" \
-        "$GOOSE_BIN" run --text "$JUDGE_PROMPT" 2>&1)
+    JUDGE_OUT=$(GOSLING_PROVIDER="$TEST_PROVIDER" GOSLING_MODEL="$TEST_MODEL" \
+        "$GOSLING_BIN" run --text "$JUDGE_PROMPT" 2>&1)
 
     if echo "$JUDGE_OUT" | tr -d '\r' | grep -Eq '^[[:space:]]*PASS[[:space:]]*$'; then
         echo "✓ MCP sampling test passed"

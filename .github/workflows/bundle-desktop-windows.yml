@@ -117,11 +117,11 @@ jobs:
 
           Write-Output "Building Windows ACP backend"
           if ($isCuda) {
-            cargo build --release --target x86_64-pc-windows-msvc -p goose-cli --bin goose --features cuda
+            cargo build --release --target x86_64-pc-windows-msvc -p gosling-cli --bin gosling --features cuda
           } else {
-            cargo build --release --target x86_64-pc-windows-msvc -p goose-cli --bin goose
+            cargo build --release --target x86_64-pc-windows-msvc -p gosling-cli --bin gosling
           }
-          $binaryPath = "./target/x86_64-pc-windows-msvc/release/goose.exe"
+          $binaryPath = "./target/x86_64-pc-windows-msvc/release/gosling.exe"
 
           # Verify build succeeded
           if (-not (Test-Path $binaryPath)) {
@@ -136,7 +136,7 @@ jobs:
       - name: Prepare Windows binary
         shell: bash
         run: |
-          BACKEND_BINARY="./target/x86_64-pc-windows-msvc/release/goose.exe"
+          BACKEND_BINARY="./target/x86_64-pc-windows-msvc/release/gosling.exe"
 
           if [ ! -f "$BACKEND_BINARY" ]; then
             echo "Windows backend binary not found: $BACKEND_BINARY"
@@ -154,14 +154,14 @@ jobs:
             echo "Copying Windows platform files..."
             for file in ./ui/desktop/src/platform/windows/bin/*.{exe,dll,cmd}; do
               filename="$(basename "$file")"
-              if [ -f "$file" ] && [ "$filename" != "goose.exe" ]; then
+              if [ -f "$file" ] && [ "$filename" != "gosling.exe" ]; then
                 cp -f "$file" ./ui/desktop/src/bin/
               fi
             done
 
-            if [ -d "./ui/desktop/src/platform/windows/bin/goose-npm" ]; then
+            if [ -d "./ui/desktop/src/platform/windows/bin/gosling-npm" ]; then
               echo "Setting up npm environment..."
-              cp -r ./ui/desktop/src/platform/windows/bin/goose-npm/ ./ui/desktop/src/bin/goose-npm/
+              cp -r ./ui/desktop/src/platform/windows/bin/gosling-npm/ ./ui/desktop/src/bin/gosling-npm/
             fi
             echo "Windows-specific files copied successfully"
           fi
@@ -235,14 +235,14 @@ jobs:
           certificate-profile-name: ${{ secrets.AZURE_CERTIFICATE_PROFILE_NAME }}
           files: |
             ${{ github.workspace }}/dist-windows/Gosling.exe
-            ${{ github.workspace }}/dist-windows/resources/bin/goose.exe
+            ${{ github.workspace }}/dist-windows/resources/bin/gosling.exe
 
       - name: Verify signed executables
         shell: pwsh
         run: |
           $files = @(
             "dist-windows/Gosling.exe",
-            "dist-windows/resources/bin/goose.exe"
+            "dist-windows/resources/bin/gosling.exe"
           )
           foreach ($file in $files) {
             Write-Output "Verifying signature: $file"

@@ -3,7 +3,7 @@ import { Switch } from '../../ui/switch';
 import { Input } from '../../ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
 import { AlertCircle } from 'lucide-react';
-import { ExternalGoosedConfig, defaultSettings } from '../../../utils/settings';
+import { ExternalGoslingdConfig, defaultSettings } from '../../../utils/settings';
 import { defineMessages, useIntl } from '../../../i18n';
 import { normalizeAcpHttpBaseUrl } from '../../../acp/url';
 
@@ -44,7 +44,7 @@ const i18n = defineMessages({
   },
   secretKeyHelp: {
     id: 'externalBackendSection.secretKeyHelp',
-    defaultMessage: 'The secret key configured on the external backend (GOOSE_SERVER__SECRET_KEY).',
+    defaultMessage: 'The secret key configured on the external backend (GOSLING_SERVER__SECRET_KEY).',
   },
   certFingerprint: {
     id: 'externalBackendSection.certFingerprint',
@@ -83,14 +83,14 @@ const i18n = defineMessages({
 
 export default function ExternalBackendSection() {
   const intl = useIntl();
-  const [config, setConfig] = useState<ExternalGoosedConfig>(defaultSettings.externalGoosed);
+  const [config, setConfig] = useState<ExternalGoslingdConfig>(defaultSettings.externalGoslingd);
   const [isSaving, setIsSaving] = useState(false);
   const [urlError, setUrlError] = useState<string | null>(null);
 
   useEffect(() => {
     const loadSettings = async () => {
-      const externalGoosed = await window.electron.getSetting('externalGoosed');
-      setConfig(externalGoosed);
+      const externalGoslingd = await window.electron.getSetting('externalGoslingd');
+      setConfig(externalGoslingd);
     };
     loadSettings();
   }, []);
@@ -128,10 +128,10 @@ export default function ExternalBackendSection() {
     }
   };
 
-  const saveConfig = async (newConfig: ExternalGoosedConfig): Promise<void> => {
+  const saveConfig = async (newConfig: ExternalGoslingdConfig): Promise<void> => {
     setIsSaving(true);
     try {
-      await window.electron.setSetting('externalGoosed', newConfig);
+      await window.electron.setSetting('externalGoslingd', newConfig);
     } catch (error) {
       console.error('Failed to save external backend settings:', error);
     } finally {
@@ -139,9 +139,9 @@ export default function ExternalBackendSection() {
     }
   };
 
-  const updateField = <K extends keyof ExternalGoosedConfig>(
+  const updateField = <K extends keyof ExternalGoslingdConfig>(
     field: K,
-    value: ExternalGoosedConfig[K]
+    value: ExternalGoslingdConfig[K]
   ) => {
     const newConfig = { ...config, [field]: value };
     setConfig(newConfig);

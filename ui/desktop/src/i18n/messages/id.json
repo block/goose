@@ -828,7 +828,7 @@
     "defaultMessage": "Kunci Rahasia"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "Kunci rahasia yang dikonfigurasi pada server goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Kunci rahasia yang dikonfigurasi pada server goslingd (GOSLING_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Masukkan kunci rahasia server"
@@ -857,67 +857,67 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Terhubung ke server gosling yang berjalan di tempat lain (memerlukan mulai ulang aplikasi)"
   },
-  "goosehintsModal.close": {
+  "goslinghintsModal.close": {
     "defaultMessage": "Tutup"
   },
-  "goosehintsModal.developer": {
+  "goslinghintsModal.developer": {
     "defaultMessage": "Pengembang"
   },
-  "goosehintsModal.dialogDescription": {
+  "goslinghintsModal.dialogDescription": {
     "defaultMessage": "Berikan konteks tambahan tentang proyek Anda untuk meningkatkan komunikasi dengan Gosling"
   },
-  "goosehintsModal.dialogTitle": {
-    "defaultMessage": "Konfigurasikan Petunjuk Proyek (.goosehints)"
+  "goslinghintsModal.dialogTitle": {
+    "defaultMessage": "Konfigurasikan Petunjuk Proyek (.goslinghints)"
   },
-  "goosehintsModal.errorReading": {
-    "defaultMessage": "Kesalahan membaca file .goosehints: {error}"
+  "goslinghintsModal.errorReading": {
+    "defaultMessage": "Kesalahan membaca file .goslinghints: {error}"
   },
-  "goosehintsModal.failedToAccess": {
-    "defaultMessage": "Gagal mengakses file .goosehints"
+  "goslinghintsModal.failedToAccess": {
+    "defaultMessage": "Gagal mengakses file .goslinghints"
   },
-  "goosehintsModal.failedToSave": {
-    "defaultMessage": "Gagal menyimpan file .goosehints"
+  "goslinghintsModal.failedToSave": {
+    "defaultMessage": "Gagal menyimpan file .goslinghints"
   },
-  "goosehintsModal.fileCreating": {
-    "defaultMessage": "Membuat file .goosehints baru di: {filePath}"
+  "goslinghintsModal.fileCreating": {
+    "defaultMessage": "Membuat file .goslinghints baru di: {filePath}"
   },
-  "goosehintsModal.fileFound": {
-    "defaultMessage": "File .goosehints ditemukan di: {filePath}"
+  "goslinghintsModal.fileFound": {
+    "defaultMessage": "File .goslinghints ditemukan di: {filePath}"
   },
-  "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints adalah file teks yang digunakan untuk memberikan konteks tambahan tentang proyek Anda dan meningkatkan komunikasi dengan Gosling."
+  "goslinghintsModal.helpText1": {
+    "defaultMessage": ".goslinghints adalah file teks yang digunakan untuk memberikan konteks tambahan tentang proyek Anda dan meningkatkan komunikasi dengan Gosling."
   },
-  "goosehintsModal.helpText2": {
-    "defaultMessage": "Pastikan ekstensi {bold} diaktifkan di halaman ekstensi. Ekstensi ini diperlukan untuk menggunakan .goosehints. Anda perlu memulai ulang sesi agar pembaruan .goosehints berlaku."
+  "goslinghintsModal.helpText2": {
+    "defaultMessage": "Pastikan ekstensi {bold} diaktifkan di halaman ekstensi. Ekstensi ini diperlukan untuk menggunakan .goslinghints. Anda perlu memulai ulang sesi agar pembaruan .goslinghints berlaku."
   },
-  "goosehintsModal.helpText3": {
+  "goslinghintsModal.helpText3": {
     "defaultMessage": "Lihat {link} untuk informasi lebih lanjut."
   },
-  "goosehintsModal.helpTextLink": {
-    "defaultMessage": "menggunakan .goosehints"
+  "goslinghintsModal.helpTextLink": {
+    "defaultMessage": "menggunakan .goslinghints"
   },
-  "goosehintsModal.placeholder": {
+  "goslinghintsModal.placeholder": {
     "defaultMessage": "Masukkan petunjuk proyek di sini..."
   },
-  "goosehintsModal.save": {
+  "goslinghintsModal.save": {
     "defaultMessage": "Simpan"
   },
-  "goosehintsModal.savedSuccessfully": {
+  "goslinghintsModal.savedSuccessfully": {
     "defaultMessage": "Berhasil disimpan"
   },
-  "goosehintsModal.saving": {
+  "goslinghintsModal.saving": {
     "defaultMessage": "Menyimpan..."
   },
-  "goosehintsSection.configure": {
+  "goslinghintsSection.configure": {
     "defaultMessage": "Konfigurasikan"
   },
-  "goosehintsSection.description": {
-    "defaultMessage": "Konfigurasikan file .goosehints proyek Anda untuk memberikan konteks tambahan ke Gosling"
+  "goslinghintsSection.description": {
+    "defaultMessage": "Konfigurasikan file .goslinghints proyek Anda untuk memberikan konteks tambahan ke Gosling"
   },
-  "goosehintsSection.title": {
-    "defaultMessage": "Petunjuk Proyek (.goosehints)"
+  "goslinghintsSection.title": {
+    "defaultMessage": "Petunjuk Proyek (.goslinghints)"
   },
-  "groupedExtensionLoadingToast.askGoose": {
+  "groupedExtensionLoadingToast.askGosling": {
     "defaultMessage": "Tanya gosling"
   },
   "groupedExtensionLoadingToast.collapseDetails": {
@@ -1184,25 +1184,25 @@
   "launcher.placeholder": {
     "defaultMessage": "Tanyakan apa saja kepada gosling..."
   },
-  "loadingGoose.compacting": {
+  "loadingGosling.compacting": {
     "defaultMessage": "gosling sedang meringkas percakapan..."
   },
-  "loadingGoose.idle": {
+  "loadingGosling.idle": {
     "defaultMessage": "gosling sedang mengerjakannya…"
   },
-  "loadingGoose.loadingConversation": {
+  "loadingGosling.loadingConversation": {
     "defaultMessage": "memuat percakapan..."
   },
-  "loadingGoose.restartingAgent": {
+  "loadingGosling.restartingAgent": {
     "defaultMessage": "memulai ulang sesi..."
   },
-  "loadingGoose.streaming": {
+  "loadingGosling.streaming": {
     "defaultMessage": "gosling sedang mengerjakannya…"
   },
-  "loadingGoose.thinking": {
+  "loadingGosling.thinking": {
     "defaultMessage": "gosling sedang berpikir…"
   },
-  "loadingGoose.waiting": {
+  "loadingGosling.waiting": {
     "defaultMessage": "gosling sedang menunggu…"
   },
   "markdownContent.cancel": {
@@ -2421,7 +2421,7 @@
     "defaultMessage": "Tidak ada keterampilan yang cocok ditemukan"
   },
   "skillsView.noSkillsDescription": {
-    "defaultMessage": "Keterampilan dimuat dari file SKILL.md di ~/.config/agents/skills/, .goose/skills/, atau direktori lain yang didukung."
+    "defaultMessage": "Keterampilan dimuat dari file SKILL.md di ~/.config/agents/skills/, .gosling/skills/, atau direktori lain yang didukung."
   },
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "Tidak ada keterampilan yang terpasang"
@@ -2678,14 +2678,14 @@
   "toolConfirmation.allowToolCallWithName": {
     "defaultMessage": "Izinkan {toolName}?"
   },
-  "toolConfirmation.gooseWouldLikeToCallWithName": {
+  "toolConfirmation.goslingWouldLikeToCallWithName": {
     "defaultMessage": "Gosling ingin memanggil {toolName}. Izinkan?"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "Gosling akan mengunduh pembaruan di latar belakang dan menginstalnya saat Anda keluar atau memulai ulang berikutnya."
   },
   "updateSection.autoDownloadDisabledByEnv": {
-    "defaultMessage": "Pengunduhan otomatis dinonaktifkan melalui variabel lingkungan GOOSE_DISABLE_AUTO_DOWNLOAD."
+    "defaultMessage": "Pengunduhan otomatis dinonaktifkan melalui variabel lingkungan GOSLING_DISABLE_AUTO_DOWNLOAD."
   },
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Pengunduhan otomatis dinonaktifkan. Klik \"Download Now\" untuk mengunduh secara manual."

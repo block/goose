@@ -3998,7 +3998,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose"
+name = "gosling"
 version = "1.40.0"
 dependencies = [
  "agent-client-protocol",
@@ -4031,11 +4031,11 @@ dependencies = [
  "fs2",
  "futures",
  "gethostname",
- "goose-acp-macros",
- "goose-mcp",
- "goose-providers",
- "goose-sdk-types",
- "goose-test-support",
+ "gosling-acp-macros",
+ "gosling-mcp",
+ "gosling-providers",
+ "gosling-sdk-types",
+ "gosling-test-support",
  "http 1.4.2",
  "icu_calendar",
  "icu_locale",
@@ -4125,7 +4125,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose-acp-macros"
+name = "gosling-acp-macros"
 version = "1.40.0"
 dependencies = [
  "quote",
@@ -4133,7 +4133,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose-cli"
+name = "gosling-cli"
 version = "1.40.0"
 dependencies = [
  "anstream",
@@ -4156,9 +4156,9 @@ dependencies = [
  "env-lock",
  "etcetera 0.11.0",
  "futures",
- "goose",
- "goose-mcp",
- "goose-providers",
+ "gosling",
+ "gosling-mcp",
+ "gosling-providers",
  "indicatif",
  "open",
  "rand 0.10.1",
@@ -4187,7 +4187,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose-mcp"
+name = "gosling-mcp"
 version = "1.40.0"
 dependencies = [
  "anyhow",
@@ -4217,7 +4217,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose-providers"
+name = "gosling-providers"
 version = "1.40.0"
 dependencies = [
  "anyhow",
@@ -4254,12 +4254,12 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose-sdk"
+name = "gosling-sdk"
 version = "1.40.0"
 dependencies = [
  "agent-client-protocol",
  "agent-client-protocol-schema",
- "goose-sdk-types",
+ "gosling-sdk-types",
  "thiserror 2.0.18",
  "tokio",
  "tokio-util",
@@ -4267,7 +4267,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose-sdk-types"
+name = "gosling-sdk-types"
 version = "1.40.0"
 dependencies = [
  "agent-client-protocol",
@@ -4278,7 +4278,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose-server"
+name = "gosling-server"
 version = "1.40.0"
 dependencies = [
  "anyhow",
@@ -4290,9 +4290,9 @@ dependencies = [
  "clap",
  "config",
  "futures",
- "goose",
- "goose-mcp",
- "goose-providers",
+ "gosling",
+ "gosling-mcp",
+ "gosling-providers",
  "hex",
  "http 1.4.2",
  "lru 0.18.0",
@@ -4317,7 +4317,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose-test"
+name = "gosling-test"
 version = "1.40.0"
 dependencies = [
  "clap",
@@ -4325,7 +4325,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "goose-test-support"
+name = "gosling-test-support"
 version = "1.40.0"
 dependencies = [
  "axum",

@@ -1,26 +1,26 @@
 ---
 title: Nano Banana Extension
-description: Add Nano Banana MCP Server as a goose Extension
+description: Add Nano Banana MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
 
 <!--<YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />-->
 
 
-This tutorial covers how to add the [Nano Banana MCP Server](https://github.com/ConechoAI/Nano-Banana-MCP) as a goose extension that provides AI image generation and editing capabilities using Google's Gemini Image API.
+This tutorial covers how to add the [Nano Banana MCP Server](https://github.com/ConechoAI/Nano-Banana-MCP) as a gosling extension that provides AI image generation and editing capabilities using Google's Gemini Image API.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=nano-banana-mcp&id=nano-banana&name=Nano%20Banana&description=Image%20generation%20with%20Gemini)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=nano-banana-mcp&id=nano-banana&name=Nano%20Banana&description=Image%20generation%20with%20Gemini)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx nano-banana-mcp
@@ -40,8 +40,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="nano-banana"
       extensionName="Nano Banana"
       description="Image generation with Gemini"
@@ -55,7 +55,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
       apiKeyLinkText="Gemini API Key"
     />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Nano Banana"
       description="Image generation with Gemini"
@@ -78,7 +78,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-With Nano Banana, you can generate new images and edit existing images in natural language.  Simply describe what you want created or modified and goose will turn that into a detailed prompt to provide to Nano Banana.
+With Nano Banana, you can generate new images and edit existing images in natural language.  Simply describe what you want created or modified and gosling will turn that into a detailed prompt to provide to Nano Banana.
 
 ### Image Creation Examples
 Create images from scratch by describing what you want:
@@ -95,11 +95,11 @@ After generating or editing an image, you can keep refining it:
 - "Remove the text"
 - "Make it more cartoon-style"
 
-### goose Prompt
+### gosling Prompt
 
 > use nano banana to create an image of a fantasy ice mage crafting ice sculptures in a frozen workshop
 
-### goose Output
+### gosling Output
 
 :::note Desktop
 

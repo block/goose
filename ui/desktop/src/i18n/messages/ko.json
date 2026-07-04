@@ -828,7 +828,7 @@
     "defaultMessage": "비밀 키"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "goosed 서버에 설정된 비밀 키 (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "goslingd 서버에 설정된 비밀 키 (GOSLING_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "서버의 비밀 키를 입력하세요"
@@ -857,67 +857,67 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "다른 곳에서 실행 중인 gosling 서버에 연결합니다. 앱을 다시 시작해야 합니다."
   },
-  "goosehintsModal.close": {
+  "goslinghintsModal.close": {
     "defaultMessage": "닫기"
   },
-  "goosehintsModal.developer": {
+  "goslinghintsModal.developer": {
     "defaultMessage": "개발자"
   },
-  "goosehintsModal.dialogDescription": {
+  "goslinghintsModal.dialogDescription": {
     "defaultMessage": "gosling와의 커뮤니케이션을 개선할 수 있도록 프로젝트에 대한 추가 컨텍스트를 제공하세요."
   },
-  "goosehintsModal.dialogTitle": {
-    "defaultMessage": "프로젝트 힌트 구성(.goosehints)"
+  "goslinghintsModal.dialogTitle": {
+    "defaultMessage": "프로젝트 힌트 구성(.goslinghints)"
   },
-  "goosehintsModal.errorReading": {
-    "defaultMessage": ".goosehints 파일 읽기 오류: {error}"
+  "goslinghintsModal.errorReading": {
+    "defaultMessage": ".goslinghints 파일 읽기 오류: {error}"
   },
-  "goosehintsModal.failedToAccess": {
-    "defaultMessage": ".goosehints 파일에 액세스하지 못했습니다."
+  "goslinghintsModal.failedToAccess": {
+    "defaultMessage": ".goslinghints 파일에 액세스하지 못했습니다."
   },
-  "goosehintsModal.failedToSave": {
-    "defaultMessage": ".goosehints 파일을 저장하지 못했습니다."
+  "goslinghintsModal.failedToSave": {
+    "defaultMessage": ".goslinghints 파일을 저장하지 못했습니다."
   },
-  "goosehintsModal.fileCreating": {
-    "defaultMessage": "새 .goosehints 파일 생성: {filePath}"
+  "goslinghintsModal.fileCreating": {
+    "defaultMessage": "새 .goslinghints 파일 생성: {filePath}"
   },
-  "goosehintsModal.fileFound": {
-    "defaultMessage": ".goosehints 파일 위치: {filePath}"
+  "goslinghintsModal.fileFound": {
+    "defaultMessage": ".goslinghints 파일 위치: {filePath}"
   },
-  "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints는 프로젝트에 대한 추가 컨텍스트를 제공하고 gosling와의 커뮤니케이션을 개선하는 데 사용되는 텍스트 파일입니다."
+  "goslinghintsModal.helpText1": {
+    "defaultMessage": ".goslinghints는 프로젝트에 대한 추가 컨텍스트를 제공하고 gosling와의 커뮤니케이션을 개선하는 데 사용되는 텍스트 파일입니다."
   },
-  "goosehintsModal.helpText2": {
-    "defaultMessage": "익스텐션 페이지에서 {bold} 익스텐션이 활성화되어 있는지 확인하세요. .goosehints를 사용하려면 이 익스텐션이 필요합니다. .goosehints 업데이트를 적용하려면 세션을 다시 시작해야 합니다."
+  "goslinghintsModal.helpText2": {
+    "defaultMessage": "익스텐션 페이지에서 {bold} 익스텐션이 활성화되어 있는지 확인하세요. .goslinghints를 사용하려면 이 익스텐션이 필요합니다. .goslinghints 업데이트를 적용하려면 세션을 다시 시작해야 합니다."
   },
-  "goosehintsModal.helpText3": {
+  "goslinghintsModal.helpText3": {
     "defaultMessage": "자세한 내용은 {link}를 참조하세요."
   },
-  "goosehintsModal.helpTextLink": {
-    "defaultMessage": ".goosehints 사용"
+  "goslinghintsModal.helpTextLink": {
+    "defaultMessage": ".goslinghints 사용"
   },
-  "goosehintsModal.placeholder": {
+  "goslinghintsModal.placeholder": {
     "defaultMessage": "여기에 프로젝트 힌트를 입력하세요..."
   },
-  "goosehintsModal.save": {
+  "goslinghintsModal.save": {
     "defaultMessage": "저장"
   },
-  "goosehintsModal.savedSuccessfully": {
+  "goslinghintsModal.savedSuccessfully": {
     "defaultMessage": "성공적으로 저장되었습니다"
   },
-  "goosehintsModal.saving": {
+  "goslinghintsModal.saving": {
     "defaultMessage": "저장 중..."
   },
-  "goosehintsSection.configure": {
+  "goslinghintsSection.configure": {
     "defaultMessage": "설정"
   },
-  "goosehintsSection.description": {
-    "defaultMessage": "프로젝트의 .goosehints 파일을 설정하여 gosling에 추가 컨텍스트를 제공합니다."
+  "goslinghintsSection.description": {
+    "defaultMessage": "프로젝트의 .goslinghints 파일을 설정하여 gosling에 추가 컨텍스트를 제공합니다."
   },
-  "goosehintsSection.title": {
-    "defaultMessage": "프로젝트 힌트 (.goosehints)"
+  "goslinghintsSection.title": {
+    "defaultMessage": "프로젝트 힌트 (.goslinghints)"
   },
-  "groupedExtensionLoadingToast.askGoose": {
+  "groupedExtensionLoadingToast.askGosling": {
     "defaultMessage": "gosling에게 묻기"
   },
   "groupedExtensionLoadingToast.collapseDetails": {
@@ -1184,25 +1184,25 @@
   "launcher.placeholder": {
     "defaultMessage": "gosling에게 무엇이든 물어보세요..."
   },
-  "loadingGoose.compacting": {
+  "loadingGosling.compacting": {
     "defaultMessage": "gosling가 대화를 압축하고 있습니다..."
   },
-  "loadingGoose.idle": {
+  "loadingGosling.idle": {
     "defaultMessage": "gosling가 작업 중…"
   },
-  "loadingGoose.loadingConversation": {
+  "loadingGosling.loadingConversation": {
     "defaultMessage": "대화 로드 중..."
   },
-  "loadingGoose.restartingAgent": {
+  "loadingGosling.restartingAgent": {
     "defaultMessage": "세션 다시 시작 중..."
   },
-  "loadingGoose.streaming": {
+  "loadingGosling.streaming": {
     "defaultMessage": "gosling가 작업 중…"
   },
-  "loadingGoose.thinking": {
+  "loadingGosling.thinking": {
     "defaultMessage": "gosling가 생각 중…"
   },
-  "loadingGoose.waiting": {
+  "loadingGosling.waiting": {
     "defaultMessage": "gosling가 기다리고 있습니다…"
   },
   "markdownContent.cancel": {
@@ -2421,7 +2421,7 @@
     "defaultMessage": "일치하는 스킬을 찾을 수 없습니다."
   },
   "skillsView.noSkillsDescription": {
-    "defaultMessage": "스킬은 ~/.config/agents/skills/, .goose/skills/ 또는 기타 지원되는 디렉터리의 SKILL.md 파일에서 로드됩니다."
+    "defaultMessage": "스킬은 ~/.config/agents/skills/, .gosling/skills/ 또는 기타 지원되는 디렉터리의 SKILL.md 파일에서 로드됩니다."
   },
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "설치된 스킬 없음"
@@ -2678,14 +2678,14 @@
   "toolConfirmation.allowToolCallWithName": {
     "defaultMessage": "{toolName}을 허용하시겠습니까?"
   },
-  "toolConfirmation.gooseWouldLikeToCallWithName": {
+  "toolConfirmation.goslingWouldLikeToCallWithName": {
     "defaultMessage": "gosling가 {toolName}을 호출하려고 합니다. 허용하시겠습니까?"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "업데이트는 백그라운드에서 자동으로 다운로드됩니다."
   },
   "updateSection.autoDownloadDisabledByEnv": {
-    "defaultMessage": "자동 다운로드는 GOOSE_DISABLE_AUTO_DOWNLOAD 환경 변수를 통해 비활성화되어 있습니다."
+    "defaultMessage": "자동 다운로드는 GOSLING_DISABLE_AUTO_DOWNLOAD 환경 변수를 통해 비활성화되어 있습니다."
   },
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "자동 다운로드가 비활성화되어 있습니다. 수동으로 다운로드하려면 \"지금 다운로드\"를 클릭하세요."

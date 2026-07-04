@@ -26,8 +26,8 @@ Local inference is a self-contained module tree gated behind the Cargo feature
 `local-inference` (with `mlx` / `cuda` / `vulkan` sub-features). The desktop UI
 talks to it exclusively through ACP custom methods, so the UI coupling is thin.
 
-**Rust core — `crates/goose/src/providers/local_inference/`** (plus the
-declaring module `crates/goose/src/providers/local_inference.rs`):
+**Rust core — `crates/gosling/src/providers/local_inference/`** (plus the
+declaring module `crates/gosling/src/providers/local_inference.rs`):
 
 | File | Role |
 |---|---|
@@ -42,32 +42,32 @@ declaring module `crates/goose/src/providers/local_inference.rs`):
 
 **Wiring points:**
 
-- Module + provider registration: `crates/goose/src/providers/mod.rs:53` and
-  `crates/goose/src/providers/init.rs:74-75` (both `#[cfg(feature = "local-inference")]`).
-- ACP handlers: `crates/goose/src/acp/server/local_inference.rs` (8 handlers,
+- Module + provider registration: `crates/gosling/src/providers/mod.rs:53` and
+  `crates/gosling/src/providers/init.rs:74-75` (both `#[cfg(feature = "local-inference")]`).
+- ACP handlers: `crates/gosling/src/acp/server/local_inference.rs` (8 handlers,
   each cfg-gated with a `local_inference_unavailable()` stub fallback);
-  dispatch in `crates/goose/src/acp/server/custom_dispatch.rs:642+`;
+  dispatch in `crates/gosling/src/acp/server/custom_dispatch.rs:642+`;
   capability advertisement `"localInference": {}` in
-  `crates/goose/src/acp/server.rs:257`.
-- Wire DTOs: `crates/goose-sdk-types/src/custom_requests.rs` (`LocalInference*`
+  `crates/gosling/src/acp/server.rs:257`.
+- Wire DTOs: `crates/gosling-sdk-types/src/custom_requests.rs` (`LocalInference*`
   types, `ModelSettings` DTO mirror at `:1728+`); schema metadata in
-  `crates/goose/acp-meta.json:395+` and `acp-schema.json`; OpenAPI merge in
-  `crates/goose-server/src/openapi.rs:591` (`LocalInferenceApiDoc`).
-- Feature definitions: `crates/goose/Cargo.toml:23-44`; enabled **by default**
-  in `crates/goose-cli/Cargo.toml:76` and `crates/goose-server/Cargo.toml:17`,
+  `crates/gosling/acp-meta.json:395+` and `acp-schema.json`; OpenAPI merge in
+  `crates/gosling-server/src/openapi.rs:591` (`LocalInferenceApiDoc`).
+- Feature definitions: `crates/gosling/Cargo.toml:23-44`; enabled **by default**
+  in `crates/gosling-cli/Cargo.toml:76` and `crates/gosling-server/Cargo.toml:17`,
   with `cuda`/`vulkan`/`mlx` passthrough features in both.
-- Optional dependencies pulled in by the feature (`crates/goose/Cargo.toml`):
+- Optional dependencies pulled in by the feature (`crates/gosling/Cargo.toml`):
   `llama-cpp-2` + `llama-cpp-sys-2` (workspace-pinned `=0.1.146`),
   `hf-hub = "1.0.0-rc.1"`, `mlx-rs`/`mlx-lm`/`mlx-lm-utils` (git), and — used
   only by Whisper dictation, see A.3 — `candle-core`, `candle-nn`,
   `candle-transformers`, `tokenizers`, `symphonia`, `rubato`, `byteorder`.
   macOS-specific metal features at workspace `Cargo.toml:240-244`.
 - Config/env keys: `LOCAL_LLM_MODEL` (also read by
-  `crates/goose/src/providers/toolshim.rs:34,58,97,112`),
-  `GOOSE_LOCAL_DRAFT_MODEL`, `GOOSE_LOCAL_ENABLE_THINKING`.
-- Tests: `crates/goose/tests/local_inference_integration.rs`,
-  `crates/goose/tests/local_inference_perf.rs`, entries in
-  `crates/goose/tests/providers.rs`.
+  `crates/gosling/src/providers/toolshim.rs:34,58,97,112`),
+  `GOSLING_LOCAL_DRAFT_MODEL`, `GOSLING_LOCAL_ENABLE_THINKING`.
+- Tests: `crates/gosling/tests/local_inference_integration.rs`,
+  `crates/gosling/tests/local_inference_perf.rs`, entries in
+  `crates/gosling/tests/providers.rs`.
 - Build/CI: justfile `generate-acp-schema` recipe passes
   `--features code-mode,local-inference,...` (line 174) and a
   `linux_vulkan_features` helper (line 343); `.github/workflows/build-cli.yml`
@@ -91,14 +91,14 @@ declaring module `crates/goose/src/providers/local_inference.rs`):
 
 **Shared code that is NOT exclusively local-inference:**
 
-- `crates/goose/src/download_manager.rs` — generic download
+- `crates/gosling/src/download_manager.rs` — generic download
   progress/cancellation state machine, top-level module (`lib.rs:17`), used by
   both HF model downloads and Whisper dictation downloads.
-- `crates/goose/src/providers/huggingface_auth.rs` — HF OAuth device flow +
+- `crates/gosling/src/providers/huggingface_auth.rs` — HF OAuth device flow +
   `HF_TOKEN` secret; consumed by `hf_models.rs`, by the **remote** HF
   inference provider (`providers/huggingface.rs`), and by
-  `goose-server/src/routes/utils.rs:4`.
-- Whisper dictation (`crates/goose/src/dictation/whisper.rs:61-79`) downloads
+  `gosling-server/src/routes/utils.rs:4`.
+- Whisper dictation (`crates/gosling/src/dictation/whisper.rs:61-79`) downloads
   Whisper GGUF models **directly from `huggingface.co/.../resolve/...`** via
   `reqwest` (not `hf-hub`), gated behind the same `local-inference` feature.
 
@@ -110,9 +110,9 @@ out in a way that preserves it as a reusable artifact rather than destroying
 it.
 
 **Step 1 — Carve out a standalone crate (preservation).**
-Create a new repository (working name `goose-local-inference`) seeded with:
+Create a new repository (working name `gosling-local-inference`) seeded with:
 
-- The entire `crates/goose/src/providers/local_inference/` tree and its module
+- The entire `crates/gosling/src/providers/local_inference/` tree and its module
   root.
 - A copy of `download_manager.rs` (this repo keeps its own copy only if
   dictation local models are retained — see A.3; if dictation downloads are
@@ -124,11 +124,11 @@ Create a new repository (working name `goose-local-inference`) seeded with:
 
 The extracted crate's public API is the `management.rs` facade plus the
 `Provider` implementation. It will need a small compatibility layer for the
-types it currently borrows from `goose`: `Provider`/`ProviderDescriptor`,
+types it currently borrows from `gosling`: `Provider`/`ProviderDescriptor`,
 `ModelConfig`, `ProviderError`, `ProviderUsage`, message/tool formatting, and
 the config-dir paths used by `local_model_registry.rs`. Two options:
 
-- *(a)* Depend on `goose` as a library from the new repo — simplest, keeps the
+- *(a)* Depend on `gosling` as a library from the new repo — simplest, keeps the
   trait contract intact, but inverts the dependency direction.
 - *(b)* Define a minimal `LocalInferenceHost` trait (config paths, secrets
   lookup, provider-trait re-exports) in the new crate and implement it in any
@@ -153,17 +153,17 @@ the removal below is identical regardless.
    - Remove `localInference` from `FeaturesContext.tsx` and
      `capabilities.ts`.
 2. **ACP/API surface:**
-   - Delete `crates/goose/src/acp/server/local_inference.rs`; remove its
+   - Delete `crates/gosling/src/acp/server/local_inference.rs`; remove its
      dispatch arms in `custom_dispatch.rs` and the `"localInference"`
      capability entry in `acp/server.rs:257`.
    - Remove `LocalInference*` DTOs and the `ModelSettings` mirror from
-     `crates/goose-sdk-types/src/custom_requests.rs`.
-   - Remove `LocalInferenceApiDoc` from `crates/goose-server/src/openapi.rs`.
+     `crates/gosling-sdk-types/src/custom_requests.rs`.
+   - Remove `LocalInferenceApiDoc` from `crates/gosling-server/src/openapi.rs`.
    - Regenerate `acp-meta.json` / `acp-schema.json` (justfile
      `generate-acp-schema`, minus the feature flag) and the UI SDK
      (`ui/sdk/src/generated/*`) and `ui/desktop/openapi.json`.
 3. **Rust core:**
-   - Delete `crates/goose/src/providers/local_inference.rs` and the
+   - Delete `crates/gosling/src/providers/local_inference.rs` and the
      `local_inference/` directory.
    - Remove the module decl (`providers/mod.rs:53`) and registration
      (`providers/init.rs:6-7,74-75`).
@@ -172,15 +172,15 @@ the removal below is identical regardless.
    - Delete the two local-inference test files and the `providers.rs` entries.
 4. **Features & dependencies:**
    - Remove `local-inference`, `cuda`, `vulkan`, `mlx` feature definitions
-     from `crates/goose/Cargo.toml:23-44` and their passthroughs in
-     `goose-cli` / `goose-server` Cargo.tomls (including the
+     from `crates/gosling/Cargo.toml:23-44` and their passthroughs in
+     `gosling-cli` / `gosling-server` Cargo.tomls (including the
      default-features entries).
    - Remove optional deps `llama-cpp-2`, `llama-cpp-sys-2`, `hf-hub`,
      `mlx-rs`, `mlx-lm`, `mlx-lm-utils`; drop the workspace pins and the
      macOS metal override block (`Cargo.toml:240-244`) for `llama-cpp-2`.
    - Candle/tokenizers/symphonia/rubato/byteorder: see A.3.
    - `hf-hub/rustls-tls` reference in the `rustls-tls` feature
-     (`crates/goose/Cargo.toml:59`) goes with it. Keep `Cargo.lock`
+     (`crates/gosling/Cargo.toml:59`) goes with it. Keep `Cargo.lock`
      consistent (`cargo update` will prune).
 5. **Build/CI/docs:**
    - justfile: drop `local-inference` from the `generate-acp-schema` recipe
@@ -188,7 +188,7 @@ the removal below is identical regardless.
    - `.github/workflows/build-cli.yml`: delete the `vulkan` and `cuda` matrix
      variants and the `libvulkan-dev` install step.
    - Remove local-inference / HF model documentation pages under
-     `documentation/` and env-var docs for `GOOSE_LOCAL_*` / `LOCAL_LLM_MODEL`.
+     `documentation/` and env-var docs for `GOSLING_LOCAL_*` / `LOCAL_LLM_MODEL`.
 
 ### A.3 Entanglements & decision points
 
@@ -216,8 +216,8 @@ communicate with `huggingface.co` and is the only remaining consumer of
 `huggingface_auth.rs` (OAuth against `huggingface.co/oauth/*`) after
 extraction. For a clean "no Hugging Face communication" posture, remove the
 provider, `huggingface_auth.rs`, its consumer in
-`goose-server/src/routes/utils.rs`, the `HF_TOKEN` secret key, the
-`GOOSE_HUGGINGFACE_OAUTH_CLIENT_ID` compile-time env, and
+`gosling-server/src/routes/utils.rs`, the `HF_TOKEN` secret key, the
+`GOSLING_HUGGINGFACE_OAUTH_CLIENT_ID` compile-time env, and
 `HuggingFaceSignInPrompt.tsx`. If only *downloads* are in scope, keep all of
 this — flagging for an explicit owner call before implementation.
 
@@ -229,7 +229,7 @@ this — flagging for an explicit owner call before implementation.
 
 Telegram is implemented as the **only** concrete "gateway": a CLI-only,
 long-polling bridge (`https://api.telegram.org`) that relays chat (including
-voice notes) between a Telegram bot and a goose session, with a pairing-code
+voice notes) between a Telegram bot and a gosling session, with a pairing-code
 flow. There is no server route, no desktop UI, no MCP server entry, and no
 Telegram-specific dependency (plain `reqwest`). The generic gateway framework
 (`handler.rs`, `manager.rs`, `pairing.rs`) exists solely to serve it —
@@ -240,25 +240,25 @@ Telegram-specific dependency (plain `reqwest`). The generic gateway framework
 Because Telegram is the sole implementation, **remove the entire gateway
 feature**, not just the Telegram arm:
 
-1. Delete `crates/goose/src/gateway/` in full: `telegram.rs` (787 lines,
+1. Delete `crates/gosling/src/gateway/` in full: `telegram.rs` (787 lines,
    includes the Bot API client and tests), `telegram_format.rs`
    (markdown→Telegram-HTML), `handler.rs`, `manager.rs`, `pairing.rs`,
    `mod.rs`.
-2. Remove `pub mod gateway;` from `crates/goose/src/lib.rs:20`.
-3. Delete `crates/goose-cli/src/commands/gateway.rs`; remove
-   `pub mod gateway;` from `crates/goose-cli/src/commands/mod.rs:3`.
-4. `crates/goose-cli/src/cli.rs`: remove the `GatewayCommand` enum (533-561),
+2. Remove `pub mod gateway;` from `crates/gosling/src/lib.rs:20`.
+3. Delete `crates/gosling-cli/src/commands/gateway.rs`; remove
+   `pub mod gateway;` from `crates/gosling-cli/src/commands/mod.rs:3`.
+4. `crates/gosling-cli/src/cli.rs`: remove the `GatewayCommand` enum (533-561),
    the `Gateway` subcommand + `gw` alias (780-788), the command-name mapping
    (1125), `handle_gateway_command` (1641-1656), and the dispatch arm (1971).
 5. Remove `SessionType::Gateway` from
-   `crates/goose/src/session/session_manager.rs:51`; remove `'gateway'` from
+   `crates/gosling/src/session/session_manager.rs:51`; remove `'gateway'` from
    `ui/desktop/src/types/session.ts:32` and regenerate
    `ui/desktop/openapi.json` (enum at :4894).
 6. Docs: delete
    `documentation/docs/experimental/remote-access/telegram-gateway.md` and
    `documentation/docs/experimental/remote-access/index.md`; remove the
    Remote Access card from `documentation/docs/experimental/index.md:27-31`;
-   remove `GOOSE_GATEWAY_MAX_TURNS` from
+   remove `GOSLING_GATEWAY_MAX_TURNS` from
    `documentation/docs/guides/environment-variables.md:159,200`.
 7. Optional hygiene: drop the `tg:` / `telegram:` URL-scheme allowlist entries
    in `ui/desktop/src/utils/urlSecurity.ts:29-30` (generic deep-link handling,
@@ -279,13 +279,13 @@ phone-home path found, and its disposition:
 
 | Path | Endpoint | Today | Disposition |
 |---|---|---|---|
-| Backend telemetry (`crates/goose/src/posthog.rs`) | `https://us.i.posthog.com/capture/` (hardcoded key) | Opt-in (`GOOSE_TELEMETRY_ENABLED`, default off) **but** onboarding-funnel events bypass consent | **Remove entirely** (C.2) |
-| Server ingress `POST /telemetry/event` (`goose-server/src/routes/telemetry.rs`) | forwards to PostHog | feature-gated | **Remove** (C.2) |
+| Backend telemetry (`crates/gosling/src/posthog.rs`) | `https://us.i.posthog.com/capture/` (hardcoded key) | Opt-in (`GOSLING_TELEMETRY_ENABLED`, default off) **but** onboarding-funnel events bypass consent | **Remove entirely** (C.2) |
+| Server ingress `POST /telemetry/event` (`gosling-server/src/routes/telemetry.rs`) | forwards to PostHog | feature-gated | **Remove** (C.2) |
 | Frontend analytics (`ui/desktop/src/utils/analytics.ts`) | none — intentionally no-op | disabled | **Remove module + call sites** (C.2) |
-| Help & Feedback card | links to `github.com/aaif-goose/goose/issues` | UI only | **Remove card** (C.1) |
+| Help & Feedback card | links to `github.com/repo-makeover/gosling/issues` | UI only | **Remove card** (C.1) |
 | Desktop auto-update (`autoUpdater.ts`, `githubUpdater.ts`) | GitHub Releases + `api.github.com` | ON by default, checks 5s after launch | **Remove** (C.3) |
-| CLI self-update (`goose-cli/src/commands/update.rs`) | `github.com/aaif-goose/goose/releases` + attestations API | on-demand | **Remove** (C.3) |
-| OTLP export (`crates/goose/src/otel/`) | user-configured endpoint only; **no default** | off unless `OTEL_EXPORTER_OTLP_ENDPOINT` set | **Keep** (Decision C-1) |
+| CLI self-update (`gosling-cli/src/commands/update.rs`) | `github.com/repo-makeover/gosling/releases` + attestations API | on-demand | **Remove** (C.3) |
+| OTLP export (`crates/gosling/src/otel/`) | user-configured endpoint only; **no default** | off unless `OTEL_EXPORTER_OTLP_ENDPOINT` set | **Keep** (Decision C-1) |
 | Sentry / crash reporting / feedback POST / remote config / announcements fetch | — | none exist | nothing to do |
 
 ### C.1 Remove the Help & Feedback card
@@ -309,22 +309,22 @@ before consent. Both disappear with the module.
 
 **Rust:**
 
-1. Delete `crates/goose/src/posthog.rs` and its module decl; delete the
-   `telemetry` Cargo feature (`crates/goose/Cargo.toml:13`) and its entries in
-   `goose-cli` / `goose-server` default features.
-2. Delete `crates/goose-server/src/routes/telemetry.rs` and its router
+1. Delete `crates/gosling/src/posthog.rs` and its module decl; delete the
+   `telemetry` Cargo feature (`crates/gosling/Cargo.toml:13`) and its entries in
+   `gosling-cli` / `gosling-server` default features.
+2. Delete `crates/gosling-server/src/routes/telemetry.rs` and its router
    registration.
 3. Remove all `emit_*` / `set_session_context` call sites:
-   `crates/goose/src/session/session_manager.rs:1327`,
-   `crates/goose/src/agents/agent.rs` (lines 1040, 2219, 2265, 2278, 2302,
-   2316, 2327), `goose-server/src/routes/session.rs:153,174,193`,
-   `goose-server/src/routes/agent.rs:125,149,245,254,557`,
-   `goose-cli/src/session/builder.rs:474`.
+   `crates/gosling/src/session/session_manager.rs:1327`,
+   `crates/gosling/src/agents/agent.rs` (lines 1040, 2219, 2265, 2278, 2302,
+   2316, 2327), `gosling-server/src/routes/session.rs:153,174,193`,
+   `gosling-server/src/routes/agent.rs:125,149,245,254,557`,
+   `gosling-cli/src/session/builder.rs:474`.
 4. Remove the CLI consent dialogs: `configure_telemetry_consent_dialog` /
-   `configure_telemetry_dialog` in `goose-cli/src/commands/configure.rs`
-   (lines 54, 1375) and their first-run triggers in `goose-cli/src/cli.rs`
+   `configure_telemetry_dialog` in `gosling-cli/src/commands/configure.rs`
+   (lines 54, 1375) and their first-run triggers in `gosling-cli/src/cli.rs`
    (1386-1388, 1566-1568, 1835-1837).
-5. Retire the config keys `GOOSE_TELEMETRY_ENABLED` / `GOOSE_TELEMETRY_OFF`
+5. Retire the config keys `GOSLING_TELEMETRY_ENABLED` / `GOSLING_TELEMETRY_OFF`
    (leave stale values in user config files untouched; nothing reads them).
    The `telemetry_installation.json` UUID file stops being written; no
    migration needed.
@@ -344,7 +344,7 @@ before consent. Both disappear with the module.
    `telemetrySettings.*` / consent-prompt i18n messages.
 
 **Docs:** remove telemetry/consent sections and the
-`GOOSE_TELEMETRY_ENABLED` / `GOOSE_TELEMETRY_OFF` entries from
+`GOSLING_TELEMETRY_ENABLED` / `GOSLING_TELEMETRY_OFF` entries from
 `documentation/docs/guides/environment-variables.md` and any privacy docs.
 
 ### C.3 Remove update capability (desktop + CLI)
@@ -352,7 +352,7 @@ before consent. Both disappear with the module.
 **Desktop:**
 
 1. Delete `ui/desktop/src/utils/autoUpdater.ts` (electron-updater against
-   GitHub owner `aaif-goose`, startup check 5s after launch,
+   GitHub owner `repo-makeover`, startup check 5s after launch,
    `autoInstallOnAppQuit`) and `ui/desktop/src/utils/githubUpdater.ts`
    (REST fallback + asset download to `~/Downloads`).
 2. Delete `ui/desktop/src/components/settings/app/UpdateSection.tsx` and its
@@ -367,25 +367,25 @@ before consent. Both disappear with the module.
    consumers gone the flag itself should be deleted.
 5. Drop the `electron-updater` dependency from `ui/desktop/package.json:78`.
    Keep `electron-log` — `src/utils/logger.ts` uses it independently.
-6. Retire env knobs `GOOSE_DISABLE_AUTO_DOWNLOAD`, `ENABLE_DEV_UPDATES`,
-   `GITHUB_OWNER`, `GITHUB_REPO`, `GOOSE_BUNDLE_NAME` and their docs.
+6. Retire env knobs `GOSLING_DISABLE_AUTO_DOWNLOAD`, `ENABLE_DEV_UPDATES`,
+   `GITHUB_OWNER`, `GITHUB_REPO`, `GOSLING_BUNDLE_NAME` and their docs.
    The Version card (`AppSettingsSection.tsx:540-558`) is local-only and
    stays.
 
 **CLI:**
 
-7. Delete `crates/goose-cli/src/commands/update.rs` (GitHub release download
-   + Sigstore/SLSA attestation verification), the `goose update` subcommand
+7. Delete `crates/gosling-cli/src/commands/update.rs` (GitHub release download
+   + Sigstore/SLSA attestation verification), the `gosling update` subcommand
    wiring in `cli.rs`, the now-pointless `disable-update` feature
-   (`goose-cli/Cargo.toml:100`), and the `sigstore-verify` dependency (verify
+   (`gosling-cli/Cargo.toml:100`), and the `sigstore-verify` dependency (verify
    nothing else uses `tar`/`bzip2`/`zip` before pruning those).
-8. Update docs (`goose update` guide, install/update pages). The standalone
+8. Update docs (`gosling update` guide, install/update pages). The standalone
    install scripts (`download_cli.sh` / `download_cli.ps1`) run outside the
    product; out of scope, but note they also point at
-   `github.com/aaif-goose/goose`.
+   `github.com/repo-makeover/gosling`.
 
 **Decision C-1 — OpenTelemetry export (recommendation: keep).**
-`crates/goose/src/otel/otlp.rs` exports traces/metrics/logs **only** if the
+`crates/gosling/src/otel/otlp.rs` exports traces/metrics/logs **only** if the
 user sets standard `OTEL_*` env vars; there is no default endpoint and nothing
 is Block/AAIF-operated. This is user-directed observability, not vendor
 reporting, so it does not violate "default to not report data" (the default is
@@ -419,15 +419,15 @@ Independent workstreams; ordered to keep every intermediate state green:
 ### Verification per PR
 
 - `cargo fmt` && `cargo clippy --all-targets -- -D warnings` &&
-  `cargo build` && `cargo test -p goose -p goose-cli -p goose-server`
+  `cargo build` && `cargo test -p gosling -p gosling-cli -p gosling-server`
 - `cd ui/desktop && pnpm run typecheck && pnpm test`
 - Schema/SDK regeneration where ACP/OpenAPI types changed (justfile
   `generate-acp-schema`; regenerate `ui/sdk` and `ui/desktop/openapi.json`)
   with a clean-diff check that no `LocalInference*`/`gateway` types remain.
 - Manual smoke: desktop app boots, Settings → App shows Appearance / Theme /
   Language / Version only; onboarding completes without consent prompt or
-  local-model picker; CLI `goose configure` runs without telemetry dialog;
-  `goose gateway` and `goose update` are unknown commands.
+  local-model picker; CLI `gosling configure` runs without telemetry dialog;
+  `gosling gateway` and `gosling update` are unknown commands.
 
 ### Acceptance criteria (network egress audit)
 

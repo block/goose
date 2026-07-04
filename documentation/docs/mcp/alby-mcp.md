@@ -1,19 +1,19 @@
 ---
 title: Alby Bitcoin Payments Extension
 
-description: Connect goose to your Bitcoin Lightning Wallet
+description: Connect gosling to your Bitcoin Lightning Wallet
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import { PanelLeft } from 'lucide-react';
 
 
 
 
-This tutorial covers how to add the [Alby Bitcoin Payments MCP Server](https://github.com/getalby/mcp) as a goose extension to interact with your lightning wallet, make and receive payments, list transactions, convert fiat amounts to sats, request invoices from lightning addresses, and interact with paid MCP tools (such as ones built with [PaidMCP](https://github.com/getAlby/paidmcp)).
+This tutorial covers how to add the [Alby Bitcoin Payments MCP Server](https://github.com/getalby/mcp) as a gosling extension to interact with your lightning wallet, make and receive payments, list transactions, convert fiat amounts to sats, request invoices from lightning addresses, and interact with paid MCP tools (such as ones built with [PaidMCP](https://github.com/getAlby/paidmcp)).
 
 :::info
 You'll need a lightning wallet that supports [NWC](https://nwc.dev). If you don't have one yet, consider trying [Alby Hub](https://albyhub.com).
@@ -21,10 +21,10 @@ You'll need a lightning wallet that supports [NWC](https://nwc.dev). If you don'
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=%40getalby%2Fmcp&id=alby&name=Alby&description=Connect%20goose%20to%20your%20Bitcoin%20Lightning%20Wallet&env=NWC_CONNECTION_STRING%3DNWC%20Connection%20Secret)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=%40getalby%2Fmcp&id=alby&name=Alby&description=Connect%20gosling%20to%20your%20Bitcoin%20Lightning%20Wallet&env=NWC_CONNECTION_STRING%3DNWC%20Connection%20Secret)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y @getalby/mcp
@@ -46,13 +46,13 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="gosling Desktop" default>
     <Tabs>
       <TabItem value="local" label="Local" default>
-        <GooseDesktopInstaller
+        <GoslingDesktopInstaller
           extensionId="alby"
           extensionName="Alby"
-          description="Connect goose to your Bitcoin Lightning Wallet"
+          description="Connect gosling to your Bitcoin Lightning Wallet"
           command="npx"
           args={["-y", "@getalby/mcp"]}
           envVars={[
@@ -62,10 +62,10 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
         />
       </TabItem>
       <TabItem value="remote" label="Remote">
-          <GooseDesktopInstaller
+          <GoslingDesktopInstaller
             extensionId="alby-remote"
             extensionName="Alby"
-            description="Connect goose to your Bitcoin Lightning Wallet"
+            description="Connect gosling to your Bitcoin Lightning Wallet"
             type="http"
             url="https://mcp.getalby.com/mcp"
             envVars={[
@@ -78,12 +78,12 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
       </TabItem>
     </Tabs>
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <Tabs>
       <TabItem value="local" label="Local" default>
         <CLIExtensionInstructions
           name="Alby"
-          description="Connect goose to your Bitcoin Lightning Wallet"
+          description="Connect gosling to your Bitcoin Lightning Wallet"
           command="npx -y @getalby/mcp"
           envVars={[
             { key: "NWC_CONNECTION_STRING", value: "▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪▪" }
@@ -98,7 +98,7 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
       <TabItem value="remote" label="Remote">
         <CLIExtensionInstructions
           name="Alby"
-          description="Connect goose to your Bitcoin Lightning Wallet"
+          description="Connect gosling to your Bitcoin Lightning Wallet"
           type="http"
           url="https://mcp.getalby.com/mcp"
           envVars={[
@@ -121,11 +121,11 @@ You'll need [Node.js](https://nodejs.org/) installed on your system to run this 
 Use the built-in memory extension to save your contacts. e.g. "My friend Rene's lightning address is reneaaron@getalby.com. Please save it to your memory."
 :::
 
-### goose Prompt
+### gosling Prompt
 
-> _Pay Rene $1 USD, with message "Hi Rene, it's Roland. I'm making a goose tutorial!"_
+> _Pay Rene $1 USD, with message "Hi Rene, it's Roland. I'm making a gosling tutorial!"_
 
-### goose Output
+### gosling Output
 
 :::note CLI
 
@@ -162,13 +162,13 @@ Use the built-in memory extension to save your contacts. e.g. "My friend Rene's 
 
 ✅ **Payment Successful!**
 
-I've successfully sent $1 USD (935 sats) to Rene at `reneaaron@getalby.com` with your message: "Hi Rene, it's Roland. I'm making a goose tutorial!"
+I've successfully sent $1 USD (935 sats) to Rene at `reneaaron@getalby.com` with your message: "Hi Rene, it's Roland. I'm making a gosling tutorial!"
 
 **Transaction Details:**
 - Amount: 935 sats ($1 USD)
 - Fees: 3 sats
 - Total cost: 938 sats
-- Message: "Hi Rene, it's Roland. I'm making a goose tutorial!"
+- Message: "Hi Rene, it's Roland. I'm making a gosling tutorial!"
 - Payment hash: `cd30642470d81c2e8eb04c9ac95e679c53778537aecdf5554b15288ac42fe129`
 
 Rene will receive the message "Thanks, sats received!" as confirmation of the payment.

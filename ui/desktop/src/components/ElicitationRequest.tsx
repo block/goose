@@ -129,7 +129,7 @@ export default function ElicitationRequest({
 
   if (isCancelledMessage) {
     return (
-      <div className="goose-message-content bg-background-secondary rounded-2xl px-4 py-2 text-text-primary">
+      <div className="gosling-message-content bg-background-secondary rounded-2xl px-4 py-2 text-text-primary">
         {intl.formatMessage(i18n.cancelled)}
       </div>
     );
@@ -137,7 +137,7 @@ export default function ElicitationRequest({
 
   if (submitted) {
     return (
-      <div className="goose-message-content bg-background-secondary rounded-2xl px-4 py-2 text-text-primary">
+      <div className="gosling-message-content bg-background-secondary rounded-2xl px-4 py-2 text-text-primary">
         <div className="flex items-center gap-2">
           <svg
             className="w-5 h-5 text-gray-500"
@@ -160,7 +160,7 @@ export default function ElicitationRequest({
 
   if (isExpired) {
     return (
-      <div className="goose-message-content bg-background-secondary rounded-2xl px-4 py-2 text-text-primary">
+      <div className="gosling-message-content bg-background-secondary rounded-2xl px-4 py-2 text-text-primary">
         <div className="flex items-center gap-2 text-text-secondary">
           <svg
             className="w-5 h-5"
@@ -184,12 +184,12 @@ export default function ElicitationRequest({
 
   return (
     <div className="flex flex-col">
-      <div className="goose-message-content bg-background-secondary rounded-2xl rounded-b-none px-4 py-2 text-text-primary">
+      <div className="gosling-message-content bg-background-secondary rounded-2xl rounded-b-none px-4 py-2 text-text-primary">
         <div className="flex justify-between items-start gap-4">
           <span>{message || intl.formatMessage(i18n.defaultMessage)}</span>
         </div>
       </div>
-      <div className="goose-message-content bg-background-primary border border-border-primary dark:border-gray-700 rounded-b-2xl px-4 py-3">
+      <div className="gosling-message-content bg-background-primary border border-border-primary dark:border-gray-700 rounded-b-2xl px-4 py-3">
         {hasSchemaFields ? (
           <JsonSchemaForm
             schema={schema}

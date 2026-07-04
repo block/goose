@@ -63,7 +63,7 @@ const SessionListView: React.FC<SessionListViewProps> = ({
   const [showImportLinkModal, setShowImportLinkModal] = useState(false);
   const [nostrImportLink, setNostrImportLink] = useState('');
   const [isImportingNostr, setIsImportingNostr] = useState(false);
-  const [nostrEnabled] = useState(() => window.electron.getConfig().GOOSE_DISABLE_NOSTR_SHARING !== true);
+  const [nostrEnabled] = useState(() => window.electron.getConfig().GOSLING_DISABLE_NOSTR_SHARING !== true);
   const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   useEffect(() => {

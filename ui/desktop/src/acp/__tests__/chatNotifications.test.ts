@@ -13,7 +13,7 @@ vi.mock('../chatSessionStore', () => ({
   },
   acpChatSessionActions: {
     applyAcpSessionNotification: vi.fn(),
-    applyAcpGooseSessionNotification: vi.fn(),
+    applyAcpGoslingSessionNotification: vi.fn(),
   },
 }));
 

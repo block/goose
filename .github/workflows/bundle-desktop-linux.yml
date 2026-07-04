@@ -123,16 +123,16 @@ jobs:
           export TARGET="x86_64-unknown-linux-gnu"
           rustup target add "${TARGET}"
 
-          cargo build --release --target ${TARGET} -p goose-cli --bin goose
+          cargo build --release --target ${TARGET} -p gosling-cli --bin gosling
 
       - name: Copy backend binary into Electron folder
         run: |
           echo "Copying backend binary to ui/desktop/src/bin/"
           export TARGET="x86_64-unknown-linux-gnu"
           mkdir -p ui/desktop/src/bin
-          rm -f ui/desktop/src/bin/goose
-          cp target/$TARGET/release/goose ui/desktop/src/bin/
-          chmod +x ui/desktop/src/bin/goose
+          rm -f ui/desktop/src/bin/gosling
+          cp target/$TARGET/release/gosling ui/desktop/src/bin/
+          chmod +x ui/desktop/src/bin/gosling
           ls -la ui/desktop/src/bin/
 
       - name: Free Rust build artifacts before packaging
@@ -160,7 +160,7 @@ jobs:
 
       - name: Build Linux packages
         env:
-          GOOSE_DESKTOP_LINUX_VARIANT: ${{ matrix.variant }}
+          GOSLING_DESKTOP_LINUX_VARIANT: ${{ matrix.variant }}
         run: |
           source ./bin/activate-hermit
           cd ui/desktop

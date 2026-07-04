@@ -1,22 +1,22 @@
 ---
 title: Browserbase Extension
-description: Add Browserbase MCP Server as a goose Extension for Web Automation
+description: Add Browserbase MCP Server as a gosling Extension for Web Automation
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-This tutorial covers how to add the Browserbase MCP Server as a goose extension for browser automation, enabling programmatic control over navigation, page interactions, and content capture.
+This tutorial covers how to add the Browserbase MCP Server as a gosling extension for browser automation, enabling programmatic control over navigation, page interactions, and content capture.
 
 :::tip Quick Install
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=@browserbasehq/mcp&id=browserbase&name=Browserbase&description=Automate%20web%20browsing%20and%20data%20extraction&env=BROWSERBASE_PROJECT_ID%3DBrowserbase%20Project%20ID&env=BROWSERBASE_API_KEY%3DBrowserbase%20API%20Key)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=@browserbasehq/mcp&id=browserbase&name=Browserbase&description=Automate%20web%20browsing%20and%20data%20extraction&env=BROWSERBASE_PROJECT_ID%3DBrowserbase%20Project%20ID&env=BROWSERBASE_API_KEY%3DBrowserbase%20API%20Key)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx @browserbasehq/mcp
@@ -37,8 +37,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="browserbase"
     extensionName="Browserbase"
     description="Automate web browsing and data extraction"
@@ -52,7 +52,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     apiKeyLinkText="Browserbase credentials"
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Browserbase"
       description="Automate web browsing and data extraction"
@@ -74,7 +74,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 Let's use the Browserbase extension to gather information about trending MCP-related repositories on GitHub.
 
-### goose Prompt
+### gosling Prompt
 
 ```
 1. Go to https://github.com/trending
@@ -100,7 +100,7 @@ Let's use the Browserbase extension to gather information about trending MCP-rel
     • README excerpt
 ```
 
-### goose Output
+### gosling Output
 
 ```
 # MCP Repositories Report

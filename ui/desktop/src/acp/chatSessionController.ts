@@ -1,5 +1,5 @@
 import { v7 as uuidv7 } from 'uuid';
-import type { GooseExtension } from '@aaif/goose-sdk';
+import type { GoslingExtension } from '@repo-makeover/gosling-sdk';
 import { AppEvents } from '../constants/events';
 import { ChatState } from '../types/chatState';
 import type { Session } from '../types/session';
@@ -41,7 +41,7 @@ export interface AcpSubmitMessageOptions extends AcpSnapshotOptions {
 }
 
 export interface AcpChatSessionController {
-  createSession(cwd: string, gooseExtensions: GooseExtension[]): Promise<Session>;
+  createSession(cwd: string, goslingExtensions: GoslingExtension[]): Promise<Session>;
   loadSession(sessionId: string, options?: AcpLoadSessionOptions): Promise<void>;
   submitMessage(
     sessionId: string,
@@ -99,8 +99,8 @@ async function forkSessionWithEditedMessage(
   window.dispatchEvent(event);
 }
 
-async function createSession(cwd: string, gooseExtensions: GooseExtension[]): Promise<Session> {
-  const { sessionId, sessionInfo, meta } = await acpNewSession(cwd, gooseExtensions);
+async function createSession(cwd: string, goslingExtensions: GoslingExtension[]): Promise<Session> {
+  const { sessionId, sessionInfo, meta } = await acpNewSession(cwd, goslingExtensions);
   const session = sessionInfoToSession(sessionInfo, meta);
 
   showExtensionLoadResults(meta.extensionResults);

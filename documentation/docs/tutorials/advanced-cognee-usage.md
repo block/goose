@@ -1,18 +1,18 @@
 ---
-title: Advanced Cognee Usage with goose
-description: Advanced patterns for using Cognee knowledge graph with goose for enhanced memory and automation
+title: Advanced Cognee Usage with gosling
+description: Advanced patterns for using Cognee knowledge graph with gosling for enhanced memory and automation
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-# Advanced Cognee Usage with goose
+# Advanced Cognee Usage with gosling
 
-This tutorial covers advanced usage patterns for the Cognee extension with goose, including automated memory management, knowledge graph optimization, and various integration strategies.
+This tutorial covers advanced usage patterns for the Cognee extension with gosling, including automated memory management, knowledge graph optimization, and various integration strategies.
 
 ## Overview
 
-While the basic [Cognee MCP setup](../mcp/cognee-mcp.md) gets you started, this tutorial explores how to make goose autonomously use the knowledge graph and optimize your workflow.
+While the basic [Cognee MCP setup](../mcp/cognee-mcp.md) gets you started, this tutorial explores how to make gosling autonomously use the knowledge graph and optimize your workflow.
 
 ## Key Concepts
 
@@ -47,7 +47,7 @@ Understanding Cognee's search types is crucial for effective usage:
 
 Use instruction files for consistent behavior across sessions. This method uses fewer tokens but has slower startup.
 
-Create `~/.config/goose/cognee-instructions.md`:
+Create `~/.config/gosling/cognee-instructions.md`:
 
 ````markdown
 You are an LLM agent with access to a Cognee knowledge graph for memory.
@@ -88,17 +88,17 @@ You are an LLM agent with access to a Cognee knowledge graph for memory.
 - Only process files returned by `rg --files`
 ````
 
-Start goose with instructions:
+Start gosling with instructions:
 ```bash
-goose run -i ~/.config/goose/cognee-instructions.md -s
+gosling run -i ~/.config/gosling/cognee-instructions.md -s
 ```
 
 </TabItem>
 <TabItem value="method2" label="Method 2">
 
-### goosehints File
+### goslinghints File
 
-For faster startup with higher token usage, add to your `.goosehints` file:
+For faster startup with higher token usage, add to your `.goslinghints` file:
 
 ```text
 COGNEE_MEMORY_SYSTEM:
@@ -129,7 +129,7 @@ Combine with the [Memory MCP extension](../mcp/memory-mcp.md) for hybrid approac
 
 1. Store Cognee usage patterns as memories
 2. Use Memory MCP to trigger Cognee searches
-3. Lower token usage than goosehints
+3. Lower token usage than goslinghints
 4. More reliable than pure instruction files
 
 ## Advanced Workflows
@@ -139,14 +139,14 @@ Combine with the [Memory MCP extension](../mcp/memory-mcp.md) for hybrid approac
 For software development projects:
 
 ```bash
-# Start goose with Cognee
-goose session
+# Start gosling with Cognee
+gosling session
 
-# In goose, analyze your codebase
-> goose, please codify this repository and then help me understand the architecture
+# In gosling, analyze your codebase
+> gosling, please codify this repository and then help me understand the architecture
 ```
 
-goose will:
+gosling will:
 1. Run `cognee-mcp__codify` on your repository
 2. Build a code knowledge graph
 3. Answer architecture questions using the graph
@@ -157,7 +157,7 @@ For research and documentation:
 
 ```bash
 # Cognify research documents
-> goose, please cognify the contents of these research papers: paper1.pdf, paper2.pdf, paper3.pdf
+> gosling, please cognify the contents of these research papers: paper1.pdf, paper2.pdf, paper3.pdf
 
 # Later, query relationships
 > What are the connections between the methodologies in these papers?
@@ -215,10 +215,10 @@ Monitor and manage your knowledge graph:
 
 ```bash
 # Check status
-> goose, what's the status of the cognify pipeline?
+> gosling, what's the status of the cognify pipeline?
 
 # Selective pruning (if needed)
-> goose, can you help me identify outdated information in the knowledge graph?
+> gosling, can you help me identify outdated information in the knowledge graph?
 ```
 
 ## Troubleshooting
@@ -228,7 +228,7 @@ Monitor and manage your knowledge graph:
 1. **Slow startup**: Use Method 2 (separate server) configuration
 2. **Memory not persisting**: Check file permissions and paths
 3. **Search returning empty results**: Ensure data was properly cognified
-4. **High token usage**: Use instruction files instead of goosehints
+4. **High token usage**: Use instruction files instead of goslinghints
 
 ### Debug Commands
 
@@ -240,8 +240,8 @@ tail -f ~/.local/share/cognee/logs/cognee.log
 curl http://localhost:8000/health
 
 # Verify knowledge graph status
-# In goose session:
-> goose, run cognify_status and codify_status
+# In gosling session:
+> gosling, run cognify_status and codify_status
 ```
 
 ## Best Practices
@@ -251,10 +251,10 @@ curl http://localhost:8000/health
 1. **Use nodesets** for organizing different types of information:
    ```bash
    # Developer rules
-   > goose, add these coding standards to the 'developer_rules' nodeset
+   > gosling, add these coding standards to the 'developer_rules' nodeset
    
    # Project-specific info  
-   > goose, cognify this project documentation with nodeset 'project_alpha'
+   > gosling, cognify this project documentation with nodeset 'project_alpha'
    ```
 
 2. **Regular maintenance**:
@@ -274,7 +274,7 @@ curl http://localhost:8000/health
 
 ```bash
 # Setup
-> goose, codify this repository and remember that I prefer: functional programming patterns, comprehensive tests, and clear documentation
+> gosling, codify this repository and remember that I prefer: functional programming patterns, comprehensive tests, and clear documentation
 
 # Usage
 > Review this pull request and check it against my coding preferences
@@ -284,7 +284,7 @@ curl http://localhost:8000/health
 
 ```bash
 # Before meeting
-> goose, cognify the agenda and participant backgrounds from these documents
+> gosling, cognify the agenda and participant backgrounds from these documents
 
 # During/after meeting
 > Based on the knowledge graph, what are the key action items and how do they relate to our previous discussions?
@@ -294,10 +294,10 @@ curl http://localhost:8000/health
 
 ```bash
 # Literature review
-> goose, cognify these 10 research papers and create a knowledge graph of the relationships between their methodologies
+> gosling, cognify these 10 research papers and create a knowledge graph of the relationships between their methodologies
 
 # Synthesis
 > What are the emerging patterns in the research and what gaps exist?
 ```
 
-This advanced usage guide should help you maximize the potential of Cognee with goose for sophisticated knowledge management and automation workflows.
+This advanced usage guide should help you maximize the potential of Cognee with gosling for sophisticated knowledge management and automation workflows.

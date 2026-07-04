@@ -2,7 +2,7 @@ You are a technical documentation specialist creating release notes for CLI comm
 
 ## Your Task
 
-Analyze the CLI changes between two goose versions and generate clear, user-focused 
+Analyze the CLI changes between two gosling versions and generate clear, user-focused 
 documentation explaining what changed and why it matters.
 
 ## Input Files
@@ -52,10 +52,10 @@ List all breaking changes with migration guidance:
 - **Example**:
 
     # Old way
-    goose old-command --option value
+    gosling old-command --option value
     
     # New way
-    goose new-command --option value
+    gosling new-command --option value
 
 ### Option Removed: **--option-name** from **command**
 
@@ -76,14 +76,14 @@ Commands added in this release:
 ### **command-name**
 
 - **Description**: What this command does
-- **Usage**: goose command-name [OPTIONS]
+- **Usage**: gosling command-name [OPTIONS]
 - **Purpose**: Why this command was added
 - **Key Options**:
   - **--option1**: Description
   - **--option2**: Description
 - **Example**:
 
-    goose command-name --option1 value
+    gosling command-name --option1 value
 
 ## Removed Commands
 

@@ -828,7 +828,7 @@
     "defaultMessage": "Khóa bí mật"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "Khóa bí mật được cấu hình trên máy chủ goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "Khóa bí mật được cấu hình trên máy chủ goslingd (GOSLING_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Nhập khóa bí mật của máy chủ"
@@ -857,67 +857,67 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Kết nối tới một máy chủ gosling đang chạy ở nơi khác (cần khởi động lại ứng dụng)"
   },
-  "goosehintsModal.close": {
+  "goslinghintsModal.close": {
     "defaultMessage": "Đóng"
   },
-  "goosehintsModal.developer": {
+  "goslinghintsModal.developer": {
     "defaultMessage": "Nhà phát triển"
   },
-  "goosehintsModal.dialogDescription": {
+  "goslinghintsModal.dialogDescription": {
     "defaultMessage": "Cung cấp thêm ngữ cảnh về dự án của bạn để cải thiện giao tiếp với Gosling"
   },
-  "goosehintsModal.dialogTitle": {
-    "defaultMessage": "Cấu hình gợi ý dự án (.goosehints)"
+  "goslinghintsModal.dialogTitle": {
+    "defaultMessage": "Cấu hình gợi ý dự án (.goslinghints)"
   },
-  "goosehintsModal.errorReading": {
-    "defaultMessage": "Lỗi khi đọc tệp .goosehints: {error}"
+  "goslinghintsModal.errorReading": {
+    "defaultMessage": "Lỗi khi đọc tệp .goslinghints: {error}"
   },
-  "goosehintsModal.failedToAccess": {
-    "defaultMessage": "Không thể truy cập tệp .goosehints"
+  "goslinghintsModal.failedToAccess": {
+    "defaultMessage": "Không thể truy cập tệp .goslinghints"
   },
-  "goosehintsModal.failedToSave": {
-    "defaultMessage": "Không thể lưu tệp .goosehints"
+  "goslinghintsModal.failedToSave": {
+    "defaultMessage": "Không thể lưu tệp .goslinghints"
   },
-  "goosehintsModal.fileCreating": {
-    "defaultMessage": "Đang tạo tệp .goosehints mới tại: {filePath}"
+  "goslinghintsModal.fileCreating": {
+    "defaultMessage": "Đang tạo tệp .goslinghints mới tại: {filePath}"
   },
-  "goosehintsModal.fileFound": {
-    "defaultMessage": "Đã tìm thấy tệp .goosehints tại: {filePath}"
+  "goslinghintsModal.fileFound": {
+    "defaultMessage": "Đã tìm thấy tệp .goslinghints tại: {filePath}"
   },
-  "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints là một tệp văn bản dùng để cung cấp thêm ngữ cảnh về dự án của bạn và cải thiện giao tiếp với Gosling."
+  "goslinghintsModal.helpText1": {
+    "defaultMessage": ".goslinghints là một tệp văn bản dùng để cung cấp thêm ngữ cảnh về dự án của bạn và cải thiện giao tiếp với Gosling."
   },
-  "goosehintsModal.helpText2": {
-    "defaultMessage": "Hãy đảm bảo tiện ích mở rộng {bold} được bật trong trang tiện ích mở rộng. Tiện ích mở rộng này là bắt buộc để sử dụng .goosehints. Bạn cần khởi động lại phiên để các cập nhật .goosehints có hiệu lực."
+  "goslinghintsModal.helpText2": {
+    "defaultMessage": "Hãy đảm bảo tiện ích mở rộng {bold} được bật trong trang tiện ích mở rộng. Tiện ích mở rộng này là bắt buộc để sử dụng .goslinghints. Bạn cần khởi động lại phiên để các cập nhật .goslinghints có hiệu lực."
   },
-  "goosehintsModal.helpText3": {
+  "goslinghintsModal.helpText3": {
     "defaultMessage": "Xem {link} để biết thêm thông tin."
   },
-  "goosehintsModal.helpTextLink": {
-    "defaultMessage": "cách sử dụng .goosehints"
+  "goslinghintsModal.helpTextLink": {
+    "defaultMessage": "cách sử dụng .goslinghints"
   },
-  "goosehintsModal.placeholder": {
+  "goslinghintsModal.placeholder": {
     "defaultMessage": "Nhập gợi ý dự án ở đây..."
   },
-  "goosehintsModal.save": {
+  "goslinghintsModal.save": {
     "defaultMessage": "Lưu"
   },
-  "goosehintsModal.savedSuccessfully": {
+  "goslinghintsModal.savedSuccessfully": {
     "defaultMessage": "Đã lưu thành công"
   },
-  "goosehintsModal.saving": {
+  "goslinghintsModal.saving": {
     "defaultMessage": "Đang lưu..."
   },
-  "goosehintsSection.configure": {
+  "goslinghintsSection.configure": {
     "defaultMessage": "Cấu hình"
   },
-  "goosehintsSection.description": {
-    "defaultMessage": "Cấu hình tệp .goosehints của dự án để cung cấp thêm ngữ cảnh cho Gosling"
+  "goslinghintsSection.description": {
+    "defaultMessage": "Cấu hình tệp .goslinghints của dự án để cung cấp thêm ngữ cảnh cho Gosling"
   },
-  "goosehintsSection.title": {
-    "defaultMessage": "Gợi ý dự án (.goosehints)"
+  "goslinghintsSection.title": {
+    "defaultMessage": "Gợi ý dự án (.goslinghints)"
   },
-  "groupedExtensionLoadingToast.askGoose": {
+  "groupedExtensionLoadingToast.askGosling": {
     "defaultMessage": "Hỏi gosling"
   },
   "groupedExtensionLoadingToast.collapseDetails": {
@@ -1184,25 +1184,25 @@
   "launcher.placeholder": {
     "defaultMessage": "Hỏi gosling bất cứ điều gì..."
   },
-  "loadingGoose.compacting": {
+  "loadingGosling.compacting": {
     "defaultMessage": "gosling đang nén cuộc trò chuyện..."
   },
-  "loadingGoose.idle": {
+  "loadingGosling.idle": {
     "defaultMessage": "gosling đang xử lý…"
   },
-  "loadingGoose.loadingConversation": {
+  "loadingGosling.loadingConversation": {
     "defaultMessage": "đang tải cuộc trò chuyện..."
   },
-  "loadingGoose.restartingAgent": {
+  "loadingGosling.restartingAgent": {
     "defaultMessage": "đang khởi động lại phiên..."
   },
-  "loadingGoose.streaming": {
+  "loadingGosling.streaming": {
     "defaultMessage": "gosling đang xử lý…"
   },
-  "loadingGoose.thinking": {
+  "loadingGosling.thinking": {
     "defaultMessage": "gosling đang suy nghĩ…"
   },
-  "loadingGoose.waiting": {
+  "loadingGosling.waiting": {
     "defaultMessage": "gosling đang chờ…"
   },
   "markdownContent.cancel": {
@@ -2421,7 +2421,7 @@
     "defaultMessage": "Không tìm thấy kỹ năng phù hợp"
   },
   "skillsView.noSkillsDescription": {
-    "defaultMessage": "Kỹ năng được tải từ các tệp SKILL.md trong ~/.config/agents/skills/, .goose/skills/, hoặc các thư mục được hỗ trợ khác."
+    "defaultMessage": "Kỹ năng được tải từ các tệp SKILL.md trong ~/.config/agents/skills/, .gosling/skills/, hoặc các thư mục được hỗ trợ khác."
   },
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "Chưa cài đặt kỹ năng nào"
@@ -2678,14 +2678,14 @@
   "toolConfirmation.allowToolCallWithName": {
     "defaultMessage": "Cho phép {toolName}?"
   },
-  "toolConfirmation.gooseWouldLikeToCallWithName": {
+  "toolConfirmation.goslingWouldLikeToCallWithName": {
     "defaultMessage": "Gosling muốn gọi {toolName}. Cho phép?"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "Gosling sẽ tải bản cập nhật ở chế độ nền và cài đặt vào lần tiếp theo khi bạn thoát hoặc khởi động lại."
   },
   "updateSection.autoDownloadDisabledByEnv": {
-    "defaultMessage": "Tải xuống tự động đã bị tắt thông qua biến môi trường GOOSE_DISABLE_AUTO_DOWNLOAD."
+    "defaultMessage": "Tải xuống tự động đã bị tắt thông qua biến môi trường GOSLING_DISABLE_AUTO_DOWNLOAD."
   },
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "Tải xuống tự động đã bị tắt. Nhấp vào \"Tải ngay\" để tải xuống theo cách thủ công."

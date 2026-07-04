@@ -1,21 +1,21 @@
 ---
 title: OpenMetadata Extension
-description: Add OpenMetadata MCP Server as a goose Extension
+description: Add OpenMetadata MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-The [OpenMetadata MCP Server](https://open-metadata.org/mcp) extension allows goose to interact directly with your OpenMetadata, enabling operations for OpenMetadata assets, glossaries, and lineage. This makes it easy to work with your metadata stored in OpenMetadata through natural language interactions.
+The [OpenMetadata MCP Server](https://open-metadata.org/mcp) extension allows gosling to interact directly with your OpenMetadata, enabling operations for OpenMetadata assets, glossaries, and lineage. This makes it easy to work with your metadata stored in OpenMetadata through natural language interactions.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=mcp-remote&arg=http%3A%2F%2Flocalhost%3A8585%2Fmcp&arg=--auth-server-url%3Dhttp%3A%2F%2Flocalhost%3A8585%2Fmcp&arg=--client-id%3Dopenmetadata&arg=--verbose&arg=--clean&arg=--header&arg=Authorization%3A%24%7BAUTH_HEADER%7D&id=openmetadata&name=OpenMetadata&description=Intelligent%20data%20management%20and%20automated%20data%20operations&env=AUTH_HEADER%3DBearer%20YOUR_OPENMETADATA_PAT)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=mcp-remote&arg=http%3A%2F%2Flocalhost%3A8585%2Fmcp&arg=--auth-server-url%3Dhttp%3A%2F%2Flocalhost%3A8585%2Fmcp&arg=--client-id%3Dopenmetadata&arg=--verbose&arg=--clean&arg=--header&arg=Authorization%3A%24%7BAUTH_HEADER%7D&id=openmetadata&name=OpenMetadata&description=Intelligent%20data%20management%20and%20automated%20data%20operations&env=AUTH_HEADER%3DBearer%20YOUR_OPENMETADATA_PAT)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y mcp-remote http://localhost:8585/mcp --auth-server-url=http://localhost:8585/mcp --client-id=openmetadata --verbose --clean --header Authorization:${AUTH_HEADER}
@@ -35,8 +35,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="openmetadata"
       extensionName="OpenMetadata"
       description="Intelligent data management and automated data operations"
@@ -54,7 +54,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     :::
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="OpenMetadata"
       description="Intelligent data management and automated data operations"
@@ -87,18 +87,18 @@ The OpenMetadata extension provides comprehensive metadata management capabiliti
 - **create_glossary_term** Create a new term within an existing glossary, with support for hierarchical relationships.
 - **get_entity_lineage** Retrieve upstream and downstream lineage information for any entity to understand data dependencies and impact analysis. 
 
-Just describe what you want to accomplish in natural language, and goose will help you execute the appropriate OpenMetadata operations safely and efficiently.
+Just describe what you want to accomplish in natural language, and gosling will help you execute the appropriate OpenMetadata operations safely and efficiently.
 
 ## Example Usage
 
-In this example, goose looks at the metadata for a Redshift table named `customers` stored in OpenMetadata, particularly its lineage. If the lineage does not show that a Databricks table named `customerinfo` is used to build `customers`, goose will add it.
+In this example, gosling looks at the metadata for a Redshift table named `customers` stored in OpenMetadata, particularly its lineage. If the lineage does not show that a Databricks table named `customerinfo` is used to build `customers`, gosling will add it.
 
-#### goose Prompt
+#### gosling Prompt
 ```
 which tables are used to create my customers table in redshift? if the databricks table customerinfo is not already, add it to the customers table lineage.
 ```
 
-#### goose Output
+#### gosling Output
 ```
 Based on my analysis, I found your Redshift customers table at `redshift prod.dev.dbt_jaffle.customers`. Here are the tables currently used to create it:
 

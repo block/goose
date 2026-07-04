@@ -1,4 +1,4 @@
-// /Users/mnovich/Development/goose-1.0/ui/desktop/src/components/icons/TrashIcon.tsx
+// /Users/mnovich/Development/gosling-1.0/ui/desktop/src/components/icons/TrashIcon.tsx
 
 interface IconProps {
   className?: string;

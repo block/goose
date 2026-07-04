@@ -5,6 +5,6 @@ export default defineConfig({
   define: {
     'process.env.GITHUB_OWNER': JSON.stringify(process.env.GITHUB_OWNER || 'repo-makeover'),
     'process.env.GITHUB_REPO': JSON.stringify(process.env.GITHUB_REPO || 'gosling'),
-    'process.env.GOOSE_BUNDLE_NAME': JSON.stringify(process.env.GOOSE_BUNDLE_NAME || 'Gosling'),
+    'process.env.GOSLING_BUNDLE_NAME': JSON.stringify(process.env.GOSLING_BUNDLE_NAME || 'Gosling'),
   },
 });

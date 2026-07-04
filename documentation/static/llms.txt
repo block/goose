@@ -1,23 +1,23 @@
-# goose
+# gosling
 
-goose is an extensible, open source AI agent that enhances software development by automating coding tasks.
-It runs locally on your machine and connects to various tools and services through the Model Context Protocol (MCP).
-goose is available as both a desktop application and a command-line interface (CLI).
+gosling is an extensible, local-first AI agent forked from goose. It is independently maintained and is not affiliated with or endorsed by the goose project or AAIF.
+
+gosling runs locally on your machine and connects to tools and services through the Model Context Protocol (MCP). It is available as both a desktop application and a command-line interface (CLI).
 
 ## Key Features
 
-- **Local-first**: Runs on your machine with full access to your development environment
-- **Extensible**: Add capabilities through MCP extensions (servers)
-- **Multi-provider**: Works with OpenAI, Anthropic, Google, Meta, Ollama, and more
-- **Cross-platform**: Available on macOS, Linux, and Windows
-- **Open source**: MIT licensed, community-driven development
+- Local-first: runs on your machine with access to your development environment
+- Extensible: adds capabilities through MCP extensions and servers
+- Multi-provider: works with OpenAI, Anthropic, Google, Meta, Ollama, and more
+- Cross-platform: available on macOS, Linux, and Windows
+- Open source: Apache 2.0 licensed, with upstream credit retained
 
 ## Core Concepts
 
-- **Extensions**: Plugins that give goose new capabilities via MCP servers (GitHub, Slack, databases, etc.)
-- **Sessions**: Conversation contexts that maintain state across interactions
-- **Providers**: LLM backends that power goose (OpenAI, Anthropic, Ollama, etc.)
-- **Goosehints**: Project-specific instructions that customize goose behavior
+- Extensions: plugins that give gosling new capabilities through MCP servers
+- Sessions: conversation contexts that maintain state across interactions
+- Providers: LLM backends that power gosling
+- Goslinghints: project-specific instructions that customize gosling behavior
 
 ## Documentation
 
@@ -25,7 +25,7 @@ goose is available as both a desktop application and a command-line interface (C
 - Installation: /docs/getting-started/installation
 - LLM Providers: /docs/getting-started/providers
 - Using Extensions: /docs/getting-started/using-extensions
-- CLI Commands: /docs/guides/goose-cli-commands
+- CLI Commands: /docs/guides/gosling-cli-commands
 - Tutorials: /docs/tutorials/
 - MCP Servers/Extensions: /docs/mcp/
 
@@ -34,21 +34,15 @@ goose is available as both a desktop application and a command-line interface (C
 ### macOS/Linux/Windows (CLI)
 
 ```sh
-curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh | bash
+curl -fsSL https://github.com/repo-makeover/gosling/releases/download/stable/download_cli.sh | bash
 ```
 
-### macOS (Homebrew)
-
-```sh
-brew install --cask block-goose
-```
-
-Desktop applications are available for macOS, Linux, and Windows at /docs/getting-started/installation
+Desktop applications are available for macOS, Linux, and Windows at /docs/getting-started/installation.
 
 ## Common Use Cases
 
 - Automating repetitive coding tasks
-- Interacting with GitHub (PRs, issues, code review)
+- Interacting with GitHub for PRs, issues, and code review
 - Database queries and management
 - File system operations
 - Web scraping and API interactions
@@ -57,29 +51,30 @@ Desktop applications are available for macOS, Linux, and Windows at /docs/gettin
 
 ## Built-in Extensions
 
-- **Developer**: Shell commands, file editing, code analysis
-- **Computer Controller**: System automation, web scraping
-- **Memory**: Persistent storage across sessions
-- **Todo**: Task management within sessions
-- **Extension Manager**: Enable/disable extensions dynamically
-- **Chat Recall**: Search and reference past conversations
+- Developer: shell commands, file editing, and code analysis
+- Computer Controller: system automation and browser interaction
+- Memory: persistent storage across sessions
+- Todo: task management within sessions
+- Extension Manager: enable and disable extensions dynamically
+- Chat Recall: search and reference past conversations
 
 ## Configuration
 
-goose configuration is stored in `~/.config/goose/` with:
-- `profiles.yaml`: Provider and extension settings
-- `config.yaml`: Global preferences
+gosling configuration is stored in `~/.config/gosling/` with:
 
-Project-specific hints can be added via `.goosehints` and/or `AGENT.md` files.
+- `profiles.yaml`: provider and extension settings
+- `config.yaml`: global preferences
+
+Project-specific hints can be added via `.goslinghints` and/or `AGENTS.md` files.
 
 ## Links
 
-- Website: https://goose-docs.ai/
-- GitHub: https://github.com/aaif-goose/goose
-- Discord: https://discord.gg/goose-oss
-- Extensions Registry: https://goose-docs.ai/extensions/
-- Blog: https://goose-docs.ai/blog/
+- Website: https://gosling-docs.ai/
+- GitHub: https://github.com/repo-makeover/gosling
+- Discord: https://discord.gg/gosling-oss
+- Extensions Registry: https://gosling-docs.ai/extensions/
+- Blog: https://gosling-docs.ai/blog/
 
 ## About
 
-goose is developed by AAIF (Agentic AI Foundation) as an open source project under the Apache 2.0 license.
+gosling is derived from goose, the open source AI agent from AAIF, and remains licensed under Apache 2.0. It is an independent fork.

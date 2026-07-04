@@ -1,14 +1,14 @@
 ---
 title: Spraay x402 Extension
-description: Add Spraay x402 MCP Server as a goose Extension for batch crypto payments, onchain data, and AI model access
+description: Add Spraay x402 MCP Server as a gosling Extension for batch crypto payments, onchain data, and AI model access
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-This tutorial covers how to add the [Spraay x402 MCP Server](https://github.com/plagtech/spraay-x402-mcp) as a goose extension for batch cryptocurrency payments, onchain data, and AI model access on Base.
+This tutorial covers how to add the [Spraay x402 MCP Server](https://github.com/plagtech/spraay-x402-mcp) as a gosling extension for batch cryptocurrency payments, onchain data, and AI model access on Base.
 
-With the Spraay extension, goose can send ETH and ERC-20 tokens to up to **200 recipients in a single transaction**, query live token prices, check wallet balances, resolve ENS names, get swap quotes, and chat with 200+ AI models — all pay-per-call via the [x402 protocol](https://x402.org).
+With the Spraay extension, gosling can send ETH and ERC-20 tokens to up to **200 recipients in a single transaction**, query live token prices, check wallet balances, resolve ENS names, get swap quotes, and chat with 200+ AI models — all pay-per-call via the [x402 protocol](https://x402.org).
 
 ## Supported Tools
 
@@ -49,7 +49,7 @@ npm run build
 ### Configuration
 
 <Tabs>
-<TabItem value="ui" label="goose Desktop">
+<TabItem value="ui" label="gosling Desktop">
 
 1. Click the **Extensions** icon in the sidebar
 2. Click **Add custom extension**
@@ -63,16 +63,16 @@ npm run build
    - **Value**: Your wallet private key (with USDC on Base)
 
 </TabItem>
-<TabItem value="cli" label="goose CLI">
+<TabItem value="cli" label="gosling CLI">
 
 ```
-goose configure
+gosling configure
 ```
 
 Choose **Add Extension** → **Command-line Extension** and configure:
 
 ```
-┌   goose-configure
+┌   gosling-configure
 │
 │   ◇  What would you like to call this extension?
 │   spraay
@@ -106,7 +106,7 @@ Choose **Add Extension** → **Command-line Extension** and configure:
 What's the current price of ETH on Base?
 ```
 
-goose will use the `spraay_prices` tool to fetch live onchain prices from Uniswap V3.
+gosling will use the `spraay_prices` tool to fetch live onchain prices from Uniswap V3.
 
 ### Check Wallet Balances
 
@@ -114,7 +114,7 @@ goose will use the `spraay_prices` tool to fetch live onchain prices from Uniswa
 Check the USDC balance of vitalik.eth
 ```
 
-goose will use `spraay_resolve` to resolve the ENS name, then `spraay_balances` to fetch balances.
+gosling will use `spraay_resolve` to resolve the ENS name, then `spraay_balances` to fetch balances.
 
 ### Get a Swap Quote
 
@@ -122,7 +122,7 @@ goose will use `spraay_resolve` to resolve the ENS name, then `spraay_balances` 
 Get me a swap quote for 100 USDC to WETH on Base
 ```
 
-goose will use `spraay_swap_quote` to fetch a live quote from Uniswap V3.
+gosling will use `spraay_swap_quote` to fetch a live quote from Uniswap V3.
 
 ### Batch Send USDC
 
@@ -133,7 +133,7 @@ Send 10 USDC each to these wallets:
 0xFBb1b73C4f0BDa4f67dcA266ce6Ef42f520fBB98
 ```
 
-goose will use `spraay_batch_execute` to process all payments in a single transaction.
+gosling will use `spraay_batch_execute` to process all payments in a single transaction.
 
 ### Chat with AI Models
 
@@ -141,11 +141,11 @@ goose will use `spraay_batch_execute` to process all payments in a single transa
 Using spraay, ask GPT-4 to explain what x402 is
 ```
 
-goose will use `spraay_chat` to query from 200+ available AI models.
+gosling will use `spraay_chat` to query from 200+ available AI models.
 
 ## How It Works
 
-1. You ask goose → goose calls a Spraay tool (e.g. `spraay_prices`)
+1. You ask gosling → gosling calls a Spraay tool (e.g. `spraay_prices`)
 2. MCP server sends request to `gateway.spraay.app`
 3. Gateway returns HTTP 402 + payment requirements
 4. x402 client auto-signs USDC payment on Base

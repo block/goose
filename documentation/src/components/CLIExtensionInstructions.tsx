@@ -50,7 +50,7 @@ export default function CLIExtensionInstructions({
       <ol>
         <li>Run the <code>configure</code> command:</li>
       </ol>
-      <CodeBlock language="sh">{`goose configure`}</CodeBlock>
+      <CodeBlock language="sh">{`gosling configure`}</CodeBlock>
 
       <ol start={2}>
         <li>
@@ -63,7 +63,7 @@ export default function CLIExtensionInstructions({
           </code>.
         </li>
       </ol>
-      <CodeBlock language="sh">{`┌   goose-configure
+      <CodeBlock language="sh">{`┌   gosling-configure
 │
 ◇  What would you like to configure?
 │  Add Extension
@@ -79,7 +79,7 @@ ${
       <ol start={3}>
         <li>Give your extension a name.</li>
       </ol>
-      <CodeBlock language="sh">{`┌   goose-configure 
+      <CodeBlock language="sh">{`┌   gosling-configure 
 │
 ◇  What would you like to configure?
 │  Add Extension
@@ -106,7 +106,7 @@ ${
               <br />
             </>
           )}
-          <CodeBlock language="sh">{`┌   goose-configure 
+          <CodeBlock language="sh">{`┌   gosling-configure 
 │
 ◇  What would you like to configure?
 │  Add Extension 
@@ -136,7 +136,7 @@ ${
               <br />
             </>
           )}
-          <CodeBlock language="sh">{`┌   goose-configure 
+          <CodeBlock language="sh">{`┌   gosling-configure 
 │
 ◇  What would you like to configure?
 │  Add Extension
@@ -157,11 +157,11 @@ ${
 
       <ol start={5}>
         <li>
-          Enter the number of seconds goose should wait for actions to complete before timing out. Default is{' '}
+          Enter the number of seconds gosling should wait for actions to complete before timing out. Default is{' '}
           <code>300</code> seconds.
         </li>
       </ol>
-      <CodeBlock language="sh">{`┌   goose-configure 
+      <CodeBlock language="sh">{`┌   gosling-configure 
 │
 ◇  What would you like to configure?
 │  Add Extension
@@ -186,7 +186,7 @@ ${
       <ol start={6}>
         <li>Enter a description for this extension.</li>
       </ol>
-      <CodeBlock language="sh">{`┌   goose-configure 
+      <CodeBlock language="sh">{`┌   gosling-configure 
 │
 ◇  What would you like to configure?
 │  Add Extension
@@ -225,7 +225,7 @@ ${
       </ol>
 
       {!hasEnvVars && (
-        <CodeBlock language="sh">{`┌   goose-configure 
+        <CodeBlock language="sh">{`┌   gosling-configure 
 │
 ◇  What would you like to configure?
 │  Add Extension 
@@ -266,7 +266,7 @@ ${
             </>
           )}
 
-          <CodeBlock language="sh">{`┌   goose-configure 
+          <CodeBlock language="sh">{`┌   gosling-configure 
 │
 ◇  What would you like to configure?
 │  Add Extension

@@ -1,6 +1,6 @@
 # build-windows.ps1
-# Build Goose Desktop for Windows with VMware Tanzu Platform provider
-# Run this script from the root of the goose-fork repository in PowerShell
+# Build Gosling Desktop for Windows with VMware Tanzu Platform provider
+# Run this script from the root of the gosling-fork repository in PowerShell
 #
 # Prerequisites:
 #   - Git (https://git-scm.com/download/win)
@@ -9,12 +9,12 @@
 #   - pnpm: npm install -g pnpm
 #
 # Usage:
-#   cd C:\path\to\goose-fork
+#   cd C:\path\to\gosling-fork
 #   .\scripts\build-windows.ps1
 
 $ErrorActionPreference = "Stop"
 
-Write-Host "=== Goose Windows Build Script ===" -ForegroundColor Cyan
+Write-Host "=== Gosling Windows Build Script ===" -ForegroundColor Cyan
 Write-Host ""
 
 # Check prerequisites
@@ -42,7 +42,7 @@ Write-Host ""
 # Step 1: Clone or update repo
 Write-Host "[2/7] Building Rust backend (release)..." -ForegroundColor Yellow
 Write-Host "  This may take 5-15 minutes on first build..."
-cargo build --release -p goose-cli --bin goose
+cargo build --release -p gosling-cli --bin gosling
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Rust build failed!" -ForegroundColor Red
     exit 1
@@ -55,12 +55,12 @@ Write-Host "[3/7] Copying binaries to desktop app..." -ForegroundColor Yellow
 $binDir = "ui\desktop\src\bin"
 if (-not (Test-Path $binDir)) { New-Item -ItemType Directory -Path $binDir -Force | Out-Null }
 
-$gooseBinary = "target\release\goose.exe"
-if (-not (Test-Path $gooseBinary)) {
-    Write-Host "Backend binary not found: $gooseBinary" -ForegroundColor Red
+$goslingBinary = "target\release\gosling.exe"
+if (-not (Test-Path $goslingBinary)) {
+    Write-Host "Backend binary not found: $goslingBinary" -ForegroundColor Red
     exit 1
 }
-Copy-Item $gooseBinary "$binDir\" -Force
+Copy-Item $goslingBinary "$binDir\" -Force
 # Copy required DLLs if they exist (from cross-compilation)
 Get-ChildItem "target\release\*.dll" -ErrorAction SilentlyContinue | ForEach-Object {
     Copy-Item $_.FullName "$binDir\" -Force
@@ -81,10 +81,10 @@ Write-Host "  Dependencies installed." -ForegroundColor Green
 Write-Host ""
 
 # Step 4: Build desktop assets
-Write-Host "[5/7] Building Goose SDK, clearing Vite cache, and compiling i18n messages..." -ForegroundColor Yellow
-pnpm run build-goose-sdk
+Write-Host "[5/7] Building Gosling SDK, clearing Vite cache, and compiling i18n messages..." -ForegroundColor Yellow
+pnpm run build-gosling-sdk
 if ($LASTEXITCODE -ne 0) {
-    Write-Host "Goose SDK build or Vite cache cleanup failed!" -ForegroundColor Red
+    Write-Host "Gosling SDK build or Vite cache cleanup failed!" -ForegroundColor Red
     Pop-Location
     exit 1
 }
@@ -98,7 +98,7 @@ Write-Host "  Desktop assets built." -ForegroundColor Green
 Write-Host ""
 
 # Step 5: Package
-Write-Host "[6/7] Packaging Goose Desktop..." -ForegroundColor Yellow
+Write-Host "[6/7] Packaging Gosling Desktop..." -ForegroundColor Yellow
 pnpm exec electron-forge package
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Packaging failed!" -ForegroundColor Red
@@ -126,10 +126,10 @@ Write-Host ""
 # Done
 Write-Host "=== Build Complete ===" -ForegroundColor Cyan
 Write-Host ""
-Write-Host "Packaged app:  ui\desktop\out\Goose-win32-x64\Goose.exe" -ForegroundColor Green
+Write-Host "Packaged app:  ui\desktop\out\Gosling-win32-x64\Gosling.exe" -ForegroundColor Green
 Write-Host "Installer:     ui\desktop\out\make\" -ForegroundColor Green
 Write-Host ""
 Write-Host "To run the app directly:" -ForegroundColor Yellow
-Write-Host "  .\ui\desktop\out\Goose-win32-x64\Goose.exe"
+Write-Host "  .\ui\desktop\out\Gosling-win32-x64\Gosling.exe"
 Write-Host ""
 Write-Host "To install, find the .exe installer in ui\desktop\out\make\"

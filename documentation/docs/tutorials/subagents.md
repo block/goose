@@ -12,7 +12,7 @@ This tutorial walks you through how to spin up a team of AI [subagents](/docs/gu
 
 You'll build **AI BriefMe**, an app that generates a structured executive style briefing based on any topic. 
 
-You'll use goose to orchestrate a full software team of subagents:
+You'll use gosling to orchestrate a full software team of subagents:
 
 - 🧠 **Planner** – defines the product and MVP scope  
 - 📋 **Project Manager** – breaks down tasks and coordinates execution  
@@ -25,18 +25,18 @@ By the end of the session, you'll have a working prototype and a clear understan
 
 ## Setup
 
-1. [Install goose](/docs/getting-started/installation)
-2. Within goose, choose your working directory. It's recommended to work in a newly created directory.
-3. Add the following to [.goosehints](/docs/guides/context-engineering/using-goosehints/#local-hints-file)
+1. [Install gosling](/docs/getting-started/installation)
+2. Within gosling, choose your working directory. It's recommended to work in a newly created directory.
+3. Add the following to [.goslinghints](/docs/guides/context-engineering/using-goslinghints/#local-hints-file)
 ```plaintext
 Create apps in html, javascript, and css when possible.
 NEVER run blocking server commands (node server.js, npm start, etc.) - provide commands for user to run separately.
 ```
-4. (Optional) Install the [goose docs extension](/docs/mcp/goose-docs-mcp) in case you need to ask goose about itself
+4. (Optional) Install the [gosling docs extension](/docs/mcp/gosling-docs-mcp) in case you need to ask gosling about itself
 
 ## Tasks
 
-You'll be building an AI-powered briefing app by spinning up a team of subagents to help you. Each agent has a clear role. Your job is to figure out how to prompt goose to delegate the work. 
+You'll be building an AI-powered briefing app by spinning up a team of subagents to help you. Each agent has a clear role. Your job is to figure out how to prompt gosling to delegate the work. 
 
 > 🛟 If you get stuck, you can peek to the prompts for examples.
 
@@ -56,7 +56,7 @@ This output should be a clear product definition, not code.
   <summary>Planner Agent Prompt</summary>
   
   ```md
-  You're the Planner agent for a hands-on AI app building session using goose and subagents. We are building the MVP *right now*.
+  You're the Planner agent for a hands-on AI app building session using gosling and subagents. We are building the MVP *right now*.
 
   The app is called **AI BriefMe**. It generates a daily briefing on any given topic. A user inputs a topic like “Apple earnings” or “AI in DevOps,” and the app returns:
   - A title
@@ -133,10 +133,10 @@ Have the Architect plan the technical setup. They should:
 
 ### 4. 💻 Frontend + Backend Developers (Parallel)
 
-Spin up two developer subagents in parallel to build the core app. One will handle the Express server and backend logic, the other will build the UI and wire up the form. goose should execute both agents at the same time, not one after the other.
+Spin up two developer subagents in parallel to build the core app. One will handle the Express server and backend logic, the other will build the UI and wire up the form. gosling should execute both agents at the same time, not one after the other.
 
 - Use the file structure and API contract from the Architect
-- Backend writes the API logic using Headless goose
+- Backend writes the API logic using Headless gosling
 - Frontend builds a responsive UI that hits the API
 - Make sure agents avoid writing to the same files
 
@@ -154,8 +154,8 @@ Spin up two developer subagents in parallel to build the core app. One will hand
   🛠️ **Backend Developer** should:
   - Implement `server.js` with Express
   - Add POST `/api/briefing` endpoint accepting `{ "topic": "string" }`
-  - Use **Headless goose** to generate the summary:
-    - `goose run -t "YOUR_PROMPT_HERE" --quiet --no-session --max-turns 1`
+  - Use **Headless gosling** to generate the summary:
+    - `gosling run -t "YOUR_PROMPT_HERE" --quiet --no-session --max-turns 1`
   - Use `child_process.spawn()` instead of `exec()`
   - Clean response: remove ANSI codes, markdown blocks, and extract JSON
   - Handle timeouts (max 60s) and errors
@@ -181,7 +181,7 @@ Spin up two developer subagents in parallel to build the core app. One will hand
 
 ### 5. 🧪📝 QA + Tech Writer (Parallel)
 
-Now that development is done, spin up two final subagents: a **QA Engineer** and a **Tech Writer**. They'll work together to assess the app's quality and document how to use it. Your job is to prompt goose in a way that gets both agents to collaborate without overlapping or duplicating work.
+Now that development is done, spin up two final subagents: a **QA Engineer** and a **Tech Writer**. They'll work together to assess the app's quality and document how to use it. Your job is to prompt gosling in a way that gets both agents to collaborate without overlapping or duplicating work.
 
 #### QA Agent Tasks:
 - Write a unit test suite for the `/api/briefing` endpoint using a framework like Jest
@@ -212,12 +212,12 @@ Now that development is done, spin up two final subagents: a **QA Engineer** and
   - 🧪 A **QA Agent** who will:
     - Write a unit test for the `/api/briefing` endpoint in `tests/briefing.test.js` using Jest
     - **Mock the child_process module** using `jest.mock('child_process')` at the top of the test file
-    - Create a simple mock that returns fake data instead of calling the real goose CLI
+    - Create a simple mock that returns fake data instead of calling the real gosling CLI
     - Assert that the response includes: `title`, `date`, and 2–3 `takeaways`
     - Include tests for:
       - Valid topic input
       - Missing or invalid input
-      - goose CLI timeout or error
+      - gosling CLI timeout or error
     - **Do not start or run the server manually.** Only write test files.
     - **Do not execute `npm test` or run any tests.** Only create the test file.
     - Save a full QA analysis report in `QA_NOTES.md` with:
@@ -252,7 +252,7 @@ npm install
 ```
 
 ### Step 2: Start the Server
-**Important**: Run this in a **separate terminal window** (not in goose):
+**Important**: Run this in a **separate terminal window** (not in gosling):
 ```bash
 npm start
 ```
@@ -285,15 +285,15 @@ You should see:
 
 :::tip Keep the Server Running
 - **Don't close the terminal** where the server is running
-- **Don't run the server in goose** - it will get stuck
+- **Don't run the server in gosling** - it will get stuck
 - If you need to stop it: Press `Ctrl+C` in the server terminal
-- If you need goose to fix or add something, let it know! Once it's done, restart the server
+- If you need gosling to fix or add something, let it know! Once it's done, restart the server
 :::
 
-**Congratulations! You've built a full-stack AI app using goose subagents!** 🎉
+**Congratulations! You've built a full-stack AI app using gosling subagents!** 🎉
 
 :::warning
-Don't expect your app to be production ready. This workshop shows how vibe coding with goose can accelerate prototyping, but the human still owns the judgment and polish.
+Don't expect your app to be production ready. This workshop shows how vibe coding with gosling can accelerate prototyping, but the human still owns the judgment and polish.
 :::
 
 ---
@@ -328,15 +328,15 @@ Don't expect your app to be production ready. This workshop shows how vibe codin
 ---
 
 ### Process Timeout
-**Cause**: goose taking too long or hanging
+**Cause**: gosling taking too long or hanging
 **Solutions**: 
-1. **Check your goose command flags**:
+1. **Check your gosling command flags**:
    ```javascript
    ['run', '-t', prompt, '--quiet', '--no-session', '--max-turns', '1']
    ```
-2. **Test goose manually**:
+2. **Test gosling manually**:
    ```bash
-   goose run -t "Return JSON: {\"test\": \"value\"}" --quiet --no-session --max-turns 1
+   gosling run -t "Return JSON: {\"test\": \"value\"}" --quiet --no-session --max-turns 1
    ```
 3. **If manual test works**: Check your spawn() implementation
 4. **If manual test hangs**: Try a simpler prompt first
@@ -344,7 +344,7 @@ Don't expect your app to be production ready. This workshop shows how vibe codin
 ---
 
 ### JSON Parsing Errors
-**Cause**: goose returns formatted output with color codes
+**Cause**: gosling returns formatted output with color codes
 **Solutions**:
 1. **Add this cleaning code** before JSON.parse():
    ```javascript
@@ -356,7 +356,7 @@ Don't expect your app to be production ready. This workshop shows how vibe codin
    ```
 2. **Add debug logging** to see what you're getting:
    ```javascript
-   console.log('Raw goose response:', aiResponse);
+   console.log('Raw gosling response:', aiResponse);
    console.log('Cleaned JSON string:', jsonString);
    ```
 

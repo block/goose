@@ -1,21 +1,21 @@
 ---
 title: MongoDB Extension
-description: Add MongoDB MCP Server as a goose Extension
+description: Add MongoDB MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-The [MongoDB MCP Server](https://github.com/mongodb-js/mongodb-mcp-server) extension allows goose to interact directly with your MongoDB databases, enabling comprehensive database operations including querying, document manipulation, collection management, and database administration. This makes it easy to work with your MongoDB databases through natural language interactions.
+The [MongoDB MCP Server](https://github.com/mongodb-js/mongodb-mcp-server) extension allows gosling to interact directly with your MongoDB databases, enabling comprehensive database operations including querying, document manipulation, collection management, and database administration. This makes it easy to work with your MongoDB databases through natural language interactions.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=mongodb-mcp-server&arg=--connection-string&arg=mongodb://localhost:27017&id=mongodb&name=MongoDB&description=MongoDB%20database%20integration)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=mongodb-mcp-server&arg=--connection-string&arg=mongodb://localhost:27017&id=mongodb&name=MongoDB&description=MongoDB%20database%20integration)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y mongodb-mcp-server --connection-string mongodb://localhost:27017
@@ -56,8 +56,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="mongodb"
       extensionName="MongoDB"
       description="MongoDB database integration"
@@ -70,7 +70,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     :::
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="MongoDB"
       description="MongoDB database integration"
@@ -110,16 +110,16 @@ The MongoDB extension provides comprehensive database management capabilities th
 - **View collection indexes** and their configurations
 - **Check database statistics** and collection storage sizes
 
-Just describe what you want to accomplish in natural language, and goose will help you execute the appropriate MongoDB operations safely and efficiently.
+Just describe what you want to accomplish in natural language, and gosling will help you execute the appropriate MongoDB operations safely and efficiently.
 
 ## Example Usage
 
-#### goose Prompt
+#### gosling Prompt
 ```
 Update all users in the premium tier who haven't logged in for more than 90 days - set their status to 'inactive' and add a note about when this change was made.
 ```
 
-#### goose Output
+#### gosling Output
 ```
 I've successfully updated inactive premium users using updateMany:
 

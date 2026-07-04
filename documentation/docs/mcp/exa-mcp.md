@@ -1,21 +1,21 @@
 ---
 title: Exa Search Extension
-description: Add Exa MCP Server as a goose Extension
+description: Add Exa MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
-This tutorial covers how to add the [Exa MCP Server](https://github.com/exa-labs/exa-mcp-server) as a goose extension to enable AI-powered web search functionality.
+This tutorial covers how to add the [Exa MCP Server](https://github.com/exa-labs/exa-mcp-server) as a gosling extension to enable AI-powered web search functionality.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=exa-mcp-server&id=exa&name=Exa%20Search&description=AI-powered%20web%20search&env=EXA_API_KEY%3DExa%20API%20Key)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=exa-mcp-server&id=exa&name=Exa%20Search&description=AI-powered%20web%20search&env=EXA_API_KEY%3DExa%20API%20Key)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y exa-mcp-server
@@ -35,8 +35,8 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="exa"
     extensionName="Exa Search"
     description="AI-powered web search"
@@ -49,7 +49,7 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
     apiKeyLinkText="Exa API Key"
   />
 </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Exa Search"
       description="AI-powered web search"
@@ -68,20 +68,20 @@ Note that you'll need [Node.js](https://nodejs.org/) installed on your system to
 
 ## Example Usage
 
-The Exa MCP server enables AI-powered web search in your goose interactions. Exa offers advanced search capabilities including:
+The Exa MCP server enables AI-powered web search in your gosling interactions. Exa offers advanced search capabilities including:
 
 1. Neural, keyword, and auto search modes
 2. Content retrieval with full text, highlights, or summaries
 3. Category filtering (news, research papers, companies, and more)
 4. Domain and date range filtering
 
-### goose Prompt
+### gosling Prompt
 
 ```
 Find recent research papers about large language model reasoning capabilities and summarize the key findings.
 ```
 
-### goose Output
+### gosling Output
 
 ```
 I'll use Exa to search for recent research papers on LLM reasoning.

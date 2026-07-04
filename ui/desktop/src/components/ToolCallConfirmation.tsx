@@ -8,8 +8,8 @@ const i18n = defineMessages({
     id: 'toolConfirmation.allowToolCallWithName',
     defaultMessage: 'Allow {toolName}?',
   },
-  gooseWouldLikeToCallWithName: {
-    id: 'toolConfirmation.gooseWouldLikeToCallWithName',
+  goslingWouldLikeToCallWithName: {
+    id: 'toolConfirmation.goslingWouldLikeToCallWithName',
     defaultMessage: 'Gosling would like to call {toolName}. Allow?',
   },
 });
@@ -39,11 +39,11 @@ export default function ToolConfirmation({
   const displayName = formatToolName(toolName);
 
   return (
-    <div className="goose-message-content bg-background-primary border border-border-primary rounded-2xl overflow-hidden">
+    <div className="gosling-message-content bg-background-primary border border-border-primary rounded-2xl overflow-hidden">
       <div className="bg-background-secondary px-4 py-2 text-text-primary">
         {prompt
           ? intl.formatMessage(i18n.allowToolCallWithName, { toolName: displayName })
-          : intl.formatMessage(i18n.gooseWouldLikeToCallWithName, { toolName: displayName })}
+          : intl.formatMessage(i18n.goslingWouldLikeToCallWithName, { toolName: displayName })}
       </div>
       <ToolApprovalButtons
         data={{ id, toolName, prompt: prompt ?? undefined, sessionId, isClicked }}

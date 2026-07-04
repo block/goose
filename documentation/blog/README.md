@@ -1,16 +1,16 @@
 ---
 unlisted: true
 ---
-# Writing Blog Posts for goose
+# Writing Blog Posts for gosling
 
-This guide explains how to write and structure blog posts for the goose documentation site.
+This guide explains how to write and structure blog posts for the gosling documentation site.
 
 ## Getting Started
 
-1. Clone the goose repository:
+1. Clone the gosling repository:
 ```bash
-git clone https://github.com/aaif-goose/goose.git
-cd goose
+git clone https://github.com/repo-makeover/gosling.git
+cd gosling
 ```
 
 2. Install dependencies:
@@ -106,14 +106,14 @@ At the end of your post, include the following meta tags for social media sharin
 <head>
   <meta property="og:title" content="Your Blog Post Title" />
   <meta property="og:type" content="article" />
-  <meta property="og:url" content="https://goose-docs.ai/blog/YYYY/MM/DD/post-slug" />
+  <meta property="og:url" content="https://gosling-docs.ai/blog/YYYY/MM/DD/post-slug" />
   <meta property="og:description" content="Your blog post description" />
-  <meta property="og:image" content="https://goose-docs.ai/assets/images/your-image.png" />
+  <meta property="og:image" content="https://gosling-docs.ai/assets/images/your-image.png" />
   <meta name="twitter:card" content="summary_large_image" />
-  <meta property="twitter:domain" content="goose-docs.ai" />
+  <meta property="twitter:domain" content="gosling-docs.ai" />
   <meta name="twitter:title" content="Your Blog Post Title" />
   <meta name="twitter:description" content="Your blog post description" />
-  <meta name="twitter:image" content="https://goose-docs.ai/assets/images/your-image.png" />
+  <meta name="twitter:image" content="https://gosling-docs.ai/assets/images/your-image.png" />
 </head>
 ```
 

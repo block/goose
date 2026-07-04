@@ -2,4 +2,4 @@ packages:
   - 'sdk'
   - 'text'
   - 'desktop'
-  - 'goose-binary/*'
+  - 'gosling-binary/*'

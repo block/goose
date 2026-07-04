@@ -15,9 +15,8 @@ import UpdateSection from './UpdateSection';
 
 import { COST_TRACKING_ENABLED, UPDATES_ENABLED } from '../../../updates';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../../ui/card';
-import ThemeSelector from '../../GooseSidebar/ThemeSelector';
-import BlockLogoBlack from './icons/block-lockup_black.png';
-import BlockLogoWhite from './icons/block-lockup_white.png';
+import ThemeSelector from '../../GoslingSidebar/ThemeSelector';
+import GoslingLogo from '../../GoslingLogo';
 import TelemetrySettings from './TelemetrySettings';
 import { trackSettingToggled } from '../../../utils/analytics';
 import type { LanguageSetting } from '../../../utils/settings';
@@ -207,28 +206,11 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
   const [showPricing, setShowPricing] = useState(true);
   const [language, setLanguage] = useState<LanguageSetting>('system');
   const [archiveFolder, setArchiveFolder] = useState<string | null>(null);
-  const [isDarkMode, setIsDarkMode] = useState(false);
   const updateSectionRef = useRef<HTMLDivElement>(null);
-  const shouldShowUpdates = !window.appConfig.get('GOOSE_VERSION');
+  const shouldShowUpdates = !window.appConfig.get('GOSLING_VERSION');
 
   useEffect(() => {
     setIsMacOS(window.electron.platform === 'darwin');
-  }, []);
-
-  useEffect(() => {
-    const updateTheme = () => {
-      setIsDarkMode(document.documentElement.classList.contains('dark'));
-    };
-
-    updateTheme();
-
-    const observer = new MutationObserver(updateTheme);
-    observer.observe(document.documentElement, {
-      attributes: true,
-      attributeFilter: ['class'],
-    });
-
-    return () => observer.disconnect();
   }, []);
 
   useEffect(() => {
@@ -570,7 +552,7 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
       </Card>
       <TelemetrySettings />
 
-      {/* Version Section - only show if GOOSE_VERSION is set */}
+      {/* Version Section - only show if GOSLING_VERSION is set */}
       {!shouldShowUpdates && (
         <Card className="rounded-lg">
           <CardHeader className="pb-0">
@@ -578,20 +560,16 @@ export default function AppSettingsSection({ scrollToSection }: AppSettingsSecti
           </CardHeader>
           <CardContent className="pt-4 px-4">
             <div className="flex items-center gap-3">
-              <img
-                src={isDarkMode ? BlockLogoWhite : BlockLogoBlack}
-                alt="Block Logo" // TODO: replace with AAIF logo asset
-                className="h-8 w-auto"
-              />
+              <GoslingLogo size="small" hover={false} className="text-black dark:text-white" />
               <span className="text-2xl font-mono text-black dark:text-white">
-                {String(window.appConfig.get('GOOSE_VERSION') || 'Development')}
+                {String(window.appConfig.get('GOSLING_VERSION') || 'Development')}
               </span>
             </div>
           </CardContent>
         </Card>
       )}
 
-      {/* Update Section - only show if GOOSE_VERSION is NOT set */}
+      {/* Update Section - only show if GOSLING_VERSION is NOT set */}
       {UPDATES_ENABLED && shouldShowUpdates && (
         <div ref={updateSectionRef}>
           <Card className="rounded-lg">

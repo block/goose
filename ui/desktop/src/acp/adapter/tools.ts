@@ -4,15 +4,15 @@ import type {
   ToolCallUpdate,
 } from '@agentclientprotocol/sdk';
 import type { Message } from '../../types/message';
-import type { ContentBlock as GooseContentBlock } from '../../types/message';
+import type { ContentBlock as GoslingContentBlock } from '../../types/message';
 import { findMessageForChunk } from './messages';
 import { toolNotificationChange } from './toolNotifications';
 import {
   type AcpChatStateChange,
   type AdapterState,
   DEFAULT_VISIBLE_MESSAGE_METADATA,
-  type GooseMessageMeta,
-  getGooseMessageMeta,
+  type GoslingMessageMeta,
+  getGoslingMessageMeta,
   isRecord,
   messageUpserted,
   rawInputToArguments,
@@ -21,8 +21,8 @@ import {
 } from './shared';
 
 export function applyToolCall(state: AdapterState, update: ToolCall): AcpChatStateChange[] {
-  const gooseMeta = getGooseMessageMeta(update);
-  const message = getOrCreateAssistantMessageForUpdate(state, gooseMeta);
+  const goslingMeta = getGoslingMessageMeta(update);
+  const message = getOrCreateAssistantMessageForUpdate(state, goslingMeta);
 
   if (
     message.content.some(
@@ -65,8 +65,8 @@ export function applyToolCallUpdate(
     return [];
   }
 
-  const gooseMeta = getGooseMessageMeta(update);
-  const message = getOrCreateToolResponseMessageForUpdate(state, gooseMeta);
+  const goslingMeta = getGoslingMessageMeta(update);
+  const message = getOrCreateToolResponseMessageForUpdate(state, goslingMeta);
   const identity = toolIdentity(update);
   const metadata = toolResponseMetadata(update, identity);
 
@@ -85,17 +85,17 @@ export function applyToolCallUpdate(
 
 function getOrCreateAssistantMessageForUpdate(
   state: AdapterState,
-  gooseMeta: GooseMessageMeta
+  goslingMeta: GoslingMessageMeta
 ): Message {
-  const existing = findMessageForChunk(state, 'assistant', gooseMeta.messageId, gooseMeta.created);
+  const existing = findMessageForChunk(state, 'assistant', goslingMeta.messageId, goslingMeta.created);
   if (existing) {
     return existing;
   }
 
   const message: Message = {
-    ...(gooseMeta.messageId ? { id: gooseMeta.messageId } : {}),
+    ...(goslingMeta.messageId ? { id: goslingMeta.messageId } : {}),
     role: 'assistant',
-    created: gooseMeta.created ?? Math.floor(Date.now() / 1000),
+    created: goslingMeta.created ?? Math.floor(Date.now() / 1000),
     content: [],
     metadata: { ...DEFAULT_VISIBLE_MESSAGE_METADATA },
   };
@@ -105,11 +105,11 @@ function getOrCreateAssistantMessageForUpdate(
 
 function getOrCreateToolResponseMessageForUpdate(
   state: AdapterState,
-  gooseMeta: GooseMessageMeta
+  goslingMeta: GoslingMessageMeta
 ): Message {
-  if (gooseMeta.messageId) {
+  if (goslingMeta.messageId) {
     const existing = state.messages.find(
-      (message) => message.id === gooseMeta.messageId && message.role === 'user'
+      (message) => message.id === goslingMeta.messageId && message.role === 'user'
     );
     if (existing) {
       return existing;
@@ -117,9 +117,9 @@ function getOrCreateToolResponseMessageForUpdate(
   }
 
   const message: Message = {
-    ...(gooseMeta.messageId ? { id: gooseMeta.messageId } : {}),
+    ...(goslingMeta.messageId ? { id: goslingMeta.messageId } : {}),
     role: 'user',
-    created: gooseMeta.created ?? Math.floor(Date.now() / 1000),
+    created: goslingMeta.created ?? Math.floor(Date.now() / 1000),
     content: [],
     metadata: { ...DEFAULT_VISIBLE_MESSAGE_METADATA },
   };
@@ -197,8 +197,8 @@ function toolResultValue(
   return toolResult;
 }
 
-function toolResultContent(update: ToolCallUpdate): GooseContentBlock[] {
-  const content: GooseContentBlock[] = [];
+function toolResultContent(update: ToolCallUpdate): GoslingContentBlock[] {
+  const content: GoslingContentBlock[] = [];
 
   for (const item of update.content ?? []) {
     if (item.type !== 'content') {
@@ -224,7 +224,7 @@ function toolResultContent(update: ToolCallUpdate): GooseContentBlock[] {
 
 function apiContentBlockFromAcpContentBlock(
   content: AcpContentBlock
-): GooseContentBlock | undefined {
+): GoslingContentBlock | undefined {
   switch (content.type) {
     case 'text':
       return {
@@ -269,7 +269,7 @@ function apiContentBlockFromAcpContentBlock(
 
 function apiResourceContentsFromAcpResource(
   resource: Extract<AcpContentBlock, { type: 'resource' }>['resource']
-): Extract<GooseContentBlock, { type: 'resource' }>['resource'] {
+): Extract<GoslingContentBlock, { type: 'resource' }>['resource'] {
   if ('text' in resource) {
     return {
       uri: resource.uri,
@@ -312,7 +312,7 @@ interface DesktopMcpAppMeta extends Record<string, unknown> {
 }
 
 type ToolResultValue = {
-  content: GooseContentBlock[];
+  content: GoslingContentBlock[];
   structuredContent?: unknown;
   isError: boolean;
   _meta?: DesktopMcpAppMeta;
@@ -323,12 +323,12 @@ function mcpAppMetadata(update: ToolCallUpdate): DesktopMcpAppMeta | undefined {
     return undefined;
   }
 
-  const goose = update._meta.goose;
-  if (!isRecord(goose) || !isRecord(goose.mcpApp)) {
+  const gosling = update._meta.gosling;
+  if (!isRecord(gosling) || !isRecord(gosling.mcpApp)) {
     return undefined;
   }
 
-  const resourceUri = goose.mcpApp.resourceUri;
+  const resourceUri = gosling.mcpApp.resourceUri;
   if (typeof resourceUri !== 'string') {
     return undefined;
   }
@@ -338,7 +338,7 @@ function mcpAppMetadata(update: ToolCallUpdate): DesktopMcpAppMeta | undefined {
       resourceUri,
     },
     extensionName:
-      typeof goose.mcpApp.extensionName === 'string' ? goose.mcpApp.extensionName : undefined,
-    toolName: typeof goose.mcpApp.toolName === 'string' ? goose.mcpApp.toolName : undefined,
+      typeof gosling.mcpApp.extensionName === 'string' ? gosling.mcpApp.extensionName : undefined,
+    toolName: typeof gosling.mcpApp.toolName === 'string' ? gosling.mcpApp.toolName : undefined,
   };
 }

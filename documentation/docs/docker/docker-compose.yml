@@ -1,5 +1,5 @@
 services:
-  goose-cli:
+  gosling-cli:
     build:
       context: ../../..
       dockerfile: documentation/docs/docker/Dockerfile
@@ -8,23 +8,23 @@ services:
     volumes:
       # Mount user's directory with read-write access
       - ../../..:/root/workspace
-      - goose-config:/root/.goose
+      - gosling-config:/root/.gosling
       # Mount git config
       - ~/.gitconfig:/root/.gitconfig:ro
       # Mount SSH keys
       - ~/.ssh:/root/.ssh:ro
     working_dir: /root/workspace
     environment:
-      - GOOSE_HOME=/root/.goose
+      - GOSLING_HOME=/root/.gosling
       # Set default editor
       - EDITOR=vim
       # Preserve git author info
-      - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-Goose User}
-      - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-goose@example.com}
+      - GIT_AUTHOR_NAME=${GIT_AUTHOR_NAME:-Gosling User}
+      - GIT_AUTHOR_EMAIL=${GIT_AUTHOR_EMAIL:-gosling@example.com}
       # Set GOOGLE_API_KEY to your own API key
       - GOOGLE_API_KEY="XXX"
-      - GOOSE_PROVIDER=google
-      - GOOSE_MODEL=gemini-2.0-flash-exp
+      - GOSLING_PROVIDER=google
+      - GOSLING_MODEL=gemini-2.0-flash-exp
       - DBUS_SESSION_BUS_ADDRESS
       - GNOME_KEYRING_CONTROL
       - SSH_AUTH_SOCK
@@ -33,4 +33,4 @@ services:
     entrypoint: ["/bin/bash"]
 
 volumes:
-  goose-config:
+  gosling-config:

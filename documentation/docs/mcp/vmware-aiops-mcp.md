@@ -1,28 +1,28 @@
 ---
 title: VMware AIops Extension
-description: Add vmware-aiops MCP Server as a goose Extension for natural language VMware vCenter/ESXi operations
+description: Add vmware-aiops MCP Server as a gosling Extension for natural language VMware vCenter/ESXi operations
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
-This tutorial covers how to add [vmware-aiops](https://github.com/zw008/VMware-AIops) as a goose extension, enabling natural language management of VMware vCenter and ESXi infrastructure. With this extension, goose can list VMs, check health, power on/off machines, deploy from templates, run commands inside VMs, and orchestrate multi-step operations with automatic rollback.
+This tutorial covers how to add [vmware-aiops](https://github.com/zw008/VMware-AIops) as a gosling extension, enabling natural language management of VMware vCenter and ESXi infrastructure. With this extension, gosling can list VMs, check health, power on/off machines, deploy from templates, run commands inside VMs, and orchestrate multi-step operations with automatic rollback.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="gosling Desktop" default>
     Install vmware-aiops first:
     ```sh
     uv tool install vmware-aiops
-    vmware-aiops mcp-config install --agent goose
+    vmware-aiops mcp-config install --agent gosling
     ```
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     ```sh
     uv tool install vmware-aiops
-    vmware-aiops mcp-config install --agent goose
+    vmware-aiops mcp-config install --agent gosling
     ```
   </TabItem>
 </Tabs>
@@ -59,11 +59,11 @@ chmod 600 ~/.vmware-aiops/.env
 vmware-aiops doctor
 ```
 
-**Step 3: Add to goose**
+**Step 3: Add to gosling**
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="vmware-aiops"
       extensionName="VMware AIops"
       description="Natural language VMware vCenter/ESXi monitoring and operations"
@@ -76,7 +76,7 @@ vmware-aiops doctor
       ]}
     />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="vmware-aiops"
       description="Natural language VMware vCenter/ESXi monitoring and operations"
@@ -97,9 +97,9 @@ vmware-aiops doctor
 
 ## Example Usage
 
-In this example, I'll use goose to perform a daily health check across my vCenter environment and remediate a disk space issue on a VM — all via natural language.
+In this example, I'll use gosling to perform a daily health check across my vCenter environment and remediate a disk space issue on a VM — all via natural language.
 
-### goose Prompt
+### gosling Prompt
 
 ```
 Check the health of my vCenter environment. Show any active alarms and
@@ -107,7 +107,7 @@ powered-off VMs that haven't been used recently. If datastore usage is
 above 85%, tell me which VMs are using the most space.
 ```
 
-### goose Output
+### gosling Output
 
 ```
 I'll start with a full health check of your vCenter environment.

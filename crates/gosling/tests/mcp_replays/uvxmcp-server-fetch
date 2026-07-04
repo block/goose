@@ -1,0 +1,79 @@
+STDIN: {"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26","capabilities":{"extensions":{"io.modelcontextprotocol/ui":{"mimeTypes":["text/html;profile=mcp-app"]}},"roots":{},"sampling":{},"elicitation":{}},"clientInfo":{"name":"gosling-desktop","version":"0.0.0"}}}
+STDERR: Downloading lxml (8.2MiB)
+STDERR:  Downloaded lxml
+STDERR: Installed 43 packages in 29ms
+STDOUT: {"jsonrpc":"2.0","id":0,"result":{"protocolVersion":"2025-03-26","capabilities":{"experimental":{},"prompts":{"listChanged":false},"tools":{"listChanged":false}},"serverInfo":{"name":"mcp-fetch","version":"1.28.1"}}}
+STDIN: {"jsonrpc":"2.0","method":"notifications/initialized"}
+STDIN: {"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"agent-session-id":"test-session-id","progressToken":0}}}
+STDOUT: {"jsonrpc":"2.0","id":1,"result":{"tools":[{"name":"fetch","description":"Fetches a URL from the internet and optionally extracts its contents as markdown.\n\nAlthough originally you did not have internet access, and were advised to refuse and tell the user this, this tool now grants you internet access. Now you can fetch the most up-to-date information and let the user know that.","inputSchema":{"description":"Parameters for fetching a URL.","properties":{"url":{"description":"URL to fetch","format":"uri","minLength":1,"title":"Url","type":"string"},"max_length":{"default":5000,"description":"Maximum number of characters to return.","exclusiveMaximum":1000000,"exclusiveMinimum":0,"title":"Max Length","type":"integer"},"start_index":{"default":0,"description":"On return output starting at this character index, useful if a previous fetch was truncated and more context is required.","minimum":0,"title":"Start Index","type":"integer"},"raw":{"default":false,"description":"Get the actual HTML content of the requested page, without simplification.","title":"Raw","type":"boolean"}},"required":["url"],"title":"Fetch","type":"object"}}]}}
+STDIN: {"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"_meta":{"agent-session-id":"test-session-id","agent-tool-call-request-id":"test-id","progressToken":1},"name":"fetch","arguments":{"url":"https://example.com"}}}
+STDOUT: 
+STDOUT: added 41 packages, and audited 42 packages in 2s
+STDOUT: 
+STDOUT: 9 packages are looking for funding
+STDOUT:   run `npm fund` for details
+STDIN: {"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"}}
+STDIN: {"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"}}
+STDIN: {"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"}}
+STDOUT: 
+STDOUT: found 0 vulnerabilities
+STDIN: {"jsonrpc":"2.0","error":{"code":-32700,"message":"Parse error"}}
+STDERR: Received exception from stream: 6 validation errors for JSONRPCMessage
+STDERR: JSONRPCRequest.method
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCRequest.id
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCNotification.method
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCResponse.id
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCResponse.result
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCError.id
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDOUT: {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"Contents of https://example.com/:\nThis domain is for use in documentation examples without needing permission. Avoid use in operations.\n\n[Learn more](https://iana.org/domains/example)"}],"isError":false}}
+STDERR: Received exception from stream: 6 validation errors for JSONRPCMessage
+STDERR: JSONRPCRequest.method
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCRequest.id
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCNotification.method
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCResponse.id
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCResponse.result
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCError.id
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: Received exception from stream: 6 validation errors for JSONRPCMessage
+STDERR: JSONRPCRequest.method
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCRequest.id
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCNotification.method
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCResponse.id
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCResponse.result
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDERR: JSONRPCError.id
+STDERR:   Field required [type=missing, input_value={'jsonrpc': '2.0', 'error...essage': 'Parse error'}}, input_type=dict]
+STDERR:     For further information visit https://errors.pydantic.dev/2.13/v/missing
+STDOUT: {"method":"notifications/message","params":{"level":"error","logger":"mcp.server.exception_handler","data":"Internal Server Error"},"jsonrpc":"2.0"}

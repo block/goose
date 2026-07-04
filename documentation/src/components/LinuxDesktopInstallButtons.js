@@ -2,7 +2,7 @@ import Link from "@docusaurus/Link";
 import { IconDownload } from "@site/src/components/icons/download";
 import { useState, useEffect } from "react";
 
-const FALLBACK_URL = "https://github.com/aaif-goose/goose/releases/latest";
+const FALLBACK_URL = "https://github.com/repo-makeover/gosling/releases/latest";
 
 const isStandardLinuxAsset = (asset) => !asset.name.includes('-vulkan');
 
@@ -17,8 +17,8 @@ const LinuxDesktopInstallButtons = () => {
     const fetchLatestRelease = async () => {
       try {
         // Check cache first (1 hour expiry)
-        const cached = localStorage.getItem('goose-release-cache');
-        const cacheTime = localStorage.getItem('goose-release-cache-time');
+        const cached = localStorage.getItem('gosling-release-cache');
+        const cacheTime = localStorage.getItem('gosling-release-cache-time');
         const now = Date.now();
 
         if (cached && cacheTime && (now - parseInt(cacheTime)) < 3600000) {
@@ -28,7 +28,7 @@ const LinuxDesktopInstallButtons = () => {
         }
 
         // Fetch latest release from GitHub API
-        const response = await fetch('https://api.github.com/repos/aaif-goose/goose/releases/latest');
+        const response = await fetch('https://api.github.com/repos/repo-makeover/gosling/releases/latest');
         if (!response.ok) throw new Error('API request failed');
 
         const release = await response.json();
@@ -53,8 +53,8 @@ const LinuxDesktopInstallButtons = () => {
 
         // Update state and cache
         setDownloadUrls(newUrls);
-        localStorage.setItem('goose-release-cache', JSON.stringify(newUrls));
-        localStorage.setItem('goose-release-cache-time', now.toString());
+        localStorage.setItem('gosling-release-cache', JSON.stringify(newUrls));
+        localStorage.setItem('gosling-release-cache-time', now.toString());
       } catch (error) {
         console.warn('Failed to fetch latest release, using fallback URLs:', error);
         // Fallback URLs are already set in initial state
@@ -66,7 +66,7 @@ const LinuxDesktopInstallButtons = () => {
 
   return (
     <div>
-      <p>Click one of the buttons below to download goose Desktop for Linux:</p>
+      <p>Click one of the buttons below to download gosling Desktop for Linux:</p>
       <div className="pill-button" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
         <Link
           className="button button--primary button--lg"

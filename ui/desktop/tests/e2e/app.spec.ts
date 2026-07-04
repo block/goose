@@ -27,8 +27,8 @@ const test = base.extend<TestFixtures>({
 
 let mainWindow: Page;
 
-test.beforeEach(async ({ goosePage }, testInfo) => {
-  mainWindow = goosePage;
+test.beforeEach(async ({ goslingPage }, testInfo) => {
+  mainWindow = goslingPage;
 
   const testName = testInfo.titlePath[testInfo.titlePath.length - 1];
 
@@ -196,7 +196,7 @@ async function selectProvider(mainWindow: any, provider: Provider) {
   await mainWindow.screenshot({ path: `test-results/chat-interface-${provider.name.toLowerCase()}.png` });
 }
 
-test.describe('Goose App', () => {
+test.describe('Gosling App', () => {
   // No need for beforeAll/afterAll - the fixture handles app launch and cleanup!
 
   test.describe('General UI', () => {
@@ -572,7 +572,7 @@ test.describe('Goose App', () => {
           await chatInput.press('Enter');
 
           // Get the latest response
-          const response = await mainWindow.waitForSelector('.goose-message-tool', { timeout: 5000 });
+          const response = await mainWindow.waitForSelector('.gosling-message-tool', { timeout: 5000 });
           expect(await response.isVisible()).toBe(true);
 
           // Click the Output dropdown to reveal the actual quote

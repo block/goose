@@ -105,7 +105,7 @@ export default function HomePage() {
             Prompt Library
           </h1>
           <p className="text-textProminent">
-            Your central directory for discovering and using effective prompts with Goose.
+            Your central directory for discovering and using effective prompts with Gosling.
           </p>
         </div>
 

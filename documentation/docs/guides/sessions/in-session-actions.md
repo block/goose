@@ -7,7 +7,7 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft, Paperclip, Edit2, Send, GripVertical, X, ChevronUp, ChevronDown, FolderDot, Puzzle, Bot, Tornado } from 'lucide-react';
 
-goose provides features you can use to manage conversations and share information during sessions.
+gosling provides features you can use to manage conversations and share information during sessions.
 
 ## Edit Message
 
@@ -41,34 +41,34 @@ Edit in Place gives you complete control over the conversation history by overwr
 Editing in place is useful when:
 
 - You realize a prompt you sent was unclear or incomplete
-- goose misunderstood your intent and went in the wrong direction
+- gosling misunderstood your intent and went in the wrong direction
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="gosling Desktop" default>
 
         1. Hover over any of your previous messages
         2. Click the <Edit2 className="inline" size={16} /> `Edit` button that appears
         3. Make your changes in the inline editor
-        4. Click `Edit in Place` to save your changes and reprompt goose
+        4. Click `Edit in Place` to save your changes and reprompt gosling
 
-        goose removes all conversation history after the edited message and responds contextually from that point.
+        gosling removes all conversation history after the edited message and responds contextually from that point.
 
         :::warning Deleted Context
-        With Edit in Place, subsequent conversation history is permanently deleted from the session and removed from goose's context. Use this option only if you don't need goose to remember the context that follows the edited message.
+        With Edit in Place, subsequent conversation history is permanently deleted from the session and removed from gosling's context. Use this option only if you don't need gosling to remember the context that follows the edited message.
         :::
 
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
-        Use the `--edit` flag with `goose session` to open the session's conversation in your editor as YAML:
+    <TabItem value="cli" label="gosling CLI">
+        Use the `--edit` flag with `gosling session` to open the session's conversation in your editor as YAML:
 
         ```bash
-        goose session --resume <session-id> --edit
+        gosling session --resume <session-id> --edit
         ```
 
-        This opens `$VISUAL` / `$EDITOR` / `vi` with the conversation serialized as YAML. After editing and saving, goose continues the session from the edited conversation.
+        This opens `$VISUAL` / `$EDITOR` / `vi` with the conversation serialized as YAML. After editing and saving, gosling continues the session from the edited conversation.
 
         :::warning Deleted Context
-        With `--edit`, subsequent conversation history is permanently deleted from the session and removed from goose's context. Use this option only if you don't need goose to remember the context that follows the edited message.
+        With `--edit`, subsequent conversation history is permanently deleted from the session and removed from gosling's context. Use this option only if you don't need gosling to remember the context that follows the edited message.
         :::
 
     </TabItem>
@@ -80,30 +80,30 @@ Fork Session creates a new session with your edited message while preserving the
 
 Forking sessions is useful to:
 - Compare different approaches to the same problem side-by-side
-- Test how different prompts affect goose's responses
+- Test how different prompts affect gosling's responses
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="gosling Desktop" default>
         1. Hover over any of your previous messages
         2. Click the <Edit2 className="inline" size={16} /> `Edit` button that appears
         3. Make your changes in the inline editor
         4. Click `Fork Session` to save your changes and start a new session (or use `Cmd+Enter` (macOS) or `Ctrl+Enter` (Windows/Linux))
 
-        goose creates a new session with conversation history up to and including your edited message. The new session is named "(edited)" and the original session remains unchanged.
+        gosling creates a new session with conversation history up to and including your edited message. The new session is named "(edited)" and the original session remains unchanged.
 
         :::tip Fork vs Duplicate
         - **Fork Session** (Edit button on a message): Creates a new session with history up to a specific edited message. Use this to explore different approaches from a particular point in the conversation.
         - **[Duplicate Session](/docs/guides/sessions/session-management#duplicate-sessions)** (Copy button in session list): Creates a complete copy of the entire session. Use this to preserve a working session or reuse its configuration.
         :::
 </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="gosling CLI">
         Use the `--edit` and `--fork` flags together to edit a session's conversation and create a new session from the result:
 
         ```bash
-        goose session --resume <session-id> --fork --edit
+        gosling session --resume <session-id> --fork --edit
         ```
 
-        This opens `$VISUAL` / `$EDITOR` / `vi` with the conversation serialized as YAML. After editing and saving, goose creates a new session with the edited conversation and resumes from there. The original session remains unchanged.
+        This opens `$VISUAL` / `$EDITOR` / `vi` with the conversation serialized as YAML. After editing and saving, gosling creates a new session with the edited conversation and resumes from there. The original session remains unchanged.
 
         You can also [duplicate entire sessions](/docs/guides/sessions/session-management#duplicate-sessions) using `--fork` without `--edit`.
     </TabItem>
@@ -111,38 +111,38 @@ Forking sessions is useful to:
 
 ### Editing Scenario Tips
 
-- **Iterative Prompt Refinement**: Start with a basic prompt, then edit and refine based on goose's response. This often works better than trying to craft the perfect prompt from the start.
+- **Iterative Prompt Refinement**: Start with a basic prompt, then edit and refine based on gosling's response. This often works better than trying to craft the perfect prompt from the start.
 - **When to Edit vs. Interrupt**: Editing earlier messages when a conversation has gone off track can be more effective than trying to correct course using new messages or [interruptions](#interrupt-task). By editing messages, you rewrite history. With interruptions, you only affect the conversation from the current message onwards.
 - **Preserving Progress**: Use Fork Session when you've made good progress but want to try a different approach. This way you can always return to the original if the new direction doesn't work out.
 
 ## Queue Messages
 
-Queue messages while goose is processing a task to manage your workflow. This is useful when:
+Queue messages while gosling is processing a task to manage your workflow. This is useful when:
 
-- You want to prepare next steps while goose is working
+- You want to prepare next steps while gosling is working
 - You have a sequence of related tasks to complete
 - You're using [voice dictation](#voice-dictation) and need to capture thoughts quickly
 
 :::tip
-goose may perform better when complex tasks are split into subtasks, a technique called [*prompt chaining*](https://www.promptingguide.ai/techniques/prompt_chaining). This structured approach can both improve accuracy and give you more control over the process.
+gosling may perform better when complex tasks are split into subtasks, a technique called [*prompt chaining*](https://www.promptingguide.ai/techniques/prompt_chaining). This structured approach can both improve accuracy and give you more control over the process.
 :::
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="gosling Desktop" default>
       Add a message to the queue:
-      1. While goose is processing a response, type your next message
+      1. While gosling is processing a response, type your next message
       2. Press `Enter` to add it to the queue (or interrupts if using [interruption keywords](#interrupt-task))
       
-      Queued messages appear as numbered cards showing the queue order. The first message in the queue is automatically sent when goose finishes each response.
+      Queued messages appear as numbered cards showing the queue order. The first message in the queue is automatically sent when gosling finishes each response.
       
       :::info Related Features
-      - In general, pressing `Enter` while goose is processing a task queues the message, but clicking `Send` sends the task immediately and [interrupts the task](#interrupt-task)
-      - When you type common interrupt keywords like "stop", "wait", or "hold on" in a queued message, goose pauses until you enter or send the next message and then continues processing the queue
+      - In general, pressing `Enter` while gosling is processing a task queues the message, but clicking `Send` sends the task immediately and [interrupts the task](#interrupt-task)
+      - When you type common interrupt keywords like "stop", "wait", or "hold on" in a queued message, gosling pauses until you enter or send the next message and then continues processing the queue
       :::
 
       #### Queue Management Controls
     
-      Queued messages run automatically in order as goose finishes each task, but you can manage the queue:
+      Queued messages run automatically in order as gosling finishes each task, but you can manage the queue:
       - **Edit a message**: Click the message text to reveal the edit controls, then type your change and click `Save`
       - **Reorder messages**: Hover over the message card to reveal the <GripVertical className="inline" size={16} /> button, then grab it and drag the message up or down
       - **Send a message**: Click the <Send className="inline" size={16} /> button to send a message immediately and interrupt the current task
@@ -156,12 +156,12 @@ goose may perform better when complex tasks are split into subtasks, a technique
 
       You send: "Can you refactor our authentication code to support OAuth 2.0 and add proper error handling? Also include unit tests for the OAuth flow, update the API documentation to reflect these changes, and create a migration script to help existing users transition to the new system."
 
-      This approach might lead to overwhelming responses where important details get missed or tasks are handled superficially. Even sending a single prompt with clear sequential steps doesn't allow goose to focus on each task individually or build context progressively.
+      This approach might lead to overwhelming responses where important details get missed or tasks are handled superficially. Even sending a single prompt with clear sequential steps doesn't allow gosling to focus on each task individually or build context progressively.
 
       **With queuing:**
 
       1. You send: "Refactor the authentication code to support OAuth 2.0"
-      2. While goose is working, you queue the following messages:
+      2. While gosling is working, you queue the following messages:
          - "And add proper error handling"
          - "Add unit tests for the OAuth flow"
          - "Update the API documentation" 
@@ -170,21 +170,21 @@ goose may perform better when complex tasks are split into subtasks, a technique
       Each task builds on the previous one.
 
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
-        Message queuing is not available in the goose CLI.
+    <TabItem value="cli" label="gosling CLI">
+        Message queuing is not available in the gosling CLI.
     </TabItem>
 </Tabs>
 
 ## Interrupt Task
 
-Interrupt goose while it's processing a task to take control of the conversation. This is useful when:
+Interrupt gosling while it's processing a task to take control of the conversation. This is useful when:
 
-- goose is heading in the wrong direction
+- gosling is heading in the wrong direction
 - You realize you need to add important context  
 - You want to switch to a completely different task
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="gosling Desktop" default>
         
         There are two ways to interrupt a task:
 
@@ -192,7 +192,7 @@ Interrupt goose while it's processing a task to take control of the conversation
         1. Type a prompt that includes common interruption keywords like `stop`, `wait`, `hold on`, `actually`, or `instead`. Using keywords alone or at the beginning of sentences works best for reliable detection.
         2. Click `Send`
         
-        goose stops processing the current task and asks for more information.
+        gosling stops processing the current task and asks for more information.
         
         #### Provide immediate redirection
         1. Type a prompt with more context and clarification or that changes direction. For example:
@@ -200,11 +200,11 @@ Interrupt goose while it's processing a task to take control of the conversation
            - "Let's focus on React instead of TypeScript"
         2. Click `Send`
         
-        goose stops processing the current task and pivots to the new request context.
+        gosling stops processing the current task and pivots to the new request context.
         
         :::info Related features
-        - Clicking `Send` while goose is processing a task interrupts the task but pressing `Enter` [queues the message](#queue-messages)
-        - Typing a stop or pause keyword in a queued message also stops goose from processing the current task
+        - Clicking `Send` while gosling is processing a task interrupts the task but pressing `Enter` [queues the message](#queue-messages)
+        - Typing a stop or pause keyword in a queued message also stops gosling from processing the current task
         - You can also [edit a sent message](#edit-message) to provide more context and clarification or change direction during a session
         :::
 
@@ -237,21 +237,21 @@ Interrupt goose while it's processing a task to take control of the conversation
         </details>
 
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="gosling CLI">
         1. Press `Ctrl+C` to interrupt the current task
         2. Type your prompt that provides more context or changes direction  
         3. Press `Enter`
 
-        goose responds contextually to your new request.
+        gosling responds contextually to your new request.
         
     </TabItem>
 </Tabs>
 
 ## Voice Dictation
-Speak to goose directly instead of typing your prompts.
+Speak to gosling directly instead of typing your prompts.
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="gosling Desktop" default>
     To enable voice dictation:
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
         2. Click `Settings` in the sidebar
@@ -270,9 +270,9 @@ Speak to goose directly instead of typing your prompts.
            - Say "submit" to send the message and continue recording your next one. To stop recording, click the microphone button.
            - Click the microphone button to stop recording, then click `Send` or press `Enter`. This option allows you to edit the message before sending.
         
-        The first time you use voice dictation, goose will request access to your microphone. While recording, you'll see `Listening` and `Transcribing` status indicators. goose transcribes your speech during natural pauses and adds the text to the chat box. 
+        The first time you use voice dictation, gosling will request access to your microphone. While recording, you'll see `Listening` and `Transcribing` status indicators. gosling transcribes your speech during natural pauses and adds the text to the chat box. 
 
-        **If you don't see the microphone**, check the [models you have configured](/docs/getting-started/providers.md). For example, using OpenAI as the voice dictation provider requires that you have an OpenAI model configured in goose, even if using another LLM provider for chat.
+        **If you don't see the microphone**, check the [models you have configured](/docs/getting-started/providers.md). For example, using OpenAI as the voice dictation provider requires that you have an OpenAI model configured in gosling, even if using another LLM provider for chat.
 
        #### Important Notes
         * You can record up to 50MB of audio
@@ -282,37 +282,37 @@ Speak to goose directly instead of typing your prompts.
         * To disable voice dictation, select `Disabled` from the provider dropdown
 
   </TabItem>
-    <TabItem value="cli" label="goose CLI">
-        Voice dictation is not available in the goose CLI. 
+    <TabItem value="cli" label="gosling CLI">
+        Voice dictation is not available in the gosling CLI. 
     </TabItem>
 </Tabs>
 
 ## Spellcheck
 
-Spellcheck is enabled by default in the goose Desktop chat input field.
+Spellcheck is enabled by default in the gosling Desktop chat input field.
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
+    <TabItem value="ui" label="gosling Desktop" default>
     To disable or re-enable spellcheck:
         1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
         2. Click `Settings` in the sidebar
         3. Click `Chat`
         4. Scroll down to `Enable Spellcheck` and toggle it on or off
-        5. Restart goose for the change to take effect
+        5. Restart gosling for the change to take effect
         
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
-        Spellcheck is not available in the goose CLI.
+    <TabItem value="cli" label="gosling CLI">
+        Spellcheck is not available in the gosling CLI.
     </TabItem>
 </Tabs>
 
 ## Share Files in Session
 
-Provide goose with context from your codebase, documents, and other files to get more relevant and accurate assistance.
+Provide gosling with context from your codebase, documents, and other files to get more relevant and accurate assistance.
 
 <Tabs groupId="interface">
-    <TabItem value="ui" label="goose Desktop" default>
-        Share files with goose in several ways:
+    <TabItem value="ui" label="gosling Desktop" default>
+        Share files with gosling in several ways:
 
         1. **Drag and Drop**: Simply drag files from your computer's file explorer/finder and drop them anywhere in the chat window. The file paths will be automatically added to your message.
 
@@ -320,9 +320,9 @@ Provide goose with context from your codebase, documents, and other files to get
 
         3. **Manual Path**: Type or paste the file path directly into the chat input
 
-        4. **Quick File Search**: Use the [`@` shortcut key](/docs/guides/file-management#quick-file-search-in-goose-desktop) to quickly find and include files
+        4. **Quick File Search**: Use the [`@` shortcut key](/docs/guides/file-management#quick-file-search-in-gosling-desktop) to quickly find and include files
     </TabItem>
-    <TabItem value="cli" label="goose CLI">
+    <TabItem value="cli" label="gosling CLI">
         You can reference files by their paths directly in your messages. Since you're already in a terminal, you can use standard shell commands to help with file paths:
 
         ```bash
@@ -340,10 +340,10 @@ Provide goose with context from your codebase, documents, and other files to get
 
 ## Mid-Session Changes
 
-You can change some settings during a session and they will take effect immediately, rather than requiring you to start a new session. This gives you more control over context and capabilities while you're interacting with goose.
+You can change some settings during a session and they will take effect immediately, rather than requiring you to start a new session. This gives you more control over context and capabilities while you're interacting with gosling.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="gosling Desktop" default>
 
   Use the toolbar at the bottom of the app to change supported settings mid-session:
 
@@ -352,20 +352,20 @@ You can change some settings during a session and they will take effect immediat
   | **Working Directory** | <FolderDot className="inline" size={16} /> directory switcher | New sessions (after restart) |
   | [**Enabled Extensions**](/docs/getting-started/using-extensions#change-extensions-mid-session) | <Puzzle className="inline" size={16} /> icon | Current session only |
   | [**Model**](/docs/getting-started/providers#configure-provider-and-model) | <Bot className="inline" size={16} /> model switcher | New sessions |
-  | [**goose Mode**](/docs/guides/managing-tools/goose-permissions#configuring-goose-mode) | <Tornado className="inline" size={16} /> mode switcher | New sessions |
+  | [**gosling Mode**](/docs/guides/managing-tools/gosling-permissions#configuring-gosling-mode) | <Tornado className="inline" size={16} /> mode switcher | New sessions |
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
   Use the slash commands to change supported settings mid-session:
 
   | Setting | Slash Command | Persistence* |
   |---------|--------------|-------------|
   | [**Enabled Extensions**](/docs/getting-started/using-extensions#change-extensions-mid-session) | `/extension` or `/builtin` | Current session only |
-  | [**goose Mode**](/docs/guides/managing-tools/goose-permissions#configuring-goose-mode) | `/mode [options]` | New sessions |
+  | [**gosling Mode**](/docs/guides/managing-tools/gosling-permissions#configuring-gosling-mode) | `/mode [options]` | New sessions |
 
   :::info
-  The CLI supports [additional slash commands](/docs/guides/goose-cli-commands#slash-commands) but doesn't support mid-session changes to the working directory or model.
+  The CLI supports [additional slash commands](/docs/guides/gosling-cli-commands#slash-commands) but doesn't support mid-session changes to the working directory or model.
   :::
 
   </TabItem>

@@ -4,11 +4,11 @@ sidebar_position: 8
 sidebar_label: Persistent Instructions
 ---
 
-Persistent instructions let you inject text into goose's working memory every turn. Unlike [`.goosehints`](/docs/guides/context-engineering/using-goosehints), which are loaded at session start and can expand later when goose discovers nested hint files, persistent instructions are re-read and injected fresh with every interaction. This makes them ideal for behavioral guardrails that must always be enforced, regardless of how the conversation evolves.
+Persistent instructions let you inject text into gosling's working memory every turn. Unlike [`.goslinghints`](/docs/guides/context-engineering/using-goslinghints), which are loaded at session start and can expand later when gosling discovers nested hint files, persistent instructions are re-read and injected fresh with every interaction. This makes them ideal for behavioral guardrails that must always be enforced, regardless of how the conversation evolves.
 
 ## How It Works
 
-goose has a component called MOIM (Model-Observed Internal Memory) that provides contextual information to the model every turn. This includes things like the current timestamp, working directory, and your todo list. Persistent instructions are injected into this same context, placing your reminders in the model's immediate attention window.
+gosling has a component called MOIM (Model-Observed Internal Memory) that provides contextual information to the model every turn. This includes things like the current timestamp, working directory, and your todo list. Persistent instructions are injected into this same context, placing your reminders in the model's immediate attention window.
 
 Because persistent instructions are injected every turn:
 - They can't be "forgotten" as the conversation grows
@@ -21,8 +21,8 @@ Configure persistent instructions using environment variables:
 
 | Variable | Purpose | Default |
 |----------|---------|---------|
-| [`GOOSE_MOIM_MESSAGE_TEXT`](/docs/guides/environment-variables#session-management) | Literal text injected into working memory each turn | Not set |
-| [`GOOSE_MOIM_MESSAGE_FILE`](/docs/guides/environment-variables#session-management) | Path to a file whose contents are injected each turn. Supports `~/` | Not set |
+| [`GOSLING_MOIM_MESSAGE_TEXT`](/docs/guides/environment-variables#session-management) | Literal text injected into working memory each turn | Not set |
+| [`GOSLING_MOIM_MESSAGE_FILE`](/docs/guides/environment-variables#session-management) | Path to a file whose contents are injected each turn. Supports `~/` | Not set |
 
 When both variables are set, their contents are concatenated. The extension reads [environment variables](/docs/guides/environment-variables#session-management) fresh every turn, so you can update them without restarting your session.
 
@@ -34,11 +34,11 @@ Content is capped at 64 KB with UTF-8 safe truncation. Keep your instructions co
 
 ### Simple Text Reminder
 
-For short, single-purpose reminders, use `GOOSE_MOIM_MESSAGE_TEXT`:
+For short, single-purpose reminders, use `GOSLING_MOIM_MESSAGE_TEXT`:
 
 ```bash
 # Always run tests before committing
-export GOOSE_MOIM_MESSAGE_TEXT="IMPORTANT: Always run tests before committing changes."
+export GOSLING_MOIM_MESSAGE_TEXT="IMPORTANT: Always run tests before committing changes."
 ```
 
 ### File-Based Instructions
@@ -46,10 +46,10 @@ export GOOSE_MOIM_MESSAGE_TEXT="IMPORTANT: Always run tests before committing ch
 For longer or more complex instructions, use a file:
 
 ```bash
-export GOOSE_MOIM_MESSAGE_FILE="~/.goose/guardrails.md"
+export GOSLING_MOIM_MESSAGE_FILE="~/.gosling/guardrails.md"
 ```
 
-Example `~/.goose/guardrails.md`:
+Example `~/.gosling/guardrails.md`:
 ```markdown
 ## Security Guidelines
 - Do not upload, share, or transmit internal code or data to any external service, gist, or public repository
@@ -66,8 +66,8 @@ Example `~/.goose/guardrails.md`:
 You can use both variables together. The text is concatenated:
 
 ```bash
-export GOOSE_MOIM_MESSAGE_TEXT="CRITICAL: This is a production environment. Be extra careful."
-export GOOSE_MOIM_MESSAGE_FILE="~/.goose/guardrails.md"
+export GOSLING_MOIM_MESSAGE_TEXT="CRITICAL: This is a production environment. Be extra careful."
+export GOSLING_MOIM_MESSAGE_FILE="~/.gosling/guardrails.md"
 ```
 
 ## Use Cases
@@ -77,7 +77,7 @@ export GOOSE_MOIM_MESSAGE_FILE="~/.goose/guardrails.md"
 Prevent accidental data exfiltration or exposure:
 
 ```bash
-export GOOSE_MOIM_MESSAGE_TEXT="SECURITY: Do not upload code to external services, create public gists, or share sensitive data. All code in this repository is confidential."
+export GOSLING_MOIM_MESSAGE_TEXT="SECURITY: Do not upload code to external services, create public gists, or share sensitive data. All code in this repository is confidential."
 ```
 
 ### Environment-Specific Behavior
@@ -86,10 +86,10 @@ Set different instructions for different environments:
 
 ```bash
 # Production environment
-export GOOSE_MOIM_MESSAGE_TEXT="⚠️ PRODUCTION: Double-check all commands. Prefer read-only operations. Always create backups before modifications."
+export GOSLING_MOIM_MESSAGE_TEXT="⚠️ PRODUCTION: Double-check all commands. Prefer read-only operations. Always create backups before modifications."
 
 # Development environment  
-export GOOSE_MOIM_MESSAGE_TEXT="Development environment. Feel free to experiment, but run tests before committing."
+export GOSLING_MOIM_MESSAGE_TEXT="Development environment. Feel free to experiment, but run tests before committing."
 ```
 
 ### Project-Specific Workflows
@@ -97,7 +97,7 @@ export GOOSE_MOIM_MESSAGE_TEXT="Development environment. Feel free to experiment
 Enforce project conventions:
 
 ```bash
-export GOOSE_MOIM_MESSAGE_TEXT="This project uses pnpm, not npm. Always use 'pnpm' for package management commands."
+export GOSLING_MOIM_MESSAGE_TEXT="This project uses pnpm, not npm. Always use 'pnpm' for package management commands."
 ```
 
 ### Temporary Reminders
@@ -106,15 +106,15 @@ Since the environment variables are read fresh each turn, you can set temporary 
 
 ```bash
 # Set a reminder for the current task
-export GOOSE_MOIM_MESSAGE_TEXT="Current focus: Refactoring the authentication module. Don't get sidetracked."
+export GOSLING_MOIM_MESSAGE_TEXT="Current focus: Refactoring the authentication module. Don't get sidetracked."
 
 # Clear it when done
-unset GOOSE_MOIM_MESSAGE_TEXT
+unset GOSLING_MOIM_MESSAGE_TEXT
 ```
 
-## Persistent Instructions vs goosehints
+## Persistent Instructions vs goslinghints
 
-| Feature | Persistent Instructions | [goosehints](/docs/guides/context-engineering/using-goosehints) |
+| Feature | Persistent Instructions | [goslinghints](/docs/guides/context-engineering/using-goslinghints) |
 |---------|------------------------|-------------|
 | When loaded | Every turn | Session start, plus nested context files discovered during the session |
 | Can be forgotten | No | Yes, as context fills |
@@ -127,12 +127,12 @@ unset GOOSE_MOIM_MESSAGE_TEXT
 - You need security guardrails that can't be bypassed
 - You want to change behavior mid-session without restarting
 
-**Use goosehints when:**
+**Use goslinghints when:**
 - Providing project context and background information
 - Setting coding standards and preferences
 - The information is helpful but not critical
 
-You can use both together: goosehints for project context and persistent instructions for critical guardrails.
+You can use both together: goslinghints for project context and persistent instructions for critical guardrails.
 
 ## Best Practices
 
@@ -142,6 +142,6 @@ You can use both together: goosehints for project context and persistent instruc
 
 3. **Prioritize**: Put your most important instructions first, in case of truncation.
 
-4. **Use files for complex rules**: If you have multiple guidelines, organize them in a file rather than cramming everything into `GOOSE_MOIM_MESSAGE_TEXT`.
+4. **Use files for complex rules**: If you have multiple guidelines, organize them in a file rather than cramming everything into `GOSLING_MOIM_MESSAGE_TEXT`.
 
-5. **Test your guardrails**: After setting up persistent instructions, test that goose respects them by asking it to do something that should be blocked.
+5. **Test your guardrails**: After setting up persistent instructions, test that gosling respects them by asking it to do something that should be blocked.

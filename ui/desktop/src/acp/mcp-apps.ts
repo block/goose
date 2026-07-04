@@ -1,5 +1,5 @@
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
-import type { ToolListItem } from '@aaif/goose-sdk';
+import type { ToolListItem } from '@repo-makeover/gosling-sdk';
 import { getAcpClient } from './acpConnection';
 
 type JsonRecord = Record<string, unknown>;
@@ -66,7 +66,7 @@ export async function listMcpAppTools(
   extensionName?: string
 ): Promise<McpAppTool[]> {
   const client = await getAcpClient();
-  const response = await client.goose.toolsList_unstable({ sessionId });
+  const response = await client.gosling.toolsList_unstable({ sessionId });
   const tools = response.tools;
   if (!extensionName) return tools;
 
@@ -80,7 +80,7 @@ export async function readMcpAppResource(
   uri: string
 ): Promise<McpAppResourceResponse> {
   const client = await getAcpClient();
-  const response = await client.goose.resourcesRead_unstable({
+  const response = await client.gosling.resourcesRead_unstable({
     sessionId,
     uri,
     extensionName,
@@ -96,7 +96,7 @@ export async function callMcpAppTool(
 ): Promise<CallToolResult> {
   const fullToolName = `${extensionName}__${name}`;
   const client = await getAcpClient();
-  const response = await client.goose.toolsCall_unstable({
+  const response = await client.gosling.toolsCall_unstable({
     sessionId,
     name: fullToolName,
     arguments: args || {},

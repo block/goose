@@ -19,7 +19,7 @@ export interface AdapterState {
   localSteerTextByMessageId: Map<string, string>;
 }
 
-export interface GooseMessageMeta {
+export interface GoslingMessageMeta {
   messageId?: string;
   created?: number;
   steer?: boolean;
@@ -59,35 +59,35 @@ export function cloneMessage(message: Message): Message {
   };
 }
 
-export function getGooseMessageMeta(update: { _meta?: unknown }): GooseMessageMeta {
+export function getGoslingMessageMeta(update: { _meta?: unknown }): GoslingMessageMeta {
   if (!isRecord(update._meta)) {
     return {};
   }
 
-  const goose = update._meta.goose;
-  if (!isRecord(goose)) {
+  const gosling = update._meta.gosling;
+  if (!isRecord(gosling)) {
     return {};
   }
 
   return {
-    created: typeof goose.created === 'number' ? goose.created : undefined,
-    messageId: typeof goose.messageId === 'string' ? goose.messageId : undefined,
-    steer: goose.steer === true ? true : undefined,
+    created: typeof gosling.created === 'number' ? gosling.created : undefined,
+    messageId: typeof gosling.messageId === 'string' ? gosling.messageId : undefined,
+    steer: gosling.steer === true ? true : undefined,
   };
 }
 
-export function getGooseActiveRunId(update: { _meta?: unknown }): string | null | undefined {
+export function getGoslingActiveRunId(update: { _meta?: unknown }): string | null | undefined {
   if (!isRecord(update._meta)) {
     return undefined;
   }
 
-  const goose = update._meta.goose;
-  if (!isRecord(goose) || !('activeRunId' in goose)) {
+  const gosling = update._meta.gosling;
+  if (!isRecord(gosling) || !('activeRunId' in gosling)) {
     return undefined;
   }
 
-  return typeof goose.activeRunId === 'string' || goose.activeRunId === null
-    ? goose.activeRunId
+  return typeof gosling.activeRunId === 'string' || gosling.activeRunId === null
+    ? gosling.activeRunId
     : undefined;
 }
 
@@ -100,15 +100,15 @@ export function toolIdentity(update: ToolCall | ToolCallUpdate): ToolIdentity {
     return {};
   }
 
-  const goose = update._meta.goose;
-  if (!isRecord(goose) || !isRecord(goose.toolCall)) {
+  const gosling = update._meta.gosling;
+  if (!isRecord(gosling) || !isRecord(gosling.toolCall)) {
     return {};
   }
 
   return {
-    toolName: typeof goose.toolCall.toolName === 'string' ? goose.toolCall.toolName : undefined,
+    toolName: typeof gosling.toolCall.toolName === 'string' ? gosling.toolCall.toolName : undefined,
     extensionName:
-      typeof goose.toolCall.extensionName === 'string' ? goose.toolCall.extensionName : undefined,
+      typeof gosling.toolCall.extensionName === 'string' ? gosling.toolCall.extensionName : undefined,
   };
 }
 

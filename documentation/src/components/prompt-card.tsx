@@ -3,7 +3,7 @@ import Link from "@docusaurus/Link";
 import { useState } from "react";
 import CodeBlock from '@theme/CodeBlock';
 import { motion, AnimatePresence } from "framer-motion";
-import { getGooseInstallLink } from "@site/src/utils/install-links";
+import { getGoslingInstallLink } from "@site/src/utils/install-links";
 import type { MCPServer } from "@site/src/types/server";
 import type { Prompt, Extension } from "@site/src/types/prompt";
 
@@ -101,7 +101,7 @@ export function PromptCard({ prompt }: { prompt: Prompt }) {
                               >
                                 <div className="mt-2 bg-background-subtle rounded-md p-3 border border-borderSubtle space-y-3">
                                   <a 
-                                    href={getGooseInstallLink(extensionToMCPServer(extension))}
+                                    href={getGoslingInstallLink(extensionToMCPServer(extension))}
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex items-center gap-2 text-textStandard hover:text-textProminent"
@@ -121,11 +121,11 @@ export function PromptCard({ prompt }: { prompt: Prompt }) {
                                   </button>
                                     {extension.url ? (
                                       <CodeBlock language="bash">
-                                        goose session --with-remote-extension "{extension.url}"
+                                        gosling session --with-remote-extension "{extension.url}"
                                       </CodeBlock>
                                       ) : (
                                       <CodeBlock language="bash">
-                                        goose session --with-extension "{extension.command}"
+                                        gosling session --with-extension "{extension.command}"
                                       </CodeBlock>
                                     )}
                                 </div>

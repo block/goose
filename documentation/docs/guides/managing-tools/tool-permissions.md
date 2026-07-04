@@ -8,14 +8,14 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft, Tornado, Settings } from 'lucide-react';
 
-Tool permissions provide fine-grained control over how goose uses different tools within extensions. This guide will help you understand and configure these permissions effectively.
+Tool permissions provide fine-grained control over how gosling uses different tools within extensions. This guide will help you understand and configure these permissions effectively.
 
 ## Understanding Tools and Extensions
 
 Before diving into permissions, let's clarify the key components:
 
-- **Extensions** are packages that add functionality to goose (like Developer, Google Drive, etc.)
-- **Tools** are specific functions within each extension that goose can use
+- **Extensions** are packages that add functionality to gosling (like Developer, Google Drive, etc.)
+- **Tools** are specific functions within each extension that gosling can use
 
 For example, the Developer extension includes multiple tools like:
 
@@ -23,12 +23,12 @@ For example, the Developer extension includes multiple tools like:
 - Shell tool for running commands
 - Screen capture tool for taking screenshots
 :::warning Performance Optimization
-goose performs best with fewer than 25 total tools enabled across all extensions. Consider enabling only the extensions you need for your current task.
+gosling performs best with fewer than 25 total tools enabled across all extensions. Consider enabling only the extensions you need for your current task.
 :::
 
 ## Permission Levels
 
-Tool permissions work alongside [goose permission modes](/docs/guides/managing-tools/goose-permissions). The mode sets the default behavior, while tool permissions let you override the behavior of specific tools.
+Tool permissions work alongside [gosling permission modes](/docs/guides/managing-tools/gosling-permissions). The mode sets the default behavior, while tool permissions let you override the behavior of specific tools.
 
 Each tool can be set to one of three permission levels:
 
@@ -41,7 +41,7 @@ Each tool can be set to one of three permission levels:
 ## Configuring Tool Permissions
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="gosling Desktop" default>
     You can configure fine-grained tool permissions for enabled extensions when using `Manual` or `Smart` approval mode. These rules can be accessed from the mode toggle or `Settings` page.
 
     <Tabs>
@@ -64,16 +64,16 @@ Each tool can be set to one of three permission levels:
     </Tabs>
   
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
     1. Run the configure command:
     ```sh
-    goose configure
+    gosling configure
     ```
 
-    2. Select `goose settings` from the menu
+    2. Select `gosling settings` from the menu
     ```sh
-    ┌ goose-configure
+    ┌ gosling-configure
     │
     ◆ What would you like to configure?
     | ○ Configure Providers
@@ -81,20 +81,20 @@ Each tool can be set to one of three permission levels:
     | ○ Toggle Extensions
     | ○ Remove Extension
     // highlight-start
-    | ● goose settings
+    | ● gosling settings
     // highlight-end
     └
     ```
 
     3. Choose `Tool Permission`
     ```sh
-    ┌   goose-configure
+    ┌   gosling-configure
     │
     ◇  What would you like to configure?
-    │  goose settings
+    │  gosling settings
     │
     ◆  What setting would you like to configure?
-    │  ○ goose mode
+    │  ○ gosling mode
     // highlight-start
     │  ● Tool Permission
     // highlight-end
@@ -104,7 +104,7 @@ Each tool can be set to one of three permission levels:
 
     4. Select an extension and configure permissions for its tools:
     ```sh
-    ┌   goose-configure
+    ┌   gosling-configure
     │
     ◇  What setting would you like to configure?
     │  Tool Permission 
@@ -147,7 +147,7 @@ There are several reasons to configure tool permissions:
 
 3. **Task Focus**
    - Enable only tools needed for current task
-   - Help goose make better tool choices
+   - Help gosling make better tool choices
    - Reduce noise in responses
 
 ## Example Permission Configuration

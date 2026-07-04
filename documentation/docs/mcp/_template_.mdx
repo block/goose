@@ -1,27 +1,27 @@
 ---
 title: {Extension Name} Extension
-description: Add {Extension Name} MCP Server as a goose Extension
+description: Add {Extension Name} MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
-import GooseBuiltinInstaller from '@site/src/components/GooseBuiltinInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
+import GoslingBuiltinInstaller from '@site/src/components/GoslingBuiltinInstaller';
 
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" />
 
 
-This tutorial covers how to add the [{Extension Name} MCP Server](/) as a goose extension to enable ________________.
+This tutorial covers how to add the [{Extension Name} MCP Server](/) as a gosling extension to enable ________________.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer]({goose_url})
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer]({gosling_url})
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   {command}
@@ -45,17 +45,17 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="gosling Desktop" default>
 
     <!-- For built-in extensions -->
-    <GooseBuiltinInstaller
+    <GoslingBuiltinInstaller
       extensionName="{Extension Name}"
       description="{Extension description}"
       extensionId="{extension_id}"
     />
 
     <!-- For external STDIO MCP servers (npx, uvx, git, etc.) -->
-    <GooseDesktopInstaller
+    <GoslingDesktopInstaller
       extensionId="{extension_id}"
       extensionName="{Extension Name}"
       description="{Extension description}"
@@ -71,7 +71,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     />
 
     <!-- For HTTP MCP servers -->
-    <GooseDesktopInstaller
+    <GoslingDesktopInstaller
       extensionId="{extension_id}"
       extensionName="{Extension Name}"
       description="{Extension description}"
@@ -85,7 +85,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     />
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
     <!-- For external STDIO MCP servers (npx, uvx, git, etc.) -->
     <CLIExtensionInstructions
@@ -134,12 +134,12 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 {describe any environment setup, access controls, and what you want to accomplish.}
 
-### goose Prompt
+### gosling Prompt
 
 > _exact prompt_
 
 
-### goose Output
+### gosling Output
 
 :::note Desktop
 

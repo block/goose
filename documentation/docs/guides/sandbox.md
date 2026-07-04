@@ -1,17 +1,17 @@
 ---
-title: macOS Sandbox for goose Desktop
-sidebar_label: Sandbox for goose Desktop
-description: Optional sandboxing for goose Desktop to control file access, filter network traffic, and enforce security policies on macOS
+title: macOS Sandbox for gosling Desktop
+sidebar_label: Sandbox for gosling Desktop
+description: Optional sandboxing for gosling Desktop to control file access, filter network traffic, and enforce security policies on macOS
 ---
 
-goose Desktop includes an optional macOS sandbox that you can enable when you need stricter control and visibility over what goose can access on your system. Use it to:
+gosling Desktop includes an optional macOS sandbox that you can enable when you need stricter control and visibility over what gosling can access on your system. Use it to:
 
-- **Restrict file system access** — Block writes to SSH keys, shell configs, and goose configuration files
+- **Restrict file system access** — Block writes to SSH keys, shell configs, and gosling configuration files
 - **Control network connections** — Force all traffic through a filtering proxy that blocks unapproved domains
 - **Prevent security bypasses** — Block tunneling tools, raw sockets, and other techniques that could circumvent restrictions
 - **Audit and enforce policies** — Log all network activity and enforce compliance requirements
 
-goose runs with full tool access, but the sandbox uses two layers of protection:
+gosling runs with full tool access, but the sandbox uses two layers of protection:
 - **File access control** - Apple's `sandbox-exec` restricts file and network access at the system level
 - **Outbound connections** - A local egress proxy filters and logs outgoing connections
 
@@ -21,20 +21,20 @@ The sandbox relies on `/usr/bin/sandbox-exec`, which is only available on macOS 
 
 ## Quick Start
 
-To enable the sandbox, launch goose Desktop from the terminal with the environment variable set. For example:
+To enable the sandbox, launch gosling Desktop from the terminal with the environment variable set. For example:
 
 ```bash
-export GOOSE_SANDBOX=true
-open -a Goose
+export GOSLING_SANDBOX=true
+open -a Gosling
 ```
 
 When the app starts with sandboxing enabled, it will:
 
 1. Generate a seatbelt sandbox profile
 2. Start a local HTTP CONNECT proxy on localhost
-3. Launch the `goosed` backend for goose Desktop inside `sandbox-exec`, forcing all traffic through the proxy
+3. Launch the `goslingd` backend for gosling Desktop inside `sandbox-exec`, forcing all traffic through the proxy
 
-The sandbox remains active until you quit goose Desktop. To disable it, quit the app and relaunch normally (or set `GOOSE_SANDBOX=false` when opening from the terminal).
+The sandbox remains active until you quit gosling Desktop. To disable it, quit the app and relaunch normally (or set `GOSLING_SANDBOX=false` when opening from the terminal).
 
 ## Configuration
 
@@ -44,25 +44,25 @@ All configuration is via environment variables. Defaults are designed to be secu
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GOOSE_SANDBOX` | `false` | Set to `true` or `1` to enable the sandbox. See [Quick Start](#quick-start) for launch instructions. |
+| `GOSLING_SANDBOX` | `false` | Set to `true` or `1` to enable the sandbox. See [Quick Start](#quick-start) for launch instructions. |
 
 ----
 
 ### File System
 
-The [seatbelt sandbox profile](https://github.com/aaif-goose/goose/blob/main/ui/desktop/src/sandbox/index.ts) blocks write operations to these sensitive files:
+The [seatbelt sandbox profile](https://github.com/repo-makeover/gosling/blob/main/ui/desktop/src/sandbox/index.ts) blocks write operations to these sensitive files:
 
 - `~/.ssh/` - Prevent SSH key tampering
 - `~/.bashrc`, `~/.zshrc`, `~/.bash_profile`, `~/.zprofile` - Prevent shell config injection
-- `~/.config/goose/sandbox/` - Protect sandbox config from the sandboxed process
-- `~/.config/goose/config.yaml` - Protect goose config
+- `~/.config/gosling/sandbox/` - Protect sandbox config from the sandboxed process
+- `~/.config/gosling/config.yaml` - Protect gosling config
 
 
 #### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GOOSE_SANDBOX_PROTECT_FILES` | `true` | Write-protect sensitive files listed above. Set to `false` to disable |
+| `GOSLING_SANDBOX_PROTECT_FILES` | `true` | Write-protect sensitive files listed above. Set to `false` to disable |
 
 ----
 
@@ -70,7 +70,7 @@ The [seatbelt sandbox profile](https://github.com/aaif-goose/goose/blob/main/ui/
 
 The seatbelt sandbox denies all direct network access, forcing traffic through the proxy. The only allowed connections are:
 
-- **Localhost** — Allows the `goosed` process to reach the egress proxy and its own server port
+- **Localhost** — Allows the `goslingd` process to reach the egress proxy and its own server port
 - **Unix sockets** — For local inter-process communication (IPC)
 - **mDNSResponder** — For DNS resolution
 
@@ -92,8 +92,8 @@ The seatbelt sandbox blocks tools and system calls that could bypass security co
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GOOSE_SANDBOX_BLOCK_RAW_SOCKETS` | `true` | Block `SOCK_RAW`. Set to `false` to disable |
-| `GOOSE_SANDBOX_BLOCK_TUNNELING` | `true` | Block `nc`/`netcat`/`socat`/`telnet`. Set to `false` to disable |
+| `GOSLING_SANDBOX_BLOCK_RAW_SOCKETS` | `true` | Block `SOCK_RAW`. Set to `false` to disable |
+| `GOSLING_SANDBOX_BLOCK_TUNNELING` | `true` | Block `nc`/`netcat`/`socat`/`telnet`. Set to `false` to disable |
 
 ----
 
@@ -114,15 +114,15 @@ For optional LaunchDarkly-based egress control, see [LaunchDarkly](#launchdarkly
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `GOOSE_SANDBOX_ALLOW_IP` | `false` | Set to `true` to allow connections to raw IP addresses |
-| `GOOSE_SANDBOX_BLOCK_LOOPBACK` | `false` | Set to `true` to block loopback relay through the proxy |
-| `GOOSE_SANDBOX_ALLOW_SSH` | `true` | Set to `false` to block all SSH traffic |
-| `GOOSE_SANDBOX_GIT_HOSTS` | built-in list | Comma-separated list of allowed SSH git hosts (e.g. `github.com,gitlab.com`) |
-| `GOOSE_SANDBOX_SSH_ALL_HOSTS` | `false` | Set to `true` to allow SSH to any host (not just git hosts) |
+| `GOSLING_SANDBOX_ALLOW_IP` | `false` | Set to `true` to allow connections to raw IP addresses |
+| `GOSLING_SANDBOX_BLOCK_LOOPBACK` | `false` | Set to `true` to block loopback relay through the proxy |
+| `GOSLING_SANDBOX_ALLOW_SSH` | `true` | Set to `false` to block all SSH traffic |
+| `GOSLING_SANDBOX_GIT_HOSTS` | built-in list | Comma-separated list of allowed SSH git hosts (e.g. `github.com,gitlab.com`) |
+| `GOSLING_SANDBOX_SSH_ALL_HOSTS` | `false` | Set to `true` to allow SSH to any host (not just git hosts) |
 
 #### Managing the Domain Blocklist
 
-The file `~/.config/goose/sandbox/blocked.txt` controls which domains are blocked by the proxy. It's created automatically on first run from a bundled template.
+The file `~/.config/gosling/sandbox/blocked.txt` controls which domains are blocked by the proxy. It's created automatically on first run from a bundled template.
 
 ```
 # One domain per line. Subdomains are blocked automatically.
@@ -145,10 +145,10 @@ By default, SSH is only allowed to well-known git hosting domains (e.g. GitHub, 
 
 ```bash
 # Add custom git hosts
-export GOOSE_SANDBOX_GIT_HOSTS="github.com,gitlab.com,your-gitea.internal.com"
+export GOSLING_SANDBOX_GIT_HOSTS="github.com,gitlab.com,your-gitea.internal.com"
 
 # Or allow SSH to all hosts
-export GOOSE_SANDBOX_SSH_ALL_HOSTS=true
+export GOSLING_SANDBOX_SSH_ALL_HOSTS=true
 ```
 
 ----
@@ -162,60 +162,60 @@ For enterprise environments, LaunchDarkly provides optional dynamic egress contr
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LAUNCHDARKLY_CLIENT_ID` | — | LD client SDK key to enable dynamic egress control |
-| `GOOSE_SANDBOX_LD_FAILOVER` | — | Failover mode if LD is unreachable: `allow`, `deny`, or `blocklist` |
+| `GOSLING_SANDBOX_LD_FAILOVER` | — | Failover mode if LD is unreachable: `allow`, `deny`, or `blocklist` |
 
 ## Example Configurations
 
 ### Maximum security
 
 ```bash
-export GOOSE_SANDBOX=true
+export GOSLING_SANDBOX=true
 # All protections enabled (defaults)
 ```
 
 ### Allow raw IP connections (e.g. for internal APIs)
 
 ```bash
-export GOOSE_SANDBOX=true
-export GOOSE_SANDBOX_ALLOW_IP=true
+export GOSLING_SANDBOX=true
+export GOSLING_SANDBOX_ALLOW_IP=true
 ```
 
 ### Disable SSH entirely
 
 ```bash
-export GOOSE_SANDBOX=true
-export GOOSE_SANDBOX_ALLOW_SSH=false
+export GOSLING_SANDBOX=true
+export GOSLING_SANDBOX_ALLOW_SSH=false
 ```
 
 ### Relaxed mode (fewer restrictions)
 
 ```bash
-export GOOSE_SANDBOX=true
-export GOOSE_SANDBOX_PROTECT_FILES=false
-export GOOSE_SANDBOX_BLOCK_RAW_SOCKETS=false
-export GOOSE_SANDBOX_BLOCK_TUNNELING=false
-export GOOSE_SANDBOX_ALLOW_IP=true
-export GOOSE_SANDBOX_SSH_ALL_HOSTS=true
+export GOSLING_SANDBOX=true
+export GOSLING_SANDBOX_PROTECT_FILES=false
+export GOSLING_SANDBOX_BLOCK_RAW_SOCKETS=false
+export GOSLING_SANDBOX_BLOCK_TUNNELING=false
+export GOSLING_SANDBOX_ALLOW_IP=true
+export GOSLING_SANDBOX_SSH_ALL_HOSTS=true
 ```
 
 ### With LaunchDarkly egress control
 
 ```bash
-export GOOSE_SANDBOX=true
+export GOSLING_SANDBOX=true
 export LAUNCHDARKLY_CLIENT_ID=sdk-your-key-here
-export GOOSE_SANDBOX_LD_FAILOVER=blocklist  # fall back to local blocklist if LD is down
+export GOSLING_SANDBOX_LD_FAILOVER=blocklist  # fall back to local blocklist if LD is down
 ```
 
 ## Troubleshooting
 
-- **Error: "GOOSE_SANDBOX=true but sandbox-exec is not available (macOS only)"**  
+- **Error: "GOSLING_SANDBOX=true but sandbox-exec is not available (macOS only)"**  
   You're not on macOS, or `/usr/bin/sandbox-exec` is missing. The sandbox only works on macOS.
 
 - **Extensions or tools can't reach the network**  
-  Check if the destination domain is in `~/.config/goose/sandbox/blocked.txt`, or if you need to enable `GOOSE_SANDBOX_ALLOW_IP=true` for IP-based endpoints.
+  Check if the destination domain is in `~/.config/gosling/sandbox/blocked.txt`, or if you need to enable `GOSLING_SANDBOX_ALLOW_IP=true` for IP-based endpoints.
 
 - **git clone over SSH fails**  
-  The target host may not be in the default Git hosts allowlist. Add it with `GOOSE_SANDBOX_GIT_HOSTS=your-host.com` or set `GOOSE_SANDBOX_SSH_ALL_HOSTS=true`.
+  The target host may not be in the default Git hosts allowlist. Add it with `GOSLING_SANDBOX_GIT_HOSTS=your-host.com` or set `GOSLING_SANDBOX_SSH_ALL_HOSTS=true`.
 
 - **Want to inspect what the proxy is blocking?**  
   Check the [Desktop application logs](/docs/guides/logs#desktop-application-log). Blocked connections are logged with the prefix `[sandbox-proxy]` and include the reason for blocking.

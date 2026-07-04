@@ -6,9 +6,9 @@ import httpx
 from datetime import datetime
 
 # Configuration
-GOOSE_HOST = "127.0.0.1"
-GOOSE_PORT = "3001"
-GOOSE_URL = f"http://{GOOSE_HOST}:{GOOSE_PORT}"
+GOSLING_HOST = "127.0.0.1"
+GOSLING_PORT = "3001"
+GOSLING_URL = f"http://{GOSLING_HOST}:{GOSLING_PORT}"
 SECRET_KEY = "test"  # Default development secret key
 
 # A simple calculator tool definition
@@ -63,7 +63,7 @@ async def setup_agent() -> None:
     async with httpx.AsyncClient() as client:
         # First create the agent
         response = await client.post(
-            f"{GOOSE_URL}/agent/update_provider",
+            f"{GOSLING_URL}/agent/update_provider",
             json={"provider": "databricks", "model": "goose"},
             headers={"X-Secret-Key": SECRET_KEY},
         )
@@ -72,7 +72,7 @@ async def setup_agent() -> None:
 
         # Then add our frontend extension
         response = await client.post(
-            f"{GOOSE_URL}/extensions/add",
+            f"{GOSLING_URL}/extensions/add",
             json=FRONTEND_CONFIG,
             headers={"X-Secret-Key": SECRET_KEY},
         )
@@ -120,7 +120,7 @@ def execute_calculator(args: Dict[str, Any]) -> List[Dict[str, Any]]:
 def get_tools() -> Dict[str, Any]:
     with httpx.Client() as client:
         response = client.get(
-            f"{GOOSE_URL}/agent/tools",
+            f"{GOSLING_URL}/agent/tools",
             headers={"X-Secret-Key": SECRET_KEY},
         )
         response.raise_for_status()
@@ -148,7 +148,7 @@ def execute_enable_extension(args: Dict[str, Any]) -> List[Dict[str, Any]]:
             "bundled": extension.get("bundled"),
         }
         add_response = client.post(
-            f"{GOOSE_URL}/extensions/add",
+            f"{GOSLING_URL}/extensions/add",
             json=payload,
             headers={"Content-Type": "application/json", "X-Secret-Key": SECRET_KEY},
         )
@@ -168,7 +168,7 @@ def execute_enable_extension(args: Dict[str, Any]) -> List[Dict[str, Any]]:
 
 
 def submit_tool_result(tool_id: str, result: List[Dict[str, Any]]) -> None:
-    """Submit the tool execution result back to Goose.
+    """Submit the tool execution result back to gosling.
 
     The result should be a list of Content variants (Text, Image, or Resource).
     Each Content variant has a type tag and appropriate fields.
@@ -182,7 +182,7 @@ def submit_tool_result(tool_id: str, result: List[Dict[str, Any]]) -> None:
 
     with httpx.Client(timeout=2.0) as client:
         response = client.post(
-            f"{GOOSE_URL}/tool_result",
+            f"{GOSLING_URL}/tool_result",
             json=payload,
             headers={"X-Secret-Key": SECRET_KEY},
         )
@@ -190,7 +190,7 @@ def submit_tool_result(tool_id: str, result: List[Dict[str, Any]]) -> None:
 
 
 async def chat_loop() -> None:
-    """Main chat loop that handles the conversation with Goose."""
+    """Main chat loop that handles the conversation with gosling."""
     session_id = "test-session"
 
     # Use a client with a longer timeout for streaming
@@ -217,7 +217,7 @@ async def chat_loop() -> None:
         # Process the stream of responses
         async with client.stream(
             "POST",
-            f"{GOOSE_URL}/reply", # lock 
+            f"{GOSLING_URL}/reply", # lock 
             json=payload,
             headers={
                 "X-Secret-Key": SECRET_KEY,
@@ -246,7 +246,7 @@ async def chat_loop() -> None:
                 # Handle different message types
                 for content in message.get("content", []):
                     if content["type"] == "text":
-                        print(f"\nGoose: {content['text']}")
+                        print(f"\ngosling: {content['text']}")
                     elif content["type"] == "frontendToolRequest":
                         # Execute the tool and submit results
                         tool_call = content["toolCall"]["value"]

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { GooseSessionNotification_unstable } from '@aaif/goose-sdk';
+import type { GoslingSessionNotification_unstable } from '@repo-makeover/gosling-sdk';
 import type { RequestPermissionRequest, SessionNotification } from '@agentclientprotocol/sdk';
 import type { TokenState } from '../types/chat';
 import { ChatState } from '../types/chatState';
@@ -56,8 +56,8 @@ export interface AcpChatSessionActions {
   deleteSnapshot(sessionId: string): void;
 
   applyAcpSessionNotification(notification: SessionNotification): AcpChatSessionSnapshot;
-  applyAcpGooseSessionNotification(
-    notification: GooseSessionNotification_unstable
+  applyAcpGoslingSessionNotification(
+    notification: GoslingSessionNotification_unstable
   ): AcpChatSessionSnapshot;
   applyPermissionRequest(request: RequestPermissionRequest): AcpChatSessionSnapshot;
   applyElicitationRequest(request: AcpElicitationRequest): AcpChatSessionSnapshot;
@@ -421,10 +421,10 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     return notify(notification.sessionId, entry);
   };
 
-  const applyAcpGooseSessionNotification: AcpChatSessionActions['applyAcpGooseSessionNotification'] =
+  const applyAcpGoslingSessionNotification: AcpChatSessionActions['applyAcpGoslingSessionNotification'] =
     (notification) => {
       const entry = getOrCreateEntry(notification.sessionId);
-      const changes = entry.adapter.applyGoose(notification);
+      const changes = entry.adapter.applyGosling(notification);
       applyChatStateChanges(entry, changes);
       return notify(notification.sessionId, entry);
     };
@@ -490,7 +490,7 @@ function createAcpChatSessionStoreInternal(): AcpChatSessionStoreInternal {
     clearActivePromptAttempt,
     isCurrentPromptAttempt,
     applyAcpSessionNotification,
-    applyAcpGooseSessionNotification,
+    applyAcpGoslingSessionNotification,
     applyPermissionRequest,
     applyElicitationRequest,
     setElicitationStatus,
@@ -546,7 +546,7 @@ function actionsFromStore(store: AcpChatSessionStoreInternal): AcpChatSessionAct
   return {
     deleteSnapshot: store.deleteSnapshot,
     applyAcpSessionNotification: store.applyAcpSessionNotification,
-    applyAcpGooseSessionNotification: store.applyAcpGooseSessionNotification,
+    applyAcpGoslingSessionNotification: store.applyAcpGoslingSessionNotification,
     applyPermissionRequest: store.applyPermissionRequest,
     applyElicitationRequest: store.applyElicitationRequest,
     setElicitationStatus: store.setElicitationStatus,

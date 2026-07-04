@@ -1,25 +1,25 @@
 ---
 title: GitMCP Extension
-description: Add Git MCP Server as a goose Extension
+description: Add Git MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/6aV8pinnUS8" /> 
 
-This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/git-mcp) as a goose extension to give LLMs live access to GitHub repos, enabling smart documentation search, code exploration, and accurate project insights.
+This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/git-mcp) as a gosling extension to give LLMs live access to GitHub repos, enabling smart documentation search, code exploration, and accurate project insights.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fgitmcp.io%2Fdocs&id=gitmcp&name=GitMCP&description=Remote%20MCP%20server%20from%20gitmcp.io)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fgitmcp.io%2Fdocs&id=gitmcp&name=GitMCP&description=Remote%20MCP%20server%20from%20gitmcp.io)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y mcp-remote https://gitmcp.io/docs
@@ -32,8 +32,8 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
 ## Configuration
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
         extensionId="Git-mcp"
         extensionName="Git mcp"
         description="Git MCP server for up-to-date docs and project insights"
@@ -44,7 +44,7 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
         note="Note that you'll need Node.js installed on your system to run this command, as it uses npx."
     />
  </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
       <CLIExtensionInstructions
         name="Git MCP"
         description="Git MCP server for up-to-date docs and project insights"
@@ -56,24 +56,24 @@ This tutorial covers how to add the [Git MCP Server](https://github.com/idosal/g
 
 ## Example Usage
 
-In this example, goose uses GitMCP to pull real-time documentation from the `openai/whisper` GitHub repository, explore how the speech-to-text model works, and surface accurate setup instructions and command-line usage—all directly from the source.
+In this example, gosling uses GitMCP to pull real-time documentation from the `openai/whisper` GitHub repository, explore how the speech-to-text model works, and surface accurate setup instructions and command-line usage—all directly from the source.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-   1. Open a new session in goose Desktop
+  <TabItem value="ui" label="gosling Desktop" default>
+   1. Open a new session in gosling Desktop
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
-  1. Open a terminal and start a new goose session:
+  1. Open a terminal and start a new gosling session:
 
   ```sh
-  goose session
+  gosling session
   ```
 
   </TabItem>
 </Tabs>
 
-### goose Prompt
+### gosling Prompt
 ```
   Can you help me understand how the OpenAI Whisper speech-to-text model works?
 
@@ -87,7 +87,7 @@ In this example, goose uses GitMCP to pull real-time documentation from the `ope
 
   Give me the response in a Markdown guide format.
 ```
-### goose Output
+### gosling Output
 
 :::note Desktop
 

@@ -8,20 +8,20 @@ description: How extensions can request structured information from you during a
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-MCP Elicitation allows goose to pause and ask you for specific information when an extension needs it. Instead of guessing or making assumptions, goose presents a form requesting exactly what's needed to continue.
+MCP Elicitation allows gosling to pause and ask you for specific information when an extension needs it. Instead of guessing or making assumptions, gosling presents a form requesting exactly what's needed to continue.
 
-This feature is automatically enabled in goose. When an extension that supports elicitation needs information from you, a form will appear in your session.
+This feature is automatically enabled in gosling. When an extension that supports elicitation needs information from you, a form will appear in your session.
 
 :::info
-[MCP Elicitation](https://modelcontextprotocol.io/specification/draft/client/elicitation) is a feature in the Model Context Protocol. goose supports form mode requests.
+[MCP Elicitation](https://modelcontextprotocol.io/specification/draft/client/elicitation) is a feature in the Model Context Protocol. gosling supports form mode requests.
 :::
 
 ## How MCP Elicitation Works
 
-When an extension needs information, goose pauses and presents a form for you to fill out. You can submit your response or cancel the request.
+When an extension needs information, gosling pauses and presents a form for you to fill out. You can submit your response or cancel the request.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="gosling Desktop" default>
 
     A form appears inline in the chat with:
     - Fields for the requested data
@@ -32,7 +32,7 @@ When an extension needs information, goose pauses and presents a form for you to
     After submitting, you'll see a confirmation message.
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
     A prompt appears in your terminal with:
     - A message explaining what information is needed (in cyan)
@@ -48,7 +48,7 @@ When an extension needs information, goose pauses and presents a form for you to
 </Tabs>
 
 :::info Timeout
-Elicitation requests timeout after 5 minutes. If you don't respond in time, the request is cancelled and goose will continue without the information.
+Elicitation requests timeout after 5 minutes. If you don't respond in time, the request is cancelled and gosling will continue without the information.
 :::
 
 ## For Extension Developers

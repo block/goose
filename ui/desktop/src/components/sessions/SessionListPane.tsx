@@ -522,7 +522,7 @@ export default function SessionListPane({ mode, onSelectSession }: SessionListPa
     }
 
     const config = window.electron.getConfig();
-    if (config.GOOSE_DISABLE_NOSTR_SHARING === true) {
+    if (config.GOSLING_DISABLE_NOSTR_SHARING === true) {
       setNostrEnabled(false);
     }
   }, [mode]);

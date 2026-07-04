@@ -10,24 +10,24 @@
 
 set -e
 
-GOOSE_REPO=${GOOSE_REPO:-"$HOME/Development/goose"}
+GOSLING_REPO=${GOSLING_REPO:-"$HOME/Development/gosling"}
 
 # Function to get release tags using gh CLI
 get_latest_release() {
     if command -v gh &> /dev/null; then
-        gh release list --repo aaif-goose/goose --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null
+        gh release list --repo repo-makeover/gosling --limit 1 --json tagName --jq '.[0].tagName' 2>/dev/null
     else
         # Fallback: get latest version tag from git
-        cd "$GOOSE_REPO" && git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1
+        cd "$GOSLING_REPO" && git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | head -1
     fi
 }
 
 get_previous_release() {
     if command -v gh &> /dev/null; then
-        gh release list --repo aaif-goose/goose --limit 2 --json tagName --jq '.[].tagName' 2>/dev/null | sed -n '2p'
+        gh release list --repo repo-makeover/gosling --limit 2 --json tagName --jq '.[].tagName' 2>/dev/null | sed -n '2p'
     else
         # Fallback: get second-latest version tag from git
-        cd "$GOOSE_REPO" && git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p'
+        cd "$GOSLING_REPO" && git tag --sort=-v:refname | grep -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | sed -n '2p'
     fi
 }
 
@@ -110,8 +110,8 @@ if [ "$HAS_CHANGES" = "true" ]; then
     echo ""
     echo "Step 4: Synthesizing CLI changes documentation..."
     
-    # Run goose and capture output, filtering out session logs
-    goose run --instructions ../prompts/synthesize-cli-changes.prompt.md \
+    # Run gosling and capture output, filtering out session logs
+    gosling run --instructions ../prompts/synthesize-cli-changes.prompt.md \
         --system "$(cat ../prompts/synthesize-cli-changes.system.md)" 2>&1 | \
         sed -E 's/\x1B\[[0-9;]*[mK]//g' | \
         grep -v "^starting session" | \
@@ -124,9 +124,9 @@ if [ "$HAS_CHANGES" = "true" ]; then
         grep -v "^Description:" | \
         cat -s > cli-changes.md.tmp
 
-    # If the pipeline fails, surface the goose error (grep can exit 1 when it matches nothing)
+    # If the pipeline fails, surface the gosling error (grep can exit 1 when it matches nothing)
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
-        echo "✗ Failed to synthesize CLI changes (goose run failed)" >&2
+        echo "✗ Failed to synthesize CLI changes (gosling run failed)" >&2
         exit 1
     fi
     
@@ -135,7 +135,7 @@ if [ "$HAS_CHANGES" = "true" ]; then
         mv cli-changes.md.tmp cli-changes.md
         echo "✓ Generated cli-changes.md ($(wc -l < cli-changes.md) lines)"
     elif [ -f cli-changes.md ] && [ -s cli-changes.md ]; then
-        # File was written directly by goose
+        # File was written directly by gosling
         rm -f cli-changes.md.tmp
         echo "✓ Generated cli-changes.md ($(wc -l < cli-changes.md) lines)"
     else
@@ -148,10 +148,10 @@ if [ "$HAS_CHANGES" = "true" ]; then
     echo "Step 5: Updating CLI commands documentation..."
     
     # Set environment variables for the update prompt
-    export CLI_COMMANDS_PATH="${GOOSE_REPO}/documentation/docs/guides/goose-cli-commands.md"
+    export CLI_COMMANDS_PATH="${GOSLING_REPO}/documentation/docs/guides/gosling-cli-commands.md"
 
     # Run the documentation update
-    goose run --instructions ../prompts/update-cli-commands.prompt.md \
+    gosling run --instructions ../prompts/update-cli-commands.prompt.md \
         --system "$(cat ../prompts/update-cli-commands.system.md)" 2>&1 | \
         sed -E 's/\x1B\[[0-9;]*[mK]//g' | \
         grep -v "^starting session" | \
@@ -165,7 +165,7 @@ if [ "$HAS_CHANGES" = "true" ]; then
         cat -s
 
     if [ ${PIPESTATUS[0]} -ne 0 ]; then
-        echo "✗ Failed to update documentation (goose run failed)" >&2
+        echo "✗ Failed to update documentation (gosling run failed)" >&2
         exit 1
     fi
     

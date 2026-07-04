@@ -37,7 +37,7 @@ const i18n = defineMessages({
     id: 'sessionViewComponents.role.user',
     defaultMessage: 'You',
   },
-  goose: {
+  gosling: {
     id: 'sessionViewComponents.role.assistant',
     defaultMessage: 'Gosling',
   },
@@ -142,7 +142,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
                     >
                       <div className="flex justify-between items-center mb-2">
                         <span className="font-medium text-text-primary">
-                          {message.role === 'user' ? intl.formatMessage(i18n.you) : intl.formatMessage(i18n.goose)}
+                          {message.role === 'user' ? intl.formatMessage(i18n.you) : intl.formatMessage(i18n.gosling)}
                         </span>
                         <span className="text-xs text-text-secondary">
                           {formatMessageTimestamp(message.created)}
@@ -176,7 +176,7 @@ export const SessionMessages: React.FC<SessionMessagesProps> = ({
 
                         {/* Tool requests and responses */}
                         {toolRequests.length > 0 && (
-                          <div className="goose-message-tool bg-background-primary border border-border-primary dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
+                          <div className="gosling-message-tool bg-background-primary border border-border-primary dark:border-gray-700 rounded-b-2xl px-4 pt-4 pb-2 mt-1">
                             {toolRequests.map((toolRequest) => (
                               <ToolCallWithResponse
                                 // In the session history page, if no tool response found for given request, it means the tool call

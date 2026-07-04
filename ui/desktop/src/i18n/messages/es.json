@@ -828,7 +828,7 @@
     "defaultMessage": "Secret Key"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "La secret key configurada en el servidor goosed (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "La secret key configurada en el servidor goslingd (GOSLING_SERVER__SECRET_KEY)"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Introduce la secret key del servidor"
@@ -857,67 +857,67 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Conéctate a un servidor gosling que se ejecuta en otro lugar (requiere reiniciar la app)"
   },
-  "goosehintsModal.close": {
+  "goslinghintsModal.close": {
     "defaultMessage": "Cerrar"
   },
-  "goosehintsModal.developer": {
+  "goslinghintsModal.developer": {
     "defaultMessage": "Developer"
   },
-  "goosehintsModal.dialogDescription": {
+  "goslinghintsModal.dialogDescription": {
     "defaultMessage": "Proporciona contexto adicional sobre tu proyecto para mejorar la comunicación con Gosling"
   },
-  "goosehintsModal.dialogTitle": {
-    "defaultMessage": "Configurar pistas del proyecto (.goosehints)"
+  "goslinghintsModal.dialogTitle": {
+    "defaultMessage": "Configurar pistas del proyecto (.goslinghints)"
   },
-  "goosehintsModal.errorReading": {
-    "defaultMessage": "Error al leer el archivo .goosehints: {error}"
+  "goslinghintsModal.errorReading": {
+    "defaultMessage": "Error al leer el archivo .goslinghints: {error}"
   },
-  "goosehintsModal.failedToAccess": {
-    "defaultMessage": "No se pudo acceder al archivo .goosehints"
+  "goslinghintsModal.failedToAccess": {
+    "defaultMessage": "No se pudo acceder al archivo .goslinghints"
   },
-  "goosehintsModal.failedToSave": {
-    "defaultMessage": "No se pudo guardar el archivo .goosehints"
+  "goslinghintsModal.failedToSave": {
+    "defaultMessage": "No se pudo guardar el archivo .goslinghints"
   },
-  "goosehintsModal.fileCreating": {
-    "defaultMessage": "Creando un nuevo archivo .goosehints en: {filePath}"
+  "goslinghintsModal.fileCreating": {
+    "defaultMessage": "Creando un nuevo archivo .goslinghints en: {filePath}"
   },
-  "goosehintsModal.fileFound": {
-    "defaultMessage": "Archivo .goosehints encontrado en: {filePath}"
+  "goslinghintsModal.fileFound": {
+    "defaultMessage": "Archivo .goslinghints encontrado en: {filePath}"
   },
-  "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints es un archivo de texto usado para proporcionar contexto adicional sobre tu proyecto y mejorar la comunicación con Gosling."
+  "goslinghintsModal.helpText1": {
+    "defaultMessage": ".goslinghints es un archivo de texto usado para proporcionar contexto adicional sobre tu proyecto y mejorar la comunicación con Gosling."
   },
-  "goosehintsModal.helpText2": {
-    "defaultMessage": "Asegúrate de que la extensión {bold} esté habilitada en la página de extensiones. Esta extensión es necesaria para usar .goosehints. Tendrás que reiniciar tu sesión para que las actualizaciones de .goosehints surtan efecto."
+  "goslinghintsModal.helpText2": {
+    "defaultMessage": "Asegúrate de que la extensión {bold} esté habilitada en la página de extensiones. Esta extensión es necesaria para usar .goslinghints. Tendrás que reiniciar tu sesión para que las actualizaciones de .goslinghints surtan efecto."
   },
-  "goosehintsModal.helpText3": {
+  "goslinghintsModal.helpText3": {
     "defaultMessage": "Consulta {link} para más información."
   },
-  "goosehintsModal.helpTextLink": {
-    "defaultMessage": "usar .goosehints"
+  "goslinghintsModal.helpTextLink": {
+    "defaultMessage": "usar .goslinghints"
   },
-  "goosehintsModal.placeholder": {
+  "goslinghintsModal.placeholder": {
     "defaultMessage": "Introduce aquí las pistas del proyecto..."
   },
-  "goosehintsModal.save": {
+  "goslinghintsModal.save": {
     "defaultMessage": "Guardar"
   },
-  "goosehintsModal.savedSuccessfully": {
+  "goslinghintsModal.savedSuccessfully": {
     "defaultMessage": "Guardado correctamente"
   },
-  "goosehintsModal.saving": {
+  "goslinghintsModal.saving": {
     "defaultMessage": "Guardando..."
   },
-  "goosehintsSection.configure": {
+  "goslinghintsSection.configure": {
     "defaultMessage": "Configurar"
   },
-  "goosehintsSection.description": {
-    "defaultMessage": "Configura el archivo .goosehints de tu proyecto para proporcionar contexto adicional a Gosling"
+  "goslinghintsSection.description": {
+    "defaultMessage": "Configura el archivo .goslinghints de tu proyecto para proporcionar contexto adicional a Gosling"
   },
-  "goosehintsSection.title": {
-    "defaultMessage": "Pistas del proyecto (.goosehints)"
+  "goslinghintsSection.title": {
+    "defaultMessage": "Pistas del proyecto (.goslinghints)"
   },
-  "groupedExtensionLoadingToast.askGoose": {
+  "groupedExtensionLoadingToast.askGosling": {
     "defaultMessage": "Pregunta a gosling"
   },
   "groupedExtensionLoadingToast.collapseDetails": {
@@ -1184,25 +1184,25 @@
   "launcher.placeholder": {
     "defaultMessage": "Pregúntale lo que sea a gosling..."
   },
-  "loadingGoose.compacting": {
+  "loadingGosling.compacting": {
     "defaultMessage": "gosling está compactando la conversación..."
   },
-  "loadingGoose.idle": {
+  "loadingGosling.idle": {
     "defaultMessage": "gosling está trabajando en ello…"
   },
-  "loadingGoose.loadingConversation": {
+  "loadingGosling.loadingConversation": {
     "defaultMessage": "cargando conversación..."
   },
-  "loadingGoose.restartingAgent": {
+  "loadingGosling.restartingAgent": {
     "defaultMessage": "reiniciando sesión..."
   },
-  "loadingGoose.streaming": {
+  "loadingGosling.streaming": {
     "defaultMessage": "gosling está trabajando en ello…"
   },
-  "loadingGoose.thinking": {
+  "loadingGosling.thinking": {
     "defaultMessage": "gosling está pensando…"
   },
-  "loadingGoose.waiting": {
+  "loadingGosling.waiting": {
     "defaultMessage": "gosling está esperando…"
   },
   "markdownContent.cancel": {
@@ -2421,7 +2421,7 @@
     "defaultMessage": "No se encontraron Skills que coincidan"
   },
   "skillsView.noSkillsDescription": {
-    "defaultMessage": "Las Skills se cargan desde archivos SKILL.md en ~/.config/agents/skills/, .goose/skills/ u otros directorios admitidos."
+    "defaultMessage": "Las Skills se cargan desde archivos SKILL.md en ~/.config/agents/skills/, .gosling/skills/ u otros directorios admitidos."
   },
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "No hay Skills instaladas"
@@ -2678,14 +2678,14 @@
   "toolConfirmation.allowToolCallWithName": {
     "defaultMessage": "¿Permitir {toolName}?"
   },
-  "toolConfirmation.gooseWouldLikeToCallWithName": {
+  "toolConfirmation.goslingWouldLikeToCallWithName": {
     "defaultMessage": "Gosling quiere invocar {toolName}. ¿Permitir?"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "La actualización se descargará automáticamente en segundo plano."
   },
   "updateSection.autoDownloadDisabledByEnv": {
-    "defaultMessage": "Las descargas automáticas están desactivadas mediante la variable de entorno GOOSE_DISABLE_AUTO_DOWNLOAD."
+    "defaultMessage": "Las descargas automáticas están desactivadas mediante la variable de entorno GOSLING_DISABLE_AUTO_DOWNLOAD."
   },
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "La descarga automática está desactivada. Haz clic en «Descargar ahora» para descargar manualmente."

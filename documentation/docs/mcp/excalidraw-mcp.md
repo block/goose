@@ -1,24 +1,24 @@
 ---
 title: Excalidraw Extension
-description: Add Excalidraw MCP App as a goose Extension
+description: Add Excalidraw MCP App as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/REc5IvWvI5s" />
 
-This tutorial covers how to add the [Excalidraw MCP App](https://github.com/excalidraw/excalidraw-mcp) as a goose extension that enables goose to draw hand sketched Excalidraw diagrams in real time.
+This tutorial covers how to add the [Excalidraw MCP App](https://github.com/excalidraw/excalidraw-mcp) as a gosling extension that enables gosling to draw hand sketched Excalidraw diagrams in real time.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-   [Launch the installer](goose://extension?cmd=http&id=excalidraw&name=Excalidraw&url=https%3A%2F%2Fexcalidraw-mcp-app.vercel.app%2Fmcp&description=Excalidraw%20MCP%20App%20for%20AI-powered%20diagramming)
+  <TabItem value="ui" label="gosling Desktop" default>
+   [Launch the installer](gosling://extension?cmd=http&id=excalidraw&name=Excalidraw&url=https%3A%2F%2Fexcalidraw-mcp-app.vercel.app%2Fmcp&description=Excalidraw%20MCP%20App%20for%20AI-powered%20diagramming)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   Add a `Remote Extension (Streaming HTTP)` extension type with:
 
   **Endpoint URL**
@@ -33,8 +33,8 @@ This tutorial covers how to add the [Excalidraw MCP App](https://github.com/exca
 These steps configure the Remote MCP Server. For other deployment options, see the [Excalidraw MCP App documentation](https://github.com/excalidraw/excalidraw-mcp).
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="Excalidraw"
       extensionName="Excalidraw MCP App"
       description="Excalidraw MCP App for diagramming"
@@ -44,7 +44,7 @@ These steps configure the Remote MCP Server. For other deployment options, see t
     />
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Excalidraw"
       description="Excalidraw MCP App for diagramming"
@@ -58,14 +58,14 @@ These steps configure the Remote MCP Server. For other deployment options, see t
 
 ## Example Usage
 
-In this example, we use the Excalidraw MCP App to have Goose visualize its own automation pipeline in real time. This demonstrates how Goose can connect to live tools, reason about workflows, and generate structured diagrams element by element.
+In this example, we use the Excalidraw MCP App to have Gosling visualize its own automation pipeline in real time. This demonstrates how Gosling can connect to live tools, reason about workflows, and generate structured diagrams element by element.
 
-### goose Prompt
+### gosling Prompt
 ```
-Hey Goose review my video automation workflow and create a visual of the automation pipeline for me. I want clean lines and clear labels.
+Hey Gosling review my video automation workflow and create a visual of the automation pipeline for me. I want clean lines and clear labels.
 ```
 
-### goose Output
+### gosling Output
 
 ```
 

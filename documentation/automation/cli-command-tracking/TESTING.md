@@ -5,10 +5,10 @@ This guide explains how to test the CLI command tracking automation locally and 
 ## Prerequisites
 
 - Python 3.7+
-- Rust toolchain (for building goose)
+- Rust toolchain (for building gosling)
 - jq (for JSON processing)
-- goose CLI installed (for running the AI steps)
-- Git with access to goose repository
+- gosling CLI installed (for running the AI steps)
+- Git with access to gosling repository
 
 ## Local Testing
 
@@ -17,8 +17,8 @@ This guide explains how to test the CLI command tracking automation locally and 
 ```bash
 cd /path/to/cli-command-tracking
 
-# Set the goose repository path
-export GOOSE_REPO=/path/to/goose
+# Set the gosling repository path
+export GOSLING_REPO=/path/to/gosling
 
 # Create output directory
 mkdir -p output
@@ -93,7 +93,7 @@ Generate human-readable documentation:
 cd output
 
 # Run synthesis step
-goose run --instructions ../prompts/synthesize-cli-changes.prompt.md \
+gosling run --instructions ../prompts/synthesize-cli-changes.prompt.md \
   --system "$(cat ../prompts/synthesize-cli-changes.system.md)"
 
 # Check output
@@ -116,10 +116,10 @@ Update the actual documentation:
 cd output
 
 # Set path to documentation file
-export CLI_COMMANDS_PATH=/path/to/goose/documentation/docs/guides/goose-cli-commands.md
+export CLI_COMMANDS_PATH=/path/to/gosling/documentation/docs/guides/gosling-cli-commands.md
 
 # Run update step
-goose run --instructions ../prompts/update-cli-commands.prompt.md \
+gosling run --instructions ../prompts/update-cli-commands.prompt.md \
   --system "$(cat ../prompts/update-cli-commands.system.md)"
 
 # Check outputs
@@ -138,7 +138,7 @@ Run the complete end-to-end pipeline:
 cd /path/to/cli-command-tracking
 
 # Set documentation path (optional - only needed for update step)
-export CLI_COMMANDS_PATH=/path/to/goose/documentation/docs/guides/goose-cli-commands.md
+export CLI_COMMANDS_PATH=/path/to/gosling/documentation/docs/guides/gosling-cli-commands.md
 
 # Run pipeline
 ./scripts/run-pipeline.sh v1.14.0 v1.15.0
@@ -162,10 +162,10 @@ ls -lh output/
 2. **Copy automation files** to your fork:
    ```bash
    cp -r /path/to/cli-command-tracking \
-         /path/to/forked-goose/documentation/automation/
+         /path/to/forked-gosling/documentation/automation/
    
-   cp /path/to/goose/.github/workflows/docs-update-cli-ref.yml \
-      /path/to/forked-goose/.github/workflows/
+   cp /path/to/gosling/.github/workflows/docs-update-cli-ref.yml \
+      /path/to/forked-gosling/.github/workflows/
    ```
 
 3. **Set up secrets** in your fork:
@@ -173,8 +173,8 @@ ls -lh output/
    - Add `ANTHROPIC_API_KEY` secret
 
 4. **Set up variables** (optional):
-   - Add `GOOSE_PROVIDER` variable (default: anthropic)
-   - Add `GOOSE_MODEL` variable (default: claude-opus-4-5)
+   - Add `GOSLING_PROVIDER` variable (default: anthropic)
+   - Add `GOSLING_MODEL` variable (default: claude-opus-4-5)
 
 5. **Trigger workflow manually**:
    - Go to Actions → "Update CLI Documentation"
@@ -219,13 +219,13 @@ To validate the automation works correctly, test with versions that have known C
 ### Finding Test Versions
 
 ```bash
-cd /path/to/goose
+cd /path/to/gosling
 
 # Check git history for CLI changes
-git log --oneline --all -- crates/goose-cli/src/cli.rs | head -20
+git log --oneline --all -- crates/gosling-cli/src/cli.rs | head -20
 
 # Look for commits that added/removed/modified commands
-git show <commit-hash>:crates/goose-cli/src/cli.rs | grep "enum Command" -A 30
+git show <commit-hash>:crates/gosling-cli/src/cli.rs | grep "enum Command" -A 30
 ```
 
 ### Test Case: New Command Added
@@ -266,7 +266,7 @@ Before considering the automation complete:
 - [ ] Captures defaults and possible values
 - [ ] Works with commands that have no description
 - [ ] Handles nested subcommands (2+ levels)
-- [ ] Builds goose from git tags correctly
+- [ ] Builds gosling from git tags correctly
 
 ### Diff Script
 - [ ] Detects added commands
@@ -289,11 +289,11 @@ Before considering the automation complete:
 - [ ] Runs end-to-end without errors
 - [ ] Handles "no changes" case
 - [ ] Creates all expected output files
-- [ ] Filters goose session output correctly
+- [ ] Filters gosling session output correctly
 
 ### GitHub Actions
 - [ ] Workflow triggers correctly
-- [ ] Builds goose for both versions
+- [ ] Builds gosling for both versions
 - [ ] Uploads artifacts
 - [ ] Creates PR when changes detected
 - [ ] Respects dry_run mode
@@ -303,11 +303,11 @@ Before considering the automation complete:
 
 ### Keychain Access (macOS)
 
-On macOS, running `goose --help` or `goose --version` may prompt for keychain access. This happens because goose tries to access stored credentials on startup.
+On macOS, running `gosling --help` or `gosling --version` may prompt for keychain access. This happens because gosling tries to access stored credentials on startup.
 
 **Local workaround:** Allow the keychain access when prompted.
 
-**CI consideration:** GitHub Actions runners don't have a keychain, so this may need to be handled. Check existing goose workflows for patterns - there may be a `keyring: false` config option or environment variable to disable credential loading.
+**CI consideration:** GitHub Actions runners don't have a keychain, so this may need to be handled. Check existing gosling workflows for patterns - there may be a `keyring: false` config option or environment variable to disable credential loading.
 
 **TODO:** Investigate if this blocks CI execution and document the solution.
 
@@ -320,8 +320,8 @@ Some old versions may have different dependencies:
 git tag | grep v1.14.0
 
 # Try building manually
-git worktree add /tmp/goose-test v1.14.0
-cd /tmp/goose-test
+git worktree add /tmp/gosling-test v1.14.0
+cd /tmp/gosling-test
 cargo build --release
 ```
 
@@ -339,8 +339,8 @@ Check if help text formatting changed:
 
 ```bash
 # Compare raw help output
-./old-goose session --help > old-help.txt
-./new-goose session --help > new-help.txt
+./old-gosling session --help > old-help.txt
+./new-gosling session --help > new-help.txt
 diff old-help.txt new-help.txt
 ```
 

@@ -46,7 +46,7 @@ const i18n = defineMessages({
   },
 });
 
-const TELEMETRY_CONFIG_KEY = 'GOOSE_TELEMETRY_ENABLED';
+const TELEMETRY_CONFIG_KEY = 'GOSLING_TELEMETRY_ENABLED';
 
 export default function TelemetrySettings() {
   const intl = useIntl();

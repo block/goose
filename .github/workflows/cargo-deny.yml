@@ -18,7 +18,7 @@ on:
 jobs:
   deny:
     runs-on: ubuntu-latest
-    if: github.repository == 'aaif-goose/goose'
+    if: github.repository == 'repo-makeover/gosling'
     permissions:
       contents: read
     steps:

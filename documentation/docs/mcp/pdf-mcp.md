@@ -1,24 +1,24 @@
 ---
 title: PDF Reader Extension
-description: Add PDF Reader MCP Server as a goose Extension
+description: Add PDF Reader MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/EJf2_iZfaWk" />
 
-This tutorial covers how to add the [PDF Reader MCP Server](https://github.com/michaelneale/mcp-read-pdf) as a goose extension, enabling goose to read and extract text from protected and unprotected PDFs.
+This tutorial covers how to add the [PDF Reader MCP Server](https://github.com/michaelneale/mcp-read-pdf) as a gosling extension, enabling gosling to read and extract text from protected and unprotected PDFs.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=uvx&arg=mcp-read-pdf&id=pdf_read&name=PDF%20Reader&description=Read%20large%20and%20complex%20PDF%20documents)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=uvx&arg=mcp-read-pdf&id=pdf_read&name=PDF%20Reader&description=Read%20large%20and%20complex%20PDF%20documents)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   uvx mcp-read-pdf
@@ -34,8 +34,8 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+  <GoslingDesktopInstaller
     extensionId="pdf_read"
     extensionName="PDF Reader"
     description="Read large and complex PDF documents"
@@ -43,7 +43,7 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
     args={["mcp-read-pdf"]}
   />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="PDF Reader"
       description="Read large and complex PDF documents"
@@ -54,9 +54,9 @@ Note that you'll need [uv](https://docs.astral.sh/uv/#installation) installed on
 
 ## Example Usage
 
-This example shows how to use the PDF Reader Extension to analyze an applicant's resume for specific attributes. With the PDF Reader extension, goose can read specific pages or entire documents as well as extract text from large and complex PDFs.
+This example shows how to use the PDF Reader Extension to analyze an applicant's resume for specific attributes. With the PDF Reader extension, gosling can read specific pages or entire documents as well as extract text from large and complex PDFs.
 
-### goose Prompt
+### gosling Prompt
 
 ```
 Read the resume at ~/Downloads/resume.pdf and evaluate how well this candidate aligns with the following role requirements:
@@ -70,7 +70,7 @@ Read the resume at ~/Downloads/resume.pdf and evaluate how well this candidate a
 Give a score out of 5 for each requirement, supporting evidence, and a summary at the end with pros, cons, and a decision: Strong Fit / Moderate Fit / Weak Fit.
 ```
 
-### goose Output
+### gosling Output
 
 :::note CLI
 

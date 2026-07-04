@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef } from 'react';
 import { defineMessages, useIntl } from '../i18n';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { SearchView } from './conversation/SearchView';
-import LoadingGoose from './LoadingGoose';
+import LoadingGosling from './LoadingGosling';
 import ProgressiveMessageList from './ProgressiveMessageList';
 import { MainPanelLayout } from './Layout/MainPanelLayout';
 import ChatInput from './ChatInput';
@@ -25,8 +25,8 @@ import {
   type UserInput,
 } from '../types/message';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
-import { Goose } from './icons';
-import EnvironmentBadge from './GooseSidebar/EnvironmentBadge';
+import { Gosling } from './icons';
+import EnvironmentBadge from './GoslingSidebar/EnvironmentBadge';
 import SessionActionsHeader from './SessionActionsHeader';
 
 const i18n = defineMessages({
@@ -329,17 +329,17 @@ export default function BaseChat({
         {renderHeader && renderHeader()}
 
         <div className="flex flex-col flex-1 min-h-0 relative">
-          {/* Goose watermark - top right */}
+          {/* Gosling watermark - top right */}
           <div className="absolute top-[14px] right-4 z-[60] flex flex-row items-center gap-1">
             <a
-              href="https://goose-docs.ai"
+              href="https://gosling-docs.ai"
               target="_blank"
               rel="noopener noreferrer"
               className="no-drag flex flex-row items-center gap-1 hover:opacity-80 transition-opacity"
             >
-              <Goose className="size-5 goose-icon-animation" />
+              <Gosling className="size-5 gosling-icon-animation" />
               <span className="text-sm leading-none text-text-secondary -translate-y-px">
-                goose
+                gosling
               </span>
             </a>
             <EnvironmentBadge className="translate-y-px" />
@@ -380,7 +380,7 @@ export default function BaseChat({
 
           {chatState !== ChatState.Idle && (
             <div className="absolute bottom-1 left-4 z-20 pointer-events-none">
-              <LoadingGoose
+              <LoadingGosling
                 chatState={chatState}
                 message={
                   messages.length > 0

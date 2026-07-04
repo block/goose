@@ -8,7 +8,7 @@ import { viewDocs } from "./docs-viewer";
 
 export const aiTools = {
   search_docs: tool({
-    description: "Search the goose documentation for relevant information",
+    description: "Search the gosling documentation for relevant information",
     inputSchema: z.object({
       query: z
         .string()
@@ -71,7 +71,7 @@ export const aiTools = {
   }),
   search_codebase: tool({
     description:
-      "Search the goose source code (Rust crates and TypeScript UI) using regex patterns. Searches across ui/ and crates/. Use this to find function definitions, struct/type definitions, imports, error messages, or any code pattern.",
+      "Search the gosling source code (Rust crates and TypeScript UI) using regex patterns. Searches across ui/ and crates/. Use this to find function definitions, struct/type definitions, imports, error messages, or any code pattern.",
     inputSchema: z.object({
       query: z
         .string()
@@ -112,12 +112,12 @@ export const aiTools = {
   }),
   view_codebase: tool({
     description:
-      "View source code file(s) from the goose codebase. Paths are relative to the repository root (e.g., 'crates/goose/src/agents/agent.rs' or 'ui/desktop/src/App.tsx').",
+      "View source code file(s) from the gosling codebase. Paths are relative to the repository root (e.g., 'crates/gosling/src/agents/agent.rs' or 'ui/desktop/src/App.tsx').",
     inputSchema: z.object({
       filePaths: z
         .union([z.string(), z.array(z.string())])
         .describe(
-          "Path or array of paths to source files relative to the repo root (example: 'crates/goose/src/agents/agent.rs' or ['ui/desktop/src/main.ts', 'crates/goose-server/src/main.rs'])",
+          "Path or array of paths to source files relative to the repo root (example: 'crates/gosling/src/agents/agent.rs' or ['ui/desktop/src/main.ts', 'crates/gosling-server/src/main.rs'])",
         ),
       startLine: z
         .number()
@@ -151,7 +151,7 @@ export const aiTools = {
       directory: z
         .string()
         .describe(
-          "Directory path relative to repo root (example: 'crates/goose/src', 'ui/desktop/src/components')",
+          "Directory path relative to repo root (example: 'crates/gosling/src', 'ui/desktop/src/components')",
         ),
     }),
     execute: async ({ directory }) => {

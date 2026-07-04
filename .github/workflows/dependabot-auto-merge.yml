@@ -10,7 +10,7 @@ permissions:
 jobs:
   dependabot:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'aaif-goose/goose'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'repo-makeover/gosling'
     steps:
       - name: Fetch Dependabot metadata
         id: metadata

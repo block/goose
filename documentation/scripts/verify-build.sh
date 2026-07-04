@@ -2,7 +2,7 @@
 # Verify that the docs map was generated in the build output
 
 BUILD_DIR="${1:-build}"
-DOCS_MAP_FILE="goose-docs-map.md"
+DOCS_MAP_FILE="gosling-docs-map.md"
 
 if [ ! -f "$BUILD_DIR/$DOCS_MAP_FILE" ]; then
   echo "Error: $DOCS_MAP_FILE not found in $BUILD_DIR"

@@ -1,10 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
-  installGooseExtAgentRequestDispatcher,
-  installGooseExtNotificationDispatcher,
+  installGoslingExtAgentRequestDispatcher,
+  installGoslingExtNotificationDispatcher,
 } from "../src/generated/client.gen.ts";
-import type { GooseSessionNotification_unstable } from "../src/generated/types.gen.ts";
+import type { GoslingSessionNotification_unstable } from "../src/generated/types.gen.ts";
 import type {
   RequestPermissionRequest,
   RequestPermissionResponse,
@@ -37,7 +37,7 @@ class ClassBackedCallbacks {
   }
 
   async unstable_sessionUpdate(
-    notification: GooseSessionNotification_unstable,
+    notification: GoslingSessionNotification_unstable,
   ): Promise<void> {
     this.#events.push(
       `unstable_sessionUpdate:${notification.update.sessionUpdate}`,
@@ -73,11 +73,11 @@ const agentRequestParams: Record<string, unknown> = {
 
 test("dispatcher preserves class-backed callback receivers", async () => {
   const callbacks = new ClassBackedCallbacks();
-  const client = installGooseExtNotificationDispatcher(callbacks);
+  const client = installGoslingExtNotificationDispatcher(callbacks);
 
   await client.requestPermission({} as RequestPermissionRequest);
   await client.sessionUpdate({} as SessionNotification);
-  await client.extNotification!("_goose/unstable/session/update", {
+  await client.extNotification!("_gosling/unstable/session/update", {
     sessionId: "session-1",
     update: {
       sessionUpdate: "status_message",
@@ -98,32 +98,32 @@ test("dispatcher preserves class-backed callback receivers", async () => {
 });
 
 test("raw extNotification is optional", async () => {
-  const client = installGooseExtNotificationDispatcher(new MinimalCallbacks());
+  const client = installGoslingExtNotificationDispatcher(new MinimalCallbacks());
 
   await client.extNotification!("example/unknown", {});
 });
 
 test("agent request dispatcher falls back to raw extMethod", async () => {
   const callbacks = new GenericAgentRequestCallbacks();
-  const client = installGooseExtAgentRequestDispatcher(callbacks);
+  const client = installGoslingExtAgentRequestDispatcher(callbacks);
 
   const response = await client.extMethod!(
-    "_goose/unstable/example/request",
+    "_gosling/unstable/example/request",
     agentRequestParams,
   );
 
   assert.deepEqual(response, { action: "cancel" });
   assert.deepEqual(callbacks.events, [
-    "extMethod:_goose/unstable/example/request",
+    "extMethod:_gosling/unstable/example/request",
   ]);
 });
 
 test("agent request dispatcher throws when a request is unhandled", async () => {
-  const client = installGooseExtAgentRequestDispatcher(new MinimalCallbacks());
+  const client = installGoslingExtAgentRequestDispatcher(new MinimalCallbacks());
 
   await assert.rejects(
     () =>
-      client.extMethod!("_goose/unstable/example/request", agentRequestParams),
-    /unhandled ext method: _goose\/unstable\/example\/request/,
+      client.extMethod!("_gosling/unstable/example/request", agentRequestParams),
+    /unhandled ext method: _gosling\/unstable\/example\/request/,
   );
 });

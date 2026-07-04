@@ -1,23 +1,23 @@
 ---
 title: Cloudflare Extension
-description: Add Cloudflare MCP Servers as goose Extensions
+description: Add Cloudflare MCP Servers as gosling Extensions
 unlisted: true
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-This tutorial covers how to add [Cloudflare's MCP Servers](https://github.com/cloudflare/mcp-server-cloudflare) as goose extensions to manage your Cloudflare infrastructure, debug applications, analyze traffic, and more using natural language.
+This tutorial covers how to add [Cloudflare's MCP Servers](https://github.com/cloudflare/mcp-server-cloudflare) as gosling extensions to manage your Cloudflare infrastructure, debug applications, analyze traffic, and more using natural language.
 
 Cloudflare provides multiple specialized MCP servers for different aspects of their platform, allowing you to interact with Workers, DNS, security features, analytics, and development tools.
 
 :::tip Quick Install
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fobservability.mcp.cloudflare.com%2Fmcp&id=cloudflare-observability&name=Cloudflare%20Observability&description=Debug%20and%20get%20insight%20into%20your%20application%27s%20logs%20and%20analytics&env=CLOUDFLARE_API_TOKEN%3DCloudflare%20API%20Token)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fobservability.mcp.cloudflare.com%2Fmcp&id=cloudflare-observability&name=Cloudflare%20Observability&description=Debug%20and%20get%20insight%20into%20your%20application%27s%20logs%20and%20analytics&env=CLOUDFLARE_API_TOKEN%3DCloudflare%20API%20Token)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx mcp-remote https://observability.mcp.cloudflare.com/mcp
@@ -72,24 +72,24 @@ Cloudflare provides multiple specialized MCP servers for different use cases:
    - **Workers:Read/Edit** - For Workers-related servers
    - **Logs:Read** - For observability and audit logs
 
-### Step 2: Add MCP Server to goose
+### Step 2: Add MCP Server to gosling
 
 Choose one or more servers based on your needs. Here are the most popular configurations:
 
 #### Observability Server (Recommended for debugging)
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  1. [Launch the installer](goose://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fobservability.mcp.cloudflare.com%2Fsse&id=cloudflare-observability&name=Cloudflare%20Observability&description=Debug%20and%20get%20insight%20into%20your%20application%27s%20logs%20and%20analytics&env=CLOUDFLARE_API_TOKEN%3DCloudflare%20API%20Token)
+  <TabItem value="ui" label="gosling Desktop" default>
+  1. [Launch the installer](gosling://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fobservability.mcp.cloudflare.com%2Fsse&id=cloudflare-observability&name=Cloudflare%20Observability&description=Debug%20and%20get%20insight%20into%20your%20application%27s%20logs%20and%20analytics&env=CLOUDFLARE_API_TOKEN%3DCloudflare%20API%20Token)
   2. Press `Yes` to confirm the installation
   3. Enter your Cloudflare API Token
   4. Click `Save Configuration`
   5. Scroll to the top and click `Exit` from the upper left corner
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   1. Run the `configure` command:
   ```sh
-  goose configure
+  gosling configure
   ```
 
   2. Choose to add a `Command-line Extension`
@@ -106,10 +106,10 @@ Choose one or more servers based on your needs. Here are the most popular config
 #### Workers Bindings Server (For Workers development)
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fbindings.mcp.cloudflare.com%2Fmcp&id=cloudflare-bindings&name=Cloudflare%20Workers%20Bindings&description=Build%20Workers%20applications%20with%20storage%2C%20AI%2C%20and%20compute%20primitives&env=CLOUDFLARE_API_TOKEN%3DCloudflare%20API%20Token)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fbindings.mcp.cloudflare.com%2Fmcp&id=cloudflare-bindings&name=Cloudflare%20Workers%20Bindings&description=Build%20Workers%20applications%20with%20storage%2C%20AI%2C%20and%20compute%20primitives&env=CLOUDFLARE_API_TOKEN%3DCloudflare%20API%20Token)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   Command: `npx mcp-remote https://bindings.mcp.cloudflare.com/mcp`
   </TabItem>
 </Tabs>
@@ -117,10 +117,10 @@ Choose one or more servers based on your needs. Here are the most popular config
 #### Radar Server (For traffic insights)
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fradar.mcp.cloudflare.com%2Fmcp&id=cloudflare-radar&name=Cloudflare%20Radar&description=Get%20global%20Internet%20traffic%20insights%2C%20trends%2C%20URL%20scans%2C%20and%20other%20utilities&env=CLOUDFLARE_API_TOKEN%3DCloudflare%20API%20Token)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=mcp-remote&arg=https%3A%2F%2Fradar.mcp.cloudflare.com%2Fmcp&id=cloudflare-radar&name=Cloudflare%20Radar&description=Get%20global%20Internet%20traffic%20insights%2C%20trends%2C%20URL%20scans%2C%20and%20other%20utilities&env=CLOUDFLARE_API_TOKEN%3DCloudflare%20API%20Token)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   Command: `npx mcp-remote https://radar.mcp.cloudflare.com/mcp`
   </TabItem>
 </Tabs>
@@ -131,7 +131,7 @@ Choose one or more servers based on your needs. Here are the most popular config
 
 Let's use the Observability server to debug performance issues with a Workers application:
 
-#### goose Prompt
+#### gosling Prompt
 ```
 I'm seeing high error rates on my Workers application "my-api-worker". Can you help me:
 1. Check the recent error logs
@@ -140,13 +140,13 @@ I'm seeing high error rates on my Workers application "my-api-worker". Can you h
 4. Suggest optimizations based on the data
 ```
 
-#### Expected goose Output
+#### Expected gosling Output
 ```
 I'll help you debug the issues with your "my-api-worker" application. Let me gather the observability data to identify the problems.
 
 First, let me check the recent error logs for your worker:
 
-[goose uses the observability MCP server to fetch error logs]
+[gosling uses the observability MCP server to fetch error logs]
 
 I found several issues with your worker:
 
@@ -178,7 +178,7 @@ Would you like me to help implement any of these fixes?
 
 Using the Workers Bindings server to set up storage and AI capabilities:
 
-#### goose Prompt
+#### gosling Prompt
 ```
 I need to set up a new Workers project with:
 1. KV storage for caching
@@ -193,7 +193,7 @@ Can you help me configure these bindings?
 
 Using the Radar server for security and traffic analysis:
 
-#### goose Prompt
+#### gosling Prompt
 ```
 Can you help me analyze the security posture of my domain example.com? I want to:
 1. Check for any security threats or malicious traffic
@@ -274,12 +274,12 @@ If you encounter issues:
 
 1. Check the [Cloudflare MCP Server repository](https://github.com/cloudflare/mcp-server-cloudflare) for documentation
 2. Review [Cloudflare API documentation](https://developers.cloudflare.com/api/)
-3. Join our [Discord community](https://discord.gg/goose-oss) for support
+3. Join our [Discord community](https://discord.gg/gosling-oss) for support
 4. Check [Cloudflare Community](https://community.cloudflare.com/) for platform-specific help
 
 ## Next Steps
 
-With Cloudflare MCP servers enabled in goose, you can:
+With Cloudflare MCP servers enabled in gosling, you can:
 
 - **Monitor and debug** your applications with natural language queries
 - **Manage infrastructure** through conversational commands

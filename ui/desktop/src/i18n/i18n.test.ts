@@ -34,14 +34,14 @@ describe('getLocale', () => {
     expect(getLocale()).toEqual({ locale: 'en', messageLocale: 'en' });
   });
 
-  it('respects GOOSE_LOCALE over navigator.languages', () => {
-    mockAppConfig({ GOOSE_LOCALE: 'en' });
+  it('respects GOSLING_LOCALE over navigator.languages', () => {
+    mockAppConfig({ GOSLING_LOCALE: 'en' });
     vi.stubGlobal('navigator', { languages: ['xx-XX'] });
     expect(getLocale()).toEqual({ locale: 'en', messageLocale: 'en' });
   });
 
-  it('preserves regional tag from GOOSE_LOCALE', () => {
-    mockAppConfig({ GOOSE_LOCALE: 'en-GB' });
+  it('preserves regional tag from GOSLING_LOCALE', () => {
+    mockAppConfig({ GOSLING_LOCALE: 'en-GB' });
     vi.stubGlobal('navigator', { languages: ['xx-XX'] });
     expect(getLocale()).toEqual({ locale: 'en-GB', messageLocale: 'en' });
   });
@@ -68,7 +68,7 @@ describe('getLocale', () => {
   });
 
   it('supports explicit Turkish locale', () => {
-    mockAppConfig({ GOOSE_LOCALE: 'tr' });
+    mockAppConfig({ GOSLING_LOCALE: 'tr' });
     vi.stubGlobal('navigator', { languages: ['xx-XX'] });
     expect(getLocale()).toEqual({ locale: 'tr', messageLocale: 'tr' });
   });
@@ -79,13 +79,13 @@ describe('getLocale', () => {
   });
 
   it('supports explicit Korean locale', () => {
-    mockAppConfig({ GOOSE_LOCALE: 'ko' });
+    mockAppConfig({ GOSLING_LOCALE: 'ko' });
     vi.stubGlobal('navigator', { languages: ['xx-XX'] });
     expect(getLocale()).toEqual({ locale: 'ko', messageLocale: 'ko' });
   });
 
-  it('supports POSIX-style Korean locale from GOOSE_LOCALE', () => {
-    mockAppConfig({ GOOSE_LOCALE: 'ko_KR' });
+  it('supports POSIX-style Korean locale from GOSLING_LOCALE', () => {
+    mockAppConfig({ GOSLING_LOCALE: 'ko_KR' });
     vi.stubGlobal('navigator', { languages: ['xx-XX'] });
     expect(getLocale()).toEqual({ locale: 'ko-KR', messageLocale: 'ko' });
   });
@@ -95,8 +95,8 @@ describe('getLocale', () => {
     expect(getLocale()).toEqual({ locale: 'ja-JP', messageLocale: 'ja' });
   });
 
-  it('supports POSIX-style Japanese locale from GOOSE_LOCALE', () => {
-    mockAppConfig({ GOOSE_LOCALE: 'ja_JP' });
+  it('supports POSIX-style Japanese locale from GOSLING_LOCALE', () => {
+    mockAppConfig({ GOSLING_LOCALE: 'ja_JP' });
     vi.stubGlobal('navigator', { languages: ['xx-XX'] });
     expect(getLocale()).toEqual({ locale: 'ja-JP', messageLocale: 'ja' });
   });
@@ -107,7 +107,7 @@ describe('getLocale', () => {
   });
 
   it('supports explicit Hindi locale', () => {
-    mockAppConfig({ GOOSE_LOCALE: 'hi' });
+    mockAppConfig({ GOSLING_LOCALE: 'hi' });
     vi.stubGlobal('navigator', { languages: ['xx-XX'] });
     expect(getLocale()).toEqual({ locale: 'hi', messageLocale: 'hi' });
   });
@@ -118,14 +118,14 @@ describe('getLocale', () => {
   });
 
   it('supports explicit Spanish locale', () => {
-    mockAppConfig({ GOOSE_LOCALE: 'es' });
+    mockAppConfig({ GOSLING_LOCALE: 'es' });
     vi.stubGlobal('navigator', { languages: ['xx-XX'] });
     expect(getLocale()).toEqual({ locale: 'es', messageLocale: 'es' });
   });
 
   it('falls back to base language when locale tag is invalid BCP 47', () => {
     // "en-" is not a valid BCP 47 tag and would cause RangeError in Intl APIs
-    mockAppConfig({ GOOSE_LOCALE: 'en-' });
+    mockAppConfig({ GOSLING_LOCALE: 'en-' });
     vi.stubGlobal('navigator', { languages: ['xx-XX'] });
     expect(getLocale()).toEqual({ locale: 'en', messageLocale: 'en' });
   });

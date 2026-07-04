@@ -6,24 +6,24 @@ sidebar_label: Configuration Files
 
 # Configuration Overview
 
-goose uses YAML [configuration files](#configuration-files) to manage settings and extensions. The primary config file is located at:
+gosling uses YAML [configuration files](#configuration-files) to manage settings and extensions. The primary config file is located at:
 
-* macOS/Linux: `~/.config/goose/config.yaml`
-* Windows: `%APPDATA%\Block\goose\config\config.yaml`
+* macOS/Linux: `~/.config/gosling/config.yaml`
+* Windows: `%APPDATA%\Block\gosling\config\config.yaml`
 
 The configuration files allow you to set default behaviors, configure language models, set tool permissions, and manage extensions. While many settings can also be set using [environment variables](/docs/guides/environment-variables), the config files provide a persistent way to maintain your preferences.
 
 ## Configuration Files
 
 - **config.yaml** - Provider, model, extensions, and general settings
-- **permission.yaml** - Tool permission levels configured via `goose configure`
-- **secrets.yaml** - API keys and secrets (when goose is using [file-based secret storage](#security-considerations))
+- **permission.yaml** - Tool permission levels configured via `gosling configure`
+- **secrets.yaml** - API keys and secrets (when gosling is using [file-based secret storage](#security-considerations))
 - **permissions/tool_permissions.json** - Runtime permission decisions (auto-managed)
 - **prompts/** - Customized [prompt templates](/docs/guides/context-engineering/prompt-templates)
 
-In addition to editing configuration files directly, many settings can be managed from goose Desktop and goose CLI:
-- **goose Desktop**: From the `Settings` page and the bottom toolbar
-- **goose CLI**: Run the `goose configure` command
+In addition to editing configuration files directly, many settings can be managed from gosling Desktop and gosling CLI:
+- **gosling Desktop**: From the `Settings` page and the bottom toolbar
+- **gosling CLI**: Run the `gosling configure` command
 
 ## Global Settings
 
@@ -31,30 +31,30 @@ The following settings can be configured at the root level of your config.yaml f
 
 | Setting | Purpose | Values | Default | Required |
 |---------|---------|---------|---------|-----------|
-| `GOOSE_PROVIDER` | Primary [LLM provider](/docs/getting-started/providers) | "anthropic", "openai", etc. | None | Yes |
-| `GOOSE_MODEL` | Default model to use | Model name (e.g., "claude-3.5-sonnet", "gpt-4") | None | Yes |
-| `GOOSE_TEMPERATURE` | Model response randomness | Float between 0.0 and 1.0 | Model-specific | No |
-| `GOOSE_MAX_TOKENS` | Maximum number of tokens for each model response (truncates longer responses) | Positive integer | Model-specific | No |
-| `GOOSE_MODE` | [Tool execution behavior](/docs/guides/managing-tools/goose-permissions) | "auto", "approve", "chat", "smart_approve" | "auto" | No |
-| `GOOSE_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 | No |
-| `GOOSE_PLANNER_PROVIDER` | Provider for [planning mode](/docs/guides/context-engineering/creating-plans) | Same as `GOOSE_PROVIDER` options | Falls back to `GOOSE_PROVIDER` | No |
-| `GOOSE_PLANNER_MODEL` | Model for planning mode | Model name | Falls back to `GOOSE_MODEL` | No |
-| `GOOSE_TOOLSHIM` | Enable tool interpretation | true/false | false | No |
-| `GOOSE_TOOLSHIM_OLLAMA_MODEL` | Model for tool interpretation | Model name (e.g., "llama3.2") | System default | No |
-| `GOOSE_INPUT_LIMIT` | Override input token limit for Ollama (maps to `num_ctx`) | Positive integer | Model default | No |
-| `GOOSE_CLI_MIN_PRIORITY` | Tool output verbosity | Float between 0.0 and 1.0 | 0.0 | No |
-| `GOOSE_CLI_THEME` | [Theme](/docs/guides/goose-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" | No |
-| `GOOSE_CLI_LIGHT_THEME` | Custom syntax highlighting theme for light mode | [bat theme name](https://github.com/sharkdp/bat#adding-new-themes) | "GitHub" | No |
-| `GOOSE_CLI_DARK_THEME` | Custom syntax highlighting theme for dark mode | [bat theme name](https://github.com/sharkdp/bat#adding-new-themes) | "zenburn" | No |
-| `GOOSE_CLI_SHOW_COST` | Show estimated cost for token use in the CLI | true/false | false | No |
-| `GOOSE_ALLOWLIST` | URL for allowed extensions | Valid URL | None | No |
-| `GOOSE_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which goose [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0)| 0.8 | No |
+| `GOSLING_PROVIDER` | Primary [LLM provider](/docs/getting-started/providers) | "anthropic", "openai", etc. | None | Yes |
+| `GOSLING_MODEL` | Default model to use | Model name (e.g., "claude-3.5-sonnet", "gpt-4") | None | Yes |
+| `GOSLING_TEMPERATURE` | Model response randomness | Float between 0.0 and 1.0 | Model-specific | No |
+| `GOSLING_MAX_TOKENS` | Maximum number of tokens for each model response (truncates longer responses) | Positive integer | Model-specific | No |
+| `GOSLING_MODE` | [Tool execution behavior](/docs/guides/managing-tools/gosling-permissions) | "auto", "approve", "chat", "smart_approve" | "auto" | No |
+| `GOSLING_MAX_TURNS` | [Maximum number of turns](/docs/guides/sessions/smart-context-management#maximum-turns) allowed without user input | Integer (e.g., 10, 50, 100) | 1000 | No |
+| `GOSLING_PLANNER_PROVIDER` | Provider for [planning mode](/docs/guides/context-engineering/creating-plans) | Same as `GOSLING_PROVIDER` options | Falls back to `GOSLING_PROVIDER` | No |
+| `GOSLING_PLANNER_MODEL` | Model for planning mode | Model name | Falls back to `GOSLING_MODEL` | No |
+| `GOSLING_TOOLSHIM` | Enable tool interpretation | true/false | false | No |
+| `GOSLING_TOOLSHIM_OLLAMA_MODEL` | Model for tool interpretation | Model name (e.g., "llama3.2") | System default | No |
+| `GOSLING_INPUT_LIMIT` | Override input token limit for Ollama (maps to `num_ctx`) | Positive integer | Model default | No |
+| `GOSLING_CLI_MIN_PRIORITY` | Tool output verbosity | Float between 0.0 and 1.0 | 0.0 | No |
+| `GOSLING_CLI_THEME` | [Theme](/docs/guides/gosling-cli-commands#themes) for CLI response  markdown | "light", "dark", "ansi" | "dark" | No |
+| `GOSLING_CLI_LIGHT_THEME` | Custom syntax highlighting theme for light mode | [bat theme name](https://github.com/sharkdp/bat#adding-new-themes) | "GitHub" | No |
+| `GOSLING_CLI_DARK_THEME` | Custom syntax highlighting theme for dark mode | [bat theme name](https://github.com/sharkdp/bat#adding-new-themes) | "zenburn" | No |
+| `GOSLING_CLI_SHOW_COST` | Show estimated cost for token use in the CLI | true/false | false | No |
+| `GOSLING_ALLOWLIST` | URL for allowed extensions | Valid URL | None | No |
+| `GOSLING_AUTO_COMPACT_THRESHOLD` | Set the percentage threshold at which gosling [automatically summarizes your session](/docs/guides/sessions/smart-context-management#automatic-compaction). | Float between 0.0 and 1.0 (disabled at 0.0)| 0.8 | No |
 | `SECURITY_PROMPT_ENABLED` | Enable [prompt injection detection](/docs/guides/security/prompt-injection-detection) to identify potentially harmful commands | true/false | false | No |
 | `SECURITY_PROMPT_THRESHOLD` | Sensitivity threshold for prompt injection detection (higher = stricter) | Float between 0.01 and 1.0 | 0.8 | No |
 | `SECURITY_PROMPT_CLASSIFIER_ENABLED` | Enable ML-based prompt injection detection for advanced threat identification | true/false | false | No |
 | `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | Classification endpoint URL for ML-based prompt injection detection | URL (e.g., "https://api.example.com/classify") | None | No |
 | `SECURITY_PROMPT_CLASSIFIER_TOKEN` | Authentication token for `SECURITY_PROMPT_CLASSIFIER_ENDPOINT` | String | None | No |
-| `GOOSE_TELEMETRY_ENABLED` | Enable [anonymous usage data](/docs/guides/usage-data) collection | true/false | false | No |
+| `GOSLING_TELEMETRY_ENABLED` | Enable [anonymous usage data](/docs/guides/usage-data) collection | true/false | false | No |
 
 Additional [environment variables](/docs/guides/environment-variables) may also be supported in config.yaml.
 
@@ -64,21 +64,21 @@ Here's a basic example of a config.yaml file:
 
 ```yaml
 # Model Configuration
-GOOSE_PROVIDER: "anthropic"
-GOOSE_MODEL: "claude-4.5-sonnet"
-GOOSE_TEMPERATURE: 0.7
+GOSLING_PROVIDER: "anthropic"
+GOSLING_MODEL: "claude-4.5-sonnet"
+GOSLING_TEMPERATURE: 0.7
 
 # Planning Configuration
-GOOSE_PLANNER_PROVIDER: "openai"
-GOOSE_PLANNER_MODEL: "gpt-4"
+GOSLING_PLANNER_PROVIDER: "openai"
+GOSLING_PLANNER_MODEL: "gpt-4"
 
 # Tool Configuration
-GOOSE_MODE: "smart_approve"
-GOOSE_TOOLSHIM: true
-GOOSE_CLI_MIN_PRIORITY: 0.2
+GOSLING_MODE: "smart_approve"
+GOSLING_TOOLSHIM: true
+GOSLING_CLI_MIN_PRIORITY: 0.2
 
 # Search Path Configuration
-GOOSE_SEARCH_PATHS:
+GOSLING_SEARCH_PATHS:
   - "/usr/local/bin"
   - "~/custom/tools"
   - "/opt/homebrew/bin"
@@ -110,7 +110,7 @@ Extensions are configured under the `extensions` key. Each extension can have th
 ```yaml
 extensions:
   extension_name:
-    bundled: true/false       # Whether it's included with goose
+    bundled: true/false       # Whether it's included with gosling
     display_name: "Name"      # Human-readable name (optional)
     enabled: true/false       # Whether the extension is active
     name: "extension_name"    # Internal name
@@ -128,14 +128,14 @@ extensions:
 
 ### Tool Filtering
 
-Use the `available_tools` field to limit which tools are loaded from an extension. List the tool names you want — only those will be available to goose. Leave it empty (the default) to load all tools. This can help reduce token overhead in sessions where you only need a subset of an extension's capabilities.
+Use the `available_tools` field to limit which tools are loaded from an extension. List the tool names you want — only those will be available to gosling. Leave it empty (the default) to load all tools. This can help reduce token overhead in sessions where you only need a subset of an extension's capabilities.
 
 ## Search Path Configuration
 
-Extensions may need to execute external commands or tools. By default, goose uses your system's PATH environment variable. You can add additional search directories in your config file:
+Extensions may need to execute external commands or tools. By default, gosling uses your system's PATH environment variable. You can add additional search directories in your config file:
 
 ```yaml
-GOOSE_SEARCH_PATHS:
+GOSLING_SEARCH_PATHS:
   - "/usr/local/bin"
   - "~/custom/tools"
   - "/opt/homebrew/bin"
@@ -145,7 +145,7 @@ These paths are prepended to the system PATH when running extension commands, en
 
 ## Observability Configuration
 
-Configure goose to export telemetry to [OpenTelemetry](https://opentelemetry.io/docs/) compatible platforms. Environment variables override these settings and support additional options like per-signal configuration. See the [environment variables guide](/docs/guides/environment-variables#observability-configuration) for details.
+Configure gosling to export telemetry to [OpenTelemetry](https://opentelemetry.io/docs/) compatible platforms. Environment variables override these settings and support additional options like per-signal configuration. See the [environment variables guide](/docs/guides/environment-variables#observability-configuration) for details.
 
 | Setting | Purpose | Values | Default |
 |---------|---------|--------|---------|
@@ -169,20 +169,20 @@ Settings are applied in the following order of precedence:
 
 - Avoid storing sensitive information (API keys, tokens) in the config file
 - Use the system keyring (keychain on macOS) for storing secrets. When available, this is the recommended option.
-- If goose is using file-based secret storage, secrets are stored in a separate `secrets.yaml` file (in plain text). This can happen when:
+- If gosling is using file-based secret storage, secrets are stored in a separate `secrets.yaml` file (in plain text). This can happen when:
 
   - Your environment does not provide a desktop keyring service (for example: headless servers, CI/CD, containers)
-  - You disable the keyring explicitly (via [GOOSE_DISABLE_KEYRING](/docs/guides/environment-variables#security-and-privacy))
-  - goose cannot access the keyring and falls back to file-based secret storage
+  - You disable the keyring explicitly (via [GOSLING_DISABLE_KEYRING](/docs/guides/environment-variables#security-and-privacy))
+  - gosling cannot access the keyring and falls back to file-based secret storage
 
   For troubleshooting keyring failures and automatic fallback behavior, see [Known Issues](/docs/troubleshooting/known-issues#keyring-cannot-be-accessed-automatic-fallback).
 
 ## Updating Configuration
 
-Direct edits to config files usually require restarting goose to take effect for existing sessions. Goose2 provider credential/config saves made through Settings use ACP/core to update storage and refresh provider inventory without restarting the app, but currently active chat sessions continue using the provider instance they started with. You can verify your current configuration using:
+Direct edits to config files usually require restarting gosling to take effect for existing sessions. Gosling2 provider credential/config saves made through Settings use ACP/core to update storage and refresh provider inventory without restarting the app, but currently active chat sessions continue using the provider instance they started with. You can verify your current configuration using:
 
 ```bash
-goose info -v
+gosling info -v
 ```
 
 This will show all active settings and their current values.

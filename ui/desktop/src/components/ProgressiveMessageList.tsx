@@ -16,7 +16,7 @@
 
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { defineMessages, useIntl } from '../i18n';
-import GooseMessage from './GooseMessage';
+import GoslingMessage from './GoslingMessage';
 import UserMessage from './UserMessage';
 import {
   SystemNotificationInline,
@@ -37,7 +37,7 @@ import {
   type ToolConfirmationData,
   type ToolResponseMessageContent,
 } from '../types/message';
-import LoadingGoose from './LoadingGoose';
+import LoadingGosling from './LoadingGosling';
 import { ChatType } from '../types/chat';
 import { identifyConsecutiveToolCalls } from '../utils/toolCallChaining';
 import { getModelDisplayName } from './settings/models/predefinedModelsUtils';
@@ -353,7 +353,7 @@ export default function ProgressiveMessageList({
                   <UserMessage message={message} onMessageUpdate={onMessageUpdate} />
                 )
               ) : (
-                <GooseMessage
+                <GoslingMessage
                   sessionId={chat.sessionId}
                   message={message}
                   hideTimestamp={messageRenderIndex.hiddenTimestampIndexes.has(index)}
@@ -401,7 +401,7 @@ export default function ProgressiveMessageList({
       {/* Loading indicator when progressively rendering */}
       {isLoading && (
         <div className="flex flex-col items-center justify-center py-8">
-          <LoadingGoose
+          <LoadingGosling
             message={intl.formatMessage(i18n.loadingMessages, {
               renderedCount,
               totalCount: messages.length,

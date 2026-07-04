@@ -1,23 +1,23 @@
 ---
 title: Sugar Extension
-description: Add Sugar MCP Server as a goose Extension
+description: Add Sugar MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
-This tutorial covers how to add the [Sugar MCP Server](https://github.com/cdnsteve/sugar) as a goose extension to delegate development tasks to an autonomous AI system that runs in the background.
+This tutorial covers how to add the [Sugar MCP Server](https://github.com/cdnsteve/sugar) as a gosling extension to delegate development tasks to an autonomous AI system that runs in the background.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=npx&arg=-y&arg=sugarai-mcp&id=sugar&name=Sugar&description=Autonomous%20AI%20development%20system%20-%20delegate%20tasks%20and%20run%2024%2F7&env=SUGAR_PROJECT_ROOT%3DProject%20directory%20(optional%2C%20defaults%20to%20current))
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=npx&arg=-y&arg=sugarai-mcp&id=sugar&name=Sugar&description=Autonomous%20AI%20development%20system%20-%20delegate%20tasks%20and%20run%2024%2F7&env=SUGAR_PROJECT_ROOT%3DProject%20directory%20(optional%2C%20defaults%20to%20current))
 
   When prompted, set `SUGAR_PROJECT_ROOT` to your project path.
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   npx -y sugarai-mcp
@@ -38,8 +38,8 @@ Sugar requires Python 3.11+ and the Sugar CLI installed in your project. Install
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="sugar"
       extensionName="Sugar"
       description="Autonomous AI development system - delegate tasks and run 24/7"
@@ -52,7 +52,7 @@ Sugar requires Python 3.11+ and the Sugar CLI installed in your project. Install
       ]}
     />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="Sugar"
       description="Autonomous AI development system - delegate tasks and run 24/7"
@@ -74,25 +74,25 @@ Sugar requires Python 3.11+ and the Sugar CLI installed in your project. Install
 Sugar lets you delegate development tasks to an autonomous AI that works in the background. Tasks are queued and executed independently, so you can continue working while Sugar handles them.
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-   1. Open a new session in goose Desktop
+  <TabItem value="ui" label="gosling Desktop" default>
+   1. Open a new session in gosling Desktop
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
 
-  1. Open a terminal and start a new goose session:
+  1. Open a terminal and start a new gosling session:
 
   ```sh
-  goose session
+  gosling session
   ```
 
   </TabItem>
 </Tabs>
 
-### goose Prompt
+### gosling Prompt
 
 > Create a task to add input validation to the user registration form. Priority 4.
 
-### goose Output
+### gosling Output
 
 :::note Desktop
 

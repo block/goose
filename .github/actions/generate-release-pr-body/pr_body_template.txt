@@ -5,7 +5,7 @@
 1. Approve the workflows for this PR (scroll to bottom) to trigger CI and produce the Desktop bundle for testing.
 2. Make sure all check workflows pass.
 3. Install the Desktop bundle from the download links (posted as a comment below when it is ready).
-4. Complete the goose Release Manual Testing Checklist (posted as a comment below).
+4. Complete the gosling Release Manual Testing Checklist (posted as a comment below).
 
 ## How to Release
 

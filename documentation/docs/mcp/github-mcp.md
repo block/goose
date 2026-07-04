@@ -1,24 +1,24 @@
 ---
 title: GitHub Extension
-description: Add GitHub MCP Server as a goose Extension
+description: Add GitHub MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import YouTubeShortEmbed from '@site/src/components/YouTubeShortEmbed';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
 <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/TbmQDv3SQOE" />
 
-This tutorial covers how to add the [GitHub MCP Server](https://github.com/github/github-mcp-server) as a goose extension to enable file operations, repository management, search functionality, and more.
+This tutorial covers how to add the [GitHub MCP Server](https://github.com/github/github-mcp-server) as a gosling extension to enable file operations, repository management, search functionality, and more.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-   [Launch the installer](goose://extension?type=streamable_http&url=https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F&id=github&name=GitHub&description=GitHub%20repository%20management%20and%20operations&header=Authorization%3DBearer%20YOUR_GITHUB_PERSONAL_ACCESS_TOKEN)
+  <TabItem value="ui" label="gosling Desktop" default>
+   [Launch the installer](gosling://extension?type=streamable_http&url=https%3A%2F%2Fapi.githubcopilot.com%2Fmcp%2F&id=github&name=GitHub&description=GitHub%20repository%20management%20and%20operations&header=Authorization%3DBearer%20YOUR_GITHUB_PERSONAL_ACCESS_TOKEN)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   Add a `Remote Extension (Streaming HTTP)` extension type with:
 
   **Endpoint URL**
@@ -38,8 +38,8 @@ This tutorial covers how to add the [GitHub MCP Server](https://github.com/githu
 These steps configure the Remote MCP Server. For other deployment options, see the [official GitHub MCP Server documentation](https://github.com/github/github-mcp-server).
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="github"
       extensionName="GitHub"
       description="GitHub repository management and operations"
@@ -53,7 +53,7 @@ These steps configure the Remote MCP Server. For other deployment options, see t
     />
 
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="github"
       description="GitHub repository management and operations"
@@ -76,16 +76,16 @@ These steps configure the Remote MCP Server. For other deployment options, see t
 ## Example Usage
 
 When creating my [GitHub Personal Access Token](https://github.com/settings/personal-access-tokens), I gave it the following access:
-* Repository: [goose-demo](https://github.com/angiejones/goose-demo)
+* Repository: [gosling-demo](https://github.com/angiejones/gosling-demo)
 * Read access to metadata
 * Read and Write access to code, commit status, issues, and pull requests
 
-### goose Prompt
+### gosling Prompt
 ```
-create a new branch called hello-world in my angiejones/goose-demo repository. Update the README.md file to say "this was written by goose" and commit it. Open a pull request with your changes.
+create a new branch called hello-world in my angiejones/gosling-demo repository. Update the README.md file to say "this was written by gosling" and commit it. Open a pull request with your changes.
 ```
 
-### goose Output
+### gosling Output
 
 ```
 I'll help you create a new branch, update the README, and open a pull request. Let me break this down into steps:
@@ -101,17 +101,17 @@ Let me execute these steps:
 ─── create_branch | github ──────────────────────────
 branch: hello-world
 owner: angiejones
-repo: goose-demo
+repo: gosling-demo
 
 2. Now, updating the README.md file in the new branch:
 
 ─── create_or_update_file | github ──────────────────────────
 branch: hello-world
-content: this was written by goose
-message: Update README.md with goose message
+content: this was written by gosling
+message: Update README.md with gosling message
 owner: angiejones
 path: README.md
-repo: goose-demo
+repo: gosling-demo
 
 
 
@@ -122,17 +122,17 @@ base: main
 body: ...
 head: hello-world
 owner: angiejones
-repo: goose-demo
+repo: gosling-demo
 title: Update README.md
 
 
 
 Great! I've completed all the requested tasks:
 1. Created a new branch called "hello-world"
-2. Updated the README.md file with the text "this was written by goose"
+2. Updated the README.md file with the text "this was written by gosling"
 3. Created a pull request to merge these changes into the main branch
 
-You can view the pull request at: https://github.com/angiejones/goose-demo/pull/1
+You can view the pull request at: https://github.com/angiejones/gosling-demo/pull/1
 
 The pull request is now ready for your review. Would you like me to do anything else with it?
 ```

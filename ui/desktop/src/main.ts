@@ -26,8 +26,8 @@ import os from 'node:os';
 import { execFileSync, spawn, execFile } from 'child_process';
 import 'dotenv/config';
 import { checkBackendStatus } from './backendStatus';
-import { startGooseServe } from './gooseServe';
-import { GooseServeLeaseRegistry, type GooseServeLease } from './gooseServeLeaseRegistry';
+import { startGoslingServe } from './goslingServe';
+import { GoslingServeLeaseRegistry, type GoslingServeLease } from './goslingServeLeaseRegistry';
 import { acpWebSocketUrlFromHttpBase, normalizeAcpHttpBaseUrl } from './acp/url';
 import { expandTilde } from './utils/pathUtils';
 import log from './utils/logger';
@@ -79,7 +79,7 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
   Cut: '剪切',
   Copy: '复制',
   Paste: '粘贴',
-  // Goose-added items
+  // Gosling-added items
   'New Window': '新建窗口',
   Settings: '设置',
   'Find…': '查找…',
@@ -128,7 +128,7 @@ const MENU_TRANSLATIONS_ZH_CN: Record<string, string> = {
 };
 
 function detectMenuLocale(): string {
-  return getConfiguredGooseLocale() ?? 'en';
+  return getConfiguredGoslingLocale() ?? 'en';
 }
 
 function menuT(label: string): string {
@@ -212,9 +212,9 @@ function getSettings(): Settings {
     settingsCache = {
       ...defaultSettings,
       ...stored,
-      externalGoosed: {
-        ...defaultSettings.externalGoosed,
-        ...(stored.externalGoosed ?? {}),
+      externalGoslingd: {
+        ...defaultSettings.externalGoslingd,
+        ...(stored.externalGoslingd ?? {}),
       },
       keyboardShortcuts: {
         ...defaultSettings.keyboardShortcuts,
@@ -236,14 +236,14 @@ function updateSettings(modifier: (settings: Settings) => void): void {
   }
 }
 
-function getConfiguredGooseLocale(): string | undefined {
+function getConfiguredGoslingLocale(): string | undefined {
   const language = getSettings().language;
   if (isValidLanguageSetting(language) && language !== 'system') {
     return language;
   }
 
-  if (process.env.GOOSE_LOCALE) {
-    return process.env.GOOSE_LOCALE;
+  if (process.env.GOSLING_LOCALE) {
+    return process.env.GOSLING_LOCALE;
   }
 
   try {
@@ -317,7 +317,7 @@ interface BackendCertificateTrustRegistration {
 
 const trustedBackendCertificates = new Set<BackendCertificateTrust>();
 const backendCertificateVerifierSessions = new WeakSet<Session>();
-const MAIN_WINDOW_SESSION_PARTITION = 'persist:goose';
+const MAIN_WINDOW_SESSION_PARTITION = 'persist:gosling';
 
 function normalizeHostname(hostname: string): string {
   return hostname.toLowerCase();
@@ -425,7 +425,7 @@ app.on('certificate-error', (event, _webContents, url, _error, certificate, call
 });
 
 app.whenReady().then(() => {
-  appConfig.GOOSE_LOCALE = getConfiguredGooseLocale();
+  appConfig.GOSLING_LOCALE = getConfiguredGoslingLocale();
 });
 
 // Main-process net.fetch: pin to the exact cert once known.
@@ -828,20 +828,20 @@ interface BundledConfig {
 
 const getBundledConfig = (): BundledConfig => {
   //{env-macro-start}//
-  //needed when goose is bundled for a specific provider
+  //needed when gosling is bundled for a specific provider
   //{env-macro-end}//
   return {
-    defaultProvider: process.env.GOOSE_DEFAULT_PROVIDER,
-    defaultModel: process.env.GOOSE_DEFAULT_MODEL,
-    predefinedModels: process.env.GOOSE_PREDEFINED_MODELS,
-    version: process.env.GOOSE_VERSION,
+    defaultProvider: process.env.GOSLING_DEFAULT_PROVIDER,
+    defaultModel: process.env.GOSLING_DEFAULT_MODEL,
+    predefinedModels: process.env.GOSLING_PREDEFINED_MODELS,
+    version: process.env.GOSLING_VERSION,
   };
 };
 
 const { defaultProvider, defaultModel, predefinedModels, version } = getBundledConfig();
 
-const resolveGoosePathRoot = (): string | undefined => {
-  const pathRoot = process.env.GOOSE_PATH_ROOT?.trim();
+const resolveGoslingPathRoot = (): string | undefined => {
+  const pathRoot = process.env.GOSLING_PATH_ROOT?.trim();
   if (pathRoot) {
     return expandTilde(pathRoot);
   }
@@ -858,16 +858,16 @@ interface ExternalBackend {
 }
 
 const getExternalBackendUrlFromEnv = (): string | null => {
-  if (!process.env.GOOSE_EXTERNAL_BACKEND) {
+  if (!process.env.GOSLING_EXTERNAL_BACKEND) {
     return null;
   }
 
-  const configuredUrl = process.env.GOOSE_EXTERNAL_BACKEND_URL?.trim();
+  const configuredUrl = process.env.GOSLING_EXTERNAL_BACKEND_URL?.trim();
   if (configuredUrl) {
     return configuredUrl;
   }
 
-  return `http://127.0.0.1:${process.env.GOOSE_PORT || '3000'}`;
+  return `http://127.0.0.1:${process.env.GOSLING_PORT || '3000'}`;
 };
 
 const getExternalBackendFromEnv = (): ExternalBackend | null => {
@@ -876,10 +876,10 @@ const getExternalBackendFromEnv = (): ExternalBackend | null => {
     return null;
   }
 
-  const secret = process.env.GOOSE_SERVER__SECRET_KEY;
+  const secret = process.env.GOSLING_SERVER__SECRET_KEY;
   if (!secret) {
     throw new Error(
-      'GOOSE_SERVER__SECRET_KEY must be set when using GOOSE_EXTERNAL_BACKEND. ' +
+      'GOSLING_SERVER__SECRET_KEY must be set when using GOSLING_EXTERNAL_BACKEND. ' +
         'Set it to the same value on both the server and the desktop client.'
     );
   }
@@ -892,8 +892,8 @@ const getExternalBackendFromEnv = (): ExternalBackend | null => {
 };
 
 const getServerSecret = (settings: Settings): string => {
-  if (settings.externalGoosed?.enabled && settings.externalGoosed.secret) {
-    return settings.externalGoosed.secret;
+  if (settings.externalGoslingd?.enabled && settings.externalGoslingd.secret) {
+    return settings.externalGoslingd.secret;
   }
   return GENERATED_SECRET;
 };
@@ -904,12 +904,12 @@ const getActiveExternalBackend = (settings: Settings): ExternalBackend | null =>
     return envBackend;
   }
 
-  if (settings.externalGoosed?.enabled && settings.externalGoosed.url) {
+  if (settings.externalGoslingd?.enabled && settings.externalGoslingd.url) {
     return {
       source: 'settings',
-      url: settings.externalGoosed.url,
+      url: settings.externalGoslingd.url,
       secret: getServerSecret(settings),
-      certFingerprint: settings.externalGoosed.certFingerprint,
+      certFingerprint: settings.externalGoslingd.certFingerprint,
     };
   }
 
@@ -919,33 +919,33 @@ const getActiveExternalBackend = (settings: Settings): ExternalBackend | null =>
 const getExternalBackendForCsp = (settings: Settings) => {
   const envUrl = getExternalBackendUrlFromEnv();
   if (!envUrl) {
-    return settings.externalGoosed;
+    return settings.externalGoslingd;
   }
 
   return {
-    ...settings.externalGoosed,
+    ...settings.externalGoslingd,
     enabled: true,
     url: envUrl,
   };
 };
 
 let appConfig = {
-  GOOSE_DEFAULT_PROVIDER: defaultProvider,
-  GOOSE_DEFAULT_MODEL: defaultModel,
-  GOOSE_PREDEFINED_MODELS: predefinedModels,
-  GOOSE_PATH_ROOT: resolveGoosePathRoot(),
-  GOOSE_WORKING_DIR: '',
+  GOSLING_DEFAULT_PROVIDER: defaultProvider,
+  GOSLING_DEFAULT_MODEL: defaultModel,
+  GOSLING_PREDEFINED_MODELS: predefinedModels,
+  GOSLING_PATH_ROOT: resolveGoslingPathRoot(),
+  GOSLING_WORKING_DIR: '',
   // Start with the env-var override; the OS region locale is filled in after app.ready
   // (see updateLocaleFromSystem below) since getSystemLocale() cannot be called earlier.
-  GOOSE_LOCALE: process.env.GOOSE_LOCALE || undefined,
-  // If GOOSE_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
-  GOOSE_ALLOWLIST_WARNING: process.env.GOOSE_ALLOWLIST_WARNING === 'true',
-  GOOSE_DISABLE_NOSTR_SHARING: process.env.GOOSE_DISABLE_NOSTR_SHARING === 'true',
+  GOSLING_LOCALE: process.env.GOSLING_LOCALE || undefined,
+  // If GOSLING_ALLOWLIST_WARNING env var is not set, defaults to false (strict blocking mode)
+  GOSLING_ALLOWLIST_WARNING: process.env.GOSLING_ALLOWLIST_WARNING === 'true',
+  GOSLING_DISABLE_NOSTR_SHARING: process.env.GOSLING_DISABLE_NOSTR_SHARING === 'true',
 };
 
 const windowMap = new Map<number, BrowserWindow>();
 
-const gooseServeLeases = new GooseServeLeaseRegistry(log);
+const goslingServeLeases = new GoslingServeLeaseRegistry(log);
 
 const windowPowerSaveBlockers = new Map<number, number>(); // windowId -> blockerId
 // Track pending initial messages per window
@@ -1005,8 +1005,8 @@ const createChat = async (
 
       if (response === 0) {
         updateSettings((s) => {
-          if (s.externalGoosed) {
-            s.externalGoosed.enabled = false;
+          if (s.externalGoslingd) {
+            s.externalGoslingd.enabled = false;
           }
         });
         return createChat(app, options);
@@ -1019,7 +1019,7 @@ const createChat = async (
 
   const serverSecret = externalBackend ? externalBackend.secret : GENERATED_SECRET;
   let workingDir = dir || os.homedir();
-  let gooseServeLease: GooseServeLease | null = null;
+  let goslingServeLease: GoslingServeLease | null = null;
 
   if (externalBackend) {
     let externalCertificateTrust: BackendCertificateTrustRegistration | null = null;
@@ -1047,7 +1047,7 @@ const createChat = async (
           title: 'External Backend Unreachable',
           message: `Could not connect to external backend at ${externalBaseUrl}`,
           detail:
-            'The external backend must be running and the configured secret must match GOOSE_SERVER__SECRET_KEY on the server.',
+            'The external backend must be running and the configured secret must match GOSLING_SERVER__SECRET_KEY on the server.',
           buttons: canDisableExternalBackend
             ? ['Disable External Backend & Retry', 'Quit']
             : ['Quit'],
@@ -1057,8 +1057,8 @@ const createChat = async (
 
         if (canDisableExternalBackend && response === 0) {
           updateSettings((s) => {
-            if (s.externalGoosed) {
-              s.externalGoosed.enabled = false;
+            if (s.externalGoslingd) {
+              s.externalGoslingd.enabled = false;
             }
           });
           return createChat(app, options);
@@ -1070,7 +1070,7 @@ const createChat = async (
 
       const leaseCertificateTrust = externalCertificateTrust;
       externalCertificateTrust = null;
-      gooseServeLease = gooseServeLeases.createExternal(
+      goslingServeLease = goslingServeLeases.createExternal(
         acpWebSocketUrlFromHttpBase(externalBaseUrl, serverSecret),
         serverSecret,
         leaseCertificateTrust ? async () => leaseCertificateTrust.release() : undefined
@@ -1093,8 +1093,8 @@ const createChat = async (
 
       if (canDisableExternalBackend && response === 0) {
         updateSettings((s) => {
-          if (s.externalGoosed) {
-            s.externalGoosed.enabled = false;
+          if (s.externalGoslingd) {
+            s.externalGoslingd.enabled = false;
           }
         });
         return createChat(app, options);
@@ -1109,14 +1109,14 @@ const createChat = async (
       ? trustBackendCertificate('127.0.0.1', null)
       : null;
 
-    let gooseServeResult: Awaited<ReturnType<typeof startGooseServe>>;
+    let goslingServeResult: Awaited<ReturnType<typeof startGoslingServe>>;
     try {
-      gooseServeResult = await startGooseServe({
+      goslingServeResult = await startGoslingServe({
         serverSecret,
         dir: workingDir,
         tls: useLocalBackendTls,
         env: {
-          GOOSE_PATH_ROOT: appConfig.GOOSE_PATH_ROOT as string | undefined,
+          GOSLING_PATH_ROOT: appConfig.GOSLING_PATH_ROOT as string | undefined,
         },
         isPackaged: app.isPackaged,
         resourcesPath: app.isPackaged ? process.resourcesPath : undefined,
@@ -1125,34 +1125,34 @@ const createChat = async (
         readinessFetch: globalThis.fetch,
         usePinnedTlsReadiness: useLocalBackendTls,
       });
-      if (useLocalBackendTls && !gooseServeResult.certFingerprint) {
-        await gooseServeResult.cleanup();
+      if (useLocalBackendTls && !goslingServeResult.certFingerprint) {
+        await goslingServeResult.cleanup();
         throw new Error(
-          'goose serve started with TLS but did not return a certificate fingerprint'
+          'gosling serve started with TLS but did not return a certificate fingerprint'
         );
       }
 
-      if (useLocalBackendTls && gooseServeResult.certFingerprint && localCertificateTrust) {
-        const localCertFingerprint = normalizeFingerprint(gooseServeResult.certFingerprint);
+      if (useLocalBackendTls && goslingServeResult.certFingerprint && localCertificateTrust) {
+        const localCertFingerprint = normalizeFingerprint(goslingServeResult.certFingerprint);
         if (
           localCertificateTrust.trust.fingerprint &&
           localCertificateTrust.trust.fingerprint !== localCertFingerprint
         ) {
-          await gooseServeResult.cleanup();
-          throw new Error('goose serve TLS certificate fingerprint did not match readiness probe');
+          await goslingServeResult.cleanup();
+          throw new Error('gosling serve TLS certificate fingerprint did not match readiness probe');
         }
         localCertificateTrust.trust.fingerprint = localCertFingerprint;
         installBackendCertificateVerifier(session.fromPartition(MAIN_WINDOW_SESSION_PARTITION));
       }
     } catch (error) {
       localCertificateTrust?.release();
-      log.error('goose serve failed to start', error);
+      log.error('gosling serve failed to start', error);
       dialog.showMessageBoxSync({
         type: 'error',
         title: 'Gosling Failed to Start',
         message: 'The backend server failed to start.',
         detail: [
-          'Backend: goose serve',
+          'Backend: gosling serve',
           'Readiness check: HTTPS GET /status',
           `Startup error:\n${errorMessage(error)}`,
         ].join('\n\n'),
@@ -1162,26 +1162,26 @@ const createChat = async (
       return;
     }
 
-    workingDir = gooseServeResult.workingDir;
-    const cleanupGooseServe = gooseServeResult.cleanup;
-    gooseServeResult.cleanup = async () => {
+    workingDir = goslingServeResult.workingDir;
+    const cleanupGoslingServe = goslingServeResult.cleanup;
+    goslingServeResult.cleanup = async () => {
       try {
-        await cleanupGooseServe();
+        await cleanupGoslingServe();
       } finally {
         localCertificateTrust?.release();
       }
     };
-    gooseServeLease = gooseServeLeases.create(gooseServeResult, serverSecret);
+    goslingServeLease = goslingServeLeases.create(goslingServeResult, serverSecret);
   }
 
-  const cleanupUnregisteredGooseServeLease = async () => {
-    if (!gooseServeLease) {
+  const cleanupUnregisteredGoslingServeLease = async () => {
+    if (!goslingServeLease) {
       return;
     }
 
-    const lease = gooseServeLease;
-    gooseServeLease = null;
-    await gooseServeLeases.cleanupLease(lease);
+    const lease = goslingServeLease;
+    goslingServeLease = null;
+    await goslingServeLeases.cleanupLease(lease);
   };
 
   let mainWindowState: ReturnType<typeof windowStateKeeper>;
@@ -1222,10 +1222,10 @@ const createChat = async (
         additionalArguments: [
           JSON.stringify({
             ...appConfig,
-            GOOSE_LOCALE: getConfiguredGooseLocale(),
-            GOOSE_WORKING_DIR: workingDir,
+            GOSLING_LOCALE: getConfiguredGoslingLocale(),
+            GOSLING_WORKING_DIR: workingDir,
             REQUEST_DIR: dir,
-            GOOSE_VERSION: version,
+            GOSLING_VERSION: version,
             SECURITY_ML_MODEL_MAPPING: process.env.SECURITY_ML_MODEL_MAPPING,
             SECURITY_PROMPT_ENABLED_OVERRIDE: process.env.SECURITY_PROMPT_ENABLED_OVERRIDE,
             SECURITY_COMMAND_CLASSIFIER_ENABLED_OVERRIDE:
@@ -1237,17 +1237,17 @@ const createChat = async (
     });
     installBackendCertificateVerifier(mainWindow.webContents.session);
   } catch (error) {
-    await cleanupUnregisteredGooseServeLease();
+    await cleanupUnregisteredGoslingServeLease();
     throw error;
   }
 
-  if (gooseServeLease) {
-    const lease = gooseServeLease;
+  if (goslingServeLease) {
+    const lease = goslingServeLease;
     mainWindow.once('closed', () => {
-      void gooseServeLeases.releaseWindow(mainWindow.id);
+      void goslingServeLeases.releaseWindow(mainWindow.id);
     });
-    gooseServeLeases.attachWindow(mainWindow.id, lease);
-    gooseServeLease = null;
+    goslingServeLeases.attachWindow(mainWindow.id, lease);
+    goslingServeLease = null;
   }
 
   if (!app.isPackaged) {
@@ -1384,7 +1384,7 @@ const createChat = async (
     }
   }
 
-  // Goose's react app uses HashRouter, so the path + search params follow a #/
+  // Gosling's react app uses HashRouter, so the path + search params follow a #/
   url.hash = `${appPath}?${searchParams.toString()}`;
   let formattedUrl = formatUrl(url);
   log.info('Opening URL: ', formattedUrl);
@@ -1492,10 +1492,10 @@ const createLauncher = () => {
       additionalArguments: [
         JSON.stringify({
           ...appConfig,
-          GOOSE_LOCALE: getConfiguredGooseLocale(),
+          GOSLING_LOCALE: getConfiguredGoslingLocale(),
         }),
       ],
-      partition: 'persist:goose',
+      partition: 'persist:gosling',
     },
     skipTaskbar: true,
     alwaysOnTop: true,
@@ -1649,7 +1649,7 @@ const openDirectoryDialog = async (): Promise<OpenDialogReturnValue> => {
   if (currentWindow) {
     try {
       const currentWorkingDir = await currentWindow.webContents.executeJavaScript(
-        `window.appConfig ? window.appConfig.get('GOOSE_WORKING_DIR') : null`
+        `window.appConfig ? window.appConfig.get('GOSLING_WORKING_DIR') : null`
       );
 
       if (currentWorkingDir && typeof currentWorkingDir === 'string') {
@@ -1835,7 +1835,7 @@ const validSettingKeys: Set<SettingKey> = new Set([
   'spellcheckEnabled',
   'archiveFolder',
   'archivedSessionFiles',
-  'externalGoosed',
+  'externalGoslingd',
   'managedSecretProfiles',
   'globalShortcut',
   'keyboardShortcuts',
@@ -1881,7 +1881,7 @@ ipcMain.handle('set-setting', (_event, key: SettingKey, value: unknown) => {
   fsSync.writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2));
 
   if (key === 'language') {
-    appConfig.GOOSE_LOCALE = getConfiguredGooseLocale();
+    appConfig.GOSLING_LOCALE = getConfiguredGoslingLocale();
   }
 
   // Re-register shortcuts if keyboard shortcuts changed
@@ -1899,7 +1899,7 @@ ipcMain.handle('get-secret-key', (event) => {
   if (!windowId) {
     return null;
   }
-  return gooseServeLeases.getSecretKey(windowId) ?? null;
+  return goslingServeLeases.getSecretKey(windowId) ?? null;
 });
 
 ipcMain.handle('get-acp-url', async (event) => {
@@ -1907,7 +1907,7 @@ ipcMain.handle('get-acp-url', async (event) => {
   if (!windowId) {
     return null;
   }
-  return gooseServeLeases.getAcpUrl(windowId) ?? null;
+  return goslingServeLeases.getAcpUrl(windowId) ?? null;
 });
 
 // Handle menu bar icon visibility
@@ -2686,20 +2686,20 @@ async function appMain() {
       }
 
       // Create the About Gosling menu item with a submenu
-      const aboutGooseMenuItem = new MenuItem({
+      const aboutGoslingMenuItem = new MenuItem({
         label: menuT('About Gosling'),
         submenu: Menu.buildFromTemplate([]), // Start with an empty submenu for About
       });
 
       // Add the version and provenance items (display only) to the About Gosling submenu
-      if (aboutGooseMenuItem.submenu) {
-        aboutGooseMenuItem.submenu.append(
+      if (aboutGoslingMenuItem.submenu) {
+        aboutGoslingMenuItem.submenu.append(
           new MenuItem({
             label: `Gosling v${version || app.getVersion()}`,
             enabled: false,
           })
         );
-        aboutGooseMenuItem.submenu.append(
+        aboutGoslingMenuItem.submenu.append(
           new MenuItem({
             label: 'A fork of goose v1.38 — a lighter version of goose',
             enabled: false,
@@ -2707,7 +2707,7 @@ async function appMain() {
         );
       }
 
-      helpMenu.submenu.append(aboutGooseMenuItem);
+      helpMenu.submenu.append(aboutGoslingMenuItem);
     }
   }
 
@@ -2899,7 +2899,7 @@ async function appMain() {
   });
 
   ipcMain.on('get-app-locale', (event) => {
-    event.returnValue = getConfiguredGooseLocale();
+    event.returnValue = getConfiguredGoslingLocale();
   });
 
   ipcMain.handle('open-directory-in-explorer', async (_event, path: string) => {
@@ -2922,11 +2922,11 @@ app.whenReady().then(async () => {
 });
 
 async function getAllowList(): Promise<string[]> {
-  if (!process.env.GOOSE_ALLOWLIST) {
+  if (!process.env.GOSLING_ALLOWLIST) {
     return [];
   }
 
-  const response = await fetch(process.env.GOOSE_ALLOWLIST);
+  const response = await fetch(process.env.GOSLING_ALLOWLIST);
 
   if (!response.ok) {
     throw new Error(
@@ -2952,10 +2952,10 @@ async function getAllowList(): Promise<string[]> {
 }
 
 app.on('will-quit', async () => {
-  const gooseServeLeaseCount = gooseServeLeases.activeLeaseCount();
-  if (gooseServeLeaseCount > 0) {
-    log.info(`App quitting, cleaning up ${gooseServeLeaseCount} backend lease(s)`);
-    await gooseServeLeases.cleanupAll();
+  const goslingServeLeaseCount = goslingServeLeases.activeLeaseCount();
+  if (goslingServeLeaseCount > 0) {
+    log.info(`App quitting, cleaning up ${goslingServeLeaseCount} backend lease(s)`);
+    await goslingServeLeases.cleanupAll();
   }
 
   for (const [windowId, blockerId] of windowPowerSaveBlockers.entries()) {

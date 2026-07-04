@@ -828,7 +828,7 @@
     "defaultMessage": "シークレットキー"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "goosed サーバーに設定されたシークレットキー（GOOSE_SERVER__SECRET_KEY）"
+    "defaultMessage": "goslingd サーバーに設定されたシークレットキー（GOSLING_SERVER__SECRET_KEY）"
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "サーバーのシークレットキーを入力"
@@ -857,67 +857,67 @@
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "別の場所で実行中の gosling サーバーに接続します（アプリの再起動が必要）"
   },
-  "goosehintsModal.close": {
+  "goslinghintsModal.close": {
     "defaultMessage": "閉じる"
   },
-  "goosehintsModal.developer": {
+  "goslinghintsModal.developer": {
     "defaultMessage": "開発者"
   },
-  "goosehintsModal.dialogDescription": {
+  "goslinghintsModal.dialogDescription": {
     "defaultMessage": "Gosling とのコミュニケーションを改善するために、プロジェクトに関する追加コンテキストを提供します"
   },
-  "goosehintsModal.dialogTitle": {
-    "defaultMessage": "プロジェクトヒントを設定（.goosehints）"
+  "goslinghintsModal.dialogTitle": {
+    "defaultMessage": "プロジェクトヒントを設定（.goslinghints）"
   },
-  "goosehintsModal.errorReading": {
-    "defaultMessage": ".goosehints ファイルの読み取りエラー: {error}"
+  "goslinghintsModal.errorReading": {
+    "defaultMessage": ".goslinghints ファイルの読み取りエラー: {error}"
   },
-  "goosehintsModal.failedToAccess": {
-    "defaultMessage": ".goosehints ファイルにアクセスできませんでした"
+  "goslinghintsModal.failedToAccess": {
+    "defaultMessage": ".goslinghints ファイルにアクセスできませんでした"
   },
-  "goosehintsModal.failedToSave": {
-    "defaultMessage": ".goosehints ファイルの保存に失敗しました"
+  "goslinghintsModal.failedToSave": {
+    "defaultMessage": ".goslinghints ファイルの保存に失敗しました"
   },
-  "goosehintsModal.fileCreating": {
-    "defaultMessage": "新しい .goosehints ファイルを作成しています: {filePath}"
+  "goslinghintsModal.fileCreating": {
+    "defaultMessage": "新しい .goslinghints ファイルを作成しています: {filePath}"
   },
-  "goosehintsModal.fileFound": {
-    "defaultMessage": ".goosehints ファイルが見つかりました: {filePath}"
+  "goslinghintsModal.fileFound": {
+    "defaultMessage": ".goslinghints ファイルが見つかりました: {filePath}"
   },
-  "goosehintsModal.helpText1": {
-    "defaultMessage": ".goosehints は、プロジェクトに関する追加コンテキストを提供し、Gosling とのコミュニケーションを改善するためのテキストファイルです。"
+  "goslinghintsModal.helpText1": {
+    "defaultMessage": ".goslinghints は、プロジェクトに関する追加コンテキストを提供し、Gosling とのコミュニケーションを改善するためのテキストファイルです。"
   },
-  "goosehintsModal.helpText2": {
-    "defaultMessage": "拡張機能ページで {bold} 拡張機能が有効になっていることを確認してください。この拡張機能は .goosehints を使用するために必要です。.goosehints の更新を反映するにはセッションの再起動が必要です。"
+  "goslinghintsModal.helpText2": {
+    "defaultMessage": "拡張機能ページで {bold} 拡張機能が有効になっていることを確認してください。この拡張機能は .goslinghints を使用するために必要です。.goslinghints の更新を反映するにはセッションの再起動が必要です。"
   },
-  "goosehintsModal.helpText3": {
+  "goslinghintsModal.helpText3": {
     "defaultMessage": "詳しくは {link} をご覧ください。"
   },
-  "goosehintsModal.helpTextLink": {
-    "defaultMessage": ".goosehints の使い方"
+  "goslinghintsModal.helpTextLink": {
+    "defaultMessage": ".goslinghints の使い方"
   },
-  "goosehintsModal.placeholder": {
+  "goslinghintsModal.placeholder": {
     "defaultMessage": "プロジェクトヒントをここに入力..."
   },
-  "goosehintsModal.save": {
+  "goslinghintsModal.save": {
     "defaultMessage": "保存"
   },
-  "goosehintsModal.savedSuccessfully": {
+  "goslinghintsModal.savedSuccessfully": {
     "defaultMessage": "保存しました"
   },
-  "goosehintsModal.saving": {
+  "goslinghintsModal.saving": {
     "defaultMessage": "保存中..."
   },
-  "goosehintsSection.configure": {
+  "goslinghintsSection.configure": {
     "defaultMessage": "設定"
   },
-  "goosehintsSection.description": {
-    "defaultMessage": "Gosling に追加コンテキストを提供するために、プロジェクトの .goosehints ファイルを設定します"
+  "goslinghintsSection.description": {
+    "defaultMessage": "Gosling に追加コンテキストを提供するために、プロジェクトの .goslinghints ファイルを設定します"
   },
-  "goosehintsSection.title": {
-    "defaultMessage": "プロジェクトヒント（.goosehints）"
+  "goslinghintsSection.title": {
+    "defaultMessage": "プロジェクトヒント（.goslinghints）"
   },
-  "groupedExtensionLoadingToast.askGoose": {
+  "groupedExtensionLoadingToast.askGosling": {
     "defaultMessage": "Goslingに聞く"
   },
   "groupedExtensionLoadingToast.collapseDetails": {
@@ -1184,25 +1184,25 @@
   "launcher.placeholder": {
     "defaultMessage": "goslingに何でも聞いて..."
   },
-  "loadingGoose.compacting": {
+  "loadingGosling.compacting": {
     "defaultMessage": "goslingが会話を圧縮しています..."
   },
-  "loadingGoose.idle": {
+  "loadingGosling.idle": {
     "defaultMessage": "goslingが処理中です…"
   },
-  "loadingGoose.loadingConversation": {
+  "loadingGosling.loadingConversation": {
     "defaultMessage": "会話を読み込み中..."
   },
-  "loadingGoose.restartingAgent": {
+  "loadingGosling.restartingAgent": {
     "defaultMessage": "セッションを再起動中..."
   },
-  "loadingGoose.streaming": {
+  "loadingGosling.streaming": {
     "defaultMessage": "goslingが処理中です…"
   },
-  "loadingGoose.thinking": {
+  "loadingGosling.thinking": {
     "defaultMessage": "goslingが考えています…"
   },
-  "loadingGoose.waiting": {
+  "loadingGosling.waiting": {
     "defaultMessage": "goslingが待機中です…"
   },
   "markdownContent.cancel": {
@@ -2421,7 +2421,7 @@
     "defaultMessage": "一致するスキルが見つかりません"
   },
   "skillsView.noSkillsDescription": {
-    "defaultMessage": "スキルは ~/.config/agents/skills/、.goose/skills/、またはその他の対応ディレクトリ内の SKILL.md ファイルから読み込まれます。"
+    "defaultMessage": "スキルは ~/.config/agents/skills/、.gosling/skills/、またはその他の対応ディレクトリ内の SKILL.md ファイルから読み込まれます。"
   },
   "skillsView.noSkillsInstalled": {
     "defaultMessage": "スキルがインストールされていません"
@@ -2678,14 +2678,14 @@
   "toolConfirmation.allowToolCallWithName": {
     "defaultMessage": "{toolName}の実行を許可しますか？"
   },
-  "toolConfirmation.gooseWouldLikeToCallWithName": {
+  "toolConfirmation.goslingWouldLikeToCallWithName": {
     "defaultMessage": "Goslingが{toolName}を実行しようとしています。許可しますか？"
   },
   "updateSection.autoDownload": {
     "defaultMessage": "アップデートはバックグラウンドで自動的にダウンロードされます。"
   },
   "updateSection.autoDownloadDisabledByEnv": {
-    "defaultMessage": "自動ダウンロードは GOOSE_DISABLE_AUTO_DOWNLOAD 環境変数によって無効になっています。"
+    "defaultMessage": "自動ダウンロードは GOSLING_DISABLE_AUTO_DOWNLOAD 環境変数によって無効になっています。"
   },
   "updateSection.autoDownloadDisabledNote": {
     "defaultMessage": "自動ダウンロードは無効です。手動でダウンロードするには「今すぐダウンロード」をクリックしてください。"

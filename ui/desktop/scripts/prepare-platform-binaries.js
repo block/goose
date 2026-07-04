@@ -19,8 +19,7 @@ const uvBinaryHashes = {
 const windowsFiles = [
     '*.exe',
     '*.dll',
-    '*.cmd',
-    'goose-npm/**/*'
+    '*.cmd'
 ];
 
 // Helper function to check if file matches patterns
@@ -117,7 +116,7 @@ async function ensureWindowsUvBinaries() {
         return;
     }
 
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'goose-uv-'));
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'gosling-uv-'));
     const zipPath = path.join(tmpDir, 'uv.zip');
     const extractDir = path.join(tmpDir, 'extract');
     fs.mkdirSync(extractDir, { recursive: true });

@@ -1,16 +1,16 @@
 ---
-description: Integrate goose with MLflow to observe and evaluate agent performance
+description: Integrate gosling with MLflow to observe and evaluate agent performance
 ---
 
 # Observability with MLflow
 
-This tutorial covers how to integrate goose with MLflow to trace your goose sessions and understand how the agent is performing.
+This tutorial covers how to integrate gosling with MLflow to trace your gosling sessions and understand how the agent is performing.
 
 ## What is MLflow
 
 [MLflow](https://mlflow.org/) is an [open-source](https://github.com/mlflow/mlflow) platform for managing the end-to-end machine learning and AI lifecycle. MLflow Tracing provides detailed observability into AI agent execution, capturing LLM calls, tool usage, and agent decisions with a rich visualization UI.
 
-## Why MLflow for goose
+## Why MLflow for gosling
 
 - **Detailed trace visualization**: Inspect every LLM call, tool execution, and agent decision in a hierarchical trace view.
 - **Token usage tracking**: Monitor input/output token counts and costs across sessions.
@@ -33,9 +33,9 @@ The MLflow UI will be available at `http://localhost:5000`.
 For production use, configure a SQL backend store (PostgreSQL, MySQL) instead of the default SQLite. See the [MLflow documentation](https://mlflow.org/docs/latest/self-hosting/architecture/backend-store.html) for details.
 :::
 
-## Configure goose to export OTLP to MLflow
+## Configure gosling to export OTLP to MLflow
 
-goose exports OpenTelemetry data over OTLP/HTTP. Point the exporter to MLflow's OTLP endpoint:
+gosling exports OpenTelemetry data over OTLP/HTTP. Point the exporter to MLflow's OTLP endpoint:
 
 ```bash
 export OTEL_EXPORTER_OTLP_ENDPOINT="http://localhost:5000"
@@ -46,7 +46,7 @@ The `x-mlflow-experiment-id` header specifies which MLflow experiment to log tra
 
 ```bash
 pip install mlflow
-mlflow experiments create --experiment-name "goose-traces"
+mlflow experiments create --experiment-name "gosling-traces"
 # Use the returned experiment ID in the header
 ```
 
@@ -58,20 +58,20 @@ export OTEL_METRICS_EXPORTER=none
 export OTEL_LOGS_EXPORTER=none
 ```
 
-## Run goose with MLflow enabled
+## Run gosling with MLflow enabled
 
-Start goose normally. With the OTLP environment variables set, goose will automatically export traces to MLflow:
+Start gosling normally. With the OTLP environment variables set, gosling will automatically export traces to MLflow:
 
 ```bash
-goose session
+gosling session
 ```
 
-Open the MLflow UI at `http://localhost:5000` and navigate to the **Traces** tab to see detailed traces of your goose session, including LLM calls, tool executions, and token usage.
+Open the MLflow UI at `http://localhost:5000` and navigate to the **Traces** tab to see detailed traces of your gosling session, including LLM calls, tool executions, and token usage.
 
-![goose trace in MLflow](../assets/guides/mlflow-goose-tracing.png)
+![gosling trace in MLflow](../assets/guides/mlflow-gosling-tracing.png)
 
 ## Learn more
 
 - [MLflow Tracing documentation](https://mlflow.org/docs/latest/genai/tracing/)
 - [MLflow OpenTelemetry integration](https://mlflow.org/docs/latest/genai/tracing/app-instrumentation/opentelemetry.html)
-- [MLflow goose integration guide](https://mlflow.org/docs/latest/genai/tracing/integrations/listing/goose.html)
+- [MLflow gosling integration guide](https://mlflow.org/docs/latest/genai/tracing/integrations/listing/gosling.html)

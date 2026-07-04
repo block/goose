@@ -1,23 +1,23 @@
 ---
 title: Beads Extension
-description: Add Beads MCP Server as a goose Extension
+description: Add Beads MCP Server as a gosling Extension
 ---
 
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
-import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
+import GoslingDesktopInstaller from '@site/src/components/GoslingDesktopInstaller';
 
 <!-- <YouTubeShortEmbed videoUrl="https://www.youtube.com/embed/VIDEO_ID" /> -->
 
-This tutorial covers how to add the [Beads MCP Server](https://github.com/steveyegge/beads) as a goose extension. Beads is a distributed, git-backed issue tracker designed for AI agents. It enables persistent task tracking with dependency management, so multiple goose sessions can coordinate work on complex projects.
+This tutorial covers how to add the [Beads MCP Server](https://github.com/steveyegge/beads) as a gosling extension. Beads is a distributed, git-backed issue tracker designed for AI agents. It enables persistent task tracking with dependency management, so multiple gosling sessions can coordinate work on complex projects.
 
 :::tip Quick Install
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-  [Launch the installer](goose://extension?cmd=uvx&arg=beads-mcp&id=beads&name=Beads&description=Git-backed%20issue%20tracker%20for%20AI%20agent%20task%20management)
+  <TabItem value="ui" label="gosling Desktop" default>
+  [Launch the installer](gosling://extension?cmd=uvx&arg=beads-mcp&id=beads&name=Beads&description=Git-backed%20issue%20tracker%20for%20AI%20agent%20task%20management)
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
   **Command**
   ```sh
   uvx beads-mcp
@@ -40,8 +40,8 @@ uv tool install beads-mcp --with packaging
 :::
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
-    <GooseDesktopInstaller
+  <TabItem value="ui" label="gosling Desktop" default>
+    <GoslingDesktopInstaller
       extensionId="beads"
       extensionName="Beads"
       description="Git-backed issue tracker for AI agent task management"
@@ -51,7 +51,7 @@ uv tool install beads-mcp --with packaging
       timeout={300}
     />
   </TabItem>
-  <TabItem value="cli" label="goose CLI">
+  <TabItem value="cli" label="gosling CLI">
     <CLIExtensionInstructions
       name="beads"
       description="Git-backed issue tracker for AI agent task management"
@@ -64,11 +64,11 @@ uv tool install beads-mcp --with packaging
 
 ## Example Usage
 
-In this example, we'll use Beads to coordinate building an expense tracker web app across **multiple parallel sessions**. This demonstrates how Beads enables multiple goose instances to work on the same project without conflicts.
+In this example, we'll use Beads to coordinate building an expense tracker web app across **multiple parallel sessions**. This demonstrates how Beads enables multiple gosling instances to work on the same project without conflicts.
 
 ### Overview
 
-We'll run **4 goose sessions**:
+We'll run **4 gosling sessions**:
 1. **Step 1**: Create all tasks with dependencies
 2. **Step 2**: Build frontend tasks
 3. **Step 3**: Build backend tasks (in parallel with Step 2)
@@ -78,9 +78,9 @@ We'll run **4 goose sessions**:
 
 ### Step 1: Plan the Project
 
-Create a new directory and start a goose session.
+Create a new directory and start a gosling session.
 
-#### goose Prompt
+#### gosling Prompt
 ```
 I want to build an expense tracker web app. Initialize beads and create all tasks with dependencies:
 
@@ -98,7 +98,7 @@ Backend tasks:
 Show me all tasks and which ones are ready to work on.
 ```
 
-#### goose Output
+#### gosling Output
 ```
 I'll initialize beads and create all the tasks with their dependencies.
 
@@ -190,9 +190,9 @@ These two foundation tasks can be worked on **in parallel** since they're indepe
 
 ### Step 2: Build the Frontend
 
-Open a **new terminal** in the same directory and start a new goose session.
+Open a **new terminal** in the same directory and start a new gosling session.
 
-#### goose Prompt
+#### gosling Prompt
 ```
 Check beads for the expense tracker project.
 
@@ -201,7 +201,7 @@ Build the "HTML Structure" task.
 When done, mark it complete in beads, then build "CSS Styling" and mark it complete.
 ```
 
-#### goose Output
+#### gosling Output
 ```
 ─── ready | beads ──────────────────────────
 
@@ -266,9 +266,9 @@ The dependency chain has unblocked new work:
 
 ### Step 3: Build the Backend
 
-Open a **third terminal** in the same directory and start another goose session. Run this in parallel with Step 2.
+Open a **third terminal** in the same directory and start another gosling session. Run this in parallel with Step 2.
 
-#### goose Prompt
+#### gosling Prompt
 ```
 Check beads for the expense tracker project.
 
@@ -277,7 +277,7 @@ Build the "Storage Setup" task and mark it complete.
 Then build "Add Expense", "Calculate Total", and "Delete Expense", marking each complete as you go.
 ```
 
-#### goose Output
+#### gosling Output
 ```
 ─── ready | beads ──────────────────────────
 
@@ -347,7 +347,7 @@ All backend tasks complete! The "Wire Up UI" task should now be unblocked.
 
 Open a **fourth terminal** in the same directory. This session will wait for the parallel work to complete before proceeding.
 
-#### goose Prompt
+#### gosling Prompt
 ```
 Check beads for the expense tracker "Wire Up UI" task.
 
@@ -358,7 +358,7 @@ If ready, implement it - connect the UI buttons to the backend functions.
 When done, mark the task complete in beads.
 ```
 
-#### goose Output
+#### gosling Output
 ```
 ─── blocked | beads ──────────────────────────
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Generates TypeScript types + Zod validators for Goose custom extension methods.
+ * Generates TypeScript types + Zod validators for Gosling custom extension methods.
  *
  * Usage:
  *   npm run generate              # build Rust schema, then generate TS
@@ -16,8 +16,8 @@ import * as prettier from "prettier";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const ROOT = resolve(__dirname, "../..");
-const SCHEMA_PATH = resolve(ROOT, "crates/goose/acp-schema.json");
-const META_PATH = resolve(ROOT, "crates/goose/acp-meta.json");
+const SCHEMA_PATH = resolve(ROOT, "crates/gosling/acp-schema.json");
+const META_PATH = resolve(ROOT, "crates/gosling/acp-meta.json");
 const OUTPUT_DIR = resolve(__dirname, "src/generated");
 
 // Export the main function so it can be imported by build-schema.ts
@@ -34,7 +34,7 @@ export default async function main() {
     input: {
       openapi: "3.1.0",
       info: {
-        title: "Goose Extensions",
+        title: "Gosling Extensions",
         version: "1.0.0",
       },
       components: {
@@ -61,7 +61,7 @@ export default async function main() {
 
   await generateClient(meta);
 
-  console.log(`\nGenerated Goose extension schema in ${OUTPUT_DIR}`);
+  console.log(`\nGenerated Gosling extension schema in ${OUTPUT_DIR}`);
 }
 
 async function postProcessTypes() {
@@ -89,17 +89,17 @@ async function postProcessIndex(meta: {
 
   const methodConstants = await prettier.format(
     `
-export const GOOSE_EXT_METHODS = ${JSON.stringify(meta.methods, null, 2)} as const;
+export const GOSLING_EXT_METHODS = ${JSON.stringify(meta.methods, null, 2)} as const;
 
-export type GooseExtMethod = (typeof GOOSE_EXT_METHODS)[number];
+export type GoslingExtMethod = (typeof GOSLING_EXT_METHODS)[number];
 
-export const GOOSE_EXT_NOTIFICATIONS = ${JSON.stringify(meta.notifications ?? [], null, 2)} as const;
+export const GOSLING_EXT_NOTIFICATIONS = ${JSON.stringify(meta.notifications ?? [], null, 2)} as const;
 
-export type GooseExtNotification = (typeof GOOSE_EXT_NOTIFICATIONS)[number];
+export type GoslingExtNotification = (typeof GOSLING_EXT_NOTIFICATIONS)[number];
 
-export const GOOSE_EXT_AGENT_REQUESTS = ${JSON.stringify(meta.agentRequests ?? [], null, 2)} as const;
+export const GOSLING_EXT_AGENT_REQUESTS = ${JSON.stringify(meta.agentRequests ?? [], null, 2)} as const;
 
-export type GooseExtAgentRequest = (typeof GOOSE_EXT_AGENT_REQUESTS)[number];
+export type GoslingExtAgentRequest = (typeof GOSLING_EXT_AGENT_REQUESTS)[number];
 `,
     { parser: "typescript" },
   );
@@ -152,11 +152,11 @@ interface AgentRequestMeta {
 function methodToHandlerName(method: string): string {
   let methodParts = method.split(/[/_]/).filter((part) => part.length > 0);
   let prefix = "";
-  if (methodParts[0] == "goose" && methodParts[1] == "unstable") {
+  if (methodParts[0] == "gosling" && methodParts[1] == "unstable") {
     methodParts.shift();
     methodParts.shift();
     prefix = "unstable_";
-  } else if (methodParts[0] == "goose") {
+  } else if (methodParts[0] == "gosling") {
     methodParts.shift();
   }
   const body = methodParts
@@ -174,7 +174,7 @@ function methodToCamelCase(method: string): string {
   let methodParts = method.split(/[/_]/).filter((part) => part.length > 0);
 
   let suffix: string;
-  if (methodParts[0] == "goose" && methodParts[1] == "unstable") {
+  if (methodParts[0] == "gosling" && methodParts[1] == "unstable") {
     methodParts.shift();
     methodParts.shift();
     suffix = "_unstable";
@@ -317,16 +317,16 @@ async function generateClient(meta: {
     );
   }
 
-  const handlersInterface = `export interface GooseExtNotifications {
+  const handlersInterface = `export interface GoslingExtNotifications {
 ${handlerFields.join("\n")}
 }`;
 
-  const agentRequestsInterface = `export interface GooseExtAgentRequests {
+  const agentRequestsInterface = `export interface GoslingExtAgentRequests {
 ${agentRequestHandlerFields.join("\n")}
 }`;
 
-  const agentRequestDispatcherFn = `export function installGooseExtAgentRequestDispatcher(
-  callbacks: GooseClientCallbacks,
+  const agentRequestDispatcherFn = `export function installGoslingExtAgentRequestDispatcher(
+  callbacks: GoslingClientCallbacks,
 ): Client {
   const dispatcher: Pick<Client, "extMethod"> = {
     extMethod: async (method, params) => {
@@ -352,8 +352,8 @@ ${agentRequestDispatchCases.join("\n")}
   }) as Client;
 }`;
 
-  const dispatcherFn = `export function installGooseExtNotificationDispatcher(
-  callbacks: GooseClientCallbacks,
+  const dispatcherFn = `export function installGoslingExtNotificationDispatcher(
+  callbacks: GoslingClientCallbacks,
 ): Client {
   const dispatcher: Pick<Client, "extNotification"> = {
     extNotification: async (method, params) => {
@@ -395,7 +395,7 @@ ${upstreamImportLine}
 ${typeImportLine}
 ${zodImportLine}
 
-export class GooseExtClient {
+export class GoslingExtClient {
   constructor(private conn: ExtMethodProvider) {}
 ${methodDefs.join("\n")}
 }
@@ -404,11 +404,11 @@ ${handlersInterface}
 
 ${agentRequestsInterface}
 
-export type GooseClientCallbacks =
+export type GoslingClientCallbacks =
   Omit<Client, "extNotification" | "extMethod"> &
   Partial<Pick<Client, "extNotification" | "extMethod">> &
-  GooseExtNotifications &
-  GooseExtAgentRequests;
+  GoslingExtNotifications &
+  GoslingExtAgentRequests;
 
 ${dispatcherFn}
 

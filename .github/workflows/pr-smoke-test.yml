@@ -67,13 +67,13 @@ jobs:
 
       - name: Build Binary for Smoke Tests
         run: |
-          cargo build --bin goose
+          cargo build --bin gosling
 
-      - name: Upload goose binary
+      - name: Upload gosling binary
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7.0.1
         with:
-          name: goose-binary
-          path: target/debug/goose
+          name: gosling-binary
+          path: target/debug/gosling
           retention-days: 1
 
   smoke-tests:
@@ -89,11 +89,11 @@ jobs:
       - name: Download Binary
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          name: goose-binary
+          name: gosling-binary
           path: target/debug
 
       - name: Make Binary Executable
-        run: chmod +x target/debug/goose
+        run: chmod +x target/debug/gosling
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -119,13 +119,13 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
-          HOME: /tmp/goose-home
-          GOOSE_DISABLE_KEYRING: 1
+          HOME: /tmp/gosling-home
+          GOSLING_DISABLE_KEYRING: 1
           SKIP_BUILD: 1
           SKIP_PROVIDERS: ${{ vars.SKIP_PROVIDERS || '' }}
         run: |
-          mkdir -p $HOME/.local/share/goose/sessions
-          mkdir -p $HOME/.config/goose
+          mkdir -p $HOME/.local/share/gosling/sessions
+          mkdir -p $HOME/.config/gosling
           source ../../bin/activate-hermit && pnpm run test:integration:providers
         working-directory: ui/desktop
 
@@ -147,8 +147,8 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
-          HOME: /tmp/goose-home
-          GOOSE_DISABLE_KEYRING: 1
+          HOME: /tmp/gosling-home
+          GOSLING_DISABLE_KEYRING: 1
           SKIP_BUILD: 1
         run: |
           bash scripts/test_mcp.sh
@@ -166,11 +166,11 @@ jobs:
       - name: Download Binary
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          name: goose-binary
+          name: gosling-binary
           path: target/debug
 
       - name: Make Binary Executable
-        run: chmod +x target/debug/goose
+        run: chmod +x target/debug/gosling
 
       - name: Install Node.js Dependencies
         run: source ../../bin/activate-hermit && pnpm install --frozen-lockfile
@@ -186,13 +186,13 @@ jobs:
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           XAI_API_KEY: ${{ secrets.XAI_API_KEY }}
           TETRATE_API_KEY: ${{ secrets.TETRATE_API_KEY }}
-          HOME: /tmp/goose-home
-          GOOSE_DISABLE_KEYRING: 1
+          HOME: /tmp/gosling-home
+          GOSLING_DISABLE_KEYRING: 1
           SKIP_BUILD: 1
           SKIP_PROVIDERS: ${{ vars.SKIP_PROVIDERS || '' }}
         run: |
-          mkdir -p $HOME/.local/share/goose/sessions
-          mkdir -p $HOME/.config/goose
+          mkdir -p $HOME/.local/share/gosling/sessions
+          mkdir -p $HOME/.config/gosling
           source ../../bin/activate-hermit && pnpm run test:integration:providers-code-exec
         working-directory: ui/desktop
 
@@ -209,11 +209,11 @@ jobs:
       - name: Download Binary
         uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8.0.1
         with:
-          name: goose-binary
+          name: gosling-binary
           path: target/debug
 
       - name: Make Binary Executable
-        run: chmod +x target/debug/goose
+        run: chmod +x target/debug/gosling
 
       - name: Set up Python
         uses: actions/setup-python@v6
@@ -226,12 +226,12 @@ jobs:
       - name: Run Compaction Tests
         env:
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
-          GOOSE_PROVIDER: anthropic
-          GOOSE_MODEL: claude-sonnet-4-5-20250929
-          HOME: /tmp/goose-home
-          GOOSE_DISABLE_KEYRING: 1
+          GOSLING_PROVIDER: anthropic
+          GOSLING_MODEL: claude-sonnet-4-5-20250929
+          HOME: /tmp/gosling-home
+          GOSLING_DISABLE_KEYRING: 1
           SKIP_BUILD: 1
         run: |
-          mkdir -p $HOME/.local/share/goose/sessions
-          mkdir -p $HOME/.config/goose
+          mkdir -p $HOME/.local/share/gosling/sessions
+          mkdir -p $HOME/.config/gosling
           bash scripts/test_compaction.sh

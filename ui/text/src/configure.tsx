@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Box, Text, useInput, useStdout } from "ink";
-import type { GooseClient, ProviderInventoryEntryDto } from "@aaif/goose-sdk";
+import type { GoslingClient, ProviderInventoryEntryDto } from "@repo-makeover/gosling-sdk";
 import {
   CRANBERRY,
   TEAL,
@@ -27,7 +27,7 @@ type Phase =
 export type ConfigureIntent = "provider" | "model";
 
 interface ConfigureProps {
-  client: GooseClient;
+  client: GoslingClient;
   sessionId: string;
   width: number;
   height: number;
@@ -375,7 +375,7 @@ export default function ConfigureScreen({
 
     (async () => {
       try {
-        const resp = await client.goose.providersList_unstable({
+        const resp = await client.gosling.providersList_unstable({
           providerIds: [],
         });
         if (cancelled) return;
@@ -389,7 +389,7 @@ export default function ConfigureScreen({
 
         if (initialIntent === "model") {
           try {
-            const cfg = await client.goose.defaultsRead_unstable({});
+            const cfg = await client.gosling.defaultsRead_unstable({});
             if (cancelled) return;
             const current = sorted.find((p) => p.providerId === cfg.providerId);
             if (current) {
@@ -425,7 +425,7 @@ export default function ConfigureScreen({
     ) => {
       setPhase("saving");
       try {
-        await client.goose.providersConfigSave_unstable({
+        await client.gosling.providersConfigSave_unstable({
           providerId: provider.providerId,
           fields: Object.entries(configValues).map(([key, value]) => ({
             key,

@@ -1,7 +1,7 @@
 ---
 title: Managing Tools
 hide_title: true
-description: Control and configure the tools and extensions that power your goose workflows
+description: Control and configure the tools and extensions that power your gosling workflows
 ---
 
 import Card from '@site/src/components/Card';
@@ -9,20 +9,20 @@ import styles from '@site/src/components/Card/styles.module.css';
 
 <h1 className={styles.pageTitle}>Managing Tools</h1>
 <p className={styles.pageDescription}>
-  Tools are specific functions within <a href="/docs/getting-started/using-extensions">extensions</a> that give goose its capabilities. Learn to control and customize how these tools work for you.
+  Tools are specific functions within <a href="/docs/getting-started/using-extensions">extensions</a> that give gosling its capabilities. Learn to control and customize how these tools work for you.
 </p>
 
 <div className={styles.categorySection}>
   <h2 className={styles.categoryTitle}>📚 Documentation & Guides</h2>
   <div className={styles.cardGrid}>
     <Card 
-      title="goose Permissions"
-      description="Choose how much autonomy goose has when using tools, editing files, and taking action in a session."
-      link="/docs/guides/managing-tools/goose-permissions"
+      title="gosling Permissions"
+      description="Choose how much autonomy gosling has when using tools, editing files, and taking action in a session."
+      link="/docs/guides/managing-tools/gosling-permissions"
     />
     <Card 
       title="Tool Permissions"
-      description="Configure fine-grained permissions to control which tools goose can use and when, ensuring secure and controlled automation."
+      description="Configure fine-grained permissions to control which tools gosling can use and when, ensuring secure and controlled automation."
       link="/docs/guides/managing-tools/tool-permissions"
     />
     <Card 
@@ -40,27 +40,5 @@ import styles from '@site/src/components/Card/styles.module.css';
       description="Enable tool calling for models that don't natively support it using an experimental local interpreter model setup."
       link="/docs/experimental/ollama"
     />
-  </div>
-</div>
-
-<div className={styles.categorySection}>
-  <h2 className={styles.categoryTitle}>📝 Featured Blog Posts</h2>
-  <div className={styles.cardGrid}>
-    <Card
-      title="Agentic AI and the MCP Ecosystem"
-      description="A 101 introduction to AI agents, tool calling, and how tools work with LLMs to enable powerful automation."
-      link="/blog/2025/02/17/agentic-ai-mcp"
-    />
-    <Card
-      title="A Visual Guide To MCP Ecosystem"
-      description="Visual breakdown of MCP: How your AI agent, tools, and models work together, explained with diagrams and analogies."
-      link="/blog/2025/04/10/visual-guide-mcp"
-    />
-    <Card
-      title="Finetuning Toolshim Models for Tool Calling"
-      description="Technical deep-dive into the challenges of tool calling with open-source models and the research behind toolshim solutions."
-      link="/blog/2025/04/11/finetuning-toolshim"
-    />
-
   </div>
 </div>

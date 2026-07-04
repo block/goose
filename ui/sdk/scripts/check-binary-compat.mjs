@@ -1,15 +1,15 @@
 #!/usr/bin/env node
-// Compatibility smoke test: boot the freshly-built goose binary via `goose acp`
+// Compatibility smoke test: boot the freshly-built gosling binary via `gosling acp`
 // and call every read-only ACP method through the freshly-built SDK. The
 // generated client validates every response with Zod, so any schema drift
 // between the binary and the SDK client fails this check and blocks the
 // publish.
 //
 // Run with:
-//   GOOSE_BINARY=/path/to/goose node ui/sdk/scripts/check-binary-compat.mjs
+//   GOSLING_BINARY=/path/to/gosling node ui/sdk/scripts/check-binary-compat.mjs
 //
 // Or via package script:
-//   GOOSE_BINARY=/path/to/goose pnpm --filter @aaif/goose-sdk run check:compat
+//   GOSLING_BINARY=/path/to/gosling pnpm --filter @repo-makeover/gosling-sdk run check:compat
 
 import { spawn } from "node:child_process";
 import { mkdtempSync, rmSync, existsSync, statSync } from "node:fs";
@@ -27,65 +27,65 @@ if (!existsSync(SDK_DIST)) {
   process.exit(1);
 }
 
-const GOOSE_BINARY = process.env.GOOSE_BINARY;
-if (!GOOSE_BINARY || !existsSync(GOOSE_BINARY)) {
+const GOSLING_BINARY = process.env.GOSLING_BINARY;
+if (!GOSLING_BINARY || !existsSync(GOSLING_BINARY)) {
   console.error(
-    `[compat] GOOSE_BINARY must point to a built goose binary (got: ${GOOSE_BINARY ?? "<unset>"})`,
+    `[compat] GOSLING_BINARY must point to a built gosling binary (got: ${GOSLING_BINARY ?? "<unset>"})`,
   );
   process.exit(1);
 }
 
-const { GooseClient } = await import(join(SDK_DIST, "goose-client.js"));
+const { GoslingClient } = await import(join(SDK_DIST, "gosling-client.js"));
 const { PROTOCOL_VERSION, ndJsonStream } = await import(
   "@agentclientprotocol/sdk"
 );
 
 // Each entry is a read-only ACP method we expect to succeed against a fresh,
-// unconfigured goose install. Platform-specific skips keep hardware-sensitive
+// unconfigured gosling install. Platform-specific skips keep hardware-sensitive
 // checks from turning local environment quirks into publish blockers.
 const READ_ONLY_CHECKS = [
   {
     name: "providersList_unstable",
-    call: (c) => c.goose.providersList_unstable({ providerIds: [] }),
+    call: (c) => c.gosling.providersList_unstable({ providerIds: [] }),
   },
   {
     name: "providersCatalogList_unstable",
-    call: (c) => c.goose.providersCatalogList_unstable({}),
+    call: (c) => c.gosling.providersCatalogList_unstable({}),
   },
   {
     name: "providersSetupCatalogList_unstable",
-    call: (c) => c.goose.providersSetupCatalogList_unstable({}),
+    call: (c) => c.gosling.providersSetupCatalogList_unstable({}),
   },
   {
     name: "defaultsRead_unstable",
-    call: (c) => c.goose.defaultsRead_unstable({}),
+    call: (c) => c.gosling.defaultsRead_unstable({}),
   },
   {
     name: "preferencesRead_unstable",
-    call: (c) => c.goose.preferencesRead_unstable({}),
+    call: (c) => c.gosling.preferencesRead_unstable({}),
   },
   {
     name: "sourcesList_unstable",
-    call: (c) => c.goose.sourcesList_unstable({}),
+    call: (c) => c.gosling.sourcesList_unstable({}),
   },
   {
     name: "dictationConfig_unstable",
     skipIf: () => process.platform === "darwin",
     skipReason:
       "skipped on macOS because local-inference Metal probing can panic before returning a schema response",
-    call: (c) => c.goose.dictationConfig_unstable({}),
+    call: (c) => c.gosling.dictationConfig_unstable({}),
   },
   {
     name: "dictationModelsList_unstable",
-    call: (c) => c.goose.dictationModelsList_unstable({}),
+    call: (c) => c.gosling.dictationModelsList_unstable({}),
   },
   {
     name: "configExtensionsList_unstable",
-    call: (c) => c.goose.configExtensionsList_unstable({}),
+    call: (c) => c.gosling.configExtensionsList_unstable({}),
   },
 ];
 
-const sandbox = mkdtempSync(join(tmpdir(), "goose-compat-"));
+const sandbox = mkdtempSync(join(tmpdir(), "gosling-compat-"));
 const env = {
   ...process.env,
   HOME: sandbox,
@@ -93,14 +93,14 @@ const env = {
   XDG_DATA_HOME: join(sandbox, ".local/share"),
   XDG_STATE_HOME: join(sandbox, ".local/state"),
   XDG_CACHE_HOME: join(sandbox, ".cache"),
-  GOOSE_CONFIG_DIR: join(sandbox, ".config/goose"),
+  GOSLING_CONFIG_DIR: join(sandbox, ".config/gosling"),
 };
 
-console.log(`[compat] using binary: ${GOOSE_BINARY}`);
+console.log(`[compat] using binary: ${GOSLING_BINARY}`);
 console.log(`[compat] sandbox HOME: ${sandbox}`);
-console.log(`[compat] binary size: ${statSync(GOOSE_BINARY).size} bytes`);
+console.log(`[compat] binary size: ${statSync(GOSLING_BINARY).size} bytes`);
 
-const child = spawn(GOOSE_BINARY, ["acp"], {
+const child = spawn(GOSLING_BINARY, ["acp"], {
   stdio: ["pipe", "pipe", "inherit"],
   env,
 });
@@ -109,12 +109,12 @@ let exitedEarly = false;
 child.on("exit", (code, signal) => {
   if (!exitedEarly) {
     console.error(
-      `[compat] goose acp exited unexpectedly (code=${code} signal=${signal})`,
+      `[compat] gosling acp exited unexpectedly (code=${code} signal=${signal})`,
     );
   }
 });
 child.on("error", (err) => {
-  console.error(`[compat] failed to spawn goose acp: ${err.message}`);
+  console.error(`[compat] failed to spawn gosling acp: ${err.message}`);
   process.exit(1);
 });
 
@@ -123,7 +123,7 @@ const stream = ndJsonStream(
   Readable.toWeb(child.stdout),
 );
 
-const client = new GooseClient(
+const client = new GoslingClient(
   () => ({
     requestPermission: async () => ({
       outcome: { outcome: "cancelled" },
@@ -187,7 +187,7 @@ if (failed > 0) {
     "[compat] This means the SDK's generated client schema doesn't match what",
   );
   console.error(
-    "[compat] the goose binary returns. Regenerate the SDK or fix the server DTO.",
+    "[compat] the gosling binary returns. Regenerate the SDK or fix the server DTO.",
   );
   process.exit(1);
 }

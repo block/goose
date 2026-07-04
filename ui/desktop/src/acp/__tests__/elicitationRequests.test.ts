@@ -80,7 +80,7 @@ describe('ACP elicitation requests', () => {
 
     expect(
       resolveAcpElicitationRequest('session-1', appliedRequest.id, {
-        project: 'goose',
+        project: 'gosling',
       })
     ).toBe(true);
     expect(acpChatSessionActions.setElicitationStatus).toHaveBeenCalledWith(
@@ -96,7 +96,7 @@ describe('ACP elicitation requests', () => {
     await expect(response).resolves.toEqual({
       action: 'accept',
       content: {
-        project: 'goose',
+        project: 'gosling',
       },
     });
   });

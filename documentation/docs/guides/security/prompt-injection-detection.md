@@ -9,9 +9,9 @@ import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 import { PanelLeft, Settings } from 'lucide-react';
 
-Prompt injection happens when malicious instructions are hidden inside executable content. In the world of AI, prompt injection can be used to nudge AI agents (like goose) to run unsafe commands that compromise your environment or data.
+Prompt injection happens when malicious instructions are hidden inside executable content. In the world of AI, prompt injection can be used to nudge AI agents (like gosling) to run unsafe commands that compromise your environment or data.
 
-You can help protect your goose workflows by enabling prompt injection detection. This feature uses pattern matching to detect common attack techniques, including:
+You can help protect your gosling workflows by enabling prompt injection detection. This feature uses pattern matching to detect common attack techniques, including:
 - Attempts to delete system files or directories
 - Commands that download and execute remote scripts
 - Attempts to access or exfiltrate sensitive data like SSH keys
@@ -25,9 +25,9 @@ These checks provide a safeguard, not a guarantee. They detect known patterns bu
 
 ## How Detection Works
 
-When enabled, goose uses a multi-layered approach to detect threats before they run:
+When enabled, gosling uses a multi-layered approach to detect threats before they run:
 
-1. **Tool call is intercepted and analyzed** - When goose prepares to execute a tool, the security system extracts the tool parameter text and checks it against [threat patterns](https://github.com/aaif-goose/goose/blob/main/crates/goose/src/security/patterns.rs). If ML-based detection is enabled, it also uses machine learning to analyze the semantic content of the tool call and recent conversation messages to better understand context and reduce false positives.
+1. **Tool call is intercepted and analyzed** - When gosling prepares to execute a tool, the security system extracts the tool parameter text and checks it against [threat patterns](https://github.com/repo-makeover/gosling/blob/main/crates/gosling/src/security/patterns.rs). If ML-based detection is enabled, it also uses machine learning to analyze the semantic content of the tool call and recent conversation messages to better understand context and reduce false positives.
 2. **Risk is assessed** - Detected threats are assigned confidence scores
 3. **Execution pauses** - Threats that exceed your configured threshold need your decision
 4. **Security alert appears** - The alert displays the confidence level, a description of the finding, and a unique finding ID. For example:
@@ -41,7 +41,7 @@ When enabled, goose uses a multi-layered approach to detect threats before they 
    [Allow Once] [Deny]
    ```
 5. **You choose** whether to proceed or cancel after reviewing the alert details. Note that:
-   - Each decision is logged with its finding ID in the [goose system logs](/docs/guides/logs#system-logs)
+   - Each decision is logged with its finding ID in the [gosling system logs](/docs/guides/logs#system-logs)
    - Allowed commands still run with your full permissions
 
 **Responding to Alerts:**
@@ -56,7 +56,7 @@ When in doubt, deny.
 ## Enabling Detection
 
 <Tabs groupId="interface">
-  <TabItem value="ui" label="goose Desktop" default>
+  <TabItem value="ui" label="gosling Desktop" default>
     
     1. Click the <PanelLeft className="inline" size={16} /> button in the top-left to open the sidebar
     2. Click `Settings` on the sidebar
@@ -70,7 +70,7 @@ When in doubt, deny.
           - `API Token`: Authentication token if required by your service
 
   </TabItem>
-  <TabItem value="config" label="goose config file">
+  <TabItem value="config" label="gosling config file">
 
     Add security prompt settings to your [`config.yaml`](/docs/guides/config-files):
 
@@ -88,7 +88,7 @@ When in doubt, deny.
 </Tabs>
 
 :::info Other Security Features
-Beyond prompt injection detection, goose automatically:
+Beyond prompt injection detection, gosling automatically:
 - [Checks for known malware](/docs/troubleshooting/known-issues#malicious-package-detected) when installing extensions for locally-run MCP servers
 :::
 
@@ -126,5 +126,5 @@ If you want to run your own classification endpoint, see the [Classification API
 
 ## See Also
 
-- [goose Permission Modes](/docs/guides/managing-tools/goose-permissions) - Control goose's autonomy level
+- [gosling Permission Modes](/docs/guides/managing-tools/gosling-permissions) - Control gosling's autonomy level
 - [Managing Tool Permissions](/docs/guides/managing-tools/tool-permissions) - Fine-grained tool control

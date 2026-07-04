@@ -3,7 +3,7 @@ interface StoredMessage {
   timestamp: number;
 }
 
-const STORAGE_KEY = 'goose-chat-history';
+const STORAGE_KEY = 'gosling-chat-history';
 const MAX_MESSAGES = 500;
 const EXPIRY_DAYS = 30;
 

@@ -81,7 +81,7 @@ def trial_turns(trial: TrialResult, job_dir: Path) -> int | None:
     one entry per agent step). Falls back to parsing harness-specific logs
     when the trajectory isn't present:
 
-      * goose stream-json: count messages with role=assistant
+      * gosling stream-json: count messages with role=assistant
       * pi log: count "turn_start" events
     """
     trial_dir = _trial_dir(trial, job_dir)
@@ -95,14 +95,16 @@ def trial_turns(trial: TrialResult, job_dir: Path) -> int | None:
         if isinstance(steps, list):
             return sum(1 for s in steps if isinstance(s, dict) and s.get("source") == "agent")
 
-    goose_log = trial_dir / "agent" / "goose.txt"
-    if goose_log.is_file():
+    gosling_log = trial_dir / "agent" / "gosling.txt"
+    legacy_goose_log = trial_dir / "agent" / "goose.txt"
+    agent_log = gosling_log if gosling_log.is_file() else legacy_goose_log
+    if agent_log.is_file():
         # stream-json emits one `message` event per streamed chunk (sharing the
         # same message.id for a single assistant turn). Dedupe by id so a turn
         # that streamed 2000 tokens counts as 1, not 2000.
         seen_ids: set[str] = set()
         anon_chunks = 0
-        for line in goose_log.read_text(errors="replace").splitlines():
+        for line in agent_log.read_text(errors="replace").splitlines():
             line = line.strip()
             if not line.startswith("{"):
                 continue
@@ -379,7 +381,9 @@ def cmd_task(args: argparse.Namespace) -> int:
                     for line in lines[-15:]:
                         print(f"    {line}")
             print(f"\nArtifacts in: {trial_dir}")
-            agent_log = trial_dir / "agent" / "goose.txt"
+            agent_log = trial_dir / "agent" / "gosling.txt"
+            if not agent_log.is_file():
+                agent_log = trial_dir / "agent" / "goose.txt"
             if not agent_log.is_file():
                 agent_log = trial_dir / "agent" / "pi.txt"
             if agent_log.is_file():
@@ -426,12 +430,12 @@ def cmd_rm(args: argparse.Namespace) -> int:
 def cmd_pull(args: argparse.Namespace) -> int:
     """Rsync runs from a remote into the local runs directory.
 
-    ``remote`` should be ``user@host:/path/to/goose`` — we append
+    ``remote`` should be ``user@host:/path/to/gosling`` — we append
     ``/evals/harbor/runs/`` and pull into our own runs/.
     """
     remote = args.remote.rstrip("/")
     if ":" not in remote:
-        print("remote must include host:path, e.g. tbench@douwe.com:/home/tbench/work/goose", file=sys.stderr)
+        print("remote must include host:path, e.g. tbench@douwe.com:/home/tbench/work/gosling", file=sys.stderr)
         return 2
     source = f"{remote}/evals/harbor/runs/"
     RUNS_DIR.mkdir(parents=True, exist_ok=True)

@@ -3,18 +3,18 @@ import type { MCPServer } from "@site/src/types/server";
 import Link from "@docusaurus/Link";
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { getGooseInstallLink } from "@site/src/utils/install-links";
+import { getGoslingInstallLink } from "@site/src/utils/install-links";
 import { fetchGitHubStars, formatStarCount } from "@site/src/utils/github-stars";
 
 const getExtensionCommand = (server: MCPServer): string => {
   switch (server.type) {
     case "remote":
-      return `goose session --with-remote-extension "${server.url}"`;
+      return `gosling session --with-remote-extension "${server.url}"`;
     case "streamable-http":
-      return `goose session --with-streamable-http-extension "${server.url}"`;
+      return `gosling session --with-streamable-http-extension "${server.url}"`;
     case "local":
     default:
-      return `goose session --with-extension "${server.command}"`;
+      return `gosling session --with-extension "${server.command}"`;
   }
 };
 
@@ -80,7 +80,7 @@ export function ServerCard({ server }: { server: MCPServer }) {
                     style={{ fontSize: "12px" }}
                     className="text-textSubtle leading-normal"
                   >
-                    Can be enabled on the Extensions page in goose
+                    Can be enabled on the Extensions page in gosling
                   </span>
                   </div>
                 )}
@@ -135,13 +135,13 @@ export function ServerCard({ server }: { server: MCPServer }) {
                 {server.is_builtin ? (
                   <div
                     className="built-in-badge"
-                    title="This extension is built into goose and can be enabled in the settings page"
+                    title="This extension is built into gosling and can be enabled in the settings page"
                   >
                     Built-in
                   </div>
                 ) : server.show_install_link !== false ? (
                   <a
-                    href={getGooseInstallLink(server)}
+                    href={getGoslingInstallLink(server)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="install-button"

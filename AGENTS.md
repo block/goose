@@ -1,6 +1,6 @@
 # AGENTS Instructions
 
-goose is an AI agent framework in Rust with CLI and Electron desktop interfaces.
+gosling is an AI agent framework in Rust with CLI and Electron desktop interfaces.
 
 ## Setup
 ```bash
@@ -20,8 +20,8 @@ just release-binary           # release binary
 ### Test
 ```bash
 cargo test                   # all tests
-cargo test -p goose          # specific crate
-cargo test --package goose --test mcp_integration_test
+cargo test -p gosling          # specific crate
+cargo test --package gosling --test mcp_integration_test
 just record-mcp-tests        # record MCP
 ```
 
@@ -41,12 +41,12 @@ cd ui/desktop && pnpm test   # test UI
 ## Structure
 ```
 crates/
-├── goose              # core logic
-├── goose-acp-macros   # ACP proc macros
-├── goose-cli          # CLI entry
-├── goose-mcp          # MCP extensions
-├── goose-test         # test utilities
-└── goose-test-support # test helpers
+├── gosling              # core logic
+├── gosling-acp-macros   # ACP proc macros
+├── gosling-cli          # CLI entry
+├── gosling-mcp          # MCP extensions
+├── gosling-test         # test utilities
+└── gosling-test-support # test helpers
 
 ui/desktop/            # Electron app
 ```
@@ -67,10 +67,10 @@ ui/desktop/            # Electron app
 
 ## Rules
 
-- Test: Prefer tests/ folder, e.g. crates/goose/tests/
+- Test: Prefer tests/ folder, e.g. crates/gosling/tests/
 - Error: Use anyhow::Result
 - Provider: Implement Provider trait see providers/base.rs
-- MCP: Extensions in crates/goose-mcp/
+- MCP: Extensions in crates/gosling-mcp/
 - UI Desktop: Use ACP SDK types or local `src/types/*` types. Do not import generated OpenAPI types/client code from `ui/desktop/src/api`
 
 ## Code Quality
@@ -111,6 +111,6 @@ remaining space for dynamic text.
 - Never: Comment self-evident operations (`// Initialize`, `// Return result`), getters/setters, constructors, or standard Rust idioms
 
 ## Entry Points
-- CLI: crates/goose-cli/src/main.rs
+- CLI: crates/gosling-cli/src/main.rs
 - UI: ui/desktop/src/main.ts
-- Agent: crates/goose/src/agents/agent.rs
+- Agent: crates/gosling/src/agents/agent.rs

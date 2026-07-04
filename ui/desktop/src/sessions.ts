@@ -5,7 +5,7 @@ import type { setViewType } from './hooks/useNavigation';
 import type { FixedExtensionEntry } from './components/ConfigContext';
 import { AppEvents } from './constants/events';
 import { acpChatSessionController } from './acp/chatSessionController';
-import { getConfiguredGooseExtensions, gooseExtensionName } from './acp/extensions';
+import { getConfiguredGoslingExtensions, goslingExtensionName } from './acp/extensions';
 
 export function getSessionDisplayName(session: Session): string {
   if (session.user_set_name) {
@@ -64,13 +64,13 @@ async function createAcpSession(
   options?: CreateSessionOptions
 ): Promise<Session> {
   const selectedNames = new Set(selectedExtensionConfigs(options).map((config) => config.name));
-  const gooseExtensions =
+  const goslingExtensions =
     selectedNames.size > 0
-      ? (await getConfiguredGooseExtensions())
-          .filter((entry) => selectedNames.has(gooseExtensionName(entry.extension)))
+      ? (await getConfiguredGoslingExtensions())
+          .filter((entry) => selectedNames.has(goslingExtensionName(entry.extension)))
           .map((entry) => entry.extension)
       : [];
-  return acpChatSessionController.createSession(workingDir, gooseExtensions);
+  return acpChatSessionController.createSession(workingDir, goslingExtensions);
 }
 
 export async function createSession(
