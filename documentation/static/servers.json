@@ -879,6 +879,23 @@
       "required": false
     }
   ]
+},
+{
+  "id": "hushvert",
+  "name": "hushvert",
+  "description": "Convert files across formats (office docs to PDF, PDF to Word, audio/video) over the hushvert hosted API",
+  "command": "npx -y @hushvert/mcp",
+  "link": "https://github.com/hushvert/mcp",
+  "installation_notes": "Install using npx. Requires a HUSHVERT_API_KEY (a free hv_live_ developer key from https://hushvert.com/developers/keys).",
+  "is_builtin": false,
+  "endorsed": false,
+  "environmentVariables": [
+    {
+      "name": "HUSHVERT_API_KEY",
+      "description": "hushvert developer key (hv_live_) from https://hushvert.com/developers/keys",
+      "required": true
+    }
+  ]
 }
 
 ]
