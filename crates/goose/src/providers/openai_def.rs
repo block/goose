@@ -198,10 +198,8 @@ pub fn resolve_api_key(
     }
 }
 
-/// Extract the bare host, parsed URL, auth method, and timeout from a
-/// declarative provider config. Shared by `from_custom_config` and
-/// `OllamaCloudProvider::from_custom_config` to avoid duplicating URL
-/// parsing, API key resolution, and auth construction.
+/// Shared by `from_custom_config` and `OllamaCloudProvider` to avoid
+/// duplicating URL parsing, API key resolution, and auth construction.
 pub fn extract_host_and_auth(
     config: &DeclarativeProviderConfig,
 ) -> Result<(String, url::Url, AuthMethod, u64)> {

@@ -142,7 +142,6 @@ impl ProviderRegistry {
                             }
                             None => F::from_env(extensions, tls_config).await?,
                         };
-                        provider.post_init().await;
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
@@ -316,7 +315,6 @@ impl ProviderRegistry {
                     let result = constructor(tls_config);
                     Box::pin(async move {
                         let provider = result?;
-                        provider.post_init().await;
                         Ok(Arc::new(provider) as Arc<dyn Provider>)
                     })
                 }),
