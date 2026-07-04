@@ -60,44 +60,11 @@ impl OllamaCloudProvider {
         self.model_names
             .get_or_try_init(|| {
                 Box::pin(async {
-                    let response = self
-                        .ollama_api_client
-                        .request(None, "api/tags")
-                        .response_get()
-                        .await
-                        .map_err(|e| {
-                            ProviderError::RequestFailed(format!(
-                                "Failed to fetch Ollama Cloud models: {}",
-                                e
-                            ))
-                        })?;
-
-                    if !response.status().is_success() {
-                        return Err(ProviderError::RequestFailed(format!(
-                            "Failed to fetch models: HTTP {}",
-                            response.status()
-                        )));
-                    }
-
-                    let json: Value = response.json().await.map_err(|e| {
-                        ProviderError::RequestFailed(format!("Failed to parse response: {}", e))
-                    })?;
-
-                    let mut names: Vec<String> = json
-                        .get("models")
-                        .and_then(|m| m.as_array())
-                        .map(|models| {
-                            models
-                                .iter()
-                                .filter_map(|m| {
-                                    m.get("name").and_then(|n| n.as_str()).map(String::from)
-                                })
-                                .collect()
-                        })
-                        .unwrap_or_default();
-
-                    names.sort();
-                    Ok(names)
+                    Ok(
+                        super::utils::fetch_ollama_model_names(&self.ollama_api_client)
+                            .await?
+                            .unwrap_or_default(),
+                    )
                 })
             })
             .await

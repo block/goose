@@ -12,6 +12,40 @@ use std::sync::OnceLock;
 use std::time::Duration;
 use uuid::Uuid;
 
+pub async fn fetch_ollama_model_names(
+    client: &super::api_client::ApiClient,
+) -> Result<Option<Vec<String>>, ProviderError> {
+    let response = client
+        .request(None, "api/tags")
+        .response_get()
+        .await
+        .map_err(|e| ProviderError::RequestFailed(format!("Failed to fetch models: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(ProviderError::RequestFailed(format!(
+            "Failed to fetch models: HTTP {}",
+            response.status()
+        )));
+    }
+
+    let json: Value = response
+        .json()
+        .await
+        .map_err(|e| ProviderError::RequestFailed(format!("Failed to parse response: {}", e)))?;
+
+    let Some(models) = json.get("models").and_then(|m| m.as_array()) else {
+        return Ok(None);
+    };
+
+    let mut names: Vec<String> = models
+        .iter()
+        .filter_map(|m| m.get("name").and_then(|n| n.as_str()).map(String::from))
+        .collect();
+
+    names.sort();
+    Ok(Some(names))
+}
+
 pub fn filter_extensions_from_system_prompt(system: &str) -> String {
     let Some(extensions_start) = system.find("# Extensions") else {
         return system.to_string();
