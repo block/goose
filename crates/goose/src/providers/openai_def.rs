@@ -198,6 +198,43 @@ pub fn resolve_api_key(
     }
 }
 
+/// Extract the bare host, parsed URL, auth method, and timeout from a
+/// declarative provider config. Shared by `from_custom_config` and
+/// `OllamaCloudProvider::from_custom_config` to avoid duplicating URL
+/// parsing, API key resolution, and auth construction.
+pub fn extract_host_and_auth(
+    config: &DeclarativeProviderConfig,
+) -> Result<(String, url::Url, AuthMethod, u64)> {
+    let global_config = crate::config::Config::global();
+    let api_key = resolve_api_key(config, &|key| global_config.get_secret(key))?;
+
+    let normalized_base_url = ensure_url_scheme(&config.base_url);
+    let url = url::Url::parse(&normalized_base_url)
+        .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
+
+    let host = if let Some(port) = url.port() {
+        format!(
+            "{}://{}:{}",
+            url.scheme(),
+            url.host_str().unwrap_or(""),
+            port
+        )
+    } else {
+        format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
+    };
+
+    let auth = match api_key {
+        Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
+        _ => AuthMethod::NoAuth,
+    };
+
+    let timeout_secs = config
+        .timeout_seconds
+        .unwrap_or(DEFAULT_PROVIDER_TIMEOUT_SECS);
+
+    Ok((host, url, auth, timeout_secs))
+}
+
 pub fn from_custom_config(
     config: DeclarativeProviderConfig,
     tls_config: Option<goose_providers::api_client::TlsConfig>,
@@ -222,37 +259,14 @@ pub fn from_custom_config(
         ));
     }
 
-    let global_config = crate::config::Config::global();
-    let api_key = resolve_api_key(&config, &|key| global_config.get_secret(key))?;
+    let (host, url, auth, timeout_secs) = extract_host_and_auth(&config)?;
 
-    let normalized_base_url = ensure_url_scheme(&config.base_url);
-    let url = url::Url::parse(&normalized_base_url)
-        .map_err(|e| anyhow::anyhow!("Invalid base URL '{}': {}", config.base_url, e))?;
-
-    let host = if let Some(port) = url.port() {
-        format!(
-            "{}://{}:{}",
-            url.scheme(),
-            url.host_str().unwrap_or(""),
-            port
-        )
-    } else {
-        format!("{}://{}", url.scheme(), url.host_str().unwrap_or(""))
-    };
     let base_path = if let Some(ref explicit_path) = config.base_path {
         explicit_path.trim_start_matches('/').to_string()
     } else {
         derive_base_path(url.path())
     };
 
-    let timeout_secs = config
-        .timeout_seconds
-        .unwrap_or(DEFAULT_PROVIDER_TIMEOUT_SECS);
-
-    let auth = match api_key {
-        Some(key) if !key.is_empty() => AuthMethod::BearerToken(key),
-        _ => AuthMethod::NoAuth,
-    };
     let mut api_client = ApiClient::with_timeout_and_tls(
         host,
         auth,
