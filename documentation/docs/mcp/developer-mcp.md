@@ -181,13 +181,14 @@ See the [Quick Setup Example](#quick-setup-example) below for some ways to confi
 
 The Developer extension provides these tools:
 
-| Tool | Description | Use Cases | Risk Level |
-|------|-------------|-----------|------------|
-| `shell` | Execute shell commands | Running tests, installing packages, git operations | ⚠️ High<br />Can run any system command with your user privileges |
-| `text_editor` | Read, write, and edit files | Code refactoring, creating files, updating configs | ⚠️ High<br />Can modify any accessible file |
-| `analyze` | Analyze code structure | Understanding codebase, finding dependencies | ✅ Low<br />Read-only code analysis |
-| `screen_capture` | Take screenshots | Debugging UI issues, documenting state | ✅ Low<br />Visual information only |
-| `image_processor` | Process and resize images | Optimizing assets, format conversion | ✅ Low<br />Image manipulation only |
+| Tool         | Description       | Use Cases                                           | Risk Level                  |
+|--------------|-------------------|-----------------------------------------------------|-----------------------------|
+| `shell` | Execute shell commands | Running tests, installing packages, git operations  | ⚠️ High<br />Can run any system command with your user privileges |
+| `read` | Read files  | Analyzing the content of tiles | ✅ Low<br />Read-only file access |
+| `write` | Write to files | Creating files, adding new configs | ⚠️ High<br />Can modify any accessible file |
+| `edit` | Edit the content of files | Code refactoring, modifying files, updating configs | ⚠️ High<br />Can modify any accessible file |
+| `tree` | List a directory tree | Navigating a project, find a specific file | ✅ Low<br />Read-only file view |
+| `read_image` | Read a local image | Showing an image to the model | ✅ Low<br />Image load only |
 
 ### Access Control Features
 
