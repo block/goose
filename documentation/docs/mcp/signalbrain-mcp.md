@@ -76,7 +76,7 @@ Ask goose to fix something and leave a verifiable claim behind:
 
 goose fixes the bug, then calls `emit_receipt`, producing `receipts/0001-bugfix-pagination-off-by-one.md`:
 
-```markdown
+````markdown
 # 0001-bugfix-pagination-off-by-one — fix page-boundary off-by-one
 
 ### How measured
@@ -84,10 +84,21 @@ goose fixes the bug, then calls `emit_receipt`, producing `receipts/0001-bugfix-
 python3 -m pytest tests/test_pagination.py -q
 ```
 
+## Verdict
+
+`improvement`
+
 ## Confidence
 0.9
+````
+
+After the change merges, score the receipt (note: the goose extension runs via `uvx`, which does not put the `sb` CLI on your PATH — invoke it the same way):
+
+```sh
+uvx --from signalbrain sb score receipts/0001-bugfix-pagination-off-by-one.md \
+  --root . --ledger .signalbrain/ledger.jsonl
 ```
 
-After the change merges, `sb score` re-runs that pytest command. If it passes, the claim *held*; if not, the miss is recorded against goose's calibration — permanently. Ten held high-confidence claims in a class, and goose has earned auto-merge eligibility there.
+The scorer re-runs that pytest command. If it passes, the claim *held*; if not, the miss is recorded against goose's calibration — permanently. Ten held high-confidence claims in a class, and goose has earned auto-merge eligibility there.
 
 The receipt format is an open spec ([RECEIPT_SPEC](https://github.com/whitestone1121-web/signalbrain/blob/main/docs/RECEIPT_SPEC.md), Apache-2.0), and the CI side is a [GitHub Action](https://github.com/whitestone1121-web/signalbrain/blob/main/action.yml) — your repo, your ledger, no server.
