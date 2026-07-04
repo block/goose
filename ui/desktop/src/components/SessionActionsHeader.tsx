@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from 'react';
-import { ChevronDown, ChevronRight, Copy, Edit2, FileJson, LoaderCircle } from 'lucide-react';
+import {
+  ChevronDown,
+  ChevronRight,
+  Copy,
+  Edit2,
+  FileJson,
+  LoaderCircle,
+  FileText,
+} from 'lucide-react';
 import { toast } from 'react-toastify';
 import { AppEvents } from '../constants/events';
 import { defineMessages, useIntl } from '../i18n';
@@ -16,6 +24,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from './ui/dropdown-menu';
+import { Message } from '../types/message';
+import { conversationToMarkdown } from '../utils/conversationMarkdown';
 
 const i18n = defineMessages({
   actionsLabel: {
@@ -106,6 +116,14 @@ const i18n = defineMessages({
     id: 'sessionActionsHeader.copiedText',
     defaultMessage: 'Text copied',
   },
+  copyAsMarkdown: {
+    id: 'sessionActions.copyAsMarkdown',
+    defaultMessage: 'Copy as Markdown',
+  },
+  copiedMarkdown: {
+    id: 'sessionActionsHeader.copiedMarkdown',
+    defaultMessage: 'Markdown copied',
+  },
 });
 
 const LONG_STRING_THRESHOLD = 180;
@@ -114,6 +132,7 @@ const STRING_PREVIEW_END = 56;
 
 interface SessionActionsHeaderProps {
   session?: Session;
+  messages: Message[];
   onSessionChange: (updater: (session: Session) => Session) => void;
   className?: string;
 }
@@ -311,6 +330,7 @@ function JsonTree({
 
 export default function SessionActionsHeader({
   session,
+  messages,
   onSessionChange,
   className,
 }: SessionActionsHeaderProps) {
@@ -415,6 +435,12 @@ export default function SessionActionsHeader({
     toast.success(intl.formatMessage(i18n.copiedJson));
   }, [intl, jsonText]);
 
+  const handleCopyMarkdown = useCallback(() => {
+    const markdown = conversationToMarkdown(messages, session?.name);
+    navigator.clipboard.writeText(markdown);
+    toast.success(intl.formatMessage(i18n.copiedMarkdown));
+  }, [intl, messages, session?.name]);
+
   const handleCopyFullText = useCallback(async () => {
     if (!fullTextSelection) return;
     await navigator.clipboard.writeText(fullTextSelection.value);
@@ -481,6 +507,10 @@ export default function SessionActionsHeader({
               )}
               {intl.formatMessage(i18n.viewJson)}
             </DropdownMenuItem>
+            <DropdownMenuItem onClick={handleCopyMarkdown}>
+              <FileText className="size-4" />
+              {intl.formatMessage(i18n.copyAsMarkdown)}
+            </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </div>
@@ -505,7 +535,10 @@ export default function SessionActionsHeader({
             <Button variant="outline" onClick={() => setIsRenameOpen(false)} disabled={isRenaming}>
               {intl.formatMessage(i18n.cancel)}
             </Button>
-            <Button onClick={() => void handleRename()} disabled={isRenaming || !renameValue.trim()}>
+            <Button
+              onClick={() => void handleRename()}
+              disabled={isRenaming || !renameValue.trim()}
+            >
               {isRenaming ? intl.formatMessage(i18n.saving) : intl.formatMessage(i18n.save)}
             </Button>
           </DialogFooter>

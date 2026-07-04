@@ -417,7 +417,11 @@ export default function BaseChat({
             <EnvironmentBadge className="translate-y-px" />
           </div>
 
-          <SessionActionsHeader session={session} onSessionChange={updateSession} />
+          <SessionActionsHeader
+            session={session}
+            messages={messages}
+            onSessionChange={updateSession}
+          />
 
           <ScrollArea
             ref={scrollRef}
