@@ -79,6 +79,22 @@ goose fixes the bug, then calls `emit_receipt`, producing `receipts/0001-bugfix-
 ````markdown
 # 0001-bugfix-pagination-off-by-one — fix page-boundary off-by-one
 
+## Compared
+- branch:    `fix/pagination@HEAD`
+- baseline:  `origin/main`
+- date:      `2026-07-05`
+
+## Change summary
+
+Last page returned an empty list when total items were an exact multiple of
+page size; boundary now inclusive.
+
+## Metric delta
+
+| Metric | Baseline | Branch | Delta |
+|---|---|---|---|
+| test_pagination.py | 1 failing | passing | fixed |
+
 ### How measured
 ```bash
 python3 -m pytest tests/test_pagination.py -q
@@ -90,6 +106,10 @@ python3 -m pytest tests/test_pagination.py -q
 
 ## Confidence
 0.9
+
+## change_class
+
+bugfix
 ````
 
 After the change merges, score the receipt (note: the goose extension runs via `uvx`, which does not put the `sb` CLI on your PATH — invoke it the same way):
