@@ -117,7 +117,7 @@ const i18n = defineMessages({
     defaultMessage: 'Text copied',
   },
   copyAsMarkdown: {
-    id: 'sessionActions.copyAsMarkdown',
+    id: 'sessionActionsHeader.copyAsMarkdown',
     defaultMessage: 'Copy as Markdown',
   },
   copiedMarkdown: {

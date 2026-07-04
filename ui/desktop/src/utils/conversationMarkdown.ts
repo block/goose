@@ -8,12 +8,21 @@ export function conversationToMarkdown(messages: Message[], title?: string): str
   }
 
   for (const message of messages) {
-    const { textContent } = getTextAndImageContent(message);
-    if (!textContent || !textContent.trim()) {
-      continue; // skip tool-only / thinking-only turns
+    if (!message.metadata.userVisible) {
+      continue; // mirror the chat display, which hides non-user-visible messages
     }
+
+    const { textContent, imagePaths } = getTextAndImageContent(message);
+    const text = textContent.trim();
+    const images = imagePaths.map(() => '_[image]_');
+
+    if (!text && images.length === 0) {
+      continue; // skip tool-only / thinking-only turns with no visible content
+    }
+
     const heading = message.role === 'user' ? '## You' : '## Goose';
-    parts.push(`${heading}\n\n${textContent.trim()}`);
+    const body = [text, ...images].filter(Boolean).join('\n\n');
+    parts.push(`${heading}\n\n${body}`);
   }
 
   return parts.join('\n\n');
