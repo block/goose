@@ -933,6 +933,16 @@ enum Command {
         )]
         history: bool,
 
+        /// Interactively select which session to resume
+        #[arg(
+            long = "select",
+            requires = "resume",
+            conflicts_with_all = ["name", "session_id", "path"],
+            help = "Choose the session to resume from an interactive fuzzy picker",
+            long_help = "Choose the session to resume from an interactive fuzzy picker. Must be used with --resume."
+        )]
+        select_session: bool,
+
         #[command(flatten)]
         session_opts: SessionOptions,
 
@@ -1555,6 +1565,7 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
             } else {
                 match crate::commands::session::prompt_interactive_session_selection(
                     &session_manager,
+                    "Select a session to export:",
                 )
                 .await
                 {
@@ -1584,6 +1595,7 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
             } else {
                 match crate::commands::session::prompt_interactive_session_selection(
                     &session_manager,
+                    "Select a session for diagnostics:",
                 )
                 .await
                 {
@@ -1600,15 +1612,29 @@ async fn handle_session_subcommand(command: SessionCommand) -> Result<()> {
     Ok(())
 }
 
-async fn handle_interactive_session(
+struct InteractiveSessionArgs {
     identifier: Option<Identifier>,
     resume: bool,
     fork: bool,
     edit: bool,
     history: bool,
+    select_session: bool,
     session_opts: SessionOptions,
     extension_opts: ExtensionOptions,
-) -> Result<()> {
+}
+
+async fn handle_interactive_session(args: InteractiveSessionArgs) -> Result<()> {
+    let InteractiveSessionArgs {
+        identifier,
+        resume,
+        fork,
+        edit,
+        history,
+        select_session,
+        session_opts,
+        extension_opts,
+    } = args;
+
     #[cfg(feature = "telemetry")]
     if get_telemetry_choice().is_none() {
         configure_telemetry_consent_dialog()?;
@@ -1642,6 +1668,22 @@ async fn handle_interactive_session(
     }
 
     let goose_mode = Config::global().get_goose_mode().unwrap_or_default();
+    let identifier = if select_session {
+        let session_manager = SessionManager::instance();
+        let session_id = crate::commands::session::prompt_interactive_session_selection(
+            &session_manager,
+            "Select a session to resume:",
+        )
+        .await?;
+
+        Some(Identifier {
+            name: None,
+            session_id: Some(session_id),
+            path: None,
+        })
+    } else {
+        identifier
+    };
     let mut session_id = get_or_create_session_id(identifier, resume, false, goose_mode).await?;
 
     if edit || fork {
@@ -2263,18 +2305,20 @@ pub async fn cli() -> anyhow::Result<()> {
             fork,
             edit,
             history,
+            select_session,
             session_opts,
             extension_opts,
         }) => {
-            handle_interactive_session(
+            handle_interactive_session(InteractiveSessionArgs {
                 identifier,
                 resume,
                 fork,
                 edit,
                 history,
+                select_session,
                 session_opts,
                 extension_opts,
-            )
+            })
             .await
         }
         Some(Command::Project {}) => {
@@ -2447,6 +2491,45 @@ mod tests {
             }) => {}
             _ => panic!("expected skills list command"),
         }
+    }
+
+    #[test]
+    fn session_resume_accepts_select_picker_flag() {
+        let cli = Cli::try_parse_from(["goose", "session", "--resume", "--select"])
+            .expect("parse failed");
+
+        match cli.command {
+            Some(Command::Session {
+                command: None,
+                resume,
+                select_session,
+                ..
+            }) => {
+                assert!(resume);
+                assert!(select_session);
+            }
+            _ => panic!("expected session command"),
+        }
+    }
+
+    #[test]
+    fn session_select_requires_resume() {
+        let err = match Cli::try_parse_from(["goose", "session", "--select"]) {
+            Ok(_) => panic!("parse ok"),
+            Err(err) => err,
+        };
+        assert_eq!(err.kind(), clap::error::ErrorKind::MissingRequiredArgument);
+    }
+
+    #[test]
+    fn session_select_conflicts_with_named_resume() {
+        let err = match Cli::try_parse_from([
+            "goose", "session", "--resume", "--select", "--name", "x",
+        ]) {
+            Ok(_) => panic!("parse ok"),
+            Err(err) => err,
+        };
+        assert_eq!(err.kind(), clap::error::ErrorKind::ArgumentConflict);
     }
 
     #[test]

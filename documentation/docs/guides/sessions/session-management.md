@@ -308,6 +308,15 @@ Search allows you to find specific content within sessions or find specific sess
         ```
         goose session -r --name <name>
         ```
+
+        To choose from your session history interactively, run:
+
+        ```
+        goose session -r --select
+        ```
+
+        Type to fuzzy-filter the list, then press `Enter` to resume the selected session.
+
         For example, to resume the session named `react-migration`, you would run:
 
         ```

@@ -438,6 +438,7 @@ fn export_session_to_markdown(
 /// Shows a list of available sessions and lets the user select one
 pub async fn prompt_interactive_session_selection(
     session_manager: &SessionManager,
+    prompt: &str,
 ) -> Result<String> {
     let sessions = session_manager.list_sessions().await?;
 
@@ -445,47 +446,36 @@ pub async fn prompt_interactive_session_selection(
         return Err(anyhow::anyhow!("No sessions found"));
     }
 
-    // Build the selection prompt
-    let mut selector = select("Select a session to export:");
+    let mut selector = select(prompt).filter_mode().max_rows(10);
 
-    // Map to display text
-    let display_map: std::collections::HashMap<String, Session> = sessions
-        .iter()
-        .map(|s| {
-            let desc = if s.name.is_empty() {
-                "(no name)"
-            } else {
-                &s.name
-            };
-            let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
+    for session in sessions {
+        let desc = if session.name.is_empty() {
+            "(no name)"
+        } else {
+            &session.name
+        };
+        let truncated_desc = safe_truncate(desc, TRUNCATED_DESC_LENGTH);
+        let display_text = format!(
+            "{} - {} ({})",
+            session_activity_at(&session),
+            truncated_desc,
+            session.id
+        );
+        let hint = display_path_with_tilde(&session.working_dir);
 
-            let display_text = format!("{} - {} ({})", s.updated_at, truncated_desc, s.id);
-            (display_text, s.clone())
-        })
-        .collect();
-
-    // Add each session as an option
-    for display_text in display_map.keys() {
-        selector = selector.item(display_text.clone(), display_text.clone(), "");
+        selector = selector.item(session.id, display_text, hint);
     }
 
-    // Add a cancel option
     let cancel_value = String::from("cancel");
-    selector = selector.item(cancel_value, "Cancel", "Cancel export");
+    selector = selector.item(cancel_value.clone(), "Cancel", "Cancel selection");
 
-    // Get user selection
-    let selected_display_text: String = selector.interact()?;
+    let selected_session_id: String = selector.interact()?;
 
-    if selected_display_text == "cancel" {
-        return Err(anyhow::anyhow!("Export canceled"));
+    if selected_session_id == cancel_value {
+        return Err(anyhow::anyhow!("Selection canceled"));
     }
 
-    // Retrieve the selected session
-    if let Some(session) = display_map.get(&selected_display_text) {
-        Ok(session.id.clone())
-    } else {
-        Err(anyhow::anyhow!("Invalid selection"))
-    }
+    Ok(selected_session_id)
 }
 
 #[cfg(test)]
