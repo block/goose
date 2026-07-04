@@ -3593,8 +3593,14 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "세션 JSON 복사됨"
   },
+  "sessionActionsHeader.copiedMarkdown": {
+    "defaultMessage": "Markdown 복사됨"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "텍스트가 복사되었습니다."
+  },
+  "sessionActionsHeader.copyAsMarkdown": {
+    "defaultMessage": "Markdown으로 복사"
   },
   "sessionActionsHeader.copyJson": {
     "defaultMessage": "JSON 복사"

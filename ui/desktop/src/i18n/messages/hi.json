@@ -3593,8 +3593,14 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "Session JSON copied"
   },
+  "sessionActionsHeader.copiedMarkdown": {
+    "defaultMessage": "मार्कडाउन कॉपी किया गया"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Text copied"
+  },
+  "sessionActionsHeader.copyAsMarkdown": {
+    "defaultMessage": "मार्कडाउन के रूप में कॉपी करें"
   },
   "sessionActionsHeader.copyJson": {
     "defaultMessage": "Copy JSON"

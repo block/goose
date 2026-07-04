@@ -3593,8 +3593,14 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "Đã sao chép JSON của phiên"
   },
+  "sessionActionsHeader.copiedMarkdown": {
+    "defaultMessage": "Đã sao chép Markdown"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Đã sao chép văn bản"
+  },
+  "sessionActionsHeader.copyAsMarkdown": {
+    "defaultMessage": "Sao chép dưới dạng Markdown"
   },
   "sessionActionsHeader.copyJson": {
     "defaultMessage": "Sao chép JSON"

@@ -3593,8 +3593,14 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "セッションJSONをコピーしました"
   },
+  "sessionActionsHeader.copiedMarkdown": {
+    "defaultMessage": "Markdownをコピーしました"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "テキストをコピーしました"
+  },
+  "sessionActionsHeader.copyAsMarkdown": {
+    "defaultMessage": "Markdownとしてコピー"
   },
   "sessionActionsHeader.copyJson": {
     "defaultMessage": "JSONをコピー"

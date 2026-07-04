@@ -3593,8 +3593,14 @@
   "sessionActionsHeader.copiedJson": {
     "defaultMessage": "JSON della sessione copiato"
   },
+  "sessionActionsHeader.copiedMarkdown": {
+    "defaultMessage": "Markdown copiato"
+  },
   "sessionActionsHeader.copiedText": {
     "defaultMessage": "Testo copiato"
+  },
+  "sessionActionsHeader.copyAsMarkdown": {
+    "defaultMessage": "Copia come Markdown"
   },
   "sessionActionsHeader.copyJson": {
     "defaultMessage": "Copia JSON"
