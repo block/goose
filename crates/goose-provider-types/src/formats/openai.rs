@@ -709,25 +709,28 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     })
                     .filter(|m: &serde_json::Map<String, Value>| !m.is_empty());
 
-                let function_name = match normalize_function_name(&function_name) {
-                    Some(name) => name,
-                    None => {
-                        let error = ErrorData {
-                            code: ErrorCode::INVALID_REQUEST,
-                            message: Cow::from(format!(
-                                "The provided function name '{}' had invalid characters, it must match this regex [a-zA-Z0-9_-]+",
-                                function_name
-                            )),
-                            data: None,
-                        };
-                        content.push(MessageContent::tool_request_with_metadata(
-                            id,
-                            Err(error),
-                            metadata.as_ref(),
-                        ));
-                        continue;
-                    }
-                };
+                // Pass the name through verbatim: format_tools advertises raw
+                // (unsanitized) names, so any non-empty name — dotted or
+                // otherwise — can be a legitimate exact echo. Dispatch owns the
+                // tool list and both resolves exact names and recovers
+                // model-mangled ones; unknown names get its recoverable
+                // "tool not found" error instead of a parse abort (see #9486).
+                if function_name.is_empty() {
+                    let error = ErrorData {
+                        code: ErrorCode::INVALID_REQUEST,
+                        message: Cow::from(
+                            "The provided function name was empty; a tool call must name a tool"
+                                .to_string(),
+                        ),
+                        data: None,
+                    };
+                    content.push(MessageContent::tool_request_with_metadata(
+                        id,
+                        Err(error),
+                        metadata.as_ref(),
+                    ));
+                    continue;
+                }
                 match parse_tool_arguments(&arguments_str) {
                     Some(params) if params.is_object() => {
                         content.push(MessageContent::tool_request_with_metadata(
@@ -1183,11 +1186,6 @@ where
 
                 for index in sorted_indices {
                     if let Some((id, function_name, arguments, extra_fields)) = tool_call_data.get(&index) {
-                        // Recover malformed-but-recognizable names the same way the
-                        // non-streaming decoder does; degenerate names pass through
-                        // unchanged, preserving this path's historical leniency.
-                        let function_name = &normalize_function_name(function_name)
-                            .unwrap_or_else(|| function_name.clone());
                         let metadata = if let Some(sig) = &last_signature {
                             let mut combined = extra_fields.clone().unwrap_or_default();
                             combined.insert(
@@ -1558,36 +1556,6 @@ pub fn is_valid_function_name(name: &str) -> bool {
     static RE: OnceLock<Regex> = OnceLock::new();
     let re = RE.get_or_init(|| Regex::new(r"^[a-zA-Z0-9_-]+$").unwrap());
     re.is_match(name)
-}
-
-/// Normalize a tool name emitted by the model into goose's valid-name charset,
-/// recovering the malformed-but-recognizable shapes some models produce
-/// (see #9486):
-/// - a leaked "functions." namespace prefix is stripped
-///   ("functions.developer__shell" → "developer__shell")
-/// - dots map to goose's "__" extension separator
-///   ("developer.shell" → "developer__shell")
-/// - remaining invalid characters are sanitized to "_", mirroring the outbound
-///   [`sanitize_function_name`]; unknown results are answered by tool dispatch
-///   with a recoverable "tool not found" error instead of aborting the parse
-///
-/// Returns `None` when nothing salvageable remains (no alphanumeric characters).
-pub fn normalize_function_name(name: &str) -> Option<String> {
-    let name = name.trim();
-    let name = name
-        .strip_prefix("functions.")
-        .or_else(|| name.strip_prefix("functions:"))
-        .unwrap_or(name);
-
-    if is_valid_function_name(name) {
-        return Some(name.to_string());
-    }
-
-    if !name.chars().any(|c| c.is_ascii_alphanumeric()) {
-        return None;
-    }
-
-    Some(sanitize_function_name(&name.replace('.', "__")))
 }
 
 #[cfg(test)]
@@ -2041,11 +2009,11 @@ mod tests {
     }
 
     #[test]
-    fn test_response_to_message_invalid_func_name() -> anyhow::Result<()> {
-        // A name with no salvageable identifier characters cannot be
-        // normalized and must still be rejected.
+    fn test_response_to_message_empty_func_name() -> anyhow::Result<()> {
+        // An empty name can never be dispatched; it is the only name the
+        // parser still rejects.
         let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
-        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] = json!("???!");
+        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] = json!("");
 
         let message = response_to_message(&response)?;
 
@@ -2058,7 +2026,7 @@ mod tests {
                 }) => {
                     assert!(msg.starts_with("The provided function name"));
                 }
-                _ => panic!("Expected ToolNotFound error"),
+                _ => panic!("Expected invalid-request error for empty name"),
             }
         } else {
             panic!("Expected ToolRequest content");
@@ -2068,63 +2036,29 @@ mod tests {
     }
 
     #[test]
-    fn test_response_to_message_recovers_dotted_tool_name() -> anyhow::Result<()> {
-        // GLM emits dotted namespaces (see #9486). Goose separates extension
-        // and tool with "__", so "developer.shell" must map to
-        // "developer__shell" instead of hard-failing the parse.
-        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
-        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] =
-            json!("developer.shell");
+    fn test_response_to_message_passes_names_through_to_dispatch() -> anyhow::Result<()> {
+        // The parser cannot know the advertised tool list, and format_tools
+        // advertises raw (unsanitized) names — so a dotted name can be a
+        // legitimate exact echo (e.g. an MCP tool named "db.query"). Names
+        // must pass through verbatim; recovery of model-mangled names happens
+        // at dispatch, where the real tool list is known (see #9486 review).
+        for name in [
+            "developer.shell",
+            "functions.example_fn",
+            "example fn",
+            "???!",
+        ] {
+            let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
+            response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] = json!(name);
 
-        let message = response_to_message(&response)?;
+            let message = response_to_message(&response)?;
 
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
-            let tool_call = request.tool_call.as_ref().expect("tool call should parse");
-            assert_eq!(tool_call.name, "developer__shell");
-            assert_eq!(tool_call.arguments, Some(object!({"param": "value"})));
-        } else {
-            panic!("Expected ToolRequest content");
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_response_to_message_strips_functions_namespace_prefix() -> anyhow::Result<()> {
-        // Models trained on OpenAI-style tool schemas leak the internal
-        // "functions." namespace into the emitted name (see #9486).
-        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
-        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] =
-            json!("functions.example_fn");
-
-        let message = response_to_message(&response)?;
-
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
-            let tool_call = request.tool_call.as_ref().expect("tool call should parse");
-            assert_eq!(tool_call.name, "example_fn");
-        } else {
-            panic!("Expected ToolRequest content");
-        }
-
-        Ok(())
-    }
-
-    #[test]
-    fn test_response_to_message_recovers_invalid_name_chars() -> anyhow::Result<()> {
-        // Stray invalid characters are sanitized the same way outbound tool
-        // names are, so the call reaches dispatch (which answers unknown names
-        // with a recoverable "tool not found" listing) instead of aborting.
-        let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
-        response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] =
-            json!("example fn");
-
-        let message = response_to_message(&response)?;
-
-        if let MessageContent::ToolRequest(request) = &message.content[0] {
-            let tool_call = request.tool_call.as_ref().expect("tool call should parse");
-            assert_eq!(tool_call.name, "example_fn");
-        } else {
-            panic!("Expected ToolRequest content");
+            if let MessageContent::ToolRequest(request) = &message.content[0] {
+                let tool_call = request.tool_call.as_ref().expect("tool call should parse");
+                assert_eq!(tool_call.name, name, "name must pass through verbatim");
+            } else {
+                panic!("Expected ToolRequest content");
+            }
         }
 
         Ok(())
@@ -3939,12 +3873,13 @@ data: [DONE]"#;
     }
 
     #[tokio::test]
-    async fn test_streaming_tool_call_normalizes_function_name() -> anyhow::Result<()> {
-        // The streaming decoder must apply the same tool-name normalization as
-        // the non-streaming one: dotted names map to goose's "__" separator
-        // (see #9486).
+    async fn test_streaming_tool_call_dotted_name_passes_through() -> anyhow::Result<()> {
+        // A dotted name can be a legitimate exact echo of an advertised tool
+        // (format_tools sends raw names), so the streaming decoder must pass
+        // it through verbatim; mangled-name recovery happens at dispatch
+        // (see #9486 review).
         let response_lines = concat!(
-            "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"tc1\",\"type\":\"function\",\"function\":{\"name\":\"developer.shell\",\"arguments\":\"{\\\"command\\\": \\\"ls\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n",
+            "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"tc1\",\"type\":\"function\",\"function\":{\"name\":\"ext__db.query\",\"arguments\":\"{\\\"command\\\": \\\"ls\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n",
             "data: [DONE]"
         );
         let lines: Vec<String> = response_lines.lines().map(|s| s.to_string()).collect();
@@ -3965,7 +3900,7 @@ data: [DONE]"#;
         }
 
         assert_eq!(tool_calls.len(), 1);
-        assert_eq!(tool_calls[0].0, "developer__shell");
+        assert_eq!(tool_calls[0].0, "ext__db.query");
         assert_eq!(tool_calls[0].1, Some(object!({"command": "ls"})));
         Ok(())
     }
@@ -4156,84 +4091,6 @@ data: [DONE]"#;
         assert!(is_valid_function_name("hello_world"));
         assert!(!is_valid_function_name("hello world"));
         assert!(!is_valid_function_name("hello@world"));
-    }
-
-    #[test]
-    fn test_normalize_function_name() {
-        // Already-valid names pass through untouched — including degenerate
-        // but previously-accepted ones like "-_-".
-        assert_eq!(
-            normalize_function_name("developer__shell").as_deref(),
-            Some("developer__shell")
-        );
-        assert_eq!(normalize_function_name("-_-").as_deref(), Some("-_-"));
-
-        // Leaked OpenAI-style namespace prefixes are stripped.
-        assert_eq!(
-            normalize_function_name("functions.developer__shell").as_deref(),
-            Some("developer__shell")
-        );
-        assert_eq!(
-            normalize_function_name("functions:developer__shell").as_deref(),
-            Some("developer__shell")
-        );
-
-        // Dots map to goose's "__" extension separator, including after a
-        // stripped prefix.
-        assert_eq!(
-            normalize_function_name("developer.shell").as_deref(),
-            Some("developer__shell")
-        );
-        assert_eq!(
-            normalize_function_name("functions.developer.shell").as_deref(),
-            Some("developer__shell")
-        );
-
-        // Other invalid characters sanitize to "_", and surrounding
-        // whitespace is trimmed.
-        assert_eq!(
-            normalize_function_name(" example fn ").as_deref(),
-            Some("example_fn")
-        );
-
-        // Nothing salvageable → rejected.
-        assert_eq!(normalize_function_name("???!"), None);
-        assert_eq!(normalize_function_name(""), None);
-        assert_eq!(normalize_function_name("functions."), None);
-    }
-
-    #[test]
-    fn test_normalize_function_name_is_fixed_point_of_sanitize() {
-        // Every name the model can legitimately echo went through
-        // sanitize_function_name on the way out, so normalization must be the
-        // identity on that whole domain — a real tool can never be renamed.
-        // (A sanitized name contains no dots, so the dot mapping can only ever
-        // fire on names the model mangled itself.)
-        for raw in [
-            "developer__shell",
-            "platform.search",
-            "weird name!",
-            "a.b.c",
-            "functions_helper",
-            "UPPER-case_09",
-        ] {
-            let outbound = sanitize_function_name(raw);
-            assert_eq!(
-                normalize_function_name(&outbound).as_deref(),
-                Some(outbound.as_str()),
-                "sanitized name '{outbound}' must normalize to itself"
-            );
-        }
-
-        // Normalization is also idempotent on its own successful outputs.
-        for mangled in ["functions.developer__shell", "developer.shell", "a b"] {
-            let once = normalize_function_name(mangled).unwrap();
-            assert_eq!(
-                normalize_function_name(&once).as_deref(),
-                Some(once.as_str()),
-                "normalized name '{once}' must be stable"
-            );
-        }
     }
 
     #[test]

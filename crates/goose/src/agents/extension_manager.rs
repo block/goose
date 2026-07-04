@@ -275,6 +275,54 @@ pub fn get_tool_owner(tool: &Tool) -> Option<String> {
         .map(|s| s.to_string())
 }
 
+/// Map a model-mangled tool name onto a real advertised tool name.
+///
+/// Some models (GLM, Minimax via OpenAI-compatible providers) mangle tool
+/// names: the "__" extension separator becomes a dot (`developer.shell`), or
+/// an OpenAI-schema `functions.` namespace leaks into the name
+/// (`functions.developer__shell`). See #9486.
+///
+/// Callers must try exact resolution first — this only runs on names that
+/// resolved nowhere, so a legitimate advertised name (which may itself contain
+/// dots) is never rewritten. Recovery is conservative: it fires only when the
+/// mangle-reversal variants match exactly one advertised tool; if different
+/// variants match different tools, the name stays unresolved.
+fn recover_mangled_tool_name<'a>(
+    emitted: &str,
+    tool_names: impl Iterator<Item = &'a str>,
+) -> Option<String> {
+    let trimmed = emitted.trim();
+    let stripped = trimmed
+        .strip_prefix("functions.")
+        .or_else(|| trimmed.strip_prefix("functions:"))
+        .unwrap_or(trimmed);
+    let dotted = stripped.replace('.', "__");
+    let sanitized: String = dotted
+        .chars()
+        .map(|c| {
+            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
+                c
+            } else {
+                '_'
+            }
+        })
+        .collect();
+
+    let variants = [stripped, dotted.as_str(), sanitized.as_str()];
+    let mut matched: Option<&str> = None;
+    for name in tool_names {
+        if name == emitted || !variants.contains(&name) {
+            continue;
+        }
+        match matched {
+            None => matched = Some(name),
+            Some(prev) if prev == name => {}
+            Some(_) => return None,
+        }
+    }
+    matched.map(|s| s.to_string())
+}
+
 fn get_tool_meta_value(tool: &Tool) -> Option<Value> {
     tool.meta.as_ref().map(|meta| Value::Object(meta.0.clone()))
 }
@@ -1673,56 +1721,72 @@ impl ExtensionManager {
             )
         })?;
 
-        if let Some(tool) = tools.iter().find(|t| *t.name == *tool_name) {
-            let owner = get_tool_owner(tool)
-                .or_else(|| {
-                    tool_name
-                        .split_once("__")
-                        .map(|(prefix, _)| name_to_key(prefix))
-                })
-                .ok_or_else(|| {
+        let mut name = tool_name.to_string();
+        let mut recovery_attempted = false;
+        loop {
+            if let Some(tool) = tools.iter().find(|t| *t.name == *name) {
+                let owner = get_tool_owner(tool)
+                    .or_else(|| name.split_once("__").map(|(prefix, _)| name_to_key(prefix)))
+                    .ok_or_else(|| {
+                        ErrorData::new(
+                            ErrorCode::RESOURCE_NOT_FOUND,
+                            format!("Tool '{}' has no owner", name),
+                            None,
+                        )
+                    })?;
+
+                let actual_tool_name = name
+                    .strip_prefix(&format!("{owner}__"))
+                    .unwrap_or(&name)
+                    .to_string();
+
+                let client = self.get_server_client(&owner).await.ok_or_else(|| {
                     ErrorData::new(
                         ErrorCode::RESOURCE_NOT_FOUND,
-                        format!("Tool '{}' has no owner", tool_name),
+                        format!("Extension '{}' not found for tool '{}'", owner, name),
                         None,
                     )
                 })?;
 
-            let actual_tool_name = tool_name
-                .strip_prefix(&format!("{owner}__"))
-                .unwrap_or(tool_name)
-                .to_string();
-
-            let client = self.get_server_client(&owner).await.ok_or_else(|| {
-                ErrorData::new(
-                    ErrorCode::RESOURCE_NOT_FOUND,
-                    format!("Extension '{}' not found for tool '{}'", owner, tool_name),
-                    None,
-                )
-            })?;
-
-            return Ok(ResolvedTool {
-                tool_name: tool.name.to_string(),
-                extension_name: owner,
-                actual_tool_name,
-                client,
-                tool_meta: get_tool_meta_value(tool),
-                resource_uri: get_tool_resource_uri(tool),
-            });
-        }
-
-        if let Some((prefix, actual)) = tool_name.split_once("__") {
-            let owner = name_to_key(prefix);
-            if let Some(client) = self.get_server_client(&owner).await {
                 return Ok(ResolvedTool {
-                    tool_name: tool_name.to_string(),
+                    tool_name: tool.name.to_string(),
                     extension_name: owner,
-                    actual_tool_name: actual.to_string(),
+                    actual_tool_name,
                     client,
-                    tool_meta: None,
-                    resource_uri: None,
+                    tool_meta: get_tool_meta_value(tool),
+                    resource_uri: get_tool_resource_uri(tool),
                 });
             }
+
+            if let Some((prefix, actual)) = name.split_once("__") {
+                let owner = name_to_key(prefix);
+                if let Some(client) = self.get_server_client(&owner).await {
+                    return Ok(ResolvedTool {
+                        tool_name: name.to_string(),
+                        extension_name: owner,
+                        actual_tool_name: actual.to_string(),
+                        client,
+                        tool_meta: None,
+                        resource_uri: None,
+                    });
+                }
+            }
+
+            // Exact resolution failed everywhere; as a last resort, try to map
+            // a model-mangled name onto a unique advertised tool (see #9486).
+            // The recovered name is a real advertised name, so the retry
+            // resolves through the exact-match path above.
+            if !recovery_attempted {
+                recovery_attempted = true;
+                if let Some(recovered) =
+                    recover_mangled_tool_name(&name, tools.iter().map(|t| t.name.as_ref()))
+                {
+                    name = recovered;
+                    continue;
+                }
+            }
+
+            break;
         }
 
         let available = tools
@@ -2591,6 +2655,222 @@ mod tests {
         assert!(
             msg.contains("ext_a__"),
             "error should list at least one real tool name; got: {msg}"
+        );
+    }
+
+    /// Mock exposing tool names with a literal dot — legal in MCP and
+    /// advertised raw by format_tools — plus an "__" sibling to exercise
+    /// ambiguity handling in mangled-name recovery.
+    struct MockDottedClient {}
+
+    #[async_trait::async_trait]
+    impl McpClientTrait for MockDottedClient {
+        fn get_info(&self) -> Option<&InitializeResult> {
+            None
+        }
+
+        async fn list_resources(
+            &self,
+            _session_id: &str,
+            _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ListResourcesResult, Error> {
+            Err(Error::TransportClosed)
+        }
+
+        async fn read_resource(
+            &self,
+            _session_id: &str,
+            _uri: &str,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ReadResourceResult, Error> {
+            Err(Error::TransportClosed)
+        }
+
+        async fn list_tools(
+            &self,
+            _session_id: &str,
+            _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ListToolsResult, Error> {
+            use serde_json::json;
+            use std::sync::Arc;
+            Ok(ListToolsResult {
+                tools: vec![
+                    Tool::new(
+                        "db.query".to_string(),
+                        "A tool with a dotted name".to_string(),
+                        Arc::new(json!({}).as_object().unwrap().clone()),
+                    ),
+                    Tool::new(
+                        "db__query".to_string(),
+                        "A sibling with the separator name".to_string(),
+                        Arc::new(json!({}).as_object().unwrap().clone()),
+                    ),
+                ],
+                next_cursor: None,
+                meta: None,
+            })
+        }
+
+        async fn call_tool(
+            &self,
+            _ctx: &ToolCallContext,
+            name: &str,
+            _arguments: Option<JsonObject>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<CallToolResult, Error> {
+            match name {
+                "db.query" | "db__query" => Ok(CallToolResult::success(vec![])),
+                _ => Err(Error::TransportClosed),
+            }
+        }
+
+        async fn list_prompts(
+            &self,
+            _session_id: &str,
+            _next_cursor: Option<String>,
+            _cancellation_token: CancellationToken,
+        ) -> Result<ListPromptsResult, Error> {
+            Err(Error::TransportClosed)
+        }
+
+        async fn get_prompt(
+            &self,
+            _session_id: &str,
+            _name: &str,
+            _arguments: Value,
+            _cancellation_token: CancellationToken,
+        ) -> Result<GetPromptResult, Error> {
+            Err(Error::TransportClosed)
+        }
+
+        async fn subscribe(&self) -> mpsc::Receiver<ServerNotification> {
+            mpsc::channel(1).1
+        }
+    }
+
+    #[tokio::test]
+    async fn test_resolve_tool_recovers_dotted_mangled_name() {
+        // GLM-style mangling: the model turns the "__" separator into a dot
+        // (see #9486). Recovery must map it back because exactly one
+        // advertised tool matches.
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        extension_manager
+            .add_mock_extension("test_client".to_string(), Arc::new(MockClient {}))
+            .await;
+
+        let resolved = extension_manager
+            .resolve_tool("test-session-id", "test_client.tool")
+            .await
+            .expect("mangled dotted name should resolve to the real tool");
+        assert_eq!(resolved.tool_name, "test_client__tool");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_tool_recovers_functions_prefixed_name() {
+        // OpenAI-schema-trained models leak the "functions." namespace into
+        // the emitted name (see #9486).
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        extension_manager
+            .add_mock_extension("test_client".to_string(), Arc::new(MockClient {}))
+            .await;
+
+        let resolved = extension_manager
+            .resolve_tool("test-session-id", "functions.test_client__tool")
+            .await
+            .expect("functions-prefixed name should resolve to the real tool");
+        assert_eq!(resolved.tool_name, "test_client__tool");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_tool_exact_dotted_name_never_rewritten() {
+        // A legitimate advertised tool name containing a dot must resolve
+        // exactly as-is — recovery must never fire when exact resolution
+        // succeeds (see #9486 review).
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        extension_manager
+            .add_mock_extension("dotted".to_string(), Arc::new(MockDottedClient {}))
+            .await;
+
+        let resolved = extension_manager
+            .resolve_tool("test-session-id", "dotted__db.query")
+            .await
+            .expect("exact dotted tool name must resolve");
+        assert_eq!(resolved.tool_name, "dotted__db.query");
+        assert_eq!(resolved.actual_tool_name, "db.query");
+    }
+
+    #[tokio::test]
+    async fn test_resolve_tool_ambiguous_mangled_name_stays_not_found() {
+        // "functions.dotted__db.query" reverses to BOTH advertised tools
+        // ("dotted__db.query" via prefix strip, "dotted__db__query" via dot
+        // mapping). Ambiguity must not be guessed at — it stays a recoverable
+        // not-found error.
+        let temp_dir = tempfile::tempdir().unwrap();
+        let extension_manager =
+            ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
+        extension_manager
+            .add_mock_extension("dotted".to_string(), Arc::new(MockDottedClient {}))
+            .await;
+
+        let result = extension_manager
+            .resolve_tool("test-session-id", "functions.dotted__db.query")
+            .await;
+        match result {
+            Ok(resolved) => panic!(
+                "ambiguous mangled name must not be guessed; resolved to {}",
+                resolved.tool_name
+            ),
+            Err(e) => assert_eq!(e.code, ErrorCode::RESOURCE_NOT_FOUND),
+        }
+    }
+
+    #[test]
+    fn test_recover_mangled_tool_name() {
+        let tools = ["developer__shell", "platform__search"];
+        // Dot-mangled separator.
+        assert_eq!(
+            recover_mangled_tool_name("developer.shell", tools.iter().copied()).as_deref(),
+            Some("developer__shell")
+        );
+        // Leaked functions namespace, with and without further mangling.
+        assert_eq!(
+            recover_mangled_tool_name("functions.developer__shell", tools.iter().copied())
+                .as_deref(),
+            Some("developer__shell")
+        );
+        assert_eq!(
+            recover_mangled_tool_name("functions.developer.shell", tools.iter().copied())
+                .as_deref(),
+            Some("developer__shell")
+        );
+        // Stray invalid characters sanitize to '_' (replacement, not removal),
+        // so these match no advertised tool and stay unrecovered.
+        assert_eq!(
+            recover_mangled_tool_name("developer shell", tools.iter().copied()),
+            None
+        );
+        assert_eq!(
+            recover_mangled_tool_name("developer__shell!", tools.iter().copied()),
+            None
+        );
+        // No match at all.
+        assert_eq!(
+            recover_mangled_tool_name("nonexistent.tool", tools.iter().copied()),
+            None
+        );
+        // Ambiguity between variants matching different tools → refuse.
+        let ambiguous = ["a__b.c", "a__b__c"];
+        assert_eq!(
+            recover_mangled_tool_name("functions.a__b.c", ambiguous.iter().copied()),
+            None
         );
     }
 
