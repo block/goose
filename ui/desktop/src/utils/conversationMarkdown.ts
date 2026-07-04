@@ -1,4 +1,4 @@
-import { Message, getTextAndImageContent } from '../types/message';
+import { Message, getTextAndImageContent, getElicitationContent } from '../types/message';
 
 export function conversationToMarkdown(messages: Message[], title?: string): string {
   const parts: string[] = [];
@@ -13,7 +13,11 @@ export function conversationToMarkdown(messages: Message[], title?: string): str
     }
 
     const { textContent, imagePaths } = getTextAndImageContent(message);
-    const text = textContent.trim();
+    const elicitation = getElicitationContent(message);
+    const elicitationText =
+      elicitation?.data.actionType === 'elicitation' ? elicitation.data.message : '';
+
+    const text = [textContent.trim(), elicitationText.trim()].filter(Boolean).join('\n\n');
     const images = imagePaths.map(() => '_[image]_');
 
     if (!text && images.length === 0) {
