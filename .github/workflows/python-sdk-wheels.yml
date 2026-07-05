@@ -17,6 +17,7 @@ jobs:
   build-wheels:
     name: Build wheel (${{ matrix.name }})
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container || null }}
     strategy:
       fail-fast: false
       matrix:
@@ -27,6 +28,7 @@ jobs:
             os: macos-13
           - name: linux-x86_64
             os: ubuntu-latest
+            container: quay.io/pypa/manylinux_2_28_x86_64@sha256:441c35fdc6ee809ff9260894f8468ab4fea8c15dc880f8700a3f81b7922c1cda
           - name: windows-x86_64
             os: windows-latest
 
@@ -42,18 +44,22 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install Linux dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pkg-config libssl-dev
-
       - name: Install uv
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
           enable-cache: true
 
+      - name: Install Linux tools
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          python3 -m pip install --upgrade pip
+          python3 -m pip install uv
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to /usr/local/bin
+
       - name: Install just
+        if: runner.os != 'Linux'
         uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
 
       - name: Cache Cargo artifacts
@@ -62,6 +68,16 @@ jobs:
       - name: Build wheel
         shell: bash
         run: just --justfile crates/goose-sdk/justfile python-wheel
+
+      - name: Repair Linux wheel
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          python3 -m pip install auditwheel
+          mkdir -p crates/goose-sdk/python/wheelhouse
+          auditwheel repair --plat manylinux_2_28_x86_64 -w crates/goose-sdk/python/wheelhouse crates/goose-sdk/python/dist/*.whl
+          rm crates/goose-sdk/python/dist/*.whl
+          mv crates/goose-sdk/python/wheelhouse/*.whl crates/goose-sdk/python/dist/
 
       - name: Smoke test wheel
         shell: bash
