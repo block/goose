@@ -196,7 +196,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
     >
       <div className="h-[48px] no-drag" />
 
-      {/* Nav items */}
       <div className="px-2 flex flex-col gap-0.5">
         {visibleItems.map((item) => (
           <NavRow
@@ -208,7 +207,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
         ))}
       </div>
 
-      {/* Chats section — takes remaining vertical space */}
       <div className="flex-1 min-h-0 flex flex-col mt-3">
         <button
           onClick={() => setIsChatsExpanded((v) => !v)}
@@ -270,7 +268,6 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
         )}
       </div>
 
-      {/* Settings pinned to bottom */}
       <div className="px-2 pt-2 pb-2 border-t border-border-secondary">
         <NavRow
           item={SETTINGS_NAV_ITEM}
