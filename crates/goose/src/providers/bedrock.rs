@@ -111,7 +111,6 @@ impl BedrockProvider {
         set_aws_env_vars(config.all_values());
         set_aws_env_vars(filtered_secrets);
 
-        // Check for bearer token first to determine if region is required
         let bearer_token = match config.get_secret::<String>("AWS_BEARER_TOKEN_BEDROCK") {
             Ok(token) => {
                 let token = token.trim().to_string();
@@ -124,14 +123,12 @@ impl BedrockProvider {
             Err(_) => None,
         };
 
-        // Get AWS_REGION from config if explicitly set (optional - SDK can resolve from other sources)
         let region = match config.get_param::<String>("AWS_REGION") {
             Ok(r) if !r.is_empty() => Some(r),
             Ok(_) => None,
             Err(_) => None,
         };
 
-        // Use load_defaults() which supports AWS SSO, profiles, and environment variables
         let mut loader = aws_config::defaults(aws_config::BehaviorVersion::latest())
             .http_client(ReqwestHttpClient::new());
 
@@ -141,15 +138,12 @@ impl BedrockProvider {
             }
         }
 
-        // Apply region to loader if explicitly configured
         if let Some(ref region) = region {
             loader = loader.region(aws_config::Region::new(region.clone()));
         }
 
         let sdk_config = loader.load().await;
 
-        // Validate region requirement for bearer token auth after SDK config is loaded
-        // This allows region to be resolved from ~/.aws/config, AWS_DEFAULT_REGION, etc.
         if bearer_token.is_some() && sdk_config.region().is_none() {
             return Err(anyhow::anyhow!(
                 "AWS region is required when using AWS_BEARER_TOKEN_BEDROCK authentication. \

@@ -17,7 +17,6 @@ use goose::agents::ExtensionConfig;
 use goose::config::resolve_extensions_for_new_session;
 use goose::config::{Config, GooseMode};
 use goose::providers::create;
-use goose::providers::provider_test::test_provider_model;
 use goose::recipe::Recipe;
 use goose::recipe_deeplink;
 use goose::session::session_manager::SessionType;
@@ -592,11 +591,6 @@ async fn update_agent_provider(
     if let Some(request_params) = payload.request_params {
         model_config = model_config.with_merged_request_params(request_params);
     }
-
-    test_provider_model(&payload.provider, &model)
-        .await
-        .map_err(|e| (StatusCode::BAD_REQUEST, e.to_string()))?;
-
     let model_info = resolve_provider_model_info(&payload.provider, &model)
         .await
         .map_err(|e| (e.status, e.message))?;

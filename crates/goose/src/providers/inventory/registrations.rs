@@ -1,6 +1,7 @@
 use super::{
-    config_secret_value, default_inventory_identity, default_inventory_identity_resolver,
-    serialize_string_map, InventoryIdentityInput, InventoryRegistration,
+    config_param_value, config_secret_value, default_inventory_identity,
+    default_inventory_identity_resolver, serialize_string_map, InventoryIdentityInput,
+    InventoryRegistration,
 };
 use crate::config::{self, Config};
 use crate::providers::acp_tooling::{acp_adapter_installed, resolved_acp_command};
@@ -138,6 +139,12 @@ pub fn bedrock_inventory() -> InventoryRegistration {
             &metadata.config_keys,
             config,
         ))
+    })
+    .with_configured(|| {
+        let config = Config::global();
+        config_secret_value(config, "AWS_BEARER_TOKEN_BEDROCK").is_some()
+            || config_secret_value(config, "AWS_ACCESS_KEY_ID").is_some()
+            || config_param_value(config, "AWS_PROFILE").is_some()
     })
 }
 
