@@ -224,6 +224,10 @@ pub enum RecipeExtensionDto {
         #[serde(default, skip_serializing_if = "Option::is_none")]
         socket: Option<String>,
         #[serde(default, skip_serializing_if = "Option::is_none")]
+        client_id: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        client_secret_key: Option<String>,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
         bundled: Option<bool>,
         /// Tool allowlist for this extension. Omit this field to allow all tools.
         #[serde(default, skip_serializing_if = "Option::is_none")]

@@ -304,6 +304,8 @@ fn goose_extension_to_config(
                     .collect(),
                 timeout,
                 socket,
+                client_id: None,
+                client_secret_key: None,
                 bundled,
                 available_tools: available_tools.unwrap_or_default(),
             },
@@ -518,6 +520,8 @@ mod tests {
             )]),
             timeout: Some(99),
             socket: Some("@egress.sock".to_string()),
+            client_id: None,
+            client_secret_key: None,
             bundled: None,
             available_tools: vec!["fetch".to_string()],
         };
@@ -736,6 +740,8 @@ mod tests {
             headers,
             timeout,
             socket,
+            client_id,
+            client_secret_key,
             bundled,
             available_tools,
         } = conversion.config
@@ -760,6 +766,8 @@ mod tests {
         );
         assert_eq!(timeout, Some(99));
         assert_eq!(socket.as_deref(), Some("@egress.sock"));
+        assert_eq!(client_id, None);
+        assert_eq!(client_secret_key, None);
         assert_eq!(bundled, Some(true));
         assert_eq!(available_tools, vec!["fetch"]);
     }

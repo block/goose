@@ -257,6 +257,12 @@ pub enum ExtensionConfig {
         #[serde(default)]
         socket: Option<String>,
         #[serde(default)]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        client_id: Option<String>,
+        #[serde(default)]
+        #[serde(skip_serializing_if = "Option::is_none")]
+        client_secret_key: Option<String>,
+        #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
         #[serde(skip_serializing_if = "Vec::is_empty")]
@@ -332,6 +338,8 @@ impl ExtensionConfig {
             description: description.into(),
             timeout: Some(timeout.into()),
             socket: None,
+            client_id: None,
+            client_secret_key: None,
             bundled: None,
             available_tools: Vec::new(),
         }
@@ -491,6 +499,8 @@ impl ExtensionConfig {
                 headers,
                 timeout,
                 socket,
+                client_id,
+                client_secret_key,
                 bundled,
                 available_tools,
             } => {
@@ -512,6 +522,8 @@ impl ExtensionConfig {
                     headers,
                     timeout,
                     socket,
+                    client_id,
+                    client_secret_key,
                     bundled,
                     available_tools,
                 })
@@ -762,6 +774,8 @@ available_tools: []
             .collect(),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -783,6 +797,8 @@ available_tools: []
             .collect(),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -861,6 +877,8 @@ available_tools: []
             .collect(),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -879,6 +897,8 @@ available_tools: []
                 .collect(),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -894,6 +914,8 @@ available_tools: []
             headers: std::collections::HashMap::new(),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
             bundled: None,
             available_tools: vec![],
         },
@@ -910,6 +932,8 @@ available_tools: []
             headers: std::collections::HashMap::new(),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
             bundled: None,
             available_tools: vec![],
         }
@@ -973,6 +997,8 @@ available_tools: []
             headers: std::collections::HashMap::new(),
             timeout: None,
             socket: Some("@egress.sock".to_string()),
+            client_id: None,
+            client_secret_key: None,
             bundled: None,
             available_tools: vec![],
         };
@@ -993,6 +1019,8 @@ available_tools: []
             headers: std::collections::HashMap::new(),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
             bundled: None,
             available_tools: vec![],
         };

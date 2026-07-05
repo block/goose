@@ -1862,6 +1862,8 @@ mod tests {
             headers: HashMap::from([("Authorization".into(), "Bearer ghp_xxxxxxxxxxxx".into())]),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
             bundled: Some(false),
             available_tools: vec![],
         },
@@ -1916,6 +1918,8 @@ mod tests {
             headers: HashMap::from([("Authorization".into(), "Bearer ghp_xxxxxxxxxxxx".into())]),
             timeout: None,
             socket: None,
+            client_id: None,
+            client_secret_key: None,
             bundled: Some(false),
             available_tools: vec![],
         };

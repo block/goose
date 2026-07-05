@@ -66,6 +66,10 @@ enum RecipeExtensionConfigInternal {
         #[serde(default)]
         socket: Option<String>,
         #[serde(default)]
+        client_id: Option<String>,
+        #[serde(default)]
+        client_secret_key: Option<String>,
+        #[serde(default)]
         bundled: Option<bool>,
         #[serde(default)]
         available_tools: Vec<String>,
@@ -146,6 +150,8 @@ impl From<RecipeExtensionConfigInternal> for ExtensionConfig {
                 headers,
                 timeout,
                 socket,
+                client_id,
+                client_secret_key,
                 bundled,
                 available_tools
             },
