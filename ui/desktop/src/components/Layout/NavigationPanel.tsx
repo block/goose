@@ -181,6 +181,19 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
   }, [isNavExpanded, fetchSessions]);
 
   const [isChatsExpanded, setIsChatsExpanded] = useState(true);
+  const [collapsedProjects, setCollapsedProjects] = useState<Set<string>>(new Set());
+
+  const toggleProjectCollapsed = useCallback((path: string) => {
+    setCollapsedProjects((prev) => {
+      const next = new Set(prev);
+      if (next.has(path)) {
+        next.delete(path);
+      } else {
+        next.add(path);
+      }
+      return next;
+    });
+  }, []);
 
   if (!isNavExpanded) return null;
 
@@ -226,29 +239,40 @@ export const Navigation: React.FC<{ className?: string }> = ({ className }) => {
                 {intl.formatMessage(i18n.noChats)}
               </div>
             ) : recentSessionsByProject.length > 1 ? (
-              recentSessionsByProject.map((group: ProjectGroup) => (
-                <React.Fragment key={group.path}>
-                  <div
-                    className="px-3 pt-2 pb-0.5 text-[10px] uppercase tracking-wider text-text-tertiary truncate"
-                    title={group.path}
-                  >
-                    {group.label}
-                  </div>
-                  {group.sessions.map((session) => (
-                    <SessionRow
-                      key={session.id}
-                      session={session}
-                      active={session.id === activeSessionId}
-                      status={sessionStatuses.get(session.id)}
-                      onClick={() => {
-                        clearUnread(session.id);
-                        handleSessionClick(session.id);
-                      }}
-                      onRenamed={fetchSessions}
-                    />
-                  ))}
-                </React.Fragment>
-              ))
+              recentSessionsByProject.map((group: ProjectGroup) => {
+                const isCollapsed = collapsedProjects.has(group.path);
+                return (
+                  <React.Fragment key={group.path}>
+                    <button
+                      onClick={() => toggleProjectCollapsed(group.path)}
+                      aria-expanded={!isCollapsed}
+                      className="flex items-center gap-1 w-full px-3 pt-2 pb-0.5 text-[10px] uppercase tracking-wider text-text-tertiary hover:text-text-secondary transition-colors"
+                      title={group.path}
+                    >
+                      {isCollapsed ? (
+                        <ChevronRight className="w-3 h-3 flex-shrink-0" />
+                      ) : (
+                        <ChevronDown className="w-3 h-3 flex-shrink-0" />
+                      )}
+                      <span className="truncate">{group.label}</span>
+                    </button>
+                    {!isCollapsed &&
+                      group.sessions.map((session) => (
+                        <SessionRow
+                          key={session.id}
+                          session={session}
+                          active={session.id === activeSessionId}
+                          status={sessionStatuses.get(session.id)}
+                          onClick={() => {
+                            clearUnread(session.id);
+                            handleSessionClick(session.id);
+                          }}
+                          onRenamed={fetchSessions}
+                        />
+                      ))}
+                  </React.Fragment>
+                );
+              })
             ) : (
               recentSessions.map((session) => (
                 <SessionRow
