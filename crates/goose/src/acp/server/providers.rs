@@ -462,7 +462,7 @@ impl GooseAcpAgent {
     ) -> Result<ListProvidersResponse, agent_client_protocol::Error> {
         let entries = self
             .provider_inventory
-            .entries(&req.provider_ids)
+            .entries_for_display(&req.provider_ids)
             .await
             .internal_err()?;
         Ok(ListProvidersResponse {

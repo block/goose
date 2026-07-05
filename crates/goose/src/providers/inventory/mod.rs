@@ -254,6 +254,12 @@ struct InventorySnapshot {
 }
 
 #[derive(Debug, Clone)]
+struct StoredInventorySnapshot {
+    inventory_key: String,
+    snapshot: InventorySnapshot,
+}
+
+#[derive(Debug, Clone)]
 struct ProviderDescriptor {
     provider_id: String,
     provider_name: String,
@@ -292,14 +298,43 @@ impl ProviderInventoryService {
         &self,
         descriptor: ProviderDescriptor,
     ) -> Result<ProviderInventoryEntry> {
-        let snapshot = self.read_snapshot(&descriptor.identity).await?;
+        let stored_snapshot = self
+            .read_snapshot(&descriptor.identity)
+            .await?
+            .map(|snapshot| StoredInventorySnapshot {
+                inventory_key: descriptor.identity.inventory_key.clone(),
+                snapshot,
+            });
+        self.entry_from_descriptor_with_snapshot(descriptor, stored_snapshot)
+    }
+
+    async fn entry_from_descriptor_for_display(
+        &self,
+        descriptor: ProviderDescriptor,
+    ) -> Result<ProviderInventoryEntry> {
+        let stored_snapshot = self
+            .read_latest_snapshot_for_provider(&descriptor.provider_id)
+            .await?;
+        self.entry_from_descriptor_with_snapshot(descriptor, stored_snapshot)
+    }
+
+    fn entry_from_descriptor_with_snapshot(
+        &self,
+        descriptor: ProviderDescriptor,
+        stored_snapshot: Option<StoredInventorySnapshot>,
+    ) -> Result<ProviderInventoryEntry> {
+        let snapshot = stored_snapshot.as_ref().map(|stored| &stored.snapshot);
+        let snapshot_inventory_key = stored_snapshot
+            .as_ref()
+            .map(|stored| stored.inventory_key.as_str())
+            .unwrap_or(&descriptor.identity.inventory_key);
         let refreshing = self
             .refreshing_keys
             .read()
             .unwrap_or_else(|poisoned| recover_poisoned_read(poisoned, "refreshing_keys"))
-            .contains(&descriptor.identity.inventory_key);
+            .contains(snapshot_inventory_key);
         let models = inventory_models_from_snapshot(
-            snapshot.as_ref(),
+            snapshot,
             &descriptor.identity.provider_family,
             &descriptor.static_models,
         );
@@ -317,13 +352,9 @@ impl ProviderInventoryService {
             supports_refresh: descriptor.supports_refresh,
             refreshing,
             models,
-            last_updated_at: snapshot
-                .as_ref()
-                .and_then(|snapshot| snapshot.last_updated_at),
-            last_refresh_attempt_at: snapshot
-                .as_ref()
-                .and_then(|snapshot| snapshot.last_refresh_attempt_at),
-            last_refresh_error: snapshot.and_then(|snapshot| snapshot.last_refresh_error),
+            last_updated_at: snapshot.and_then(|snapshot| snapshot.last_updated_at),
+            last_refresh_attempt_at: snapshot.and_then(|snapshot| snapshot.last_refresh_attempt_at),
+            last_refresh_error: snapshot.and_then(|snapshot| snapshot.last_refresh_error.clone()),
             model_selection_hint: descriptor.model_selection_hint,
         })
     }
@@ -351,6 +382,29 @@ impl ProviderInventoryService {
             .into_iter()
             .map(|id| {
                 let this = self.clone();
+                tokio::spawn(async move { this.entry_for_provider(&id).await })
+            })
+            .collect();
+        let results = futures::future::join_all(handles).await;
+        let mut entries = Vec::with_capacity(results.len());
+        for result in results {
+            let inner = result.context("provider inventory task panicked")?;
+            if let Some(entry) = inner? {
+                entries.push(entry);
+            }
+        }
+        Ok(entries)
+    }
+
+    pub async fn entries_for_display(
+        &self,
+        provider_ids: &[String],
+    ) -> Result<Vec<ProviderInventoryEntry>> {
+        let ids = self.resolve_provider_ids(provider_ids).await;
+        let handles: Vec<_> = ids
+            .into_iter()
+            .map(|id| {
+                let this = self.clone();
                 tokio::spawn(async move { this.entry_for_provider_list(&id).await })
             })
             .collect();
@@ -372,7 +426,9 @@ impl ProviderInventoryService {
         let Some(descriptor) = self.describe_provider_for_list(provider_id).await? else {
             return Ok(None);
         };
-        self.entry_from_descriptor(descriptor).await.map(Some)
+        self.entry_from_descriptor_for_display(descriptor)
+            .await
+            .map(Some)
     }
 
     pub async fn plan_refresh(&self, provider_ids: &[String]) -> Result<RefreshPlan> {
@@ -761,7 +817,7 @@ impl ProviderInventoryService {
             description: metadata.description.clone(),
             default_model: metadata.default_model.clone(),
             identity,
-            configured: provider_configured_for_list(&metadata.name, &metadata.config_keys),
+            configured: provider_configured_for_display(&metadata.name, &metadata.config_keys),
             provider_type: entry.provider_type(),
             category: crate::providers::catalog::get_provider_setup_category(&metadata.name)
                 .unwrap_or(ProviderSetupCategory::Model),
@@ -817,15 +873,25 @@ impl ProviderInventoryService {
         &self,
         identity: &InventoryIdentity,
     ) -> Result<Option<InventorySnapshot>> {
+        Ok(self
+            .read_stored_snapshot_by_key(&identity.inventory_key)
+            .await?
+            .map(|stored| stored.snapshot))
+    }
+
+    async fn read_stored_snapshot_by_key(
+        &self,
+        inventory_key: &str,
+    ) -> Result<Option<StoredInventorySnapshot>> {
         let pool = self.storage.pool().await?;
         let entry = sqlx::query(
             r#"
-            SELECT last_updated_at, last_refresh_attempt_at, last_refresh_error
+            SELECT inventory_key, last_updated_at, last_refresh_attempt_at, last_refresh_error
             FROM provider_inventory_entries
             WHERE inventory_key = ?
             "#,
         )
-        .bind(&identity.inventory_key)
+        .bind(inventory_key)
         .fetch_optional(pool)
         .await?;
 
@@ -833,6 +899,40 @@ impl ProviderInventoryService {
             return Ok(None);
         };
 
+        self.stored_snapshot_from_entry_row(entry).await.map(Some)
+    }
+
+    async fn read_latest_snapshot_for_provider(
+        &self,
+        provider_id: &str,
+    ) -> Result<Option<StoredInventorySnapshot>> {
+        let pool = self.storage.pool().await?;
+        let entry = sqlx::query(
+            r#"
+            SELECT inventory_key, last_updated_at, last_refresh_attempt_at, last_refresh_error
+            FROM provider_inventory_entries
+            WHERE provider_id = ?
+            ORDER BY COALESCE(last_refresh_attempt_at, last_updated_at, updated_at) DESC,
+                     updated_at DESC
+            LIMIT 1
+            "#,
+        )
+        .bind(provider_id)
+        .fetch_optional(pool)
+        .await?;
+
+        let Some(entry) = entry else {
+            return Ok(None);
+        };
+
+        self.stored_snapshot_from_entry_row(entry).await.map(Some)
+    }
+
+    async fn stored_snapshot_from_entry_row(
+        &self,
+        entry: sqlx::sqlite::SqliteRow,
+    ) -> Result<StoredInventorySnapshot> {
+        let inventory_key = entry.try_get("inventory_key")?;
         let last_updated_at = parse_optional_datetime(entry.try_get("last_updated_at")?)?;
         let last_refresh_attempt_at =
             parse_optional_datetime(entry.try_get("last_refresh_attempt_at")?)?;
@@ -846,8 +946,8 @@ impl ProviderInventoryService {
             ORDER BY ordinal
             "#,
         )
-        .bind(&identity.inventory_key)
-        .fetch_all(pool)
+        .bind(&inventory_key)
+        .fetch_all(self.storage.pool().await?)
         .await?;
 
         let models = rows
@@ -869,12 +969,15 @@ impl ProviderInventoryService {
             })
             .collect::<Result<Vec<_>, anyhow::Error>>()?;
 
-        Ok(Some(InventorySnapshot {
-            models,
-            last_updated_at,
-            last_refresh_attempt_at,
-            last_refresh_error,
-        }))
+        Ok(StoredInventorySnapshot {
+            inventory_key,
+            snapshot: InventorySnapshot {
+                models,
+                last_updated_at,
+                last_refresh_attempt_at,
+                last_refresh_error,
+            },
+        })
     }
 
     async fn resolve_provider_ids(&self, provider_ids: &[String]) -> Vec<String> {
@@ -943,11 +1046,11 @@ pub fn default_inventory_configured(config_keys: &[ConfigKey], config: &Config) 
     })
 }
 
-fn provider_configured_for_list(provider_id: &str, config_keys: &[ConfigKey]) -> bool {
-    provider_configured_for_list_with_config(provider_id, config_keys, Config::global())
+fn provider_configured_for_display(provider_id: &str, config_keys: &[ConfigKey]) -> bool {
+    provider_configured_for_display_with_config(provider_id, config_keys, Config::global())
 }
 
-fn provider_configured_for_list_with_config(
+fn provider_configured_for_display_with_config(
     provider_id: &str,
     config_keys: &[ConfigKey],
     config: &Config,
@@ -1397,7 +1500,7 @@ mod tests {
     }
 
     #[test]
-    fn provider_list_configured_uses_persisted_provider_entry_without_secret() {
+    fn provider_list_configured_display_uses_persisted_provider_entry_without_secret() {
         let config_file = tempfile::NamedTempFile::new().unwrap();
         let secrets_file = tempfile::NamedTempFile::new().unwrap();
         let config =
@@ -1414,7 +1517,7 @@ mod tests {
         .unwrap();
         let config_keys = [ConfigKey::new("NVIDIA_API_KEY", true, true, None, true)];
 
-        assert!(provider_configured_for_list_with_config(
+        assert!(provider_configured_for_display_with_config(
             "nvidia",
             &config_keys,
             &config
@@ -1422,17 +1525,117 @@ mod tests {
     }
 
     #[test]
-    fn provider_list_configured_does_not_treat_missing_secret_as_configured() {
+    fn display_configured_ignores_secret_store_values() {
+        let _guard = env_lock::lock_env([("TEST_DISPLAY_SECRET_STORE_ONLY_API_KEY", None::<&str>)]);
         let config_file = tempfile::NamedTempFile::new().unwrap();
         let secrets_file = tempfile::NamedTempFile::new().unwrap();
+        std::fs::write(
+            secrets_file.path(),
+            "TEST_DISPLAY_SECRET_STORE_ONLY_API_KEY: present-in-secret-store\n",
+        )
+        .unwrap();
         let config =
             Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
-        let config_keys = [ConfigKey::new("NVIDIA_API_KEY", true, true, None, true)];
+        let config_keys = [ConfigKey::new(
+            "TEST_DISPLAY_SECRET_STORE_ONLY_API_KEY",
+            true,
+            true,
+            None,
+            true,
+        )];
 
+        assert!(default_inventory_configured(&config_keys, &config));
         assert!(!default_inventory_configured_without_secret_store(
             &config_keys,
             &config
         ));
+    }
+
+    #[test]
+    fn defaults_save_strict_validation_rejects_persisted_entry_without_secret() {
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        let secrets_file = tempfile::NamedTempFile::new().unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+        crate::config::providers::set_provider_entry(
+            &config,
+            "nvidia",
+            &crate::config::providers::ProviderEntry {
+                enabled: true,
+                model: "nvidia/nemotron-3-ultra-550b-a55b".to_string(),
+                configured: true,
+            },
+        )
+        .unwrap();
+        let config_keys = [ConfigKey::new("NVIDIA_API_KEY", true, true, None, true)];
+
+        assert!(provider_configured_for_display_with_config(
+            "nvidia",
+            &config_keys,
+            &config
+        ));
+        assert!(!default_inventory_configured(&config_keys, &config));
+    }
+
+    #[tokio::test]
+    async fn display_inventory_preserves_refreshed_snapshot_identity() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let service = ProviderInventoryService::new(Arc::new(SessionStorage::new(
+            temp_dir.path().to_path_buf(),
+        )));
+        let fallback_identity = fallback_inventory_identity("nvidia")
+            .into_identity()
+            .unwrap();
+        let refreshed_identity = InventoryIdentityInput::new("nvidia", "nvidia")
+            .with_public("base_url", "https://integrate.api.nvidia.com/v1")
+            .with_secret("NVIDIA_API_KEY", "secret")
+            .into_identity()
+            .unwrap();
+        assert_ne!(
+            fallback_identity.inventory_key,
+            refreshed_identity.inventory_key
+        );
+        let refreshed_model = "nvidia/refreshed-only-model".to_string();
+
+        service
+            .store_refreshed_models_for_identity(
+                &refreshed_identity,
+                std::slice::from_ref(&refreshed_model),
+            )
+            .await
+            .unwrap();
+        service
+            .refreshing_keys
+            .write()
+            .unwrap()
+            .insert(refreshed_identity.inventory_key.clone());
+
+        let entry = service
+            .entry_from_descriptor_for_display(ProviderDescriptor {
+                provider_id: "nvidia".to_string(),
+                provider_name: "NVIDIA".to_string(),
+                description: "Hosted NVIDIA NIM models".to_string(),
+                default_model: "nvidia/static-model".to_string(),
+                identity: fallback_identity,
+                configured: true,
+                provider_type: ProviderType::Declarative,
+                category: ProviderSetupCategory::Model,
+                config_keys: vec![],
+                setup_steps: vec![],
+                supports_refresh: true,
+                static_models: vec![ModelInfo::new("nvidia/static-model", 0)],
+                model_selection_hint: None,
+            })
+            .await
+            .unwrap();
+
+        assert!(entry.refreshing);
+        assert!(entry.models.iter().any(|model| model.id == refreshed_model));
+        assert!(!entry
+            .models
+            .iter()
+            .any(|model| model.id == "nvidia/static-model"));
+        assert!(entry.last_updated_at.is_some());
     }
 
     #[test]
