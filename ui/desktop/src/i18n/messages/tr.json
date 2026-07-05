@@ -4525,5 +4525,29 @@
   },
   "userMessage.forkSessionTitle": {
     "defaultMessage": "Düzenlenen mesajla yeni bir oturum oluşturun"
+  },
+  "worktreeCreator.branchName": {
+    "defaultMessage": "Branch name"
+  },
+  "worktreeCreator.branchNamePlaceholder": {
+    "defaultMessage": "my-feature-branch"
+  },
+  "worktreeCreator.cancel": {
+    "defaultMessage": "Cancel"
+  },
+  "worktreeCreator.create": {
+    "defaultMessage": "Create"
+  },
+  "worktreeCreator.createWorktree": {
+    "defaultMessage": "Create a git worktree"
+  },
+  "worktreeCreator.enterBranchName": {
+    "defaultMessage": "Enter a branch name for the new worktree"
+  },
+  "worktreeCreator.failedToCreate": {
+    "defaultMessage": "Failed to create worktree"
+  },
+  "worktreeCreator.invalidBranchName": {
+    "defaultMessage": "Branch name can only contain letters, numbers, hyphens, underscores, dots, and slashes"
   }
 }

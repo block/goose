@@ -272,6 +272,51 @@ function listGitWorktreeDirs(dir: string): Promise<string[]> {
   });
 }
 
+function isGitRepo(dir: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    if (!dir?.trim()) {
+      resolve(false);
+      return;
+    }
+
+    execFile(
+      'git',
+      ['-C', dir, 'rev-parse', '--is-inside-work-tree'],
+      { timeout: 3000 },
+      (error, stdout) => {
+        resolve(!error && stdout.trim() === 'true');
+      }
+    );
+  });
+}
+
+function createGitWorktree(dir: string, branchName: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    if (!dir?.trim() || !branchName?.trim()) {
+      reject(new Error('Directory and branch name are required'));
+      return;
+    }
+
+    const sanitizedBranch = branchName.trim();
+    const parentDir = path.dirname(dir);
+    const repoName = path.basename(dir.replace(/\/+$/, ''));
+    const worktreePath = path.join(parentDir, `${repoName}-${sanitizedBranch}`);
+
+    execFile(
+      'git',
+      ['-C', dir, 'worktree', 'add', '-b', sanitizedBranch, worktreePath],
+      { timeout: 10000 },
+      (error, _stdout, stderr) => {
+        if (error) {
+          reject(new Error(stderr?.trim() || error.message));
+          return;
+        }
+        resolve(worktreePath);
+      }
+    );
+  });
+}
+
 async function configureProxy() {
   const httpsProxy = process.env.HTTPS_PROXY || process.env.https_proxy;
   const httpProxy = process.env.HTTP_PROXY || process.env.http_proxy;
@@ -1904,6 +1949,14 @@ ipcMain.handle('list-recent-dirs', () => {
 
 ipcMain.handle('list-git-worktree-dirs', async (_event, dir: string) => {
   return await listGitWorktreeDirs(dir);
+});
+
+ipcMain.handle('is-git-repo', async (_event, dir: string) => {
+  return await isGitRepo(dir);
+});
+
+ipcMain.handle('create-git-worktree', async (_event, dir: string, branchName: string) => {
+  return await createGitWorktree(dir, branchName);
 });
 
 ipcMain.handle('get-setting', (_event, key: SettingKey) => {

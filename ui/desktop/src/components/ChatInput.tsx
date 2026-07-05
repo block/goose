@@ -10,6 +10,7 @@ import { ChatState } from '../types/chatState';
 import debounce from 'lodash/debounce';
 import { LocalMessageStorage } from '../utils/localMessageStorage';
 import { DirSwitcher } from './bottom_menu/DirSwitcher';
+import { WorktreeCreator } from './bottom_menu/WorktreeCreator';
 import ModelsBottomBar from './settings/models/bottom_bar/ModelsBottomBar';
 import { BottomMenuExtensionSelection } from './bottom_menu/BottomMenuExtensionSelection';
 import { cn } from '../utils';
@@ -1673,6 +1674,18 @@ export default function ChatInput({
         {!isBottomBarNarrow && (
           <DirSwitcher
             className=""
+            sessionId={sessionId ?? undefined}
+            workingDir={currentWorkingDir}
+            onWorkingDirChange={async (newDir) => {
+              await onWorkingDirChange?.(newDir);
+              setWorkingDirOverride(newDir);
+            }}
+          />
+        )}
+
+        {/* Left: create git worktree (only when working dir is a git repo) */}
+        {!isBottomBarNarrow && (
+          <WorktreeCreator
             sessionId={sessionId ?? undefined}
             workingDir={currentWorkingDir}
             onWorkingDirChange={async (newDir) => {
