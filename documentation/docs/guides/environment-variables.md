@@ -508,6 +508,14 @@ export GOOSE_RECIPE_RETRY_TIMEOUT_SECONDS=300
 export GOOSE_RECIPE_ON_FAILURE_TIMEOUT_SECONDS=60
 ```
 
+## Documentation Configuration
+
+This variable controls where the `goose-doc-guide` skill reads goose documentation from.
+
+| Variable | Purpose | Values | Default |
+|----------|---------|---------|---------|
+| `GOOSE_DOCS_ROOT` | Documentation root for the `goose-doc-guide` skill, used for [offline/air-gapped docs](/docs/guides/offline-docs) | Local path or HTTP(S) URL containing `goose-docs-map.md` and `docs/` | `https://goose-docs.ai` |
+
 ## Development & Testing
 
 These variables are primarily used for development, testing, and debugging goose itself.
