@@ -20,6 +20,7 @@ use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::{Pool, Row, Sqlite, Transaction};
 use std::collections::{BTreeMap, HashMap, HashSet};
+use std::env;
 use std::panic::AssertUnwindSafe;
 use std::sync::{Arc, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use tracing::warn;
@@ -284,6 +285,13 @@ impl ProviderInventoryService {
         let Some(descriptor) = self.describe_provider(provider_id).await? else {
             return Ok(None);
         };
+        self.entry_from_descriptor(descriptor).await.map(Some)
+    }
+
+    async fn entry_from_descriptor(
+        &self,
+        descriptor: ProviderDescriptor,
+    ) -> Result<ProviderInventoryEntry> {
         let snapshot = self.read_snapshot(&descriptor.identity).await?;
         let refreshing = self
             .refreshing_keys
@@ -296,7 +304,7 @@ impl ProviderInventoryService {
             &descriptor.static_models,
         );
 
-        Ok(Some(ProviderInventoryEntry {
+        Ok(ProviderInventoryEntry {
             provider_id: descriptor.provider_id,
             provider_name: descriptor.provider_name,
             description: descriptor.description,
@@ -317,7 +325,7 @@ impl ProviderInventoryService {
                 .and_then(|snapshot| snapshot.last_refresh_attempt_at),
             last_refresh_error: snapshot.and_then(|snapshot| snapshot.last_refresh_error),
             model_selection_hint: descriptor.model_selection_hint,
-        }))
+        })
     }
 
     pub async fn find_entry_for_provider(
@@ -343,7 +351,7 @@ impl ProviderInventoryService {
             .into_iter()
             .map(|id| {
                 let this = self.clone();
-                tokio::spawn(async move { this.entry_for_provider(&id).await })
+                tokio::spawn(async move { this.entry_for_provider_list(&id).await })
             })
             .collect();
         let results = futures::future::join_all(handles).await;
@@ -355,6 +363,16 @@ impl ProviderInventoryService {
             }
         }
         Ok(entries)
+    }
+
+    async fn entry_for_provider_list(
+        &self,
+        provider_id: &str,
+    ) -> Result<Option<ProviderInventoryEntry>> {
+        let Some(descriptor) = self.describe_provider_for_list(provider_id).await? else {
+            return Ok(None);
+        };
+        self.entry_from_descriptor(descriptor).await.map(Some)
     }
 
     pub async fn plan_refresh(&self, provider_ids: &[String]) -> Result<RefreshPlan> {
@@ -726,6 +744,35 @@ impl ProviderInventoryService {
         }))
     }
 
+    async fn describe_provider_for_list(
+        &self,
+        provider_id: &str,
+    ) -> Result<Option<ProviderDescriptor>> {
+        let entry = match crate::providers::get_from_registry(provider_id).await {
+            Ok(entry) => entry,
+            Err(_) => return Ok(None),
+        };
+        let metadata = entry.metadata().clone();
+        let identity = fallback_inventory_identity(&metadata.name).into_identity()?;
+
+        Ok(Some(ProviderDescriptor {
+            provider_id: metadata.name.clone(),
+            provider_name: metadata.display_name.clone(),
+            description: metadata.description.clone(),
+            default_model: metadata.default_model.clone(),
+            identity,
+            configured: provider_configured_for_list(&metadata.name, &metadata.config_keys),
+            provider_type: entry.provider_type(),
+            category: crate::providers::catalog::get_provider_setup_category(&metadata.name)
+                .unwrap_or(ProviderSetupCategory::Model),
+            config_keys: metadata.config_keys.clone(),
+            setup_steps: metadata.setup_steps.clone(),
+            supports_refresh: entry.supports_inventory_refresh(),
+            static_models: metadata.known_models,
+            model_selection_hint: metadata.model_selection_hint,
+        }))
+    }
+
     async fn require_provider(&self, provider_id: &str) -> Result<ProviderDescriptor> {
         self.describe_provider(provider_id)
             .await?
@@ -890,6 +937,43 @@ pub fn default_inventory_configured(config_keys: &[ConfigKey], config: &Config) 
         }
         if key.secret {
             config.get_secret::<serde_json::Value>(&key.name).is_ok()
+        } else {
+            config.get_param::<serde_json::Value>(&key.name).is_ok()
+        }
+    })
+}
+
+fn provider_configured_for_list(provider_id: &str, config_keys: &[ConfigKey]) -> bool {
+    provider_configured_for_list_with_config(provider_id, config_keys, Config::global())
+}
+
+fn provider_configured_for_list_with_config(
+    provider_id: &str,
+    config_keys: &[ConfigKey],
+    config: &Config,
+) -> bool {
+    if let Some(entry) = crate::config::providers::get_provider_entry(config, provider_id) {
+        return entry.enabled && entry.configured;
+    }
+
+    default_inventory_configured_without_secret_store(config_keys, config)
+}
+
+fn default_inventory_configured_without_secret_store(
+    config_keys: &[ConfigKey],
+    config: &Config,
+) -> bool {
+    // The Desktop picker only needs a fast display hint here. Avoid secure-store
+    // lookups; runtime provider creation and refresh still validate real secrets.
+    config_keys.iter().all(|key| {
+        if !key.required {
+            return true;
+        }
+        if key.default.is_some() {
+            return true;
+        }
+        if key.secret {
+            env::var(key.name.to_uppercase()).is_ok()
         } else {
             config.get_param::<serde_json::Value>(&key.name).is_ok()
         }
@@ -1310,6 +1394,45 @@ mod tests {
             .unwrap();
 
         assert_ne!(left.inventory_key, right.inventory_key);
+    }
+
+    #[test]
+    fn provider_list_configured_uses_persisted_provider_entry_without_secret() {
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        let secrets_file = tempfile::NamedTempFile::new().unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+        crate::config::providers::set_provider_entry(
+            &config,
+            "nvidia",
+            &crate::config::providers::ProviderEntry {
+                enabled: true,
+                model: "nvidia/nemotron-3-ultra-550b-a55b".to_string(),
+                configured: true,
+            },
+        )
+        .unwrap();
+        let config_keys = [ConfigKey::new("NVIDIA_API_KEY", true, true, None, true)];
+
+        assert!(provider_configured_for_list_with_config(
+            "nvidia",
+            &config_keys,
+            &config
+        ));
+    }
+
+    #[test]
+    fn provider_list_configured_does_not_treat_missing_secret_as_configured() {
+        let config_file = tempfile::NamedTempFile::new().unwrap();
+        let secrets_file = tempfile::NamedTempFile::new().unwrap();
+        let config =
+            Config::new_with_file_secrets(config_file.path(), secrets_file.path()).unwrap();
+        let config_keys = [ConfigKey::new("NVIDIA_API_KEY", true, true, None, true)];
+
+        assert!(!default_inventory_configured_without_secret_store(
+            &config_keys,
+            &config
+        ));
     }
 
     #[test]
