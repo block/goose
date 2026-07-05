@@ -5184,6 +5184,7 @@ dependencies = [
  "futures",
  "goose-local-inference",
  "goose-provider-types",
+ "include_dir",
  "pem",
  "pkcs1",
  "pkcs8",
@@ -5199,6 +5200,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "url",
+ "urlencoding",
  "utoipa 4.2.3",
  "wiremock",
 ]

@@ -1,39 +1,38 @@
-use anyhow::Result;
-use async_trait::async_trait;
-use futures::future::BoxFuture;
-use goose_providers::formats::openai::{
+use crate::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, openai_reasoning_effort_for_thinking,
 };
-use goose_providers::images::ImageFormat;
+use crate::images::ImageFormat;
+use anyhow::Result;
+use async_trait::async_trait;
 use serde_json::Value;
 use std::collections::HashSet;
 use std::sync::LazyLock;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use super::api_client::{ApiClient, AuthMethod};
-use super::base::{
-    ConfigKey, MessageStream, ModelInfo, Provider, ProviderDef, ProviderMetadata,
-    DEFAULT_PROVIDER_TIMEOUT_SECS,
+use crate::api_client::{ApiClient, AuthMethod, TlsConfig};
+use crate::base::{ConfigKey, MessageStream, ModelInfo, Provider, ProviderMetadata};
+const DEFAULT_PROVIDER_TIMEOUT_SECS: u64 = 600;
+use crate::conversation::message::Message;
+use crate::databricks_auth::{
+    DatabricksAuth, DatabricksAuthProvider, DatabricksOauthTokenProvider, DatabricksRefreshHook,
+    DatabricksSessionIdProvider, DatabricksTokenResolver,
 };
-use super::databricks_auth::{DatabricksAuth, DatabricksAuthProvider};
-use super::formats::databricks::{create_request_for_provider, DATABRICKS_PROVIDER_NAME};
-use super::openai_compatible::{
+use crate::errors::ProviderError;
+use crate::formats::databricks::create_request_for_provider;
+pub use crate::formats::databricks::DATABRICKS_PROVIDER_NAME;
+use crate::formats::openai_responses::create_responses_request;
+use crate::model::ModelConfig;
+use crate::openai_compatible::{
     handle_status, map_http_error_to_provider_error, sanitize_url, stream_openai_compat,
     stream_responses_compat,
 };
-use super::retry::ProviderRetry;
-use crate::config::ConfigError;
-use crate::conversation::message::Message;
-use crate::instance_id::get_instance_id;
-use crate::providers::retry::{
+use crate::request_log::{start_log, LoggerHandleExt};
+use crate::retry::ProviderRetry;
+use crate::retry::{
     RetryConfig, DEFAULT_BACKOFF_MULTIPLIER, DEFAULT_INITIAL_RETRY_INTERVAL_MS,
     DEFAULT_MAX_RETRIES, DEFAULT_MAX_RETRY_INTERVAL_MS,
 };
-use goose_providers::errors::ProviderError;
-use goose_providers::formats::openai_responses::create_responses_request;
-use goose_providers::model::ModelConfig;
-use goose_providers::request_log::{start_log, LoggerHandleExt};
 use rmcp::model::Tool;
 use serde_json::json;
 
@@ -73,7 +72,7 @@ pub const DATABRICKS_KNOWN_MODELS: &[&str] = &[
 pub const DATABRICKS_DOC_URL: &str =
     "https://docs.databricks.com/en/generative-ai/external-models/index.html";
 
-#[derive(Debug, serde::Serialize)]
+#[derive(serde::Serialize)]
 pub struct DatabricksProvider {
     #[serde(skip)]
     api_client: ApiClient,
@@ -89,39 +88,30 @@ pub struct DatabricksProvider {
     token_cache: Arc<Mutex<Option<String>>>,
     #[serde(skip)]
     instance_id: Option<String>,
+    #[serde(skip)]
+    refresh_hook: Option<DatabricksRefreshHook>,
+    #[serde(skip)]
+    session_id_provider: Option<DatabricksSessionIdProvider>,
 }
 
 impl DatabricksProvider {
     pub async fn cleanup() -> Result<()> {
-        super::oauth::cleanup_oauth_cache()
+        Ok(())
     }
 
-    pub async fn from_env(
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        host: String,
+        auth: DatabricksAuth,
+        retry_config: RetryConfig,
+        tls_config: Option<TlsConfig>,
+        oauth_token_provider: Option<DatabricksOauthTokenProvider>,
+        token_resolver: Option<DatabricksTokenResolver>,
+        request_builder: Option<crate::api_client::RequestBuilderDecorator>,
+        instance_id: Option<String>,
+        refresh_hook: Option<DatabricksRefreshHook>,
+        session_id_provider: Option<DatabricksSessionIdProvider>,
     ) -> Result<Self> {
-        let config = crate::config::Config::global();
-
-        let mut host: Result<String, ConfigError> = config.get_param("DATABRICKS_HOST");
-        if host.is_err() {
-            host = config.get_secret("DATABRICKS_HOST")
-        }
-
-        if host.is_err() {
-            return Err(ConfigError::NotFound(
-                "Did not find DATABRICKS_HOST in either config file or keyring".to_string(),
-            )
-            .into());
-        }
-
-        let host = host?;
-        let retry_config = Self::load_retry_config(config);
-
-        let auth = if let Ok(api_key) = config.get_secret("DATABRICKS_TOKEN") {
-            DatabricksAuth::token(api_key)
-        } else {
-            DatabricksAuth::oauth(host.clone())
-        };
-
         let token_cache = Arc::new(Mutex::new(match &auth {
             DatabricksAuth::Token(t) => Some(t.clone()),
             _ => None,
@@ -130,15 +120,19 @@ impl DatabricksProvider {
         let auth_method = AuthMethod::Custom(Box::new(DatabricksAuthProvider {
             auth: auth.clone(),
             token_cache: token_cache.clone(),
+            oauth_token_provider,
+            token_resolver,
         }));
 
-        let api_client = ApiClient::with_timeout_and_tls(
+        let mut api_client = ApiClient::with_timeout_and_tls(
             host.clone(),
             auth_method,
             Duration::from_secs(DEFAULT_PROVIDER_TIMEOUT_SECS),
-            tls_config.clone(),
-        )?
-        .with_request_builder(crate::session_context::session_id_request_builder());
+            tls_config,
+        )?;
+        if let Some(request_builder) = request_builder {
+            api_client = api_client.with_request_builder(request_builder);
+        }
 
         Ok(Self {
             api_client,
@@ -148,33 +142,27 @@ impl DatabricksProvider {
             retry_config,
             name: DATABRICKS_PROVIDER_NAME.to_string(),
             token_cache,
-            instance_id: Self::resolve_instance_id(),
+            instance_id,
+            refresh_hook,
+            session_id_provider,
         })
     }
 
-    fn load_retry_config(config: &crate::config::Config) -> RetryConfig {
-        let max_retries = config
-            .get_param("DATABRICKS_MAX_RETRIES")
-            .ok()
-            .and_then(|v: String| v.parse::<usize>().ok())
+    pub fn load_retry_config(get_param: impl Fn(&str) -> Option<String>) -> RetryConfig {
+        let max_retries = get_param("DATABRICKS_MAX_RETRIES")
+            .and_then(|v| v.parse::<usize>().ok())
             .unwrap_or(DEFAULT_MAX_RETRIES);
 
-        let initial_interval_ms = config
-            .get_param("DATABRICKS_INITIAL_RETRY_INTERVAL_MS")
-            .ok()
-            .and_then(|v: String| v.parse::<u64>().ok())
+        let initial_interval_ms = get_param("DATABRICKS_INITIAL_RETRY_INTERVAL_MS")
+            .and_then(|v| v.parse::<u64>().ok())
             .unwrap_or(DEFAULT_INITIAL_RETRY_INTERVAL_MS);
 
-        let backoff_multiplier = config
-            .get_param("DATABRICKS_BACKOFF_MULTIPLIER")
-            .ok()
-            .and_then(|v: String| v.parse::<f64>().ok())
+        let backoff_multiplier = get_param("DATABRICKS_BACKOFF_MULTIPLIER")
+            .and_then(|v| v.parse::<f64>().ok())
             .unwrap_or(DEFAULT_BACKOFF_MULTIPLIER);
 
-        let max_interval_ms = config
-            .get_param("DATABRICKS_MAX_RETRY_INTERVAL_MS")
-            .ok()
-            .and_then(|v: String| v.parse::<u64>().ok())
+        let max_interval_ms = get_param("DATABRICKS_MAX_RETRY_INTERVAL_MS")
+            .and_then(|v| v.parse::<u64>().ok())
             .unwrap_or(DEFAULT_MAX_RETRY_INTERVAL_MS);
 
         RetryConfig::new(
@@ -183,17 +171,6 @@ impl DatabricksProvider {
             backoff_multiplier,
             max_interval_ms,
         )
-    }
-
-    fn resolve_instance_id() -> Option<String> {
-        let enabled = crate::config::Config::global()
-            .get_param::<bool>("GOOSE_DATABRICKS_CLIENT_REQUEST_ID")
-            .unwrap_or(false);
-        if enabled {
-            Some(get_instance_id().to_string())
-        } else {
-            None
-        }
     }
 
     fn is_claude_model(model_name: &str) -> bool {
@@ -514,7 +491,7 @@ impl DatabricksProvider {
     }
 }
 
-impl goose_providers::base::ProviderDescriptor for DatabricksProvider {
+impl crate::base::ProviderDescriptor for DatabricksProvider {
     fn metadata() -> ProviderMetadata {
         ProviderMetadata::new(
             DATABRICKS_PROVIDER_NAME,
@@ -532,17 +509,6 @@ impl goose_providers::base::ProviderDescriptor for DatabricksProvider {
     }
 }
 
-impl ProviderDef for DatabricksProvider {
-    type Provider = Self;
-
-    fn from_env(
-        _extensions: Vec<crate::config::ExtensionConfig>,
-        tls_config: Option<crate::providers::api_client::TlsConfig>,
-    ) -> BoxFuture<'static, Result<Self::Provider>> {
-        Box::pin(Self::from_env(tls_config))
-    }
-}
-
 #[async_trait]
 impl Provider for DatabricksProvider {
     fn get_name(&self) -> &str {
@@ -554,7 +520,9 @@ impl Provider for DatabricksProvider {
     }
 
     async fn refresh_credentials(&self) -> Result<(), ProviderError> {
-        crate::config::Config::global().invalidate_secrets_cache();
+        if let Some(refresh_hook) = &self.refresh_hook {
+            refresh_hook();
+        }
         *self.token_cache.lock().unwrap() = None;
         tracing::info!("Invalidated secrets cache and token cache for credential refresh");
         Ok(())
@@ -567,7 +535,11 @@ impl Provider for DatabricksProvider {
         messages: &[Message],
         tools: &[Tool],
     ) -> Result<MessageStream, ProviderError> {
-        let session_id = crate::session_context::current_session_id().unwrap_or_default();
+        let session_id = self
+            .session_id_provider
+            .as_ref()
+            .and_then(|provider| provider())
+            .unwrap_or_default();
         let (endpoint_name, _) = extract_reasoning_effort(&model_config.model_name);
         let endpoint_info = self.resolve_endpoint_info_cached(&endpoint_name).await.ok();
         let effective_model_name = endpoint_info

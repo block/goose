@@ -1,14 +1,22 @@
 use anyhow::Result;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
+use std::future::Future;
+use std::pin::Pin;
 use std::sync::{Arc, Mutex};
 
-use super::api_client::AuthProvider;
-use super::oauth;
+use crate::api_client::AuthProvider;
 
 const DEFAULT_CLIENT_ID: &str = "databricks-cli";
 const DEFAULT_REDIRECT_URL: &str = "http://localhost";
 const DEFAULT_SCOPES: &[&str] = &["all-apis", "offline_access"];
+
+pub type DatabricksOauthTokenFuture = Pin<Box<dyn Future<Output = Result<String>> + Send>>;
+pub type DatabricksOauthTokenProvider =
+    Arc<dyn Fn(String, String, String, Vec<String>) -> DatabricksOauthTokenFuture + Send + Sync>;
+pub type DatabricksTokenResolver = Arc<dyn Fn() -> Option<String> + Send + Sync>;
+pub type DatabricksRefreshHook = Arc<dyn Fn() + Send + Sync>;
+pub type DatabricksSessionIdProvider = Arc<dyn Fn() -> Option<String> + Send + Sync>;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DatabricksAuth {
@@ -36,9 +44,11 @@ impl DatabricksAuth {
     }
 }
 
-pub(crate) struct DatabricksAuthProvider {
+pub struct DatabricksAuthProvider {
     pub auth: DatabricksAuth,
     pub token_cache: Arc<Mutex<Option<String>>>,
+    pub oauth_token_provider: Option<DatabricksOauthTokenProvider>,
+    pub token_resolver: Option<DatabricksTokenResolver>,
 }
 
 #[async_trait]
@@ -50,9 +60,11 @@ impl AuthProvider for DatabricksAuthProvider {
                 match cached {
                     Some(t) => t,
                     None => {
-                        let fresh = crate::config::Config::global()
-                            .get_secret::<String>("DATABRICKS_TOKEN")
-                            .unwrap_or_else(|_| original.clone());
+                        let fresh = self
+                            .token_resolver
+                            .as_ref()
+                            .and_then(|resolve| resolve())
+                            .unwrap_or_else(|| original.clone());
                         *self.token_cache.lock().unwrap() = Some(fresh.clone());
                         fresh
                     }
@@ -63,8 +75,19 @@ impl AuthProvider for DatabricksAuthProvider {
                 client_id,
                 redirect_url,
                 scopes,
-            } => oauth::get_oauth_token_async(host, client_id, redirect_url, scopes).await?,
+            } => {
+                let Some(provider) = &self.oauth_token_provider else {
+                    anyhow::bail!("Databricks OAuth token provider is not configured")
+                };
+                provider(
+                    host.clone(),
+                    client_id.clone(),
+                    redirect_url.clone(),
+                    scopes.clone(),
+                )
+                .await?
+            }
         };
-        Ok(("Authorization".to_string(), format!("Bearer {}", token)))
+        Ok(("Authorization".to_string(), format!("Bearer {token}")))
     }
 }

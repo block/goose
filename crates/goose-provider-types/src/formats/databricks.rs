@@ -1,16 +1,16 @@
 use crate::conversation::message::{Message, MessageContent};
-use crate::providers::formats::anthropic::{
+use crate::formats::anthropic::{
     adaptive_output_effort, model_supports_temperature, thinking_budget_tokens,
     thinking_type_for_provider, ThinkingType,
 };
-use goose_providers::model::ModelConfig;
+use crate::model::ModelConfig;
 
-use anyhow::{anyhow, Error};
-use goose_providers::formats::openai::{
+use crate::formats::openai::{
     extract_reasoning_effort, is_openai_responses_model, is_valid_function_name,
     openai_reasoning_effort_for_thinking, sanitize_function_name,
 };
-use goose_providers::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
+use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
+use anyhow::{anyhow, Error};
 use rmcp::model::{
     object, AnnotateAble, CallToolRequestParams, Content, ErrorCode, ErrorData, RawContent,
     ResourceContents, Role, Tool,
@@ -19,7 +19,7 @@ use serde::Serialize;
 use serde_json::{json, Value};
 use std::borrow::Cow;
 
-pub(crate) const DATABRICKS_PROVIDER_NAME: &str = "databricks";
+pub const DATABRICKS_PROVIDER_NAME: &str = "databricks";
 
 #[derive(Serialize)]
 struct DatabricksMessage {
@@ -424,7 +424,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     };
                     content.push(MessageContent::tool_request(id, Err(error)));
                 } else {
-                    match goose_providers::json::parse_tool_arguments(&arguments_str) {
+                    match crate::json::parse_tool_arguments(&arguments_str) {
                         Some(params) if params.is_object() => {
                             content.push(MessageContent::tool_request(
                                 id,
@@ -448,7 +448,7 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                         }
                         None => {
                             let message_text =
-                                goose_providers::json::truncation_error_message(&arguments_str)
+                                crate::json::truncation_error_message(&arguments_str)
                                     .unwrap_or_else(|| {
                                         format!(
                                             "Could not interpret tool use parameters for id {id}"
