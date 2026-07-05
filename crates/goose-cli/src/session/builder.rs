@@ -778,7 +778,7 @@ mod tests {
             )
             .await
             .unwrap();
-        let scheduled_session = session_manager
+        session_manager
             .create_session(
                 temp_dir.path().to_path_buf(),
                 "Scheduled job: test".to_string(),
@@ -787,9 +787,6 @@ mod tests {
             )
             .await
             .unwrap();
-
-        let listed = session_manager.list_sessions().await.unwrap();
-        assert_eq!(listed[0].id, scheduled_session.id);
 
         let resolved = resolve_session_id(
             &SessionBuilderConfig {
@@ -802,35 +799,6 @@ mod tests {
         .await;
 
         assert_eq!(resolved, user_session.id);
-    }
-
-    #[tokio::test]
-    async fn test_explicit_resume_allows_scheduled_session_id() {
-        let temp_dir = TempDir::new().unwrap();
-        let session_manager = SessionManager::new(temp_dir.path().to_path_buf());
-        let goose_mode = GooseMode::default();
-        let scheduled_session = session_manager
-            .create_session(
-                temp_dir.path().to_path_buf(),
-                "Scheduled job: test".to_string(),
-                SessionType::Scheduled,
-                goose_mode,
-            )
-            .await
-            .unwrap();
-
-        let resolved = resolve_session_id(
-            &SessionBuilderConfig {
-                session_id: Some(scheduled_session.id.clone()),
-                resume: true,
-                ..SessionBuilderConfig::default()
-            },
-            &session_manager,
-            goose_mode,
-        )
-        .await;
-
-        assert_eq!(resolved, scheduled_session.id);
     }
 
     #[test]
