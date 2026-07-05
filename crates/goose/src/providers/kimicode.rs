@@ -88,12 +88,12 @@ fn tokens_to_kimi(tokens: DeviceFlowTokens, prior_refresh: Option<&str>) -> Kimi
 }
 
 #[derive(Debug)]
-struct TokenCache {
+pub(crate) struct TokenCache {
     path: std::path::PathBuf,
 }
 
 impl TokenCache {
-    fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self {
             path: Paths::in_config_dir("kimicode/token.json"),
         }
@@ -112,6 +112,13 @@ impl TokenCache {
                 None
             }
         }
+    }
+
+    pub(crate) fn has_token(&self) -> bool {
+        let Ok(raw) = std::fs::read_to_string(&self.path) else {
+            return false;
+        };
+        serde_json::from_str::<KimiToken>(&raw).is_ok()
     }
 
     async fn save(&self, token: &KimiToken) -> Result<()> {
@@ -521,6 +528,42 @@ mod tests {
         assert_eq!(decoded.access_token, token.access_token);
         assert_eq!(decoded.refresh_token, token.refresh_token);
         assert_eq!(decoded.expires_at.timestamp(), token.expires_at.timestamp());
+    }
+
+    // ── TokenCache::has_token ────────────────────────────────────────────────
+
+    #[test]
+    fn has_token_returns_false_when_no_file() {
+        let cache = TokenCache {
+            path: std::env::temp_dir()
+                .join(format!("goose-kimicode-notoken-{}.json", Uuid::new_v4())),
+        };
+        assert!(!cache.has_token());
+    }
+
+    #[test]
+    fn has_token_returns_true_when_valid_token_exists() {
+        let path =
+            std::env::temp_dir().join(format!("goose-kimicode-hastoken-{}.json", Uuid::new_v4()));
+        let token = KimiToken {
+            access_token: "acc".to_string(),
+            refresh_token: "ref".to_string(),
+            expires_at: Utc::now() + Duration::seconds(3600),
+        };
+        std::fs::write(&path, serde_json::to_string(&token).unwrap()).unwrap();
+
+        let cache = TokenCache { path };
+        assert!(cache.has_token());
+    }
+
+    #[test]
+    fn has_token_returns_false_when_file_is_corrupted() {
+        let path =
+            std::env::temp_dir().join(format!("goose-kimicode-corrupt-{}.json", Uuid::new_v4()));
+        std::fs::write(&path, "not json").unwrap();
+
+        let cache = TokenCache { path };
+        assert!(!cache.has_token());
     }
 
     // ── Headers ───────────────────────────────────────────────────────────────

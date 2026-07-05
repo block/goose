@@ -112,7 +112,10 @@ async fn init_registry() -> RwLock<ProviderRegistry> {
             true,
             Some(registrations::huggingface_inventory()),
         );
-        registry.register::<KimiCodeProvider>(true);
+        registry.register_with_inventory::<KimiCodeProvider>(
+            true,
+            Some(registrations::kimi_code_inventory()),
+        );
         registry.register::<LiteLLMProvider>(false);
         registry.register::<NanoGptProvider>(true);
         registry.register_with_inventory::<OllamaProviderDef>(

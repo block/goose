@@ -14,6 +14,7 @@ use crate::providers::formats::anthropic::ANTHROPIC_PROVIDER_NAME;
 use crate::providers::google::{GOOGLE_API_HOST, GOOGLE_PROVIDER_NAME};
 use crate::providers::huggingface::HuggingFaceProvider;
 use crate::providers::huggingface_auth;
+use crate::providers::kimicode::TokenCache as KimiCodeTokenCache;
 use crate::providers::ollama::OLLAMA_PROVIDER_NAME;
 use crate::providers::openai::{OPEN_AI_DEFAULT_BASE_PATH, OPEN_AI_PROVIDER_NAME};
 use crate::providers::pi_acp::{PI_ACP_BINARY, PI_ACP_PROVIDER_NAME};
@@ -162,6 +163,15 @@ pub fn xai_oauth_inventory() -> InventoryRegistration {
         configured: None,
     }
     .with_configured(|| XaiOAuthTokenCache::new().has_token())
+}
+
+pub fn kimi_code_inventory() -> InventoryRegistration {
+    InventoryRegistration {
+        supports_refresh: false,
+        identity: default_inventory_identity_resolver(),
+        configured: None,
+    }
+    .with_configured(|| KimiCodeTokenCache::new().has_token())
 }
 
 pub fn acp_inventory(
