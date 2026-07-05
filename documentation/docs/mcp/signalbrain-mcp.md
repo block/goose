@@ -8,7 +8,7 @@ import TabItem from '@theme/TabItem';
 import CLIExtensionInstructions from '@site/src/components/CLIExtensionInstructions';
 import GooseDesktopInstaller from '@site/src/components/GooseDesktopInstaller';
 
-This tutorial covers how to add the [SignalBrain MCP Server](https://github.com/whitestone1121-web/signalbrain) as a goose extension to make goose's changes verifiable: goose emits an *improvement receipt* for each change — an executable claim (what changed, the command that proves it, stated confidence) that is objectively re-scored after merge, so autonomy is earned from a measured track record.
+This tutorial covers how to add the [SignalBrain MCP Server](https://github.com/whitestone1121-web/signalbrain) (listed on the [official MCP Registry](https://registry.modelcontextprotocol.io/?search=signalbrain) as `io.github.whitestone1121-web/signalbrain`) as a goose extension to make goose's changes verifiable: goose emits an *improvement receipt* for each change — an executable claim (what changed, the command that proves it, stated confidence) that is objectively re-scored after merge, so autonomy is earned from a measured track record.
 
 :::tip Quick Install
 <Tabs groupId="interface">
