@@ -321,7 +321,7 @@ impl MappingReport {
 
 fn data_file_path(filename: &str) -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../goose-providers/src/canonical/data")
+        .join("../goose-provider-types/src/canonical/data")
         .join(filename)
 }
 

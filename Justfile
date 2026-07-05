@@ -313,8 +313,8 @@ prepare-release version:
         ui/desktop/package.json \
         ui/pnpm-lock.yaml \
         ui/desktop/openapi.json \
-        crates/goose-providers/src/canonical/data/canonical_models.json \
-        crates/goose-providers/src/canonical/data/provider_metadata.json
+        crates/goose-provider-types/src/canonical/data/canonical_models.json \
+        crates/goose-provider-types/src/canonical/data/provider_metadata.json
     @git commit --message "chore(release): release version {{ version }}"
 
 set-openapi-version version:

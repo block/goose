@@ -1,0 +1,54 @@
+[package]
+name = "goose-local-inference"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+description.workspace = true
+
+[lints]
+workspace = true
+
+[features]
+default = []
+cuda = ["llama-cpp-2/cuda"]
+vulkan = ["llama-cpp-2/vulkan"]
+mlx = ["dep:mlx-rs", "dep:mlx-lm", "dep:mlx-lm-utils"]
+
+[dependencies]
+anyhow = { workspace = true }
+async-stream = { workspace = true }
+async-trait = { workspace = true }
+base64 = { workspace = true }
+chrono = { workspace = true }
+etcetera = { workspace = true }
+encoding_rs = { version = "0.8.35", default-features = false }
+fs2 = { workspace = true }
+futures = { workspace = true }
+goose-download-manager = { path = "../goose-download-manager" }
+goose-provider-types = { path = "../goose-provider-types", default-features = false }
+goose-sdk-types = { path = "../goose-sdk-types", default-features = false }
+hf-hub = { version = "1.0.0-rc.1", default-features = false }
+include_dir = { workspace = true }
+llama-cpp-2 = { workspace = true }
+llama-cpp-sys-2 = { workspace = true }
+minijinja = { version = "2.18", default-features = false, features = ["loader", "multi_template", "serde"] }
+reqwest = { workspace = true, features = ["json", "stream"] }
+regex = { workspace = true }
+rmcp = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tokio = { workspace = true, features = ["fs", "rt-multi-thread", "sync", "time"] }
+tracing = { workspace = true }
+utoipa = { workspace = true, features = ["chrono"] }
+uuid = { workspace = true, features = ["v4", "std"] }
+tempfile = { workspace = true }
+
+mlx-rs = { version = "0.25.3", default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true }
+mlx-lm = { git = "https://github.com/jh-block/mlx-lm", optional = true }
+mlx-lm-utils = { git = "https://github.com/jh-block/mlx-lm", optional = true }
+
+[target.'cfg(target_os = "macos")'.dependencies]
+llama-cpp-2 = { workspace = true, features = ["sampler", "metal", "mtmd"] }
