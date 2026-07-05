@@ -19,7 +19,6 @@ use super::formats::anthropic::{
     create_request, response_to_streaming_message, AnthropicFormatOptions, ANTHROPIC_PROVIDER_NAME,
 };
 use super::openai_compatible::handle_status;
-use super::openai_compatible::map_http_error_to_provider_error;
 use super::retry::ProviderRetry;
 use crate::conversation::message::Message;
 use crate::model::ModelConfig;
@@ -155,33 +154,65 @@ impl AnthropicProviderBuilder {
 
 impl AnthropicProvider {
     async fn fetch_models_from_api(&self) -> Result<Vec<String>, ProviderError> {
-        let response = self.api_client.request("v1/models").api_get().await?;
+        let response = self.api_client.request("v1/models").response_get().await?;
 
-        if response.status == StatusCode::NOT_FOUND {
-            let msg = response
-                .payload
-                .as_ref()
-                .and_then(|p| p.get("error").and_then(|e| e.get("message")))
-                .and_then(|m| m.as_str())
-                .unwrap_or("models endpoint not found")
-                .to_string();
+        if response.status() == StatusCode::NOT_FOUND {
+            let body = response.text().await.unwrap_or_default();
+            let msg = serde_json::from_str::<Value>(&body)
+                .ok()
+                .and_then(|p| {
+                    p.get("error")
+                        .and_then(|e| e.get("message"))
+                        .and_then(|m| m.as_str())
+                        .map(String::from)
+                })
+                .unwrap_or_else(|| "models endpoint not found".to_string());
             return Err(ProviderError::EndpointNotFound(msg));
         }
 
-        if response.status != StatusCode::OK {
-            return Err(map_http_error_to_provider_error(
-                response.status,
-                response.payload,
-                "v1/models",
-            ));
+        // Check HTTP status first — non-success responses (auth errors,
+        // rate limits, bad requests, etc.) propagate unchanged.
+        let response = handle_status(response).await?;
+
+        // Read the response body. Network errors (timeouts, connection resets)
+        // must propagate — only JSON decode failures indicate a non-models
+        // endpoint (e.g. an HTML error page from a misconfigured base URL).
+        let body = response.text().await.map_err(|e| {
+            ProviderError::NetworkError(format!("Failed to read response body: {}", e))
+        })?;
+        let json: Value = serde_json::from_str(&body).map_err(|e| {
+            ProviderError::EndpointNotFound(format!("Response body is not valid JSON: {}", e))
+        })?;
+
+        // Check for the standard error shape first — this is always an
+        // error regardless of whether `data` is also present.
+        if let Some(err_obj) = json.get("error") {
+            let msg = err_obj
+                .get("message")
+                .and_then(|v| v.as_str())
+                .unwrap_or("unknown error");
+            return Err(ProviderError::Authentication(msg.to_string()));
         }
 
-        let json = response.payload.unwrap_or_default();
-        let arr = json.get("data").and_then(|v| v.as_array()).ok_or_else(|| {
-            ProviderError::RequestFailed(
-                "Missing 'data' array in Anthropic models response".to_string(),
-            )
-        })?;
+        // A 200 response whose body isn't a models payload (no `data` array)
+        // is treated as `EndpointNotFound` so that `fetch_supported_models`
+        // can fall back to the predefined list. Before giving up, check for
+        // a top-level `message` field as an error indicator — some providers
+        // return {"message": "invalid api key"} instead of the standard
+        // {"error": {"message": "..."}} shape. Only treat it as an error
+        // when `data` is missing, so that a valid payload like
+        // {"data": [...], "message": "ok"} is not rejected.
+        let arr = match json.get("data").and_then(|v| v.as_array()) {
+            Some(arr) => arr,
+            None => {
+                if let Some(msg) = json.get("message").and_then(|v| v.as_str()) {
+                    return Err(ProviderError::Authentication(msg.to_string()));
+                }
+                return Err(ProviderError::EndpointNotFound(
+                    "response is not a models payload (missing 'data' array)".into(),
+                ));
+            }
+        };
 
         let mut models: Vec<String> = arr
             .iter()
@@ -399,4 +430,224 @@ pub fn from_declarative_config(
         .dynamic_models(config.dynamic_models)
         .skip_canonical_filtering(config.skip_canonical_filtering)
         .format_options(format_options))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api_client::AuthMethod;
+    use serde_json::json;
+
+    fn make_provider_with_custom_models(
+        host: &str,
+        custom_models: Vec<String>,
+    ) -> AnthropicProvider {
+        AnthropicProvider {
+            api_client: ApiClient::new_with_tls(host.to_string(), AuthMethod::NoAuth, None)
+                .unwrap(),
+            supports_streaming: true,
+            name: "test-provider".to_string(),
+            custom_models: Some(custom_models),
+            dynamic_models: Some(true),
+            skip_canonical_filtering: false,
+            format_options: AnthropicFormatOptions::default(),
+        }
+    }
+
+    #[tokio::test]
+    async fn fetch_models_treats_invalid_json_as_endpoint_not_found() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // Simulate a misconfigured base URL that returns HTML instead of JSON.
+        // The body is read successfully (text), but `serde_json::from_str`
+        // fails — a decode error, classified as `EndpointNotFound`.
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(
+                ResponseTemplate::new(200).set_body_string("<html>not a models endpoint</html>"),
+            )
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider =
+            make_provider_with_custom_models(&server.uri(), vec!["static-model".to_string()]);
+
+        let err = provider.fetch_models_from_api().await.unwrap_err();
+        assert!(
+            err.is_endpoint_not_found(),
+            "expected EndpointNotFound, got: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_models_treats_missing_data_field_as_endpoint_not_found() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // JSON response without a `data` array — not a models payload.
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({"status": "ok"})))
+            .expect(1)
+            .mount(&server)
+            .await;
+
+        let provider =
+            make_provider_with_custom_models(&server.uri(), vec!["static-model".to_string()]);
+
+        let err = provider.fetch_models_from_api().await.unwrap_err();
+        assert!(
+            err.is_endpoint_not_found(),
+            "expected EndpointNotFound, got: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_falls_back_on_invalid_payload() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_string("<html>error page</html>"))
+            .mount(&server)
+            .await;
+
+        let predefined = vec![
+            "claude-sonnet-4-5".to_string(),
+            "claude-haiku-4-5".to_string(),
+        ];
+        let provider = make_provider_with_custom_models(&server.uri(), predefined.clone());
+
+        // The invalid payload triggers EndpointNotFound, which the existing
+        // fetch_supported_models fallback catches and returns the static list.
+        let models = provider
+            .fetch_supported_models()
+            .await
+            .expect("should fall back to predefined list on invalid payload");
+        assert_eq!(models, predefined);
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_propagates_auth_error() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(401).set_body_json(json!({
+                "type": "error",
+                "error": {
+                    "type": "authentication_error",
+                    "message": "invalid api key"
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let provider =
+            make_provider_with_custom_models(&server.uri(), vec!["static-model".to_string()]);
+
+        // Auth errors must propagate — they indicate a real misconfiguration
+        // that the user needs to know about.
+        let err = provider.fetch_supported_models().await.unwrap_err();
+        assert!(
+            matches!(err, ProviderError::Authentication(_)),
+            "expected Authentication error, got: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_propagates_auth_error_from_200_payload() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // Some Anthropic-compatible endpoints return 200 with an error payload
+        // instead of a proper 401 status. The error must still propagate.
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "type": "error",
+                "error": {
+                    "type": "authentication_error",
+                    "message": "invalid api key"
+                }
+            })))
+            .mount(&server)
+            .await;
+
+        let provider =
+            make_provider_with_custom_models(&server.uri(), vec!["static-model".to_string()]);
+
+        let err = provider.fetch_supported_models().await.unwrap_err();
+        assert!(
+            matches!(err, ProviderError::Authentication(_)),
+            "expected Authentication error, got: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_propagates_top_level_message_error() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // Some providers return errors with a top-level `message` field
+        // instead of the standard `{"error": {"message": "..."}}` shape.
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "message": "invalid api key"
+            })))
+            .mount(&server)
+            .await;
+
+        let provider =
+            make_provider_with_custom_models(&server.uri(), vec!["static-model".to_string()]);
+
+        let err = provider.fetch_supported_models().await.unwrap_err();
+        assert!(
+            matches!(err, ProviderError::Authentication(_)),
+            "expected Authentication error, got: {:?}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn fetch_supported_models_ignores_top_level_message_when_data_present() {
+        use wiremock::matchers::{method, path};
+        use wiremock::{Mock, MockServer, ResponseTemplate};
+
+        let server = MockServer::start().await;
+        // A valid models payload with an extra informational `message` field
+        // must NOT be treated as an error. The `data` array takes precedence.
+        Mock::given(method("GET"))
+            .and(path("/v1/models"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "data": [{"id": "model-a"}, {"id": "model-b"}],
+                "message": "ok"
+            })))
+            .mount(&server)
+            .await;
+
+        let provider =
+            make_provider_with_custom_models(&server.uri(), vec!["static-model".to_string()]);
+
+        let models = provider
+            .fetch_supported_models()
+            .await
+            .expect("valid payload with extra message field should succeed");
+        assert_eq!(models, vec!["model-a".to_string(), "model-b".to_string()]);
+    }
 }
