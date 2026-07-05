@@ -483,8 +483,6 @@ impl SummonClient {
         })
     }
 
-    /// The parent link lets the parent's usage totals aggregate over the
-    /// session tree.
     async fn create_subagent_session(
         &self,
         task_config: &TaskConfig,

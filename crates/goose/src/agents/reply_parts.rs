@@ -517,7 +517,6 @@ impl Agent {
         (frontend_requests, other_requests, filtered_message)
     }
 
-    /// Returns the usage enriched with its resolved cost.
     pub(crate) async fn update_session_metrics(
         &self,
         session_id: &str,
@@ -531,8 +530,6 @@ impl Agent {
         let (chunk_cost, cost_source) =
             self.resolve_chunk_cost(usage, session.provider_name.as_deref());
 
-        // The ledger records the raw usage/cost of this call; the context-window
-        // remap below only affects the session's live-context columns.
         let mut enriched = usage.clone();
         enriched.cost = chunk_cost;
         enriched.cost_source = cost_source;

@@ -92,7 +92,6 @@ pub struct Session {
     pub archived_at: Option<DateTime<Utc>>,
     #[serde(default)]
     pub project_id: Option<String>,
-    /// For sub-agent sessions, the session that spawned them.
     #[serde(default)]
     pub parent_session_id: Option<String>,
     #[serde(default)]
@@ -123,8 +122,6 @@ impl From<&Session> for TokenState {
     }
 }
 
-/// Context-window figures come from the session's live usage; accumulated
-/// figures come from on-the-fly aggregation (session + sub-agent tree).
 pub fn token_state_from_session_and_totals(
     session: &Session,
     totals: &SessionUsageTotals,
@@ -180,9 +177,6 @@ pub struct SessionInsights {
     pub total_tokens: i64,
 }
 
-/// Accumulated usage and cost for a session and its sub-agent descendants,
-/// aggregated on the fly from per-call ledger records with the stored
-/// accumulated_* columns as a floor (see get_session_usage_totals).
 #[derive(Debug, Clone, Default)]
 pub struct SessionUsageTotals {
     pub accumulated_usage: Usage,
@@ -477,14 +471,10 @@ impl SessionManager {
             .await
     }
 
-    /// Accumulated usage and cost for a session, aggregated on the fly from
-    /// per-message records across the session and its sub-agent descendants.
     pub async fn get_session_usage_totals(&self, id: &str) -> Result<SessionUsageTotals> {
         self.storage.get_session_usage_totals(id).await
     }
 
-    /// Atomically set the session's context-window columns, add the delta to
-    /// its accumulated columns, and append the matching ledger row.
     pub async fn record_usage_metrics(
         &self,
         session_id: &str,
@@ -997,8 +987,6 @@ impl SessionStorage {
         .execute(&mut *tx)
         .await?;
 
-        // Kept separate from `messages` so per-call usage survives
-        // conversation rewrites (compaction) and turns that persist no message.
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS usage_ledger (
@@ -1468,9 +1456,6 @@ impl SessionStorage {
                 }
             }
             15 => {
-                // Per-message usage/cost tracking. The `parent_session_id` link
-                // and the append-only `usage_ledger` table are additive, so a
-                // DB touched by this branch still loads on `main`.
                 let has_parent = sqlx::query_scalar::<_, i32>(
                     "SELECT COUNT(*) FROM pragma_table_info('sessions') WHERE name = 'parent_session_id'",
                 )
@@ -2103,9 +2088,6 @@ impl SessionStorage {
         })
     }
 
-    /// One transaction updates the accumulated columns from the same delta
-    /// that lands in the ledger, so the derived total and the legacy fallback
-    /// can't diverge.
     async fn record_usage_metrics(
         &self,
         session_id: &str,
@@ -2117,9 +2099,6 @@ impl SessionStorage {
         let pool = self.pool().await?;
         let mut tx = pool.begin_with("BEGIN IMMEDIATE").await?;
 
-        // Spend recorded on pre-v15 builds lives only in accumulated_*; both
-        // builds only ever grow those columns, so any excess over the ledger
-        // sum is exactly the missed spend - append it as a carried_forward row.
         sqlx::query(
             r#"
             INSERT INTO usage_ledger (
@@ -2199,24 +2178,17 @@ impl SessionStorage {
         Ok(())
     }
 
-    /// Per session, takes the larger of its ledger sums and its stored
-    /// accumulated_* columns, summed across the sub-agent tree. The two are
-    /// equal absent drift; the stored side is ahead exactly when spend was
-    /// recorded off-ledger (legacy sessions, or turns run on a pre-v15 build)
-    /// and not yet reconciled, so max reports the full total either way.
     async fn get_session_usage_totals(&self, session_id: &str) -> Result<SessionUsageTotals> {
         let pool = self.pool().await?;
         let rows = sqlx::query_as::<
             _,
             (
-                // stored accumulated_* columns
                 Option<i64>,
                 Option<i64>,
                 Option<i64>,
                 Option<i64>,
                 Option<i64>,
                 Option<f64>,
-                // ledger sums
                 Option<i64>,
                 Option<i64>,
                 Option<i64>,
@@ -4028,8 +4000,6 @@ mod tests {
         .id
     }
 
-    /// Seed a ledger row without touching the session's accumulated_* columns,
-    /// so tests can exercise ledger vs legacy-fallback paths independently.
     async fn seed_ledger(
         sm: &SessionManager,
         session_id: &str,
@@ -4061,12 +4031,10 @@ mod tests {
             .await
             .unwrap();
 
-        // Parent reports the grand total across the tree...
         let parent_totals = sm.get_session_usage_totals(&parent).await.unwrap();
         assert_eq!(parent_totals.accumulated_usage.input_tokens, Some(140));
         assert!((parent_totals.accumulated_cost.unwrap() - 0.14).abs() < 1e-9);
 
-        // ...while the sub-agent stays a distinct record with its own total.
         let child_totals = sm.get_session_usage_totals(&child).await.unwrap();
         assert_eq!(child_totals.accumulated_usage.input_tokens, Some(40));
         assert!((child_totals.accumulated_cost.unwrap() - 0.04).abs() < 1e-9);
@@ -4078,8 +4046,6 @@ mod tests {
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
         let id = new_session(&sm).await;
 
-        // Spend recorded before the ledger existed lives only in the stored
-        // accumulated_* columns.
         sm.update(&id)
             .accumulated_usage(Usage::new(Some(5000), Some(1000), Some(6000)))
             .accumulated_cost(Some(5.0))
@@ -4087,8 +4053,6 @@ mod tests {
             .await
             .unwrap();
 
-        // First post-upgrade turn: the total must keep the prior history, not
-        // collapse to this turn's usage.
         sm.record_usage_metrics(
             &id,
             None,
@@ -4103,8 +4067,6 @@ mod tests {
         assert_eq!(totals.accumulated_usage.total_tokens, Some(6120));
         assert!((totals.accumulated_cost.unwrap() - 5.01).abs() < 1e-9);
 
-        // Turns run after switching back to a pre-v15 build grow accumulated_*
-        // but not the ledger...
         let session = sm.get_session(&id, false).await.unwrap();
         sm.update(&id)
             .accumulated_usage(
@@ -4115,7 +4077,6 @@ mod tests {
             .await
             .unwrap();
 
-        // ...and the next turn on this build heals the drift.
         sm.record_usage_metrics(
             &id,
             None,
@@ -4132,7 +4093,6 @@ mod tests {
         assert_eq!(totals.accumulated_usage.total_tokens, Some(6705));
         assert!((totals.accumulated_cost.unwrap() - 5.54).abs() < 1e-9);
 
-        // The derived total and the stored accumulated_* fallback agree.
         let session = sm.get_session(&id, false).await.unwrap();
         assert_eq!(session.accumulated_usage, totals.accumulated_usage);
         assert!((session.accumulated_cost.unwrap() - 5.54).abs() < 1e-9);
@@ -4154,8 +4114,6 @@ mod tests {
         .await
         .unwrap();
 
-        // Drift from a pre-v15 build that no new turn has reconciled yet must
-        // still be reported when the session is merely loaded.
         let session = sm.get_session(&id, false).await.unwrap();
         sm.update(&id)
             .accumulated_usage(
@@ -4178,7 +4136,6 @@ mod tests {
         let sm = SessionManager::new(temp_dir.path().to_path_buf());
         let id = new_session(&sm).await;
 
-        // No ledger rows (legacy session), but stored accumulated_* exists.
         sm.update(&id)
             .accumulated_usage(Usage::new(Some(500), Some(100), Some(600)))
             .accumulated_cost(Some(0.42))
@@ -4204,9 +4161,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Compaction rewrites the conversation; the ledger (including the
-        // compaction call's own spend) must be untouched so the running total
-        // stays monotonic.
         sm.replace_conversation(&id, &Conversation::default())
             .await
             .unwrap();
@@ -4228,8 +4182,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Parent has per-message ledger data; child is a legacy session with
-        // only stored accumulated_* and no ledger rows. Both must be counted.
         seed_ledger(&sm, &parent, &message_usage(100, 20, 0.10, false))
             .await
             .unwrap();
@@ -4256,7 +4208,6 @@ mod tests {
             .await
             .unwrap();
 
-        // Must not fail on the usage_ledger foreign key.
         sm.delete_session(&id).await.unwrap();
         assert!(sm.get_session(&id, false).await.is_err());
     }
@@ -4271,9 +4222,6 @@ mod tests {
             .await
             .unwrap();
 
-        // A pre-v15 build's delete_session removes messages and the session
-        // without knowing about usage_ledger; the FK must cascade instead of
-        // failing the delete.
         let pool = sm.storage().pool().await.unwrap();
         sqlx::query("DELETE FROM messages WHERE session_id = ?")
             .bind(&id)
