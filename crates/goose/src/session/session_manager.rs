@@ -2476,6 +2476,11 @@ mod tests {
             .await
             .unwrap();
 
+        sm.update(&session.id)
+            .model_config(ModelConfig::new("test-model"))
+            .apply()
+            .await
+            .unwrap();
         add_user_message(&sm, &session.id).await;
 
         let update = sm
