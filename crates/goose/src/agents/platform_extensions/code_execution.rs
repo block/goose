@@ -291,6 +291,11 @@ fn execution_timeout() -> Duration {
 /// or cancellation), the token is cancelled so an in-flight nested tool call
 /// (e.g. a long `developer.shell` command) is told to stop instead of running
 /// on in the background.
+/// Grace period for nested tool calls to observe a dispatched cancellation
+/// signal and clean up (e.g. kill child processes) before the task future is
+/// abandoned.
+const DISPATCH_DRAIN_TIMEOUT: Duration = Duration::from_millis(500);
+
 async fn run_in_deno_runtime<T, F, Fut>(
     timeout: Duration,
     cancellation_token: CancellationToken,
@@ -309,21 +314,30 @@ where
             .map_err(|e| format!("Failed to create runtime: {e}"))?;
 
         rt.block_on(async move {
+            let task_future = task();
+            tokio::pin!(task_future);
+
             tokio::select! {
                 _ = cancellation_token.cancelled() => {
                     dispatch_token.cancel();
+                    let _ = tokio::time::timeout(
+                        DISPATCH_DRAIN_TIMEOUT,
+                        &mut task_future,
+                    ).await;
                     Err("Execution cancelled".to_string())
                 }
-                result = tokio::time::timeout(timeout, task()) => match result {
-                    Ok(output) => output,
-                    Err(_) => {
-                        dispatch_token.cancel();
-                        Err(format!(
-                            "Execution timed out after {} seconds",
-                            timeout.as_secs()
-                        ))
-                    }
-                },
+                _ = tokio::time::sleep(timeout) => {
+                    dispatch_token.cancel();
+                    let _ = tokio::time::timeout(
+                        DISPATCH_DRAIN_TIMEOUT,
+                        &mut task_future,
+                    ).await;
+                    Err(format!(
+                        "Execution timed out after {} seconds",
+                        timeout.as_secs()
+                    ))
+                }
+                result = &mut task_future => result,
             }
         })
     })
@@ -679,6 +693,37 @@ mod tests {
         .await;
         assert_eq!(result.unwrap_err(), "Execution cancelled");
         assert!(dispatch_token.is_cancelled());
+    }
+
+    #[tokio::test]
+    async fn run_in_deno_runtime_drains_task_on_timeout() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let dispatch_token = CancellationToken::new();
+        let observed = Arc::new(AtomicBool::new(false));
+        let task_token = dispatch_token.clone();
+        let task_observed = observed.clone();
+
+        let result: Result<(), String> = run_in_deno_runtime(
+            Duration::from_millis(50),
+            CancellationToken::new(),
+            dispatch_token.clone(),
+            move || async move {
+                task_token.cancelled().await;
+                task_observed.store(true, Ordering::SeqCst);
+                Ok(())
+            },
+        )
+        .await;
+
+        assert!(
+            result.unwrap_err().contains("timed out"),
+            "should report timeout"
+        );
+        assert!(
+            observed.load(Ordering::SeqCst),
+            "task should observe dispatch token cancellation before being dropped"
+        );
     }
 
     /// Exercises the real Deno/V8 stack: a script whose event loop never
