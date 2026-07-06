@@ -664,6 +664,7 @@ export default function ChatInput({
       });
     }
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalTokens, tokenLimit, isTokenLimitLoaded, isLoading, addAlert, clearAlerts]);
 
   // Cleanup effect for component unmount - prevent memory leaks
