@@ -138,9 +138,6 @@ struct StreamingChoice {
     #[serde(default)]
     delta: Delta,
     index: Option<i32>,
-    /// Some OpenAI-compatible servers send `"finish_reason": ""` (rather than
-    /// null) on intermediate chunks; normalize that to `None` here so no
-    /// consumer mistakes an empty string for a terminal chunk.
     #[serde(default, deserialize_with = "empty_finish_reason_as_none")]
     finish_reason: Option<String>,
 }
@@ -2697,12 +2694,6 @@ data: [DONE]
 
     #[tokio::test]
     async fn test_streaming_empty_finish_reason_is_not_terminal() -> anyhow::Result<()> {
-        // Some OpenAI-compatible servers send `"finish_reason": ""` (rather
-        // than null) on intermediate chunks. An empty string must not read as
-        // terminal: here it would end tool-call accumulation after the first
-        // argument fragment, and the remaining fragments (which carry no
-        // id/name) could never rejoin the call — leaving truncated,
-        // unparseable arguments.
         let response_lines = r#"
 data: {"model":"m","choices":[{"delta":{"role":"assistant","content":"Checking."},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
 data: {"model":"m","choices":[{"delta":{"role":"assistant","content":null,"tool_calls":[{"index":0,"id":"call_1","type":"function","function":{"name":"developer__shell","arguments":""}}]},"index":0,"finish_reason":""}],"object":"chat.completion.chunk","id":"1","created":1753288340}
