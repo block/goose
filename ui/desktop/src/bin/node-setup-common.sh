@@ -134,15 +134,9 @@ fi
 # Activate the environment with output redirected to log.
 # Activation must run on every platform: macOS GUI apps otherwise never get the
 # hermit-managed node/npx onto PATH, so STDIO extensions fail with
-# "env: node: No such file or directory". The Linux-only guard was introduced in
-# #5372 to "preserve existing behavior" on macOS, but that path is now broken.
+# "env: node: No such file or directory".
 log "Activating hermit environment."
-# Apply the hermit env directly instead of sourcing bin/activate-hermit: that
-# script runs `eval "$(hermit activate)"`, and hermit picks the output syntax
-# from the calling shell's process ancestry, so launching goose from a fish
-# login shell emits `set -gx` and breaks this bash wrapper. `hermit env` prints
-# neutral KEY='VALUE' pairs regardless of shell.
-eval "$(hermit env | sed 's/^/export /')" >> "${LOG_FILE}" 2>&1
+eval "$(hermit env --shell=bash --activate)" >> "${LOG_FILE}" 2>&1
 
 # Install Node.js using hermit
 log "Installing Node.js with hermit."
