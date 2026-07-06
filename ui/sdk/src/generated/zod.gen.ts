@@ -134,6 +134,10 @@ export const zGooseExtension = z.union([
             z.boolean(),
             z.null()
         ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
+            z.null()
+        ]).optional(),
         type: z.literal('builtin')
     }),
     z.object({
@@ -148,6 +152,10 @@ export const zGooseExtension = z.union([
         ]).optional(),
         bundled: z.union([
             z.boolean(),
+            z.null()
+        ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
             z.null()
         ]).optional(),
         type: z.literal('platform')
@@ -169,6 +177,10 @@ export const zGooseExtension = z.union([
         ]).optional(),
         bundled: z.union([
             z.boolean(),
+            z.null()
+        ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
             z.null()
         ]).optional(),
         type: z.literal('mcp')
@@ -1464,6 +1476,10 @@ export const zRecipeExtensionDto = z.union([
             z.boolean(),
             z.null()
         ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
+            z.null()
+        ]).optional(),
         type: z.literal('builtin')
     }),
     z.object({
@@ -1478,6 +1494,10 @@ export const zRecipeExtensionDto = z.union([
         ]).optional(),
         bundled: z.union([
             z.boolean(),
+            z.null()
+        ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
             z.null()
         ]).optional(),
         type: z.literal('platform')
@@ -1504,6 +1524,10 @@ export const zRecipeExtensionDto = z.union([
             z.boolean(),
             z.null()
         ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
+            z.null()
+        ]).optional(),
         type: z.literal('stdio')
     }),
     z.object({
@@ -1526,6 +1550,10 @@ export const zRecipeExtensionDto = z.union([
         ]).optional(),
         bundled: z.union([
             z.boolean(),
+            z.null()
+        ]).optional(),
+        available_tools: z.union([
+            z.array(z.string()),
             z.null()
         ]).optional(),
         type: z.literal('streamable_http')
@@ -2280,7 +2308,8 @@ export const zDictationLocalModelStatus = z.object({
     description: z.string(),
     sizeMb: z.number().int().gte(0),
     downloaded: z.boolean(),
-    downloadInProgress: z.boolean()
+    downloadInProgress: z.boolean(),
+    recommended: z.boolean()
 });
 
 export const zDictationModelsListResponse_unstable = z.object({
@@ -2339,6 +2368,301 @@ export const zDictationModelDeleteRequest_unstable = z.object({
 export const zDictationModelSelectRequest_unstable = z.object({
     provider: z.string(),
     modelId: z.string()
+});
+
+export const zLocalInferenceModelsListRequest_unstable = z.record(z.unknown());
+
+export const zLocalInferenceDownloadState = z.enum([
+    'NotDownloaded',
+    'Downloading',
+    'Downloaded'
+]);
+
+export const zLocalInferenceModelDownloadStatusDto = z.object({
+    state: zLocalInferenceDownloadState,
+    progressPercent: z.union([
+        z.number(),
+        z.null()
+    ]).optional(),
+    bytesDownloaded: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional(),
+    totalBytes: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional(),
+    speedBps: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional()
+});
+
+export const zLocalInferenceSamplingConfig = z.union([
+    z.object({
+        type: z.literal('Greedy')
+    }),
+    z.object({
+        temperature: z.number(),
+        topK: z.number().int(),
+        topP: z.number(),
+        minP: z.number(),
+        seed: z.union([
+            z.number().int().gte(0),
+            z.null()
+        ]).optional(),
+        type: z.literal('Temperature')
+    }),
+    z.object({
+        tau: z.number(),
+        eta: z.number(),
+        seed: z.union([
+            z.number().int().gte(0),
+            z.null()
+        ]).optional(),
+        type: z.literal('MirostatV2')
+    })
+]);
+
+export const zLocalInferenceToolCallingMode = z.enum([
+    'auto',
+    'force_native',
+    'force_emulated'
+]);
+
+export const zLocalInferenceChatTemplate = z.union([
+    z.object({
+        type: z.literal('embedded')
+    }),
+    z.object({
+        name: z.string(),
+        type: z.literal('builtin')
+    }),
+    z.object({
+        template: z.string(),
+        type: z.literal('custom_inline')
+    })
+]);
+
+export const zLocalInferenceModelSettingsDto = z.object({
+    backendId: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    contextSize: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional(),
+    maxOutputTokens: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional(),
+    draftModel: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    sampling: zLocalInferenceSamplingConfig.optional().default({
+        type: 'Temperature',
+        temperature: 0.800000011920929,
+        topK: 40,
+        topP: 0.949999988079071,
+        minP: 0.05000000074505806
+    }),
+    repeatPenalty: z.number(),
+    repeatLastN: z.number().int(),
+    frequencyPenalty: z.number(),
+    presencePenalty: z.number(),
+    nBatch: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional(),
+    nGpuLayers: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional(),
+    useMlock: z.boolean(),
+    flashAttention: z.union([
+        z.boolean(),
+        z.null()
+    ]).optional(),
+    nThreads: z.union([
+        z.number().int(),
+        z.null()
+    ]).optional(),
+    toolCalling: zLocalInferenceToolCallingMode.optional().default('auto'),
+    chatTemplate: zLocalInferenceChatTemplate.optional().default({ type: 'embedded' }),
+    enableThinking: z.boolean(),
+    visionCapable: z.boolean(),
+    imageTokenEstimate: z.number().int().gte(0),
+    mmprojSizeBytes: z.number().int().gte(0)
+});
+
+export const zLocalInferenceModelDto = z.object({
+    id: z.string(),
+    repoId: z.string(),
+    filename: z.string(),
+    quantization: z.string(),
+    sizeBytes: z.number().int().gte(0),
+    status: zLocalInferenceModelDownloadStatusDto,
+    recommended: z.boolean(),
+    settings: zLocalInferenceModelSettingsDto,
+    visionCapable: z.boolean(),
+    mmprojStatus: z.union([
+        zLocalInferenceModelDownloadStatusDto,
+        z.null()
+    ]).optional()
+});
+
+export const zLocalInferenceModelsListResponse_unstable = z.object({
+    models: z.array(zLocalInferenceModelDto)
+});
+
+export const zLocalInferenceModelDownloadRequest_unstable = z.object({
+    spec: z.string(),
+    backendId: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    variantId: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
+});
+
+export const zLocalInferenceModelDownloadResponse_unstable = z.object({
+    modelId: z.string()
+});
+
+export const zLocalInferenceModelDownloadProgressRequest_unstable = z.object({
+    modelId: z.string()
+});
+
+export const zLocalInferenceDownloadProgressDto = z.object({
+    modelId: z.string(),
+    status: z.string(),
+    bytesDownloaded: z.number().int().gte(0),
+    totalBytes: z.number().int().gte(0),
+    progressPercent: z.number(),
+    speedBps: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional(),
+    etaSeconds: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional(),
+    error: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    taskExited: z.boolean()
+});
+
+export const zLocalInferenceModelDownloadProgressResponse_unstable = z.object({
+    progress: z.union([
+        zLocalInferenceDownloadProgressDto,
+        z.null()
+    ]).optional()
+});
+
+export const zLocalInferenceModelDownloadCancelRequest_unstable = z.object({
+    modelId: z.string()
+});
+
+export const zLocalInferenceModelDeleteRequest_unstable = z.object({
+    modelId: z.string()
+});
+
+export const zLocalInferenceModelSettingsReadRequest_unstable = z.object({
+    modelId: z.string()
+});
+
+export const zLocalInferenceModelSettingsReadResponse_unstable = z.object({
+    settings: zLocalInferenceModelSettingsDto
+});
+
+export const zLocalInferenceModelSettingsUpdateRequest_unstable = z.object({
+    modelId: z.string(),
+    settings: zLocalInferenceModelSettingsDto
+});
+
+export const zLocalInferenceModelSettingsUpdateResponse_unstable = z.object({
+    settings: zLocalInferenceModelSettingsDto
+});
+
+export const zLocalInferenceHuggingFaceSearchRequest_unstable = z.object({
+    query: z.string(),
+    limit: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional()
+});
+
+export const zLocalInferenceHfGgufFileDto = z.object({
+    filename: z.string(),
+    sizeBytes: z.number().int().gte(0),
+    quantization: z.string(),
+    downloadUrl: z.string()
+});
+
+export const zLocalInferenceHfModelVariantDto = z.object({
+    variantId: z.string(),
+    label: z.string(),
+    backendId: z.string(),
+    format: z.string(),
+    modelId: z.string(),
+    downloadId: z.string(),
+    sizeBytes: z.number().int().gte(0),
+    filename: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    downloadUrl: z.union([
+        z.string(),
+        z.null()
+    ]).optional(),
+    description: z.string(),
+    qualityRank: z.number().int().gte(0).lte(255),
+    sharded: z.boolean(),
+    supported: z.boolean(),
+    unsupportedReason: z.union([
+        z.string(),
+        z.null()
+    ]).optional()
+});
+
+export const zLocalInferenceHfModelInfoDto = z.object({
+    repoId: z.string(),
+    author: z.string(),
+    modelName: z.string(),
+    downloads: z.number().int().gte(0),
+    ggufFiles: z.array(zLocalInferenceHfGgufFileDto).optional().default([]),
+    variants: z.array(zLocalInferenceHfModelVariantDto).optional().default([])
+});
+
+export const zLocalInferenceHuggingFaceSearchResponse_unstable = z.object({
+    models: z.array(zLocalInferenceHfModelInfoDto)
+});
+
+export const zLocalInferenceHuggingFaceRepoVariantsRequest_unstable = z.object({
+    repoId: z.string()
+});
+
+export const zLocalInferenceHuggingFaceRepoVariantsResponse_unstable = z.object({
+    variants: z.array(zLocalInferenceHfModelVariantDto),
+    recommendedIndex: z.union([
+        z.number().int().gte(0),
+        z.null()
+    ]).optional(),
+    availableMemoryBytes: z.number().int().gte(0),
+    downloadedQuants: z.array(z.string()),
+    downloadedVariants: z.array(z.string())
+});
+
+export const zLocalInferenceBuiltinChatTemplatesListRequest_unstable = z.record(z.unknown());
+
+export const zLocalInferenceBuiltinChatTemplatesListResponse_unstable = z.object({
+    templates: z.array(z.string())
 });
 
 /**
@@ -2517,7 +2841,17 @@ export const zExtRequest = z.object({
             zDictationModelDownloadProgressRequest_unstable,
             zDictationModelCancelRequest_unstable,
             zDictationModelDeleteRequest_unstable,
-            zDictationModelSelectRequest_unstable
+            zDictationModelSelectRequest_unstable,
+            zLocalInferenceModelsListRequest_unstable,
+            zLocalInferenceModelDownloadRequest_unstable,
+            zLocalInferenceModelDownloadProgressRequest_unstable,
+            zLocalInferenceModelDownloadCancelRequest_unstable,
+            zLocalInferenceModelDeleteRequest_unstable,
+            zLocalInferenceModelSettingsReadRequest_unstable,
+            zLocalInferenceModelSettingsUpdateRequest_unstable,
+            zLocalInferenceHuggingFaceSearchRequest_unstable,
+            zLocalInferenceHuggingFaceRepoVariantsRequest_unstable,
+            zLocalInferenceBuiltinChatTemplatesListRequest_unstable
         ]),
         z.union([
             z.record(z.unknown()),
@@ -2596,7 +2930,15 @@ export const zExtResponse = z.union([
                 zDictationTranscribeResponse_unstable,
                 zDictationConfigResponse_unstable,
                 zDictationModelsListResponse_unstable,
-                zDictationModelDownloadProgressResponse_unstable
+                zDictationModelDownloadProgressResponse_unstable,
+                zLocalInferenceModelsListResponse_unstable,
+                zLocalInferenceModelDownloadResponse_unstable,
+                zLocalInferenceModelDownloadProgressResponse_unstable,
+                zLocalInferenceModelSettingsReadResponse_unstable,
+                zLocalInferenceModelSettingsUpdateResponse_unstable,
+                zLocalInferenceHuggingFaceSearchResponse_unstable,
+                zLocalInferenceHuggingFaceRepoVariantsResponse_unstable,
+                zLocalInferenceBuiltinChatTemplatesListResponse_unstable
             ]),
             z.unknown()
         ]).optional()

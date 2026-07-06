@@ -41,6 +41,12 @@
   "appsView.noAppsTitle": {
     "defaultMessage": "No apps available"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.retry": {
     "defaultMessage": "Retry"
   },
@@ -1167,25 +1173,34 @@
     "defaultMessage": "AA:BB:CC:... or sha256/base64"
   },
   "externalBackendSection.description": {
-    "defaultMessage": "By default goose launches a server for you, use this to connect to an external goose server"
+    "defaultMessage": "By default Goose starts a local backend. Use this to connect to an external ACP-compatible backend."
+  },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
   },
   "externalBackendSection.restartNote": {
-    "defaultMessage": "Changes require restarting Goose to take effect. New chat windows will connect to the external server."
+    "defaultMessage": "Changes apply to new chat windows. Restart Goose to update existing windows."
   },
   "externalBackendSection.secretKey": {
     "defaultMessage": "Secret Key"
   },
   "externalBackendSection.secretKeyHelp": {
-    "defaultMessage": "The secret key configured on the goosed server (GOOSE_SERVER__SECRET_KEY)"
+    "defaultMessage": "The secret key configured on the external backend (GOOSE_SERVER__SECRET_KEY)."
   },
   "externalBackendSection.secretKeyPlaceholder": {
     "defaultMessage": "Enter the server's secret key"
   },
   "externalBackendSection.serverUrl": {
-    "defaultMessage": "Server URL"
+    "defaultMessage": "Backend Base URL"
+  },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
   },
   "externalBackendSection.title": {
-    "defaultMessage": "Goose Server"
+    "defaultMessage": "External Backend (ACP)"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Invalid URL format"
@@ -1194,40 +1209,10 @@
     "defaultMessage": "URL must use http or https protocol"
   },
   "externalBackendSection.useExternalServer": {
-    "defaultMessage": "Use external server"
+    "defaultMessage": "Use external backend"
   },
   "externalBackendSection.useExternalServerDescription": {
-    "defaultMessage": "Connect to a goose server running elsewhere (requires app restart)"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Choose an option to get started."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Free & Private"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Download a model and run entirely on your machine. No API keys, no accounts."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Use a Local Model"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Sign up to receive 60M free tokens for 7 days."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Retry"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Access multiple AI models with automatic setup. Sign up to receive $10 credit."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router by Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "An unexpected error occurred during setup."
+    "defaultMessage": "Connect to an ACP-compatible backend running elsewhere."
   },
   "goosehintsModal.close": {
     "defaultMessage": "Close"
@@ -1822,9 +1807,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Show recommended only"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "Back"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Best for your machine"
@@ -2786,14 +2768,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Connect OpenAI, Anthropic, Google, etc"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Use a local model or a provider with free credits"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Download a model and run it on this device. No API key or account needed."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Select a provider"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Use Free/Local Providers"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Use a Local Model"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Provider Configuration Settings"

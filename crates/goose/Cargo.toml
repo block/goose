@@ -24,9 +24,7 @@ local-inference = [
     "dep:candle-core",
     "dep:candle-nn",
     "dep:candle-transformers",
-    "dep:hf-hub",
-    "dep:llama-cpp-2",
-    "dep:llama-cpp-sys-2",
+    "goose-providers/local-inference",
     "dep:tokenizers",
     "dep:symphonia",
     "dep:rubato",
@@ -39,11 +37,16 @@ aws-providers = [
     "dep:aws-sdk-sagemakerruntime",
     "dep:smithy-transport-reqwest",
 ]
-cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "llama-cpp-2/cuda"]
-vulkan = ["local-inference", "llama-cpp-2/vulkan"]
-mlx = ["local-inference", "dep:mlx-rs", "dep:mlx-lm", "dep:mlx-lm-utils"]
+cuda = ["local-inference", "candle-core/cuda", "candle-nn/cuda", "goose-providers/cuda"]
+vulkan = ["local-inference", "goose-providers/vulkan"]
+mlx = ["local-inference", "goose-providers/mlx"]
 rustls-tls = [
     "dep:rustls",
+    "dep:rcgen",
+    "dep:pem",
+    "dep:axum-server",
+    "dep:aws-lc-rs",
+    "axum-server/tls-rustls",
     "reqwest/rustls",
     "rmcp/reqwest",
     "smithy-transport-reqwest?/rustls",
@@ -51,10 +54,14 @@ rustls-tls = [
     "jsonwebtoken/aws_lc_rs",
     "oauth2/reqwest",
     "oauth2/rustls-tls",
-    "hf-hub/rustls-tls",
     "goose-providers/rustls-tls",
 ]
 native-tls = [
+    "dep:rcgen",
+    "dep:pem",
+    "dep:axum-server",
+    "dep:openssl",
+    "axum-server/tls-openssl",
     "reqwest/native-tls",
     "rmcp/reqwest-native-tls",
     "smithy-transport-reqwest?/native-tls",
@@ -92,7 +99,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 serde_path_to_error = { version = "0.1.8", default-features = false }
 serde_urlencoded = { version = "0.7.1", default-features = false }
-jsonschema = { version = "0.30", default-features = false }
+jsonschema = { version = "0.46", default-features = false }
 uuid = { workspace = true, features = ["v7"] }
 regex = { workspace = true }
 async-trait = { workspace = true }
@@ -125,6 +132,7 @@ once_cell = { workspace = true }
 etcetera = { workspace = true }
 fs-err = { version = "3.1", default-features = false }
 goose-providers = { path = "../goose-providers", default-features = false }
+goose-download-manager = { path = "../goose-download-manager" }
 goose-sdk-types = { path = "../goose-sdk-types" }
 rand = { workspace = true }
 utoipa = { workspace = true, features = ["chrono"] }
@@ -165,14 +173,12 @@ unicode-normalization = { version = "0.1.22", default-features = false, features
 # For local Whisper transcription (optional, behind "local-inference" feature)
 candle-core = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
-candle-transformers = { version = "0.10", default-features = false, optional = true }
+candle-transformers = { version = "0.11", default-features = false, optional = true }
 byteorder = { version = "1.5", default-features = false, features = ["std"], optional = true }
 tokenizers = { version = "0.23", default-features = false, features = ["onig"], optional = true }
 symphonia = { version = "0.5", default-features = false, features = ["aac", "adpcm", "alac", "isomp4", "mkv", "mp3", "pcm", "vorbis", "wav"], optional = true }
 rubato = { version = "0.16", default-features = false, optional = true }
 sys-info = { version = "0.9", default-features = false }
-
-llama-cpp-2 = { workspace = true, optional = true }
 
 schemars = { workspace = true, features = [
     "derive",
@@ -193,7 +199,6 @@ tree-sitter-swift = { workspace = true }
 tree-sitter-typescript = { workspace = true }
 which = { workspace = true }
 pulldown-cmark = { version = "0.13", default-features = false }
-encoding_rs = { version = "0.8.35", default-features = false }
 pastey = { version = "0.2", default-features = false }
 shell-words = { workspace = true }
 goose-acp-macros = { path = "../goose-acp-macros", default-features = false }
@@ -203,10 +208,11 @@ process-wrap = { version = "9", default-features = false, features = ["std"] }
 nostr = { version = "0.44", default-features = false, features = ["nip44", "std"], optional = true }
 nostr-sdk = { version = "0.44", default-features = false, features = ["nip44"], optional = true }
 rustls = { workspace = true, optional = true }
-hf-hub = { version = "1.0.0-rc.1", default-features = false, optional = true }
-mlx-rs = { version = "0.25.3", default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true }
-mlx-lm = { git = "https://github.com/jh-block/mlx-lm", optional = true }
-mlx-lm-utils = { git = "https://github.com/jh-block/mlx-lm", optional = true }
+rcgen = { version = "0.14", default-features = false, features = ["aws_lc_rs", "crypto", "pem"], optional = true }
+axum-server = { version = "0.8", default-features = false, optional = true }
+aws-lc-rs = { version = "1.17", default-features = false, optional = true }
+openssl = { version = "0.10.66", default-features = false, optional = true }
+pem = { version = "3.0.2", default-features = false, features = ["std"], optional = true }
 
 pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 
@@ -215,7 +221,6 @@ pctx_code_mode = { version = "0.3", default-features = false, optional = true }
 # They are just here to pin the version, and can be removed if PCTX updates temporal_rs
 icu_calendar = { version = "=2.1.1", default-features = false }
 icu_locale = { version = "=2.1.1", default-features = false }
-llama-cpp-sys-2 = { workspace = true, optional = true }
 image = { version = "0.24.9", default-features = false, features = ["png", "jpeg", "gif", "webp"] }
 subtle = { version = "2.5", default-features = false, features = ["std"] }
 gethostname = "1.1.0"
@@ -228,7 +233,6 @@ keyring = { workspace = true, features = ["windows-native"], optional = true }
 [target.'cfg(target_os = "macos")'.dependencies]
 candle-core = { workspace = true, features = ["metal"], optional = true }
 candle-nn = { workspace = true, features = ["metal"], optional = true }
-llama-cpp-2 = { workspace = true, features = ["sampler", "metal", "mtmd"], optional = true }
 keyring = { workspace = true, features = ["apple-native"], optional = true }
 
 [target.'cfg(target_os = "linux")'.dependencies]
@@ -237,7 +241,7 @@ libc = { version = "0.2.182", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 serial_test = { workspace = true }
-mockall = { version = "0.14", default-features = false }
+mockall = { version = "0.15", default-features = false }
 wiremock = { workspace = true }
 tokio = { workspace = true }
 tokio-util = { workspace = true, features = ["compat"] }

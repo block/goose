@@ -799,8 +799,14 @@ async fn restart_agent_internal(
     session_id: &str,
     session: &Session,
 ) -> Result<Vec<ExtensionLoadResult>, ErrorResponse> {
-    // Remove existing agent (ignore error if not found)
-    let _ = state.agent_manager.remove_session(session_id).await;
+    state
+        .agent_manager
+        .remove_session_if_loaded(session_id)
+        .await
+        .map_err(|e| ErrorResponse {
+            message: format!("Failed to remove in-memory agent for session {session_id}: {e}"),
+            status: StatusCode::INTERNAL_SERVER_ERROR,
+        })?;
 
     let agent = state
         .get_agent_for_route(session_id.to_string())

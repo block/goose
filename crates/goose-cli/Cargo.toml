@@ -62,8 +62,9 @@ urlencoding = { workspace = true }
 clap_complete = { version = "4", default-features = false }
 comfy-table = { version = "7", default-features = false }
 sha2 = { workspace = true }
-sigstore-verify = { version = "0.9", default-features = false, optional = true }
+sigstore-verify = { version = "0.10", default-features = false, optional = true }
 axum.workspace = true
+axum-server = { version = "0.8", default-features = false, optional = true }
 clap_complete_nushell = { version = "4", default-features = false }
 
 [target.'cfg(target_os = "windows")'.dependencies]
@@ -99,14 +100,18 @@ portable-default = ["rustls-tls", "aws-providers", "telemetry", "otel", "tui"]
 # disables the update command
 disable-update = []
 rustls-tls = [
+    "dep:axum-server",
     "reqwest/rustls",
+    "axum-server/tls-rustls",
     "sigstore-verify?/rustls",
     "goose/rustls-tls",
     "goose-mcp/rustls-tls",
     "goose-providers/rustls-tls",
 ]
 native-tls = [
+    "dep:axum-server",
     "reqwest/native-tls",
+    "axum-server/tls-openssl",
     "sigstore-verify?/native-tls",
     "goose/native-tls",
     "goose-mcp/native-tls",

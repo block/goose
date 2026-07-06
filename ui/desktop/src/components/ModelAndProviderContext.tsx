@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, useMemo, useCallback } from 'react';
 import { toastError, toastSuccess } from '../toasts';
 import Model, { getProviderMetadata } from './settings/models/modelInterface';
-import { ProviderMetadata } from '../api';
+import type { ProviderMetadata } from '../types/providers';
 import { acpChatSessionActions, acpChatSessionStore } from '../acp/chatSessionStore';
 import {
   acpReadDefaults,

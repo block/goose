@@ -10,7 +10,6 @@ import ChatInput from './ChatInput';
 import { ChatInputCard } from './ChatInputCard';
 import { ScrollArea, ScrollAreaHandle } from './ui/scroll-area';
 import { useFileDrop } from '../hooks/useFileDrop';
-import { Message } from '../api';
 import { ChatState } from '../types/chatState';
 import { ChatType } from '../types/chat';
 import { useIsMobile } from '../hooks/use-mobile';
@@ -23,9 +22,13 @@ import { RecipeHeader } from './RecipeHeader';
 import { RecipeWarningModal } from './ui/RecipeWarningModal';
 import { scanRecipe } from '../recipe';
 import type { Recipe } from '../recipe';
-import { UserInput } from '../types/message';
 import RecipeActivities from './recipes/RecipeActivities';
-import { getThinkingMessage, getTextAndImageContent } from '../types/message';
+import {
+  getThinkingMessage,
+  getTextAndImageContent,
+  type Message,
+  type UserInput,
+} from '../types/message';
 import { substituteParameters } from '../utils/parameterSubstitution';
 import { useAutoSubmit } from '../hooks/useAutoSubmit';
 import { Goose } from './icons';

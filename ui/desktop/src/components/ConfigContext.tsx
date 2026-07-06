@@ -9,9 +9,10 @@ import {
 } from '../acp/extensions';
 import { pruneDeprecatedBundledExtensions, syncBundledExtensions } from './settings/extensions';
 import { nameToKey } from './settings/extensions/utils';
-import type { ConfigResponse, ProviderDetails, ExtensionConfig } from '../api';
+import type { ExtensionConfig } from '../types/extensions';
+import type { ProviderDetails } from '../types/providers';
 
-export type { ExtensionConfig } from '../api/types.gen';
+export type { ExtensionConfig } from '../types/extensions';
 
 // Define a local version that matches the structure of the imported one
 export type FixedExtensionEntry = ExtensionConfig & {
@@ -19,8 +20,10 @@ export type FixedExtensionEntry = ExtensionConfig & {
   configKey?: string;
 };
 
+type ConfigMap = Record<string, unknown>;
+
 interface ConfigContextType {
-  config: ConfigResponse['config'];
+  config: ConfigMap;
   providersList: ProviderDetails[];
   extensionsList: FixedExtensionEntry[];
   extensionWarnings: string[];
@@ -41,7 +44,7 @@ interface ConfigProviderProps {
 const ConfigContext = createContext<ConfigContextType | undefined>(undefined);
 
 export const ConfigProvider: React.FC<ConfigProviderProps> = ({ children }) => {
-  const [config, setConfig] = useState<ConfigResponse['config']>({});
+  const [config, setConfig] = useState<ConfigMap>({});
   const [providersList, setProvidersList] = useState<ProviderDetails[]>([]);
   const [extensionsList, setExtensionsList] = useState<FixedExtensionEntry[]>([]);
   const [extensionWarnings, setExtensionWarnings] = useState<string[]>([]);

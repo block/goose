@@ -44,6 +44,12 @@
   "appsView.retry": {
     "defaultMessage": "Cuba semula"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.title": {
     "defaultMessage": "Apl"
   },
@@ -1169,6 +1175,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "Secara lalai goose melancarkan pelayan untuk anda, gunakan ini untuk menyambung ke pelayan goose luaran"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Perubahan memerlukan memulakan semula Goose untuk berkuat kuasa. Tetingkap sembang baharu akan menyambung ke pelayan luaran."
   },
@@ -1184,8 +1193,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "URL Pelayan"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Pelayan Goose"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Format URL tidak sah"
@@ -1198,36 +1213,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Sambung ke pelayan goose yang berjalan di tempat lain (memerlukan memulakan semula aplikasi)"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Pilih satu pilihan untuk bermula."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Percuma & Peribadi"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Muat turun model dan jalankan sepenuhnya pada mesin anda. Tiada kunci API, tiada akaun."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Guna Model Tempatan"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Daftar untuk menerima 60J token percuma selama 7 hari."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Cuba Semula"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Akses pelbagai model AI dengan persediaan automatik. Daftar untuk menerima kredit $10."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router oleh Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Ralat tidak dijangka berlaku semasa persediaan."
   },
   "goosehintsModal.close": {
     "defaultMessage": "Tutup"
@@ -1822,9 +1807,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Tunjukkan yang disyorkan sahaja"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "Kembali"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Terbaik untuk mesin anda"
@@ -2786,14 +2768,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Sambung OpenAI, Anthropic, Google, dll"
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Gunakan model setempat atau penyedia dengan kredit percuma"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Muat turun model dan jalankan sepenuhnya pada mesin anda. Tiada kunci API, tiada akaun."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Pilih penyedia"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Gunakan Penyedia Percuma/Setempat"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Guna Model Tempatan"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Tetapan Konfigurasi Penyedia"

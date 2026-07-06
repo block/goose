@@ -34,6 +34,7 @@ use crate::providers::inventory::{
     RefreshSkipReason,
 };
 use crate::scheduler_trait::SchedulerTrait;
+use crate::session::session_manager::SessionUsageTotals;
 use crate::session::{
     EnabledExtensionsState, ExtensionData, ExtensionState, Session, SessionManager, SessionType,
 };
@@ -93,6 +94,7 @@ mod extensions;
 mod fork_session;
 mod list_sessions;
 mod load_session;
+mod local_inference;
 mod manage_sessions;
 mod new_session;
 mod onboarding;
@@ -835,13 +837,16 @@ pub(super) struct UsageUpdates {
     pub(super) standard: UsageUpdate,
 }
 
-pub(super) fn build_usage_updates(session: &Session) -> Option<UsageUpdates> {
+pub(super) fn build_usage_updates(
+    session: &Session,
+    totals: &SessionUsageTotals,
+) -> Option<UsageUpdates> {
     let used = session.usage.total_tokens.unwrap_or(0).max(0) as u64;
     let ctx_limit = session.model_config.as_ref()?.context_limit() as u64;
     let accumulated_input_tokens =
-        to_nonnegative_u64(session.accumulated_usage.input_tokens).unwrap_or(0);
+        to_nonnegative_u64(totals.accumulated_usage.input_tokens).unwrap_or(0);
     let accumulated_output_tokens =
-        to_nonnegative_u64(session.accumulated_usage.output_tokens).unwrap_or(0);
+        to_nonnegative_u64(totals.accumulated_usage.output_tokens).unwrap_or(0);
     Some(UsageUpdates {
         custom: GooseSessionNotification {
             session_id: session.id.clone(),
@@ -850,12 +855,12 @@ pub(super) fn build_usage_updates(session: &Session) -> Option<UsageUpdates> {
                 context_limit: ctx_limit,
                 accumulated_input_tokens,
                 accumulated_output_tokens,
-                accumulated_cost: session.accumulated_cost,
+                accumulated_cost: totals.accumulated_cost,
             }),
         },
         standard: {
             let mut standard = UsageUpdate::new(used, ctx_limit);
-            if let Some(amount) = session.accumulated_cost {
+            if let Some(amount) = totals.accumulated_cost {
                 standard = standard.cost(Cost::new(amount, "USD"));
             }
             standard
@@ -887,6 +892,24 @@ impl GooseAcpAgent {
             .get()
             .copied()
             .unwrap_or(false)
+    }
+
+    pub(super) async fn notify_session_setup(
+        &self,
+        cx: &ConnectionTo<Client>,
+        session: &Session,
+    ) -> Result<(), agent_client_protocol::Error> {
+        let totals = self
+            .session_manager
+            .get_session_usage_totals(&session.id)
+            .await
+            .unwrap_or_default();
+        send_session_setup_notifications(
+            cx,
+            session,
+            &totals,
+            self.supports_goose_custom_notifications(),
+        )
     }
 
     pub(super) fn supports_recipe_param_requests(&self) -> bool {
@@ -1177,7 +1200,10 @@ impl GooseAcpAgent {
                 .await
                 .internal_err_ctx("Failed to update session")?;
 
-            let _ = self.agent_manager.remove_session(&session_id).await;
+            self.agent_manager
+                .remove_session_if_loaded(&session_id)
+                .await
+                .internal_err_ctx("Failed to remove in-memory agent")?;
 
             session = self
                 .session_manager
@@ -2336,7 +2362,17 @@ impl GooseAcpAgent {
 
         if self.closed_session_ids.lock().await.contains(session_id) {
             self.sessions.lock().await.remove(session_id);
-            let _ = self.agent_manager.remove_session(session_id).await;
+            if let Err(error) = self
+                .agent_manager
+                .remove_session_if_loaded(session_id)
+                .await
+            {
+                tracing::warn!(
+                    session_id,
+                    %error,
+                    "Failed to remove in-memory agent for closed session"
+                );
+            }
         }
     }
 
@@ -2656,7 +2692,12 @@ impl GooseAcpAgent {
             .get_session(&session_id, false)
             .await
             .internal_err_ctx("Failed to load session")?;
-        if let Some(updates) = build_usage_updates(&session) {
+        let totals = self
+            .session_manager
+            .get_session_usage_totals(&session_id)
+            .await
+            .unwrap_or_default();
+        if let Some(updates) = build_usage_updates(&session, &totals) {
             if self.supports_goose_custom_notifications() {
                 cx.send_notification(updates.custom)?;
             }
@@ -2968,7 +3009,10 @@ impl GooseAcpAgent {
         sessions.remove(session_id);
         drop(sessions);
 
-        let _ = self.agent_manager.remove_session(session_id).await;
+        self.agent_manager
+            .remove_session_if_loaded(session_id)
+            .await
+            .internal_err_ctx("Failed to remove in-memory agent")?;
 
         info!(session_id = %session_id, "ACP session closed");
         Ok(CloseSessionResponse::new())
@@ -3859,7 +3903,12 @@ print(\"hello, world\")
             goose_providers::model::ModelConfig::new("test-model")
                 .with_context_limit(Some(258_000)),
         );
-        let updates = build_usage_updates(&session).expect("usage updates should be present");
+        let totals = SessionUsageTotals {
+            accumulated_usage: session.accumulated_usage,
+            accumulated_cost: session.accumulated_cost,
+        };
+        let updates =
+            build_usage_updates(&session, &totals).expect("usage updates should be present");
         assert_eq!(updates.custom.session_id, "session-1");
         let usage = match updates.custom.update {
             GooseSessionUpdate::UsageUpdate(usage) => usage,
@@ -3877,7 +3926,7 @@ print(\"hello, world\")
             TokenUsage::new(Some(80), Some(40), Some(120)),
             TokenUsage::default(),
         );
-        assert!(build_usage_updates(&session).is_none());
+        assert!(build_usage_updates(&session, &SessionUsageTotals::default()).is_none());
     }
 
     #[test]

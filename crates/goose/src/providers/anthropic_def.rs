@@ -1,12 +1,14 @@
 use anyhow::Result;
 use futures::future::BoxFuture;
 
-use crate::{config::DeclarativeProviderConfig, providers::base::ProviderDef};
+use crate::{
+    config::{Config, DeclarativeProviderConfig},
+    providers::{base::ProviderDef, custom_provider_config::ConfigKeyResolver},
+};
 use goose_providers::{
-    anthropic::{AnthropicProvider, AnthropicProviderBuilder, ANTHROPIC_API_VERSION},
-    api_client::{ApiClient, AuthMethod},
+    anthropic::{self, AnthropicProvider, AnthropicProviderBuilder, ANTHROPIC_API_VERSION},
+    api_client::{ApiClient, AuthMethod, TlsConfig},
     base::ProviderDescriptor,
-    formats::anthropic::AnthropicFormatOptions,
 };
 
 pub struct AnthropicProviderDef;
@@ -51,79 +53,17 @@ async fn from_env(
 
 pub fn from_custom_config(
     config: DeclarativeProviderConfig,
-    tls_config: Option<crate::providers::api_client::TlsConfig>,
+    tls_config: Option<TlsConfig>,
 ) -> Result<AnthropicProvider> {
-    let custom_models = if !config.models.is_empty() {
-        Some(
-            config
-                .models
-                .iter()
-                .map(|m| m.name.clone())
-                .collect::<Vec<String>>(),
-        )
-    } else {
-        None
-    };
-
-    if config.dynamic_models == Some(false) && custom_models.is_none() {
-        return Err(anyhow::anyhow!(
-            "Provider '{}' has dynamic_models: false but no static models listed; \
-             at least one entry in `models` is required.",
-            config.name
-        ));
-    }
-
-    let global_config = crate::config::Config::global();
-    let api_key: String = global_config
-        .get_secret(&config.api_key_env)
-        .map_err(|_| anyhow::anyhow!("Missing API key: {}", config.api_key_env))?;
-
-    let auth = AuthMethod::ApiKey {
-        header_name: "x-api-key".to_string(),
-        key: api_key,
-    };
-
-    let format_options = format_options_for_provider(config.preserves_thinking);
-
-    let mut api_client = ApiClient::new_with_tls(config.base_url, auth, tls_config)?
-        .with_request_builder(crate::session_context::session_id_request_builder())
-        .with_header("anthropic-version", ANTHROPIC_API_VERSION)?;
-
-    if let Some(headers) = &config.headers {
-        let mut header_map = reqwest::header::HeaderMap::new();
-        for (key, value) in headers {
-            let header_name = reqwest::header::HeaderName::from_bytes(key.as_bytes())?;
-            let header_value = reqwest::header::HeaderValue::from_str(value)?;
-            header_map.insert(header_name, header_value);
-        }
-        api_client = api_client.with_headers(header_map)?;
-    }
-
-    let supports_streaming = config.supports_streaming.unwrap_or(true);
-
-    if !supports_streaming {
-        return Err(anyhow::anyhow!(
-            "Anthropic provider does not support non-streaming mode. All Claude models support streaming. \
-            Please remove 'supports_streaming: false' from your provider configuration."
-        ));
-    }
-
-    Ok(AnthropicProviderBuilder::new(api_client)
-        .supports_streaming(supports_streaming)
-        .name(config.name.clone())
-        .custom_models(custom_models)
-        .dynamic_models(config.dynamic_models)
-        .skip_canonical_filtering(config.skip_canonical_filtering)
-        .format_options(format_options)
-        .build())
-}
-
-fn format_options_for_provider(preserves_thinking: bool) -> AnthropicFormatOptions {
-    AnthropicFormatOptions {
-        preserve_unsigned_thinking: preserves_thinking,
-        preserve_thinking_context: preserves_thinking,
-        thinking_disabled: false,
-    }
+    anthropic::from_declarative_config(config, tls_config, ConfigKeyResolver::new(Config::global()))
+        .map(|builder| {
+            builder
+                .map_api_client(|api_client| {
+                    api_client
+                        .with_request_builder(crate::session_context::session_id_request_builder())
+                })
+                .build()
+        })
 }
 
 #[cfg(test)]

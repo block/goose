@@ -44,6 +44,12 @@
   "appsView.retry": {
     "defaultMessage": "Riprova"
   },
+  "appsView.retiredChatApp": {
+    "defaultMessage": "Chat app retired"
+  },
+  "appsView.retiredChatAppDetail": {
+    "defaultMessage": "We removed this feature because MCP sampling is no longer supported."
+  },
   "appsView.title": {
     "defaultMessage": "App"
   },
@@ -1169,6 +1175,9 @@
   "externalBackendSection.description": {
     "defaultMessage": "Per impostazione predefinita goose avvia un server per te; usa questa opzione per connetterti a un server goose esterno"
   },
+  "externalBackendSection.fingerprintRequiresHttps": {
+    "defaultMessage": "Certificate fingerprint requires an https URL"
+  },
   "externalBackendSection.restartNote": {
     "defaultMessage": "Le modifiche richiedono il riavvio di Goose per avere effetto. Le nuove finestre di chat si connetteranno al server esterno."
   },
@@ -1184,8 +1193,14 @@
   "externalBackendSection.serverUrl": {
     "defaultMessage": "URL del server"
   },
+  "externalBackendSection.serverUrlHelp": {
+    "defaultMessage": "Enter the HTTP(S) base URL. Goose checks /status and connects to /acp under this base."
+  },
   "externalBackendSection.title": {
     "defaultMessage": "Server Goose"
+  },
+  "externalBackendSection.urlBaseError": {
+    "defaultMessage": "URL must be the backend base URL before /acp, without query parameters or fragments"
   },
   "externalBackendSection.urlFormatError": {
     "defaultMessage": "Formato URL non valido"
@@ -1198,36 +1213,6 @@
   },
   "externalBackendSection.useExternalServerDescription": {
     "defaultMessage": "Connettiti a un server goose in esecuzione altrove (richiede il riavvio dell'app)"
-  },
-  "freeOptionCards.chooseOption": {
-    "defaultMessage": "Scegli un'opzione per iniziare."
-  },
-  "freeOptionCards.freeAndPrivate": {
-    "defaultMessage": "Gratuito e privato"
-  },
-  "freeOptionCards.localModelDescription": {
-    "defaultMessage": "Scarica un modello ed eseguilo interamente sul tuo computer. Niente chiavi API, niente account."
-  },
-  "freeOptionCards.localModelTitle": {
-    "defaultMessage": "Usa un modello locale"
-  },
-  "freeOptionCards.nanogptDescription": {
-    "defaultMessage": "Registrati per ricevere 60 milioni di token gratuiti per 7 giorni."
-  },
-  "freeOptionCards.nanogptTitle": {
-    "defaultMessage": "NanoGPT"
-  },
-  "freeOptionCards.retry": {
-    "defaultMessage": "Riprova"
-  },
-  "freeOptionCards.tetrateDescription": {
-    "defaultMessage": "Accedi a più modelli di IA con configurazione automatica. Registrati per ricevere 10 $ di credito."
-  },
-  "freeOptionCards.tetrateTitle": {
-    "defaultMessage": "Agent Router di Tetrate"
-  },
-  "freeOptionCards.unexpectedError": {
-    "defaultMessage": "Si è verificato un errore imprevisto durante la configurazione."
   },
   "goosehintsModal.close": {
     "defaultMessage": "Chiudi"
@@ -1822,9 +1807,6 @@
   },
   "localModelManager.showRecommendedOnly": {
     "defaultMessage": "Mostra solo i consigliati"
-  },
-  "localModelPicker.back": {
-    "defaultMessage": "Indietro"
   },
   "localModelPicker.bestForMachine": {
     "defaultMessage": "Ideale per la tua macchina"
@@ -2786,14 +2768,14 @@
   "providerSelector.connectProviderDescription": {
     "defaultMessage": "Connetti OpenAI, Anthropic, Google, ecc."
   },
-  "providerSelector.freeLocalDescription": {
-    "defaultMessage": "Usa un modello locale o un provider con crediti gratuiti"
+  "providerSelector.localModelDescription": {
+    "defaultMessage": "Scarica un modello ed eseguilo interamente sul tuo computer. Niente chiavi API, niente account."
   },
   "providerSelector.selectProvider": {
     "defaultMessage": "Seleziona un provider"
   },
-  "providerSelector.useFreeLocal": {
-    "defaultMessage": "Usa provider gratuiti/locali"
+  "providerSelector.useLocalModel": {
+    "defaultMessage": "Usa un modello locale"
   },
   "providerSettings.configurationSettings": {
     "defaultMessage": "Impostazioni di configurazione del provider"
