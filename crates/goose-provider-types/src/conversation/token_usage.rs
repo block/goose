@@ -9,6 +9,17 @@ pub struct ProviderUsage {
     pub usage: Usage,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub stats: Option<ProviderStats>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost: Option<f64>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub cost_source: Option<CostSource>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, ToSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CostSource {
+    ProviderReported,
+    Estimated,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
@@ -35,6 +46,8 @@ impl ProviderUsage {
             model,
             usage,
             stats: None,
+            cost: None,
+            cost_source: None,
         }
     }
 
@@ -43,14 +56,10 @@ impl ProviderUsage {
         self
     }
 
-    /// Combine this ProviderUsage with another, adding their token counts
-    /// Uses the model from this ProviderUsage
-    pub fn combine_with(&self, other: &ProviderUsage) -> ProviderUsage {
-        ProviderUsage {
-            model: self.model.clone(),
-            usage: self.usage + other.usage,
-            stats: self.stats.clone().or_else(|| other.stats.clone()),
-        }
+    pub fn with_cost(mut self, cost: f64, source: CostSource) -> Self {
+        self.cost = Some(cost);
+        self.cost_source = Some(source);
+        self
     }
 }
 

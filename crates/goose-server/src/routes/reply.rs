@@ -154,18 +154,23 @@ pub enum MessageEvent {
 }
 
 pub async fn get_token_state(session_manager: &SessionManager, session_id: &str) -> TokenState {
-    session_manager
-        .get_session(session_id, false)
-        .await
-        .map(|session| TokenState::from(&session))
-        .inspect_err(|e| {
-            tracing::warn!(
-                "Failed to fetch session token state for {}: {}",
-                session_id,
-                e
-            );
-        })
-        .unwrap_or_default()
+    let session = match session_manager.get_session(session_id, false).await {
+        Ok(session) => session,
+        Err(e) => {
+            tracing::warn!("Failed to fetch session token state for {session_id}: {e}");
+            return TokenState::default();
+        }
+    };
+
+    match session_manager.get_session_usage_totals(session_id).await {
+        Ok(totals) => {
+            goose::session::session_manager::token_state_from_session_and_totals(&session, &totals)
+        }
+        Err(e) => {
+            tracing::warn!("Failed to aggregate usage for {session_id}: {e}");
+            TokenState::from(&session)
+        }
+    }
 }
 
 async fn stream_event(
