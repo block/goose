@@ -275,11 +275,6 @@ pub fn get_tool_owner(tool: &Tool) -> Option<String> {
         .map(|s| s.to_string())
 }
 
-/// Map a model-mangled tool name onto a real advertised tool name.
-///
-/// Some OpenAI-compatible models emit `functions.` prefixes or replace Goose's
-/// extension separator with a dot. Recovery is only attempted after exact
-/// resolution fails, and only when one advertised tool matches.
 fn recover_mangled_tool_name<'a>(
     emitted: &str,
     tool_names: impl Iterator<Item = &'a str>,
@@ -1759,10 +1754,6 @@ impl ExtensionManager {
                 }
             }
 
-            // Exact resolution failed everywhere; as a last resort, try to map
-            // a model-mangled name onto a unique advertised tool (see #9486).
-            // The recovered name is a real advertised name, so the retry
-            // resolves through the exact-match path above.
             if !recovery_attempted {
                 recovery_attempted = true;
                 if let Some(recovered) =
@@ -2645,9 +2636,6 @@ mod tests {
         );
     }
 
-    /// Mock exposing tool names with a literal dot — legal in MCP and
-    /// advertised raw by format_tools — plus an "__" sibling to exercise
-    /// ambiguity handling in mangled-name recovery.
     struct MockDottedClient {}
 
     #[async_trait::async_trait]
@@ -2739,9 +2727,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_tool_recovers_dotted_mangled_name() {
-        // GLM-style mangling: the model turns the "__" separator into a dot
-        // (see #9486). Recovery must map it back because exactly one
-        // advertised tool matches.
         let temp_dir = tempfile::tempdir().unwrap();
         let extension_manager =
             ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
@@ -2758,8 +2743,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_tool_recovers_functions_prefixed_name() {
-        // OpenAI-schema-trained models leak the "functions." namespace into
-        // the emitted name (see #9486).
         let temp_dir = tempfile::tempdir().unwrap();
         let extension_manager =
             ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
@@ -2776,9 +2759,6 @@ mod tests {
 
     #[tokio::test]
     async fn test_resolve_tool_exact_dotted_name_never_rewritten() {
-        // A legitimate advertised tool name containing a dot must resolve
-        // exactly as-is — recovery must never fire when exact resolution
-        // succeeds (see #9486 review).
         let temp_dir = tempfile::tempdir().unwrap();
         let extension_manager =
             ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());

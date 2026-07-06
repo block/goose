@@ -709,12 +709,6 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                     })
                     .filter(|m: &serde_json::Map<String, Value>| !m.is_empty());
 
-                // Pass the name through verbatim: format_tools advertises raw
-                // (unsanitized) names, so any non-empty name — dotted or
-                // otherwise — can be a legitimate exact echo. Dispatch owns the
-                // tool list and both resolves exact names and recovers
-                // model-mangled ones; unknown names get its recoverable
-                // "tool not found" error instead of a parse abort (see #9486).
                 if function_name.is_empty() {
                     let error = ErrorData {
                         code: ErrorCode::INVALID_REQUEST,
@@ -740,10 +734,6 @@ pub fn response_to_message(response: &Value) -> anyhow::Result<Message> {
                             metadata.as_ref(),
                         ));
                     }
-                    // Valid JSON but NOT an object (a bare array/string/number).
-                    // Weaker models emit this; surface a tool error so the model
-                    // retries with a proper object instead of crashing the run
-                    // (rmcp's `object()` debug-asserts on non-objects).
                     Some(other) => {
                         let error = ErrorData {
                             code: ErrorCode::INVALID_PARAMS,
@@ -2019,8 +2009,6 @@ mod tests {
 
     #[test]
     fn test_response_to_message_empty_func_name() -> anyhow::Result<()> {
-        // An empty name can never be dispatched; it is the only name the
-        // parser still rejects.
         let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
         response["choices"][0]["message"]["tool_calls"][0]["function"]["name"] = json!("");
 
@@ -2046,11 +2034,6 @@ mod tests {
 
     #[test]
     fn test_response_to_message_passes_names_through_to_dispatch() -> anyhow::Result<()> {
-        // The parser cannot know the advertised tool list, and format_tools
-        // advertises raw (unsanitized) names — so a dotted name can be a
-        // legitimate exact echo (e.g. an MCP tool named "db.query"). Names
-        // must pass through verbatim; recovery of model-mangled names happens
-        // at dispatch, where the real tool list is known (see #9486 review).
         for name in [
             "developer.shell",
             "functions.example_fn",
@@ -2075,8 +2058,6 @@ mod tests {
 
     #[test]
     fn test_response_to_message_fenced_arguments() -> anyhow::Result<()> {
-        // GLM/Minimax sometimes wrap tool arguments in a markdown fence
-        // (see #9486); the arguments must still parse into an object.
         let mut response: Value = serde_json::from_str(OPENAI_TOOL_USE_RESPONSE)?;
         response["choices"][0]["message"]["tool_calls"][0]["function"]["arguments"] =
             json!("```json\n{\"param\": \"value\"}\n```");
@@ -3883,10 +3864,6 @@ data: [DONE]"#;
 
     #[tokio::test]
     async fn test_streaming_tool_call_dotted_name_passes_through() -> anyhow::Result<()> {
-        // A dotted name can be a legitimate exact echo of an advertised tool
-        // (format_tools sends raw names), so the streaming decoder must pass
-        // it through verbatim; mangled-name recovery happens at dispatch
-        // (see #9486 review).
         let response_lines = concat!(
             "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"tc1\",\"type\":\"function\",\"function\":{\"name\":\"ext__db.query\",\"arguments\":\"{\\\"command\\\": \\\"ls\\\"}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n",
             "data: [DONE]"
@@ -3916,9 +3893,6 @@ data: [DONE]"#;
 
     #[tokio::test]
     async fn test_streaming_tool_call_degenerate_name_passes_through() -> anyhow::Result<()> {
-        // The streaming decoder historically accepted any name; a name with
-        // nothing salvageable must keep passing through unchanged rather than
-        // becoming an error this path never produced.
         let response_lines = concat!(
             "data: {\"id\":\"x\",\"object\":\"chat.completion.chunk\",\"model\":\"m\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"tool_calls\":[{\"index\":0,\"id\":\"tc1\",\"type\":\"function\",\"function\":{\"name\":\"???\",\"arguments\":\"{}\"}}]},\"finish_reason\":\"tool_calls\"}]}\n",
             "data: [DONE]"

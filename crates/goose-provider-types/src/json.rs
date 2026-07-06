@@ -215,11 +215,6 @@ pub fn truncation_error_message(args: &str) -> Option<String> {
     ))
 }
 
-/// Strip a wrapper some models emit around JSON tool arguments: a markdown
-/// code fence (```json ... ```) or a single XML-ish tag (<tool_call>...</tool_call>).
-/// Returns the inner payload, or `None` when no recognizable wrapper is present.
-/// Callers only use the result if it actually parses, so this stays safe on
-/// arbitrary garbage.
 fn strip_json_wrapper(args: &str) -> Option<&str> {
     let trimmed = args.trim();
 
@@ -253,10 +248,6 @@ fn strip_json_wrapper(args: &str) -> Option<&str> {
     None
 }
 
-/// Unwrap double-encoded arguments: a JSON string whose content is itself the
-/// real JSON object (some models serialize the arguments object twice). Only
-/// unwraps when an object eventually emerges; any other value is returned
-/// unchanged so callers keep their existing error behavior.
 fn unwrap_double_encoded_object(value: serde_json::Value) -> serde_json::Value {
     let serde_json::Value::String(s) = &value else {
         return value;
@@ -278,8 +269,6 @@ fn unwrap_double_encoded_object(value: serde_json::Value) -> serde_json::Value {
 /// so callers can surface an actionable error rather than invoking a tool with
 /// incomplete arguments. Non-truncated malformation (e.g. unescaped control
 /// characters some models emit) is still repaired via [`safely_parse_json`].
-/// Recoverable wrappers some models emit — markdown fences, XML-ish tags, and
-/// double-encoded JSON strings — are unwrapped (see #9486).
 pub fn parse_tool_arguments(args: &str) -> Option<serde_json::Value> {
     if args.is_empty() {
         return Some(serde_json::Value::Object(serde_json::Map::new()));
@@ -490,8 +479,6 @@ mod tests {
 
     #[test]
     fn test_parse_tool_arguments_markdown_fenced() {
-        // GLM/Minimax sometimes wrap tool arguments in a markdown code fence
-        // (see #9486). The fence must be stripped so the arguments parse.
         let fenced = "```json\n{\"command\": \"ls\"}\n```";
         let parsed = parse_tool_arguments(fenced).expect("fenced JSON should parse");
         assert_eq!(parsed["command"], "ls");
@@ -507,14 +494,11 @@ mod tests {
 
     #[test]
     fn test_parse_tool_arguments_double_encoded() {
-        // Double-encoded JSON: the arguments string is itself a JSON string
-        // whose value is the real JSON object (see #9486).
         let double_encoded = r#""{\"command\": \"ls\"}""#;
         let parsed = parse_tool_arguments(double_encoded).expect("double-encoded should parse");
         assert!(parsed.is_object(), "expected object, got {parsed:?}");
         assert_eq!(parsed["command"], "ls");
 
-        // Two levels of encoding must also unwrap.
         let twice = serde_json::to_string(&serde_json::json!(r#"{"command": "ls"}"#)).unwrap();
         let twice = serde_json::to_string(&serde_json::json!(twice)).unwrap();
         let parsed = parse_tool_arguments(&twice).expect("twice-encoded should parse");
@@ -524,12 +508,10 @@ mod tests {
 
     #[test]
     fn test_parse_tool_arguments_xml_wrapped() {
-        // Some models wrap the JSON payload in an XML-ish tag (see #9486).
         let wrapped = r#"<tool_call>{"command": "ls"}</tool_call>"#;
         let parsed = parse_tool_arguments(wrapped).expect("xml-wrapped JSON should parse");
         assert_eq!(parsed["command"], "ls");
 
-        // Attributes on the opening tag are tolerated.
         let with_attrs = r#"<tool_call id="1">{"command": "ls"}</tool_call>"#;
         let parsed = parse_tool_arguments(with_attrs).expect("xml-wrapped JSON should parse");
         assert_eq!(parsed["command"], "ls");
@@ -537,24 +519,15 @@ mod tests {
 
     #[test]
     fn test_parse_tool_arguments_unrecoverable_wrappers_still_fail() {
-        // Unwrapping is conservative: anything that does not cleanly reduce to
-        // parseable JSON must keep failing rather than be guessed at.
-        // Nested XML tags — only one level is stripped, inner content is not JSON.
         assert!(parse_tool_arguments(r#"<a><b>{"x": 1}</b></a>"#).is_none());
-        // Trailing junk after the closing fence.
         assert!(parse_tool_arguments("```json\n{\"x\": 1}\n``` extra").is_none());
-        // Mismatched closing tag.
         assert!(parse_tool_arguments(r#"<tool_call>{"x": 1}</other>"#).is_none());
-        // A closing tag alone.
         assert!(parse_tool_arguments(r#"</tool_call>"#).is_none());
-        // A lone fence marker.
         assert!(parse_tool_arguments("```").is_none());
     }
 
     #[test]
     fn test_parse_tool_arguments_non_object_json_unchanged() {
-        // Bare non-object JSON values still parse to themselves so callers keep
-        // rejecting them with their existing "must be a JSON object" error.
         assert_eq!(parse_tool_arguments("null"), Some(serde_json::Value::Null));
         assert_eq!(parse_tool_arguments("42"), Some(serde_json::json!(42)));
         assert_eq!(
@@ -565,8 +538,6 @@ mod tests {
 
     #[test]
     fn test_parse_tool_arguments_plain_string_preserved() {
-        // A JSON string that does NOT contain an object must stay a string so
-        // callers keep producing their "must be a JSON object" error.
         let plain = r#""hello""#;
         let parsed = parse_tool_arguments(plain).expect("valid JSON string should parse");
         assert_eq!(parsed, serde_json::json!("hello"));
@@ -574,8 +545,6 @@ mod tests {
 
     #[test]
     fn test_parse_tool_arguments_fenced_truncated_still_fails() {
-        // A fenced payload cut off mid-generation must still be treated as
-        // truncated, not silently repaired.
         let truncated = "```json\n{\"path\": \"/report.md\", \"content\": \"# cut";
         assert!(parse_tool_arguments(truncated).is_none());
     }
