@@ -9,4 +9,6 @@ pub mod databricks {
 pub mod gcpvertexai;
 pub mod google;
 pub mod openrouter;
-pub mod snowflake;
+pub mod snowflake {
+    pub use goose_providers::formats::snowflake::*;
+}

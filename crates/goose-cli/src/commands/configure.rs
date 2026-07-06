@@ -28,11 +28,22 @@ use goose::session::SessionType;
 use goose_providers::thinking::ThinkingEffort;
 use serde_json::Value;
 use std::collections::HashMap;
-use std::io::IsTerminal;
+use std::io::{IsTerminal, Write};
 
 // useful for light themes where there is no discernible colour contrast between
 // cursor-selected and cursor-unselected items.
 const MULTISELECT_VISIBILITY_HINT: &str = "<";
+const SHOW_CURSOR: &[u8] = b"\x1b[?25h";
+
+struct CursorRestoreGuard;
+
+impl Drop for CursorRestoreGuard {
+    fn drop(&mut self) {
+        let mut stdout = std::io::stdout().lock();
+        let _ = stdout.write_all(SHOW_CURSOR);
+        let _ = stdout.flush();
+    }
+}
 
 pub async fn handle_configure() -> anyhow::Result<()> {
     if !std::io::stdin().is_terminal() {
@@ -42,6 +53,7 @@ pub async fn handle_configure() -> anyhow::Result<()> {
         );
     }
 
+    let _cursor_restore = CursorRestoreGuard;
     let config = Config::global();
 
     if !config.exists() {

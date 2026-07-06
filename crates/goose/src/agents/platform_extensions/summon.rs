@@ -483,6 +483,36 @@ impl SummonClient {
         })
     }
 
+    async fn create_subagent_session(
+        &self,
+        task_config: &TaskConfig,
+        name: String,
+    ) -> Result<crate::session::Session, String> {
+        let session = self
+            .context
+            .session_manager
+            .create_session(
+                task_config.parent_working_dir.clone(),
+                name,
+                SessionType::SubAgent,
+                GooseMode::Auto,
+            )
+            .await
+            .map_err(|e| format!("Failed to create subagent session: {}", e))?;
+
+        if !task_config.parent_session_id.is_empty() {
+            self.context
+                .session_manager
+                .update(&session.id)
+                .parent_session_id(Some(task_config.parent_session_id.clone()))
+                .apply()
+                .await
+                .map_err(|e| format!("Failed to link subagent to parent session: {}", e))?;
+        }
+
+        Ok(session)
+    }
+
     fn spawn_notification_bridge(
         mut notif_rx: tokio::sync::mpsc::UnboundedReceiver<ServerNotification>,
         subscribers: Arc<Mutex<Vec<mpsc::Sender<ServerNotification>>>>,
@@ -1255,16 +1285,8 @@ impl SummonClient {
         .with_use_login_shell_path(self.context.use_login_shell_path);
 
         let subagent_session = self
-            .context
-            .session_manager
-            .create_session(
-                task_config.parent_working_dir.clone(),
-                "Delegated task".to_string(),
-                SessionType::SubAgent,
-                GooseMode::Auto,
-            )
-            .await
-            .map_err(|e| format!("Failed to create subagent session: {}", e))?;
+            .create_subagent_session(&task_config, "Delegated task".to_string())
+            .await?;
 
         let (notif_tx, notif_rx) = tokio::sync::mpsc::unbounded_channel::<ServerNotification>();
         Self::spawn_notification_bridge(
@@ -1805,16 +1827,8 @@ impl SummonClient {
         .with_use_login_shell_path(self.context.use_login_shell_path);
 
         let subagent_session = self
-            .context
-            .session_manager
-            .create_session(
-                task_config.parent_working_dir.clone(),
-                description.clone(),
-                SessionType::SubAgent,
-                GooseMode::Auto,
-            )
-            .await
-            .map_err(|e| format!("Failed to create subagent session: {}", e))?;
+            .create_subagent_session(&task_config, description.clone())
+            .await?;
 
         let task_id = subagent_session.id.clone();
 

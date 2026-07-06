@@ -1,7 +1,7 @@
 use crate::canonical::maybe_get_canonical_model;
 use crate::canonical::ThinkingMode;
 use crate::conversation::message::{Message, MessageContent};
-use crate::conversation::token_usage::{ProviderUsage, Usage};
+use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::images::{convert_image, ImageFormat};
 use crate::mcp_utils::extract_text_from_resource;
@@ -580,6 +580,19 @@ pub fn get_usage(data: &Value) -> Result<Usage> {
     }
 }
 
+fn provider_usage_with_cost(
+    model: String,
+    usage: Usage,
+    data: &Value,
+    fallback_cost: Option<f64>,
+) -> ProviderUsage {
+    let provider_usage = ProviderUsage::new(model, usage);
+    match super::openai::get_cost(data).or(fallback_cost) {
+        Some(cost) => provider_usage.with_cost(cost, CostSource::ProviderReported),
+        None => provider_usage,
+    }
+}
+
 pub fn thinking_effort(model_config: &ModelConfig) -> ThinkingEffort {
     model_config
         .thinking_effort()
@@ -810,7 +823,7 @@ where
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown")
                                 .to_string();
-                            final_usage = Some(ProviderUsage::new(model, usage));
+                            final_usage = Some(provider_usage_with_cost(model, usage, usage_data, None));
                         }
                     }
                     continue;
@@ -944,13 +957,18 @@ where
 
                         if let Some(existing_usage) = &final_usage {
                             let merged_usage = merge_delta_usage(&existing_usage.usage, &delta_usage, usage_data);
-                            final_usage = Some(ProviderUsage::new(existing_usage.model.clone(), merged_usage));
+                            final_usage = Some(provider_usage_with_cost(
+                                existing_usage.model.clone(),
+                                merged_usage,
+                                usage_data,
+                                existing_usage.cost,
+                            ));
                         } else {
                             let model = event.data.get("model")
                                 .and_then(|v| v.as_str())
                                 .unwrap_or("unknown")
                                 .to_string();
-                            final_usage = Some(ProviderUsage::new(model, delta_usage));
+                            final_usage = Some(provider_usage_with_cost(model, delta_usage, usage_data, None));
                         }
                     }
                     if let Some(delta) = event.data.get("delta") {
@@ -994,7 +1012,8 @@ where
                             .and_then(|v| v.as_str())
                             .unwrap_or("unknown")
                             .to_string();
-                        final_usage = Some(ProviderUsage::new(model, usage));
+                        let fallback_cost = final_usage.as_ref().and_then(|u| u.cost);
+                        final_usage = Some(provider_usage_with_cost(model, usage, usage_data, fallback_cost));
                     }
                     break;
                 }
@@ -2019,6 +2038,35 @@ mod tests {
         assert_eq!(usage.usage.output_tokens, Some(25));
         assert_eq!(usage.usage.cache_read_input_tokens, Some(5000));
         assert_eq!(usage.usage.cache_write_input_tokens, Some(10000));
+    }
+
+    #[tokio::test]
+    async fn test_streaming_preserves_provider_cost_from_delta() {
+        let events = concat!(
+            r#"data: {"type":"message_start","message":{"id":"m1","role":"assistant","content":[],"model":"glm-4.7","usage":{"input_tokens":100,"output_tokens":0}}}"#,
+            "\n",
+            r#"data: {"type":"content_block_start","index":0,"content_block":{"type":"text","text":""}}"#,
+            "\n",
+            r#"data: {"type":"content_block_delta","index":0,"delta":{"type":"text_delta","text":"hi"}}"#,
+            "\n",
+            r#"data: {"type":"content_block_stop","index":0}"#,
+            "\n",
+            r#"data: {"type":"message_delta","delta":{"stop_reason":"end_turn"},"usage":{"output_tokens":50,"cost":0.0123}}"#,
+            "\n",
+            r#"data: {"type":"message_stop"}"#,
+        );
+
+        let usage = collect_stream_results(events)
+            .await
+            .into_iter()
+            .filter_map(|r| r.ok().and_then(|(_, usage)| usage))
+            .next_back()
+            .expect("stream should yield usage");
+
+        assert_eq!(usage.cost, Some(0.0123));
+        assert_eq!(usage.cost_source, Some(CostSource::ProviderReported));
+        assert_eq!(usage.usage.input_tokens, Some(100));
+        assert_eq!(usage.usage.output_tokens, Some(50));
     }
 
     #[tokio::test]

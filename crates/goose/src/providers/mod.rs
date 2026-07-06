@@ -73,7 +73,10 @@ mod retry {
 pub mod openai_def;
 #[cfg(feature = "aws-providers")]
 pub mod sagemaker_tgi;
-pub mod snowflake;
+pub mod snowflake {
+    pub use goose_providers::snowflake::*;
+}
+pub mod snowflake_def;
 pub mod testprovider;
 pub mod tetrate;
 pub mod toolshim;

@@ -1,5 +1,5 @@
 use crate::conversation::message::{Message, MessageContent, ProviderMetadata};
-use crate::conversation::token_usage::{ProviderUsage, Usage};
+use crate::conversation::token_usage::{CostSource, ProviderUsage, Usage};
 use crate::errors::ProviderError;
 use crate::images::{convert_image, detect_image_path, load_image_file, ImageFormat};
 use crate::json::{parse_tool_arguments, truncation_error_message};
@@ -836,6 +836,13 @@ pub fn get_usage(usage: &Value) -> Usage {
         .with_cache_tokens(cache_read_input_tokens, cache_write_input_tokens)
 }
 
+pub fn get_cost(usage: &Value) -> Option<f64> {
+    usage
+        .get("cost")
+        .and_then(|v| v.as_f64())
+        .filter(|c| c.is_finite() && *c >= 0.0)
+}
+
 fn extract_usage_with_output_tokens(
     chunk: &StreamingChunk,
     fallback_model: Option<&str>,
@@ -844,11 +851,13 @@ fn extract_usage_with_output_tokens(
         .usage
         .as_ref()
         .and_then(|u| {
-            chunk
-                .model
-                .as_deref()
-                .or(fallback_model)
-                .map(|model| ProviderUsage::new(model.to_string(), get_usage(u)))
+            chunk.model.as_deref().or(fallback_model).map(|model| {
+                let usage = ProviderUsage::new(model.to_string(), get_usage(u));
+                match get_cost(u) {
+                    Some(cost) => usage.with_cost(cost, CostSource::ProviderReported),
+                    None => usage,
+                }
+            })
         })
         .filter(|u| u.usage.output_tokens.is_some())
 }
