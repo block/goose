@@ -173,7 +173,7 @@ unicode-normalization = { version = "0.1.22", default-features = false, features
 # For local Whisper transcription (optional, behind "local-inference" feature)
 candle-core = { workspace = true, optional = true }
 candle-nn = { workspace = true, optional = true }
-candle-transformers = { version = "0.10", default-features = false, optional = true }
+candle-transformers = { version = "0.11", default-features = false, optional = true }
 byteorder = { version = "1.5", default-features = false, features = ["std"], optional = true }
 tokenizers = { version = "0.23", default-features = false, features = ["onig"], optional = true }
 symphonia = { version = "0.5", default-features = false, features = ["aac", "adpcm", "alac", "isomp4", "mkv", "mp3", "pcm", "vorbis", "wav"], optional = true }
