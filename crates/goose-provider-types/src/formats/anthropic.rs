@@ -49,7 +49,7 @@ pub struct AnthropicFormatOptions {
     pub preserve_thinking_context: bool,
     pub thinking_disabled: bool,
     /// The model this request targets. See [`thinking_block_is_stale`] for how
-    /// this is used. `None` disables the staleness check (keeps prior behavior).
+    /// this is used. `None` disables model-staleness checks.
     pub current_model: Option<String>,
 }
 
@@ -80,10 +80,9 @@ impl AnthropicFormatOptions {
 /// produced by a model other than `current_model`.
 ///
 /// A signed thinking block's signature is issued by — and only valid for —
-/// the model that produced it. If the conversation switched models or
-/// thinking-effort mid-stream (e.g. the user changed models), re-sending
-/// that message's signed `thinking` / `redacted_thinking` blocks makes
-/// Anthropic reject the whole request with 400 "blocks in the latest
+/// the model that produced it. If the conversation switched models mid-stream,
+/// re-sending that message's signed `thinking` / `redacted_thinking` blocks
+/// makes Anthropic reject the whole request with 400 "blocks in the latest
 /// assistant message cannot be modified". Callers drop those stale signed
 /// blocks and still send the turn's text/tool content.
 ///
