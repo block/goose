@@ -14,6 +14,7 @@ mod mlx;
 pub(crate) mod multimodal;
 #[cfg(feature = "mlx")]
 mod native_tool_parsing;
+pub(crate) mod thinking_output;
 #[cfg(feature = "mlx")]
 mod tool_emulation;
 mod tool_parsing;
@@ -23,7 +24,9 @@ use async_stream::try_stream;
 use async_trait::async_trait;
 use backend::{BackendLoadedModel, LocalInferenceBackend};
 use goose_provider_types::base::{MessageStream, Provider, ProviderDescriptor, ProviderMetadata};
-use goose_provider_types::conversation::message::{Message, MessageContent};
+use goose_provider_types::conversation::message::{
+    Message, MessageContent, SystemNotificationType,
+};
 use goose_provider_types::conversation::token_usage::{ProviderUsage, Usage};
 use goose_provider_types::errors::ProviderError;
 use goose_provider_types::images::ImageFormat;
@@ -565,41 +568,9 @@ impl Provider for LocalInferenceProvider {
         })?;
         let backend = self.runtime.backend_for_model(&resolved)?;
         let model_context_limit = resolved.context_limit;
-        let model_settings = resolved.settings.clone();
-        let cache_key = ModelCacheKey::new(
-            backend.id(),
-            model_config.model_name.clone(),
-            model_settings.chat_template.clone(),
-        );
-        let model_slot = self.runtime.get_or_create_model_slot(cache_key.clone());
-
-        // Ensure model is loaded — unload any other models first to free memory.
-        {
-            let mut model_lock = model_slot.lock().await;
-            if model_lock.is_none() {
-                for slot in self.runtime.other_model_slots(&cache_key) {
-                    let mut other = slot.lock().await;
-                    if other.is_some() {
-                        tracing::info!("Unloading previous model to free memory");
-                        *other = None;
-                    }
-                }
-
-                let model_id = model_config.model_name.clone();
-                let resolved_for_load = resolved.clone();
-                let settings_for_load = model_settings.clone();
-                let backend_for_load = backend.clone();
-                let loaded = tokio::task::spawn_blocking(move || {
-                    backend_for_load.load_model(&model_id, &resolved_for_load, &settings_for_load)
-                })
-                .await
-                .map_err(|e| ProviderError::ExecutionError(e.to_string()))??;
-                *model_lock = Some(loaded);
-            }
-        }
 
         // Allow request_params to override thinking
-        let mut model_settings = model_settings;
+        let mut model_settings = resolved.settings.clone();
         if let Some(false) = model_config
             .request_param::<bool>("enable_thinking")
             .or_else(|| {
@@ -610,6 +581,14 @@ impl Provider for LocalInferenceProvider {
         {
             model_settings.enable_thinking = false;
         }
+
+        let cache_key = ModelCacheKey::new(
+            backend.id(),
+            model_config.model_name.clone(),
+            model_settings.chat_template.clone(),
+        );
+        let model_slot = self.runtime.get_or_create_model_slot(cache_key.clone());
+        let other_model_slots = self.runtime.other_model_slots(&cache_key);
 
         let model_arc = model_slot.clone();
         let backend = backend.clone();
@@ -639,17 +618,131 @@ impl Provider for LocalInferenceProvider {
             },
         });
 
-        let mut log = start_log(model_config, &log_payload)?;
-
         let (tx, mut rx) = tokio::sync::mpsc::channel::<
             Result<(Option<Message>, Option<ProviderUsage>), ProviderError>,
         >(32);
+        let mut log = start_log(model_config, &log_payload)?;
 
-        tokio::task::spawn_blocking(move || {
-            // Macro to log errors before sending them through the channel
-            macro_rules! send_err {
-                ($err:expr) => {{
-                    let err = $err;
+        tokio::spawn(async move {
+            let mut model_load_ms = None;
+
+            // Ensure model is loaded — unload any other models first to free memory.
+            {
+                let mut model_lock = model_slot.lock().await;
+                if model_lock.is_none() {
+                    let loading_message = Message::assistant().with_system_notification(
+                        SystemNotificationType::ProgressMessage,
+                        format!("Loading local model {model_name}..."),
+                    );
+                    if tx.send(Ok((Some(loading_message), None))).await.is_err() {
+                        return;
+                    }
+
+                    for slot in other_model_slots {
+                        let mut other = slot.lock().await;
+                        if other.is_some() {
+                            tracing::info!("Unloading previous model to free memory");
+                            *other = None;
+                        }
+                    }
+
+                    let model_id = model_name.clone();
+                    let resolved_for_load = resolved_model.clone();
+                    let settings_for_load = settings.clone();
+                    let backend_for_load = backend.clone();
+                    let load_started = std::time::Instant::now();
+                    let loaded = match tokio::task::spawn_blocking(move || {
+                        backend_for_load.load_model(
+                            &model_id,
+                            &resolved_for_load,
+                            &settings_for_load,
+                        )
+                    })
+                    .await
+                    {
+                        Ok(Ok(loaded)) => loaded,
+                        Ok(Err(err)) => {
+                            let _ = log.error(&err);
+                            let _ = tx.send(Err(err)).await;
+                            return;
+                        }
+                        Err(err) => {
+                            let err = ProviderError::ExecutionError(err.to_string());
+                            let _ = log.error(&err);
+                            let _ = tx.send(Err(err)).await;
+                            return;
+                        }
+                    };
+                    let elapsed_ms =
+                        u64::try_from(load_started.elapsed().as_millis()).unwrap_or(u64::MAX);
+                    model_load_ms = Some(elapsed_ms);
+                    tracing::info!(
+                        backend = backend.id(),
+                        model = %model_name,
+                        model_load_ms = elapsed_ms,
+                        "Loaded local inference model"
+                    );
+                    let _ = log.write(
+                        &json!({
+                            "path": "model_load",
+                            "backend": backend.id(),
+                            "model": &model_name,
+                            "model_load_ms": elapsed_ms,
+                        }),
+                        None,
+                    );
+                    *model_lock = Some(loaded);
+                }
+            }
+
+            tokio::task::spawn_blocking(move || {
+                // Macro to log errors before sending them through the channel
+                macro_rules! send_err {
+                    ($err:expr) => {{
+                        let err = $err;
+                        let msg = match &err {
+                            ProviderError::ExecutionError(s) => s.as_str(),
+                            ProviderError::ContextLengthExceeded(s) => s.as_str(),
+                            _ => "unknown error",
+                        };
+                        let _ = log.error(msg);
+                        let _ = tx.blocking_send(Err(err));
+                        return;
+                    }};
+                }
+
+                let mut model_guard = model_arc.blocking_lock();
+                let loaded = match model_guard.as_mut() {
+                    Some(l) => l,
+                    None => {
+                        send_err!(ProviderError::ExecutionError(
+                            "Model not loaded".to_string()
+                        ));
+                    }
+                };
+
+                let message_id = Uuid::new_v4().to_string();
+
+                let request = backend::LocalGenerationRequest {
+                    model_name,
+                    system: &system,
+                    messages: &messages,
+                    tools: &tools,
+                    settings: &settings,
+                    temperature,
+                    max_tokens,
+                    context_limit,
+                    model_load_ms,
+                    resolved_model: &resolved_model,
+                    draft_model_path: resolved_model.draft_model_path.clone(),
+                    message_id: &message_id,
+                    tx: &tx,
+                    log: &mut log,
+                };
+
+                let result = backend.generate(loaded.as_mut(), request);
+
+                if let Err(err) = result {
                     let msg = match &err {
                         ProviderError::ExecutionError(s) => s.as_str(),
                         ProviderError::ContextLengthExceeded(s) => s.as_str(),
@@ -657,49 +750,8 @@ impl Provider for LocalInferenceProvider {
                     };
                     let _ = log.error(msg);
                     let _ = tx.blocking_send(Err(err));
-                    return;
-                }};
-            }
-
-            let mut model_guard = model_arc.blocking_lock();
-            let loaded = match model_guard.as_mut() {
-                Some(l) => l,
-                None => {
-                    send_err!(ProviderError::ExecutionError(
-                        "Model not loaded".to_string()
-                    ));
                 }
-            };
-
-            let message_id = Uuid::new_v4().to_string();
-
-            let request = backend::LocalGenerationRequest {
-                model_name,
-                system: &system,
-                messages: &messages,
-                tools: &tools,
-                settings: &settings,
-                temperature,
-                max_tokens,
-                context_limit,
-                resolved_model: &resolved_model,
-                draft_model_path: resolved_model.draft_model_path.clone(),
-                message_id: &message_id,
-                tx: &tx,
-                log: &mut log,
-            };
-
-            let result = backend.generate(loaded.as_mut(), request);
-
-            if let Err(err) = result {
-                let msg = match &err {
-                    ProviderError::ExecutionError(s) => s.as_str(),
-                    ProviderError::ContextLengthExceeded(s) => s.as_str(),
-                    _ => "unknown error",
-                };
-                let _ = log.error(msg);
-                let _ = tx.blocking_send(Err(err));
-            }
+            });
         });
 
         Ok(Box::pin(try_stream! {

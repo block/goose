@@ -2072,6 +2072,23 @@ fn send_status_message_update(
     Ok(())
 }
 
+fn send_progress_message_update(
+    cx: &ConnectionTo<Client>,
+    supports_goose_custom_notifications: bool,
+    session_id: &str,
+    message: String,
+) -> Result<(), agent_client_protocol::Error> {
+    if supports_goose_custom_notifications {
+        cx.send_notification(GooseSessionNotification {
+            session_id: session_id.to_string(),
+            update: GooseSessionUpdate::StatusMessage(StatusMessageUpdate {
+                status: StatusMessage::Progress { message },
+            }),
+        })?;
+    }
+    Ok(())
+}
+
 fn status_message_from_system_notification(
     notification: &SystemNotificationContent,
 ) -> Option<StatusMessage> {
@@ -2079,9 +2096,11 @@ fn status_message_from_system_notification(
         SystemNotificationType::InlineMessage => Some(StatusMessage::Notice {
             message: notification.msg.clone(),
         }),
-        SystemNotificationType::ThinkingMessage => Some(StatusMessage::Progress {
-            message: notification.msg.clone(),
-        }),
+        SystemNotificationType::ThinkingMessage | SystemNotificationType::ProgressMessage => {
+            Some(StatusMessage::Progress {
+                message: notification.msg.clone(),
+            })
+        }
         SystemNotificationType::CreditsExhausted => None,
     }
 }
@@ -2482,6 +2501,34 @@ impl GooseAcpAgent {
         ))
     }
 
+    async fn send_local_inference_progress_update(
+        &self,
+        cx: &ConnectionTo<Client>,
+        acp_session_id: &SessionId,
+        session_id: &str,
+        agent: &Arc<Agent>,
+    ) -> Result<(), agent_client_protocol::Error> {
+        let Ok(provider) = agent.provider().await else {
+            return Ok(());
+        };
+        if provider.get_name() != "local" {
+            return Ok(());
+        }
+
+        let model_name = agent
+            .model_config_for_session(session_id)
+            .await
+            .map(|config| config.model_name)
+            .unwrap_or_else(|_| "local model".to_string());
+
+        send_progress_message_update(
+            cx,
+            self.supports_goose_custom_notifications(),
+            acp_session_id.0.as_ref(),
+            format!("Loading local model {model_name}..."),
+        )
+    }
+
     async fn on_load_session(
         &self,
         cx: &ConnectionTo<Client>,
@@ -2523,6 +2570,9 @@ impl GooseAcpAgent {
             self.clear_active_run(&session_id, &run_id).await;
             return Err(error);
         }
+
+        self.send_local_inference_progress_update(cx, &args.session_id, &session_id, &agent)
+            .await?;
 
         let user_message = Self::convert_acp_prompt_to_message(&args.prompt);
 

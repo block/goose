@@ -1257,26 +1257,6 @@ dependencies = [
 
 [[package]]
 name = "bindgen"
-version = "0.70.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f49d8fed880d473ea71efb9bf597651e77201bdd4893efe54c9e5d65ae04ce6f"
-dependencies = [
- "bitflags 2.11.1",
- "cexpr",
- "clang-sys",
- "itertools 0.13.0",
- "log",
- "prettyplease",
- "proc-macro2",
- "quote",
- "regex",
- "rustc-hash 1.1.0",
- "shlex 1.3.0",
- "syn 2.0.117",
-]
-
-[[package]]
-name = "bindgen"
 version = "0.72.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "993776b509cfb49c750f11b8f07a46fa23e0a1386ffc01fb1e7d343efc387895"
@@ -2386,7 +2366,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -5094,12 +5074,12 @@ dependencies = [
  "llama-cpp-2",
  "llama-cpp-sys-2",
  "minijinja",
- "mlx-lm",
- "mlx-lm-utils",
- "mlx-rs",
  "regex",
  "reqwest 0.13.4",
  "rmcp",
+ "safemlx",
+ "safemlx-lm",
+ "safemlx-lm-utils",
  "serde",
  "serde_json",
  "tempfile",
@@ -6611,7 +6591,7 @@ version = "0.1.146"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b291e4bc2d10c43cd8dec16d49b6104cb3cb125f596ec380a753a5db1d965dd"
 dependencies = [
- "bindgen 0.72.1",
+ "bindgen",
  "cc",
  "cmake",
  "find_cuda_helper",
@@ -6860,99 +6840,6 @@ dependencies = [
  "libc",
  "wasi 0.11.1+wasi-snapshot-preview1",
  "windows-sys 0.61.2",
-]
-
-[[package]]
-name = "mlx-internal-macros"
-version = "0.25.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a7c4444d624bf6b93db5cc22ebff4fdfa13593fd56154fe33b1f302a557c2c6"
-dependencies = [
- "darling 0.21.3",
- "itertools 0.14.0",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
-name = "mlx-lm"
-version = "0.0.1"
-source = "git+https://github.com/jh-block/mlx-lm#4cb8572045f55f170eb6e41005a3f8a730673c42"
-dependencies = [
- "anyhow",
- "clap",
- "idna_adapter",
- "minijinja",
- "mlx-lm-utils",
- "mlx-macros",
- "mlx-rs",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokenizers 0.22.2",
-]
-
-[[package]]
-name = "mlx-lm-utils"
-version = "0.0.1"
-source = "git+https://github.com/jh-block/mlx-lm#4cb8572045f55f170eb6e41005a3f8a730673c42"
-dependencies = [
- "minijinja",
- "minijinja-contrib",
- "serde",
- "serde_json",
- "thiserror 2.0.18",
- "tokenizers 0.22.2",
-]
-
-[[package]]
-name = "mlx-macros"
-version = "0.25.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a819ee8b4434690572b6feb9c3ef0b6e90137e4190b340cf00150703b410aaf9"
-dependencies = [
- "darling 0.21.3",
- "proc-macro2",
- "quote",
- "syn 2.0.117",
-]
-
-[[package]]
-name = "mlx-rs"
-version = "0.25.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f3a0f592c5839b0237b3072530b1d3c503923579a2009ee0761df3edd1b1f27b"
-dependencies = [
- "bytemuck",
- "dyn-clone",
- "half",
- "itertools 0.14.0",
- "libc",
- "mach-sys",
- "mlx-internal-macros",
- "mlx-macros",
- "mlx-sys",
- "num-complex",
- "num-traits",
- "num_enum",
- "parking_lot",
- "paste",
- "safetensors 0.6.2",
- "smallvec",
- "strum 0.27.2",
- "thiserror 2.0.18",
-]
-
-[[package]]
-name = "mlx-sys"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e3bc3880111918b2d5018f845d48fd995f9901f16efc81d1fcfd2f4210b8219"
-dependencies = [
- "bindgen 0.70.1",
- "cc",
- "cmake",
 ]
 
 [[package]]
@@ -9461,6 +9348,94 @@ name = "safe-transmute"
 version = "0.11.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3944826ff8fa8093089aba3acb4ef44b9446a99a16f3bf4e74af3f77d340ab7d"
+
+[[package]]
+name = "safemlx"
+version = "0.1.0"
+source = "git+https://github.com/jbg/safemlx?rev=9d055828c0c148cd7bf1decadf5cd131243bd419#9d055828c0c148cd7bf1decadf5cd131243bd419"
+dependencies = [
+ "bytemuck",
+ "dyn-clone",
+ "half",
+ "itertools 0.14.0",
+ "libc",
+ "mach-sys",
+ "num-complex",
+ "num-traits",
+ "num_enum",
+ "parking_lot",
+ "paste",
+ "safemlx-internal-macros",
+ "safemlx-macros",
+ "safemlx-sys",
+ "safetensors 0.6.2",
+ "smallvec",
+ "strum 0.27.2",
+ "thiserror 2.0.18",
+]
+
+[[package]]
+name = "safemlx-internal-macros"
+version = "0.1.0"
+source = "git+https://github.com/jbg/safemlx?rev=9d055828c0c148cd7bf1decadf5cd131243bd419#9d055828c0c148cd7bf1decadf5cd131243bd419"
+dependencies = [
+ "darling 0.21.3",
+ "itertools 0.14.0",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "safemlx-lm"
+version = "0.1.0"
+source = "git+https://github.com/jbg/safemlx?rev=9d055828c0c148cd7bf1decadf5cd131243bd419#9d055828c0c148cd7bf1decadf5cd131243bd419"
+dependencies = [
+ "anyhow",
+ "clap",
+ "idna_adapter",
+ "minijinja",
+ "safemlx",
+ "safemlx-lm-utils",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokenizers 0.22.2",
+]
+
+[[package]]
+name = "safemlx-lm-utils"
+version = "0.1.0"
+source = "git+https://github.com/jbg/safemlx?rev=9d055828c0c148cd7bf1decadf5cd131243bd419#9d055828c0c148cd7bf1decadf5cd131243bd419"
+dependencies = [
+ "minijinja",
+ "minijinja-contrib",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.18",
+ "tokenizers 0.22.2",
+]
+
+[[package]]
+name = "safemlx-macros"
+version = "0.1.0"
+source = "git+https://github.com/jbg/safemlx?rev=9d055828c0c148cd7bf1decadf5cd131243bd419#9d055828c0c148cd7bf1decadf5cd131243bd419"
+dependencies = [
+ "darling 0.21.3",
+ "proc-macro2",
+ "quote",
+ "syn 2.0.117",
+]
+
+[[package]]
+name = "safemlx-sys"
+version = "0.1.0"
+source = "git+https://github.com/jbg/safemlx?rev=9d055828c0c148cd7bf1decadf5cd131243bd419#9d055828c0c148cd7bf1decadf5cd131243bd419"
+dependencies = [
+ "bindgen",
+ "cc",
+ "cmake",
+]
 
 [[package]]
 name = "safetensors"
@@ -12948,7 +12923,7 @@ version = "145.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f84468f393984251db025e944544590a8fb429d5088b78102bd72f09232f0da"
 dependencies = [
- "bindgen 0.72.1",
+ "bindgen",
  "bitflags 2.11.1",
  "fslock",
  "gzip-header",
@@ -13333,7 +13308,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]

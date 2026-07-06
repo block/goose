@@ -15,7 +15,7 @@ workspace = true
 default = []
 cuda = ["llama-cpp-2/cuda"]
 vulkan = ["llama-cpp-2/vulkan"]
-mlx = ["dep:mlx-rs", "dep:mlx-lm", "dep:mlx-lm-utils"]
+mlx = ["dep:safemlx", "dep:safemlx-lm", "dep:safemlx-lm-utils"]
 
 [dependencies]
 anyhow = { workspace = true }
@@ -46,9 +46,9 @@ utoipa = { workspace = true, features = ["chrono"] }
 uuid = { workspace = true, features = ["v4", "std"] }
 tempfile = { workspace = true }
 
-mlx-rs = { version = "0.25.3", default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true }
-mlx-lm = { git = "https://github.com/jh-block/mlx-lm", optional = true }
-mlx-lm-utils = { git = "https://github.com/jh-block/mlx-lm", optional = true }
+safemlx = { git = "https://github.com/jbg/safemlx", rev = "9d055828c0c148cd7bf1decadf5cd131243bd419", default-features = false, features = ["accelerate", "metal", "safetensors"], optional = true }
+safemlx-lm = { git = "https://github.com/jbg/safemlx", rev = "9d055828c0c148cd7bf1decadf5cd131243bd419", optional = true }
+safemlx-lm-utils = { git = "https://github.com/jbg/safemlx", rev = "9d055828c0c148cd7bf1decadf5cd131243bd419", optional = true }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 llama-cpp-2 = { workspace = true, features = ["sampler", "metal", "mtmd"] }

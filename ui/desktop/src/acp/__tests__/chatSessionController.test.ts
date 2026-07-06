@@ -108,6 +108,7 @@ function snapshotWithActivePrompt(activePromptAttemptId: string | null): AcpChat
       accumulatedTotalTokens: 0,
     },
     notifications: [],
+    progressMessage: undefined,
     chatState: activePromptAttemptId ? ChatState.Streaming : ChatState.Idle,
     sessionLoadError: undefined,
     activePromptAttemptId,

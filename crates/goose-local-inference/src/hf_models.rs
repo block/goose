@@ -1495,7 +1495,7 @@ async fn get_local_model_info_for_repo_with_client(
         ])
         .send()
         .await?;
-    model_info_to_local_model_info(info).await
+    model_info_to_local_model_info(&repo, info).await
 }
 
 async fn get_exact_name_local_model_info(model_name: &str) -> Result<Option<HfModelInfo>> {
@@ -1508,7 +1508,10 @@ async fn get_exact_name_local_model_info(model_name: &str) -> Result<Option<HfMo
     Ok(None)
 }
 
-async fn model_info_to_local_model_info(info: ModelInfo) -> Result<Option<HfModelInfo>> {
+async fn model_info_to_local_model_info(
+    repo: &HFRepository<RepoTypeModel>,
+    info: ModelInfo,
+) -> Result<Option<HfModelInfo>> {
     let repo_id = info.id.clone();
     let mut variants: Vec<HfModelVariant> = get_repo_gguf_variants(&repo_id)
         .await
@@ -1516,7 +1519,13 @@ async fn model_info_to_local_model_info(info: ModelInfo) -> Result<Option<HfMode
         .iter()
         .map(|variant| variant.to_model_variant(&repo_id))
         .collect();
-    variants.extend(mlx_variants_from_model_info(&repo_id, &info));
+    if is_mlx_compatible_model_info(&info) {
+        let mlx_config = load_repo_config_json(repo).await.unwrap_or_else(|error| {
+            tracing::debug!(repo_id, %error, "Failed to load MLX config.json; falling back to API config");
+            info.config.clone()
+        });
+        variants.extend(mlx_variants_from_model_info(&repo_id, &info, &mlx_config));
+    }
 
     if variants.is_empty() {
         return Ok(None);
@@ -1570,25 +1579,39 @@ pub async fn get_repo_mlx_variants(repo_id: &str) -> Result<Vec<HfModelVariant>>
         ])
         .send()
         .await?;
-    Ok(mlx_variants_from_model_info(repo_id, &info))
+    if !is_mlx_compatible_model_info(&info) {
+        return Ok(Vec::new());
+    }
+    let mlx_config = load_repo_config_json(&repo)
+        .await
+        .unwrap_or_else(|_| info.config.clone());
+    Ok(mlx_variants_from_model_info(repo_id, &info, &mlx_config))
 }
 
-fn mlx_variants_from_model_info(repo_id: &str, info: &ModelInfo) -> Vec<HfModelVariant> {
+async fn load_repo_config_json(
+    repo: &HFRepository<RepoTypeModel>,
+) -> Result<Option<serde_json::Value>> {
+    let config_path = repo
+        .download_file()
+        .filename("config.json".to_string())
+        .send()
+        .await?;
+    let config_json = tokio::fs::read_to_string(config_path).await?;
+    Ok(Some(serde_json::from_str(&config_json)?))
+}
+
+fn mlx_variants_from_model_info(
+    repo_id: &str,
+    info: &ModelInfo,
+    mlx_config: &Option<serde_json::Value>,
+) -> Vec<HfModelVariant> {
     let siblings = info.siblings.as_deref().unwrap_or(&[]);
 
     if !is_mlx_compatible_repo(&info.config, siblings) {
         return Vec::new();
     }
 
-    let size_bytes = mlx_download_filenames(siblings)
-        .into_iter()
-        .filter_map(|filename| {
-            siblings
-                .iter()
-                .find(|s| s.rfilename == filename)
-                .and_then(|s| s.size)
-        })
-        .sum();
+    let size_bytes = mlx_download_size_bytes(info, siblings);
     let variant_id = mlx_variant_id(repo_id, &info.config);
 
     vec![HfModelVariant {
@@ -1601,18 +1624,22 @@ fn mlx_variants_from_model_info(repo_id: &str, info: &ModelInfo) -> Vec<HfModelV
         size_bytes,
         filename: None,
         download_url: None,
-        description: mlx_variant_description(&info.config),
+        description: mlx_variant_description(mlx_config),
         quality_rank: 91,
         sharded: siblings
             .iter()
             .filter(|s| s.rfilename.ends_with(".safetensors"))
             .count()
             > 1,
-        supported: is_mlx_runtime_supported(&info.config)
+        supported: is_mlx_runtime_supported(mlx_config)
             && cfg!(target_os = "macos")
             && cfg!(feature = "mlx"),
-        unsupported_reason: mlx_unsupported_reason(&info.config),
+        unsupported_reason: mlx_unsupported_reason(mlx_config),
     }]
+}
+
+fn is_mlx_compatible_model_info(info: &ModelInfo) -> bool {
+    is_mlx_compatible_repo(&info.config, info.siblings.as_deref().unwrap_or_default())
 }
 
 fn is_mlx_compatible_repo(config: &Option<serde_json::Value>, siblings: &[RepoSibling]) -> bool {
@@ -1623,6 +1650,42 @@ fn is_mlx_compatible_repo(config: &Option<serde_json::Value>, siblings: &[RepoSi
         .any(|s| s.rfilename.ends_with(".safetensors"));
 
     has_config && has_tokenizer && has_safetensors && mlx_model_type(config).is_some()
+}
+
+fn mlx_download_size_bytes(info: &ModelInfo, siblings: &[RepoSibling]) -> u64 {
+    let sibling_size: u64 = mlx_download_filenames(siblings)
+        .into_iter()
+        .filter_map(|filename| {
+            siblings
+                .iter()
+                .find(|s| s.rfilename == filename)
+                .and_then(|s| s.size)
+        })
+        .sum();
+    sibling_size.max(estimated_safetensors_size_bytes(info))
+}
+
+fn estimated_safetensors_size_bytes(info: &ModelInfo) -> u64 {
+    info.safetensors
+        .as_ref()
+        .map(|safetensors| {
+            safetensors
+                .parameters
+                .iter()
+                .map(|(dtype, count)| count.saturating_mul(dtype_size_bytes(dtype)))
+                .sum()
+        })
+        .unwrap_or(0)
+}
+
+fn dtype_size_bytes(dtype: &str) -> u64 {
+    match dtype.to_ascii_uppercase().as_str() {
+        "BOOL" | "I8" | "U8" | "F8_E4M3" | "F8_E4M3FN" | "F8_E5M2" | "F8_E5M2FNUZ" => 1,
+        "BF16" | "F16" | "I16" | "U16" => 2,
+        "F32" | "I32" | "U32" => 4,
+        "F64" | "I64" | "U64" => 8,
+        _ => 0,
+    }
 }
 
 fn has_mlx_tokenizer(siblings: &[RepoSibling]) -> bool {
@@ -1644,22 +1707,8 @@ fn mlx_model_type(config: &Option<serde_json::Value>) -> Option<&str> {
         .and_then(|value| value.as_str())
 }
 
-fn is_mlx_runtime_supported_model_type(model_type: &str) -> bool {
-    matches!(model_type, "gemma4" | "gemma4_text" | "llama" | "qwen3")
-}
-
-fn is_mlx_moe_model(config: &Option<serde_json::Value>) -> bool {
-    config
-        .as_ref()
-        .and_then(|config| config.get("text_config"))
-        .and_then(|text_config| text_config.get("enable_moe_block"))
-        .and_then(|value| value.as_bool())
-        .unwrap_or(false)
-}
-
 fn is_mlx_runtime_supported(config: &Option<serde_json::Value>) -> bool {
-    mlx_model_type(config).is_some_and(is_mlx_runtime_supported_model_type)
-        && !is_mlx_moe_model(config)
+    mlx_config_support(config).is_none()
 }
 
 fn mlx_unsupported_reason(config: &Option<serde_json::Value>) -> Option<String> {
@@ -1670,16 +1719,23 @@ fn mlx_unsupported_reason(config: &Option<serde_json::Value>) -> Option<String> 
         return Some("MLX support was not compiled in".to_string());
     }
 
-    let model_type = mlx_model_type(config)?;
-    if !is_mlx_runtime_supported_model_type(model_type) {
-        return Some(format!(
-            "MLX backend does not support '{}' models yet",
-            model_type
-        ));
-    }
-    if is_mlx_moe_model(config) {
-        return Some("MLX backend does not support Gemma 4 MoE models yet".to_string());
-    }
+    mlx_config_support(config)
+}
+
+fn mlx_config_support(config: &Option<serde_json::Value>) -> Option<String> {
+    let config = config.as_ref()?;
+    mlx_config_support_for_value(config)
+}
+
+#[cfg(feature = "mlx")]
+fn mlx_config_support_for_value(config: &serde_json::Value) -> Option<String> {
+    safemlx_lm::check_model_config(config)
+        .unsupported_reason()
+        .map(str::to_string)
+}
+
+#[cfg(not(feature = "mlx"))]
+fn mlx_config_support_for_value(_config: &serde_json::Value) -> Option<String> {
     None
 }
 
@@ -1959,15 +2015,7 @@ async fn resolve_mlx_model(repo_id: &str, variant_id: &str) -> Result<ResolvedLo
         .await?;
     let siblings = info.siblings.as_deref().unwrap_or(&[]);
     let filenames = mlx_download_filenames(siblings);
-    let total_size = filenames
-        .iter()
-        .filter_map(|filename| {
-            siblings
-                .iter()
-                .find(|s| s.rfilename == *filename)
-                .and_then(|s| s.size)
-        })
-        .sum();
+    let total_size = mlx_download_size_bytes(&info, siblings);
     let progress = HfDownloadProgress::new(repo_id.to_string(), total_size);
     progress.init();
     let mut snapshot_path = None;
@@ -2103,8 +2151,13 @@ impl HfDownloadProgress {
     }
 
     fn finish_file(&self, size_bytes: u64) {
+        let observed_size = self
+            .state
+            .lock()
+            .map(|state| state.current_file_total_bytes.max(state.bytes_downloaded))
+            .unwrap_or(0);
         if let Ok(mut completed_bytes) = self.completed_bytes.lock() {
-            *completed_bytes = completed_bytes.saturating_add(size_bytes);
+            *completed_bytes = completed_bytes.saturating_add(size_bytes.max(observed_size));
         }
         if let Ok(mut state) = self.state.lock() {
             state.bytes_downloaded = 0;
@@ -2117,10 +2170,15 @@ impl HfDownloadProgress {
         let completed_bytes = self.completed_bytes.lock().map(|value| *value).unwrap_or(0);
         if let Ok(state) = self.state.lock() {
             let bytes_downloaded = completed_bytes.saturating_add(state.bytes_downloaded);
+            let total_bytes =
+                self.total_bytes
+                    .max(completed_bytes.saturating_add(
+                        state.current_file_total_bytes.max(state.bytes_downloaded),
+                    ));
             update_download_manager_progress(
                 &self.model_id,
-                bytes_downloaded.min(self.total_bytes),
-                self.total_bytes.max(state.current_file_total_bytes),
+                bytes_downloaded.min(total_bytes),
+                total_bytes,
                 state.speed_bps,
             );
         }
@@ -2152,10 +2210,12 @@ impl ProgressHandler for HfDownloadProgress {
                             file.bytes_completed
                         }
                     })
-                    .max()
-                    .unwrap_or(0);
+                    .sum();
+                let total_bytes = files.iter().map(|file| file.total_bytes).sum();
                 if let Ok(mut state) = self.state.lock() {
                     state.bytes_downloaded = state.bytes_downloaded.max(bytes_downloaded);
+                    state.current_file_total_bytes =
+                        state.current_file_total_bytes.max(total_bytes);
                 }
                 self.update_progress_from_state();
             }
@@ -2168,7 +2228,7 @@ impl ProgressHandler for HfDownloadProgress {
                     return;
                 }
                 if let Ok(mut state) = self.state.lock() {
-                    state.bytes_downloaded = *bytes_completed;
+                    state.bytes_downloaded = state.bytes_downloaded.max(*bytes_completed);
                     state.current_file_total_bytes =
                         (*total_bytes).max(state.current_file_total_bytes);
                     state.speed_bps = bytes_per_sec.map(|speed| speed as u64);
