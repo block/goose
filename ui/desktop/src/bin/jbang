@@ -66,11 +66,15 @@ mkdir -p "${MCP_HERMIT_DIR}/bin"
 log "Changing to directory ${MCP_HERMIT_DIR}."
 cd "${MCP_HERMIT_DIR}"
 
+download_hermit_binary() {
+    curl -fsSL "https://github.com/cashapp/hermit/releases/download/stable/hermit-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/').gz" \
+        | gzip -dc > "${MCP_HERMIT_DIR}/bin/hermit" && chmod +x "${MCP_HERMIT_DIR}/bin/hermit"
+}
+
 # Check if hermit binary exists and download if not
 if [ ! -f "${MCP_HERMIT_DIR}/bin/hermit" ]; then
     log "Hermit binary not found. Downloading hermit binary."
-    curl -fsSL "https://github.com/cashapp/hermit/releases/download/stable/hermit-$(uname -s | tr '[:upper:]' '[:lower:]')-$(uname -m | sed 's/x86_64/amd64/' | sed 's/aarch64/arm64/').gz" \
-        | gzip -dc > "${MCP_HERMIT_DIR}/bin/hermit" && chmod +x "${MCP_HERMIT_DIR}/bin/hermit"
+    download_hermit_binary
     log "Hermit binary downloaded and made executable."
 else
     log "Hermit binary already exists. Skipping download."
@@ -117,7 +121,12 @@ fi
 # Activate the environment with output redirected to log
 if [[ "$(uname -s)" == "Linux" ]]; then
     log "Activating hermit environment."
-    eval "$(hermit env --shell=bash --activate)" >> "$LOG_FILE" 2>&1
+    if ! HERMIT_ENV=$(hermit env --shell=bash --activate 2>> "$LOG_FILE"); then
+        log "Hermit does not support bash activation. Updating hermit binary."
+        download_hermit_binary
+        HERMIT_ENV=$(hermit env --shell=bash --activate)
+    fi
+    eval "${HERMIT_ENV}" >> "$LOG_FILE" 2>&1
 fi
 
 # Install OpenJDK using hermit
