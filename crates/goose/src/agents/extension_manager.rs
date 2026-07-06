@@ -277,16 +277,9 @@ pub fn get_tool_owner(tool: &Tool) -> Option<String> {
 
 /// Map a model-mangled tool name onto a real advertised tool name.
 ///
-/// Some models (GLM, Minimax via OpenAI-compatible providers) mangle tool
-/// names: the "__" extension separator becomes a dot (`developer.shell`), or
-/// an OpenAI-schema `functions.` namespace leaks into the name
-/// (`functions.developer__shell`). See #9486.
-///
-/// Callers must try exact resolution first — this only runs on names that
-/// resolved nowhere, so a legitimate advertised name (which may itself contain
-/// dots) is never rewritten. Recovery is conservative: it fires only when the
-/// mangle-reversal variants match exactly one advertised tool; if different
-/// variants match different tools, the name stays unresolved.
+/// Some OpenAI-compatible models emit `functions.` prefixes or replace Goose's
+/// extension separator with a dot. Recovery is only attempted after exact
+/// resolution fails, and only when one advertised tool matches.
 fn recover_mangled_tool_name<'a>(
     emitted: &str,
     tool_names: impl Iterator<Item = &'a str>,
@@ -296,24 +289,18 @@ fn recover_mangled_tool_name<'a>(
         .strip_prefix("functions.")
         .or_else(|| trimmed.strip_prefix("functions:"))
         .unwrap_or(trimmed);
-    let dotted = stripped.replace('.', "__");
-    let sanitized: String = dotted
-        .chars()
-        .map(|c| {
-            if c.is_ascii_alphanumeric() || c == '_' || c == '-' {
-                c
-            } else {
-                '_'
-            }
-        })
-        .collect();
 
-    let variants = [stripped, dotted.as_str(), sanitized.as_str()];
     let mut matched: Option<&str> = None;
     for name in tool_names {
-        if name == emitted || !variants.contains(&name) {
+        let separator_mangled = name
+            .split_once("__")
+            .map(|(extension, tool)| format!("{extension}.{tool}"));
+
+        let matches = stripped == name || separator_mangled.as_deref() == Some(stripped);
+        if name == emitted || !matches {
             continue;
         }
+
         match matched {
             None => matched = Some(name),
             Some(prev) if prev == name => {}
@@ -2808,11 +2795,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_resolve_tool_ambiguous_mangled_name_stays_not_found() {
-        // "functions.dotted__db.query" reverses to BOTH advertised tools
-        // ("dotted__db.query" via prefix strip, "dotted__db__query" via dot
-        // mapping). Ambiguity must not be guessed at — it stays a recoverable
-        // not-found error.
+    async fn test_resolve_tool_recovers_mangled_separator_with_dotted_tool_name() {
         let temp_dir = tempfile::tempdir().unwrap();
         let extension_manager =
             ExtensionManager::new_without_provider(temp_dir.path().to_path_buf());
@@ -2820,27 +2803,21 @@ mod tests {
             .add_mock_extension("dotted".to_string(), Arc::new(MockDottedClient {}))
             .await;
 
-        let result = extension_manager
-            .resolve_tool("test-session-id", "functions.dotted__db.query")
-            .await;
-        match result {
-            Ok(resolved) => panic!(
-                "ambiguous mangled name must not be guessed; resolved to {}",
-                resolved.tool_name
-            ),
-            Err(e) => assert_eq!(e.code, ErrorCode::RESOURCE_NOT_FOUND),
-        }
+        let resolved = extension_manager
+            .resolve_tool("test-session-id", "dotted.db.query")
+            .await
+            .expect("mangled extension separator should resolve");
+        assert_eq!(resolved.tool_name, "dotted__db.query");
+        assert_eq!(resolved.actual_tool_name, "db.query");
     }
 
     #[test]
     fn test_recover_mangled_tool_name() {
         let tools = ["developer__shell", "platform__search"];
-        // Dot-mangled separator.
         assert_eq!(
             recover_mangled_tool_name("developer.shell", tools.iter().copied()).as_deref(),
             Some("developer__shell")
         );
-        // Leaked functions namespace, with and without further mangling.
         assert_eq!(
             recover_mangled_tool_name("functions.developer__shell", tools.iter().copied())
                 .as_deref(),
@@ -2851,8 +2828,6 @@ mod tests {
                 .as_deref(),
             Some("developer__shell")
         );
-        // Stray invalid characters sanitize to '_' (replacement, not removal),
-        // so these match no advertised tool and stay unrecovered.
         assert_eq!(
             recover_mangled_tool_name("developer shell", tools.iter().copied()),
             None
@@ -2861,16 +2836,15 @@ mod tests {
             recover_mangled_tool_name("developer__shell!", tools.iter().copied()),
             None
         );
-        // No match at all.
         assert_eq!(
             recover_mangled_tool_name("nonexistent.tool", tools.iter().copied()),
             None
         );
-        // Ambiguity between variants matching different tools → refuse.
-        let ambiguous = ["a__b.c", "a__b__c"];
+
+        let dotted_tool = ["dotted__db.query"];
         assert_eq!(
-            recover_mangled_tool_name("functions.a__b.c", ambiguous.iter().copied()),
-            None
+            recover_mangled_tool_name("dotted.db.query", dotted_tool.iter().copied()).as_deref(),
+            Some("dotted__db.query")
         );
     }
 
